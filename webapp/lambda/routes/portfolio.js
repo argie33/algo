@@ -1376,7 +1376,7 @@ router.get("/benchmark", async (req, res) => {
     const benchmarkQuery = `
       SELECT 
         date,
-        price,
+        close as price,
         volume
       FROM price_daily
       WHERE symbol = $1
@@ -1605,9 +1605,7 @@ router.get("/rebalance", async (req, res) => {
       SELECT 
         ph.symbol, ph.quantity, ph.market_value, ph.current_price,
         'Unknown' as sector,
-        CASE 
-          ELSE 'unknown'
-        END as market_cap_tier
+        'unknown' as market_cap_tier
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol 
         AND md.date = (SELECT MAX(date) FROM price_daily WHERE price_daily.symbol = ph.symbol)
@@ -2619,9 +2617,12 @@ router.get("/metrics", async (req, res) => {
     const holdingsQuery = `
       SELECT symbol, quantity, market_value, average_cost, current_price,
              cost_basis, (market_value - cost_basis) as unrealized_pnl,
-             ((market_value - cost_basis) / cost_basis * 100) as unrealized_pnl_percent
-      FROM portfolio_holdings 
-      WHERE user_id = $1 AND quantity > 0 
+             CASE
+               WHEN cost_basis = 0 OR cost_basis IS NULL THEN 0
+               ELSE ((market_value - cost_basis) / cost_basis * 100)
+             END as unrealized_pnl_percent
+      FROM portfolio_holdings
+      WHERE user_id = $1 AND quantity > 0
       ORDER BY market_value DESC
     `;
 
@@ -4387,9 +4388,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
         ph.symbol, ph.quantity, ph.average_cost as average_price, 
         ph.market_value, 
         'Technology' as sector,
-        CASE 
-          ELSE 'unknown'
-        END as market_cap_tier
+        'unknown' as market_cap_tier
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0 
@@ -4607,9 +4606,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
         ph.symbol, ph.quantity, ph.average_cost as average_price, ph.market_value,
         'Technology' as sector, 
         'Technology' as industry,
-        CASE 
-          ELSE 'unknown'
-        END as market_cap_tier,
+        'unknown' as market_cap_tier,
         'US' as country
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol

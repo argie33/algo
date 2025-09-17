@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">3.83% </span>
+                <span class="strong">3.8% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>24/626</span>
+                <span class='fraction'>24/630</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0.98% </span>
+                <span class="strong">0.96% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>4/405</span>
+                <span class='fraction'>4/415</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">3.92% </span>
+                <span class="strong">3.9% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>24/611</span>
+                <span class='fraction'>24/615</span>
             </div>
         
             
@@ -2140,7 +2140,25 @@
 <a name='L2075'></a><a href='#L2075'>2075</a>
 <a name='L2076'></a><a href='#L2076'>2076</a>
 <a name='L2077'></a><a href='#L2077'>2077</a>
-<a name='L2078'></a><a href='#L2078'>2078</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L2078'></a><a href='#L2078'>2078</a>
+<a name='L2079'></a><a href='#L2079'>2079</a>
+<a name='L2080'></a><a href='#L2080'>2080</a>
+<a name='L2081'></a><a href='#L2081'>2081</a>
+<a name='L2082'></a><a href='#L2082'>2082</a>
+<a name='L2083'></a><a href='#L2083'>2083</a>
+<a name='L2084'></a><a href='#L2084'>2084</a>
+<a name='L2085'></a><a href='#L2085'>2085</a>
+<a name='L2086'></a><a href='#L2086'>2086</a>
+<a name='L2087'></a><a href='#L2087'>2087</a>
+<a name='L2088'></a><a href='#L2088'>2088</a>
+<a name='L2089'></a><a href='#L2089'>2089</a>
+<a name='L2090'></a><a href='#L2090'>2090</a>
+<a name='L2091'></a><a href='#L2091'>2091</a>
+<a name='L2092'></a><a href='#L2092'>2092</a>
+<a name='L2093'></a><a href='#L2093'>2093</a>
+<a name='L2094'></a><a href='#L2094'>2094</a>
+<a name='L2095'></a><a href='#L2095'>2095</a>
+<a name='L2096'></a><a href='#L2096'>2096</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -4144,6 +4162,24 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -4151,14 +4187,14 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -6221,9 +6257,18 @@ class LiveDataManager extends EventEmitter {
 <span class="fstat-no" title="function not covered" >  ge</span>tRealTimeMetrics() {
     let totalRequests = <span class="cstat-no" title="statement not covered" >0;</span>
     let totalSubscribers = <span class="cstat-no" title="statement not covered" >0;</span>
+    const providers = <span class="cstat-no" title="statement not covered" >{};</span>
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    this.providers.forEach(<span class="fstat-no" title="function not covered" >(p</span>rovider) =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >      totalRequests += provider.usage?.requestsThisMonth || 0;</span>
+<span class="cstat-no" title="statement not covered" >    this.providers.forEach(<span class="fstat-no" title="function not covered" >(p</span>rovider, providerId) =&gt; {</span>
+      const requests = <span class="cstat-no" title="statement not covered" >provider.usage?.requestsToday || 0;</span>
+<span class="cstat-no" title="statement not covered" >      totalRequests += requests;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      providers[providerId] = {</span>
+        requests,
+        connections: provider.connections?.size || 0,
+        status: provider.status || 'active',
+        latency: provider.metrics?.latency || []
+      };
     });
 &nbsp;
     // Ensure symbolSubscriptions is initialized
@@ -6235,11 +6280,20 @@ class LiveDataManager extends EventEmitter {
 <span class="cstat-no" title="statement not covered" >      totalSubscribers += subscribers.size;</span>
     });
 &nbsp;
+    // Calculate system health based on active providers and connections
+    const systemHealth = <span class="cstat-no" title="statement not covered" >{</span>
+      status: this.providers.size &gt; 0 ? 'healthy' : 'degraded',
+      uptime: Date.now() - (this.startTime || Date.now()),
+      lastUpdate: new Date().toISOString()
+    };
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    return {</span>
       totalRequests,
       totalSubscribers,
       activeProviders: this.providers.size,
       activeConnections: this.connectionPool.size,
+      systemHealth,
+      providers
     };
   }
 &nbsp;
@@ -6301,7 +6355,7 @@ module.exports.instance = new LiveDataManager();
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-15T20:58:36.433Z
+                at 2025-09-17T13:50:28.951Z
             </div>
         <script src="../prettify.js"></script>
         <script>

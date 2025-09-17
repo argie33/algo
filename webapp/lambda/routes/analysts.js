@@ -362,7 +362,7 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
 
     let revenueGrowthRates = [];
     let epsGrowthRates = [];
-    let projectedRevenue = null;
+    let _projectedRevenue = null;
     let projectedEPS = null;
 
     // Calculate historical EPS growth from financial data
@@ -1456,6 +1456,27 @@ router.get("/research", async (req, res) => {
       success: false,
       error: "Failed to fetch research reports",
       message: error.message,
+    });
+  }
+});
+
+
+// Analyst recommendations
+router.get("/recommendations", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        recommendations: []
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Analyst recommendations unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });

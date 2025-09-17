@@ -11,6 +11,63 @@ const router = express.Router();
 // Apply response formatter middleware to all routes
 router.use(responseFormatter);
 
+// Root endpoint - List trades with filters (requires authentication)
+router.get("/", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const {
+      limit = 50,
+      status = "all",
+      symbol,
+      offset = 0
+    } = req.query;
+
+    let query_str = `
+      SELECT trade_id, symbol, side, quantity, status, type,
+             executed_at, average_fill_price, filled_quantity,
+             created_at, updated_at
+      FROM trades
+      WHERE user_id = $1
+    `;
+    const queryParams = [userId];
+    let paramIndex = 2;
+
+    if (status !== "all") {
+      query_str += ` AND status = $${paramIndex}`;
+      queryParams.push(status);
+      paramIndex++;
+    }
+
+    if (symbol) {
+      query_str += ` AND symbol = $${paramIndex}`;
+      queryParams.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    query_str += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    queryParams.push(parseInt(limit), parseInt(offset));
+
+    const result = await query(query_str, queryParams);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      meta: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        count: result.rows.length
+      }
+    });
+  } catch (error) {
+    console.error("Error listing trades:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to list trades",
+      message: error.message
+    });
+  }
+});
+
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
   res.json({
@@ -20,6 +77,85 @@ router.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     message: "Trade History service is running",
   });
+});
+
+// Create new trade (POST)
+router.post("/", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const {
+      symbol,
+      side,
+      quantity,
+      type = "market",
+      limit_price,
+      stop_price,
+      time_in_force = "day"
+    } = req.body;
+
+    // Validate required fields
+    if (!symbol || !side || !quantity) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields",
+        message: "symbol, side, and quantity are required"
+      });
+    }
+
+    // Validate side
+    if (!["buy", "sell"].includes(side.toLowerCase())) {
+      return res.status(422).json({
+        success: false,
+        error: "Invalid side",
+        message: "side must be 'buy' or 'sell'"
+      });
+    }
+
+    // Validate quantity
+    if (quantity <= 0) {
+      return res.status(422).json({
+        success: false,
+        error: "Invalid quantity",
+        message: "quantity must be greater than 0"
+      });
+    }
+
+    // Create trade record
+    const trade_id = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const insertQuery = `
+      INSERT INTO trades (
+        trade_id, user_id, symbol, side, quantity, type,
+        limit_price, stop_price, time_in_force, status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      RETURNING trade_id, symbol, side, quantity, type, status, created_at
+    `;
+
+    const result = await query(insertQuery, [
+      trade_id,
+      userId,
+      symbol.toUpperCase(),
+      side.toLowerCase(),
+      parseFloat(quantity),
+      type,
+      limit_price ? parseFloat(limit_price) : null,
+      stop_price ? parseFloat(stop_price) : null,
+      time_in_force,
+      "pending"
+    ]);
+
+    res.status(201).json({
+      success: true,
+      data: result.rows[0],
+      message: "Trade created successfully"
+    });
+  } catch (error) {
+    console.error("Error creating trade:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create trade",
+      message: error.message
+    });
+  }
 });
 
 // Get recent trades for user
@@ -56,12 +192,12 @@ router.get("/recent", authenticateToken, async (req, res) => {
           th.created_at,
           -- Calculate PnL (simplified)
           CASE 
-            WHEN th.side = 'buy' THEN (pd.close_price - th.price) * th.quantity
-            WHEN th.side = 'sell' THEN (th.price - pd.close_price) * th.quantity
+            WHEN th.side = 'buy' THEN (pd.close - th.price) * th.quantity
+            WHEN th.side = 'sell' THEN (th.price - pd.close) * th.quantity
             ELSE 0
           END as unrealized_pnl,
           -- Get current market data
-          pd.close_price as current_price,
+          pd.close as current_price,
           pd.change_percent as daily_change,
           -- Calculate position info
           CASE 
@@ -294,23 +430,22 @@ router.get("/recent", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Recent trades error:", error);
+    const { limit = 20, days = 7, symbol, type = "all" } = req.query;
     res.status(500).json({
       success: false,
-      error: "Failed to fetch recent trades",
+      error: "Recent trades not implemented",
+      message: "Recent trades feature is temporarily disabled",
       details: error.message,
+      filters: {
+        limit: parseInt(limit),
+        days: parseInt(days),
+        symbol: symbol || null,
+        type: type,
+      },
     });
   }
 });
 
-// Basic root endpoint (protected)
-router.get("/", authenticateToken, (req, res) => {
-  res.json({
-    success: true,
-    message: "Trade History API - Ready",
-    timestamp: new Date().toISOString(),
-    status: "operational",
-  });
-});
 
 // Helper functions to replace missing userApiKeyHelper
 const validateUserAuthentication = (req) => {
@@ -361,11 +496,11 @@ class TradeAnalyticsService {
         try {
           const insertQuery = `
             INSERT INTO portfolio_transactions (
-              user_id, symbol, side, quantity, price, 
-              order_id, filled_at, created_at, pnl
+              user_id, symbol, transaction_type, quantity, price,
+              external_id, transaction_date, created_at, total_amount
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)
-            ON CONFLICT (order_id) DO NOTHING
-            RETURNING id
+            ON CONFLICT (user_id, external_id, broker) DO NOTHING
+            RETURNING transaction_id
           `;
 
           // Calculate basic P&L (simplified - would need more complex logic for actual P&L)
@@ -489,19 +624,19 @@ class TradeAnalyticsService {
     try {
       // Get detailed trade insights
       const insightsQuery = `
-        SELECT 
+        SELECT
           symbol,
-          side,
+          transaction_type as side,
           quantity,
           price,
-          pnl,
+          total_amount as pnl,
           created_at,
-          CASE 
-            WHEN pnl > 0 THEN 'profit'
-            WHEN pnl < 0 THEN 'loss'
+          CASE
+            WHEN total_amount > 0 THEN 'profit'
+            WHEN total_amount < 0 THEN 'loss'
             ELSE 'neutral'
           END as result_type
-        FROM portfolio_transactions 
+        FROM portfolio_transactions
         WHERE user_id = $1
         ORDER BY created_at DESC
         LIMIT $2
@@ -1636,6 +1771,7 @@ router.get("/insights", authenticateToken, async (req, res) => {
     );
 
     res.json({
+      success: true,
       data: {
         insights,
         total: insights.length,
@@ -1692,6 +1828,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
     );
 
     res.json({
+      success: true,
       data: {
         benchmarks: benchmarkResult.rows,
         portfolio: portfolioResult.rows[0] || null,
@@ -2599,5 +2736,208 @@ function generatePatternAnalysis(trades, timeframe) {
     },
   };
 }
+
+// Update existing trade (PUT)
+router.put("/:id", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const tradeId = req.params.id;
+    const {
+      quantity,
+      limit_price,
+      stop_price,
+      time_in_force
+    } = req.body;
+
+    // Check if trade exists and belongs to user
+    const checkQuery = `
+      SELECT trade_id, status FROM trades
+      WHERE trade_id = $1 AND user_id = $2
+    `;
+    const checkResult = await query(checkQuery, [tradeId, userId]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Trade not found",
+        message: "Trade does not exist or you don't have permission to modify it"
+      });
+    }
+
+    // Only allow updates to pending trades
+    if (checkResult.rows[0].status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        error: "Cannot modify trade",
+        message: "Only pending trades can be modified"
+      });
+    }
+
+    // Build update query dynamically
+    const updateFields = [];
+    const updateValues = [];
+    let paramIndex = 1;
+
+    if (quantity !== undefined) {
+      updateFields.push(`quantity = $${paramIndex}`);
+      updateValues.push(parseFloat(quantity));
+      paramIndex++;
+    }
+
+    if (limit_price !== undefined) {
+      updateFields.push(`limit_price = $${paramIndex}`);
+      updateValues.push(limit_price ? parseFloat(limit_price) : null);
+      paramIndex++;
+    }
+
+    if (stop_price !== undefined) {
+      updateFields.push(`stop_price = $${paramIndex}`);
+      updateValues.push(stop_price ? parseFloat(stop_price) : null);
+      paramIndex++;
+    }
+
+    if (time_in_force !== undefined) {
+      updateFields.push(`time_in_force = $${paramIndex}`);
+      updateValues.push(time_in_force);
+      paramIndex++;
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No fields to update",
+        message: "At least one field must be provided for update"
+      });
+    }
+
+    updateFields.push(`updated_at = NOW()`);
+    updateValues.push(tradeId, userId);
+
+    const updateQuery = `
+      UPDATE trades
+      SET ${updateFields.join(", ")}
+      WHERE trade_id = $${paramIndex} AND user_id = $${paramIndex + 1}
+      RETURNING trade_id, symbol, side, quantity, type, status, updated_at
+    `;
+
+    const result = await query(updateQuery, updateValues);
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: "Trade updated successfully"
+    });
+  } catch (error) {
+    console.error("Error updating trade:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update trade",
+      message: error.message
+    });
+  }
+});
+
+// Delete/Cancel trade (DELETE)
+router.delete("/:id", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const tradeId = req.params.id;
+
+    // Check if trade exists and belongs to user
+    const checkQuery = `
+      SELECT trade_id, status FROM trades
+      WHERE trade_id = $1 AND user_id = $2
+    `;
+    const checkResult = await query(checkQuery, [tradeId, userId]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Trade not found",
+        message: "Trade does not exist or you don't have permission to delete it"
+      });
+    }
+
+    const trade = checkResult.rows[0];
+
+    if (trade.status === "pending") {
+      // Cancel pending trade
+      const cancelQuery = `
+        UPDATE trades
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE trade_id = $1 AND user_id = $2
+        RETURNING trade_id, status, updated_at
+      `;
+      const result = await query(cancelQuery, [tradeId, userId]);
+
+      res.json({
+        success: true,
+        data: result.rows[0],
+        message: "Trade cancelled successfully"
+      });
+    } else {
+      // For executed trades, just soft delete or mark as archived
+      const archiveQuery = `
+        UPDATE trades
+        SET archived = true, updated_at = NOW()
+        WHERE trade_id = $1 AND user_id = $2
+        RETURNING trade_id, archived, updated_at
+      `;
+      const result = await query(archiveQuery, [tradeId, userId]);
+
+      res.json({
+        success: true,
+        data: result.rows[0],
+        message: "Trade archived successfully"
+      });
+    }
+  } catch (error) {
+    console.error("Error deleting trade:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete trade",
+      message: error.message
+    });
+  }
+});
+
+// Get single trade by ID
+router.get("/:id", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const tradeId = req.params.id;
+
+    const tradeQuery = `
+      SELECT trade_id, symbol, side, quantity, type, status,
+             limit_price, stop_price, time_in_force,
+             executed_at, average_fill_price, filled_quantity,
+             created_at, updated_at
+      FROM trades
+      WHERE trade_id = $1 AND user_id = $2
+    `;
+
+    const result = await query(tradeQuery, [tradeId, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Trade not found",
+        message: "Trade does not exist or you don't have permission to view it"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Error fetching trade:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch trade",
+      message: error.message
+    });
+  }
+});
 
 module.exports = router;

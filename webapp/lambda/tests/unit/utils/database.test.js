@@ -4,7 +4,7 @@
  * These tests focus on our code logic, not external database connections
  */
 
-// Mock external dependencies
+// Define mocks before any imports
 const mockPool = {
   query: jest.fn(),
   end: jest.fn(),
@@ -20,10 +20,13 @@ const mockClient = {
   release: jest.fn(),
 };
 
+// Mock pg module completely
+const mockPoolConstructor = jest.fn().mockImplementation(() => mockPool);
 jest.mock("pg", () => ({
-  Pool: jest.fn(() => mockPool),
+  Pool: mockPoolConstructor,
 }));
 
+// Mock AWS SDK
 jest.mock("@aws-sdk/client-secrets-manager", () => ({
   SecretsManagerClient: jest.fn(),
   GetSecretValueCommand: jest.fn(),
@@ -42,6 +45,7 @@ jest.mock("../../../utils/logger", () => ({
   warn: jest.fn(),
 }));
 
+const { Pool } = require("pg");
 const {
   query,
   initializeDatabase,
@@ -51,16 +55,24 @@ const {
   getPool,
 } = require("../../../utils/database");
 
-const { Pool } = require("pg");
-
 describe("Database Utilities - Unit Tests", () => {
   let originalEnv;
 
   beforeEach(() => {
     jest.clearAllMocks();
     originalEnv = { ...process.env };
+
+    // Setup successful Pool and client mocks
     mockPool.connect.mockResolvedValue(mockClient);
     mockClient.query.mockResolvedValue({ rows: [{ now: new Date() }] });
+    mockClient.release.mockImplementation(() => {});
+
+    // Clear the Pool constructor mock
+    mockPoolConstructor.mockClear();
+
+    // Reset database module internal state
+    // Force close any existing connections to reset state
+    closeDatabase();
   });
 
   afterEach(() => {
@@ -85,9 +97,12 @@ describe("Database Utilities - Unit Tests", () => {
       process.env.DB_PASSWORD = "password";
       process.env.DB_NAME = "stocks";
 
+      // Ensure clean state by closing any existing connections
+      await closeDatabase();
+
       const result = await initializeDatabase();
 
-      expect(Pool).toHaveBeenCalled();
+      expect(mockPoolConstructor).toHaveBeenCalled();
       expect(result).toBeDefined();
       expect(typeof result).toBe("object");
     });

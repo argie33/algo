@@ -522,97 +522,69 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
 
     console.log(`Balance sheet request for ${ticker}, period: ${period}`);
 
-    // Return fake balance sheet data in same format as income statement
-    const fakeBalanceSheetData = [
-      {
-        symbol: ticker.toUpperCase(),
-        date: 2024,
-        totalAssets: 365725000000,
-        currentAssets: 143566000000,
-        cashAndEquivalents: 73100000000,
-        inventory: 6331000000,
-        totalLiabilities: 290437000000,
-        currentLiabilities: 133973000000,
-        longTermDebt: 104590000000,
-        totalEquity: 75288000000,
-        retainedEarnings: 214403000000,
-        raw: {
-          symbol: ticker.toUpperCase(),
-          date: 2024,
-          total_assets: "365725000000.00",
-          current_assets: "143566000000.00",
-          cash_and_equivalents: "73100000000.00",
-          inventory: "6331000000.00",
-          total_liabilities: "290437000000.00",
-          current_liabilities: "133973000000.00",
-          long_term_debt: "104590000000.00",
-          total_equity: "75288000000.00",
-          retained_earnings: "214403000000.00",
-        },
-      },
-      {
-        symbol: ticker.toUpperCase(),
-        date: 2023,
-        totalAssets: 352755000000,
-        currentAssets: 143566000000,
-        cashAndEquivalents: 61555000000,
-        inventory: 6511000000,
-        totalLiabilities: 290020000000,
-        currentLiabilities: 145308000000,
-        longTermDebt: 106550000000,
-        totalEquity: 62146000000,
-        retainedEarnings: 175897000000,
-        raw: {
-          symbol: ticker.toUpperCase(),
-          date: 2023,
-          total_assets: "352755000000.00",
-          current_assets: "143566000000.00",
-          cash_and_equivalents: "61555000000.00",
-          inventory: "6511000000.00",
-          total_liabilities: "290020000000.00",
-          current_liabilities: "145308000000.00",
-          long_term_debt: "106550000000.00",
-          total_equity: "62146000000.00",
-          retained_earnings: "175897000000.00",
-        },
-      },
-      {
-        symbol: ticker.toUpperCase(),
-        date: 2022,
-        totalAssets: 352583000000,
-        currentAssets: 135405000000,
-        cashAndEquivalents: 48844000000,
-        inventory: 4946000000,
-        totalLiabilities: 302083000000,
-        currentLiabilities: 153982000000,
-        longTermDebt: 98959000000,
-        totalEquity: 50672000000,
-        retainedEarnings: 162814000000,
-        raw: {
-          symbol: ticker.toUpperCase(),
-          date: 2022,
-          total_assets: "352583000000.00",
-          current_assets: "135405000000.00",
-          cash_and_equivalents: "48844000000.00",
-          inventory: "4946000000.00",
-          total_liabilities: "302083000000.00",
-          current_liabilities: "153982000000.00",
-          long_term_debt: "98959000000.00",
-          total_equity: "50672000000.00",
-          retained_earnings: "162814000000.00",
-        },
-      },
-    ];
+    // Determine table name based on period
+    let tableName = "annual_balance_sheet";
+    if (period === "quarterly") {
+      tableName = "quarterly_balance_sheet";
+    }
+
+    // Query the balance sheet table with new item_name/value schema
+    const balanceSheetQuery = `
+      WITH balance_sheet_pivot AS (
+        SELECT
+          symbol,
+          date,
+          MAX(CASE WHEN item_name = 'Total Assets' THEN value::numeric ELSE 0 END) as total_assets,
+          MAX(CASE WHEN item_name = 'Current Assets' THEN value::numeric ELSE 0 END) as current_assets,
+          MAX(CASE WHEN item_name = 'Cash And Cash Equivalents' THEN value::numeric ELSE 0 END) as cash_and_equivalents,
+          MAX(CASE WHEN item_name = 'Total Liabilities' THEN value::numeric ELSE 0 END) as total_liabilities,
+          MAX(CASE WHEN item_name = 'Current Liabilities' THEN value::numeric ELSE 0 END) as current_liabilities,
+          MAX(CASE WHEN item_name = 'Total Equity' THEN value::numeric ELSE 0 END) as total_equity
+        FROM ${tableName}
+        WHERE UPPER(symbol) = UPPER($1)
+        GROUP BY symbol, date
+      )
+      SELECT
+        symbol,
+        date,
+        total_assets as "totalAssets",
+        current_assets as "currentAssets",
+        cash_and_equivalents as "cashAndEquivalents",
+        0 as "inventory",
+        total_liabilities as "totalLiabilities",
+        current_liabilities as "currentLiabilities",
+        0 as "longTermDebt",
+        total_equity as "totalEquity",
+        0 as "retainedEarnings",
+        json_build_object(
+          'symbol', symbol,
+          'date', date,
+          'total_assets', total_assets::text,
+          'current_assets', current_assets::text,
+          'cash_and_equivalents', cash_and_equivalents::text,
+          'inventory', '0',
+          'total_liabilities', total_liabilities::text,
+          'current_liabilities', current_liabilities::text,
+          'long_term_debt', '0',
+          'total_equity', total_equity::text,
+          'retained_earnings', '0'
+        ) as raw
+      FROM balance_sheet_pivot
+      ORDER BY date DESC
+      LIMIT 10
+    `;
+
+    const result = await query(balanceSheetQuery, [ticker]);
 
     return res.status(200).json({
       success: true,
-      data: fakeBalanceSheetData,
+      data: result.rows,
       metadata: {
         ticker: ticker.toUpperCase(),
         period: period,
-        count: fakeBalanceSheetData.length,
+        count: result.rows.length,
         timestamp: new Date().toISOString(),
-        dataSource: "fake_test_data",
+        dataSource: "database"
       },
     });
   } catch (error) {
@@ -900,6 +872,152 @@ router.get("/:ticker/cash-flow", async (req, res) => {
       message: error.message,
       details:
         "Check if cash flow table exists and contains data for this ticker",
+    });
+  }
+});
+
+// Get comprehensive financial statements for a ticker (balance sheet, income statement, cash flow)
+router.get("/:ticker/statements", async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const { period = "annual" } = req.query;
+
+    console.log(`Comprehensive financial statements request for ${ticker}, period: ${period}`);
+
+    // Determine table names based on period
+    let balanceSheetTable = "annual_balance_sheet";
+    let incomeStatementTable = "annual_income_statement";
+    let cashFlowTable = "annual_cash_flow";
+
+    if (period === "quarterly") {
+      balanceSheetTable = "quarterly_balance_sheet";
+      incomeStatementTable = "quarterly_income_statement";
+      cashFlowTable = "quarterly_cash_flow";
+    }
+
+    // Get all three statements from the new schema
+    const balanceSheetQuery = `
+      WITH balance_sheet_pivot AS (
+        SELECT
+          symbol, date,
+          MAX(CASE WHEN item_name = 'Total Assets' THEN value::numeric ELSE 0 END) as total_assets,
+          MAX(CASE WHEN item_name = 'Total Liabilities' THEN value::numeric ELSE 0 END) as total_liabilities,
+          MAX(CASE WHEN item_name = 'Total Equity' THEN value::numeric ELSE 0 END) as total_equity,
+          MAX(CASE WHEN item_name = 'Current Assets' THEN value::numeric ELSE 0 END) as current_assets,
+          MAX(CASE WHEN item_name = 'Current Liabilities' THEN value::numeric ELSE 0 END) as current_liabilities,
+          MAX(CASE WHEN item_name = 'Cash And Cash Equivalents' THEN value::numeric ELSE 0 END) as cash_and_equivalents
+        FROM ${balanceSheetTable}
+        WHERE UPPER(symbol) = UPPER($1)
+        GROUP BY symbol, date
+      )
+      SELECT
+        symbol,
+        date,
+        total_assets,
+        total_liabilities,
+        total_equity,
+        current_assets,
+        current_liabilities,
+        cash_and_equivalents,
+        CASE
+          WHEN current_liabilities > 0 THEN ROUND((current_assets::numeric / current_liabilities::numeric), 2)
+          ELSE 0
+        END as current_ratio
+      FROM balance_sheet_pivot
+      ORDER BY date DESC
+      LIMIT 5
+    `;
+
+    const incomeStatementQuery = `
+      WITH income_pivot AS (
+        SELECT
+          symbol, date,
+          MAX(CASE WHEN item_name = 'Total Revenue' THEN value::numeric ELSE 0 END) as revenue,
+          MAX(CASE WHEN item_name = 'Gross Profit' THEN value::numeric ELSE 0 END) as gross_profit,
+          MAX(CASE WHEN item_name = 'Operating Income' THEN value::numeric ELSE 0 END) as operating_income,
+          MAX(CASE WHEN item_name = 'Net Income' THEN value::numeric ELSE 0 END) as net_income,
+          MAX(CASE WHEN item_name = 'Basic EPS' THEN value::numeric ELSE 0 END) as earnings_per_share
+        FROM ${incomeStatementTable}
+        WHERE UPPER(symbol) = UPPER($1)
+        GROUP BY symbol, date
+      )
+      SELECT
+        symbol,
+        date,
+        revenue,
+        gross_profit,
+        operating_income,
+        net_income,
+        earnings_per_share,
+        CASE
+          WHEN revenue > 0 THEN ROUND((gross_profit::numeric / revenue::numeric * 100), 2)
+          ELSE 0
+        END as gross_margin_percent
+      FROM income_pivot
+      ORDER BY date DESC
+      LIMIT 5
+    `;
+
+    const cashFlowQuery = `
+      WITH cash_flow_pivot AS (
+        SELECT
+          symbol, date,
+          MAX(CASE WHEN item_name = 'Operating Cash Flow' THEN value::numeric ELSE 0 END) as operating_cash_flow,
+          MAX(CASE WHEN item_name = 'Free Cash Flow' THEN value::numeric ELSE 0 END) as free_cash_flow,
+          MAX(CASE WHEN item_name = 'Capital Expenditures' THEN value::numeric ELSE 0 END) as capital_expenditures,
+          MAX(CASE WHEN item_name = 'Dividends Paid' THEN value::numeric ELSE 0 END) as dividends_paid
+        FROM ${cashFlowTable}
+        WHERE UPPER(symbol) = UPPER($1)
+        GROUP BY symbol, date
+      )
+      SELECT
+        symbol,
+        date,
+        operating_cash_flow,
+        free_cash_flow,
+        capital_expenditures,
+        dividends_paid
+      FROM cash_flow_pivot
+      ORDER BY date DESC
+      LIMIT 5
+    `;
+
+    // Execute all queries in parallel
+    const [balanceSheetResult, incomeStatementResult, cashFlowResult] = await Promise.all([
+      query(balanceSheetQuery, [ticker]),
+      query(incomeStatementQuery, [ticker]),
+      query(cashFlowQuery, [ticker])
+    ]);
+
+    const result = {
+      symbol: ticker.toUpperCase(),
+      period: period,
+      statements: {
+        balance_sheet: balanceSheetResult.rows,
+        income_statement: incomeStatementResult.rows,
+        cash_flow: cashFlowResult.rows
+      },
+      summary: {
+        balance_sheet_records: balanceSheetResult.rows.length,
+        income_statement_records: incomeStatementResult.rows.length,
+        cash_flow_records: cashFlowResult.rows.length,
+        total_records: balanceSheetResult.rows.length + incomeStatementResult.rows.length + cashFlowResult.rows.length
+      }
+    };
+
+    res.json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error(`Financial statements error for ${req.params.ticker}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch comprehensive financial statements",
+      message: error.message,
+      details: "Check if financial tables exist and contain data for this ticker"
     });
   }
 });

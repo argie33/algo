@@ -25,8 +25,12 @@ router.get("/", (req, res) => {
   res.json({
     success: true,
     message: "Performance Analytics API - Ready",
+    data: {
+      status: "operational",
+      service: "performance-analytics",
+      endpoints: ["api", "health", "system", "database"]
+    },
     timestamp: new Date().toISOString(),
-    status: "operational",
   });
 });
 

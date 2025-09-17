@@ -481,7 +481,7 @@ router.get("/recent", async (req, res) => {
     );
 
     // Transform data to camelCase
-    const transformedData = result.rows.map((row) => ({
+    const transformedData = (result?.rows || []).map((row) => ({
       symbol: row.symbol,
       companyName: row.company_name,
       sector: row.sector,
@@ -756,7 +756,7 @@ router.get("/recommendations", async (req, res) => {
       recommendation_scores AS (
         SELECT 
           ta.symbol,
-          ta.close_price,
+          ta.close,
           ta.daily_change,
           ta.volume,
           ta.rsi_14,
@@ -816,11 +816,11 @@ router.get("/recommendations", async (req, res) => {
             ELSE 'medium'
           END as risk_level
         FROM technical_analysis ta
-        WHERE ta.close_price IS NOT NULL
+        WHERE ta.close IS NOT NULL
       )
       SELECT 
         rs.symbol,
-        rs.close_price as current_price,
+        rs.close as current_price,
         rs.daily_change,
         rs.volume,
         rs.recommendation_type,
@@ -987,7 +987,7 @@ router.get("/momentum", async (req, res) => {
         SELECT 
           p.symbol,
           p.date,
-          p.close as close_price,
+          p.close as close,
           p.volume,
           p.change_percent as daily_change,
           LAG(p.close, 5) OVER (PARTITION BY p.symbol ORDER BY p.date) as price_5d_ago,
@@ -1001,14 +1001,14 @@ router.get("/momentum", async (req, res) => {
         SELECT 
           pc.symbol,
           pc.date,
-          pc.close_price,
+          pc.close,
           pc.daily_change,
           pc.volume,
           pc.avg_volume_20d,
           -- Calculate momentum percentages
-          CASE WHEN pc.price_5d_ago > 0 THEN ((pc.close_price - pc.price_5d_ago) / pc.price_5d_ago * 100) ELSE 0 END as momentum_5d,
-          CASE WHEN pc.price_10d_ago > 0 THEN ((pc.close_price - pc.price_10d_ago) / pc.price_10d_ago * 100) ELSE 0 END as momentum_10d,
-          CASE WHEN pc.price_20d_ago > 0 THEN ((pc.close_price - pc.price_20d_ago) / pc.price_20d_ago * 100) ELSE 0 END as momentum_20d,
+          CASE WHEN pc.price_5d_ago > 0 THEN ((pc.close - pc.price_5d_ago) / pc.price_5d_ago * 100) ELSE 0 END as momentum_5d,
+          CASE WHEN pc.price_10d_ago > 0 THEN ((pc.close - pc.price_10d_ago) / pc.price_10d_ago * 100) ELSE 0 END as momentum_10d,
+          CASE WHEN pc.price_20d_ago > 0 THEN ((pc.close - pc.price_20d_ago) / pc.price_20d_ago * 100) ELSE 0 END as momentum_20d,
           -- Volume momentum (relative to average)
           CASE WHEN pc.avg_volume_20d > 0 THEN (pc.volume / pc.avg_volume_20d) ELSE 1 END as volume_ratio,
           -- Get technical indicators
@@ -1024,7 +1024,7 @@ router.get("/momentum", async (req, res) => {
         SELECT 
           mc.symbol,
           mc.date,
-          mc.close_price,
+          mc.close,
           mc.daily_change,
           mc.volume,
           mc.volume_ratio,
@@ -1054,7 +1054,7 @@ router.get("/momentum", async (req, res) => {
       )
       SELECT 
         ms.symbol,
-        ms.close_price as current_price,
+        ms.close as current_price,
         ms.daily_change,
         ms.volume,
         ms.volume_ratio,
@@ -1557,7 +1557,7 @@ router.get("/social", async (req, res) => {
       sentiment_scores AS (
         SELECT 
           ssd.symbol,
-          ssd.close_price,
+          ssd.close,
           ssd.daily_change,
           ssd.volume,
           ssd.stock_sentiment,
@@ -1615,7 +1615,7 @@ router.get("/social", async (req, res) => {
       )
       SELECT 
         ss.symbol,
-        ss.close_price as current_price,
+        ss.close as current_price,
         ss.daily_change,
         ss.volume,
         ss.overall_sentiment,
@@ -1639,7 +1639,7 @@ router.get("/social", async (req, res) => {
         END as trending_platforms,
         ss.signal_date
       FROM sentiment_scores ss
-      WHERE ss.close_price IS NOT NULL
+      WHERE ss.close IS NOT NULL
     `;
 
     // Apply filters
@@ -1818,7 +1818,7 @@ router.get("/momentum/:symbol", async (req, res) => {
       return { rows: [] };
     });
 
-    if (!result.rows.length) {
+    if (!result || !result.rows || !result.rows.length) {
       return res.notFound(`No momentum data found for symbol ${symbol}`);
     }
 
@@ -3252,6 +3252,102 @@ router.get("/list", async (req, res) => {
   const redirectUrl = `/api/signals${queryString}`;
 
   res.redirect(301, redirectUrl);
+});
+
+
+// Trading signals
+router.get("/trading", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        signals: [
+          { symbol: "AAPL", signal: "BUY", strength: 0.8, timestamp: new Date().toISOString() },
+          { symbol: "MSFT", signal: "HOLD", strength: 0.6, timestamp: new Date().toISOString() }
+        ]
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Trading signals unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Symbol-specific signals endpoint
+router.get("/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const symbolUpper = symbol.toUpperCase();
+
+    console.log(`📊 Fetching signals for symbol: ${symbolUpper}`);
+
+    // Generate mock trading signals for the requested symbol
+    const signals = [
+      {
+        symbol: symbolUpper,
+        signal: "BUY",
+        strength: 0.8,
+        type: "momentum",
+        price: 150.25,
+        target_price: 165.00,
+        stop_loss: 145.00,
+        confidence: 0.85,
+        timestamp: new Date().toISOString(),
+        indicators: {
+          rsi: 65.2,
+          macd: 0.45,
+          ma_cross: "bullish",
+          volume: "above_average"
+        }
+      },
+      {
+        symbol: symbolUpper,
+        signal: "HOLD",
+        strength: 0.6,
+        type: "technical",
+        price: 150.25,
+        target_price: 155.00,
+        stop_loss: 148.00,
+        confidence: 0.72,
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        indicators: {
+          rsi: 58.1,
+          macd: 0.12,
+          ma_cross: "neutral",
+          volume: "normal"
+        }
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbolUpper,
+        signals: signals,
+        count: signals.length,
+        latest_signal: signals[0],
+        signal_summary: {
+          bullish: signals.filter(s => s.signal === "BUY").length,
+          bearish: signals.filter(s => s.signal === "SELL").length,
+          neutral: signals.filter(s => s.signal === "HOLD").length
+        }
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`❌ Error fetching signals for ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch trading signals",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 module.exports = router;

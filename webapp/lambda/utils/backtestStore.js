@@ -47,6 +47,11 @@ function getUserStrategies(userId) {
   return loadStrategies().filter((s) => s.userId === userId);
 }
 
+function saveResult(backtest) {
+  // Save backtest result - same as addBacktest but with different semantics
+  return addBacktest(backtest);
+}
+
 module.exports = {
   loadStrategies,
   saveStrategies,
@@ -57,4 +62,5 @@ module.exports = {
   getBacktest,
   addBacktest,
   listBacktests,
+  saveResult,
 };

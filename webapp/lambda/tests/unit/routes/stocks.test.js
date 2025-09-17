@@ -106,6 +106,7 @@ describe("Stocks Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/stocks/init-price-data")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send(testData)
         .expect(200);
 
@@ -123,6 +124,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should handle missing symbols array", async () => {
       const response = await request(app)
         .post("/stocks/init-price-data")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send({})
         .expect(400);
 
@@ -134,6 +136,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should handle empty symbols array", async () => {
       const response = await request(app)
         .post("/stocks/init-price-data")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send({ symbols: [] })
         .expect(400);
 
@@ -144,6 +147,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should handle force_error parameter", async () => {
       const response = await request(app)
         .post("/stocks/init-price-data")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send({
           symbols: ["AAPL"],
           force_error: true,
@@ -158,6 +162,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should use default date range when not provided", async () => {
       const response = await request(app)
         .post("/stocks/init-price-data")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send({ symbols: ["AAPL"] })
         .expect(200);
 
@@ -176,6 +181,7 @@ describe("Stocks Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/stocks/init-price-data")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send({ symbols: manySymbols })
         .expect(200);
 
@@ -187,6 +193,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should handle different frequencies", async () => {
       const response = await request(app)
         .post("/stocks/init-price-data")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send({
           symbols: ["AAPL"],
           frequency: "weekly",
@@ -205,6 +212,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should include realistic price data", async () => {
       const response = await request(app)
         .post("/stocks/init-price-data")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send({
           symbols: ["AAPL"],
           start_date: "2023-01-01",
@@ -260,7 +268,10 @@ describe("Stocks Routes Unit Tests", () => {
 
   describe("GET /stocks/trending", () => {
     test("should return trending stocks", async () => {
-      const response = await request(app).get("/stocks/trending").expect(200);
+      const response = await request(app)
+        .get("/stocks/trending")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -269,6 +280,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should handle trending with timeframe", async () => {
       const response = await request(app)
         .get("/stocks/trending?timeframe=1d")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -277,6 +289,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should handle trending with different categories", async () => {
       const response = await request(app)
         .get("/stocks/trending?category=gainers")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);

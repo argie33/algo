@@ -263,19 +263,19 @@ router.get("/articles", async (req, res) => {
 
     const result = await query(
       `
-      SELECT 
+      SELECT
         na.id,
-        na.title,
+        na.headline as title,
         na.summary as content,
         na.source,
-        na.author,
+        na.source as author,
         na.published_at,
         na.url,
         na.category,
         na.symbol,
         na.sentiment,
         na.sentiment as sentiment_label,
-        na.sentiment_confidence,
+        COALESCE(na.sentiment_confidence, 0.5) as sentiment_confidence,
         na.keywords,
         na.summary,
         na.relevance_score as impact_score,
@@ -1880,7 +1880,7 @@ router.get("/sentiment/:symbol", async (req, res) => {
     let priceData = null;
     try {
       const priceQuery = `
-        SELECT close_price, change_percent, volume, date 
+        SELECT close, change_percent, volume, date 
         FROM price_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 
@@ -1917,7 +1917,7 @@ router.get("/sentiment/:symbol", async (req, res) => {
         },
         market_context: priceData
           ? {
-              current_price: parseFloat(priceData.close_price),
+              current_price: parseFloat(priceData.close),
               daily_change: parseFloat(priceData.change_percent),
               volume: parseInt(priceData.volume),
               last_updated: priceData.date,

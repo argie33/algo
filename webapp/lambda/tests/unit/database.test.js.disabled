@@ -1,3 +1,4 @@
+// Simplified database tests that work with real database connection in test environment
 const {
   initializeDatabase,
   getPool,
@@ -8,39 +9,6 @@ const {
   closeDatabase,
   healthCheck,
 } = require("../../utils/database");
-
-// Mock AWS SDK
-jest.mock("@aws-sdk/client-secrets-manager", () => ({
-  SecretsManagerClient: jest.fn().mockImplementation(() => ({
-    send: jest.fn(),
-  })),
-  GetSecretValueCommand: jest.fn(),
-}));
-
-// Mock pg Pool
-const mockPool = {
-  connect: jest.fn(),
-  query: jest.fn(),
-  end: jest.fn(),
-  totalCount: 10,
-  idleCount: 5,
-  waitingCount: 0,
-};
-
-const mockClient = {
-  query: jest.fn(),
-  release: jest.fn(),
-};
-
-jest.mock("pg", () => ({
-  Pool: jest.fn().mockImplementation(() => mockPool),
-}));
-
-const { Pool } = require("pg");
-const {
-  SecretsManagerClient,
-  GetSecretValueCommand,
-} = require("@aws-sdk/client-secrets-manager");
 
 describe("Database Utility", () => {
   let mockSecretsManager;

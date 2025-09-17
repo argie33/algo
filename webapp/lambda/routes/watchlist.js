@@ -215,7 +215,7 @@ router.get("/items/recent", async (req, res) => {
         w.name as watchlist_name,
         w.id as watchlist_id,
         w.user_id,
-        pd.close_price as current_price,
+        pd.close as current_price,
         pd.change_percent,
         pd.change_amount,
         pd.volume,

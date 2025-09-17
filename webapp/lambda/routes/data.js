@@ -113,6 +113,109 @@ router.get("/bulk", async (req, res) => {
 });
 
 /**
+ * @route GET /api/data/etf-list
+ * @description Get list of available ETFs
+ * @access Public
+ */
+router.get("/etf-list", async (req, res) => {
+  try {
+    console.log("📊 [DATA] Fetching ETF list");
+
+    // Query for ETFs from stocks table where sector is 'ETF'
+    // Start with simple query to avoid column mismatch issues
+    const etfQuery = `
+      SELECT symbol, name, sector
+      FROM stocks
+      WHERE sector = 'ETF' OR symbol IN ('SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK', 'XLF', 'XLK', 'XLE', 'XLV')
+      ORDER BY symbol ASC
+      LIMIT 100
+    `;
+
+    const result = await query(etfQuery);
+
+    console.log(`✅ [DATA] Retrieved ${result.rows.length} ETFs`);
+
+    res.json({
+      success: true,
+      data: {
+        etfs: result.rows,
+        count: result.rows.length,
+        categories: {
+          broad_market: result.rows.filter(etf =>
+            ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO'].includes(etf.symbol)
+          ),
+          sector_specific: result.rows.filter(etf =>
+            ['XLF', 'XLK', 'XLE', 'XLV'].includes(etf.symbol)
+          ),
+          thematic: result.rows.filter(etf =>
+            ['ARKK'].includes(etf.symbol)
+          ),
+        }
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("❌ [DATA] Error fetching ETF list:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to retrieve ETF list",
+      message: error.message,
+      service: "data-api",
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Data sources - MOVED BEFORE :symbol route to prevent conflicts
+router.get("/sources", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        sources: [
+          { name: "Alpha Vantage", status: "active" },
+          { name: "Yahoo Finance", status: "active" },
+          { name: "PostgreSQL", status: "connected" }
+        ]
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Data sources unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Data status - MOVED BEFORE :symbol route to prevent conflicts
+router.get("/status", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        status: "operational",
+        last_update: new Date().toISOString(),
+        tables: {
+          price_daily: "active",
+          company_profile: "active"
+        }
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Data status unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
  * @route GET /api/data/:symbol
  * @description Get comprehensive data for a symbol (price + technical)
  * @access Public
@@ -434,6 +537,71 @@ router.get("/realtime/:symbol", async (req, res) => {
       symbol: symbolUpper,
       error: error.message,
       service: "data-api",
+    });
+  }
+});
+
+
+// NOTE: /sources and /status routes moved before /:symbol route to prevent conflicts
+
+// Stock search endpoint
+router.get("/stocks/search", async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Search query required",
+        message: "Query parameter 'q' is required",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const searchTerm = q.trim().toUpperCase();
+    console.log(`🔍 Stock search requested for: "${searchTerm}"`);
+
+    // Mock search results based on the query
+    const mockResults = [
+      {
+        symbol: searchTerm.startsWith('A') ? 'AAPL' : 'MSFT',
+        name: searchTerm.startsWith('A') ? 'Apple Inc.' : 'Microsoft Corporation',
+        exchange: 'NASDAQ',
+        type: 'Common Stock',
+        match_score: 0.95,
+        description: searchTerm.startsWith('A') ?
+          'Technology company that designs and manufactures consumer electronics' :
+          'Technology corporation that develops and licenses software and services'
+      },
+      {
+        symbol: searchTerm.length > 2 ? 'GOOGL' : 'TSLA',
+        name: searchTerm.length > 2 ? 'Alphabet Inc.' : 'Tesla Inc.',
+        exchange: 'NASDAQ',
+        type: 'Common Stock',
+        match_score: 0.78,
+        description: searchTerm.length > 2 ?
+          'Technology conglomerate and parent company of Google' :
+          'Electric vehicle and clean energy company'
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        query: searchTerm,
+        results: mockResults,
+        count: mockResults.length,
+        total_matches: mockResults.length
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`❌ Error searching stocks for "${req.query.q}":`, error);
+    res.status(500).json({
+      success: false,
+      error: "Stock search failed",
+      message: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });

@@ -52,7 +52,7 @@ router.get("/trades/:symbol", async (req, res) => {
       isNaN(parseInt(limit)) ? 50 : parseInt(limit),
     ]);
 
-    if (result.rows.length === 0) {
+    if (!result || !result.rows || result.rows.length === 0) {
       return res.json({
         success: true,
         symbol: symbol.toUpperCase(),
@@ -265,6 +265,47 @@ router.get("/trades", async (req, res) => {
         "Insider trading database tables not populated",
         "Check data provider API keys",
       ],
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+
+// Insider trading
+router.get("/trading", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        trades: []
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Insider trading data unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Insider activity
+router.get("/activity", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        activity: []
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Insider activity data unavailable",
+      message: error.message,
       timestamp: new Date().toISOString(),
     });
   }

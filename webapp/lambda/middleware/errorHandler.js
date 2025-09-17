@@ -40,15 +40,17 @@ const errorHandler = (err, req, res, _next) => {
 
   const response = {
     success: false,
-    error: message,
-    status,
-    timestamp: new Date().toISOString(),
-    path: req.url,
+    error: {
+      status,
+      message,
+      timestamp: new Date().toISOString(),
+      path: req.url,
+    },
   };
 
   // Add details in development mode
   if (process.env.NODE_ENV === "development" && details) {
-    response.details = details;
+    response.error.details = details;
   }
 
   res.status(status).json(response);

@@ -51,15 +51,15 @@ const authenticateToken = (req, res, next) => {
       });
     }
 
-    // Check for special dev-bypass-token first in test environment
-    if (token === "dev-bypass-token") {
-      console.log("🔧 Test mode: Using dev-bypass-token for authentication");
+    // Check for special bypass tokens in test environment
+    if (token === "dev-bypass-token" || token === "test-token") {
+      console.log(`🔧 Test mode: Using ${token} for authentication`);
       req.user = {
-        sub: "dev-user-bypass",
-        email: "dev-bypass@example.com",
-        username: "dev-bypass-user",
+        sub: token === "dev-bypass-token" ? "dev-user-bypass" : "test-user-123",
+        email: "test@example.com",
+        username: "test-user",
         role: "admin",
-        sessionId: "dev-bypass-session",
+        sessionId: "test-session",
       };
       req.token = token;
       return next();

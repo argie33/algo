@@ -1,28 +1,22 @@
 [
   {
-    "name": "Test A 1757967324929",
+    "name": "Test A 1758113775432",
     "value": 123,
-    "id": "1757967324929"
+    "id": "1758113775432"
   },
   {
-    "name": "Test B 1757967324929",
+    "name": "Test B 1758113775432",
     "value": "string",
-    "id": "1757967324932"
+    "id": "1758113775435"
   },
   {
-    "name": "Test C 1757967324929",
+    "name": "Test C 1758113775432",
     "value": [
       1,
       2,
       3
     ],
-    "id": "1757967324934"
-  },
-  {
-    "name": "Test Strategy",
-    "code": "buy('AAPL', 100, data['AAPL'].close);",
-    "language": "javascript",
-    "id": "1757967410272"
+    "id": "1758113775436"
   },
   {
     "name": "AI Strategy - Test Strategy",
@@ -47,9 +41,9 @@
       "strategyType": "ai_generated"
     },
     "type": "ai_strategy",
-    "created": "2025-09-15T20:16:55.137Z",
+    "created": "2025-09-17T13:06:14.364Z",
     "status": "completed",
-    "id": "1757967415137"
+    "id": "1758114374364"
   },
   {
     "name": "AI Strategy - Test Strategy",
@@ -75,9 +69,9 @@
       "strategyType": "ai_generated"
     },
     "type": "ai_strategy",
-    "created": "2025-09-15T20:16:55.148Z",
+    "created": "2025-09-17T13:06:14.388Z",
     "status": "completed",
-    "id": "1757967415148"
+    "id": "1758114374389"
   },
   {
     "name": "AI Strategy - Test Strategy",
@@ -104,20 +98,920 @@
     },
     "userId": "test-user-123",
     "type": "ai_strategy",
-    "created": "2025-09-15T20:18:00.012Z",
+    "created": "2025-09-17T13:07:37.190Z",
     "status": "completed",
-    "id": "1757967480012"
+    "id": "1758114457190"
   },
   {
-    "name": "Test Strategy",
-    "code": "buy('AAPL', 100, data['AAPL'].close);",
-    "language": "javascript",
-    "id": "1757969676719"
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "strategy code",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "strategy code",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "userId": "test-user-123",
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:08:55.776Z",
+    "status": "completed",
+    "id": "1758114535778"
   },
   {
-    "name": "Test Strategy",
-    "code": "buy('AAPL', 100, data['AAPL'].close);",
-    "language": "javascript",
-    "id": "1757969773430"
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:16:36.034Z",
+    "status": "completed",
+    "id": "1758114996034"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:16:36.045Z",
+    "status": "completed",
+    "id": "1758114996045"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:37:57.508Z",
+    "status": "completed",
+    "id": "1758116277508"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:37:57.519Z",
+    "status": "completed",
+    "id": "1758116277519"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:38:21.719Z",
+    "status": "completed",
+    "id": "1758116301719"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:38:21.729Z",
+    "status": "completed",
+    "id": "1758116301730"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:40:33.833Z",
+    "status": "completed",
+    "id": "1758116433833"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:40:33.844Z",
+    "status": "completed",
+    "id": "1758116433844"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:40:57.167Z",
+    "status": "completed",
+    "id": "1758116457167"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:40:57.177Z",
+    "status": "completed",
+    "id": "1758116457177"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:41:25.828Z",
+    "status": "completed",
+    "id": "1758116485828"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:41:25.838Z",
+    "status": "completed",
+    "id": "1758116485838"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:43:11.955Z",
+    "status": "completed",
+    "id": "1758116591955"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:43:11.966Z",
+    "status": "completed",
+    "id": "1758116591966"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:43:48.078Z",
+    "status": "completed",
+    "id": "1758116628078"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:43:48.088Z",
+    "status": "completed",
+    "id": "1758116628088"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:46:02.187Z",
+    "status": "completed",
+    "id": "1758116762187"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:46:02.197Z",
+    "status": "completed",
+    "id": "1758116762197"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:47:07.138Z",
+    "status": "completed",
+    "id": "1758116827138"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:47:07.148Z",
+    "status": "completed",
+    "id": "1758116827148"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:50:28.290Z",
+    "status": "completed",
+    "id": "1758117028290"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:50:28.305Z",
+    "status": "completed",
+    "id": "1758117028305"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:53:14.541Z",
+    "status": "completed",
+    "id": "1758117194542"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:53:14.597Z",
+    "status": "completed",
+    "id": "1758117194597"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:55:14.205Z",
+    "status": "completed",
+    "id": "1758117314207"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:55:14.222Z",
+    "status": "completed",
+    "id": "1758117314222"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "strategy code",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "strategy code",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "userId": "test-user-123",
+    "type": "ai_strategy",
+    "created": "2025-09-17T13:56:33.165Z",
+    "status": "completed",
+    "id": "1758117393165"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T17:33:41.673Z",
+    "status": "completed",
+    "id": "1758130421676"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T17:33:41.717Z",
+    "status": "completed",
+    "id": "1758130421718"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "strategy code",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "strategy code",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "userId": "test-user-123",
+    "type": "ai_strategy",
+    "created": "2025-09-17T17:35:31.815Z",
+    "status": "completed",
+    "id": "1758130531816"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T17:37:23.344Z",
+    "status": "completed",
+    "id": "1758130643344"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-17T17:37:23.355Z",
+    "status": "completed",
+    "id": "1758130643355"
   }
 ]

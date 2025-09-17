@@ -393,10 +393,10 @@ describe("Risk Engine", () => {
       expect(concentrationRisk.level).toBe("EXTREME");
     });
 
-    test("should validate input parameters", () => {
-      expect(() => riskEngine.calculateVaR([], 1.5, 252)).toThrow();
-      expect(() => riskEngine.calculateVaR(null, 0.95, 252)).toThrow();
-      expect(() => riskEngine.calculateVaR([{}], 0.95, 0)).toThrow();
+    test("should validate input parameters", async () => {
+      await expect(riskEngine.calculateVaR([], 1.5, 252)).rejects.toThrow("Confidence level must be between 0 and 1");
+      await expect(riskEngine.calculateVaR(null, 0.95, 252)).rejects.toThrow("Portfolio data is required");
+      await expect(riskEngine.calculateVaR([{}], 0.95, 0)).rejects.toThrow("Lookback days must be greater than 0");
     });
 
     test("should handle database connection errors", async () => {

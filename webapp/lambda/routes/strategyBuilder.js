@@ -683,4 +683,25 @@ router.get("/templates", authenticateToken, async (req, res) => {
   }
 });
 
+
+// Strategy builder strategies
+router.get("/strategies", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        strategies: []
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Strategies unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 module.exports = router;

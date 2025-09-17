@@ -455,7 +455,7 @@ describe("Concurrent Database Transaction Integration", () => {
       );
 
       // Most should succeed
-      const successfulResults = results.filter((r) => typeof r === "number");
+      const successfulResults = results.filter((r) => !r.error && r !== undefined);
       const errorResults = results.filter((r) => r.error);
 
       // Should handle gracefully - either succeed or give appropriate timeout error

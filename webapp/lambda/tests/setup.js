@@ -6,6 +6,7 @@ process.env.ALLOW_DEV_BYPASS = "true";
 process.env.JWT_SECRET = "test-secret-key-for-testing-only";
 
 // Set database environment variables BEFORE importing any modules
+// Use real database for tests with seeded data (matching .env config)
 process.env.DB_HOST = "localhost";
 process.env.DB_USER = "postgres";
 process.env.DB_PASSWORD = "password";
@@ -52,6 +53,8 @@ global.DATABASE_AVAILABLE = () => true;
 global.TEST_DB = db;
 
 beforeAll(async () => {
+  console.log("✅ Using real database for testing with seeded data");
+
   // Initialize real database connection for tests
   try {
     console.log("🔄 Initializing test database connection...");
@@ -97,6 +100,12 @@ beforeAll(async () => {
 }, 15000);
 
 afterAll(async () => {
+  // Skip database cleanup for mock environments
+  if (process.env.DB_HOST === "mock-host") {
+    console.log("✅ Mock database - skipping database cleanup");
+    return;
+  }
+
   // Clean up database connection
   try {
     const db = require("../utils/database");

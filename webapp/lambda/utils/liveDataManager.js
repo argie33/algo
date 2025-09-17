@@ -2002,9 +2002,18 @@ class LiveDataManager extends EventEmitter {
   getRealTimeMetrics() {
     let totalRequests = 0;
     let totalSubscribers = 0;
+    const providers = {};
 
-    this.providers.forEach((provider) => {
-      totalRequests += provider.usage?.requestsThisMonth || 0;
+    this.providers.forEach((provider, providerId) => {
+      const requests = provider.usage?.requestsToday || 0;
+      totalRequests += requests;
+
+      providers[providerId] = {
+        requests,
+        connections: provider.connections?.size || 0,
+        status: provider.status || 'active',
+        latency: provider.metrics?.latency || []
+      };
     });
 
     // Ensure symbolSubscriptions is initialized
@@ -2016,11 +2025,20 @@ class LiveDataManager extends EventEmitter {
       totalSubscribers += subscribers.size;
     });
 
+    // Calculate system health based on active providers and connections
+    const systemHealth = {
+      status: this.providers.size > 0 ? 'healthy' : 'degraded',
+      uptime: Date.now() - (this.startTime || Date.now()),
+      lastUpdate: new Date().toISOString()
+    };
+
     return {
       totalRequests,
       totalSubscribers,
       activeProviders: this.providers.size,
       activeConnections: this.connectionPool.size,
+      systemHealth,
+      providers
     };
   }
 

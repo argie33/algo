@@ -441,7 +441,7 @@ class CompleteFlowValidator {
       const success = response.statusCode === 200;
       const hasCorrectFormat = response.body && 
                               typeof response.body === 'object' &&
-                              response.body.hasOwnProperty('success');
+                              Object.prototype.hasOwnProperty.call(response.body, 'success');
       
       const data = {
         statusCode: response.statusCode,
@@ -609,7 +609,7 @@ if (require.main === module) {
   if (!apiUrl) {
     console.error('❌ Please provide API Gateway URL as argument or API_GATEWAY_URL environment variable');
     console.error('Usage: node validate-complete-flow.js https://your-api-gateway.execute-api.us-east-1.amazonaws.com/dev');
-    process.exit(1);
+    throw new Error('API Gateway URL required');
   }
   
   const validator = new CompleteFlowValidator(apiUrl);
@@ -625,11 +625,13 @@ if (require.main === module) {
       
       console.log(`\n📄 Detailed report saved to: ${reportPath}`);
       
-      // Exit with appropriate code
-      process.exit(results.summary.failed === 0 ? 0 : 1);
+      // Log completion status
+      if (results.summary.failed > 0) {
+        throw new Error(`Validation failed: ${results.summary.failed} tests failed`);
+      }
     })
     .catch(error => {
       console.error('Validation execution failed:', error);
-      process.exit(1);
+      throw error;
     });
 }

@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.93% </span>
+                <span class="strong">7.54% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>7/101</span>
+                <span class='fraction'>8/106</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/74</span>
+                <span class='fraction'>0/76</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/27</span>
+                <span class='fraction'>0/28</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">7.07% </span>
+                <span class="strong">7.69% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>7/99</span>
+                <span class='fraction'>8/104</span>
             </div>
         
             
@@ -462,7 +462,32 @@
 <a name='L397'></a><a href='#L397'>397</a>
 <a name='L398'></a><a href='#L398'>398</a>
 <a name='L399'></a><a href='#L399'>399</a>
-<a name='L400'></a><a href='#L400'>400</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L400'></a><a href='#L400'>400</a>
+<a name='L401'></a><a href='#L401'>401</a>
+<a name='L402'></a><a href='#L402'>402</a>
+<a name='L403'></a><a href='#L403'>403</a>
+<a name='L404'></a><a href='#L404'>404</a>
+<a name='L405'></a><a href='#L405'>405</a>
+<a name='L406'></a><a href='#L406'>406</a>
+<a name='L407'></a><a href='#L407'>407</a>
+<a name='L408'></a><a href='#L408'>408</a>
+<a name='L409'></a><a href='#L409'>409</a>
+<a name='L410'></a><a href='#L410'>410</a>
+<a name='L411'></a><a href='#L411'>411</a>
+<a name='L412'></a><a href='#L412'>412</a>
+<a name='L413'></a><a href='#L413'>413</a>
+<a name='L414'></a><a href='#L414'>414</a>
+<a name='L415'></a><a href='#L415'>415</a>
+<a name='L416'></a><a href='#L416'>416</a>
+<a name='L417'></a><a href='#L417'>417</a>
+<a name='L418'></a><a href='#L418'>418</a>
+<a name='L419'></a><a href='#L419'>419</a>
+<a name='L420'></a><a href='#L420'>420</a>
+<a name='L421'></a><a href='#L421'>421</a>
+<a name='L422'></a><a href='#L422'>422</a>
+<a name='L423'></a><a href='#L423'>423</a>
+<a name='L424'></a><a href='#L424'>424</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -852,6 +877,29 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -862,6 +910,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
+&nbsp;
 const { query } = require("../utils/database");
 const router = express.Router();
 &nbsp;
@@ -1113,16 +1162,16 @@ router.get("/calendar", <span class="fstat-no" title="function not covered" >as<
     }
 &nbsp;
     // Calculate summary statistics
-    const eventTypes = <span class="cstat-no" title="statement not covered" >dividendEvents.reduce(<span class="fstat-no" title="function not covered" >(a</span>cc, event) =&gt; {</span>
+    const _eventTypes = <span class="cstat-no" title="statement not covered" >dividendEvents.reduce(<span class="fstat-no" title="function not covered" >(a</span>cc, event) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >      acc[event.event_type] = (acc[event.event_type] || 0) + 1;</span>
 <span class="cstat-no" title="statement not covered" >      return acc;</span>
     }, {});
 &nbsp;
-    const totalDividendAmount = <span class="cstat-no" title="statement not covered" >dividendEvents</span>
+    const _totalDividendAmount = <span class="cstat-no" title="statement not covered" >dividendEvents</span>
       .filter(<span class="fstat-no" title="function not covered" >(e</span>vent) =&gt; <span class="cstat-no" title="statement not covered" >event.event_type === "payment")</span>
       .reduce(<span class="fstat-no" title="function not covered" >(s</span>um, event) =&gt; <span class="cstat-no" title="statement not covered" >sum + event.dividend_amount,</span> 0);
 &nbsp;
-    const avgYield =
+    const _avgYield =
 <span class="cstat-no" title="statement not covered" >      dividendEvents.length &gt; 0</span>
         ? dividendEvents.reduce(<span class="fstat-no" title="function not covered" >(s</span>um, event) =&gt; <span class="cstat-no" title="statement not covered" >sum + event.dividend_yield,</span> 0) /
           dividendEvents.length
@@ -1259,6 +1308,29 @@ router.get("/calendar", <span class="fstat-no" title="function not covered" >as<
 &nbsp;
 // Helper functions removed - not needed for not implemented endpoints
 &nbsp;
+&nbsp;
+// Dividend history
+router.get("/history", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+<span class="cstat-no" title="statement not covered" >  try {</span>
+    const { symbol } = <span class="cstat-no" title="statement not covered" >req.query;</span>
+<span class="cstat-no" title="statement not covered" >    res.json({</span>
+      success: true,
+      data: {
+        symbol: symbol || "ALL",
+        dividends: []
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+<span class="cstat-no" title="statement not covered" >    res.status(500).json({</span>
+      success: false,
+      error: "Dividend history unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+&nbsp;
 module.exports = router;
 &nbsp;</pre></td></tr></table></pre>
 
@@ -1267,7 +1339,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-15T20:58:36.591Z
+                at 2025-09-17T13:50:29.095Z
             </div>
         <script src="../prettify.js"></script>
         <script>

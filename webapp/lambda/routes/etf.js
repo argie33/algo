@@ -170,7 +170,7 @@ router.get("/:symbol/analytics", async (req, res) => {
 
     const priceResult = await query(
       `
-      SELECT date, close_price, volume
+      SELECT date, close, volume
       FROM price_daily 
       WHERE symbol = $1 
         AND date >= CURRENT_DATE - INTERVAL '${days} days'
@@ -189,7 +189,7 @@ router.get("/:symbol/analytics", async (req, res) => {
     };
 
     if (priceResult.rows && priceResult.rows.length > 1) {
-      const prices = priceResult.rows.map((r) => parseFloat(r.close_price));
+      const prices = priceResult.rows.map((r) => parseFloat(r.close));
       const volumes = priceResult.rows.map((r) => parseInt(r.volume) || 0);
 
       // Period return
@@ -344,6 +344,30 @@ router.get("/:symbol/analytics", async (req, res) => {
       success: false,
       error: "Failed to fetch ETF analytics",
       message: error.message,
+    });
+  }
+});
+
+
+// Popular ETFs
+router.get("/popular", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        etfs: [
+          { symbol: "SPY", name: "SPDR S&P 500 ETF", volume: 50000000 },
+          { symbol: "QQQ", name: "Invesco QQQ Trust", volume: 30000000 }
+        ]
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Popular ETFs unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });

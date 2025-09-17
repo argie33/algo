@@ -21,21 +21,22 @@ describe("Technical Analysis", () => {
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
 
         const data = response.body.data;
-        if (data && Object.keys(data).length > 1) {
-          // RSI should be present and within valid range
-          const hasRSI = Object.keys(data).some((key) =>
+        if (data && data.indicators && data.indicators.length > 0) {
+          // RSI should be present in indicators array
+          const indicatorData = data.indicators[0];
+          const hasRSI = Object.keys(indicatorData).some((key) =>
             key.toLowerCase().includes("rsi")
           );
 
           expect(hasRSI).toBe(true);
 
           // If RSI value is present, it should be between 0 and 100
-          const rsiKey = Object.keys(data).find((key) =>
+          const rsiKey = Object.keys(indicatorData).find((key) =>
             key.toLowerCase().includes("rsi")
           );
-          if (rsiKey && typeof data[rsiKey] === "number") {
-            expect(data[rsiKey]).toBeGreaterThanOrEqual(0);
-            expect(data[rsiKey]).toBeLessThanOrEqual(100);
+          if (rsiKey && typeof indicatorData[rsiKey] === "number") {
+            expect(indicatorData[rsiKey]).toBeGreaterThanOrEqual(0);
+            expect(indicatorData[rsiKey]).toBeLessThanOrEqual(100);
           }
         }
       }
@@ -52,11 +53,12 @@ describe("Technical Analysis", () => {
         expect(response.body).toHaveProperty("success", true);
 
         const data = response.body.data;
-        if (data && Object.keys(data).length > 1) {
+        if (data && data.indicators && data.indicators.length > 0) {
           // MACD should have line, signal, and histogram
+          const indicatorData = data.indicators[0];
           const macdFields = ["macd", "signal", "histogram"];
           const hasMACDData = macdFields.some((field) =>
-            Object.keys(data).some((key) => key.toLowerCase().includes(field))
+            Object.keys(indicatorData).some((key) => key.toLowerCase().includes(field))
           );
 
           expect(hasMACDData).toBe(true);
@@ -75,11 +77,12 @@ describe("Technical Analysis", () => {
         expect(response.body).toHaveProperty("success", true);
 
         const data = response.body.data;
-        if (data && Object.keys(data).length > 1) {
+        if (data && data.indicators && data.indicators.length > 0) {
           // Should have moving averages
+          const indicatorData = data.indicators[0];
           const maFields = ["sma", "ema", "moving", "average"];
           const hasMAData = maFields.some((field) =>
-            Object.keys(data).some((key) => key.toLowerCase().includes(field))
+            Object.keys(indicatorData).some((key) => key.toLowerCase().includes(field))
           );
 
           expect(hasMAData).toBe(true);
@@ -98,11 +101,12 @@ describe("Technical Analysis", () => {
         expect(response.body).toHaveProperty("success", true);
 
         const data = response.body.data;
-        if (data && Object.keys(data).length > 1) {
+        if (data && data.indicators && data.indicators.length > 0) {
           // Bollinger bands should have upper, middle, lower
+          const indicatorData = data.indicators[0];
           const bbFields = ["upper", "middle", "lower", "bollinger"];
           const hasBBData = bbFields.some((field) =>
-            Object.keys(data).some((key) => key.toLowerCase().includes(field))
+            Object.keys(indicatorData).some((key) => key.toLowerCase().includes(field))
           );
 
           expect(hasBBData).toBe(true);
@@ -121,11 +125,12 @@ describe("Technical Analysis", () => {
         expect(response.body).toHaveProperty("success", true);
 
         const data = response.body.data;
-        if (data && Object.keys(data).length > 1) {
+        if (data && data.indicators && data.indicators.length > 0) {
           // Should have at least one of the requested indicators
+          const indicatorData = data.indicators[0];
           const allIndicators = ["rsi", "macd", "sma", "bollinger"];
           const hasAnyIndicator = allIndicators.some((indicator) =>
-            Object.keys(data).some((key) =>
+            Object.keys(indicatorData).some((key) =>
               key.toLowerCase().includes(indicator)
             )
           );

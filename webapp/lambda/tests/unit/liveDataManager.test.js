@@ -1001,7 +1001,8 @@ describe("Live Data Manager", () => {
 
       const result = liveDataManager.getAlertStatus();
 
-      // The method now uses this.alertSystem, which should be the same mock
+      // Should call the mocked getAlertsStatus method
+      expect(alertSystem.getAlertsStatus).toHaveBeenCalled();
       expect(result).toEqual({ active: [], resolved: [] });
     });
 
@@ -1011,7 +1012,8 @@ describe("Live Data Manager", () => {
       const config = { threshold: 100, enabled: true };
       const result = liveDataManager.updateAlertConfig(config);
 
-      // The method now uses this.alertSystem, which should be the same mock
+      // Should call the mocked updateConfig method
+      expect(alertSystem.updateConfig).toHaveBeenCalledWith(config);
       expect(result).toEqual({ success: true });
     });
 
@@ -1020,7 +1022,8 @@ describe("Live Data Manager", () => {
 
       const result = await liveDataManager.forceHealthCheck();
 
-      // The method now uses this.alertSystem, which should be the same mock
+      // Should call the mocked forceHealthCheck method
+      expect(alertSystem.forceHealthCheck).toHaveBeenCalled();
       expect(result).toEqual({ status: "healthy" });
     });
 
@@ -1029,7 +1032,8 @@ describe("Live Data Manager", () => {
 
       const result = await liveDataManager.testNotifications();
 
-      // The method now uses this.alertSystem, which should be the same mock
+      // Should call the mocked testNotifications method
+      expect(alertSystem.testNotifications).toHaveBeenCalled();
       expect(result).toEqual({ success: true });
     });
   });
@@ -1193,8 +1197,8 @@ describe("Live Data Manager", () => {
       const symbols = ["AAPL", "MSFT", "GOOGL"];
 
       // Create multiple connections for the user
-      liveDataManager.addConnection("alpaca", "conn1", userId, ["AAPL"]);
-      liveDataManager.addConnection("alpaca", "conn2", userId, ["MSFT"]);
+      liveDataManager.addConnection("conn1", "alpaca", ["AAPL"]);
+      liveDataManager.addConnection("conn2", "alpaca", ["MSFT"]);
       liveDataManager.subscribe(userId, symbols);
 
       // Verify subscriptions exist

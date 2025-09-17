@@ -22,7 +22,10 @@ router.get("/stocks", async (req, res) => {
   try {
     const { symbol, timeframe = "daily", limit = 50, page = 1 } = req.query;
 
-    const offset = (page - 1) * limit;
+    // Convert to numbers to avoid string/number issues in tests
+    const limitNum = parseInt(limit, 10);
+    const pageNum = parseInt(page, 10);
+    const offset = (pageNum - 1) * limitNum;
     console.log(
       `📊 Stock positioning data requested - symbol: ${symbol || "all"}, timeframe: ${timeframe}`
     );
@@ -48,7 +51,7 @@ router.get("/stocks", async (req, res) => {
     }
 
     institutionalQuery += ` ORDER BY filing_date DESC, position_size DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(limit, offset);
+    params.push(limitNum, offset);
 
     // Get retail sentiment
     let sentimentQuery = `
@@ -179,6 +182,27 @@ router.get("/summary", async (req, res) => {
     res
       .status(500)
       .json({ success: false, error: "Failed to fetch positioning summary" });
+  }
+});
+
+
+// Positioning data
+router.get("/data", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        positioning: []
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Positioning data unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 

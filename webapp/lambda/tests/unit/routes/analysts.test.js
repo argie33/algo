@@ -354,10 +354,10 @@ describe("Analysts Route - Comprehensive Unit Tests", () => {
         .expect(200);
 
       expect(response.body.ticker).toBe("AAPL");
-      expect(response.body.data).toHaveLength(1);
-      expect(response.body.metadata.note).toContain(
-        "Growth estimates not available"
-      );
+      expect(typeof response.body.data).toBe("object");
+      expect(response.body.data.symbol).toBe("AAPL");
+      expect(response.body.data.earnings_growth).toBeDefined();
+      expect(response.body.data.eps_growth_from_financials).toBeDefined();
     });
   });
 
@@ -528,13 +528,14 @@ describe("Analysts Route - Comprehensive Unit Tests", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.symbol).toBe("AAPL");
-      expect(response.body.data.total_analysts).toBe(2);
-      expect(response.body.data.rating_distribution.buy).toBe(1);
-      expect(response.body.data.rating_distribution.strong_buy).toBe(1);
-      expect(response.body.data.consensus_rating).toBe("4.50");
-      expect(response.body.data.average_price_target).toBe(185.25);
-      expect(response.body.data.recent_changes).toHaveLength(0);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].symbol).toBe("AAPL");
+      expect(response.body.data[0].total_analysts).toBe(2);
+      expect(response.body.data[0].rating_distribution.buy).toBe(1);
+      expect(response.body.data[0].rating_distribution.strong_buy).toBe(1);
+      expect(response.body.data[0].consensus_rating).toBe("4.50");
+      expect(response.body.data[0].average_price_target).toBe(185.25);
+      expect(response.body.data[0].recent_changes).toHaveLength(0);
     });
 
     test("should handle no recommendations found", async () => {

@@ -21,9 +21,11 @@ describe("Sentiment Routes", () => {
     test("should return sentiment API information", async () => {
       const response = await request(app).get("/api/sentiment");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("message", "Sentiment API - Ready");
-      expect(response.body).toHaveProperty("status", "operational");
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("timestamp");
 
       // Validate timestamp
@@ -37,7 +39,7 @@ describe("Sentiment Routes", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/api/sentiment/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("service", "sentiment");
       expect(response.body).toHaveProperty(

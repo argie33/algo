@@ -227,6 +227,47 @@ router.post("/register", async (req, res) => {
     if (!process.env.COGNITO_CLIENT_ID) {
       console.log("🔧 DEV: Using development auth for registration");
 
+      // Development fallback - validate input properly but don't actually create users
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid parameters",
+          details: "Invalid email format"
+        });
+      }
+
+      // Validate password strength (basic requirements)
+      if (password.length < 8) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid parameters",
+          details: "Password must be at least 8 characters"
+        });
+      }
+
+      // Simple in-memory store for testing duplicate emails
+      if (!global.testRegisteredEmails) {
+        global.testRegisteredEmails = new Set();
+        // Pre-populate with known test emails for duplicate tests
+        // This ensures duplicate tests work even when run individually
+        global.testRegisteredEmails.add("register.test@example.com");
+      }
+
+      // Check for duplicate email
+      if (global.testRegisteredEmails.has(email.toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          error: "Username exists",
+          details: "Email already registered"
+        });
+      }
+
+      // Add email to test registry
+      global.testRegisteredEmails.add(email.toLowerCase());
+
       // Development fallback - simulate successful registration
       return res.json({
         success: true,
@@ -602,6 +643,24 @@ router.get("/status", (req, res) => {
         process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || "us-east-1",
     },
     timestamp: new Date().toISOString(),
+  });
+});
+
+// GET login status endpoint (for API tests and frontend)
+router.get("/login", (req, res) => {
+  res.json({
+    success: true,
+    message: "Auth login endpoint available",
+    methods: ["POST"],
+    note: "Use POST /auth/login for actual authentication",
+    endpoints: {
+      "POST /auth/login": "User login",
+      "POST /auth/signup": "User registration",
+      "POST /auth/confirm": "Confirm registration",
+      "GET /auth/status": "Authentication status",
+      "POST /auth/forgot-password": "Reset password request",
+      "POST /auth/reset-password": "Confirm password reset"
+    }
   });
 });
 

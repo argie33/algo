@@ -6712,20 +6712,7 @@
 <a name='L6647'></a><a href='#L6647'>6647</a>
 <a name='L6648'></a><a href='#L6648'>6648</a>
 <a name='L6649'></a><a href='#L6649'>6649</a>
-<a name='L6650'></a><a href='#L6650'>6650</a>
-<a name='L6651'></a><a href='#L6651'>6651</a>
-<a name='L6652'></a><a href='#L6652'>6652</a>
-<a name='L6653'></a><a href='#L6653'>6653</a>
-<a name='L6654'></a><a href='#L6654'>6654</a>
-<a name='L6655'></a><a href='#L6655'>6655</a>
-<a name='L6656'></a><a href='#L6656'>6656</a>
-<a name='L6657'></a><a href='#L6657'>6657</a>
-<a name='L6658'></a><a href='#L6658'>6658</a>
-<a name='L6659'></a><a href='#L6659'>6659</a>
-<a name='L6660'></a><a href='#L6660'>6660</a>
-<a name='L6661'></a><a href='#L6661'>6661</a>
-<a name='L6662'></a><a href='#L6662'>6662</a>
-<a name='L6663'></a><a href='#L6663'>6663</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L6650'></a><a href='#L6650'>6650</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -8210,10 +8197,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -8333,10 +8316,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -9350,6 +9329,9 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -11127,10 +11109,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -11338,10 +11316,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -14765,7 +14739,7 @@ router.get("/benchmark", <span class="fstat-no" title="function not covered" >as
     const benchmarkQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT 
         date,
-        price,
+        close as price,
         volume
       FROM price_daily
       WHERE symbol = $1
@@ -14863,11 +14837,7 @@ router.get("/holdings", <span class="fstat-no" title="function not covered" >as<
         ROUND((ph.unrealized_pnl / NULLIF(ph.cost_basis, 0)) * 100, 2) as pnl_percent,
         0 as day_change, 0 as day_change_percent,
         'Unknown' as sector, 
-        CASE 
-          WHEN COALESCE(md.market_cap, 0) &gt; 10000000000 THEN 'Large Cap'
-          WHEN COALESCE(md.market_cap, 0) &gt; 2000000000 THEN 'Mid Cap'  
-          ELSE 'Small Cap'
-        END as asset_class,
+        'Unknown' as asset_class,
         ph.broker, ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol 
@@ -14998,11 +14968,7 @@ router.get("/rebalance", <span class="fstat-no" title="function not covered" >as
       SELECT 
         ph.symbol, ph.quantity, ph.market_value, ph.current_price,
         'Unknown' as sector,
-        CASE 
-          WHEN COALESCE(md.market_cap, 0) &gt; 10000000000 THEN 'large_cap'
-          WHEN COALESCE(md.market_cap, 0) &gt; 2000000000 THEN 'mid_cap'  
-          ELSE 'small_cap'
-        END as market_cap_tier
+        'unknown' as market_cap_tier
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol 
         AND md.date = (SELECT MAX(date) FROM price_daily WHERE price_daily.symbol = ph.symbol)
@@ -16014,9 +15980,12 @@ router.get("/metrics", <span class="fstat-no" title="function not covered" >as</
     const holdingsQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT symbol, quantity, market_value, average_cost, current_price,
              cost_basis, (market_value - cost_basis) as unrealized_pnl,
-             ((market_value - cost_basis) / cost_basis * 100) as unrealized_pnl_percent
-      FROM portfolio_holdings 
-      WHERE user_id = $1 AND quantity &gt; 0 
+             CASE
+               WHEN cost_basis = 0 OR cost_basis IS NULL THEN 0
+               ELSE ((market_value - cost_basis) / cost_basis * 100)
+             END as unrealized_pnl_percent
+      FROM portfolio_holdings
+      WHERE user_id = $1 AND quantity &gt; 0
       ORDER BY market_value DESC
     `;
 &nbsp;
@@ -17782,11 +17751,7 @@ router.get("/risk/var", authenticateToken, <span class="fstat-no" title="functio
         ph.symbol, ph.quantity, ph.average_cost as average_price, 
         ph.market_value, 
         'Technology' as sector,
-        CASE 
-          WHEN COALESCE(md.market_cap, 0) &gt; 10000000000 THEN 'large_cap'
-          WHEN COALESCE(md.market_cap, 0) &gt; 2000000000 THEN 'mid_cap'  
-          ELSE 'small_cap'
-        END as market_cap_tier
+        'unknown' as market_cap_tier
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol
       WHERE ph.user_id = $1 AND ph.quantity &gt; 0 
@@ -18004,11 +17969,7 @@ router.get("/risk/concentration", authenticateToken, <span class="fstat-no" titl
         ph.symbol, ph.quantity, ph.average_cost as average_price, ph.market_value,
         'Technology' as sector, 
         'Technology' as industry,
-        CASE 
-          WHEN COALESCE(md.market_cap, 0) &gt; 10000000000 THEN 'large_cap'
-          WHEN COALESCE(md.market_cap, 0) &gt; 2000000000 THEN 'mid_cap'  
-          ELSE 'small_cap'
-        END as market_cap_tier,
+        'unknown' as market_cap_tier,
         'US' as country
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol
@@ -20056,7 +20017,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-15T20:58:36.433Z
+                at 2025-09-17T13:50:28.951Z
             </div>
         <script src="../prettify.js"></script>
         <script>

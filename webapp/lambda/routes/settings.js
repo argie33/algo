@@ -755,6 +755,11 @@ router.get("/profile", async (req, res) => {
   }
 });
 
+// Alias for profile route - many components expect /user endpoint
+router.get("/user", async (req, res) => {
+  return res.redirect("/api/settings/profile");
+});
+
 // Get onboarding status
 router.get("/onboarding-status", async (req, res) => {
   try {

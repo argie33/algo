@@ -463,6 +463,7 @@ app.use("/api/insider", insiderRoutes);
 app.use("/api/dividend", dividendRoutes);
 app.use("/api/positioning", positioningRoutes);
 app.use("/api/strategyBuilder", strategyBuilderRoutes);
+app.use("/api/strategy-builder", strategyBuilderRoutes); // Hyphenated version for tests
 app.use("/api/strategies", strategyBuilderRoutes); // Alias for strategies
 app.use("/api/liveData", liveDataRoutes);
 app.use("/api/livedata", liveDataRoutes);

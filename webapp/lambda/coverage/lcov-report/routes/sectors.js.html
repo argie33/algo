@@ -1353,8 +1353,7 @@
 <a name='L1288'></a><a href='#L1288'>1288</a>
 <a name='L1289'></a><a href='#L1289'>1289</a>
 <a name='L1290'></a><a href='#L1290'>1290</a>
-<a name='L1291'></a><a href='#L1291'>1291</a>
-<a name='L1292'></a><a href='#L1292'>1292</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L1291'></a><a href='#L1291'>1291</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -1416,7 +1415,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2725,15 +2723,14 @@ router.get("/analysis", <span class="fstat-no" title="function not covered" >as<
                     symbol,
                     date,
                     rsi,
-                    momentum,
+                    0 as momentum,
                     macd,
                     macd_signal,
-                    volume as tech_volume,
                     sma_20,
                     sma_50,
-                    CASE 
-                        WHEN close &gt; sma_20 AND sma_20 &gt; sma_50 THEN 'bullish'
-                        WHEN close &lt; sma_20 AND sma_20 &lt; sma_50 THEN 'bearish'
+                    CASE
+                        WHEN sma_20 &gt; sma_50 AND rsi &gt; 50 THEN 'bullish'
+                        WHEN sma_20 &lt; sma_50 AND rsi &lt; 50 THEN 'bearish'
                         ELSE 'neutral'
                     END as trend
                 FROM technical_data_${timeframe}
@@ -3071,25 +3068,25 @@ router.get("/performance", <span class="fstat-no" title="function not covered" >
           COUNT(DISTINCT cp.ticker) as stock_count,
           AVG(
             CASE 
-              WHEN pd_current.close_price IS NOT NULL AND pd_past.close_price IS NOT NULL 
-              THEN ((pd_current.close_price - pd_past.close_price) / pd_past.close_price * 100)
+              WHEN pd_current.close IS NOT NULL AND pd_past.close IS NOT NULL 
+              THEN ((pd_current.close - pd_past.close) / pd_past.close * 100)
             END
           ) as avg_return,
           SUM(pd_current.volume) as total_volume,
-          AVG(pd_current.close_price) as avg_price,
-          COUNT(CASE WHEN pd_current.close_price &gt; pd_past.close_price THEN 1 END) as gaining_stocks,
-          COUNT(CASE WHEN pd_current.close_price &lt; pd_past.close_price THEN 1 END) as losing_stocks
+          AVG(pd_current.close) as avg_price,
+          COUNT(CASE WHEN pd_current.close &gt; pd_past.close THEN 1 END) as gaining_stocks,
+          COUNT(CASE WHEN pd_current.close &lt; pd_past.close THEN 1 END) as losing_stocks
         FROM company_profile cp
         JOIN (
           SELECT DISTINCT ON (symbol) 
-            symbol, close as close_price, volume, date
+            symbol, close as close, volume, date
           FROM price_daily 
           WHERE date &gt;= CURRENT_DATE - INTERVAL '7 days'
           ORDER BY symbol, date DESC
         ) pd_current ON cp.ticker = pd_current.symbol
         JOIN (
           SELECT DISTINCT ON (symbol)
-            symbol, close as close_price, date
+            symbol, close as close, date
           FROM price_daily 
           WHERE date &lt;= CURRENT_DATE - INTERVAL '1 month'
             AND date &gt;= CURRENT_DATE - INTERVAL '1 month' - INTERVAL '7 days'
@@ -3204,12 +3201,12 @@ router.get("/:sector/details", <span class="fstat-no" title="function not covere
                     td.sma_20,
                     td.sma_50,
                     
-                    -- Momentum data
-                    mm.jt_momentum_12_1,
-                    mm.momentum_3m,
-                    mm.momentum_6m,
-                    mm.risk_adjusted_momentum,
-                    mm.momentum_strength,
+                    -- Momentum data (placeholder values)
+                    0 as jt_momentum_12_1,
+                    0 as momentum_3m,
+                    0 as momentum_6m,
+                    0 as risk_adjusted_momentum,
+                    0 as momentum_strength,
                     
                     -- Market cap estimate (price * volume as proxy)
                     pd.close * pd.volume as dollar_volume
@@ -3217,7 +3214,7 @@ router.get("/:sector/details", <span class="fstat-no" title="function not covere
                 FROM stock_symbols s
                 LEFT JOIN price_daily pd ON s.symbol = pd.symbol
                 LEFT JOIN technical_data_daily td ON s.symbol = td.symbol AND td.date = pd.date
-                LEFT JOIN momentum_metrics mm ON s.symbol = mm.symbol
+                -- Momentum metrics table not available, using placeholder values
                 WHERE s.sector = $1
                     AND pd.date &gt;= CURRENT_DATE - INTERVAL '7 days'
                 ORDER BY s.symbol, pd.date DESC
@@ -3943,7 +3940,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-15T20:58:36.591Z
+                at 2025-09-17T13:50:29.095Z
             </div>
         <script src="../prettify.js"></script>
         <script>

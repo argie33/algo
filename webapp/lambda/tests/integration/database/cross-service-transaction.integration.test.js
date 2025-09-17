@@ -212,12 +212,12 @@ describe("Cross-Service Transaction Integration", () => {
           )
         `);
 
-        // Initial state
+        // Initial state - enough balance to pass balance check but fail on price check
         await client.query(
-          "INSERT INTO account_balance (user_id, balance) VALUES (1, 10000.00)"
+          "INSERT INTO account_balance (user_id, balance) VALUES (1, 15000.00)"
         );
         await client.query(
-          "INSERT INTO market_data (symbol, current_price, available_shares) VALUES ('GOOGL', 2500.00, 100)"
+          "INSERT INTO market_data (symbol, current_price, available_shares) VALUES ('GOOGL', 2700.00, 100)"
         );
       });
 
@@ -298,7 +298,7 @@ describe("Cross-Service Transaction Integration", () => {
         const balanceResult = await client.query(
           "SELECT balance FROM account_balance WHERE user_id = 1"
         );
-        expect(parseFloat(balanceResult.rows[0].balance)).toBe(10000.0);
+        expect(parseFloat(balanceResult.rows[0].balance)).toBe(15000.0);
 
         // Market data should be unchanged
         const marketResult = await client.query(

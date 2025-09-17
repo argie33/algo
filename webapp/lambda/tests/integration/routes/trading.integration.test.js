@@ -27,7 +27,7 @@ describe("Trading Routes Integration Tests", () => {
         expect(response.body).toHaveProperty("message");
         expect(response.body.message).toContain("Trading API");
         expect(response.body).toHaveProperty("timestamp");
-        expect(response.body).toHaveProperty("status", "operational");
+        expect(response.body.data).toHaveProperty("status", "operational");
       }
     });
 

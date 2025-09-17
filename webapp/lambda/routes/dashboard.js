@@ -1191,7 +1191,7 @@ router.get("/analytics", async (req, res) => {
       const performanceResult = await query(`
         SELECT 
           symbol,
-          close_price,
+          close,
           change_percent,
           date
         FROM price_daily 
@@ -1203,7 +1203,7 @@ router.get("/analytics", async (req, res) => {
         market_indices: (performanceResult.rows || []).map((row) => ({
           symbol: row.symbol,
           name: getIndexName(row.symbol),
-          price: parseFloat(row.close_price),
+          price: parseFloat(row.close),
           change_percent: parseFloat(row.change_percent).toFixed(2) + "%",
           date: row.date,
         })),
@@ -1351,18 +1351,18 @@ router.get("/metrics", async (req, res) => {
   try {
     console.log("📊 Dashboard metrics request received");
 
-    // Get market overview metrics
+    // Get market overview metrics (use close instead of current_price)
     const marketMetricsQuery = `
       SELECT
         COUNT(*) as total_symbols,
         SUM(volume::bigint) as total_volume,
-        AVG(current_price::float) as avg_price,
-        MAX(current_price::float) as max_price,
-        MIN(current_price::float) as min_price
+        AVG(close::float) as avg_price,
+        MAX(close::float) as max_price,
+        MIN(close::float) as min_price
       FROM price_daily
-      WHERE price_date = (SELECT MAX(price_date) FROM price_daily)
-        AND current_price IS NOT NULL
-        AND current_price > 0
+      WHERE date = (SELECT MAX(date) FROM price_daily)
+        AND close IS NOT NULL
+        AND close > 0
     `;
 
     // Get portfolio metrics (simulated for development)

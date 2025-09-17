@@ -194,15 +194,11 @@ class RiskEngine {
     timeHorizon = 1,
     lookbackDays = 252
   ) {
-    // Input validation
+    // Initial validation
     if (!portfolioIdOrData) {
-      throw new Error("Portfolio data is required");
-    }
-    if (confidenceLevel <= 0 || confidenceLevel >= 1) {
-      throw new Error("Confidence level must be between 0 and 1");
-    }
-    if (timeHorizon <= 0) {
-      throw new Error("Time horizon must be greater than 0");
+      const error = new Error("Portfolio data is required");
+      error.isValidationError = true;
+      throw error;
     }
 
     try {
@@ -215,8 +211,9 @@ class RiskEngine {
         // Test signature: calculateVaR(portfolio, confidenceLevel, lookbackDays)
         const portfolio = portfolioIdOrData;
         confidenceLevel = methodOrConfidenceLevel || 0.95;
-        lookbackDays = confidenceLevel === arguments[2] ? arguments[2] : 252;
+        lookbackDays = arguments[2] !== undefined ? arguments[2] : 252; // Third argument is lookbackDays
         method = "historical";
+
 
         // Create mock positions for test data
         positions = {
@@ -225,7 +222,7 @@ class RiskEngine {
             quantity: pos.quantity || 100,
             current_price: pos.currentPrice || pos.weight * 1000, // Convert weight to mock price
             total_value: pos.weight ? pos.weight * 100000 : 15000, // Mock portfolio value
-            close_price: pos.currentPrice || pos.weight * 1000,
+            close: pos.currentPrice || pos.weight * 1000,
             date: new Date().toISOString().split("T")[0],
           })),
         };
@@ -245,7 +242,7 @@ class RiskEngine {
                 quantity: 100,
                 current_price: 150,
                 total_value: 15000,
-                close_price: 150,
+                close: 150,
                 date: new Date().toISOString().split("T")[0],
               },
               {
@@ -253,7 +250,7 @@ class RiskEngine {
                 quantity: 50,
                 current_price: 2000,
                 total_value: 100000,
-                close_price: 2000,
+                close: 2000,
                 date: new Date().toISOString().split("T")[0],
               },
             ],
@@ -263,7 +260,7 @@ class RiskEngine {
             `
           SELECT p.symbol, p.quantity, p.current_price, 
                  COALESCE(p.total_value, p.quantity * p.current_price) as total_value,
-                 d.close_price, d.volume, d.date
+                 d.close, d.volume, d.date
           FROM portfolio_holdings p
           LEFT JOIN price_daily d ON p.symbol = d.symbol
           WHERE p.user_id = $1 AND p.quantity > 0
@@ -273,6 +270,23 @@ class RiskEngine {
             [portfolioId]
           );
         }
+      }
+
+      // Validate parameters after processing - these should not be caught
+      if (confidenceLevel <= 0 || confidenceLevel >= 1) {
+        const error = new Error("Confidence level must be between 0 and 1");
+        error.isValidationError = true;
+        throw error;
+      }
+      if (timeHorizon <= 0) {
+        const error = new Error("Time horizon must be greater than 0");
+        error.isValidationError = true;
+        throw error;
+      }
+      if (lookbackDays <= 0) {
+        const error = new Error("Lookback days must be greater than 0");
+        error.isValidationError = true;
+        throw error;
       }
 
       if (!positions || !positions.rows || positions.rows.length === 0) {
@@ -304,8 +318,8 @@ class RiskEngine {
             weight: parseFloat(pos.total_value || 0) / portfolioValue,
           };
         }
-        if (pos.close_price) {
-          symbolReturns[pos.symbol].prices.push(parseFloat(pos.close_price));
+        if (pos.close) {
+          symbolReturns[pos.symbol].prices.push(parseFloat(pos.close));
         }
       }
 
@@ -396,6 +410,11 @@ class RiskEngine {
 
       return varResults;
     } catch (error) {
+      // Rethrow validation errors so tests can catch them
+      if (error.isValidationError) {
+        throw error;
+      }
+
       logger.error("VaR calculation failed:", error);
       return {
         error: error.message,
@@ -655,7 +674,7 @@ class RiskEngine {
       // Get historical prices for all assets
       const pricesQuery = await db.query(
         `
-        SELECT symbol, date, close_price 
+        SELECT symbol, date, close 
         FROM price_daily 
         WHERE symbol = ANY($1) 
         AND date >= CURRENT_DATE - INTERVAL '${lookbackDays} days'
@@ -672,7 +691,7 @@ class RiskEngine {
         }
         priceData[row.symbol].push({
           date: row.date,
-          price: parseFloat(row.close_price),
+          price: parseFloat(row.close),
         });
       });
 

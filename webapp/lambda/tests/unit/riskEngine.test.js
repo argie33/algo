@@ -839,16 +839,13 @@ describe("Risk Engine", () => {
 
     test("should handle VaR calculation errors", () => {
       // Try to trigger an error in VaR calculation by passing invalid parameters
-      const result = riskEngine.calculateVaR(
-        null, // null portfolio ID
-        "invalid_method", // invalid method
-        NaN, // invalid confidence level
-        "invalid", // invalid time horizon
-        -1 // invalid lookback days
-      );
-
-      expect(result).toBeDefined();
-      expect(typeof result).toBe("object");
+      expect(() => {
+        riskEngine.calculateVaR(
+          null, // null portfolio data
+          0.95, // valid confidence level
+          252 // valid lookback days
+        );
+      }).toThrow("Portfolio data is required");
     });
 
     test("should handle stress test calculation errors", async () => {
