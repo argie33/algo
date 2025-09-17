@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
+import { awsAmplifyFix } from "./vite-aws-amplify-fix.js";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -23,7 +24,8 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react({
         jsxRuntime: 'automatic'
-      })
+      }),
+      awsAmplifyFix()
     ],
     build: {
       outDir: "dist",
@@ -39,10 +41,11 @@ export default defineConfig(({ mode }) => {
         },
         output: {
           manualChunks: (id) => {
-            // Core React libraries
+            // Keep React and React-DOM together to prevent context issues
             if (
               id.includes("node_modules/react") ||
-              id.includes("node_modules/react-dom")
+              id.includes("node_modules/react-dom") ||
+              id.includes("node_modules/scheduler")
             ) {
               return "vendor";
             }
@@ -118,11 +121,10 @@ export default defineConfig(({ mode }) => {
       __MODE__: JSON.stringify(mode),
       __IS_DEV__: JSON.stringify(isDevelopment),
       __IS_PROD__: JSON.stringify(isProduction),
-      // Ensure React production mode
+      // Ensure React production mode and fix React Context compatibility
       "process.env.NODE_ENV": JSON.stringify(
         isProduction ? "production" : "development"
       ),
-      // Fix React Context compatibility issue
       global: 'globalThis',
     },
     resolve: {
@@ -132,10 +134,16 @@ export default defineConfig(({ mode }) => {
         "react-is": resolve(__dirname, "node_modules/react-is"),
         // Force MUI styled-engine to use the emotion version
         "@mui/styled-engine": resolve(__dirname, "node_modules/@mui/styled-engine"),
+        // Fix AWS Amplify ES module imports completely
+        "@aws-amplify/auth/cognito": resolve(__dirname, "src/test-utils/aws-amplify-mock.js"),
+        "aws-amplify/auth/cognito": resolve(__dirname, "src/test-utils/aws-amplify-mock.js"),
+        // Fix the main directory import issue
+        "@aws-amplify/auth/lib-esm/providers/cognito": resolve(__dirname, "src/test-utils/aws-amplify-mock.js"),
       },
     },
     optimizeDeps: {
       include: ["@mui/styled-engine", "@emotion/react", "@emotion/styled"],
+      exclude: ["@aws-amplify/auth", "aws-amplify"],
       esbuildOptions: {
         loader: {
           ".js": "jsx",

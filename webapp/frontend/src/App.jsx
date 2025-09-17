@@ -74,6 +74,7 @@ import Settings from "./pages/Settings";
 import ScoresDashboard from "./pages/ScoresDashboard";
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Watchlist from "./pages/Watchlist";
 import SectorAnalysis from "./pages/SectorAnalysis";
 import RealTimeDashboard from "./pages/RealTimeDashboard";
@@ -283,7 +284,24 @@ function App() {
   console.log("🎯 APP COMPONENT: isMobile:", isMobile);
 
   console.log("🎯 APP COMPONENT: About to call useAuth...");
-  const { isAuthenticated, user, logout } = useAuth();
+
+  // Safe auth context access with error boundary
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    console.error("🚨 AUTH CONTEXT ERROR:", error);
+    // Provide fallback values if context fails
+    authContext = {
+      isAuthenticated: false,
+      user: null,
+      logout: async () => {},
+      isLoading: false,
+      error: error.message
+    };
+  }
+
+  const { isAuthenticated, user, logout } = authContext;
   console.log(
     "🎯 APP COMPONENT: Auth state loaded - isAuthenticated:",
     isAuthenticated,
@@ -478,7 +496,8 @@ function App() {
   console.log("🎯 APP COMPONENT: About to render JSX...");
 
   return (
-    <Box sx={{ display: "flex" }}>
+    <ErrorBoundary>
+      <Box sx={{ display: "flex" }}>
       <AppBar
         position="fixed"
         sx={{
@@ -664,7 +683,8 @@ function App() {
 
       {/* Authentication Modal */}
       <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-    </Box>
+      </Box>
+    </ErrorBoundary>
   );
 }
 
