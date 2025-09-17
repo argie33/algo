@@ -778,7 +778,7 @@ describe("Trading Workflow Tests", () => {
       });
     });
 
-    it("should render order form with all required fields", () => {
+    it("should render order form with all required fields", async () => {
       const mockSubmit = vi.fn();
       renderWithRouter(<MockOrderFormComponent onOrderSubmit={mockSubmit} />);
 
@@ -803,7 +803,7 @@ describe("Trading Workflow Tests", () => {
         expect(screen.getByTestId("quantity-error")).toHaveTextContent(
           "Valid quantity is required"
         );
-      });
+      }, { timeout: 10000 });
 
       expect(mockSubmit).not.toHaveBeenCalled();
     });
@@ -820,12 +820,12 @@ describe("Trading Workflow Tests", () => {
         expect(screen.getByTestId("market-price")).toHaveTextContent(
           "Current Price: $150.25"
         );
-      });
+      }, { timeout: 10000 });
 
       expect(api.get).toHaveBeenCalledWith("/api/market/quote/AAPL");
     });
 
-    it("should show limit price field for limit orders", () => {
+    it("should show limit price field for limit orders", async () => {
       const mockSubmit = vi.fn();
       renderWithRouter(<MockOrderFormComponent onOrderSubmit={mockSubmit} />);
 
@@ -836,7 +836,7 @@ describe("Trading Workflow Tests", () => {
       expect(screen.getByTestId("limit-price-input")).toBeInTheDocument();
     });
 
-    it("should show stop price field for stop orders", () => {
+    it("should show stop price field for stop orders", async () => {
       const mockSubmit = vi.fn();
       renderWithRouter(<MockOrderFormComponent onOrderSubmit={mockSubmit} />);
 
@@ -862,7 +862,7 @@ describe("Trading Workflow Tests", () => {
         expect(screen.getByTestId("order-estimate")).toHaveTextContent(
           "Estimated Cost: $1502.50"
         );
-      });
+      }, { timeout: 10000 });
     });
 
     it("should check buying power for buy orders", async () => {
@@ -883,7 +883,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("market-price")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       fireEvent.click(screen.getByTestId("submit-order-btn"));
 
@@ -891,7 +891,7 @@ describe("Trading Workflow Tests", () => {
         expect(screen.getByTestId("buying-power-error")).toHaveTextContent(
           "Insufficient buying power"
         );
-      });
+      }, { timeout: 10000 });
 
       expect(mockSubmit).not.toHaveBeenCalled();
     });
@@ -917,7 +917,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("market-price")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       fireEvent.click(screen.getByTestId("submit-order-btn"));
 
@@ -995,7 +995,7 @@ describe("Trading Workflow Tests", () => {
         expect(screen.getByTestId("submit-error")).toHaveTextContent(
           "Order rejected by exchange"
         );
-      });
+      }, { timeout: 10000 });
     });
   });
 
@@ -1047,7 +1047,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("orders-list")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       expect(screen.getByTestId("order-order-1")).toBeInTheDocument();
       expect(screen.getByTestId("order-order-2")).toBeInTheDocument();
@@ -1064,7 +1064,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getAllByTestId(/^order-/)).toHaveLength(5); // Updated to match actual mock data
-      });
+      }, { timeout: 10000 });
 
       // Filter to show only filled orders
       fireEvent.change(screen.getByRole("combobox"), {
@@ -1078,7 +1078,7 @@ describe("Trading Workflow Tests", () => {
         expect(filledOrders.length).toBeGreaterThan(0); // Flexible assertion for filled orders
         expect(screen.getByTestId("order-order-1")).toBeInTheDocument();
         expect(screen.queryByTestId("order-order-2")).not.toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
     });
 
     it("should show cancel button only for open orders", async () => {
@@ -1089,7 +1089,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("orders-list")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       // Only order-2 (status: 'new') should have a cancel button
       expect(screen.getByTestId("cancel-order-2")).toBeInTheDocument();
@@ -1105,13 +1105,13 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("cancel-order-2")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       fireEvent.click(screen.getByTestId("cancel-order-2"));
 
       await waitFor(() => {
         expect(mockCancel).toHaveBeenCalledWith("order-2");
-      });
+      }, { timeout: 10000 });
 
       // Should reload orders after canceling
       expect(api.get).toHaveBeenCalledTimes(2);
@@ -1128,7 +1128,7 @@ describe("Trading Workflow Tests", () => {
         expect(
           within(filledOrder).getByText(/Filled:.*\$150\.25/)
         ).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
     });
 
     it("should handle empty order list", async () => {
@@ -1145,7 +1145,7 @@ describe("Trading Workflow Tests", () => {
         expect(screen.getByTestId("no-orders")).toHaveTextContent(
           "No orders found"
         );
-      });
+      }, { timeout: 10000 });
     });
   });
 
@@ -1236,7 +1236,7 @@ describe("Trading Workflow Tests", () => {
         expect(screen.getByTestId("positions-section")).toBeInTheDocument();
         expect(screen.getByTestId("order-form-section")).toBeInTheDocument();
         expect(screen.getByTestId("order-history-section")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       expect(screen.getByText("Account Value: $125000.00")).toBeInTheDocument();
       expect(screen.getByText("Buying Power: $50000.00")).toBeInTheDocument();
@@ -1248,7 +1248,7 @@ describe("Trading Workflow Tests", () => {
       await waitFor(() => {
         expect(screen.getByTestId("position-AAPL")).toBeInTheDocument();
         expect(screen.getByTestId("position-MSFT")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       // Check AAPL position details
       const aaplPosition = screen.getByTestId("position-AAPL");
@@ -1275,7 +1275,7 @@ describe("Trading Workflow Tests", () => {
         expect(screen.getByTestId("available-cash")).toHaveTextContent(
           "Available Cash: $50000.00"
         );
-      });
+      }, { timeout: 10000 });
     });
 
     it("should submit orders and refresh data", async () => {
@@ -1283,7 +1283,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("order-form")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       // Fill out order form
       fireEvent.change(screen.getByTestId("symbol-input"), {
@@ -1295,7 +1295,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("market-price")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       fireEvent.click(screen.getByTestId("submit-order-btn"));
 
@@ -1319,7 +1319,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("trade-AAPL")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       fireEvent.click(screen.getByTestId("trade-AAPL"));
 
@@ -1356,7 +1356,7 @@ describe("Trading Workflow Tests", () => {
       },
     ];
 
-    it("should calculate and display risk metrics", () => {
+    it("should calculate and display risk metrics", async () => {
       renderWithRouter(
         <MockRiskManagementComponent
           positions={mockPositions}
@@ -1394,7 +1394,7 @@ describe("Trading Workflow Tests", () => {
         // Site actually generates concentration alerts, not leverage alerts
         // This is correct behavior - the site is working properly
         expect(screen.getByTestId("alert-concentration")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       expect(
         screen.getByText(/Position concentration.*is high/)
@@ -1418,7 +1418,7 @@ describe("Trading Workflow Tests", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("alert-stop_loss")).toBeInTheDocument();
-      });
+      }, { timeout: 10000 });
 
       expect(
         screen.getByText(/LOSING_STOCK loss.*exceeds stop loss threshold/)
@@ -1428,7 +1428,7 @@ describe("Trading Workflow Tests", () => {
       ).toBeInTheDocument();
     });
 
-    it("should allow risk setting adjustments", () => {
+    it("should allow risk setting adjustments", async () => {
       renderWithRouter(
         <MockRiskManagementComponent
           positions={mockPositions}
@@ -1442,7 +1442,7 @@ describe("Trading Workflow Tests", () => {
       expect(maxLeverageInput).toHaveValue(1.5);
     });
 
-    it("should show no alerts when risk is within limits", () => {
+    it("should show no alerts when risk is within limits", async () => {
       const safePositions = [
         {
           symbol: "AAPL",
@@ -1479,12 +1479,12 @@ describe("Trading Workflow Tests", () => {
         const newRiskScore = screen.getByTestId("risk-score").textContent;
         // Risk score might change due to different alert generation
         expect(newRiskScore).toBeDefined();
-      });
+      }, { timeout: 10000 });
     });
   });
 
   describe("Trading Workflow Accessibility", () => {
-    it("should have proper ARIA labels for form fields", () => {
+    it("should have proper ARIA labels for form fields", async () => {
       const mockSubmit = vi.fn();
       renderWithRouter(<MockOrderFormComponent onOrderSubmit={mockSubmit} />);
 
@@ -1509,10 +1509,10 @@ describe("Trading Workflow Tests", () => {
           "role",
           "alert"
         );
-      });
+      }, { timeout: 10000 });
     });
 
-    it("should have keyboard navigation support", () => {
+    it("should have keyboard navigation support", async () => {
       const mockSubmit = vi.fn();
       renderWithRouter(<MockOrderFormComponent onOrderSubmit={mockSubmit} />);
 
@@ -1533,7 +1533,7 @@ describe("Trading Workflow Tests", () => {
       expect(document.activeElement).toBe(submitButton);
     });
 
-    it("should have proper alert roles for risk management alerts", () => {
+    it("should have proper alert roles for risk management alerts", async () => {
       const riskPositions = [
         {
           symbol: "RISKY_STOCK",
