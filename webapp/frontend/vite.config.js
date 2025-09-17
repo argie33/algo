@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
-import { awsAmplifyFix } from "./vite-aws-amplify-fix.js";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -24,8 +23,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react({
         jsxRuntime: 'automatic'
-      }),
-      awsAmplifyFix()
+      })
     ],
     build: {
       outDir: "dist",
