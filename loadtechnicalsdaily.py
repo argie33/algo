@@ -847,5 +847,5 @@ if __name__ == "__main__":
     except Exception:
         logging.exception("Unhandled error in script")
         sys.exit(1)
-# Updated Wed Sep 18 21:45:10 CDT 2025
-# Trigger workflow - FORCE technical data loading verification Sep 18 2025 - attempt 2
+# Updated Wed Sep 18 21:50:10 CDT 2025
+# Trigger workflow - DEBUG technical loader detection Sep 18 2025 - attempt 3
