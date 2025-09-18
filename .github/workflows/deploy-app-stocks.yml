@@ -70,14 +70,19 @@ jobs:
             exit 0
           fi
           
-          # Check if infrastructure files changed
+          # Check if infrastructure files changed OR if loader Python files changed
           INFRA_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E "(template-.*\.yml|requirements.txt|Dockerfile\.dataloader)" || true)
+          LOADER_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E "^load.*\.py$" || true)
+
           if [[ -n "$INFRA_FILES" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "Infrastructure changes detected: $INFRA_FILES"
+          elif [[ -n "$LOADER_FILES" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Loader files changed, forcing container rebuild: $LOADER_FILES"
           else
             echo "changed=false" >> $GITHUB_OUTPUT
-            echo "No infrastructure changes detected"
+            echo "No infrastructure or loader changes detected"
           fi
 
       - name: Generate loader matrix
