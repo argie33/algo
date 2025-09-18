@@ -31,66 +31,15 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         external: (id) => {
-          // Force react-is to use the specific version we want
-          if (id === 'react-is' || id.includes('react-is/')) {
-            return false; // Bundle it but with our override
-          }
+          // Don't externalize any dependencies - bundle everything for compatibility
           return false;
         },
         output: {
-          manualChunks: (id) => {
-            // Keep React and React-DOM together to prevent context issues
-            if (
-              id.includes("node_modules/react") ||
-              id.includes("node_modules/react-dom") ||
-              id.includes("node_modules/scheduler")
-            ) {
-              return "vendor";
-            }
-            // MUI components and icons
-            if (id.includes("node_modules/@mui")) {
-              return "mui";
-            }
-            // Chart libraries
-            if (id.includes("node_modules/recharts")) {
-              return "charts";
-            }
-            // Router libraries
-            if (id.includes("node_modules/react-router")) {
-              return "router";
-            }
-            // React Query
-            if (id.includes("node_modules/@tanstack/react-query")) {
-              return "query";
-            }
-            // Core pages
-            if (
-              id.includes("src/pages/Portfolio.jsx") ||
-              id.includes("src/pages/Dashboard.jsx") ||
-              id.includes("src/pages/Settings.jsx")
-            ) {
-              return "pages";
-            }
-            // Trading related pages
-            if (
-              id.includes("src/pages/Trading") ||
-              id.includes("src/pages/AdvancedScreener") ||
-              id.includes("src/pages/Backtest")
-            ) {
-              return "trading";
-            }
-            // Analysis pages
-            if (
-              id.includes("src/pages/Technical") ||
-              id.includes("src/pages/News") ||
-              id.includes("src/pages/Sentiment")
-            ) {
-              return "analysis";
-            }
-            // Other large node_modules
-            if (id.includes("node_modules")) {
-              return "vendor-misc";
-            }
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            mui: ['@mui/material', '@mui/icons-material'],
+            charts: ['recharts'],
+            utils: ['axios', 'date-fns', 'numeral']
           },
         },
         // Limit concurrent operations to prevent EMFILE
@@ -128,8 +77,6 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": resolve(__dirname, "src"),
-        // Force specific react-is version to avoid compatibility issues
-        "react-is": resolve(__dirname, "node_modules/react-is"),
         // Force MUI styled-engine to use the emotion version
         "@mui/styled-engine": resolve(__dirname, "node_modules/@mui/styled-engine"),
         // Fix AWS Amplify ES module imports completely
@@ -142,7 +89,14 @@ export default defineConfig(({ mode }) => {
       },
     },
     optimizeDeps: {
-      include: ["@mui/styled-engine", "@emotion/react", "@emotion/styled"],
+      include: [
+        "@mui/styled-engine",
+        "@emotion/react",
+        "@emotion/styled",
+        "react-is",
+        "prop-types",
+        "hoist-non-react-statics"
+      ],
       exclude: ["@aws-amplify/auth", "aws-amplify"],
       esbuildOptions: {
         loader: {
