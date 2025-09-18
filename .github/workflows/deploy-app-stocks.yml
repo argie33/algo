@@ -175,6 +175,14 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.changed == 'true'
     steps:
+      - name: Debug deployment condition
+        run: |
+          echo "=== DEPLOYMENT CONDITION DEBUG ==="
+          echo "needs.detect-changes.outputs.changed = '${{ needs.detect-changes.outputs.changed }}'"
+          echo "needs.detect-changes.outputs.infrastructure-changed = '${{ needs.detect-changes.outputs.infrastructure-changed }}'"
+          echo "needs.detect-changes.outputs.has-changes = '${{ needs.detect-changes.outputs.has-changes }}'"
+          echo "Condition result: ${{ needs.detect-changes.outputs.changed == 'true' }}"
+          echo "=== END DEBUG ==="
       - name: Checkout code
         uses: actions/checkout@v4
 

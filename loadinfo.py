@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:45 CDT
-# Trigger workflow - CRITICAL FIX attempt 14: Fixed job outputs - added missing 'changed' output
+# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:48 CDT
+# Trigger workflow - DEBUG attempt 15: Added debug logging to see condition values
 import gc
 import json
 import logging
