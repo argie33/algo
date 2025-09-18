@@ -53,7 +53,7 @@ export const TestWrapper = ({ children }) => {
 
   return (
     <MemoryRouter
-      initialEntries={["/test"]}
+      initialEntries={["/"]}
       future={{
         v7_startTransition: true,
         v7_relativeSplatPath: true,
@@ -159,7 +159,7 @@ export const renderWithAuth = (ui, options = {}) => {
 
   const AuthenticatedWrapper = ({ children }) => (
     <MemoryRouter
-      initialEntries={["/test"]}
+      initialEntries={["/"]}
       future={{
         v7_startTransition: true,
         v7_relativeSplatPath: true,

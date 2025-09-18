@@ -925,6 +925,12 @@ describe("Live Data Manager", () => {
     beforeEach(() => {
       // Clear all mock calls before each test
       jest.clearAllMocks();
+
+      // Re-configure the mocks to ensure they return proper values
+      alertSystem.getAlertsStatus.mockReturnValue({ active: [], resolved: [] });
+      alertSystem.updateConfig.mockReturnValue({ success: true });
+      alertSystem.forceHealthCheck.mockResolvedValue({ status: "healthy" });
+      alertSystem.testNotifications.mockResolvedValue({ success: true });
     });
 
     test("should initialize alert system integration", () => {
@@ -1197,11 +1203,17 @@ describe("Live Data Manager", () => {
       const symbols = ["AAPL", "MSFT", "GOOGL"];
 
       // Create multiple connections for the user
-      liveDataManager.addConnection("conn1", "alpaca", ["AAPL"]);
-      liveDataManager.addConnection("conn2", "alpaca", ["MSFT"]);
-      liveDataManager.subscribe(userId, symbols);
+      const conn1Result = liveDataManager.addConnection("conn1", "alpaca", ["AAPL"]);
+      const conn2Result = liveDataManager.addConnection("conn2", "alpaca", ["MSFT"]);
 
-      // Verify subscriptions exist
+      // Verify connections were added successfully
+      expect(conn1Result.success).toBe(true);
+      expect(conn2Result.success).toBe(true);
+
+      const subscribeResult = liveDataManager.subscribe(userId, symbols);
+
+      // Verify subscription was successful
+      expect(subscribeResult.success).toBe(true);
       expect(liveDataManager.subscriptions.size).toBeGreaterThan(0);
 
       // Clean up user connections

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:58 CDT
-# Trigger workflow - FIX attempt 18: Fixed ECR repository URI mismatch using CloudFormation export
+# Updated Wed Sep 18 22:05:00 CDT 2025 - 23:05 CDT
+# Trigger workflow - FIX attempt 19: Fixed Docker architecture mismatch - building for ARM64
 import gc
 import json
 import logging

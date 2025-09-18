@@ -303,13 +303,18 @@ jobs:
           fi
           echo "✅ ECR repository verified"
 
-          # Build image
-          echo "🔨 Building Docker image..."
-          if ! docker build -t "$REPO_NAME:latest" -f Dockerfile.dataloader .; then
+          # Setup buildx for multi-platform builds
+          echo "🔧 Setting up Docker buildx for ARM64..."
+          docker buildx create --use --name multiarch --driver docker-container || true
+          docker buildx inspect --bootstrap
+
+          # Build ARM64 image (ECS tasks are configured for ARM64)
+          echo "🔨 Building Docker image for ARM64..."
+          if ! docker buildx build --platform linux/arm64 -t "$REPO_NAME:latest" -f Dockerfile.dataloader . --load; then
             echo "❌ ERROR: Docker build failed!"
             exit 1
           fi
-          echo "✅ Docker build successful"
+          echo "✅ Docker build successful for ARM64"
 
           # Tag image with the exact URI that ECS tasks expect
           echo "🏷️ Tagging image..."
