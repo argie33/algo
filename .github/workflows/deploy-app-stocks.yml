@@ -80,10 +80,14 @@ jobs:
           elif [[ -n "$LOADER_FILES" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "Loader files changed, forcing container rebuild: $LOADER_FILES"
+            echo "🐳 Container rebuild required for loader execution"
           else
             echo "changed=false" >> $GITHUB_OUTPUT
             echo "No infrastructure or loader changes detected"
           fi
+
+          # Debug: Show what we're outputting
+          echo "Debug: infrastructure-changed output will be: $(if [[ -n "$INFRA_FILES" || -n "$LOADER_FILES" ]]; then echo "true"; else echo "false"; fi)"
 
       - name: Generate loader matrix
         id: matrix
