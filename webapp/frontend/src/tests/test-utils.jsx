@@ -190,6 +190,21 @@ if (typeof Element !== 'undefined' && Element.prototype) {
   });
 }
 
+// Mock matchMedia for MUI components
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => {},
+  }),
+});
+
 // Re-export commonly used testing utilities
 export { render, screen, waitFor, fireEvent } from "@testing-library/react";
 export { act } from "@testing-library/react";

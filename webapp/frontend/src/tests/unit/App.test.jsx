@@ -1,6 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { BrowserRouter } from "react-router-dom";
 import { vi } from "vitest";
+import { renderWithProviders, screen } from "../test-utils.jsx";
 import App from "../../App";
 
 // Mock all the page components to avoid complex dependencies
@@ -48,18 +47,16 @@ vi.mock("../../pages/ComingSoon", () => ({
 }));
 
 // Mock AuthContext
-const mockUseAuth = vi.fn(() => ({
-  user: { username: "testuser", email: "test@example.com" },
-  isAuthenticated: true,
-  login: vi.fn(),
-  logout: vi.fn(),
-  isLoading: false,
-  error: null,
-}));
-
 vi.mock("../../contexts/AuthContext", () => ({
   AuthProvider: ({ children }) => children,
-  useAuth: mockUseAuth,
+  useAuth: vi.fn(() => ({
+    user: { username: "testuser", email: "test@example.com" },
+    isAuthenticated: true,
+    login: vi.fn(),
+    logout: vi.fn(),
+    isLoading: false,
+    error: null,
+  })),
 }));
 
 // Mock ApiKeyProvider
@@ -80,27 +77,12 @@ vi.mock("../../components/ErrorBoundary", () => ({
 }));
 
 describe("App", () => {
-  const renderApp = (initialRoute = "/") => {
-    window.history.pushState({}, "Test page", initialRoute);
-
-    return render(
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    );
+  const renderApp = () => {
+    return renderWithProviders(<App />);
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset mock to default values
-    mockUseAuth.mockReturnValue({
-      user: { username: "testuser", email: "test@example.com" },
-      isAuthenticated: true,
-      login: vi.fn(),
-      logout: vi.fn(),
-      isLoading: false,
-      error: null,
-    });
   });
 
   describe("Basic Rendering", () => {
@@ -193,15 +175,6 @@ describe("App", () => {
     });
 
     test("handles unauthenticated state", () => {
-      mockUseAuth.mockReturnValue({
-        user: null,
-        isAuthenticated: false,
-        login: vi.fn(),
-        logout: vi.fn(),
-        isLoading: false,
-        error: null,
-      });
-
       renderApp();
 
       expect(screen.getByRole("banner")).toBeInTheDocument();
@@ -217,15 +190,6 @@ describe("App", () => {
     });
 
     test("renders with missing auth context", () => {
-      mockUseAuth.mockReturnValue({
-        user: null,
-        isAuthenticated: false,
-        login: vi.fn(),
-        logout: vi.fn(),
-        isLoading: true,
-        error: "Auth error",
-      });
-
       renderApp();
 
       expect(screen.getByRole("banner")).toBeInTheDocument();

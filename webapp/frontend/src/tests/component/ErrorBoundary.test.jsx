@@ -6,12 +6,15 @@ import ErrorBoundary from "../../components/ErrorBoundary";
 
 // Mock console.error to avoid cluttering test output
 const originalError = console.error;
+const originalWarn = console.warn;
 beforeAll(() => {
   console.error = vi.fn();
+  console.warn = vi.fn();
 });
 
 afterAll(() => {
   console.error = originalError;
+  console.warn = originalWarn;
 });
 
 // Component that throws an error for testing
@@ -26,8 +29,11 @@ const ThrowingComponent = ({
 };
 
 // Component that throws an error during render
-const RenderErrorComponent = () => {
-  throw new Error("Render error");
+const RenderErrorComponent = ({ throwError = true }) => {
+  if (throwError) {
+    throw new Error("Render error");
+  }
+  return <div>Component rendered successfully</div>;
 };
 
 // Component that throws an error in useEffect

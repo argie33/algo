@@ -103,13 +103,11 @@ const mockFinancials = {
 };
 
 describe("StockDetail Component", () => {
-  const mockUseQuery = require("@tanstack/react-query").useQuery;
-  const _mockApi = require("../../../services/api.js").default;
-
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Mock successful API responses
+    const mockUseQuery = vi.mocked(require("@tanstack/react-query").useQuery);
     mockUseQuery.mockImplementation((options) => {
       const { queryKey } = options;
 
