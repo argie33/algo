@@ -2,6 +2,43 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import MarketStatusBar from "../../../components/MarketStatusBar";
 
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getMarketStatus: vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        isOpen: true,
+        session: "Open",
+        nextChange: "Closes at 4:00 PM",
+        indices: [
+          {
+            symbol: "SPX",
+            name: "S&P 500",
+            value: 4500.25,
+            change: 15.75,
+            changePercent: 0.35,
+          },
+          {
+            symbol: "DJI",
+            name: "Dow Jones",
+            value: 35250.1,
+            change: -125.3,
+            changePercent: -0.35,
+          }
+        ]
+      }
+    }),
+    getMarketData: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
 vi.mock("../../../services/dataCache", () => ({
   default: {
     get: vi.fn(),
@@ -46,11 +83,16 @@ const mockMarketData = {
 };
 
 const { default: mockDataCache } = await import("../../../services/dataCache");
+const { default: mockApi } = await import("../../../services/api.js");
 
 describe("MarketStatusBar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockDataCache.get.mockResolvedValue(mockMarketData);
+    mockApi.getMarketStatus.mockResolvedValue({
+      success: true,
+      data: mockMarketData
+    });
   });
 
   describe("Rendering", () => {

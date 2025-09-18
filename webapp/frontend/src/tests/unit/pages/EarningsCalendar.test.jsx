@@ -40,6 +40,24 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getEarningsCalendar: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getEarningsEstimates: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getEarningsHistory: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
 // Mock fetch for direct API calls
 global.fetch = vi.fn();
 

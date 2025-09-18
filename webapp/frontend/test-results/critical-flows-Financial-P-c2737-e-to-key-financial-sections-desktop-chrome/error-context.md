@@ -1,0 +1,469 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Technical Analysis
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Dashboard" [ref=e17] [cursor=pointer]:
+            - img [ref=e19] [cursor=pointer]
+            - generic [ref=e22] [cursor=pointer]: Dashboard
+        - listitem [ref=e23]:
+          - button "Collapse Markets section" [ref=e24] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e26] [cursor=pointer]
+            - img [ref=e27] [cursor=pointer]
+        - listitem [ref=e29]:
+          - button "Market Overview" [ref=e30] [cursor=pointer]:
+            - img [ref=e32] [cursor=pointer]
+            - paragraph [ref=e35] [cursor=pointer]: Market Overview
+        - listitem [ref=e36]:
+          - button "Sector Analysis" [ref=e37] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+            - paragraph [ref=e42] [cursor=pointer]: Sector Analysis
+        - listitem [ref=e43]:
+          - button "Economic Indicators" [ref=e44] [cursor=pointer]:
+            - img [ref=e46] [cursor=pointer]
+            - paragraph [ref=e49] [cursor=pointer]: Economic Indicators
+        - listitem [ref=e50]:
+          - button "Collapse Stocks section" [ref=e51] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e53] [cursor=pointer]
+            - img [ref=e54] [cursor=pointer]
+        - listitem [ref=e56]:
+          - button "Stock Screener" [ref=e57] [cursor=pointer]:
+            - img [ref=e59] [cursor=pointer]
+            - paragraph [ref=e62] [cursor=pointer]: Stock Screener
+        - listitem [ref=e63]:
+          - button "Stock Analysis" [ref=e64] [cursor=pointer]:
+            - img [ref=e66] [cursor=pointer]
+            - paragraph [ref=e69] [cursor=pointer]: Stock Analysis
+        - listitem [ref=e70]:
+          - button "Technical Analysis" [ref=e71] [cursor=pointer]:
+            - img [ref=e73] [cursor=pointer]
+            - paragraph [ref=e76] [cursor=pointer]: Technical Analysis
+        - listitem [ref=e77]:
+          - button "Stock Scores" [ref=e78] [cursor=pointer]:
+            - img [ref=e80] [cursor=pointer]
+            - paragraph [ref=e83] [cursor=pointer]: Stock Scores
+        - listitem [ref=e84]:
+          - button "Earnings Calendar" [ref=e85] [cursor=pointer]:
+            - img [ref=e87] [cursor=pointer]
+            - paragraph [ref=e90] [cursor=pointer]: Earnings Calendar
+        - listitem [ref=e91]:
+          - button "Watchlist" [ref=e92] [cursor=pointer]:
+            - img [ref=e94] [cursor=pointer]
+            - paragraph [ref=e97] [cursor=pointer]: Watchlist
+        - listitem [ref=e98]:
+          - button "Financial Data" [ref=e99] [cursor=pointer]:
+            - img [ref=e101] [cursor=pointer]
+            - paragraph [ref=e104] [cursor=pointer]: Financial Data
+        - listitem [ref=e105]:
+          - button "Expand Sentiment Analysis section" [ref=e106] [cursor=pointer]:
+            - heading "Sentiment Analysis" [level=6] [ref=e108] [cursor=pointer]
+            - img [ref=e109] [cursor=pointer]
+        - listitem [ref=e111]:
+          - button "Collapse Portfolio section" [ref=e112] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e114] [cursor=pointer]
+            - img [ref=e115] [cursor=pointer]
+        - listitem [ref=e117]:
+          - button "Portfolio Holdings" [ref=e118] [cursor=pointer]:
+            - img [ref=e120] [cursor=pointer]
+            - paragraph [ref=e123] [cursor=pointer]: Portfolio Holdings
+        - listitem [ref=e124]:
+          - button "Trade History" [ref=e125] [cursor=pointer]:
+            - img [ref=e127] [cursor=pointer]
+            - paragraph [ref=e130] [cursor=pointer]: Trade History
+        - listitem [ref=e131]:
+          - button "Order Management" [ref=e132] [cursor=pointer]:
+            - img [ref=e134] [cursor=pointer]
+            - paragraph [ref=e137] [cursor=pointer]: Order Management
+        - listitem [ref=e138]:
+          - button "Optimization Tools" [ref=e139] [cursor=pointer]:
+            - img [ref=e141] [cursor=pointer]
+            - paragraph [ref=e144] [cursor=pointer]: Optimization Tools
+        - listitem [ref=e145]:
+          - button "Advanced Analytics" [ref=e146] [cursor=pointer]:
+            - img [ref=e148] [cursor=pointer]
+            - paragraph [ref=e151] [cursor=pointer]: Advanced Analytics
+        - listitem [ref=e152]:
+          - button "Expand Tools section" [ref=e153] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e155] [cursor=pointer]
+            - img [ref=e156] [cursor=pointer]
+  - main [ref=e158]:
+    - generic [ref=e161]:
+      - generic [ref=e162]:
+        - heading "Technical Analysis" [level=4] [ref=e163]
+        - paragraph [ref=e164]: Technical indicators and market screening
+      - generic [ref=e165]:
+        - generic [ref=e168]:
+          - heading "Filter Technicals" [level=6] [ref=e169]
+          - generic [ref=e170]:
+            - generic [ref=e171]: Timeframe
+            - generic [ref=e172]:
+              - combobox [ref=e173] [cursor=pointer]: Daily
+              - textbox: daily
+              - img
+              - group:
+                - generic: Timeframe
+          - generic [ref=e174]:
+            - generic [ref=e175]: Search Symbol
+            - generic [ref=e176]:
+              - img [ref=e178]
+              - textbox "Search Symbol" [ref=e180]
+              - group:
+                - generic: Search Symbol
+          - generic [ref=e181]:
+            - generic: Indicator
+            - generic [ref=e182]:
+              - combobox [ref=e183] [cursor=pointer]
+              - textbox
+              - img
+              - group:
+                - generic: Indicator
+          - generic [ref=e184]:
+            - generic [ref=e185]:
+              - generic: Min Value
+              - generic [ref=e186]:
+                - spinbutton "Min Value" [disabled] [ref=e187]
+                - group:
+                  - generic: Min Value
+            - generic [ref=e188]:
+              - generic: Max Value
+              - generic [ref=e189]:
+                - spinbutton "Max Value" [disabled] [ref=e190]
+                - group:
+                  - generic: Max Value
+          - generic [ref=e191]:
+            - button "Filter" [ref=e192] [cursor=pointer]:
+              - img [ref=e194] [cursor=pointer]
+              - text: Filter
+            - button "Clear" [disabled]:
+              - generic:
+                - img
+              - text: Clear
+            - generic [ref=e196]:
+              - img [ref=e197]
+              - generic [ref=e199]: 0 Filters
+        - generic [ref=e200]:
+          - separator [ref=e201]
+          - generic [ref=e202]:
+            - button "AAPL Sep 12, 2025 RSI 65.20 MACD 0.45 ADX 35.50 ATR N/A MFI N/A Price $N/A Change N/A Range N/A Volume N/A Open $N/A History" [ref=e204] [cursor=pointer]:
+              - generic [ref=e206] [cursor=pointer]:
+                - generic [ref=e207] [cursor=pointer]:
+                  - generic [ref=e209] [cursor=pointer]:
+                    - heading "AAPL" [level=6] [ref=e210] [cursor=pointer]
+                    - generic [ref=e211] [cursor=pointer]: Sep 12, 2025
+                  - generic [ref=e213] [cursor=pointer]:
+                    - generic [ref=e214] [cursor=pointer]: RSI
+                    - generic [ref=e215] [cursor=pointer]:
+                      - img [ref=e216] [cursor=pointer]
+                      - paragraph [ref=e218] [cursor=pointer]: "65.20"
+                  - generic [ref=e220] [cursor=pointer]:
+                    - generic [ref=e221] [cursor=pointer]: MACD
+                    - generic [ref=e222] [cursor=pointer]:
+                      - img [ref=e223] [cursor=pointer]
+                      - paragraph [ref=e225] [cursor=pointer]: "0.45"
+                  - generic [ref=e227] [cursor=pointer]:
+                    - generic [ref=e228] [cursor=pointer]: ADX
+                    - generic [ref=e229] [cursor=pointer]:
+                      - img [ref=e230] [cursor=pointer]
+                      - paragraph [ref=e232] [cursor=pointer]: "35.50"
+                  - generic [ref=e234] [cursor=pointer]:
+                    - generic [ref=e235] [cursor=pointer]: ATR
+                    - generic [ref=e236] [cursor=pointer]:
+                      - img [ref=e237] [cursor=pointer]
+                      - paragraph [ref=e239] [cursor=pointer]: N/A
+                  - generic [ref=e241] [cursor=pointer]:
+                    - generic [ref=e242] [cursor=pointer]: MFI
+                    - generic [ref=e243] [cursor=pointer]:
+                      - img [ref=e244] [cursor=pointer]
+                      - paragraph [ref=e246] [cursor=pointer]: N/A
+                - separator [ref=e247] [cursor=pointer]
+                - generic [ref=e248] [cursor=pointer]:
+                  - generic [ref=e250] [cursor=pointer]:
+                    - generic [ref=e251] [cursor=pointer]: Price
+                    - paragraph [ref=e252] [cursor=pointer]: $N/A
+                  - generic [ref=e254] [cursor=pointer]:
+                    - generic [ref=e255] [cursor=pointer]: Change
+                    - paragraph [ref=e257] [cursor=pointer]: N/A
+                  - generic [ref=e259] [cursor=pointer]:
+                    - generic [ref=e260] [cursor=pointer]: Range
+                    - paragraph [ref=e261] [cursor=pointer]: N/A
+                  - generic [ref=e263] [cursor=pointer]:
+                    - generic [ref=e264] [cursor=pointer]: Volume
+                    - paragraph [ref=e265] [cursor=pointer]: N/A
+                  - generic [ref=e267] [cursor=pointer]:
+                    - generic [ref=e268] [cursor=pointer]: Open
+                    - paragraph [ref=e269] [cursor=pointer]: $N/A
+                  - button "History" [ref=e271] [cursor=pointer]: History
+              - img [ref=e273] [cursor=pointer]
+            - button "AMZN Sep 12, 2025 RSI 68.90 MACD 0.41 ADX 31.20 ATR N/A MFI N/A Price $N/A Change N/A Range N/A Volume 4.34M Open $N/A History" [ref=e276] [cursor=pointer]:
+              - generic [ref=e278] [cursor=pointer]:
+                - generic [ref=e279] [cursor=pointer]:
+                  - generic [ref=e281] [cursor=pointer]:
+                    - heading "AMZN" [level=6] [ref=e282] [cursor=pointer]
+                    - generic [ref=e283] [cursor=pointer]: Sep 12, 2025
+                  - generic [ref=e285] [cursor=pointer]:
+                    - generic [ref=e286] [cursor=pointer]: RSI
+                    - generic [ref=e287] [cursor=pointer]:
+                      - img [ref=e288] [cursor=pointer]
+                      - paragraph [ref=e290] [cursor=pointer]: "68.90"
+                  - generic [ref=e292] [cursor=pointer]:
+                    - generic [ref=e293] [cursor=pointer]: MACD
+                    - generic [ref=e294] [cursor=pointer]:
+                      - img [ref=e295] [cursor=pointer]
+                      - paragraph [ref=e297] [cursor=pointer]: "0.41"
+                  - generic [ref=e299] [cursor=pointer]:
+                    - generic [ref=e300] [cursor=pointer]: ADX
+                    - generic [ref=e301] [cursor=pointer]:
+                      - img [ref=e302] [cursor=pointer]
+                      - paragraph [ref=e304] [cursor=pointer]: "31.20"
+                  - generic [ref=e306] [cursor=pointer]:
+                    - generic [ref=e307] [cursor=pointer]: ATR
+                    - generic [ref=e308] [cursor=pointer]:
+                      - img [ref=e309] [cursor=pointer]
+                      - paragraph [ref=e311] [cursor=pointer]: N/A
+                  - generic [ref=e313] [cursor=pointer]:
+                    - generic [ref=e314] [cursor=pointer]: MFI
+                    - generic [ref=e315] [cursor=pointer]:
+                      - img [ref=e316] [cursor=pointer]
+                      - paragraph [ref=e318] [cursor=pointer]: N/A
+                - separator [ref=e319] [cursor=pointer]
+                - generic [ref=e320] [cursor=pointer]:
+                  - generic [ref=e322] [cursor=pointer]:
+                    - generic [ref=e323] [cursor=pointer]: Price
+                    - paragraph [ref=e324] [cursor=pointer]: $N/A
+                  - generic [ref=e326] [cursor=pointer]:
+                    - generic [ref=e327] [cursor=pointer]: Change
+                    - paragraph [ref=e329] [cursor=pointer]: N/A
+                  - generic [ref=e331] [cursor=pointer]:
+                    - generic [ref=e332] [cursor=pointer]: Range
+                    - paragraph [ref=e333] [cursor=pointer]: N/A
+                  - generic [ref=e335] [cursor=pointer]:
+                    - generic [ref=e336] [cursor=pointer]: Volume
+                    - paragraph [ref=e337] [cursor=pointer]: 4.34M
+                  - generic [ref=e339] [cursor=pointer]:
+                    - generic [ref=e340] [cursor=pointer]: Open
+                    - paragraph [ref=e341] [cursor=pointer]: $N/A
+                  - button "History" [ref=e343] [cursor=pointer]: History
+              - img [ref=e345] [cursor=pointer]
+            - button "GOOGL Sep 12, 2025 RSI 72.10 MACD 0.58 ADX 42.70 ATR N/A MFI N/A Price $N/A Change N/A Range N/A Volume 3.10M Open $N/A History" [ref=e348] [cursor=pointer]:
+              - generic [ref=e350] [cursor=pointer]:
+                - generic [ref=e351] [cursor=pointer]:
+                  - generic [ref=e353] [cursor=pointer]:
+                    - heading "GOOGL" [level=6] [ref=e354] [cursor=pointer]
+                    - generic [ref=e355] [cursor=pointer]: Sep 12, 2025
+                  - generic [ref=e357] [cursor=pointer]:
+                    - generic [ref=e358] [cursor=pointer]: RSI
+                    - generic [ref=e359] [cursor=pointer]:
+                      - img [ref=e360] [cursor=pointer]
+                      - paragraph [ref=e362] [cursor=pointer]: "72.10"
+                  - generic [ref=e364] [cursor=pointer]:
+                    - generic [ref=e365] [cursor=pointer]: MACD
+                    - generic [ref=e366] [cursor=pointer]:
+                      - img [ref=e367] [cursor=pointer]
+                      - paragraph [ref=e369] [cursor=pointer]: "0.58"
+                  - generic [ref=e371] [cursor=pointer]:
+                    - generic [ref=e372] [cursor=pointer]: ADX
+                    - generic [ref=e373] [cursor=pointer]:
+                      - img [ref=e374] [cursor=pointer]
+                      - paragraph [ref=e376] [cursor=pointer]: "42.70"
+                  - generic [ref=e378] [cursor=pointer]:
+                    - generic [ref=e379] [cursor=pointer]: ATR
+                    - generic [ref=e380] [cursor=pointer]:
+                      - img [ref=e381] [cursor=pointer]
+                      - paragraph [ref=e383] [cursor=pointer]: N/A
+                  - generic [ref=e385] [cursor=pointer]:
+                    - generic [ref=e386] [cursor=pointer]: MFI
+                    - generic [ref=e387] [cursor=pointer]:
+                      - img [ref=e388] [cursor=pointer]
+                      - paragraph [ref=e390] [cursor=pointer]: N/A
+                - separator [ref=e391] [cursor=pointer]
+                - generic [ref=e392] [cursor=pointer]:
+                  - generic [ref=e394] [cursor=pointer]:
+                    - generic [ref=e395] [cursor=pointer]: Price
+                    - paragraph [ref=e396] [cursor=pointer]: $N/A
+                  - generic [ref=e398] [cursor=pointer]:
+                    - generic [ref=e399] [cursor=pointer]: Change
+                    - paragraph [ref=e401] [cursor=pointer]: N/A
+                  - generic [ref=e403] [cursor=pointer]:
+                    - generic [ref=e404] [cursor=pointer]: Range
+                    - paragraph [ref=e405] [cursor=pointer]: N/A
+                  - generic [ref=e407] [cursor=pointer]:
+                    - generic [ref=e408] [cursor=pointer]: Volume
+                    - paragraph [ref=e409] [cursor=pointer]: 3.10M
+                  - generic [ref=e411] [cursor=pointer]:
+                    - generic [ref=e412] [cursor=pointer]: Open
+                    - paragraph [ref=e413] [cursor=pointer]: $N/A
+                  - button "History" [ref=e415] [cursor=pointer]: History
+              - img [ref=e417] [cursor=pointer]
+            - button "MSFT Sep 12, 2025 RSI 58.70 MACD 0.32 ADX 28.30 ATR N/A MFI N/A Price $N/A Change N/A Range N/A Volume 3.92M Open $N/A History" [ref=e420] [cursor=pointer]:
+              - generic [ref=e422] [cursor=pointer]:
+                - generic [ref=e423] [cursor=pointer]:
+                  - generic [ref=e425] [cursor=pointer]:
+                    - heading "MSFT" [level=6] [ref=e426] [cursor=pointer]
+                    - generic [ref=e427] [cursor=pointer]: Sep 12, 2025
+                  - generic [ref=e429] [cursor=pointer]:
+                    - generic [ref=e430] [cursor=pointer]: RSI
+                    - generic [ref=e431] [cursor=pointer]:
+                      - img [ref=e432] [cursor=pointer]
+                      - paragraph [ref=e434] [cursor=pointer]: "58.70"
+                  - generic [ref=e436] [cursor=pointer]:
+                    - generic [ref=e437] [cursor=pointer]: MACD
+                    - generic [ref=e438] [cursor=pointer]:
+                      - img [ref=e439] [cursor=pointer]
+                      - paragraph [ref=e441] [cursor=pointer]: "0.32"
+                  - generic [ref=e443] [cursor=pointer]:
+                    - generic [ref=e444] [cursor=pointer]: ADX
+                    - generic [ref=e445] [cursor=pointer]:
+                      - img [ref=e446] [cursor=pointer]
+                      - paragraph [ref=e448] [cursor=pointer]: "28.30"
+                  - generic [ref=e450] [cursor=pointer]:
+                    - generic [ref=e451] [cursor=pointer]: ATR
+                    - generic [ref=e452] [cursor=pointer]:
+                      - img [ref=e453] [cursor=pointer]
+                      - paragraph [ref=e455] [cursor=pointer]: N/A
+                  - generic [ref=e457] [cursor=pointer]:
+                    - generic [ref=e458] [cursor=pointer]: MFI
+                    - generic [ref=e459] [cursor=pointer]:
+                      - img [ref=e460] [cursor=pointer]
+                      - paragraph [ref=e462] [cursor=pointer]: N/A
+                - separator [ref=e463] [cursor=pointer]
+                - generic [ref=e464] [cursor=pointer]:
+                  - generic [ref=e466] [cursor=pointer]:
+                    - generic [ref=e467] [cursor=pointer]: Price
+                    - paragraph [ref=e468] [cursor=pointer]: $N/A
+                  - generic [ref=e470] [cursor=pointer]:
+                    - generic [ref=e471] [cursor=pointer]: Change
+                    - paragraph [ref=e473] [cursor=pointer]: N/A
+                  - generic [ref=e475] [cursor=pointer]:
+                    - generic [ref=e476] [cursor=pointer]: Range
+                    - paragraph [ref=e477] [cursor=pointer]: N/A
+                  - generic [ref=e479] [cursor=pointer]:
+                    - generic [ref=e480] [cursor=pointer]: Volume
+                    - paragraph [ref=e481] [cursor=pointer]: 3.92M
+                  - generic [ref=e483] [cursor=pointer]:
+                    - generic [ref=e484] [cursor=pointer]: Open
+                    - paragraph [ref=e485] [cursor=pointer]: $N/A
+                  - button "History" [ref=e487] [cursor=pointer]: History
+              - img [ref=e489] [cursor=pointer]
+            - button "NVDA Sep 12, 2025 RSI 78.40 MACD 0.65 ADX 48.60 ATR N/A MFI N/A Price $N/A Change N/A Range N/A Volume N/A Open $N/A History" [ref=e492] [cursor=pointer]:
+              - generic [ref=e494] [cursor=pointer]:
+                - generic [ref=e495] [cursor=pointer]:
+                  - generic [ref=e497] [cursor=pointer]:
+                    - heading "NVDA" [level=6] [ref=e498] [cursor=pointer]
+                    - generic [ref=e499] [cursor=pointer]: Sep 12, 2025
+                  - generic [ref=e501] [cursor=pointer]:
+                    - generic [ref=e502] [cursor=pointer]: RSI
+                    - generic [ref=e503] [cursor=pointer]:
+                      - img [ref=e504] [cursor=pointer]
+                      - paragraph [ref=e506] [cursor=pointer]: "78.40"
+                  - generic [ref=e508] [cursor=pointer]:
+                    - generic [ref=e509] [cursor=pointer]: MACD
+                    - generic [ref=e510] [cursor=pointer]:
+                      - img [ref=e511] [cursor=pointer]
+                      - paragraph [ref=e513] [cursor=pointer]: "0.65"
+                  - generic [ref=e515] [cursor=pointer]:
+                    - generic [ref=e516] [cursor=pointer]: ADX
+                    - generic [ref=e517] [cursor=pointer]:
+                      - img [ref=e518] [cursor=pointer]
+                      - paragraph [ref=e520] [cursor=pointer]: "48.60"
+                  - generic [ref=e522] [cursor=pointer]:
+                    - generic [ref=e523] [cursor=pointer]: ATR
+                    - generic [ref=e524] [cursor=pointer]:
+                      - img [ref=e525] [cursor=pointer]
+                      - paragraph [ref=e527] [cursor=pointer]: N/A
+                  - generic [ref=e529] [cursor=pointer]:
+                    - generic [ref=e530] [cursor=pointer]: MFI
+                    - generic [ref=e531] [cursor=pointer]:
+                      - img [ref=e532] [cursor=pointer]
+                      - paragraph [ref=e534] [cursor=pointer]: N/A
+                - separator [ref=e535] [cursor=pointer]
+                - generic [ref=e536] [cursor=pointer]:
+                  - generic [ref=e538] [cursor=pointer]:
+                    - generic [ref=e539] [cursor=pointer]: Price
+                    - paragraph [ref=e540] [cursor=pointer]: $N/A
+                  - generic [ref=e542] [cursor=pointer]:
+                    - generic [ref=e543] [cursor=pointer]: Change
+                    - paragraph [ref=e545] [cursor=pointer]: N/A
+                  - generic [ref=e547] [cursor=pointer]:
+                    - generic [ref=e548] [cursor=pointer]: Range
+                    - paragraph [ref=e549] [cursor=pointer]: N/A
+                  - generic [ref=e551] [cursor=pointer]:
+                    - generic [ref=e552] [cursor=pointer]: Volume
+                    - paragraph [ref=e553] [cursor=pointer]: N/A
+                  - generic [ref=e555] [cursor=pointer]:
+                    - generic [ref=e556] [cursor=pointer]: Open
+                    - paragraph [ref=e557] [cursor=pointer]: $N/A
+                  - button "History" [ref=e559] [cursor=pointer]: History
+              - img [ref=e561] [cursor=pointer]
+            - button "TSLA Sep 12, 2025 RSI 42.30 MACD -0.25 ADX 18.90 ATR N/A MFI N/A Price $N/A Change N/A Range N/A Volume 4.86M Open $N/A History" [ref=e564] [cursor=pointer]:
+              - generic [ref=e566] [cursor=pointer]:
+                - generic [ref=e567] [cursor=pointer]:
+                  - generic [ref=e569] [cursor=pointer]:
+                    - heading "TSLA" [level=6] [ref=e570] [cursor=pointer]
+                    - generic [ref=e571] [cursor=pointer]: Sep 12, 2025
+                  - generic [ref=e573] [cursor=pointer]:
+                    - generic [ref=e574] [cursor=pointer]: RSI
+                    - generic [ref=e575] [cursor=pointer]:
+                      - img [ref=e576] [cursor=pointer]
+                      - paragraph [ref=e578] [cursor=pointer]: "42.30"
+                  - generic [ref=e580] [cursor=pointer]:
+                    - generic [ref=e581] [cursor=pointer]: MACD
+                    - generic [ref=e582] [cursor=pointer]:
+                      - img [ref=e583] [cursor=pointer]
+                      - paragraph [ref=e585] [cursor=pointer]: "-0.25"
+                  - generic [ref=e587] [cursor=pointer]:
+                    - generic [ref=e588] [cursor=pointer]: ADX
+                    - generic [ref=e589] [cursor=pointer]:
+                      - img [ref=e590] [cursor=pointer]
+                      - paragraph [ref=e592] [cursor=pointer]: "18.90"
+                  - generic [ref=e594] [cursor=pointer]:
+                    - generic [ref=e595] [cursor=pointer]: ATR
+                    - generic [ref=e596] [cursor=pointer]:
+                      - img [ref=e597] [cursor=pointer]
+                      - paragraph [ref=e599] [cursor=pointer]: N/A
+                  - generic [ref=e601] [cursor=pointer]:
+                    - generic [ref=e602] [cursor=pointer]: MFI
+                    - generic [ref=e603] [cursor=pointer]:
+                      - img [ref=e604] [cursor=pointer]
+                      - paragraph [ref=e606] [cursor=pointer]: N/A
+                - separator [ref=e607] [cursor=pointer]
+                - generic [ref=e608] [cursor=pointer]:
+                  - generic [ref=e610] [cursor=pointer]:
+                    - generic [ref=e611] [cursor=pointer]: Price
+                    - paragraph [ref=e612] [cursor=pointer]: $N/A
+                  - generic [ref=e614] [cursor=pointer]:
+                    - generic [ref=e615] [cursor=pointer]: Change
+                    - paragraph [ref=e617] [cursor=pointer]: N/A
+                  - generic [ref=e619] [cursor=pointer]:
+                    - generic [ref=e620] [cursor=pointer]: Range
+                    - paragraph [ref=e621] [cursor=pointer]: N/A
+                  - generic [ref=e623] [cursor=pointer]:
+                    - generic [ref=e624] [cursor=pointer]: Volume
+                    - paragraph [ref=e625] [cursor=pointer]: 4.86M
+                  - generic [ref=e627] [cursor=pointer]:
+                    - generic [ref=e628] [cursor=pointer]: Open
+                    - paragraph [ref=e629] [cursor=pointer]: $N/A
+                  - button "History" [ref=e631] [cursor=pointer]: History
+              - img [ref=e633] [cursor=pointer]
+          - generic [ref=e636]:
+            - paragraph [ref=e637]: "Rows per page:"
+            - generic [ref=e638]:
+              - 'combobox "Rows per page: 10" [ref=e639] [cursor=pointer]': "10"
+              - textbox: "10"
+              - img
+            - paragraph [ref=e640]: 0–0 of 0
+            - generic [ref=e641]:
+              - button "Go to previous page" [disabled]:
+                - img
+              - button "Go to next page" [disabled]:
+                - img
+```

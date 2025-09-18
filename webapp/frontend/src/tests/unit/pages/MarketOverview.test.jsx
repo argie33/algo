@@ -13,10 +13,10 @@ Object.defineProperty(import.meta, "env", {
   configurable: true,
 });
 
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { screen, waitFor, userEvent } from "@testing-library/react";
+import { renderWithProviders } from "../../test-utils.jsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 
 // Import the component under test
 import MarketOverview from "../../../pages/MarketOverview.jsx";
@@ -56,34 +56,13 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// Mock API service with proper ES module support
-vi.mock("../../../services/api", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
-    put: vi.fn(() => Promise.resolve({ data: {} })),
-    delete: vi.fn(() => Promise.resolve({ data: {} })),
-  };
-
-  const mockGetApiConfig = vi.fn(() => ({
-    baseURL: "http://localhost:3001",
-    apiUrl: "http://localhost:3001",
-    environment: "test",
-    isDevelopment: true,
-    isProduction: false,
-    baseUrl: "/",
-    allEnvVars: {
-      VITE_API_URL: "http://localhost:3001",
-      MODE: "test",
-      DEV: true,
-      PROD: false,
-      BASE_URL: "/",
-    },
-  }));
-
-  // Mock the specific API methods that MarketOverview component uses
-  const mockGetMarketOverview = vi.fn(() =>
-    Promise.resolve({
+// Mock API service
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getMarketOverview: vi.fn().mockResolvedValue({
+      success: true,
       data: {
         sentiment_indicators: {
           fear_greed: {
@@ -141,11 +120,9 @@ vi.mock("../../../services/api", () => {
           },
         ],
       },
-    })
-  );
-
-  const mockGetMarketSentimentHistory = vi.fn(() =>
-    Promise.resolve({
+    }),
+    getMarketSentimentHistory: vi.fn().mockResolvedValue({
+      success: true,
       data: {
         fear_greed_history: [
           { date: "2023-01-01", value: 45, value_text: "Neutral" },
@@ -160,11 +137,9 @@ vi.mock("../../../services/api", () => {
           { date: "2023-01-02", bullish: 40, neutral: 30, bearish: 30 },
         ],
       },
-    })
-  );
-
-  const mockGetMarketSectorPerformance = vi.fn(() =>
-    Promise.resolve({
+    }),
+    getMarketSectorPerformance: vi.fn().mockResolvedValue({
+      success: true,
       data: {
         sectors: [
           {
@@ -187,11 +162,9 @@ vi.mock("../../../services/api", () => {
           },
         ],
       },
-    })
-  );
-
-  const mockGetMarketBreadth = vi.fn(() =>
-    Promise.resolve({
+    }),
+    getMarketBreadth: vi.fn().mockResolvedValue({
+      success: true,
       data: {
         advancing: 1600,
         declining: 1100,
@@ -199,11 +172,9 @@ vi.mock("../../../services/api", () => {
         advance_decline_ratio: 1.45,
         average_change_percent: 0.8,
       },
-    })
-  );
-
-  const mockGetEconomicIndicators = vi.fn(() =>
-    Promise.resolve({
+    }),
+    getEconomicIndicators: vi.fn().mockResolvedValue({
+      success: true,
       data: [
         {
           name: "Unemployment Rate",
@@ -230,20 +201,14 @@ vi.mock("../../../services/api", () => {
           timestamp: "2023-01-01",
         },
       ],
-    })
-  );
-
-  const mockGetSeasonalityData = vi.fn(() =>
-    Promise.resolve({
+    }),
+    getSeasonalityData: vi.fn().mockResolvedValue({
+      success: true,
       data: {
         summary: {
           overallSeasonalBias: "Bullish",
-          recommendation:
-            "Consider increased equity exposure during favorable seasonal period",
-          favorableFactors: [
-            "Historical October effect",
-            "Year-end portfolio rebalancing",
-          ],
+          recommendation: "Consider increased equity exposure during favorable seasonal period",
+          favorableFactors: ["Historical October effect", "Year-end portfolio rebalancing"],
           unfavorableFactors: ["September weakness", "Summer doldrums"],
         },
         currentPosition: {
@@ -263,18 +228,8 @@ vi.mock("../../../services/api", () => {
         ],
         presidentialCycle: {
           data: [
-            {
-              year: 1,
-              label: "Post-Election",
-              avgReturn: 8.2,
-              isCurrent: false,
-            },
-            {
-              year: 3,
-              label: "Pre-Election",
-              avgReturn: 16.3,
-              isCurrent: true,
-            },
+            { year: 1, label: "Post-Election", avgReturn: 8.2, isCurrent: false },
+            { year: 3, label: "Pre-Election", avgReturn: 16.3, isCurrent: true },
           ],
         },
         dayOfWeekEffects: [
@@ -301,11 +256,9 @@ vi.mock("../../../services/api", () => {
           },
         ],
       },
-    })
-  );
-
-  const mockGetMarketResearchIndicators = vi.fn(() =>
-    Promise.resolve({
+    }),
+    getMarketResearchIndicators: vi.fn().mockResolvedValue({
+      success: true,
       data: {
         summary: {
           overallSentiment: "Cautiously Optimistic",
@@ -361,21 +314,24 @@ vi.mock("../../../services/api", () => {
           },
         ],
       },
-    })
-  );
-
-  return {
-    default: mockApi,
-    getApiConfig: mockGetApiConfig,
-    getMarketOverview: mockGetMarketOverview,
-    getMarketSentimentHistory: mockGetMarketSentimentHistory,
-    getMarketSectorPerformance: mockGetMarketSectorPerformance,
-    getMarketBreadth: mockGetMarketBreadth,
-    getEconomicIndicators: mockGetEconomicIndicators,
-    getSeasonalityData: mockGetSeasonalityData,
-    getMarketResearchIndicators: mockGetMarketResearchIndicators,
-  };
-});
+    }),
+  },
+  getApiConfig: vi.fn(() => ({
+    baseURL: "http://localhost:3001",
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+    isDevelopment: true,
+    isProduction: false,
+    baseUrl: "/",
+    allEnvVars: {
+      VITE_API_URL: "http://localhost:3001",
+      MODE: "test",
+      DEV: true,
+      PROD: false,
+      BASE_URL: "/",
+    },
+  })),
+}));
 
 // Mock auth context
 const mockAuthContext = {
@@ -503,11 +459,8 @@ describe("MarketOverview Page", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-
-    // Access the mocked API module
-    const { default: api } = await import("../../../services/api");
-
-    api.get.mockImplementation((url) => {
+    const { default: api } = await import("../../../services/api.js");
+    vi.mocked(api.get).mockImplementation((url) => {
       if (url.includes("/market/overview")) {
         return Promise.resolve({ data: mockMarketData });
       }
@@ -524,26 +477,7 @@ describe("MarketOverview Page", () => {
   });
 
   const renderMarketOverview = () => {
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: {
-          retry: false,
-        },
-      },
-    });
-
-    return render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <MarketOverview />
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
+    return renderWithProviders(<MarketOverview />);
   };
 
   describe("Page Structure", () => {
@@ -821,7 +755,7 @@ describe("MarketOverview Page", () => {
     });
 
     it("handles market closed status", async () => {
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       api.get.mockResolvedValue({
         data: {
           ...mockMarketData,
@@ -842,7 +776,7 @@ describe("MarketOverview Page", () => {
     });
 
     it("shows pre-market and after-hours status", async () => {
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       api.get.mockResolvedValue({
         data: {
           ...mockMarketData,
@@ -883,7 +817,7 @@ describe("MarketOverview Page", () => {
 
     it("refreshes market data", async () => {
       const user = userEvent.setup();
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
 
       renderMarketOverview();
 
@@ -910,7 +844,7 @@ describe("MarketOverview Page", () => {
       const timeRangeSelect = screen.getByLabelText(/time range/i);
       await user.selectOptions(timeRangeSelect, "1W");
 
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       expect(api.get).toHaveBeenCalledWith(
         expect.stringContaining("timeRange=1W")
       );
@@ -950,7 +884,7 @@ describe("MarketOverview Page", () => {
     it("handles real-time price updates", async () => {
       renderMarketOverview();
 
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
 
       // Simulate real-time update
       const updatedData = {
@@ -989,7 +923,7 @@ describe("MarketOverview Page", () => {
     });
 
     it("indicates when data is stale", async () => {
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       api.get.mockRejectedValue(new Error("Network error"));
 
       renderMarketOverview();
@@ -1002,7 +936,7 @@ describe("MarketOverview Page", () => {
 
   describe("Error Handling", () => {
     it("displays error message when data fails to load", async () => {
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       api.get.mockRejectedValue(new Error("API Error"));
 
       renderMarketOverview();
@@ -1018,7 +952,7 @@ describe("MarketOverview Page", () => {
     });
 
     it("handles partial data loading gracefully", async () => {
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       api.get.mockResolvedValue({
         data: {
           indices: mockMarketData.indices,
@@ -1036,7 +970,7 @@ describe("MarketOverview Page", () => {
 
     it("retries failed requests", async () => {
       const user = userEvent.setup();
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
 
       api.get.mockRejectedValueOnce(new Error("Network error"));
       api.get.mockResolvedValueOnce({ data: mockMarketData });
@@ -1140,7 +1074,7 @@ describe("MarketOverview Page", () => {
         </QueryClientProvider>
       );
 
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       expect(api.get).toHaveBeenCalledTimes(1);
     });
 
@@ -1155,7 +1089,7 @@ describe("MarketOverview Page", () => {
         losers: [],
       };
 
-      const { default: api } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       api.get.mockResolvedValue({
         data: { ...mockMarketData, movers: largeMovers },
       });

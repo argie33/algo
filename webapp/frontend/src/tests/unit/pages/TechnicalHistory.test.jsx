@@ -33,32 +33,30 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
-// Mock API service with proper ES module support
-vi.mock("../../../services/api", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getTechnicalHistory: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTechnicalAnalysis: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getHistoricalData: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStocks: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  },
+  api: {
     getTechnicalHistory: vi.fn(),
     getTechnicalAnalysis: vi.fn(),
     getHistoricalData: vi.fn(),
     getStocks: vi.fn(),
-  };
-
-  const mockGetApiConfig = vi.fn(() => ({
-    baseURL: "http://localhost:3001",
+  },
+  getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
     isDevelopment: true,
     isProduction: false,
     baseUrl: "/",
-  }));
-
-  return {
-    api: mockApi,
-    getApiConfig: mockGetApiConfig,
-    default: mockApi,
-  };
-});
+  })),
+}));
 
 const mockTechnicalData = {
   symbol: "AAPL",
@@ -199,7 +197,7 @@ function renderTechnicalHistory(props = {}) {
 describe("TechnicalHistory Component", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { api } = await import("../../../services/api");
+    const { api } = await import("../../../services/api.js");
     api.getTechnicalHistory.mockResolvedValue({
       success: true,
       data: mockTechnicalData,
@@ -218,7 +216,7 @@ describe("TechnicalHistory Component", () => {
     ).toBeInTheDocument();
 
     await waitFor(async () => {
-      const { api } = await import("../../../services/api");
+      const { api } = await import("../../../services/api.js");
       expect(api.getStocks || api.getTechnicalHistory).toHaveBeenCalled();
     });
   });
@@ -468,7 +466,7 @@ describe("TechnicalHistory Component", () => {
       fireEvent.click(periodButton);
 
       await waitFor(async () => {
-        const { api } = await import("../../../services/api");
+        const { api } = await import("../../../services/api.js");
         expect(api.getTechnicalHistory).toHaveBeenCalledTimes(2);
       });
     }
@@ -505,7 +503,7 @@ describe("TechnicalHistory Component", () => {
   });
 
   it("handles loading state", async () => {
-    const { api } = await import("../../../services/api");
+    const { api } = await import("../../../services/api.js");
     api.getTechnicalHistory.mockImplementation(() => new Promise(() => {}));
 
     renderTechnicalHistory();
@@ -516,7 +514,7 @@ describe("TechnicalHistory Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    const { api } = await import("../../../services/api");
+    const { api } = await import("../../../services/api.js");
     api.getTechnicalHistory.mockRejectedValue(
       new Error("Failed to load technical data")
     );
@@ -579,7 +577,7 @@ describe("TechnicalHistory Component", () => {
   });
 
   it("handles empty technical data", async () => {
-    const { api } = await import("../../../services/api");
+    const { api } = await import("../../../services/api.js");
     api.getTechnicalHistory.mockResolvedValue({
       success: true,
       data: { history: [], indicators: {}, patterns: [], signals: [] },

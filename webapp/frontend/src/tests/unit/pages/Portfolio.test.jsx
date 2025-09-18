@@ -1,5 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { BrowserRouter } from "react-router-dom";
+import { screen, fireEvent, waitFor, renderWithProviders } from "../../test-utils.jsx";
 import { vi, describe, test, expect, beforeEach } from "vitest";
 import Portfolio from "../../../pages/Portfolio";
 
@@ -24,62 +23,24 @@ vi.mock("../../../hooks/useDocumentTitle", () => ({
   useDocumentTitle: vi.fn(),
 }));
 
-// Mock API service
-vi.mock("../../../services/api", async () => {
-  const actual = await vi.importActual("../../../services/api");
+// Mock API service with comprehensive mock
+vi.mock("../../../services/api.js", async () => {
+  const mockApi = await import("../../mocks/apiMock.js");
   return {
-    ...actual,
-    default: {
-      get: vi.fn().mockResolvedValue({
-        data: {
-          success: true,
-          data: {
-            portfolio: {
-              value: 100000,
-              dayChange: 1500,
-              dayChangePercent: 1.52,
-            },
-            positions: [],
-            performance: {
-              totalReturn: 15000,
-              totalReturnPercent: 17.5,
-            },
-          },
-        },
-      }),
-      post: vi.fn().mockResolvedValue({ data: { success: true } }),
-    },
-    getApiConfig: vi.fn(() => ({
-      baseURL: "http://localhost:3001",
-      apiUrl: "http://localhost:3001",
-      isDevelopment: true,
-    })),
-    getPortfolioData: vi.fn().mockResolvedValue({
-      holdings: [],
-      summary: {
-        totalValue: 100000,
-        totalCost: 85000,
-        totalPnl: 15000,
-        totalPnlPercent: 17.5,
-      },
-      performance: {
-        totalReturn: 15000,
-        totalReturnPercent: 17.5,
-      },
-    }),
-    getApiKeys: vi.fn().mockResolvedValue({}),
-    testApiConnection: vi.fn().mockResolvedValue({ success: true }),
-    importPortfolioFromBroker: vi.fn().mockResolvedValue({ success: true }),
+    default: mockApi.default,
+    getApiConfig: mockApi.getApiConfig,
+    getPortfolioData: mockApi.getPortfolioData,
+    getApiKeys: mockApi.getApiKeys,
+    testApiConnection: mockApi.testApiConnection,
+    importPortfolioFromBroker: mockApi.importPortfolioFromBroker,
+    healthCheck: mockApi.healthCheck,
+    getMarketOverview: mockApi.getMarketOverview,
   };
 });
 
 describe("Portfolio", () => {
   const renderPortfolio = () => {
-    return render(
-      <BrowserRouter>
-        <Portfolio />
-      </BrowserRouter>
-    );
+    return renderWithProviders(<Portfolio />);
   };
 
   beforeEach(() => {
@@ -133,8 +94,8 @@ describe("Portfolio", () => {
     });
 
     test("handles API error gracefully", async () => {
-      const mockApi = await import("../../../services/api");
-      mockApi.default.get.mockRejectedValueOnce(new Error("API Error"));
+      const { default: api } = await import("../../../services/api.js");
+      vi.mocked(api.get).mockRejectedValueOnce(new Error("API Error"));
 
       renderPortfolio();
 
@@ -194,8 +155,8 @@ describe("Portfolio", () => {
     });
 
     test("displays positions if available", async () => {
-      const mockApi = await import("../../../services/api");
-      mockApi.default.get.mockResolvedValueOnce({
+      const { default: api } = await import("../../../services/api.js");
+      vi.mocked(api.get).mockResolvedValueOnce({
         data: {
           success: true,
           data: {
@@ -218,8 +179,8 @@ describe("Portfolio", () => {
 
   describe("Error Handling", () => {
     test("handles network errors", async () => {
-      const mockApi = await import("../../../services/api");
-      mockApi.default.get.mockRejectedValue(new Error("Network error"));
+      const { default: api } = await import("../../../services/api.js");
+      vi.mocked(api.get).mockRejectedValue(new Error("Network error"));
 
       renderPortfolio();
 
@@ -230,8 +191,8 @@ describe("Portfolio", () => {
     });
 
     test("handles malformed API response", async () => {
-      const mockApi = await import("../../../services/api");
-      mockApi.default.get.mockResolvedValue({
+      const { default: api } = await import("../../../services/api.js");
+      vi.mocked(api.get).mockResolvedValue({
         data: { success: false, error: "Invalid data" },
       });
 

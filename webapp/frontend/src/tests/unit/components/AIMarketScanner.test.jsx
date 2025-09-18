@@ -17,6 +17,46 @@ vi.mock("../../../services/realTimeDataService", () => ({
   },
 }));
 
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getScreenerResults: vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        results: [
+          {
+            symbol: "AAPL",
+            price: 150.25,
+            priceChange: 5.2,
+            volumeRatio: 2.5,
+            rsi: 65,
+            marketCap: 2400000000000,
+            signals: ["Momentum Buy", "Volume Surge"],
+          },
+          {
+            symbol: "TSLA",
+            price: 180.5,
+            priceChange: -3.1,
+            volumeRatio: 3.2,
+            rsi: 45,
+            marketCap: 580000000000,
+            signals: ["Oversold"],
+          },
+        ]
+      }
+    }),
+    runAIScan: vi.fn().mockResolvedValue({ success: true, data: { results: [] } }),
+    addToWatchlist: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    removeFromWatchlist: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
 // Mock fetch for API calls
 global.fetch = vi.fn();
 
@@ -57,7 +97,7 @@ const createWrapper = () => {
 describe("AIMarketScanner", () => {
   let mockOnStockSelect;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockOnStockSelect = vi.fn();
     vi.clearAllMocks();
 
@@ -68,6 +108,17 @@ describe("AIMarketScanner", () => {
           success: true,
           data: { results: mockScanResults },
         }),
+    });
+
+    // Also mock the API service
+    const { default: api } = await import("../../../services/api.js");
+    api.getScreenerResults.mockResolvedValue({
+      success: true,
+      data: { results: mockScanResults }
+    });
+    api.runAIScan.mockResolvedValue({
+      success: true,
+      data: { results: mockScanResults }
     });
   });
 

@@ -28,8 +28,17 @@ vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(() => vi.fn()),
 }));
 
-// Mock API service
+// Mock API service with standardized pattern
 vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getTradeHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getTradePerformance: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSummary: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    exportTrades: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    uploadTrades: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
   api: {
     getTradeHistory: vi.fn(),
     getTradePerformance: vi.fn(),
@@ -97,10 +106,9 @@ const mockPerformance = {
 };
 
 describe("TradeHistory Component", () => {
-  const { api } = require("../../../services/api.js");
-
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const { api } = await import("../../../services/api.js");
     api.getTradeHistory.mockResolvedValue({
       success: true,
       data: mockTrades,
@@ -123,7 +131,8 @@ describe("TradeHistory Component", () => {
     renderWithProviders(<TradeHistory />);
 
     expect(screen.getByText(/trade history/i)).toBeInTheDocument();
-    await waitFor(() => {
+    await waitFor(async () => {
+      const { api } = await import("../../../services/api.js");
       expect(api.getTradeHistory).toHaveBeenCalled();
     });
   });
@@ -158,7 +167,8 @@ describe("TradeHistory Component", () => {
     });
   });
 
-  it("shows loading state initially", () => {
+  it("shows loading state initially", async () => {
+    const { api } = await import("../../../services/api.js");
     api.getTradeHistory.mockImplementation(() => new Promise(() => {}));
 
     renderWithProviders(<TradeHistory />);
@@ -167,6 +177,7 @@ describe("TradeHistory Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
+    const { api } = await import("../../../services/api.js");
     api.getTradeHistory.mockRejectedValue(new Error("API Error"));
 
     renderWithProviders(<TradeHistory />);
@@ -212,7 +223,8 @@ describe("TradeHistory Component", () => {
       await userEvent.clear(dateInputs[0]);
       await userEvent.type(dateInputs[0], "2024-01-15");
 
-      await waitFor(() => {
+      await waitFor(async () => {
+        const { api } = await import("../../../services/api.js");
         expect(api.getTradeHistory).toHaveBeenCalledTimes(2);
       });
     }
@@ -272,6 +284,7 @@ describe("TradeHistory Component", () => {
       status: "filled",
     }));
 
+    const { api } = await import("../../../services/api.js");
     api.getTradeHistory.mockResolvedValue({
       success: true,
       data: largeTrades,
@@ -296,6 +309,7 @@ describe("TradeHistory Component", () => {
   });
 
   it("exports trade data", async () => {
+    const { api } = await import("../../../services/api.js");
     api.exportTrades.mockResolvedValue({
       success: true,
       data: "csv,data,here",
@@ -318,6 +332,7 @@ describe("TradeHistory Component", () => {
   });
 
   it("uploads trade data", async () => {
+    const { api } = await import("../../../services/api.js");
     api.uploadTrades.mockResolvedValue({
       success: true,
       message: "Trades uploaded successfully",
@@ -343,14 +358,16 @@ describe("TradeHistory Component", () => {
   it("refreshes trade data", async () => {
     renderWithProviders(<TradeHistory />);
 
-    await waitFor(() => {
+    await waitFor(async () => {
+      const { api } = await import("../../../services/api.js");
       expect(api.getTradeHistory).toHaveBeenCalledTimes(1);
     });
 
     const refreshButton = screen.getByLabelText(/refresh/i);
     fireEvent.click(refreshButton);
 
-    await waitFor(() => {
+    await waitFor(async () => {
+      const { api } = await import("../../../services/api.js");
       expect(api.getTradeHistory).toHaveBeenCalledTimes(2);
     });
   });
@@ -391,6 +408,7 @@ describe("TradeHistory Component", () => {
   });
 
   it("handles empty trade history", async () => {
+    const { api } = await import("../../../services/api.js");
     api.getTradeHistory.mockResolvedValue({
       success: true,
       data: [],

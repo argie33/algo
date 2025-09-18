@@ -33,32 +33,30 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
-// Mock API service with proper ES module support
-vi.mock("../../../services/api", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    screenStocks: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getScreenerResults: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    saveScreen: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getPresetScreens: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  },
+  api: {
     screenStocks: vi.fn(),
     getScreenerResults: vi.fn(),
     saveScreen: vi.fn(),
     getPresetScreens: vi.fn(),
-  };
-
-  const mockGetApiConfig = vi.fn(() => ({
-    baseURL: "http://localhost:3001",
+  },
+  getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
     isDevelopment: true,
     isProduction: false,
     baseUrl: "/",
-  }));
-
-  return {
-    api: mockApi,
-    getApiConfig: mockGetApiConfig,
-    default: mockApi,
-  };
-});
+  })),
+}));
 
 const mockScreenerData = {
   results: [
@@ -160,7 +158,7 @@ function renderStockScreener(props = {}) {
 describe("StockScreener Component", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { api } = await import("../../../services/api");
+    const { api } = await import("../../../services/api.js");
     api.screenStocks.mockResolvedValue({
       success: true,
       data: mockScreenerData,
@@ -177,7 +175,7 @@ describe("StockScreener Component", () => {
     expect(screen.getByText(/stock screener/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      const { api } = require("../../../services/api");
+      const { api } = require("../../../services/api.js");
       expect(api.screenStocks || api.getPresetScreens).toHaveBeenCalled();
     });
   });
@@ -289,7 +287,7 @@ describe("StockScreener Component", () => {
   });
 
   it("handles running a custom screen", async () => {
-    const { api } = require("../../../services/api");
+    const { api } = require("../../../services/api.js");
 
     renderStockScreener();
 
@@ -311,7 +309,7 @@ describe("StockScreener Component", () => {
       fireEvent.click(presetButton);
 
       // Should trigger a new screen with preset criteria
-      const { api } = require("../../../services/api");
+      const { api } = require("../../../services/api.js");
       expect(api.screenStocks).toHaveBeenCalled();
     });
   });
@@ -358,7 +356,7 @@ describe("StockScreener Component", () => {
       if (nextButton && !nextButton.disabled) {
         fireEvent.click(nextButton);
 
-        const { api } = require("../../../services/api");
+        const { api } = require("../../../services/api.js");
         expect(api.screenStocks).toHaveBeenCalledWith(
           expect.objectContaining({ page: 2 })
         );
@@ -367,7 +365,7 @@ describe("StockScreener Component", () => {
   });
 
   it("allows saving custom screens", async () => {
-    const { api } = require("../../../services/api");
+    const { api } = require("../../../services/api.js");
     api.saveScreen.mockResolvedValue({ success: true });
 
     renderStockScreener();
@@ -412,14 +410,14 @@ describe("StockScreener Component", () => {
         fireEvent.click(clearButton);
 
         // Should reset form and potentially trigger new search
-        const { api } = require("../../../services/api");
+        const { api } = require("../../../services/api.js");
         expect(api.screenStocks).toHaveBeenCalled();
       }
     });
   });
 
   it("shows loading state during screening", () => {
-    const { api } = require("../../../services/api");
+    const { api } = require("../../../services/api.js");
     api.screenStocks.mockImplementation(() => new Promise(() => {}));
 
     renderStockScreener();
@@ -436,7 +434,7 @@ describe("StockScreener Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    const { api } = require("../../../services/api");
+    const { api } = require("../../../services/api.js");
     api.screenStocks.mockRejectedValue(new Error("Screening failed"));
 
     renderStockScreener();
@@ -454,7 +452,7 @@ describe("StockScreener Component", () => {
   });
 
   it("handles empty results", async () => {
-    const { api } = require("../../../services/api");
+    const { api } = require("../../../services/api.js");
     api.screenStocks.mockResolvedValue({
       success: true,
       data: { ...mockScreenerData, results: [], totalResults: 0 },
@@ -478,7 +476,7 @@ describe("StockScreener Component", () => {
       fireEvent.click(priceHeader);
 
       // Should trigger re-sorting or new API call
-      const { api } = require("../../../services/api");
+      const { api } = require("../../../services/api.js");
       expect(api.screenStocks).toHaveBeenCalled();
     });
   });

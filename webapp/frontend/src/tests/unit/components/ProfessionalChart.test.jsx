@@ -4,6 +4,27 @@ import { ThemeProvider } from "@mui/material/styles";
 import { createTheme } from "@mui/material/styles";
 import ProfessionalChart from "../../../components/ProfessionalChart";
 
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getChartData: vi.fn().mockResolvedValue({
+      success: true,
+      data: [
+        { date: "2024-01-01", value: 100, volume: 1000 },
+        { date: "2024-01-02", value: 105, volume: 1200 },
+        { date: "2024-01-03", value: 98, volume: 900 },
+      ]
+    }),
+    getMarketData: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
 // Mock recharts components
 vi.mock("recharts", () => ({
   LineChart: ({ children, data, margin: _margin, ..._props }) => (

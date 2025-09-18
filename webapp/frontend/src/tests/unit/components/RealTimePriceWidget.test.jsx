@@ -2,6 +2,35 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import RealTimePriceWidget from "../../../components/RealTimePriceWidget";
 
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getStockQuote: vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        symbol: "AAPL",
+        price: 150.25,
+        previousClose: 148.5,
+        dayChange: 1.75,
+        dayChangePercent: 1.18,
+        volume: 45000000,
+        marketCap: 2400000000000,
+        dayHigh: 152.10,
+        dayLow: 147.80,
+        lastUpdated: new Date().toISOString(),
+      }
+    }),
+    getRealTimePrice: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
 vi.mock("../../../services/dataCache", () => ({
   default: {
     get: vi.fn(),
@@ -29,11 +58,16 @@ const mockPriceData = {
 };
 
 const { default: mockDataCache } = await import("../../../services/dataCache");
+const { default: mockApi } = await import("../../../services/api.js");
 
 describe("RealTimePriceWidget", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockDataCache.get.mockResolvedValue(mockPriceData);
+    mockApi.getStockQuote.mockResolvedValue({
+      success: true,
+      data: mockPriceData
+    });
   });
 
   describe("Rendering", () => {

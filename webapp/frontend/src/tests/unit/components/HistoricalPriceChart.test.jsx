@@ -3,21 +3,48 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 import { renderWithProviders } from "../../test-utils";
 import HistoricalPriceChart from "../../../components/HistoricalPriceChart";
 
-// Mock the API service with factory function to avoid hoisting issues
-vi.mock("../../../services/api", () => ({
-  getStockPrices: vi.fn((symbol, timeframe, period) =>
-    Promise.resolve({
-      data: Array.from({ length: period || 5 }, (_, i) => ({
-        date: `2024-01-0${i + 1}`,
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getStockPrices: vi.fn().mockResolvedValue({
+      success: true,
+      data: Array.from({ length: 30 }, (_, i) => ({
+        date: `2024-01-${String(i + 1).padStart(2, '0')}`,
         price: 150.0 + Math.random() * 10,
         volume: 1000000 + Math.random() * 500000,
         high: 155.0,
         low: 145.0,
         open: 150.0,
         close: 150.0,
-      })),
-    })
-  ),
+      }))
+    }),
+    getChartData: vi.fn().mockResolvedValue({
+      success: true,
+      data: Array.from({ length: 30 }, (_, i) => ({
+        date: `2024-01-${String(i + 1).padStart(2, '0')}`,
+        close: 150.0,
+        volume: 1000000,
+        high: 155.0,
+        low: 145.0,
+        open: 150.0,
+      }))
+    }),
+    getHistoricalData: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  },
+  getStockPrices: vi.fn().mockResolvedValue({
+    success: true,
+    data: Array.from({ length: 30 }, (_, i) => ({
+      date: `2024-01-${String(i + 1).padStart(2, '0')}`,
+      price: 150.0 + Math.random() * 10,
+      volume: 1000000 + Math.random() * 500000,
+      high: 155.0,
+      low: 145.0,
+      open: 150.0,
+      close: 150.0,
+    }))
+  }),
   getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
@@ -130,8 +157,8 @@ describe("HistoricalPriceChart", () => {
 
     it("displays empty state when no data available", async () => {
       // Mock API to return empty data
-      const { getStockPrices } = await import("../../../services/api");
-      vi.mocked(getStockPrices).mockResolvedValueOnce({ data: [] });
+      const { default: api } = await import("../../../services/api.js");
+      vi.mocked(api.getStockPrices).mockResolvedValueOnce({ success: true, data: [] });
 
       renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
 

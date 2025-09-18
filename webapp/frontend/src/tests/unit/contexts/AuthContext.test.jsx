@@ -242,7 +242,7 @@ describe("AuthContext", () => {
 
   describe("Login Functionality", () => {
     it.skip("should handle successful login with development auth", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       const mockUser = { username: "testuser" };
       const mockTokens = { accessToken: "dev-access-token" };
 
@@ -427,7 +427,7 @@ describe("AuthContext", () => {
     });
 
     it.skip("should use development auth when enabled", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       devAuth.getUser.mockResolvedValue({ username: "devuser" });
       devAuth.signIn.mockResolvedValue({
         success: true,
@@ -502,7 +502,7 @@ describe("AuthContext", () => {
 
   describe("Error Handling", () => {
     it.skip("should clear errors on new actions", async () => {
-      const user = userEvent.setup();
+      const _user = userEvent.setup();
       getCurrentUser.mockRejectedValue(new Error("Not authenticated"));
       signIn
         .mockRejectedValueOnce(new Error("Network error"))

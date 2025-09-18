@@ -8,32 +8,14 @@ import { renderWithProviders } from "../../test-utils.jsx";
 import { screen, waitFor } from "@testing-library/react";
 import TechnicalAnalysis from "../../../pages/TechnicalAnalysis.jsx";
 
-// Mock the API service - both named export and api object
+// Mock API service with standardized pattern
 vi.mock("../../../services/api.js", () => ({
-  getTechnicalData: vi.fn(() =>
-    Promise.resolve({
-      data: [
-        {
-          symbol: "AAPL",
-          indicators: {
-            rsi: 65.5,
-            macd: 2.15,
-            bb_upper: 185.5,
-            bb_lower: 175.25,
-            sma_20: 180.75,
-            sma_50: 178.25,
-          },
-          history: [
-            { date: "2024-01-01", close: 180.5, rsi: 60.0 },
-            { date: "2024-01-02", close: 182.25, rsi: 65.5 },
-          ],
-        },
-      ],
-    })
-  ),
-  api: {
+  default: {
+    get: vi.fn(() => Promise.resolve({ data: {} })),
+    post: vi.fn(() => Promise.resolve({ data: {} })),
     getTechnicalData: vi.fn(() =>
       Promise.resolve({
+        success: true,
         data: [
           {
             symbol: "AAPL",
@@ -55,10 +37,18 @@ vi.mock("../../../services/api.js", () => ({
     ),
     getStockPrices: vi.fn(() =>
       Promise.resolve({
+        success: true,
         data: [{ symbol: "AAPL", price: 180.5, change: 2.25 }],
       })
     ),
+    getTradingSignalsDaily: vi.fn(() => Promise.resolve({ success: true, data: [] })),
+    getPortfolioAnalytics: vi.fn(() => Promise.resolve({ success: true, data: {} })),
+    getStockMetrics: vi.fn(() => Promise.resolve({ success: true, data: {} })),
   },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
 }));
 
 // Mock the custom useQuery hook

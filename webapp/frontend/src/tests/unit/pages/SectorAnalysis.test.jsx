@@ -33,31 +33,23 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
-// Mock API service with proper ES module support
-vi.mock("../../../utils/apiService.jsx", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
-    getSectorAnalysis: vi.fn(),
-    getSectorPerformance: vi.fn(),
-    getSectorAllocation: vi.fn(),
-  };
-
-  const mockGetApiConfig = vi.fn(() => ({
-    baseURL: "http://localhost:3001",
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getSectorAnalysis: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getSectorPerformance: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getSectorAllocation: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
     isDevelopment: true,
     isProduction: false,
     baseUrl: "/",
-  }));
-
-  return {
-    api: mockApi,
-    getApiConfig: mockGetApiConfig,
-    default: mockApi,
-  };
-});
+  })),
+}));
 
 const mockSectorData = {
   sectors: [
@@ -145,7 +137,7 @@ function renderSectorAnalysis(props = {}) {
 describe("SectorAnalysis Component", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const api = await import("../../../utils/apiService.jsx");
+    const api = await import("../../../services/api.js");
     api.default.get.mockResolvedValue({
       data: {
         success: true,
@@ -169,7 +161,7 @@ describe("SectorAnalysis Component", () => {
     expect(screen.getAllByText(/sector analysis/i)[0]).toBeInTheDocument();
 
     await waitFor(async () => {
-      const api = await import("../../../utils/apiService.jsx");
+      const api = await import("../../../services/api.js");
       expect(api.default.get).toHaveBeenCalled();
     });
   });
@@ -341,14 +333,14 @@ describe("SectorAnalysis Component", () => {
       fireEvent.click(periodButton);
 
       await waitFor(async () => {
-        const api = await import("../../../utils/apiService.jsx");
+        const api = await import("../../../services/api.js");
         expect(api.default.get).toHaveBeenCalled();
       });
     }
   });
 
   it("shows loading state", async () => {
-    const api = await import("../../../utils/apiService.jsx");
+    const api = await import("../../../services/api.js");
     api.default.get.mockImplementation(() => new Promise(() => {}));
 
     renderSectorAnalysis();
@@ -359,7 +351,7 @@ describe("SectorAnalysis Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    const api = await import("../../../utils/apiService.jsx");
+    const api = await import("../../../services/api.js");
     api.default.get.mockRejectedValue(new Error("Failed to load sector data"));
 
     renderSectorAnalysis();
@@ -382,7 +374,7 @@ describe("SectorAnalysis Component", () => {
   });
 
   it("handles empty sector data", async () => {
-    const api = await import("../../../utils/apiService.jsx");
+    const api = await import("../../../services/api.js");
     api.default.get.mockResolvedValue({
       data: {
         success: true,

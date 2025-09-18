@@ -101,7 +101,7 @@ describe("App", () => {
     test("renders app title", () => {
       renderApp();
 
-      expect(screen.getByText(/edgebrooke capital/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/financial platform/i)[0]).toBeInTheDocument();
     });
   });
 

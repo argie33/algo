@@ -8,78 +8,13 @@ vi.mock("../../../services/api.js", () => ({
   default: {
     get: vi.fn().mockResolvedValue({ data: {} }),
     post: vi.fn().mockResolvedValue({ data: {} }),
-    screenStocks: vi.fn(() =>
-      Promise.resolve({
-        success: true,
-        data: {
-          results: [
-            {
-              symbol: "AAPL",
-              companyName: "Apple Inc.",
-              price: {
-                current: 150.25,
-                previousClose: 147.90,
-                dayLow: 149.80,
-                dayHigh: 151.20,
-                fiftyTwoWeekLow: 140.50,
-                fiftyTwoWeekHigh: 195.40,
-              },
-              marketCap: 2500000000000,
-              peRatio: 28.5,
-              dividendYield: 0.52,
-              sector: "Technology",
-              volume: 45000000,
-              score: 8.2,
-              change: 2.35,
-              changePercent: 1.58,
-            },
-          ],
-          totalCount: 1,
-          totalPages: 1,
-          currentPage: 1,
-        },
-      })
-    ),
-    getStockPriceHistory: vi.fn(() =>
-      Promise.resolve({
-        success: true,
-        data: {
-          history: [
-            { date: "2024-01-01", price: 148.5, volume: 50000000 },
-            { date: "2024-01-02", price: 150.25, volume: 45000000 },
-          ],
-        },
-      })
-    ),
-    getStockDetails: vi.fn(() =>
-      Promise.resolve({
-        success: true,
-        data: {
-          symbol: "AAPL",
-          companyName: "Apple Inc.",
-          price: {
-            current: 150.25,
-            previousClose: 147.90,
-            dayLow: 149.80,
-            dayHigh: 151.20,
-            fiftyTwoWeekLow: 140.50,
-            fiftyTwoWeekHigh: 195.40,
-          },
-          change: 2.35,
-          changePercent: 1.58,
-          marketCap: 2500000000000,
-          peRatio: 28.5,
-          eps: 5.35,
-          dividendYield: 0.52,
-          sector: "Technology",
-          industry: "Consumer Electronics",
-        },
-      })
-    ),
-    searchStocks: vi.fn(() =>
-      Promise.resolve({
-        success: true,
-        data: [
+    getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  },
+  screenStocks: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      data: {
+        results: [
           {
             symbol: "AAPL",
             companyName: "Apple Inc.",
@@ -91,14 +26,33 @@ vi.mock("../../../services/api.js", () => ({
               fiftyTwoWeekLow: 140.50,
               fiftyTwoWeekHigh: 195.40,
             },
+            marketCap: 2500000000000,
+            peRatio: 28.5,
+            dividendYield: 0.52,
+            sector: "Technology",
+            volume: 45000000,
+            score: 8.2,
             change: 2.35,
             changePercent: 1.58,
           },
         ],
-      })
-    ),
-    getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  },
+        totalCount: 1,
+        totalPages: 1,
+        currentPage: 1,
+      },
+    })
+  ),
+  getStockPriceHistory: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      data: {
+        history: [
+          { date: "2024-01-01", price: 148.5, volume: 50000000 },
+          { date: "2024-01-02", price: 150.25, volume: 45000000 },
+        ],
+      },
+    })
+  ),
 }));
 
 // Mock recharts components
@@ -148,6 +102,9 @@ vi.mock("react-router-dom", () => ({
   ),
   BrowserRouter: ({ children }) => (
     <div data-testid="browser-router">{children}</div>
+  ),
+  MemoryRouter: ({ children }) => (
+    <div data-testid="memory-router">{children}</div>
   ),
 }));
 
@@ -219,7 +176,7 @@ describe("StockExplorer", () => {
     });
 
     it("applies sector filters correctly", async () => {
-      const api = require("../../../services/api.js").default;
+      const _api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any sector filter input - may be dropdown or text input
@@ -238,7 +195,7 @@ describe("StockExplorer", () => {
     });
 
     it("applies market cap filters", async () => {
-      const api = require("../../../services/api.js").default;
+      const _api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any market cap filter input
@@ -257,7 +214,7 @@ describe("StockExplorer", () => {
     });
 
     it("applies price range filters", async () => {
-      const api = require("../../../services/api.js").default;
+      const _api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any price filter inputs

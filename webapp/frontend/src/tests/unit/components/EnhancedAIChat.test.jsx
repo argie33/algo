@@ -19,10 +19,29 @@ vi.mock("../../../hooks/useWebSocket.js", () => ({
   }),
 }));
 
+// Mock API service with standardized pattern
 vi.mock("../../../services/api.js", () => ({
   default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
     post: vi.fn().mockResolvedValue({ data: { success: true } }),
+    sendChatMessage: vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        id: "msg-123",
+        content: "AI response message",
+        role: "assistant",
+        timestamp: new Date().toISOString()
+      }
+    }),
+    getChatHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    saveChatSession: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    loadChatSession: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    sendFeedback: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
 }));
 
 describe("EnhancedAIChat", () => {

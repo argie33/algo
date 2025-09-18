@@ -18,10 +18,7 @@ Object.defineProperty(import.meta, "env", {
   configurable: true,
 });
 
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithProviders, screen, waitFor, userEvent } from "../../test-utils.jsx";
 
 // Import the component under test
 import Watchlist from "../../../pages/Watchlist.jsx";
@@ -35,18 +32,18 @@ Object.defineProperty(window, "location", {
   writable: true,
 });
 
-// Mock apiService with proper ES module support
-vi.mock("../../../utils/apiService.jsx", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: { success: true, data: [] } })),
-    post: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-    put: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-    delete: vi.fn(() => Promise.resolve({ data: { success: true, data: {} } })),
-    apiCall: vi.fn(() => Promise.resolve({ success: true, data: [] })),
-  };
-
+// Mock API service with comprehensive mock
+vi.mock("../../../services/api.js", async () => {
+  const mockApi = await import("../../mocks/apiMock.js");
   return {
-    default: mockApi,
+    default: mockApi.default,
+    getApiConfig: mockApi.getApiConfig,
+    getPortfolioData: mockApi.getPortfolioData,
+    getApiKeys: mockApi.getApiKeys,
+    testApiConnection: mockApi.testApiConnection,
+    importPortfolioFromBroker: mockApi.importPortfolioFromBroker,
+    healthCheck: mockApi.healthCheck,
+    getMarketOverview: mockApi.getMarketOverview,
   };
 });
 
@@ -100,30 +97,16 @@ const mockWatchlistData = [
 
 // Test render helper
 function renderWatchlist(props = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
-  });
-
-  return render(
-    <MemoryRouter>
-      <QueryClientProvider client={queryClient}>
-        <Watchlist {...props} />
-      </QueryClientProvider>
-    </MemoryRouter>
-  );
+  return renderWithProviders(<Watchlist {...props} />);
 }
 
 describe("Watchlist Component", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const mockApi = await import("../../../utils/apiService.jsx");
+    const { default: api } = await import("../../../services/api.js");
 
-    // Mock the watchlist data loading - match expected structure: response.data.data.data[symbol]
-    mockApi.default.get.mockResolvedValue({
+    // Mock the watchlist data loading
+    vi.mocked(api.get).mockResolvedValue({
       data: {
         success: true,
         data: {
@@ -141,7 +124,7 @@ describe("Watchlist Component", () => {
       },
     });
 
-    mockApi.default.apiCall.mockResolvedValue({
+    vi.mocked(api.getWatchlist).mockResolvedValue({
       success: true,
       data: mockWatchlistData,
     });
@@ -150,7 +133,7 @@ describe("Watchlist Component", () => {
   it("renders watchlist page", async () => {
     renderWatchlist();
 
-    expect(screen.getByText(/watchlist/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /watchlist/i })).toBeInTheDocument();
   });
 
   it("displays watchlist stocks when loaded", async () => {
@@ -180,8 +163,8 @@ describe("Watchlist Component", () => {
   });
 
   it("shows loading state initially", async () => {
-    const mockApi = await import("../../../utils/apiService.jsx");
-    mockApi.default.apiCall.mockImplementation(() => new Promise(() => {}));
+    const { default: api } = await import("../../../services/api.js");
+    vi.mocked(api.getWatchlist).mockImplementation(() => new Promise(() => {}));
 
     renderWatchlist();
 
@@ -189,8 +172,8 @@ describe("Watchlist Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    const mockApi = await import("../../../utils/apiService.jsx");
-    mockApi.default.apiCall.mockRejectedValue(new Error("API Error"));
+    const { default: api } = await import("../../../services/api.js");
+    vi.mocked(api.getWatchlist).mockRejectedValue(new Error("API Error"));
 
     renderWatchlist();
 
@@ -202,7 +185,7 @@ describe("Watchlist Component", () => {
   });
 
   it("allows adding stocks to watchlist", async () => {
-    const mockApi = await import("../../../utils/apiService.jsx");
+    const api = require("../../../services/api.js").default;
     renderWatchlist();
 
     await waitFor(() => {
@@ -222,13 +205,13 @@ describe("Watchlist Component", () => {
       await userEvent.click(addButton);
 
       await waitFor(() => {
-        expect(mockApi.default.apiCall).toHaveBeenCalled();
+        expect(api.addToWatchlist).toHaveBeenCalled();
       });
     }
   });
 
   it("allows removing stocks from watchlist", async () => {
-    const mockApi = await import("../../../utils/apiService.jsx");
+    const api = require("../../../services/api.js").default;
     renderWatchlist();
 
     await waitFor(() => {
@@ -245,7 +228,7 @@ describe("Watchlist Component", () => {
       await userEvent.click(removeButtons[0]);
 
       await waitFor(() => {
-        expect(mockApi.default.apiCall).toHaveBeenCalled();
+        expect(api.removeFromWatchlist).toHaveBeenCalled();
       });
     }
   });
@@ -323,8 +306,8 @@ describe("Watchlist Component", () => {
   });
 
   it("handles empty watchlist", async () => {
-    const mockApi = await import("../../../utils/apiService.jsx");
-    mockApi.default.apiCall.mockResolvedValue({
+    const { default: api } = await import("../../../services/api.js");
+    vi.mocked(api.getWatchlist).mockResolvedValue({
       success: true,
       data: [],
     });

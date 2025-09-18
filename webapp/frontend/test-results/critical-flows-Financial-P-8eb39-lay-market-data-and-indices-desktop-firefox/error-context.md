@@ -1,0 +1,637 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic: Dashboard
+        - button "Sign In" [ref=e6] [cursor=pointer]:
+          - img [ref=e8] [cursor=pointer]
+          - text: Sign In
+    - navigation [ref=e10]:
+      - generic [ref=e12]:
+        - generic [ref=e14]: Financial Platform
+        - list [ref=e15]:
+          - listitem [ref=e16]:
+            - button "Dashboard" [ref=e17] [cursor=pointer]:
+              - img [ref=e19] [cursor=pointer]
+              - generic [ref=e22] [cursor=pointer]: Dashboard
+          - listitem [ref=e23]:
+            - button "Collapse Markets section" [ref=e24] [cursor=pointer]:
+              - heading "Markets" [level=6] [ref=e26] [cursor=pointer]
+              - img [ref=e27] [cursor=pointer]
+          - listitem [ref=e29]:
+            - button "Market Overview" [ref=e30] [cursor=pointer]:
+              - img [ref=e32] [cursor=pointer]
+              - paragraph [ref=e35] [cursor=pointer]: Market Overview
+          - listitem [ref=e36]:
+            - button "Sector Analysis" [ref=e37] [cursor=pointer]:
+              - img [ref=e39] [cursor=pointer]
+              - paragraph [ref=e42] [cursor=pointer]: Sector Analysis
+          - listitem [ref=e43]:
+            - button "Economic Indicators" [ref=e44] [cursor=pointer]:
+              - img [ref=e46] [cursor=pointer]
+              - paragraph [ref=e49] [cursor=pointer]: Economic Indicators
+          - listitem [ref=e50]:
+            - button "Collapse Stocks section" [ref=e51] [cursor=pointer]:
+              - heading "Stocks" [level=6] [ref=e53] [cursor=pointer]
+              - img [ref=e54] [cursor=pointer]
+          - listitem [ref=e56]:
+            - button "Stock Screener" [ref=e57] [cursor=pointer]:
+              - img [ref=e59] [cursor=pointer]
+              - paragraph [ref=e62] [cursor=pointer]: Stock Screener
+          - listitem [ref=e63]:
+            - button "Stock Analysis" [ref=e64] [cursor=pointer]:
+              - img [ref=e66] [cursor=pointer]
+              - paragraph [ref=e69] [cursor=pointer]: Stock Analysis
+          - listitem [ref=e70]:
+            - button "Technical Analysis" [ref=e71] [cursor=pointer]:
+              - img [ref=e73] [cursor=pointer]
+              - paragraph [ref=e76] [cursor=pointer]: Technical Analysis
+          - listitem [ref=e77]:
+            - button "Stock Scores" [ref=e78] [cursor=pointer]:
+              - img [ref=e80] [cursor=pointer]
+              - paragraph [ref=e83] [cursor=pointer]: Stock Scores
+          - listitem [ref=e84]:
+            - button "Earnings Calendar" [ref=e85] [cursor=pointer]:
+              - img [ref=e87] [cursor=pointer]
+              - paragraph [ref=e90] [cursor=pointer]: Earnings Calendar
+          - listitem [ref=e91]:
+            - button "Watchlist" [ref=e92] [cursor=pointer]:
+              - img [ref=e94] [cursor=pointer]
+              - paragraph [ref=e97] [cursor=pointer]: Watchlist
+          - listitem [ref=e98]:
+            - button "Financial Data" [ref=e99] [cursor=pointer]:
+              - img [ref=e101] [cursor=pointer]
+              - paragraph [ref=e104] [cursor=pointer]: Financial Data
+          - listitem [ref=e105]:
+            - button "Expand Sentiment Analysis section" [ref=e106] [cursor=pointer]:
+              - heading "Sentiment Analysis" [level=6] [ref=e108] [cursor=pointer]
+              - img [ref=e109] [cursor=pointer]
+          - listitem [ref=e111]:
+            - button "Collapse Portfolio section" [ref=e112] [cursor=pointer]:
+              - heading "Portfolio" [level=6] [ref=e114] [cursor=pointer]
+              - img [ref=e115] [cursor=pointer]
+          - listitem [ref=e117]:
+            - button "Portfolio Holdings" [ref=e118] [cursor=pointer]:
+              - img [ref=e120] [cursor=pointer]
+              - paragraph [ref=e123] [cursor=pointer]: Portfolio Holdings
+          - listitem [ref=e124]:
+            - button "Trade History" [ref=e125] [cursor=pointer]:
+              - img [ref=e127] [cursor=pointer]
+              - paragraph [ref=e130] [cursor=pointer]: Trade History
+          - listitem [ref=e131]:
+            - button "Order Management" [ref=e132] [cursor=pointer]:
+              - img [ref=e134] [cursor=pointer]
+              - paragraph [ref=e137] [cursor=pointer]: Order Management
+          - listitem [ref=e138]:
+            - button "Optimization Tools" [ref=e139] [cursor=pointer]:
+              - img [ref=e141] [cursor=pointer]
+              - paragraph [ref=e144] [cursor=pointer]: Optimization Tools
+          - listitem [ref=e145]:
+            - button "Advanced Analytics" [ref=e146] [cursor=pointer]:
+              - img [ref=e148] [cursor=pointer]
+              - paragraph [ref=e151] [cursor=pointer]: Advanced Analytics
+          - listitem [ref=e152]:
+            - button "Expand Tools section" [ref=e153] [cursor=pointer]:
+              - heading "Tools" [level=6] [ref=e155] [cursor=pointer]
+              - img [ref=e156] [cursor=pointer]
+    - main [ref=e158]:
+      - generic [ref=e160]:
+        - generic [ref=e162]:
+          - generic [ref=e163]:
+            - generic [ref=e164]:
+              - img [ref=e165]
+              - generic [ref=e167]: "Market Status: After-Hours"
+            - generic [ref=e168]: Closes at 8:00 PM
+          - generic [ref=e169]:
+            - generic [ref=e171]:
+              - generic [ref=e172]: S&P 500
+              - generic [ref=e173]:
+                - paragraph [ref=e174]: 4.51K
+                - img [ref=e175]
+                - paragraph [ref=e177]: "-0.79%"
+            - separator [ref=e178]
+            - generic [ref=e180]:
+              - generic [ref=e181]: Dow Jones
+              - generic [ref=e182]:
+                - paragraph [ref=e183]: 35.10K
+                - img [ref=e184]
+                - paragraph [ref=e186]: "-0.77%"
+            - separator [ref=e187]
+            - generic [ref=e189]:
+              - generic [ref=e190]: Nasdaq
+              - generic [ref=e191]:
+                - paragraph [ref=e192]: 14.10K
+                - img [ref=e193]
+                - paragraph [ref=e195]: "-0.02%"
+          - generic [ref=e197] [cursor=pointer]: "Cache: 3 items"
+        - generic [ref=e198]:
+          - generic [ref=e199]:
+            - generic [ref=e200]:
+              - heading "ProTrade Analytics" [level=1] [ref=e201]
+              - heading "Elite Financial Intelligence Platform" [level=6] [ref=e202]
+              - generic [ref=e203]:
+                - generic [ref=e204]:
+                  - img [ref=e205]
+                  - generic [ref=e207]: Real-Time
+                - generic [ref=e208]:
+                  - img [ref=e209]
+                  - generic [ref=e212]: AI-Powered
+                - generic [ref=e213]:
+                  - img [ref=e214]
+                  - generic [ref=e216]: Institutional
+                - generic [ref=e217]:
+                  - img [ref=e218]
+                  - generic [ref=e221]: Advanced Analytics
+            - generic [ref=e222]:
+              - generic [ref=e223]:
+                - button "View notifications" [ref=e224] [cursor=pointer]:
+                  - img [ref=e225] [cursor=pointer]
+                - generic [ref=e227]: "2"
+              - generic "Search for stock symbol" [ref=e229]:
+                - generic [ref=e230]: Symbol
+                - generic [ref=e231]:
+                  - combobox "Symbol" [ref=e232]: AAPL
+                  - button "Open" [ref=e234] [cursor=pointer]:
+                    - img [ref=e235] [cursor=pointer]
+                  - group:
+                    - generic: Symbol
+          - alert [ref=e237]:
+            - img [ref=e239]
+            - generic [ref=e241]:
+              - strong [ref=e242]: "Demo Mode:"
+              - text: You're viewing sample data with full platform capabilities. Sign in to access your personal portfolio, real-time alerts, and advanced analytics.
+            - button "Sign in to your account" [ref=e244] [cursor=pointer]: Sign In
+          - generic [ref=e245]:
+            - generic [ref=e248] [cursor=pointer]:
+              - img [ref=e249] [cursor=pointer]
+              - heading "Portfolio" [level=6] [ref=e251] [cursor=pointer]
+              - paragraph [ref=e252] [cursor=pointer]: Analytics
+            - generic [ref=e255] [cursor=pointer]:
+              - img [ref=e256] [cursor=pointer]
+              - heading "Scores" [level=6] [ref=e258] [cursor=pointer]
+              - paragraph [ref=e259] [cursor=pointer]: Rankings
+            - generic [ref=e262] [cursor=pointer]:
+              - img [ref=e263] [cursor=pointer]
+              - heading "Screener" [level=6] [ref=e265] [cursor=pointer]
+              - paragraph [ref=e266] [cursor=pointer]: Discovery
+            - generic [ref=e269] [cursor=pointer]:
+              - img [ref=e270] [cursor=pointer]
+              - heading "Real-Time" [level=6] [ref=e272] [cursor=pointer]
+              - paragraph [ref=e273] [cursor=pointer]: Live Data
+            - generic [ref=e276] [cursor=pointer]:
+              - img [ref=e277] [cursor=pointer]
+              - heading "Market" [level=6] [ref=e279] [cursor=pointer]
+              - paragraph [ref=e280] [cursor=pointer]: Overview
+            - generic [ref=e283] [cursor=pointer]:
+              - img [ref=e284] [cursor=pointer]
+              - heading "Metrics" [level=6] [ref=e286] [cursor=pointer]
+              - paragraph [ref=e287] [cursor=pointer]: Analysis
+          - generic [ref=e288]:
+            - heading "Market Summary" [level=2] [ref=e289]
+            - generic [ref=e290]:
+              - generic [ref=e293]:
+                - paragraph [ref=e294]: S&P 500
+                - heading "5,432.1" [level=6] [ref=e295]
+                - generic [ref=e296]:
+                  - img [ref=e297]
+                  - paragraph [ref=e299]: +0.8%
+              - generic [ref=e302]:
+                - paragraph [ref=e303]: NASDAQ
+                - heading "17,890.55" [level=6] [ref=e304]
+                - generic [ref=e305]:
+                  - img [ref=e306]
+                  - paragraph [ref=e308]: "-0.1%"
+              - generic [ref=e311]:
+                - paragraph [ref=e312]: DOW
+                - heading "38,900.12" [level=6] [ref=e313]
+                - generic [ref=e314]:
+                  - img [ref=e315]
+                  - paragraph [ref=e317]: +0.4%
+              - generic [ref=e320]:
+                - paragraph [ref=e321]: VIX
+                - heading "18.5" [level=6] [ref=e322]
+                - generic [ref=e323]:
+                  - img [ref=e324]
+                  - paragraph [ref=e326]: "-4.1%"
+              - generic [ref=e329]:
+                - paragraph [ref=e330]: DXY
+                - heading "103.2" [level=6] [ref=e331]
+                - generic [ref=e332]:
+                  - img [ref=e333]
+                  - paragraph [ref=e335]: +0.3%
+              - generic [ref=e338]:
+                - paragraph [ref=e339]: Gold
+                - heading "2,345.5" [level=6] [ref=e340]
+                - generic [ref=e341]:
+                  - img [ref=e342]
+                  - paragraph [ref=e344]: +0.5%
+          - generic [ref=e345]:
+            - generic [ref=e348]:
+              - generic [ref=e349]:
+                - img [ref=e350]
+                - heading "Portfolio Overview" [level=3] [ref=e352]
+              - heading "$1,250,000" [level=4] [ref=e353]
+              - generic [ref=e354]:
+                - generic [ref=e356]: "Daily: $3,200"
+                - generic [ref=e358]: "MTD: $18,000"
+                - generic [ref=e360]: "YTD: $92,000"
+              - application [ref=e363]:
+                - generic [ref=e376]:
+                  - generic [ref=e380]: AAPL 38%
+                  - generic [ref=e384]: MSFT 27%
+                  - generic [ref=e388]: GOOGL 18%
+                  - generic [ref=e392]: Cash 10%
+                  - generic [ref=e396]: Other 7%
+            - generic [ref=e399]:
+              - generic [ref=e400]:
+                - img [ref=e401]
+                - heading "Elite Watchlist" [level=3] [ref=e403]
+              - table [ref=e405]:
+                - rowgroup [ref=e406]:
+                  - row "Symbol Price Change Score Action" [ref=e407]:
+                    - columnheader "Symbol" [ref=e408]
+                    - columnheader "Price" [ref=e409]
+                    - columnheader "Change" [ref=e410]
+                    - columnheader "Score" [ref=e411]
+                    - columnheader "Action" [ref=e412]
+                - rowgroup [ref=e413]:
+                  - row "AAPL $195.12 +2.1% 82 Execute trading strategy" [ref=e414]:
+                    - cell "AAPL" [ref=e415]:
+                      - paragraph [ref=e416]: AAPL
+                    - cell "$195.12" [ref=e417]
+                    - cell "+2.1%" [ref=e418]:
+                      - paragraph [ref=e419]: +2.1%
+                    - cell "82" [ref=e420]:
+                      - generic [ref=e422]: "82"
+                    - cell "Execute trading strategy" [ref=e423]:
+                      - button "Execute trading strategy" [ref=e424] [cursor=pointer]:
+                        - img [ref=e425] [cursor=pointer]
+                  - row "TSLA $710.22 -1.8% 78 Execute trading strategy" [ref=e427]:
+                    - cell "TSLA" [ref=e428]:
+                      - paragraph [ref=e429]: TSLA
+                    - cell "$710.22" [ref=e430]
+                    - cell "-1.8%" [ref=e431]:
+                      - paragraph [ref=e432]: "-1.8%"
+                    - cell "78" [ref=e433]:
+                      - generic [ref=e435]: "78"
+                    - cell "Execute trading strategy" [ref=e436]:
+                      - button "Execute trading strategy" [ref=e437] [cursor=pointer]:
+                        - img [ref=e438] [cursor=pointer]
+                  - row "NVDA $1200.00 +3.5% 95 Execute trading strategy" [ref=e440]:
+                    - cell "NVDA" [ref=e441]:
+                      - paragraph [ref=e442]: NVDA
+                    - cell "$1200.00" [ref=e443]
+                    - cell "+3.5%" [ref=e444]:
+                      - paragraph [ref=e445]: +3.5%
+                    - cell "95" [ref=e446]:
+                      - generic [ref=e448]: "95"
+                    - cell "Execute trading strategy" [ref=e449]:
+                      - button "Execute trading strategy" [ref=e450] [cursor=pointer]:
+                        - img [ref=e451] [cursor=pointer]
+                  - row "MSFT $420.50 +0.7% 88 Execute trading strategy" [ref=e453]:
+                    - cell "MSFT" [ref=e454]:
+                      - paragraph [ref=e455]: MSFT
+                    - cell "$420.50" [ref=e456]
+                    - cell "+0.7%" [ref=e457]:
+                      - paragraph [ref=e458]: +0.7%
+                    - cell "88" [ref=e459]:
+                      - generic [ref=e461]: "88"
+                    - cell "Execute trading strategy" [ref=e462]:
+                      - button "Execute trading strategy" [ref=e463] [cursor=pointer]:
+                        - img [ref=e464] [cursor=pointer]
+          - generic [ref=e466]:
+            - generic [ref=e469]:
+              - generic [ref=e470]:
+                - img [ref=e471]
+                - heading "Market Sentiment" [level=6] [ref=e474]
+              - generic [ref=e475]:
+                - generic [ref=e477]:
+                  - heading "72" [level=4] [ref=e478]
+                  - paragraph [ref=e479]: Fear & Greed
+                - generic [ref=e481]:
+                  - heading "65" [level=4] [ref=e482]
+                  - paragraph [ref=e483]: NAAIM
+                - generic [ref=e485]:
+                  - paragraph [ref=e487]: "Bulls: 45%"
+                  - paragraph [ref=e489]: "Neutral: 27%"
+                  - paragraph [ref=e491]: "Bears: 28%"
+              - generic [ref=e492]:
+                - generic [ref=e494]: Bullish Market
+                - generic [ref=e496]: "VIX: 18.5"
+            - generic [ref=e499]:
+              - generic [ref=e500]:
+                - img [ref=e501]
+                - heading "Sector Performance" [level=6] [ref=e503]
+              - application [ref=e506]:
+                - generic [ref=e522]:
+                  - generic [ref=e526]: Technology
+                  - generic [ref=e530]: Finance
+                  - generic [ref=e534]: Consumer
+                - generic [ref=e537]:
+                  - generic [ref=e541]: "-1.1"
+                  - generic [ref=e545]: "0"
+                  - generic [ref=e549]: "1.1"
+                  - generic [ref=e553]: "2.2"
+                  - generic [ref=e557]: "3.3"
+            - generic [ref=e573]:
+              - generic [ref=e574]:
+                - img [ref=e575]
+                - heading "Top Rated Stocks" [level=6] [ref=e577]
+              - table [ref=e579]:
+                - rowgroup [ref=e580]:
+                  - row "Symbol Score Quality Value" [ref=e581]:
+                    - columnheader "Symbol" [ref=e582]
+                    - columnheader "Score" [ref=e583]
+                    - columnheader "Quality" [ref=e584]
+                    - columnheader "Value" [ref=e585]
+                - rowgroup [ref=e586]:
+                  - row "NVDA 95 92 85" [ref=e587]:
+                    - cell "NVDA" [ref=e588]:
+                      - paragraph [ref=e590]: NVDA
+                    - cell "95" [ref=e591]:
+                      - generic [ref=e593]: "95"
+                    - cell "92" [ref=e594]
+                    - cell "85" [ref=e595]
+                  - row "MSFT 88 95 78" [ref=e596]:
+                    - cell "MSFT" [ref=e597]:
+                      - paragraph [ref=e599]: MSFT
+                    - cell "88" [ref=e600]:
+                      - generic [ref=e602]: "88"
+                    - cell "95" [ref=e603]
+                    - cell "78" [ref=e604]
+                  - row "GOOGL 85 88 92" [ref=e605]:
+                    - cell "GOOGL" [ref=e606]:
+                      - paragraph [ref=e608]: GOOGL
+                    - cell "85" [ref=e609]:
+                      - generic [ref=e611]: "85"
+                    - cell "88" [ref=e612]
+                    - cell "92" [ref=e613]
+                  - row "AAPL 82 90 72" [ref=e614]:
+                    - cell "AAPL" [ref=e615]:
+                      - paragraph [ref=e617]: AAPL
+                    - cell "82" [ref=e618]:
+                      - generic [ref=e620]: "82"
+                    - cell "90" [ref=e621]
+                    - cell "72" [ref=e622]
+            - generic [ref=e625]:
+              - generic [ref=e626]:
+                - img [ref=e627]
+                - heading "Economic Indicators" [level=6] [ref=e629]
+              - generic [ref=e630]:
+                - generic [ref=e631]:
+                  - paragraph [ref=e632]: GDP Growth
+                  - generic [ref=e633]:
+                    - paragraph [ref=e634]: 2.4%
+                    - img [ref=e635]
+                - generic [ref=e637]:
+                  - paragraph [ref=e638]: Inflation
+                  - generic [ref=e639]:
+                    - paragraph [ref=e640]: 3.1%
+                    - img [ref=e641]
+                - generic [ref=e643]:
+                  - paragraph [ref=e644]: Unemployment
+                  - generic [ref=e645]:
+                    - paragraph [ref=e646]: 3.8%
+                    - img [ref=e647]
+                - generic [ref=e649]:
+                  - paragraph [ref=e650]: Fed Funds Rate
+                  - generic [ref=e651]:
+                    - paragraph [ref=e652]: 5.25%
+                    - img [ref=e653]
+          - generic [ref=e655]:
+            - generic [ref=e658]:
+              - generic [ref=e659]:
+                - img [ref=e660]
+                - heading "Technical Signals" [level=6] [ref=e662]
+                - generic [ref=e664]: Live
+              - table [ref=e666]:
+                - rowgroup [ref=e667]:
+                  - row "Symbol Signal Price Perf" [ref=e668]:
+                    - columnheader "Symbol" [ref=e669]
+                    - columnheader "Signal" [ref=e670]
+                    - columnheader "Price" [ref=e671]
+                    - columnheader "Perf" [ref=e672]
+                - rowgroup
+            - generic [ref=e675]:
+              - generic [ref=e676]:
+                - generic [ref=e677]:
+                  - img [ref=e678]
+                  - heading "Historical Prices - AAPL" [level=6] [ref=e680]
+                - button "Refresh" [ref=e681] [cursor=pointer]:
+                  - img [ref=e683] [cursor=pointer]
+                  - text: Refresh
+              - generic [ref=e685]:
+                - group [ref=e686]:
+                  - button "Daily" [ref=e687] [cursor=pointer]: Daily
+                  - button "Weekly" [ref=e688] [cursor=pointer]: Weekly
+                  - button "Monthly" [ref=e689] [cursor=pointer]: Monthly
+                - group [ref=e690]:
+                  - button "30 periods" [ref=e691] [cursor=pointer]: 30 periods
+                  - button "90 periods" [ref=e692] [cursor=pointer]: 90 periods
+                  - button "1 Year" [ref=e693] [cursor=pointer]: 1 Year
+              - generic [ref=e694]:
+                - generic [ref=e696]: "Current: $175.43"
+                - generic [ref=e697]:
+                  - img [ref=e698]
+                  - generic [ref=e700]: +$2.58 (1.49%)
+                - generic [ref=e702]: "Volume: 45,678,901"
+              - application [ref=e705]:
+                - generic [ref=e719]:
+                  - generic [ref=e723]: 2025-09-17T05:00:00.000Z
+                  - generic [ref=e727]: 2025-09-18T05:00:00.000Z
+                - generic [ref=e730]:
+                  - generic [ref=e734]: "172.5"
+                  - generic [ref=e738]: "173.25"
+                  - generic [ref=e742]: "174"
+                  - generic [ref=e746]: "174.75"
+                  - generic [ref=e750]: "175.5"
+              - generic [ref=e754]: "Showing 3 daily data points for AAPL • Latest: Sep 18, 2025"
+          - generic [ref=e755]:
+            - generic [ref=e758]:
+              - generic [ref=e759]:
+                - img [ref=e760]
+                - heading "Trading Signals" [level=3] [ref=e763]
+                - generic [ref=e765]: AI-Powered
+              - generic [ref=e766]:
+                - generic [ref=e768]:
+                  - generic [ref=e769]:
+                    - paragraph [ref=e770]: AAPL
+                    - paragraph [ref=e771]: Technical Signal
+                  - generic [ref=e772]:
+                    - generic [ref=e774]: Buy
+                    - generic [ref=e775]: 92% confidence
+                - generic [ref=e777]:
+                  - generic [ref=e778]:
+                    - paragraph [ref=e779]: TSLA
+                    - paragraph [ref=e780]: Momentum Signal
+                  - generic [ref=e781]:
+                    - generic [ref=e783]: Sell
+                    - generic [ref=e784]: 87% confidence
+              - separator [ref=e785]
+              - generic [ref=e786]:
+                - paragraph [ref=e787]: Market News
+                - paragraph [ref=e788]: Fed Holds Rates Steady, Signals Caution
+            - generic [ref=e791]:
+              - generic [ref=e792]:
+                - img [ref=e793]
+                - heading "Economic Calendar" [level=3] [ref=e795]
+                - generic [ref=e797]: High Impact
+              - generic [ref=e798]:
+                - generic [ref=e800]:
+                  - generic [ref=e801]:
+                    - paragraph [ref=e802]: FOMC Rate Decision
+                    - generic [ref=e803]: Jun 24, 2025
+                  - generic [ref=e805]: High
+                - generic [ref=e807]:
+                  - generic [ref=e808]:
+                    - paragraph [ref=e809]: AAPL Earnings
+                    - generic [ref=e810]: Jun 30, 2025
+                  - generic [ref=e812]: Medium
+                - generic [ref=e814]:
+                  - generic [ref=e815]:
+                    - paragraph [ref=e816]: Nonfarm Payrolls
+                    - generic [ref=e817]: Jul 4, 2025
+                  - generic [ref=e819]: High
+            - generic [ref=e822]:
+              - generic [ref=e823]:
+                - img [ref=e824]
+                - heading "Trading Activity" [level=3] [ref=e826]
+                - generic [ref=e828]: Live
+                - button "View all market alerts" [ref=e829] [cursor=pointer]: View All
+              - generic [ref=e830]:
+                - generic [ref=e832]:
+                  - generic [ref=e833]:
+                    - paragraph [ref=e834]: Trade
+                    - paragraph [ref=e835]: Bought 100 AAPL
+                    - generic [ref=e836]: Jun 20, 2025
+                  - paragraph [ref=e837]: $19,500
+                - generic [ref=e840]:
+                  - paragraph [ref=e841]: Alert
+                  - paragraph [ref=e842]: TSLA price alert triggered
+                  - generic [ref=e843]: Jun 19, 2025
+                - generic [ref=e845]:
+                  - generic [ref=e846]:
+                    - paragraph [ref=e847]: Trade
+                    - paragraph [ref=e848]: Sold 50 NVDA
+                    - generic [ref=e849]: Jun 18, 2025
+                  - paragraph [ref=e850]: $60,000
+          - generic [ref=e854]:
+            - generic [ref=e855]:
+              - img [ref=e856]
+              - heading "AI-Powered Intelligence Center" [level=2] [ref=e859]
+              - generic [ref=e861]: Neural Networks
+              - generic [ref=e863]: Machine Learning
+            - generic [ref=e864]:
+              - generic [ref=e867]:
+                - heading "Market Intelligence" [level=6] [ref=e868]
+                - list [ref=e869]:
+                  - listitem [ref=e870]:
+                    - img [ref=e873]
+                    - generic [ref=e875]:
+                      - generic [ref=e876]: "Market Sentiment: Bullish"
+                      - paragraph [ref=e877]: "Neural network confidence: 89%"
+                  - listitem [ref=e878]:
+                    - img [ref=e881]
+                    - generic [ref=e883]:
+                      - generic [ref=e884]: Volatility Forecast
+                      - paragraph [ref=e885]: "VIX spike probability: 34%"
+                  - listitem [ref=e886]:
+                    - img [ref=e889]
+                    - generic [ref=e891]:
+                      - generic [ref=e892]: Sector Rotation Signal
+                      - paragraph [ref=e893]: Technology outperformance expected
+              - generic [ref=e896]:
+                - heading "Risk Management" [level=6] [ref=e897]
+                - generic [ref=e898]:
+                  - generic [ref=e899]:
+                    - paragraph [ref=e900]: Portfolio Beta
+                    - generic [ref=e901]:
+                      - progressbar "Market sentiment score progress" [ref=e902]
+                      - heading "0.95" [level=6] [ref=e904]
+                  - generic [ref=e905]:
+                    - paragraph [ref=e906]: Value at Risk (95%)
+                    - generic [ref=e907]:
+                      - progressbar "Value at risk indicator" [ref=e908]
+                      - heading "-$28K" [level=6] [ref=e910]
+                  - generic [ref=e911]:
+                    - paragraph [ref=e912]: Sharpe Ratio
+                    - generic [ref=e913]:
+                      - progressbar "Portfolio diversification score" [ref=e914]
+                      - heading "1.42" [level=6] [ref=e916]
+                  - generic [ref=e917]:
+                    - paragraph [ref=e918]: Max Drawdown
+                    - generic [ref=e919]:
+                      - progressbar "Account utilization percentage" [ref=e920]
+                      - heading "-8.2%" [level=6] [ref=e922]
+              - generic [ref=e925]:
+                - heading "Algorithm Signals" [level=6] [ref=e926]
+                - list [ref=e927]:
+                  - listitem [ref=e928]:
+                    - img [ref=e931]
+                    - generic [ref=e933]:
+                      - generic [ref=e934]: Buy AAPL
+                      - paragraph [ref=e935]: 92% confidence • Technical
+                    - button "View stock details" [ref=e936] [cursor=pointer]:
+                      - img [ref=e937] [cursor=pointer]
+                  - listitem [ref=e939]:
+                    - img [ref=e942]
+                    - generic [ref=e944]:
+                      - generic [ref=e945]: Sell TSLA
+                      - paragraph [ref=e946]: 87% confidence • Momentum
+                    - button "View stock details" [ref=e947] [cursor=pointer]:
+                      - img [ref=e948] [cursor=pointer]
+                  - listitem [ref=e950]:
+                    - img [ref=e953]
+                    - generic [ref=e955]:
+                      - generic [ref=e956]: Strategy Performance
+                      - paragraph [ref=e957]: "YTD: +23.7% • Win Rate: 87.2%"
+          - generic [ref=e959]:
+            - heading "Quick Actions" [level=2] [ref=e960]
+            - generic [ref=e961]:
+              - button "Add new position to portfolio" [ref=e963] [cursor=pointer]:
+                - img [ref=e965] [cursor=pointer]
+                - text: Add Position
+              - button "View trade history" [ref=e968] [cursor=pointer]:
+                - img [ref=e970] [cursor=pointer]
+                - text: Trade History
+              - button "Place new trading order" [ref=e973] [cursor=pointer]:
+                - img [ref=e975] [cursor=pointer]
+                - text: Place Order
+              - button "Run strategy backtest" [ref=e978] [cursor=pointer]:
+                - img [ref=e980] [cursor=pointer]
+                - text: Run Backtest
+              - button "Screen stocks with filters" [ref=e983] [cursor=pointer]:
+                - img [ref=e985] [cursor=pointer]
+                - text: Screen Stocks
+              - button "Set up price alerts" [ref=e988] [cursor=pointer]:
+                - img [ref=e990] [cursor=pointer]
+                - text: Set Alert
+              - button "Export portfolio data" [ref=e993] [cursor=pointer]:
+                - img [ref=e995] [cursor=pointer]
+                - text: Export Data
+              - button "Open settings page" [ref=e998] [cursor=pointer]:
+                - img [ref=e1000] [cursor=pointer]
+                - text: Settings
+          - generic [ref=e1002]:
+            - heading "ProTrade Analytics - Elite Financial Intelligence" [level=6] [ref=e1003]
+            - paragraph [ref=e1004]: Powered by advanced machine learning, real-time data feeds, and institutional-grade analytics.
+            - generic [ref=e1005]:
+              - generic [ref=e1006]:
+                - img [ref=e1007]
+                - generic [ref=e1009]: Bank-Grade Security
+              - generic [ref=e1010]:
+                - img [ref=e1011]
+                - generic [ref=e1013]: Sub-Second Latency
+              - generic [ref=e1014]:
+                - img [ref=e1015]
+                - generic [ref=e1018]: AI-Powered
+              - generic [ref=e1019]:
+                - img [ref=e1020]
+                - generic [ref=e1022]: Global Markets
+            - separator [ref=e1023]
+            - generic [ref=e1024]: "For institutional and qualified investors only. Not investment advice. Data may be delayed. Risk disclosure: Trading involves substantial risk of loss. © 2025 ProTrade Analytics. All rights reserved."
+  - generic [ref=e1025]: "172.5"
+```
