@@ -43,7 +43,7 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-  ECR_REPOSITORY: financial-data-loaders
+  ECR_REPOSITORY: stocks-app-registry
   ECS_CLUSTER: stocks-cluster
 
 jobs:
