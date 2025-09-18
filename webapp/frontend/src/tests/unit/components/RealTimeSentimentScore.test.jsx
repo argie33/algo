@@ -44,50 +44,38 @@ const { default: mockRealTimeNewsService } = await import(
 describe("RealTimeSentimentScore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
-  });
 
-  afterEach(() => {
-    vi.useRealTimers();
+    // Set up default mocks for all tests
+    mockRealTimeNewsService.subscribeToSentiment.mockReturnValue("subscription-id");
+    mockRealTimeNewsService.getLatestSentiment.mockReturnValue(mockSentimentData);
+    mockRealTimeNewsService.fetchNewsSentiment.mockResolvedValue(mockSentimentData);
+    mockRealTimeNewsService.unsubscribeFromSentiment.mockReturnValue(true);
   });
 
   describe("Rendering", () => {
     test("renders without crashing", async () => {
-      mockRealTimeNewsService.subscribeToSentiment.mockReturnValue(
-        "subscription-id"
-      );
-      mockRealTimeNewsService.getLatestSentiment.mockReturnValue(
-        mockSentimentData
-      );
-
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
-        expect(screen.getByText("Sentiment Score")).toBeInTheDocument();
+        expect(screen.getByText(/Sentiment Score/)).toBeInTheDocument();
       });
     });
 
     test("displays loading state initially", () => {
-      mockRealTimeNewsService.subscribeToSentiment.mockReturnValue(
-        "subscription-id"
-      );
+      // Override defaults to show loading state
       mockRealTimeNewsService.getLatestSentiment.mockReturnValue(null);
+      mockRealTimeNewsService.fetchNewsSentiment.mockImplementation(() =>
+        new Promise(resolve => setTimeout(() => resolve(mockSentimentData), 100))
+      );
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       expect(screen.getByText("Loading sentiment...")).toBeInTheDocument();
       expect(screen.getByRole("progressbar")).toBeInTheDocument();
     });
 
     test("displays sentiment data when loaded", async () => {
-      mockRealTimeNewsService.subscribeToSentiment.mockReturnValue(
-        "subscription-id"
-      );
-      mockRealTimeNewsService.getLatestSentiment.mockReturnValue(
-        mockSentimentData
-      );
-
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(screen.getByText("75")).toBeInTheDocument(); // Score
@@ -97,13 +85,11 @@ describe("RealTimeSentimentScore", () => {
     });
 
     test("shows no data state when sentiment is null", async () => {
-      mockRealTimeNewsService.subscribeToSentiment.mockReturnValue(
-        "subscription-id"
-      );
+      // Override defaults to return null
       mockRealTimeNewsService.getLatestSentiment.mockReturnValue(null);
       mockRealTimeNewsService.fetchNewsSentiment.mockResolvedValue(null);
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(
@@ -120,12 +106,9 @@ describe("RealTimeSentimentScore", () => {
         score: 0.75,
         label: "positive",
       };
-      mockRealTimeNewsService.subscribeToSentiment.mockReturnValue(
-        "subscription-id"
-      );
       mockRealTimeNewsService.getLatestSentiment.mockReturnValue(bullishData);
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(screen.getByText("75")).toBeInTheDocument();
@@ -140,12 +123,9 @@ describe("RealTimeSentimentScore", () => {
         score: 0.25,
         label: "negative",
       };
-      mockRealTimeNewsService.subscribeToSentiment.mockReturnValue(
-        "subscription-id"
-      );
       mockRealTimeNewsService.getLatestSentiment.mockReturnValue(bearishData);
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(screen.getByText("25")).toBeInTheDocument();
@@ -165,7 +145,7 @@ describe("RealTimeSentimentScore", () => {
       );
       mockRealTimeNewsService.getLatestSentiment.mockReturnValue(neutralData);
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(screen.getByText("50")).toBeInTheDocument();
@@ -184,7 +164,7 @@ describe("RealTimeSentimentScore", () => {
         mockSentimentData
       );
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       expect(mockRealTimeNewsService.subscribeToSentiment).toHaveBeenCalledWith(
         "AAPL",
@@ -219,7 +199,7 @@ describe("RealTimeSentimentScore", () => {
       );
       mockRealTimeNewsService.getLatestSentiment.mockReturnValue(null);
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       // Simulate real-time update
       const newSentimentData = { ...mockSentimentData, score: 0.9 };
@@ -237,7 +217,7 @@ describe("RealTimeSentimentScore", () => {
       );
       mockRealTimeNewsService.getLatestSentiment.mockReturnValue(dataWithLive);
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(screen.getByText("LIVE")).toBeInTheDocument();
@@ -254,7 +234,7 @@ describe("RealTimeSentimentScore", () => {
         mockSentimentData
       );
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(
@@ -275,7 +255,7 @@ describe("RealTimeSentimentScore", () => {
         new Error("Connection failed")
       );
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(
@@ -352,7 +332,7 @@ describe("RealTimeSentimentScore", () => {
         mockSentimentData
       );
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(
@@ -471,7 +451,7 @@ describe("RealTimeSentimentScore", () => {
         new Error("API Error")
       );
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         expect(
@@ -505,7 +485,7 @@ describe("RealTimeSentimentScore", () => {
         mockSentimentData
       );
 
-      render(<RealTimeSentimentScore symbol="AAPL" />);
+      render(<RealTimeSentimentScore symbol="AAPL" autoRefresh={false} />);
 
       await waitFor(() => {
         const progressBar = screen.getByRole("progressbar");
