@@ -733,5 +733,5 @@ if __name__ == "__main__":
     cur.close()
     conn.close()
     logging.info("All done.")
-# Updated Wed Sep 18 22:00:00 CDT 2025
-# Trigger workflow - FIXED ECR repository name Sep 18 2025 - attempt 5
+# Updated Wed Sep 18 22:05:00 CDT 2025
+# Trigger workflow - FORCE infrastructure deployment Sep 18 2025 - attempt 6

@@ -183,7 +183,7 @@ jobs:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.infrastructure-changed == 'true'
+    if: needs.detect-changes.outputs.infrastructure-changed == 'true' || needs.detect-changes.outputs.has-changes == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -239,9 +239,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-changes, deploy-infrastructure]
     if: |
-      always() && 
+      always() &&
       needs.detect-changes.outputs.has-changes == 'true' &&
-      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+      needs.deploy-infrastructure.result == 'success'
     
     strategy:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
