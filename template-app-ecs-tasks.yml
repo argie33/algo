@@ -2735,3 +2735,16 @@ Outputs:
     Value: !Ref ValueMetricsTaskDefinition
     Export:
       Name: ValueMetricsTaskDefArn
+
+  # Additional outputs for GitHub Action compatibility
+  INFOTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for info loader (GitHub Action compatibility)
+    Value: !Ref LoadInfoTaskDefinition
+    Export:
+      Name: INFOTaskDefArn
+
+  TECHNICALSDAILYTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for technicalsdaily loader (GitHub Action compatibility)
+    Value: !Ref TechnicalsDailyTaskDefinition
+    Export:
+      Name: TECHNICALSDAILYTaskDefArn
