@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 23:05 CDT
-# Trigger workflow - FIX attempt 19: Fixed Docker architecture mismatch - building for ARM64
+# Updated Wed Sep 18 22:50:00 CDT 2025 - 23:50 CDT
+# FIX attempt 20: Fixed variable scope bug and improved rate limiting handling
 import gc
 import json
 import logging
@@ -47,7 +47,8 @@ def log_mem(stage: str):
 # Retry settings
 # -------------------------------
 MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.2  # seconds between download retries
+RETRY_DELAY = 0.5  # seconds between download retries
+RATE_LIMIT_DELAY = 2.0  # longer delay for rate limit errors
 
 
 # -------------------------------
@@ -83,6 +84,7 @@ def load_company_info(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            info = None  # Initialize info variable
             for attempt in range(1, MAX_BATCH_RETRIES + 1):
                 try:
                     ticker = yf.Ticker(yq_sym)
@@ -94,8 +96,15 @@ def load_company_info(symbols, cur, conn):
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
                     if attempt == MAX_BATCH_RETRIES:
                         failed.append(orig_sym)
-                        continue
-                    time.sleep(RETRY_DELAY)
+                        break  # Break from retry loop
+                    # Use longer delay for rate limit errors
+                    delay = RATE_LIMIT_DELAY if "rate limit" in str(e).lower() else RETRY_DELAY
+                    time.sleep(delay)
+
+            # Skip this symbol if we couldn't get info after all retries
+            if info is None:
+                logging.error(f"Failed to get info for {orig_sym} after {MAX_BATCH_RETRIES} attempts")
+                continue
 
             try:
                 # Insert into company_profile
