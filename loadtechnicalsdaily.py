@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Updated: 2025-01-17 - Trigger full technical data loading for stock APIs - run now
 # Force technical indicators calculation for all stocks in database
-# CRITICAL FIX attempt 7: Fixed CloudFormation parameter mismatch - Sep 18 2025
+# CRITICAL FIX attempt 8: Fixed deployment condition logic error - Sep 18 2025 22:31 CDT
 import concurrent.futures
 import gc
 import json
