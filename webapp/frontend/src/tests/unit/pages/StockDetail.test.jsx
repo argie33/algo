@@ -13,14 +13,22 @@ import {
 import StockDetail from "../../../pages/StockDetail.jsx";
 
 // Mock React Router
-vi.mock("react-router-dom", () => ({
-  useParams: vi.fn(() => ({ symbol: "AAPL" })),
-}));
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
+  return {
+    ...actual,
+    useParams: vi.fn(() => ({ symbol: "AAPL" })),
+  };
+});
 
 // Mock React Query
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: vi.fn(),
-}));
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual("@tanstack/react-query");
+  return {
+    ...actual,
+    useQuery: vi.fn(),
+  };
+});
 
 // Mock API service with proper ES module support
 vi.mock("../../../services/api.js", () => {
@@ -103,16 +111,27 @@ const mockFinancials = {
 };
 
 describe("StockDetail Component", () => {
-  const mockUseQuery = vi.mocked(require("@tanstack/react-query").useQuery);
+  let mockUseQuery;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Get the mocked useQuery function
+    const { useQuery } = await import("@tanstack/react-query");
+    mockUseQuery = vi.mocked(useQuery);
 
     // Mock successful API responses
     mockUseQuery.mockImplementation((options) => {
       const { queryKey } = options;
 
-      if (queryKey[0] === "stockDetail") {
+      if (queryKey[0] === "stockProfile") {
+        return {
+          data: [mockStockData],  // Component expects an array
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        };
+      } else if (queryKey[0] === "stockMetrics") {
         return {
           data: mockStockData,
           isLoading: false,
@@ -294,8 +313,9 @@ describe("StockDetail Component", () => {
     });
   });
 
-  it("handles missing stock symbol in URL", () => {
-    const mockUseParams = require("react-router-dom").useParams;
+  it("handles missing stock symbol in URL", async () => {
+    const { useParams } = await import("react-router-dom");
+    const mockUseParams = vi.mocked(useParams);
     mockUseParams.mockReturnValue({ symbol: undefined });
 
     renderWithProviders(<StockDetail />);
@@ -329,7 +349,14 @@ describe("StockDetail Component", () => {
     };
 
     mockUseQuery.mockImplementation((options) => {
-      if (options.queryKey[0] === "stockDetail") {
+      if (options.queryKey[0] === "stockProfile") {
+        return {
+          data: [mockStockWithAnalyst],  // Component expects an array
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        };
+      } else if (options.queryKey[0] === "stockMetrics") {
         return {
           data: mockStockWithAnalyst,
           isLoading: false,
@@ -355,7 +382,14 @@ describe("StockDetail Component", () => {
 
   it("handles chart data loading states", async () => {
     mockUseQuery.mockImplementation((options) => {
-      if (options.queryKey[0] === "stockDetail") {
+      if (options.queryKey[0] === "stockProfile") {
+        return {
+          data: [mockStockData],  // Component expects an array
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        };
+      } else if (options.queryKey[0] === "stockMetrics") {
         return {
           data: mockStockData,
           isLoading: false,
