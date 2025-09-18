@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:50 CDT
-# Trigger workflow - NUCLEAR attempt 16: Removed deployment condition entirely
+# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:53 CDT
+# Trigger workflow - DEBUG attempt 17: Added comprehensive debugging and error messaging
 import gc
 import json
 import logging
