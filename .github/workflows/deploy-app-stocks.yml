@@ -263,9 +263,22 @@ jobs:
       - name: Update container image
         run: |
           echo "🐳 Building and pushing loader container..."
-          echo "Repository: ${{ env.ECR_REPOSITORY }}"
-          echo "Region: ${{ env.AWS_REGION }}"
-          echo "Account: ${{ secrets.AWS_ACCOUNT_ID }}"
+
+          # Get the correct repository URI from CloudFormation exports
+          echo "📋 Getting repository URI from CloudFormation..."
+          REPOSITORY_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text --region ${{ env.AWS_REGION }})
+
+          if [[ -z "$REPOSITORY_URI" || "$REPOSITORY_URI" == "None" ]]; then
+            echo "❌ ERROR: Could not get repository URI from CloudFormation export!"
+            exit 1
+          fi
+          echo "✅ Repository URI: $REPOSITORY_URI"
+
+          # Extract repository name from URI for Docker login
+          REPO_NAME=$(echo "$REPOSITORY_URI" | cut -d'/' -f2)
+          echo "Repository name: $REPO_NAME"
 
           # Check if Dockerfile exists
           if [[ ! -f "Dockerfile.dataloader" ]]; then
@@ -282,39 +295,37 @@ jobs:
           fi
           echo "✅ ECR login successful"
 
-          # Create repository if it doesn't exist
-          echo "📦 Checking/creating ECR repository..."
-          if ! aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} --region ${{ env.AWS_REGION }}; then
-            echo "Creating repository: ${{ env.ECR_REPOSITORY }}"
-            if ! aws ecr create-repository --repository-name ${{ env.ECR_REPOSITORY }} --region ${{ env.AWS_REGION }}; then
-              echo "❌ ERROR: Failed to create ECR repository!"
-              exit 1
-            fi
+          # Repository should already exist from core stack, but check anyway
+          echo "📦 Verifying ECR repository exists..."
+          if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region ${{ env.AWS_REGION }}; then
+            echo "❌ ERROR: Repository $REPO_NAME does not exist! Check core stack deployment."
+            exit 1
           fi
-          echo "✅ ECR repository ready"
+          echo "✅ ECR repository verified"
 
           # Build image
           echo "🔨 Building Docker image..."
-          if ! docker build -t ${{ env.ECR_REPOSITORY }}:latest -f Dockerfile.dataloader .; then
+          if ! docker build -t "$REPO_NAME:latest" -f Dockerfile.dataloader .; then
             echo "❌ ERROR: Docker build failed!"
             exit 1
           fi
           echo "✅ Docker build successful"
 
-          # Tag image
+          # Tag image with the exact URI that ECS tasks expect
           echo "🏷️ Tagging image..."
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
-          docker tag ${{ env.ECR_REPOSITORY }}:latest $IMAGE_URI
+          IMAGE_URI="${REPOSITORY_URI}:latest"
+          docker tag "$REPO_NAME:latest" "$IMAGE_URI"
           echo "Image URI: $IMAGE_URI"
 
           # Push image
           echo "⬆️ Pushing image to ECR..."
-          if ! docker push $IMAGE_URI; then
+          if ! docker push "$IMAGE_URI"; then
             echo "❌ ERROR: Docker push failed!"
             exit 1
           fi
           echo "✅ Docker image pushed successfully!"
           echo "🎯 Image available at: $IMAGE_URI"
+          echo "🎯 This matches what ECS tasks expect from CloudFormation"
 
   # 3. Execute loaders using matrix strategy
   execute-loaders:

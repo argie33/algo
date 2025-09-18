@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:53 CDT
-# Trigger workflow - DEBUG attempt 17: Added comprehensive debugging and error messaging
+# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:58 CDT
+# Trigger workflow - FIX attempt 18: Fixed ECR repository URI mismatch using CloudFormation export
 import gc
 import json
 import logging
