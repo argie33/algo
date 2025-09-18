@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Updated: 2025-01-17 - Trigger full technical data loading for stock APIs - run now
+# Force technical indicators calculation for all stocks in database
 import concurrent.futures
 import gc
 import json

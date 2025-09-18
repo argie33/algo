@@ -17,6 +17,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 # -------------------------------
 # Script metadata & logging setup
 # Updated for data loading run - Jan 17 trigger
+# Force execution - populate empty tables with stock data
 # -------------------------------
 SCRIPT_NAME = "loadinfo.py"
 logging.basicConfig(
