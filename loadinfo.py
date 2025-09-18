@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:38 CDT
-# Trigger workflow - CRITICAL FIX attempt 12: Fixed git diff command to use proper commit range
+# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:42 CDT
+# Trigger workflow - CRITICAL FIX attempt 13: Force infrastructure deployment always
 import gc
 import json
 import logging
