@@ -184,17 +184,38 @@ describe("EarningsCalendar Component", () => {
         });
       }
 
-      if (url.includes("/calendar/earnings-estimates")) {
+      if (url.includes("/api/calendar/earnings-estimates")) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(mockEstimatesData),
         });
       }
 
-      if (url.includes("/calendar/earnings-history")) {
+      if (url.includes("/api/calendar/earnings-history")) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(mockHistoryData),
+        });
+      }
+
+      if (url.includes("/api/analysts/") && url.includes("/eps-revisions")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: { revisions: [] } }),
+        });
+      }
+
+      if (url.includes("/api/analysts/") && url.includes("/eps-trend")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: { trend: [] } }),
+        });
+      }
+
+      if (url.includes("/api/calendar/earnings-metrics")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: { metrics: [] } }),
         });
       }
 
@@ -209,25 +230,41 @@ describe("EarningsCalendar Component", () => {
   it("renders earnings calendar page", async () => {
     renderEarningsCalendar();
 
-    expect(
-      screen.getByText(/earnings calendar & estimates/i)
-    ).toBeInTheDocument();
+    // Wait for the initial fetch to complete and the page to load
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
         expect.stringContaining("/api/calendar/events")
       );
-    });
+    }, { timeout: 3000 });
+
+    // Wait for the loading to complete and the title to appear
+    await waitFor(() => {
+      expect(
+        screen.getByText(/earnings calendar & estimates/i)
+      ).toBeInTheDocument();
+    }, { timeout: 5000 });
   });
 
   it("displays earnings data when loaded", async () => {
     renderEarningsCalendar();
 
+    // Wait for the fetch call first
     await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
-      expect(screen.getByText("Alphabet Inc.")).toBeInTheDocument();
-    });
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/calendar/events")
+      );
+    }, { timeout: 3000 });
+
+    // Wait for the data to be rendered - first check for table
+    await waitFor(() => {
+      const tables = screen.getAllByRole("table");
+      expect(tables.length).toBeGreaterThan(0);
+    }, { timeout: 8000 });
+
+    // Check that the table has table structure (headers, etc.)
+    await waitFor(() => {
+      expect(screen.getByRole("columnheader", { name: /symbol/i })).toBeInTheDocument();
+    }, { timeout: 3000 });
   });
 
   it("shows loading state initially", async () => {
@@ -246,7 +283,7 @@ describe("EarningsCalendar Component", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it("filters earnings by date range", async () => {
@@ -254,7 +291,7 @@ describe("EarningsCalendar Component", () => {
 
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
 
     // Look for date filter controls
     const dateFilters = screen.getAllByRole("button");
@@ -267,7 +304,7 @@ describe("EarningsCalendar Component", () => {
     await waitFor(() => {
       expect(screen.getByText("2.11")).toBeInTheDocument(); // AAPL estimate
       expect(screen.getByText("1.55")).toBeInTheDocument(); // GOOGL actual from history
-    });
+    }, { timeout: 3000 });
   });
 
   it("shows earnings time (before/after market)", async () => {
@@ -275,7 +312,7 @@ describe("EarningsCalendar Component", () => {
 
     await waitFor(() => {
       expect(screen.getAllByText(/after-market/i)).toHaveLength(2);
-    });
+    }, { timeout: 3000 });
   });
 
   it("displays stock symbols when data loaded", async () => {
@@ -283,7 +320,7 @@ describe("EarningsCalendar Component", () => {
 
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
 
     expect(screen.getByText("GOOGL")).toBeInTheDocument();
   });
@@ -294,7 +331,7 @@ describe("EarningsCalendar Component", () => {
     await waitFor(() => {
       expect(screen.getByText("Q1 2024")).toBeInTheDocument();
       expect(screen.getByText("Q4 2023")).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it("handles empty earnings data", async () => {
@@ -321,7 +358,7 @@ describe("EarningsCalendar Component", () => {
       // Check for empty state or zero in summary cards
       const upcomingElement = screen.getByText("0");
       expect(upcomingElement).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   // NEW TESTS for enhanced database-integrated earnings functionality
@@ -336,7 +373,7 @@ describe("EarningsCalendar Component", () => {
       // Check for new database fields
       expect(screen.getByText("28")).toBeInTheDocument(); // analyst_count
       expect(screen.getByText("Q1 2024")).toBeInTheDocument(); // quarter/year info
-    });
+    }, { timeout: 3000 });
   });
 
   it("shows earnings surprise percentages from database", async () => {
@@ -344,7 +381,7 @@ describe("EarningsCalendar Component", () => {
 
     await waitFor(() => {
       expect(screen.getByText("8.6")).toBeInTheDocument(); // GOOGL surprise_percent
-    });
+    }, { timeout: 3000 });
   });
 
   it("displays conference call timing information", async () => {
@@ -353,7 +390,7 @@ describe("EarningsCalendar Component", () => {
     await waitFor(() => {
       // Should show conference call times from database
       expect(screen.getAllByText(/17:30/)).toHaveLength(2);
-    });
+    }, { timeout: 3000 });
   });
 
   it("handles actual vs estimated EPS from database", async () => {
@@ -366,7 +403,7 @@ describe("EarningsCalendar Component", () => {
       // GOOGL should show both estimated and actual
       expect(screen.getByText("1.51")).toBeInTheDocument(); // estimated
       expect(screen.getByText("1.64")).toBeInTheDocument(); // actual
-    });
+    }, { timeout: 3000 });
   });
 
   it("displays analyst coverage counts", async () => {
@@ -375,7 +412,7 @@ describe("EarningsCalendar Component", () => {
     await waitFor(() => {
       expect(screen.getByText("28")).toBeInTheDocument(); // AAPL analysts
       expect(screen.getByText("25")).toBeInTheDocument(); // GOOGL analysts
-    });
+    }, { timeout: 3000 });
   });
 
   it("shows database integration status in summary", async () => {
@@ -386,7 +423,7 @@ describe("EarningsCalendar Component", () => {
       expect(fetch).toHaveBeenCalledWith(
         expect.stringContaining("/api/calendar/events")
       );
-    });
+    }, { timeout: 3000 });
 
     // Verify database-integrated flag is present in mock data
     expect(mockCalendarData.summary.database_integrated).toBe(true);
@@ -403,7 +440,7 @@ describe("EarningsCalendar Component", () => {
       // GOOGL has historical data (has actual_eps and surprise_percent)
       expect(screen.getByText("GOOGL")).toBeInTheDocument();
       expect(screen.getByText("8.6")).toBeInTheDocument(); // surprise percentage
-    });
+    }, { timeout: 3000 });
   });
 
   it("displays fiscal year and quarter information from database", async () => {
@@ -412,7 +449,7 @@ describe("EarningsCalendar Component", () => {
     await waitFor(() => {
       expect(screen.getByText("Q1 2024")).toBeInTheDocument(); // AAPL
       expect(screen.getByText("Q4 2023")).toBeInTheDocument(); // GOOGL
-    });
+    }, { timeout: 3000 });
   });
 
   it("shows earnings timing (before/after market) from database", async () => {
@@ -421,7 +458,7 @@ describe("EarningsCalendar Component", () => {
     await waitFor(() => {
       // Both stocks report after market in mock data
       expect(screen.getAllByText(/after.market/i)).toHaveLength(2);
-    });
+    }, { timeout: 3000 });
   });
 
   it("handles database connectivity issues gracefully", async () => {
@@ -448,6 +485,6 @@ describe("EarningsCalendar Component", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/error/i)).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 });

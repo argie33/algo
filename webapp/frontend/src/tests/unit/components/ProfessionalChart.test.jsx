@@ -6,69 +6,64 @@ import ProfessionalChart from "../../../components/ProfessionalChart";
 
 // Mock recharts components
 vi.mock("recharts", () => ({
-  LineChart: ({ children, data, ...props }) => (
+  LineChart: ({ children, data, margin: _margin, ..._props }) => (
     <div
       data-testid="recharts-line-chart"
       data-chart-data={JSON.stringify(data)}
-      {...props}
     >
       {children}
     </div>
   ),
-  AreaChart: ({ children, data, ...props }) => (
+  AreaChart: ({ children, data, margin: _margin, ..._props }) => (
     <div
       data-testid="recharts-area-chart"
       data-chart-data={JSON.stringify(data)}
-      {...props}
     >
       {children}
     </div>
   ),
-  BarChart: ({ children, data, ...props }) => (
+  BarChart: ({ children, data, margin: _margin, ..._props }) => (
     <div
       data-testid="recharts-bar-chart"
       data-chart-data={JSON.stringify(data)}
-      {...props}
     >
       {children}
     </div>
   ),
-  PieChart: ({ children, data, ...props }) => (
+  PieChart: ({ children, data, ..._props }) => (
     <div
       data-testid="recharts-pie-chart"
       data-chart-data={JSON.stringify(data)}
-      {...props}
     >
       {children}
     </div>
   ),
-  ComposedChart: ({ children, data, ...props }) => (
+  ComposedChart: ({ children, data, margin: _margin, ..._props }) => (
     <div
       data-testid="recharts-composed-chart"
       data-chart-data={JSON.stringify(data)}
-      {...props}
     >
       {children}
     </div>
   ),
-  ResponsiveContainer: ({ children, width, height, ...props }) => (
+  ResponsiveContainer: ({ children, width, height, ..._props }) => (
     <div
       data-testid="recharts-responsive-container"
       style={{ width, height }}
-      {...props}
+      {..._props}
     >
       {children}
     </div>
   ),
-  Line: (props) => <div data-testid="recharts-line" {...props} />,
-  Area: (props) => <div data-testid="recharts-area" {...props} />,
-  Bar: (props) => <div data-testid="recharts-bar" {...props} />,
-  Pie: (props) => <div data-testid="recharts-pie" {...props} />,
-  Cell: (props) => <div data-testid="recharts-cell" {...props} />,
-  XAxis: (props) => <div data-testid="recharts-xaxis" {...props} />,
-  YAxis: (props) => <div data-testid="recharts-yaxis" {...props} />,
-  CartesianGrid: (props) => <div data-testid="recharts-grid" {...props} />,
-  Tooltip: (props) => <div data-testid="recharts-tooltip" {...props} />,
+  Line: ({ type: _type, dataKey: _dataKey, stroke: _stroke, strokeWidth: _strokeWidth, dot: _dot, ..._props }) => <div data-testid="recharts-line" />,
+  Area: ({ type: _type, dataKey: _dataKey, stroke: _stroke, fill: _fill, strokeWidth: _strokeWidth, ..._props }) => <div data-testid="recharts-area" />,
+  Bar: ({ dataKey: _dataKey, fill: _fill, radius: _radius, ..._props }) => <div data-testid="recharts-bar" />,
+  Pie: ({ data: _data, cx: _cx, cy: _cy, labelLine: _labelLine, outerRadius: _outerRadius, fill: _fill, dataKey: _dataKey, children, ..._props }) => <div data-testid="recharts-pie">{children}</div>,
+  Cell: ({ fill: _fill, ..._props }) => <div data-testid="recharts-cell" />,
+  XAxis: ({ dataKey: _dataKey, tick: _tick, domain: _domain, ..._props }) => <div data-testid="recharts-xaxis" {..._props} />,
+  YAxis: ({ tick: _tick, domain: _domain, ..._props }) => <div data-testid="recharts-yaxis" {..._props} />,
+  CartesianGrid: ({ strokeDasharray: _strokeDasharray, stroke: _stroke, ..._props }) => <div data-testid="recharts-grid" {..._props} />,
+  Tooltip: (_props) => <div data-testid="recharts-tooltip" />,
 }));
 
 // Mock date-fns
@@ -120,7 +115,7 @@ describe("ProfessionalChart", () => {
       );
 
       expect(screen.getByText("Test Chart")).toBeInTheDocument();
-      expect(screen.getByText("Test Subtitle")).toBeInTheDocument();
+      expect(screen.getByText(/Test Subtitle/i)).toBeInTheDocument();
     });
 
     it("renders loading state when loading prop is true", () => {
@@ -139,7 +134,7 @@ describe("ProfessionalChart", () => {
         <ProfessionalChart {...defaultProps} error="Chart error occurred" />
       );
 
-      expect(screen.getByText("Chart error occurred")).toBeInTheDocument();
+      expect(screen.getByText(/Chart error occurred/i)).toBeInTheDocument();
       expect(
         screen.queryByTestId("recharts-line-chart")
       ).not.toBeInTheDocument();
@@ -148,7 +143,7 @@ describe("ProfessionalChart", () => {
     it('renders "no data" message when data is empty', () => {
       renderWithTheme(<ProfessionalChart {...defaultProps} data={[]} />);
 
-      expect(screen.getByText("No data available")).toBeInTheDocument();
+      expect(screen.getByText(/No data available/i)).toBeInTheDocument();
       expect(
         screen.queryByTestId("recharts-line-chart")
       ).not.toBeInTheDocument();
@@ -157,7 +152,7 @@ describe("ProfessionalChart", () => {
     it('renders "no data" message when data is null', () => {
       renderWithTheme(<ProfessionalChart {...defaultProps} data={null} />);
 
-      expect(screen.getByText("No data available")).toBeInTheDocument();
+      expect(screen.getByText(/No data available/i)).toBeInTheDocument();
       expect(
         screen.queryByTestId("recharts-line-chart")
       ).not.toBeInTheDocument();

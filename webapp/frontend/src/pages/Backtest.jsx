@@ -1056,7 +1056,9 @@ export default function Backtest() {
                   title="Paste or edit your strategy code here. Python only."
                   arrow
                 >
-                  <HelpOutline fontSize="small" color="action" />
+                  <span>
+                    <HelpOutline fontSize="small" color="action" />
+                  </span>
                 </MuiTooltip>
               </Box>
               <Paper sx={{ p: 0, mb: 2, background: "#f7f7f7" }}>
@@ -2026,9 +2028,11 @@ export default function Backtest() {
                 title="Run a grid search over parameter values. Use comma-separated lists (e.g. 10,20,30) or range (e.g. 10-30:5 for 10,15,20,25,30)."
                 arrow
               >
-                <IconButton size="small">
-                  <HelpOutline />
-                </IconButton>
+                <span>
+                  <IconButton size="small">
+                    <HelpOutline />
+                  </IconButton>
+                </span>
               </MuiTooltip>
             </Box>
           }

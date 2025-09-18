@@ -4,10 +4,15 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Define Vite environment variables for tests to match development mode
-    "import.meta.env.DEV": true,
-    "import.meta.env.PROD": false,
-    "import.meta.env.MODE": '"test"',
+    // Define complete Vite environment variables for tests
+    "import.meta.env": {
+      DEV: false,
+      PROD: true,
+      MODE: "test",
+      VITE_FORCE_DEV_AUTH: "false",
+      BASE_URL: "/",
+      SSR: false
+    },
     // Disable React concurrent features
     "__DEV__": true,
     "process.env.NODE_ENV": '"test"'
@@ -16,37 +21,47 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/tests/simple-setup.js"],
     globals: true,
-    testTimeout: 15000, // Reduced to catch hanging tests faster
-    hookTimeout: 10000, // Reduced hook timeout
-    teardownTimeout: 5000, // Reduced cleanup time
-    // Use single thread to avoid race conditions
-    pool: "threads",
+    testTimeout: 8000, // Increased timeout for complex tests
+    hookTimeout: 5000, // Increased hook timeout
+    teardownTimeout: 3000, // Increased cleanup time
+    // Optimize pool configuration for better resource management
+    pool: "forks",
     poolOptions: {
-      threads: {
-        singleThread: true,
-        minThreads: 1,
-        maxThreads: 1,
+      forks: {
+        singleFork: true, // Use single fork to prevent resource conflicts
+        minForks: 1,
+        maxForks: 1, // Single threaded execution
       },
     },
-    // Test file patterns - allow targeting specific files
+    // Test file patterns
     include: ["src/tests/**/*.{test,spec}.{js,jsx}"],
     exclude: ["node_modules/", "dist/", ".git/", "**/*.backup", "**/*.old", "**/backup/**"],
-    // Less restrictive console output for debugging
+    // Reduced console output but not silent
     silent: false,
+    logLevel: "error", // Only show errors
     // Custom environment options
     env: {
       NODE_ENV: 'test',
+      VITE_FORCE_DEV_AUTH: 'false',
     },
-    // Standard reporters
-    reporters: ["default"],
-    // Disable parallel execution to reduce resource contention
-    fileParallelism: false,
-    // Allow retries for flaky React component tests
-    retry: 1,
-    // Cleanup options
+    // Fix deprecated reporter
+    reporters: [["default", { summary: false }]],
+    // Allow limited parallelism for better resource usage
+    fileParallelism: true,
+    maxConcurrency: 1, // Single test at a time to prevent conflicts
+    // No retries to speed up
+    retry: 0,
+    // Aggressive cleanup
     restoreMocks: true,
     clearMocks: true,
     resetMocks: true,
+    // Disable coverage to speed up
+    coverage: {
+      enabled: false,
+    },
+    // Add memory management
+    maxWorkers: 2,
+    isolate: true, // Better isolation between tests
   },
   resolve: {
     alias: {

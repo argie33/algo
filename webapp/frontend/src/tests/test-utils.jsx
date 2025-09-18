@@ -6,7 +6,7 @@
 /* eslint-disable react-refresh/only-export-components */
 
 import { render } from "@testing-library/react";
-import { BrowserRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
@@ -52,7 +52,8 @@ export const TestWrapper = ({ children }) => {
   }
 
   return (
-    <BrowserRouter
+    <MemoryRouter
+      initialEntries={["/test"]}
       future={{
         v7_startTransition: true,
         v7_relativeSplatPath: true,
@@ -63,7 +64,7 @@ export const TestWrapper = ({ children }) => {
           <TestAuthProvider>{children}</TestAuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
-    </BrowserRouter>
+    </MemoryRouter>
   );
 };
 
@@ -157,7 +158,8 @@ export const renderWithAuth = (ui, options = {}) => {
   };
 
   const AuthenticatedWrapper = ({ children }) => (
-    <BrowserRouter
+    <MemoryRouter
+      initialEntries={["/test"]}
       future={{
         v7_startTransition: true,
         v7_relativeSplatPath: true,
@@ -168,7 +170,7 @@ export const renderWithAuth = (ui, options = {}) => {
           <TestAuthProvider initialUser={mockUser}>{children}</TestAuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
-    </BrowserRouter>
+    </MemoryRouter>
   );
 
   return render(ui, {
