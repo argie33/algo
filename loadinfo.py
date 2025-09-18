@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Updated Wed Sep 18 22:05:00 CDT 2025
-# Trigger workflow - CRITICAL FIX attempt 7: Added 39 CloudFormation ImageTag parameters
+# Trigger workflow - CRITICAL FIX attempt 9: Infrastructure deployment forced + all parameters
 import gc
 import json
 import logging
