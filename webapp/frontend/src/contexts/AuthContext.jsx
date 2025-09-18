@@ -200,18 +200,26 @@ export function AuthProvider({ children }) {
     try {
       dispatch({ type: AUTH_ACTIONS.LOADING, payload: true });
 
-      // In test environment, don't attempt authentication checks that might hang
-      // Check for test environment using multiple indicators
-      const isTestEnv = import.meta.env?.MODE === 'test' ||
-                        (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
-                        (typeof window !== 'undefined' && window.__vitest_worker__) ||
-                        (typeof globalThis !== 'undefined' && globalThis.__vitest_worker__) ||
-                        (typeof vi !== 'undefined') ||
-                        // Check if we're in jsdom environment
-                        (typeof window !== 'undefined' && window.navigator?.userAgent?.includes('jsdom'));
+      // In unit test environment, don't attempt authentication checks that might hang
+      // But allow E2E tests (Playwright) to use dev auth
+      const isUnitTestEnv = (
+        // Check for vitest testing environment
+        (typeof globalThis !== 'undefined' && globalThis.__vitest_worker__) ||
+        (typeof window !== 'undefined' && window.__vitest_worker__) ||
+        import.meta.env?.MODE === 'test' ||
+        (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
+        // Check if we're in jsdom environment
+        (typeof window !== 'undefined' && window.navigator?.userAgent?.includes('jsdom')) ||
+        // Check for vitest globals
+        (typeof globalThis !== 'undefined' &&
+         (globalThis.vi || globalThis.vitest || globalThis.__vitest__))
+      ) &&
+      // Exclude Playwright tests (they have window.playwright object)
+      !(typeof window !== 'undefined' && window.playwright);
 
-      if (isTestEnv) {
-        console.log("Test environment detected - skipping auth check");
+      if (isUnitTestEnv) {
+        console.log("Unit test environment detected - skipping auth check");
+        dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
         dispatch({ type: AUTH_ACTIONS.LOGOUT });
         return;
       }
@@ -438,10 +446,10 @@ export function AuthProvider({ children }) {
       // Development auth fallback - use when:
       // 1. Cognito not configured in dev mode
       // 2. Dev auth is explicitly forced
-      // 3. Production Cognito failed (as fallback)
-      const shouldUseDevAuth = (!cognitoConfigured && import.meta.env.DEV) ||
+      // 3. In development mode (even if Cognito is configured)
+      const shouldUseDevAuth = !cognitoConfigured ||
                                forceDevAuth ||
-                               (cognitoConfigured && isProductionBuild); // Fallback after Cognito failure
+                               import.meta.env.DEV;
 
       if (shouldUseDevAuth) {
         console.log(
@@ -484,7 +492,34 @@ export function AuthProvider({ children }) {
       }
 
       // If we get here, neither production nor development auth is available
-      // Provide a helpful error message for users
+      // This should not happen in normal circumstances
+      console.error("🚨 CRITICAL: Both Cognito and dev auth paths were skipped or failed");
+      console.error("Debug info:", {
+        isProductionBuild,
+        cognitoConfigured,
+        forceDevAuth,
+        isDev: import.meta.env.DEV,
+        shouldUseDevAuth: !cognitoConfigured || forceDevAuth || import.meta.env.DEV
+      });
+
+      // Force use dev auth as last resort if we're in development
+      if (import.meta.env.DEV) {
+        console.log("🔧 FALLBACK: Forcing dev auth as last resort");
+        try {
+          const result = await devAuth.signIn(username, password);
+          if (result && result.success && result.tokens) {
+            sessionStorage.setItem("authToken", result.tokens.accessToken);
+            dispatch({
+              type: AUTH_ACTIONS.LOGIN_SUCCESS,
+              payload: { user: result.user, tokens: result.tokens },
+            });
+            return { success: true, user: result.user };
+          }
+        } catch (fallbackError) {
+          console.error("Even fallback dev auth failed:", fallbackError);
+        }
+      }
+
       const errorMessage = cognitoConfigured
         ? "Authentication service is temporarily unavailable. Please try again later."
         : "Authentication is not configured. Please contact support or use development mode.";
