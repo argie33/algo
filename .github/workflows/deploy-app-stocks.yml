@@ -54,6 +54,7 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       has-changes: ${{ steps.matrix.outputs.has-changes }}
+      changed: ${{ steps.infra.outputs.changed }}
       infrastructure-changed: ${{ steps.infra.outputs.changed }}
     steps:
       - name: Checkout code

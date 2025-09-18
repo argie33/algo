@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:42 CDT
-# Trigger workflow - CRITICAL FIX attempt 13: Force infrastructure deployment always
+# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:45 CDT
+# Trigger workflow - CRITICAL FIX attempt 14: Fixed job outputs - added missing 'changed' output
 import gc
 import json
 import logging
