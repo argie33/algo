@@ -3,81 +3,58 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "../../test-utils";
 import StockExplorer from "../../../pages/StockExplorer";
 
-// Mock the API service
-vi.mock("../../../services/api", () => ({
-  screenStocks: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: {
-        results: [
-          {
-            symbol: "AAPL",
-            companyName: "Apple Inc.",
-            price: {
-              current: 150.25,
-              previousClose: 147.90,
-              dayLow: 149.80,
-              dayHigh: 151.20,
-              fiftyTwoWeekLow: 140.50,
-              fiftyTwoWeekHigh: 195.40,
+// Mock API service
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    screenStocks: vi.fn(() =>
+      Promise.resolve({
+        success: true,
+        data: {
+          results: [
+            {
+              symbol: "AAPL",
+              companyName: "Apple Inc.",
+              price: {
+                current: 150.25,
+                previousClose: 147.90,
+                dayLow: 149.80,
+                dayHigh: 151.20,
+                fiftyTwoWeekLow: 140.50,
+                fiftyTwoWeekHigh: 195.40,
+              },
+              marketCap: 2500000000000,
+              peRatio: 28.5,
+              dividendYield: 0.52,
+              sector: "Technology",
+              volume: 45000000,
+              score: 8.2,
+              change: 2.35,
+              changePercent: 1.58,
             },
-            marketCap: 2500000000000,
-            peRatio: 28.5,
-            dividendYield: 0.52,
-            sector: "Technology",
-            volume: 45000000,
-            score: 8.2,
-            change: 2.35,
-            changePercent: 1.58,
-          },
-        ],
-        totalCount: 1,
-        totalPages: 1,
-        currentPage: 1,
-      },
-    })
-  ),
-  getStockPriceHistory: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: {
-        history: [
-          { date: "2024-01-01", price: 148.5, volume: 50000000 },
-          { date: "2024-01-02", price: 150.25, volume: 45000000 },
-        ],
-      },
-    })
-  ),
-  getStockDetails: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: {
-        symbol: "AAPL",
-        companyName: "Apple Inc.",
-        price: {
-          current: 150.25,
-          previousClose: 147.90,
-          dayLow: 149.80,
-          dayHigh: 151.20,
-          fiftyTwoWeekLow: 140.50,
-          fiftyTwoWeekHigh: 195.40,
+          ],
+          totalCount: 1,
+          totalPages: 1,
+          currentPage: 1,
         },
-        change: 2.35,
-        changePercent: 1.58,
-        marketCap: 2500000000000,
-        peRatio: 28.5,
-        eps: 5.35,
-        dividendYield: 0.52,
-        sector: "Technology",
-        industry: "Consumer Electronics",
-      },
-    })
-  ),
-  searchStocks: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: [
-        {
+      })
+    ),
+    getStockPriceHistory: vi.fn(() =>
+      Promise.resolve({
+        success: true,
+        data: {
+          history: [
+            { date: "2024-01-01", price: 148.5, volume: 50000000 },
+            { date: "2024-01-02", price: 150.25, volume: 45000000 },
+          ],
+        },
+      })
+    ),
+    getStockDetails: vi.fn(() =>
+      Promise.resolve({
+        success: true,
+        data: {
           symbol: "AAPL",
           companyName: "Apple Inc.",
           price: {
@@ -90,10 +67,38 @@ vi.mock("../../../services/api", () => ({
           },
           change: 2.35,
           changePercent: 1.58,
+          marketCap: 2500000000000,
+          peRatio: 28.5,
+          eps: 5.35,
+          dividendYield: 0.52,
+          sector: "Technology",
+          industry: "Consumer Electronics",
         },
-      ],
-    })
-  ),
+      })
+    ),
+    searchStocks: vi.fn(() =>
+      Promise.resolve({
+        success: true,
+        data: [
+          {
+            symbol: "AAPL",
+            companyName: "Apple Inc.",
+            price: {
+              current: 150.25,
+              previousClose: 147.90,
+              dayLow: 149.80,
+              dayHigh: 151.20,
+              fiftyTwoWeekLow: 140.50,
+              fiftyTwoWeekHigh: 195.40,
+            },
+            change: 2.35,
+            changePercent: 1.58,
+          },
+        ],
+      })
+    ),
+    getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  },
 }));
 
 // Mock recharts components
@@ -214,9 +219,7 @@ describe("StockExplorer", () => {
     });
 
     it("applies sector filters correctly", async () => {
-      const { searchStocks: _searchStocks } = await import(
-        "../../../services/api"
-      );
+      const api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any sector filter input - may be dropdown or text input
@@ -235,9 +238,7 @@ describe("StockExplorer", () => {
     });
 
     it("applies market cap filters", async () => {
-      const { searchStocks: _searchStocks } = await import(
-        "../../../services/api"
-      );
+      const api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any market cap filter input
@@ -256,9 +257,7 @@ describe("StockExplorer", () => {
     });
 
     it("applies price range filters", async () => {
-      const { searchStocks: _searchStocks } = await import(
-        "../../../services/api"
-      );
+      const api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any price filter inputs
@@ -383,7 +382,7 @@ describe("StockExplorer", () => {
     });
 
     it("updates chart when timeframe changes", async () => {
-      const { getStockPrices } = await import("../../../services/api");
+      const api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       await waitFor(() => {
@@ -391,7 +390,7 @@ describe("StockExplorer", () => {
         fireEvent.click(oneWeekButton);
       });
 
-      expect(getStockPrices).toHaveBeenCalledWith("AAPL", "1W");
+      expect(api.getStockPrices).toHaveBeenCalledWith("AAPL", "1W");
     });
 
     it("handles chart loading states", () => {
@@ -625,10 +624,8 @@ describe("StockExplorer", () => {
 
   describe("Error Handling and Edge Cases", () => {
     it("handles API errors gracefully", async () => {
-      const { searchStocks: _searchStocks } = await import(
-        "../../../services/api"
-      );
-      _searchStocks.mockRejectedValueOnce(new Error("Network error"));
+      const api = require("../../../services/api.js").default;
+      api.searchStocks.mockRejectedValueOnce(new Error("Network error"));
 
       renderWithProviders(<StockExplorer />);
 
@@ -647,10 +644,8 @@ describe("StockExplorer", () => {
     });
 
     it("shows empty state when no stocks found", async () => {
-      const { searchStocks: _searchStocks } = await import(
-        "../../../services/api"
-      );
-      _searchStocks.mockResolvedValueOnce({ data: [] });
+      const api = require("../../../services/api.js").default;
+      api.searchStocks.mockResolvedValueOnce({ data: [] });
 
       renderWithProviders(<StockExplorer />);
 
@@ -667,8 +662,8 @@ describe("StockExplorer", () => {
     });
 
     it("handles malformed stock data", async () => {
-      const { getStockDetails } = await import("../../../services/api");
-      getStockDetails.mockResolvedValueOnce({
+      const api = require("../../../services/api.js").default;
+      api.getStockDetails.mockResolvedValueOnce({
         data: { symbol: "AAPL", price: null, name: undefined },
       });
 
@@ -680,8 +675,8 @@ describe("StockExplorer", () => {
     });
 
     it("provides retry mechanism for failed requests", async () => {
-      const { getStockDetails } = await import("../../../services/api");
-      getStockDetails
+      const api = require("../../../services/api.js").default;
+      api.getStockDetails
         .mockRejectedValueOnce(new Error("Network error"))
         .mockResolvedValueOnce({
           data: { symbol: "AAPL", name: "Apple Inc.", price: 175.5 },

@@ -25,11 +25,17 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
 
 // Mock API service
 vi.mock("../../../services/api.js", () => ({
-  api: {
-    getNewsAnalysis: vi.fn(),
-    getNewsSentiment: vi.fn(),
-    getNewsKeywords: vi.fn(),
-    searchNews: vi.fn(),
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    getNewsAnalysis: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getNewsSentiment: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getNewsKeywords: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    searchNews: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
   getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
@@ -78,10 +84,11 @@ const mockSentimentData = {
 };
 
 describe("NewsAnalysis Component", () => {
-  const { api } = require("../../../services/api.js");
+  let api;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    api = (await import("../../../services/api.js")).default;
     api.getNewsAnalysis.mockResolvedValue({
       success: true,
       data: mockNewsData,
@@ -101,6 +108,7 @@ describe("NewsAnalysis Component", () => {
 
     expect(screen.getByText(/news analysis/i)).toBeInTheDocument();
     await waitFor(() => {
+      const api = require("../../../services/api.js").default;
       expect(api.getNewsAnalysis).toHaveBeenCalled();
     });
   });

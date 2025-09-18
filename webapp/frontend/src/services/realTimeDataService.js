@@ -27,7 +27,7 @@ class RealTimeDataService {
     }
     this.subscribers.get(dataType).add(callback);
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
       console.log(`📡 RealTimeDataService: Subscribed to ${dataType}`);
     }
 
@@ -47,7 +47,7 @@ class RealTimeDataService {
       }
     }
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
       console.log(`📡 RealTimeDataService: Unsubscribed from ${dataType}`);
     }
   }
@@ -100,7 +100,7 @@ class RealTimeDataService {
     this.subscribers.clear();
     this.latestData.clear();
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
       console.log("📡 RealTimeDataService: All subscriptions cleared");
     }
   }
@@ -213,7 +213,7 @@ class RealTimeDataService {
             .replace("http://", "ws://")
             .replace("https://", "wss://") + "/ws";
 
-        if (import.meta.env.DEV) {
+        if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
           console.log(
             "📡 RealTimeDataService: Connecting to WebSocket:",
             wsUrl
@@ -227,7 +227,7 @@ class RealTimeDataService {
           this.connectionStatus = "connected";
           this.reconnectAttempts = 0;
 
-          if (import.meta.env.DEV) {
+          if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
             console.log("📡 RealTimeDataService: WebSocket connected");
           }
 
@@ -280,7 +280,7 @@ class RealTimeDataService {
           this.connectionStatus = "disconnected";
           this.stopPing();
 
-          if (import.meta.env.DEV) {
+          if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
             console.log("📡 RealTimeDataService: WebSocket disconnected", {
               code: event.code,
               reason: event.reason,
@@ -338,7 +338,7 @@ class RealTimeDataService {
     this.isConnectedState = false;
     this.connectionStatus = "disconnected";
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
       console.log("📡 RealTimeDataService: Disconnected");
     }
 
@@ -354,7 +354,7 @@ class RealTimeDataService {
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
       console.log(
         `📡 RealTimeDataService: Scheduling reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`
       );

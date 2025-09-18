@@ -91,9 +91,16 @@ const endpoints = [
 
 async function testEndpoint(endpoint) {
   try {
+    const headers = {};
+    // Add auth header for protected endpoints
+    if (endpoint.includes('/trades') || endpoint.includes('/portfolio') || endpoint.includes('/auth/')) {
+      headers.Authorization = 'Bearer test-token';
+    }
+
     const response = await axios.get(`${BASE_URL}${endpoint}`, {
       timeout: 5000,
-      validateStatus: () => true // Don't throw on non-2xx status codes
+      validateStatus: () => true, // Don't throw on non-2xx status codes
+      headers
     });
     
     return {

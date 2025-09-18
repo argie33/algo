@@ -279,7 +279,7 @@ describe("AuthContext", () => {
       }, { timeout: 10000 });
 
       // Click login
-      await user.click(screen.getByText("Login"));
+      await userEvent.click(screen.getByText("Login"));
 
       await waitFor(() => {
         expect(devAuth.signIn).toHaveBeenCalledWith("test@example.com", "password");
@@ -307,7 +307,7 @@ describe("AuthContext", () => {
         expect(screen.getByTestId("loading")).toHaveTextContent("false");
       }, { timeout: 10000 });
 
-      await user.click(screen.getByText("Login"));
+      await userEvent.click(screen.getByText("Login"));
 
       await waitFor(() => {
         expect(screen.getByTestId("error")).toHaveTextContent(
@@ -334,7 +334,7 @@ describe("AuthContext", () => {
         expect(screen.getByTestId("loading")).toHaveTextContent("false");
       }, { timeout: 10000 });
 
-      await user.click(screen.getByText("Login"));
+      await userEvent.click(screen.getByText("Login"));
 
       await waitFor(() => {
         expect(signIn).toHaveBeenCalled();
@@ -441,7 +441,7 @@ describe("AuthContext", () => {
         expect(screen.getByTestId("loading")).toHaveTextContent("false");
       }, { timeout: 10000 });
 
-      await user.click(screen.getByText("Login"));
+      await userEvent.click(screen.getByText("Login"));
 
       await waitFor(() => {
         expect(devAuth.signIn).toHaveBeenCalled();
@@ -515,14 +515,14 @@ describe("AuthContext", () => {
       }, { timeout: 10000 });
 
       // First login attempt - error
-      await user.click(screen.getByText("Login"));
+      await userEvent.click(screen.getByText("Login"));
 
       await waitFor(() => {
         expect(screen.getByTestId("error")).toHaveTextContent("Network error");
       }, { timeout: 10000 });
 
       // Second login attempt - success
-      await user.click(screen.getByText("Login"));
+      await userEvent.click(screen.getByText("Login"));
 
       await waitFor(() => {
         expect(screen.getByTestId("error")).toHaveTextContent("null");

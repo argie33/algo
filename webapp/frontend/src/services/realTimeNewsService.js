@@ -35,7 +35,7 @@ class RealTimeNewsService {
     // Start buffer processing
     this.startBufferProcessing();
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
       console.log("📰 RealTimeNewsService: Initialized");
     }
   }
@@ -112,7 +112,7 @@ class RealTimeNewsService {
       // Add to buffer for processing
       this.newsBuffer.push(...processedArticles);
 
-      if (import.meta.env.DEV) {
+      if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
         console.log(
           `📰 RealTimeNewsService: Received ${processedArticles.length} news articles`
         );
@@ -161,7 +161,7 @@ class RealTimeNewsService {
         });
       }
 
-      if (import.meta.env.DEV) {
+      if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
         console.log(
           `📊 RealTimeNewsService: Updated sentiment for ${symbol}:`,
           sentiment
@@ -192,7 +192,7 @@ class RealTimeNewsService {
       // Immediately notify all news subscribers of breaking news
       this.notifyNewsSubscribers([article]);
 
-      if (import.meta.env.DEV) {
+      if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
         console.log(
           "🚨 RealTimeNewsService: Breaking news received:",
           article.title
@@ -505,7 +505,7 @@ class RealTimeNewsService {
     this.latestSentiment = {};
     this.newsBuffer = [];
 
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
       console.log("📰 RealTimeNewsService: Destroyed");
     }
   }
