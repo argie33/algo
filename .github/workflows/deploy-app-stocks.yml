@@ -83,24 +83,37 @@ jobs:
       - name: Generate loader matrix
         id: matrix
         run: |
-          # Get all available loaders
-          ALL_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
+          # Define supported loaders (those with ECS task definitions)
+          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreeddata naaaimdata earningshistory earningsmetrics buyselldaily buysellweekly buysellmonthly aaii feargreed naiam quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics valuemetrics"
+
+          # Get all available loaders and filter by supported ones
+          ALL_AVAILABLE_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
+          ALL_LOADERS=""
+          for loader in $ALL_AVAILABLE_LOADERS; do
+            if echo "$SUPPORTED_LOADERS" | grep -wq "$loader"; then
+              ALL_LOADERS="$ALL_LOADERS $loader"
+            fi
+          done
+          ALL_LOADERS=$(echo $ALL_LOADERS | tr ' ' '\n' | sort | tr '\n' ' ')
           
           # Determine which loaders to run
           if [[ "${{ github.event.inputs.loaders }}" != "" ]]; then
             # Manual input
             LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
             echo "Manual loader selection: $LOADERS_TO_RUN"
-          elif [[ "${{ github.event.inputs.force_all }}" == "true" ]] || [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
-            # Force all or infrastructure changed
+          elif [[ "${{ github.event.inputs.force_all }}" == "true" ]]; then
+            # Force all loaders explicitly requested
             LOADERS_TO_RUN="$ALL_LOADERS"
-            echo "Running all loaders (force_all or infrastructure changed)"
+            echo "Running all loaders (force_all requested)"
           else
-            # Auto-detect based on file changes
+            # Auto-detect based on file changes (even if infrastructure changed)
             CHANGED_LOADERS=$(git diff --name-only HEAD~1 HEAD | grep '^load.*\.py$' | sed 's/load//' | sed 's/\.py$//' | sort || true)
             if [[ -n "$CHANGED_LOADERS" ]]; then
               LOADERS_TO_RUN="$CHANGED_LOADERS"
               echo "Auto-detected changed loaders: $LOADERS_TO_RUN"
+              if [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
+                echo "Infrastructure also changed - images will be rebuilt"
+              fi
             else
               LOADERS_TO_RUN=""
               echo "No loader changes detected"
@@ -241,6 +254,17 @@ jobs:
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='${TASK_DEF_NAME}'].OutputValue" \
             --output text)
+
+          # Validate task definition exists
+          if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+            echo "❌ No task definition found for ${{ matrix.loader }} (looking for output: $TASK_DEF_NAME)"
+            echo "Available task definitions in CloudFormation:"
+            aws cloudformation describe-stacks \
+              --stack-name stocks-ecs-tasks-stack \
+              --query "Stacks[0].Outputs[?contains(OutputKey, 'TaskDefArn')].OutputKey" \
+              --output text
+            exit 1
+          fi
           
           # Get networking info
           SUBNET1=$(aws cloudformation list-exports \
