@@ -733,5 +733,5 @@ if __name__ == "__main__":
     cur.close()
     conn.close()
     logging.info("All done.")
-# Updated Wed Sep 18 21:45:00 CDT 2025
-# Trigger workflow - FORCE data loading verification Sep 18 2025 - attempt 2
+# Updated Wed Sep 18 21:50:00 CDT 2025
+# Trigger workflow - DEBUG loader detection Sep 18 2025 - attempt 3
