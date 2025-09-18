@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:48 CDT
-# Trigger workflow - DEBUG attempt 15: Added debug logging to see condition values
+# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:50 CDT
+# Trigger workflow - NUCLEAR attempt 16: Removed deployment condition entirely
 import gc
 import json
 import logging
