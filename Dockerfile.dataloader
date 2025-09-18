@@ -1,5 +1,6 @@
 # Dockerfile for Data Loaders
 # Multi-stage build for efficient data loader containers
+# Updated Sep 18 2025 - trigger build for loader verification
 
 FROM python:3.11-slim as base
 
