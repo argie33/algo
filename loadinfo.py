@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:31 CDT
-# Trigger workflow - CRITICAL FIX attempt 10: Fixed workflow logic error - deployment condition corrected
+# Updated Wed Sep 18 22:05:00 CDT 2025 - 22:35 CDT
+# Trigger workflow - CRITICAL FIX attempt 11: Simplified deployment condition to only use changed output
 import gc
 import json
 import logging
