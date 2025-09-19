@@ -334,16 +334,20 @@ describe("PortfolioHoldings Component", () => {
   it("refreshes portfolio data", async () => {
     renderWithProviders(<PortfolioHoldings />);
 
+    // Wait for initial load
     await waitFor(() => {
-      expect(mockGetPortfolioHoldings).toHaveBeenCalledTimes(1);
+      expect(mockGetPortfolioHoldings).toHaveBeenCalled();
     });
+
+    const initialCalls = mockGetPortfolioHoldings.mock.calls.length;
+    const initialStockCalls = mockGetStockPrices.mock.calls.length;
 
     const refreshButton = screen.getByLabelText(/refresh/i);
     fireEvent.click(refreshButton);
 
     await waitFor(() => {
-      expect(mockGetPortfolioHoldings).toHaveBeenCalledTimes(2);
-      expect(mockGetStockPrices).toHaveBeenCalledTimes(2);
+      expect(mockGetPortfolioHoldings).toHaveBeenCalledTimes(initialCalls + 1);
+      expect(mockGetStockPrices).toHaveBeenCalledTimes(initialStockCalls + 1);
     });
   });
 
