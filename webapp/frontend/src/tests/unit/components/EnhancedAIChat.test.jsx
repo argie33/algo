@@ -94,11 +94,16 @@ describe("EnhancedAIChat - New Features", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock clipboard API
-    Object.assign(navigator, {
-      clipboard: {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
         writeText: vi.fn().mockResolvedValue(undefined),
+        readText: vi.fn().mockResolvedValue("mocked text"),
       },
-      share: vi.fn().mockResolvedValue(undefined),
+      writable: true,
+    });
+    Object.defineProperty(navigator, 'share', {
+      value: vi.fn().mockResolvedValue(undefined),
+      writable: true,
     });
   });
 

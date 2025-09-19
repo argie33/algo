@@ -12,21 +12,64 @@ export const Tabs = React.forwardRef(
       }
     };
 
-    // Filter out non-DOM props
-    const { fullWidth, selectionFollowsFocus, textColor, ...divProps } = props;
+    // Filter out ALL MUI-specific props to prevent DOM warnings
+    const {
+      fullWidth,
+      selectionFollowsFocus,
+      textColor,
+      variant,
+      orientation,
+      indicatorColor,
+      scrollButtons,
+      allowScrollButtonsMobile,
+      centered,
+      visibleScrollbar,
+      ScrollButtonComponent,
+      TabIndicatorProps,
+      TabScrollButtonProps,
+      action,
+      onChange,
+      onValueChange: _onValueChange,
+      value: _value,
+      defaultValue,
+      sx,
+      component,
+      ...divProps
+    } = props;
+
+    // Prepare MUI-specific props for the Tabs component
+    const muiTabsProps = {};
+    if (fullWidth !== undefined) {
+      muiTabsProps.variant = fullWidth ? "fullWidth" : "standard";
+    }
+    if (selectionFollowsFocus !== undefined) {
+      muiTabsProps.selectionFollowsFocus = selectionFollowsFocus;
+    }
+    if (textColor !== undefined) {
+      muiTabsProps.textColor = textColor;
+    }
+    if (variant !== undefined) {
+      muiTabsProps.variant = variant;
+    }
+    if (orientation !== undefined) {
+      muiTabsProps.orientation = orientation;
+    }
+    if (indicatorColor !== undefined) {
+      muiTabsProps.indicatorColor = indicatorColor;
+    }
+    if (scrollButtons !== undefined) {
+      muiTabsProps.scrollButtons = scrollButtons;
+    }
+    if (allowScrollButtonsMobile !== undefined) {
+      muiTabsProps.allowScrollButtonsMobile = allowScrollButtonsMobile;
+    }
 
     return (
       <div ref={ref} className={className} {...divProps}>
         <MuiTabs
           value={activeTab}
           onChange={handleChange}
-          {...(fullWidth !== undefined && {
-            variant: fullWidth ? "fullWidth" : "standard",
-          })}
-          {...(selectionFollowsFocus !== undefined && {
-            selectionFollowsFocus,
-          })}
-          {...(textColor !== undefined && { textColor })}
+          {...muiTabsProps}
         >
           {React.Children.map(children, (child) => {
             if (child?.type?.displayName === "TabsList") {
@@ -55,15 +98,45 @@ Tabs.displayName = "Tabs";
 
 export const TabsList = React.forwardRef(
   ({ className, children, value, onChange, ...props }, ref) => {
-    // Filter out non-MUI props to prevent DOM warnings
-    const { fullWidth, selectionFollowsFocus, textColor, ...muiProps } = props;
-    const muiTabsProps = {
-      ...(fullWidth !== undefined && {
-        variant: fullWidth ? "fullWidth" : "standard",
-      }),
-      ...(selectionFollowsFocus !== undefined && { selectionFollowsFocus }),
-      ...(textColor !== undefined && { textColor }),
-    };
+    // Filter out all non-MUI props to prevent DOM warnings
+    const {
+      fullWidth,
+      selectionFollowsFocus,
+      textColor,
+      variant,
+      orientation,
+      indicatorColor,
+      scrollButtons,
+      allowScrollButtonsMobile,
+      ...cleanProps
+    } = props;
+
+    // Build MUI-specific props object
+    const muiTabsProps = {};
+    if (fullWidth !== undefined) {
+      muiTabsProps.variant = fullWidth ? "fullWidth" : "standard";
+    }
+    if (selectionFollowsFocus !== undefined) {
+      muiTabsProps.selectionFollowsFocus = selectionFollowsFocus;
+    }
+    if (textColor !== undefined) {
+      muiTabsProps.textColor = textColor;
+    }
+    if (variant !== undefined) {
+      muiTabsProps.variant = variant;
+    }
+    if (orientation !== undefined) {
+      muiTabsProps.orientation = orientation;
+    }
+    if (indicatorColor !== undefined) {
+      muiTabsProps.indicatorColor = indicatorColor;
+    }
+    if (scrollButtons !== undefined) {
+      muiTabsProps.scrollButtons = scrollButtons;
+    }
+    if (allowScrollButtonsMobile !== undefined) {
+      muiTabsProps.allowScrollButtonsMobile = allowScrollButtonsMobile;
+    }
 
     return (
       <MuiTabs
@@ -72,7 +145,7 @@ export const TabsList = React.forwardRef(
         value={value}
         onChange={onChange}
         {...muiTabsProps}
-        {...muiProps}
+        {...cleanProps}
       >
         {children}
       </MuiTabs>

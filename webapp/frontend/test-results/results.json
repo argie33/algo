@@ -194,13 +194,13 @@
   "suites": [],
   "errors": [
     {
-      "message": "Error: Cannot find module '/home/stocks/algo/webapp/frontend/node_modules/aws-amplify/lib-esm/initSingleton' imported from /home/stocks/algo/webapp/frontend/node_modules/aws-amplify/lib-esm/index.js",
-      "stack": "Error: Cannot find module '/home/stocks/algo/webapp/frontend/node_modules/aws-amplify/lib-esm/initSingleton' imported from /home/stocks/algo/webapp/frontend/node_modules/aws-amplify/lib-esm/index.js"
+      "message": "Error: Process from config.webServer was not able to start. Exit code: 127",
+      "stack": "Error: Process from config.webServer was not able to start. Exit code: 127"
     }
   ],
   "stats": {
-    "startTime": "2025-09-19T17:56:39.056Z",
-    "duration": 1680.2450000000001,
+    "startTime": "2025-09-19T17:58:57.534Z",
+    "duration": 138.149,
     "expected": 0,
     "skipped": 0,
     "unexpected": 0,

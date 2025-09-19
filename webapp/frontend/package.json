@@ -21,6 +21,7 @@
     "aws-amplify": "^6.0.0",
     "axios": "^1.11.0",
     "date-fns": "^2.30.0",
+    "lz-string": "^1.5.0",
     "numeral": "^2.0.6",
     "prismjs": "^1.30.0",
     "react": "^18.3.1",
@@ -30,6 +31,7 @@
     "react-syntax-highlighter": "^15.6.6",
     "recharts": "^3.1.2",
     "refractor": "^5.0.0",
+    "vite-node": "^3.2.4",
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {

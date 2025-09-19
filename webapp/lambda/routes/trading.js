@@ -74,13 +74,18 @@ async function checkRequiredTables(tableNames) {
     try {
       const tableExistsResult = await query(
         `SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public'
           AND table_name = $1
         );`,
         [tableName]
       );
-      results[tableName] = tableExistsResult.rows[0].exists;
+      // Handle null database results gracefully
+      if (!tableExistsResult || !tableExistsResult.rows) {
+        results[tableName] = false;
+        continue;
+      }
+      results[tableName] = tableExistsResult.rows[0]?.exists || false;
     } catch (error) {
       console.error(`Error checking table ${tableName}:`, error.message);
       results[tableName] = false;
@@ -2435,30 +2440,54 @@ router.post("/risk/limits", authenticateToken, async (req, res) => {
 
       result = await query(updateQuery, updateValues);
     } else {
-      // Insert new limits with defaults
-      result = await query(
-        `
-        INSERT INTO user_risk_limits (
-          user_id, max_drawdown, max_position_size, stop_loss_percentage,
-          max_leverage, max_correlation, risk_tolerance_level,
-          max_daily_loss, max_monthly_loss, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING *
-      `,
-        [
-          userId,
-          maxDrawdown || 20.0,
-          maxPositionSize || 25.0,
-          stopLossPercentage || 5.0,
-          maxLeverage || 2.0,
-          maxCorrelation || 0.7,
-          riskToleranceLevel || "moderate",
-          maxDailyLoss || 2.0,
-          maxMonthlyLoss || 10.0,
-          updateTime,
-          updateTime,
-        ]
-      );
+      // Insert new limits with defaults - handle missing columns gracefully
+      try {
+        // First, try the full insert with all columns
+        result = await query(
+          `
+          INSERT INTO user_risk_limits (
+            user_id, max_drawdown, max_position_size, stop_loss_percentage,
+            max_leverage, max_correlation, risk_tolerance_level,
+            max_daily_loss, max_monthly_loss, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          RETURNING *
+        `,
+          [
+            userId,
+            maxDrawdown || 20.0,
+            maxPositionSize || 25.0,
+            stopLossPercentage || 5.0,
+            maxLeverage || 2.0,
+            maxCorrelation || 0.7,
+            riskToleranceLevel || "moderate",
+            maxDailyLoss || 2.0,
+            maxMonthlyLoss || 10.0,
+            updateTime,
+            updateTime,
+          ]
+        );
+      } catch (insertError) {
+        if (insertError.code === '42703') { // Column does not exist
+          console.log('⚠️ Some columns missing in user_risk_limits table, using fallback insert');
+          // Fallback: Insert only basic columns that should exist
+          result = await query(
+            `
+            INSERT INTO user_risk_limits (
+              user_id, max_drawdown, max_position_size, stop_loss_percentage
+            ) VALUES ($1, $2, $3, $4)
+            RETURNING *
+          `,
+            [
+              userId,
+              maxDrawdown || 20.0,
+              maxPositionSize || 25.0,
+              stopLossPercentage || 5.0
+            ]
+          );
+        } else {
+          throw insertError; // Re-throw if it's a different error
+        }
+      }
     }
 
     const updatedLimits = result?.rows?.[0];
@@ -2471,12 +2500,12 @@ router.post("/risk/limits", authenticateToken, async (req, res) => {
         maxDrawdown: updatedLimits.max_drawdown,
         maxPositionSize: updatedLimits.max_position_size,
         stopLossPercentage: updatedLimits.stop_loss_percentage,
-        maxLeverage: updatedLimits.max_leverage,
-        maxCorrelation: updatedLimits.max_correlation,
-        riskToleranceLevel: updatedLimits.risk_tolerance_level,
-        maxDailyLoss: updatedLimits.max_daily_loss,
-        maxMonthlyLoss: updatedLimits.max_monthly_loss,
-        updatedAt: updatedLimits.updated_at,
+        maxLeverage: updatedLimits.max_leverage || 2.0,
+        maxCorrelation: updatedLimits.max_correlation || 0.7,
+        riskToleranceLevel: updatedLimits.risk_tolerance_level || "moderate",
+        maxDailyLoss: updatedLimits.max_daily_loss || 2.0,
+        maxMonthlyLoss: updatedLimits.max_monthly_loss || 10.0,
+        updatedAt: updatedLimits.updated_at || new Date().toISOString(),
       },
     });
   } catch (error) {

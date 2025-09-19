@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Updated Thu Sep 19 17:54:00 CDT 2025 - Testing workflow with individual requirements files
+# Updated Thu Sep 19 18:02:00 CDT 2025 - Fix Dockerfile to use loader-specific requirements
 # FIXED: Per-loader requirements files + websockets>=13.0 for yfinance compatibility
 # FIXED: Removed main requirements.txt fallback - each loader uses its own requirements-load{name}.txt
+# FIXED: Dockerfile no longer copies to requirements.txt - uses loader-requirements.txt instead
 import gc
 import json
 import logging

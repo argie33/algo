@@ -364,9 +364,15 @@ describe("StockExplorer", () => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
       });
 
-      // Click the chart button to open modal
-      const chartButton = screen.getByRole("button", { name: /chart/i });
-      fireEvent.click(chartButton);
+      // First expand the stock accordion to reveal the chart button
+      const stockAccordion = screen.getByRole("button", { name: /AAPL.*Technology/i });
+      fireEvent.click(stockAccordion);
+
+      // Wait for accordion to expand and find chart button
+      await waitFor(() => {
+        const chartButton = screen.getByRole("button", { name: /price history/i });
+        fireEvent.click(chartButton);
+      });
 
       await waitFor(() => {
         // Check for the mocked chart components from recharts mock
@@ -384,9 +390,15 @@ describe("StockExplorer", () => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
       });
 
-      // Click the chart button to open modal
-      const chartButton = screen.getByRole("button", { name: /chart/i });
-      fireEvent.click(chartButton);
+      // First expand the stock accordion to reveal the chart button
+      const stockAccordion = screen.getByRole("button", { name: /AAPL.*Technology/i });
+      fireEvent.click(stockAccordion);
+
+      // Wait for accordion to expand and find chart button
+      await waitFor(() => {
+        const chartButton = screen.getByRole("button", { name: /price history/i });
+        fireEvent.click(chartButton);
+      });
 
       await waitFor(() => {
         // Component uses AreaChart from recharts - check for area chart elements
@@ -403,9 +415,15 @@ describe("StockExplorer", () => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
       });
 
-      // Click the chart button to open modal
-      const chartButton = screen.getByRole("button", { name: /chart/i });
-      fireEvent.click(chartButton);
+      // First expand the stock accordion to reveal the chart button
+      const stockAccordion = screen.getByRole("button", { name: /AAPL.*Technology/i });
+      fireEvent.click(stockAccordion);
+
+      // Wait for accordion to expand and find chart button
+      await waitFor(() => {
+        const chartButton = screen.getByRole("button", { name: /price history/i });
+        fireEvent.click(chartButton);
+      });
 
       await waitFor(() => {
         // Check for chart tooltip and interaction elements

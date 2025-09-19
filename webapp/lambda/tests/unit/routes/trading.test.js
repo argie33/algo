@@ -32,7 +32,7 @@ describe("Trading Routes Unit Tests", () => {
       const response = await request(app).get("/trading/").expect(200);
 
       expect(response.body).toHaveProperty("success");
-      expect(response.body).toHaveProperty("status");
+      expect(response.body.data).toHaveProperty("status");
     });
   });
 
@@ -218,17 +218,15 @@ describe("Trading Routes Unit Tests", () => {
     });
 
     test("should require authentication", async () => {
-      // Temporarily remove authentication
+      // Create app without authentication middleware
       const tempApp = express();
       tempApp.use(express.json());
-      tempApp.use((req, res, next) => {
-        req.user = null; // No authenticated user
-        next();
-      });
 
+      // Add response formatter middleware
       const responseFormatter = require("../../../middleware/responseFormatter");
       tempApp.use(responseFormatter);
 
+      // Load trading routes without auth middleware
       const tradingRouter = require("../../../routes/trading");
       tempApp.use("/trading", tradingRouter);
 

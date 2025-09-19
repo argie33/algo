@@ -374,9 +374,9 @@ describe("EarningsCalendar Component", () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
-      // Check for empty state or zero in summary cards
-      const upcomingElement = screen.getByText("0");
-      expect(upcomingElement).toBeInTheDocument();
+      // Check for empty state or zero in summary cards - using getAllByText since there are multiple 0's
+      const upcomingElements = screen.getAllByText("0");
+      expect(upcomingElements.length).toBeGreaterThan(0);
     }, { timeout: 3000 });
   });
 
@@ -492,7 +492,7 @@ describe("EarningsCalendar Component", () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
-      expect(screen.getByText(/error/i)).toBeInTheDocument();
+      expect(screen.getByText(/failed to load calendar data/i)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 });

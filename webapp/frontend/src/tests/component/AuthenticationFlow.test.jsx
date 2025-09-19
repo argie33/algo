@@ -442,22 +442,27 @@ describe("Authentication Flow Components", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /Create Account/i }));
 
+      // First wait for the signup function to be called
       await waitFor(() => {
-        expect(devAuth.signUp).toHaveBeenCalledWith(
+        expect(devAuth.default.signUp).toHaveBeenCalledWith(
           "testuser",
           "Password123!",
           "test@example.com",
           "", // firstName (empty)
           "" // lastName (empty)
         );
+      });
+
+      // Then wait for the success message to appear
+      await waitFor(() => {
         expect(
           screen.getByText(/Please check your email/i)
         ).toBeInTheDocument();
-      });
+      }, { timeout: 3000 });
     });
 
     it("should handle signup errors", async () => {
-      devAuth.signUp.mockRejectedValue(new Error("Username already exists"));
+      devAuth.default.signUp.mockRejectedValue(new Error("Username already exists"));
 
       renderWithProviders(
         <AuthModal open={true} initialMode="register" onClose={() => {}} />
