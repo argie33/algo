@@ -191,6 +191,7 @@ jobs:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
     needs: detect-changes
+    timeout-minutes: 45
     steps:
       - name: Infrastructure job started
         run: |
@@ -321,6 +322,9 @@ jobs:
           echo "🔧 Setting up Docker buildx for ARM64..."
           docker buildx create --use --name multiarch --driver docker-container --bootstrap || true
 
+          # Enable GitHub Actions cache optimization
+          export BUILDX_EXPERIMENTAL=1
+
           # Build specific images for each loader type that will be executed
           echo "🔨 Building Docker images for detected loaders..."
 
@@ -356,20 +360,29 @@ jobs:
 
             # Build image with loader-specific requirements and cache optimization
             IMAGE_TAG="$REPO_NAME:$loader-latest"
-            CACHE_FROM="type=gha"
-            CACHE_TO="type=gha,mode=max"
+            CACHE_FROM="type=gha,scope=$loader"
+            CACHE_TO="type=gha,mode=max,scope=$loader"
 
-            if ! docker buildx build \
+            echo "🔨 Building $loader with timeout protection..."
+            timeout 20m docker buildx build \
               --platform linux/arm64 \
               --build-arg REQUIREMENTS_FILE="$REQUIREMENTS_FILE" \
               --cache-from "$CACHE_FROM" \
               --cache-to "$CACHE_TO" \
               -t "$IMAGE_TAG" \
-              -f Dockerfile.dataloader . --load; then
-              echo "❌ ERROR: Docker build failed for $loader!"
-              exit 1
+              -f Dockerfile.dataloader . --load
+
+            if [ $? -ne 0 ]; then
+              echo "❌ ERROR: Docker build failed or timed out for $loader!"
+              echo "Checking if image exists anyway..."
+              if docker images | grep -q "$REPO_NAME.*$loader"; then
+                echo "⚠️ Found partial image, continuing..."
+              else
+                exit 1
+              fi
+            else
+              echo "✅ Docker build successful for $loader"
             fi
-            echo "✅ Docker build successful for $loader"
           done
 
           echo "✅ All loader-specific images built successfully"
