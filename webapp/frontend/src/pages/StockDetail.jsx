@@ -217,10 +217,11 @@ function StockDetail() {
     );
   }
 
-  const stockData = profile?.[0] || {};
-  const currentMetrics = metrics?.[0] || {};
-  const currentFinancials = financials?.[0] || {};
-  const currentRecs = recommendations?.[0] || {};
+  // Handle both array and object responses from API
+  const stockData = Array.isArray(profile) ? profile[0] || {} : profile || {};
+  const currentMetrics = Array.isArray(metrics) ? metrics[0] || {} : metrics || {};
+  const currentFinancials = Array.isArray(financials) ? financials[0] || {} : financials || {};
+  const currentRecs = Array.isArray(recommendations) ? recommendations[0] || {} : recommendations || {};
 
   // Price change calculation
   const priceChange =
@@ -379,7 +380,7 @@ function StockDetail() {
               fontWeight="bold"
             >
               {formatCurrency(priceChange)} (
-              {formatPercent(priceChangePercent / 100)})
+              {priceChangePercent.toFixed(2)}%)
             </Typography>
           </Box>
         </Box>
