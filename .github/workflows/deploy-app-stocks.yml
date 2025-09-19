@@ -480,13 +480,34 @@ jobs:
           IMAGE_URI="${REPOSITORY_URI}:${{ matrix.loader }}-latest"
           echo "✅ Using loader-specific image: $IMAGE_URI"
 
-          # Run ECS task with the correct image
+          # Get the current task definition and update it with the new image
+          echo "🔄 Creating task definition revision with updated image..."
+          TASK_DEF_JSON=$(aws ecs describe-task-definition \
+            --task-definition "${{ steps.infra.outputs.task-def }}" \
+            --query "taskDefinition" \
+            --output json)
+
+          # Update the container image in the task definition
+          UPDATED_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
+            --arg imageUri "$IMAGE_URI" \
+            --arg containerName "$CONTAINER_NAME" \
+            '.containerDefinitions |= map(if .name == $containerName then .image = $imageUri else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)')
+
+          # Register new task definition revision
+          NEW_TASK_DEF_ARN=$(echo "$UPDATED_TASK_DEF" | aws ecs register-task-definition \
+            --cli-input-json file:///dev/stdin \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text)
+
+          echo "📝 Registered new task definition: $NEW_TASK_DEF_ARN"
+
+          # Run ECS task with the updated task definition
           TASK_ARN=$(aws ecs run-task \
             --cluster "${{ steps.infra.outputs.cluster }}" \
-            --task-definition "${{ steps.infra.outputs.task-def }}" \
+            --task-definition "$NEW_TASK_DEF_ARN" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"$CONTAINER_NAME\",\"image\":\"$IMAGE_URI\",\"command\":[\"python3\",\"load${{ matrix.loader }}.py\"]}]}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"$CONTAINER_NAME\",\"command\":[\"python3\",\"load${{ matrix.loader }}.py\"]}]}" \
             --query "tasks[0].taskArn" \
             --output text)
 
