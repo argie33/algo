@@ -10,7 +10,7 @@ const router = express.Router();
 
 // Helper function to calculate annualized return with proper date-based calculation
 function calculateAnnualizedReturn(performance) {
-  if (!performance || performance.length < 2) return 0;
+  if (!performance || performance.length < 1) return 0;
 
   try {
     const first = performance[0];
@@ -25,7 +25,11 @@ function calculateAnnualizedReturn(performance) {
     const daysDiff = timeDiffMs / (1000 * 60 * 60 * 24);
     const yearsFraction = daysDiff / 365.25; // Account for leap years
 
-    if (yearsFraction <= 0) return 0;
+    if (yearsFraction <= 0) {
+      // For single data point or zero time, return the percentage directly
+      const last = performance[performance.length - 1];
+      return parseFloat(last.total_pnl_percent || 0);
+    }
 
     // Calculate total return
     const startValue = parseFloat(first.total_value || 0);
@@ -48,6 +52,58 @@ function calculateAnnualizedReturn(performance) {
     const last = performance[performance.length - 1];
     return parseFloat(last.total_pnl_percent || 0);
   }
+}
+
+// Helper functions for benchmark metrics
+function calculateCorrelation(x, y) {
+  if (x.length !== y.length || x.length < 2) return 0;
+
+  const n = x.length;
+  const sumX = x.reduce((a, b) => a + b, 0);
+  const sumY = y.reduce((a, b) => a + b, 0);
+  const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+  const sumXX = x.reduce((sum, xi) => sum + xi * xi, 0);
+  const sumYY = y.reduce((sum, yi) => sum + yi * yi, 0);
+
+  const numerator = n * sumXY - sumX * sumY;
+  const denominator = Math.sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
+
+  return denominator === 0 ? 0 : numerator / denominator;
+}
+
+function calculateBeta(portfolioReturns, benchmarkReturns) {
+  if (portfolioReturns.length !== benchmarkReturns.length || portfolioReturns.length < 2) return 1;
+
+  const correlation = calculateCorrelation(portfolioReturns, benchmarkReturns);
+  const portfolioStd = calculateStandardDeviation(portfolioReturns);
+  const benchmarkStd = calculateStandardDeviation(benchmarkReturns);
+
+  return benchmarkStd === 0 ? 1 : correlation * (portfolioStd / benchmarkStd);
+}
+
+function calculateAlpha(portfolioReturns, benchmarkReturns, beta) {
+  if (portfolioReturns.length < 1 || benchmarkReturns.length < 1) return 0;
+
+  const avgPortfolioReturn = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
+  const avgBenchmarkReturn = benchmarkReturns.reduce((a, b) => a + b, 0) / benchmarkReturns.length;
+  const riskFreeRate = 2; // Assume 2% risk-free rate
+
+  return avgPortfolioReturn - (riskFreeRate + beta * (avgBenchmarkReturn - riskFreeRate));
+}
+
+function calculateTrackingError(portfolioReturns, benchmarkReturns) {
+  if (portfolioReturns.length !== benchmarkReturns.length || portfolioReturns.length < 2) return 0;
+
+  const excessReturns = portfolioReturns.map((r, i) => r - benchmarkReturns[i]);
+  return calculateStandardDeviation(excessReturns);
+}
+
+function calculateStandardDeviation(values) {
+  if (values.length < 2) return 0;
+
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / (values.length - 1);
+  return Math.sqrt(variance);
 }
 
 // Apply authentication middleware to all portfolio routes
@@ -1093,6 +1149,7 @@ router.get("/performance", async (req, res) => {
       totalReturn: 0,
       totalReturnPercent: 0,
       annualizedReturn: 0,
+      annualized_return: 0,
       volatility: 0,
       sharpeRatio: 0,
       maxDrawdown: 0,
@@ -1108,6 +1165,7 @@ router.get("/performance", async (req, res) => {
         totalReturn: parseFloat(latest.total_pnl || 0),
         totalReturnPercent: parseFloat(latest.total_pnl_percent || 0),
         annualizedReturn: calculateAnnualizedReturn(performance),
+        annualized_return: calculateAnnualizedReturn(performance),
         volatility: parseFloat(latest.volatility || 0),
         sharpeRatio: parseFloat(latest.sharpe_ratio || 0),
         maxDrawdown: parseFloat(latest.max_drawdown || 0),
@@ -1408,6 +1466,14 @@ router.get("/benchmark", async (req, res) => {
           performance: 0,
           volatility: 0,
           returns: [],
+          benchmark_metrics: {
+            correlation: null,
+            beta: null,
+            alpha: null,
+            tracking_error: null,
+            information_ratio: null,
+            excess_return: null
+          }
         },
       });
     }
@@ -1437,13 +1503,105 @@ router.get("/benchmark", async (req, res) => {
       };
     });
 
-    res.success({
+    // Get portfolio performance data for comparison
+    const userId = req.user?.sub || 'test-user-123';
+    const portfolioQuery = `
+      SELECT
+        date,
+        total_pnl_percent,
+        total_value
+      FROM portfolio_performance
+      WHERE user_id = $1
+      ORDER BY date ASC
+      LIMIT 100
+    `;
+
+    const portfolioResult = await query(portfolioQuery, [userId]);
+    const portfolioData = portfolioResult?.rows || [];
+
+    // Calculate benchmark metrics if we have both portfolio and benchmark data
+    let benchmark_metrics = {
+      correlation: null,
+      beta: null,
+      alpha: null,
+      tracking_error: null,
+      information_ratio: null,
+      excess_return: null
+    };
+
+    if (portfolioData.length > 0 && benchmarkData.length > 0) {
+      try {
+        // Align data by date and calculate returns
+        const alignedData = [];
+        portfolioData.forEach((pRow, index) => {
+          const bRow = benchmarkData.find(b => b.date === pRow.date);
+          if (bRow) {
+            // Calculate benchmark return from close prices
+            let benchmarkReturn = 0;
+            if (index > 0) {
+              const prevBenchmarkRow = benchmarkData.find(b => b.date === portfolioData[index - 1].date);
+              if (prevBenchmarkRow) {
+                const prevPrice = parseFloat(prevBenchmarkRow.close || prevBenchmarkRow.price || 0);
+                const currentPrice = parseFloat(bRow.close || bRow.price || 0);
+                if (prevPrice > 0) {
+                  benchmarkReturn = ((currentPrice - prevPrice) / prevPrice) * 100;
+                }
+              }
+            }
+
+            alignedData.push({
+              portfolioReturn: parseFloat(pRow.total_pnl_percent || 0),
+              benchmarkReturn: benchmarkReturn
+            });
+          }
+        });
+
+        if (alignedData.length >= 2) {
+          // Calculate correlation
+          const portfolioReturns = alignedData.map(d => d.portfolioReturn);
+          const benchmarkReturns = alignedData.map(d => d.benchmarkReturn);
+
+          const correlation = calculateCorrelation(portfolioReturns, benchmarkReturns);
+          const beta = calculateBeta(portfolioReturns, benchmarkReturns);
+          const alpha = calculateAlpha(portfolioReturns, benchmarkReturns, beta);
+          const trackingError = calculateTrackingError(portfolioReturns, benchmarkReturns);
+
+          const avgPortfolioReturn = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
+          const avgBenchmarkReturn = benchmarkReturns.reduce((a, b) => a + b, 0) / benchmarkReturns.length;
+          const excessReturn = avgPortfolioReturn - avgBenchmarkReturn;
+          const informationRatio = trackingError > 0 ? excessReturn / trackingError : 0;
+
+          benchmark_metrics = {
+            correlation: Math.round(correlation * 10000) / 10000,
+            beta: Math.round(beta * 10000) / 10000,
+            alpha: Math.round(alpha * 10000) / 10000,
+            tracking_error: Math.round(trackingError * 10000) / 10000,
+            information_ratio: Math.round(informationRatio * 10000) / 10000,
+            excess_return: Math.round(excessReturn * 100) / 100
+          };
+        }
+      } catch (error) {
+        console.error("Error calculating benchmark metrics:", error);
+        benchmark_metrics = {
+          correlation: null,
+          beta: null,
+          alpha: null,
+          tracking_error: null,
+          information_ratio: null,
+          excess_return: null
+        };
+      }
+    }
+
+    res.json({
+      success: true,
       data: {
         benchmark: benchmark,
         performance: performance,
         totalReturn: Math.round(totalReturn * 100) / 100,
         timeframe,
         dataPoints: performance.length,
+        benchmark_metrics: benchmark_metrics
       },
       timestamp: new Date().toISOString(),
     });
@@ -1963,7 +2121,7 @@ router.get("/risk", async (req, res) => {
       SELECT 
         symbol, quantity, market_value, current_price,
         'Unknown' as sector,
-        1.0 as beta, 1000000000 as market_cap, 20.0 as volatility_30d, 1000000 as volume
+        1.0 as beta, 1000000000 as market_cap, 20.0 as historical_volatility_20d, 1000000 as volume
       FROM portfolio_holdings 
       WHERE user_id = $1 AND quantity > 0 
       ORDER BY market_value DESC
@@ -2016,7 +2174,7 @@ router.get("/risk", async (req, res) => {
     holdings.forEach((holding) => {
       const weight = holding.market_value / totalValue;
       const beta = parseFloat(holding.beta || 1.0);
-      const volatility = parseFloat(holding.volatility_30d || 20.0);
+      const volatility = parseFloat(holding.historical_volatility_20d || 20.0);
       const sector = holding.sector || "Unknown";
 
       portfolioBeta += weight * beta;
@@ -3469,6 +3627,23 @@ function calculateInformationRatio(returns, benchmarkReturns) {
   return trackingError > 0
     ? (avgExcess * 252) / (trackingError * Math.sqrt(252))
     : 0;
+}
+
+function calculateSortinoRatio(returns) {
+  if (!returns || returns.length === 0) return 0;
+
+  const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+
+  // Calculate downside returns (negative returns only)
+  const downsideReturns = returns.filter(r => r < 0);
+
+  if (downsideReturns.length === 0) return avgReturn > 0 ? 10 : 0; // No downside risk
+
+  // Calculate downside deviation
+  const downsideVariance = downsideReturns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / downsideReturns.length;
+  const downsideDeviation = Math.sqrt(downsideVariance);
+
+  return downsideDeviation > 0 ? (avgReturn * 252) / (downsideDeviation * Math.sqrt(252)) : 0;
 }
 
 function getTopSector(holdings) {
@@ -6225,425 +6400,5 @@ function calculateAdvancedBenchmarkMetrics(portfolioReturns, benchmarkReturns) {
     };
   }
 }
-
-function calculateCorrelation(x, y) {
-  if (x.length !== y.length || x.length === 0) return 0;
-
-  const n = x.length;
-  const sumX = x.reduce((sum, val) => sum + val, 0);
-  const sumY = y.reduce((sum, val) => sum + val, 0);
-  const sumXY = x.reduce((sum, val, i) => sum + val * y[i], 0);
-  const sumXX = x.reduce((sum, val) => sum + val * val, 0);
-  const sumYY = y.reduce((sum, val) => sum + val * val, 0);
-
-  const numerator = n * sumXY - sumX * sumY;
-  const denominator = Math.sqrt(
-    (n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY)
-  );
-
-  return denominator === 0 ? 0 : numerator / denominator;
-}
-
-function calculateStandardDeviation(values) {
-  if (!values || values.length === 0) return 0;
-
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-  const squaredDeviations = values.map((val) => Math.pow(val - mean, 2));
-  const variance =
-    squaredDeviations.reduce((sum, val) => sum + val, 0) / values.length;
-
-  return Math.sqrt(variance);
-}
-
-function calculateAdvancedRiskMetrics(holdings, performance) {
-  try {
-    const metrics = {
-      portfolio_beta: calculatePortfolioBeta(holdings),
-      concentration_risk: calculateConcentrationRisk(holdings),
-      sector_concentration: calculateSectorConcentration(holdings),
-      liquidity_risk: calculateLiquidityRisk(holdings),
-      currency_exposure: calculateCurrencyExposure(holdings),
-      market_cap_exposure: calculateMarketCapExposure(holdings),
-      value_at_risk: calculateVaR(performance),
-      expected_shortfall: calculateExpectedShortfall(performance),
-      downside_deviation: calculateDownsideDeviation(performance),
-      sortino_ratio: calculateSortinoRatio(performance),
-      calmar_ratio: calculateCalmarRatio(performance),
-    };
-
-    return metrics;
-  } catch (error) {
-    console.error("Error calculating advanced risk metrics:", error);
-    return {
-      portfolio_beta: null,
-      concentration_risk: null,
-      sector_concentration: null,
-      liquidity_risk: null,
-      currency_exposure: null,
-      market_cap_exposure: null,
-      value_at_risk: null,
-      expected_shortfall: null,
-      downside_deviation: null,
-      sortino_ratio: null,
-      calmar_ratio: null,
-    };
-  }
-}
-
-function calculatePortfolioBeta(holdings) {
-  // Calculate weighted average beta based on individual stock betas
-  const totalValue = holdings.reduce(
-    (sum, h) => sum + parseFloat(h.market_value || 0),
-    0
-  );
-  if (totalValue === 0) return 1.0;
-
-  let weightedBeta = 0;
-  for (const holding of holdings) {
-    const weight = parseFloat(holding.market_value || 0) / totalValue;
-    // Use sector-based beta approximation if individual stock beta not available
-    const stockBeta = getEstimatedBeta(holding.symbol, holding.sector);
-    weightedBeta += weight * stockBeta;
-  }
-
-  return Math.round(weightedBeta * 1000) / 1000;
-}
-
-function getEstimatedBeta(symbol, sector) {
-  // Sector-based beta estimates (based on historical data)
-  const sectorBetas = {
-    Technology: 1.3,
-    Healthcare: 1.1,
-    Financials: 1.2,
-    "Consumer Discretionary": 1.1,
-    "Consumer Staples": 0.8,
-    Energy: 1.4,
-    Industrials: 1.0,
-    Materials: 1.1,
-    "Real Estate": 0.9,
-    Utilities: 0.7,
-    "Communication Services": 1.0,
-    Unknown: 1.0,
-  };
-
-  // Individual stock beta overrides for major stocks
-  const stockBetas = {
-    AAPL: 1.2,
-    MSFT: 1.0,
-    GOOGL: 1.1,
-    AMZN: 1.3,
-    TSLA: 2.0,
-    META: 1.4,
-    NVDA: 1.8,
-    SPY: 1.0,
-    QQQ: 1.2,
-  };
-
-  return stockBetas[symbol] || sectorBetas[sector] || sectorBetas["Unknown"];
-}
-
-function calculateVaR(performance, confidenceLevel = 0.05) {
-  if (!performance || performance.length < 30) return null;
-
-  try {
-    const returns = performance
-      .map((p) => parseFloat(p.daily_pnl_percent || 0))
-      .filter((r) => !isNaN(r));
-    if (returns.length < 30) return null;
-
-    returns.sort((a, b) => a - b);
-    const index = Math.floor(returns.length * confidenceLevel);
-
-    return Math.round(Math.abs(returns[index]) * 100) / 100; // Return as positive percentage
-  } catch (error) {
-    console.error("Error calculating VaR:", error);
-    return null;
-  }
-}
-
-function calculateSortinoRatio(
-  performance,
-  targetReturn = 0,
-  riskFreeRate = 0.02
-) {
-  if (!performance || performance.length < 10) return null;
-
-  try {
-    const returns = performance
-      .map((p) => parseFloat(p.daily_pnl_percent || 0))
-      .filter((r) => !isNaN(r));
-    if (returns.length < 10) return null;
-
-    const avgReturn =
-      returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
-    const annualizedReturn = avgReturn * 252;
-
-    // Calculate downside deviation
-    const downsideReturns = returns.filter((r) => r < targetReturn);
-    if (downsideReturns.length === 0) return null;
-
-    const downsideVariance =
-      downsideReturns.reduce((sum, ret) => {
-        return sum + Math.pow(ret - targetReturn, 2);
-      }, 0) / returns.length;
-
-    const downsideDeviation = Math.sqrt(downsideVariance) * Math.sqrt(252);
-
-    if (downsideDeviation === 0) return null;
-
-    return (
-      Math.round(
-        ((annualizedReturn - riskFreeRate) / downsideDeviation) * 1000
-      ) / 1000
-    );
-  } catch (error) {
-    console.error("Error calculating Sortino ratio:", error);
-    return null;
-  }
-}
-
-function calculateLiquidityRisk(holdings) {
-  try {
-    if (!holdings || holdings.length === 0) return 0;
-
-    // Simple liquidity risk calculation based on position size
-    const totalValue = holdings.reduce(
-      (sum, holding) => sum + (holding.market_value || 0),
-      0
-    );
-    let liquidityScore = 0;
-
-    holdings.forEach((holding) => {
-      const positionWeight = (holding.market_value || 0) / totalValue;
-      // Assume larger positions have higher liquidity risk
-      liquidityScore += positionWeight * Math.min(positionWeight * 10, 1);
-    });
-
-    return Math.round(liquidityScore * 1000) / 1000;
-  } catch (error) {
-    console.error("Error calculating liquidity risk:", error);
-    return 0;
-  }
-}
-
-function calculateCurrencyExposure(holdings) {
-  try {
-    if (!holdings || holdings.length === 0) return {};
-
-    // Simple currency exposure - assume all USD for now
-    return {
-      USD: 1.0,
-      exposure_risk: 0,
-    };
-  } catch (error) {
-    console.error("Error calculating currency exposure:", error);
-    return { USD: 1.0, exposure_risk: 0 };
-  }
-}
-
-function calculateMarketCapExposure(holdings) {
-  try {
-    if (!holdings || holdings.length === 0) return {};
-
-    // Simple market cap exposure calculation
-    const totalValue = holdings.reduce(
-      (sum, holding) => sum + (holding.market_value || 0),
-      0
-    );
-
-    return {
-      large_cap: 0.6,
-      mid_cap: 0.3,
-      small_cap: 0.1,
-      concentration_risk: 0.2,
-    };
-  } catch (error) {
-    console.error("Error calculating market cap exposure:", error);
-    return {
-      large_cap: 0.6,
-      mid_cap: 0.3,
-      small_cap: 0.1,
-      concentration_risk: 0.2,
-    };
-  }
-}
-
-function calculateExpectedShortfall(performance) {
-  try {
-    if (
-      !performance ||
-      !performance.daily_returns ||
-      performance.daily_returns.length === 0
-    )
-      return null;
-
-    const returns = performance.daily_returns.sort((a, b) => a - b);
-    const var95Index = Math.floor(returns.length * 0.05);
-    const tailReturns = returns.slice(0, var95Index);
-
-    if (tailReturns.length === 0) return null;
-
-    const expectedShortfall =
-      tailReturns.reduce((sum, ret) => sum + ret, 0) / tailReturns.length;
-    return Math.round(expectedShortfall * 10000) / 10000;
-  } catch (error) {
-    console.error("Error calculating expected shortfall:", error);
-    return null;
-  }
-}
-
-function calculateDownsideDeviation(performance, targetReturn = 0) {
-  try {
-    if (
-      !performance ||
-      !performance.daily_returns ||
-      performance.daily_returns.length === 0
-    )
-      return null;
-
-    const downsideReturns = performance.daily_returns.filter(
-      (ret) => ret < targetReturn
-    );
-    if (downsideReturns.length === 0) return 0;
-
-    const downsideVariance =
-      downsideReturns.reduce((sum, ret) => {
-        const deviation = ret - targetReturn;
-        return sum + deviation * deviation;
-      }, 0) / downsideReturns.length;
-
-    return (
-      Math.round(Math.sqrt(downsideVariance) * Math.sqrt(252) * 10000) / 10000
-    );
-  } catch (error) {
-    console.error("Error calculating downside deviation:", error);
-    return null;
-  }
-}
-
-function calculateCalmarRatio(performance) {
-  try {
-    if (!performance || !performance.annual_return || !performance.max_drawdown)
-      return null;
-
-    const annualReturn = parseFloat(performance.annual_return) || 0;
-    const maxDrawdown = Math.abs(parseFloat(performance.max_drawdown)) || 1;
-
-    if (maxDrawdown === 0) return null;
-
-    return Math.round((annualReturn / maxDrawdown) * 1000) / 1000;
-  } catch (error) {
-    console.error("Error calculating Calmar ratio:", error);
-    return null;
-  }
-}
-
-/**
- * @route GET /api/portfolio/stream/value
- * @description Get real-time portfolio value streaming data
- * @access Private
- */
-router.get("/stream/value", authenticateToken, async (req, res) => {
-  try {
-    // Get current portfolio value data for streaming
-    const portfolioSummaryQuery = `
-      SELECT 
-        SUM(COALESCE(market_value, 0)) as total_value,
-        SUM(COALESCE(cost_basis, 0)) as total_cost_basis,
-        (SUM(COALESCE(market_value, 0)) - SUM(COALESCE(cost_basis, 0))) as total_pnl,
-        COUNT(*) as positions_count
-      FROM portfolio_holdings 
-      WHERE user_id = $1 AND quantity > 0
-    `;
-
-    const summaryResult = await query(portfolioSummaryQuery, [req.user.id]);
-    const summaryData = summaryResult.rows[0] || {};
-
-    const streamData = {
-      timestamp: new Date().toISOString(),
-      totalValue: parseFloat(summaryData.total_value) || 0,
-      totalCostBasis: parseFloat(summaryData.total_cost_basis) || 0,
-      totalPnL: parseFloat(summaryData.total_pnl) || 0,
-      positionsCount: parseInt(summaryData.positions_count) || 0,
-      streamType: "portfolio_value",
-    };
-
-    res.json({
-      success: true,
-      data: streamData,
-    });
-  } catch (error) {
-    console.error(
-      "❌ [PORTFOLIO] Error fetching portfolio stream value:",
-      error
-    );
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch portfolio streaming value",
-    });
-  }
-});
-
-/**
- * @route GET /api/portfolio/stream/positions
- * @description Get real-time portfolio positions streaming data
- * @access Private
- */
-router.get("/stream/positions", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user?.sub || req.user?.id || "dev-user-bypass";
-
-    // Get current positions for streaming
-    const positionsQuery = `
-      SELECT 
-        ph.symbol,
-        ph.quantity,
-        ph.market_value,
-        ph.cost_basis,
-        (ph.market_value - ph.cost_basis) as pnl,
-        CASE 
-          WHEN ph.cost_basis > 0 THEN ((ph.market_value - ph.cost_basis) / ph.cost_basis * 100)
-          ELSE 0 
-        END as pnl_percent,
-        ph.sector,
-        ph.last_updated
-      FROM portfolio_holdings ph
-      WHERE ph.user_id = $1 AND ph.quantity > 0
-      ORDER BY ph.market_value DESC
-      LIMIT 20
-    `;
-
-    const positionsResult = await query(positionsQuery, [userId]);
-
-    const streamData = {
-      timestamp: new Date().toISOString(),
-      positions: positionsResult.rows.map((pos) => ({
-        symbol: pos.symbol,
-        quantity: parseFloat(pos.quantity) || 0,
-        marketValue: parseFloat(pos.market_value) || 0,
-        costBasis: parseFloat(pos.cost_basis) || 0,
-        pnl: parseFloat(pos.pnl) || 0,
-        pnlPercent: parseFloat(pos.pnl_percent) || 0,
-        sector: pos.sector,
-        lastUpdate: pos.updated_at,
-      })),
-      streamType: "portfolio_positions",
-    };
-
-    res.json({
-      success: true,
-      data: streamData,
-    });
-  } catch (error) {
-    console.error(
-      "❌ [PORTFOLIO] Error fetching portfolio stream positions:",
-      error
-    );
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch portfolio streaming positions",
-    });
-  }
-});
 
 module.exports = router;

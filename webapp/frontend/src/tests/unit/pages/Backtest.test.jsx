@@ -20,10 +20,13 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: ({ children }) => children,
 }));
 
-// Mock the API service
+// Mock API service with standardized pattern
 vi.mock("../../../services/api.js", () => ({
-  runBacktest: vi.fn(() =>
-    Promise.resolve({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    // Backtest methods
+    runBacktest: vi.fn().mockResolvedValue({
       success: true,
       data: {
         id: "backtest-123",
@@ -42,65 +45,21 @@ vi.mock("../../../services/api.js", () => ({
           profitFactor: 2.1,
           finalValue: 115250,
         },
-        trades: [
-          {
-            date: "2024-01-15",
-            type: "buy",
-            price: 150.25,
-            quantity: 100,
-            value: 15025,
-          },
-          {
-            date: "2024-02-15",
-            type: "sell",
-            price: 165.8,
-            quantity: 100,
-            value: 16580,
-          },
-        ],
+        trades: [],
       },
-    })
-  ),
-  getBacktestHistory: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: [
-        {
-          id: "backtest-123",
-          symbol: "AAPL",
-          strategy: "moving_average",
-          createdAt: "2024-01-01T10:00:00Z",
-          results: { totalReturn: 15.25 },
-        },
-      ],
-    })
-  ),
-  getAvailableStrategies: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: [
-        {
-          id: "moving_average",
-          name: "Moving Average Crossover",
-          description: "Buy/sell signals based on MA crossovers",
-        },
-        {
-          id: "rsi_oversold",
-          name: "RSI Oversold/Overbought",
-          description: "RSI-based entry/exit signals",
-        },
-        {
-          id: "bollinger_bands",
-          name: "Bollinger Bands",
-          description: "Mean reversion strategy using Bollinger Bands",
-        },
-      ],
-    })
-  ),
-  api: {
-    get: vi.fn(() => Promise.resolve({ data: { success: true } })),
-    post: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    }),
+    getBacktestHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getAvailableStrategies: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
   },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+  // Export individual functions for backward compatibility
+  runBacktest: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  getBacktestHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getAvailableStrategies: vi.fn().mockResolvedValue({ success: true, data: [] }),
 }));
 
 describe("Backtest Component - Strategy Testing", () => {

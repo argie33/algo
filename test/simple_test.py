@@ -67,7 +67,7 @@ def test_database_connection():
 
     try:
         conn = psycopg2.connect(
-            host="postgres",
+            host="localhost",
             port="5432",
             user="testuser",
             password="testpass",
@@ -123,7 +123,7 @@ def test_table_structure():
 
     try:
         conn = psycopg2.connect(
-            host="postgres",
+            host="localhost",
             port="5432",
             user="testuser",
             password="testpass",

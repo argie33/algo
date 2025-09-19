@@ -1,7 +1,8 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { BrowserRouter } from "react-router-dom";
+import { renderWithProvidersNoRouter } from "../test-utils.jsx";
 import ErrorBoundary from "../../components/ErrorBoundary";
 
 // Mock console.error to avoid cluttering test output
@@ -60,7 +61,7 @@ const NetworkErrorComponent = () => {
 };
 
 const renderWithRouter = (component) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>);
+  return renderWithProvidersNoRouter(<BrowserRouter>{component}</BrowserRouter>);
 };
 
 describe("ErrorBoundary Component", () => {

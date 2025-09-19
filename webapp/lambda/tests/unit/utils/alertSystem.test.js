@@ -574,6 +574,14 @@ describe("Alert System", () => {
       alertSystem.config.notifications.webhook.url =
         "http://example.com/webhook";
 
+      // Mock fetch to simulate successful webhook
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: jest.fn().mockResolvedValue("success")
+      });
+
       // Mock console.log to capture webhook notification
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
 
@@ -581,11 +589,12 @@ describe("Alert System", () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          "🔗 Webhook notification: [warning] Test Webhook Alert"
+          "🔗 Webhook notification sent: [warning] Test Webhook Alert"
         )
       );
 
       consoleSpy.mockRestore();
+      fetch.mockRestore();
     });
 
     it("should warn when webhook URL is not configured", async () => {

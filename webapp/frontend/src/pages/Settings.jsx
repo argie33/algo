@@ -889,7 +889,7 @@ const Settings = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }} data-testid="settings-page">
       <Typography variant="h3" component="h1" gutterBottom>
         Account Settings
       </Typography>

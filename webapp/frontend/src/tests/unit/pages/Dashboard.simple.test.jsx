@@ -40,10 +40,25 @@ vi.mock("../../../services/api.js", () => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
   })),
+  // Add missing API functions
+  getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
 }));
 
 // Mock data cache
 vi.mock("../../../services/dataCache.js", () => ({
+  default: {
+    get: vi.fn(() => Promise.resolve({ data: {} })),
+    set: vi.fn(),
+    clear: vi.fn(),
+    clearAll: vi.fn(),
+    getStats: vi.fn(() => ({})),
+    batchFetch: vi.fn(() => Promise.resolve([])),
+    preloadCommonData: vi.fn(),
+    isMarketHours: vi.fn(() => false),
+  },
   getCachedData: vi.fn(() => null),
   setCachedData: vi.fn(),
   clearCache: vi.fn(),

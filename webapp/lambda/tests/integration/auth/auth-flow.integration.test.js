@@ -214,16 +214,14 @@ describe("Authentication Flow Integration", () => {
 
       for (const test of writeEndpoints) {
         // Test without auth
-        const unauthResponse = await request(app)
-          [test.method](test.endpoint)
+        const unauthResponse = await request(app)[test.method](test.endpoint)
           .send(test.body);
 
         expect([401, 403]).toContain(unauthResponse.status);
         expect(unauthResponse.body).toHaveProperty("success", false);
 
         // Test with auth
-        const authResponse = await request(app)
-          [test.method](test.endpoint)
+        const authResponse = await request(app)[test.method](test.endpoint)
           .set("Authorization", "Bearer dev-bypass-token")
           .send(test.body);
 
@@ -246,8 +244,7 @@ describe("Authentication Flow Integration", () => {
       const results = [];
 
       for (const req of sequentialRequests) {
-        const response = await request(app)
-          [req.method](req.endpoint)
+        const response = await request(app)[req.method](req.endpoint)
           .set("Authorization", "Bearer dev-bypass-token");
 
         results.push({

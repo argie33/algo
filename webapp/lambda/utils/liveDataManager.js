@@ -321,7 +321,10 @@ class LiveDataManager extends EventEmitter {
 
       // Check global connection limits
       if (this.connectionPool.size >= this.globalLimits.maxTotalConnections) {
-        return false; // Test expects false when limit exceeded
+        return {
+          success: false,
+          error: `Global connection limit (${this.globalLimits.maxTotalConnections}) exceeded`,
+        };
       }
 
       const connection = {
@@ -1325,6 +1328,16 @@ class LiveDataManager extends EventEmitter {
         }
       }
 
+      // If no existing subscription, check connection pool for alpaca connections
+      if (!reuseConnectionId) {
+        for (const [connectionId, connection] of this.connectionPool) {
+          if (connection.provider === "alpaca") {
+            reuseConnectionId = connectionId;
+            break;
+          }
+        }
+      }
+
       // If no existing connection, create one for the first symbol
       if (!reuseConnectionId && symbols.length > 0) {
         reuseConnectionId = `auto-${userId}-multi-${Date.now()}`;
@@ -1979,7 +1992,18 @@ class LiveDataManager extends EventEmitter {
    * @param {string} userId User ID
    */
   cleanupUserConnections(userId) {
-    // Remove user from all symbol subscriptions
+    // Remove user from all symbol subscriptions in main subscriptions map
+    for (const [symbol, subscription] of this.subscriptions) {
+      if (subscription.subscribers.has(userId)) {
+        subscription.subscribers.delete(userId);
+        // If no subscribers left, remove the entire subscription
+        if (subscription.subscribers.size === 0) {
+          this.subscriptions.delete(symbol);
+        }
+      }
+    }
+
+    // Remove user from all symbol subscriptions tracking
     if (this.symbolSubscriptions) {
       this.symbolSubscriptions.forEach((subscribers, symbol) => {
         subscribers.delete(userId);

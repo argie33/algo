@@ -86,11 +86,10 @@ if (require.main === module) {
   applySchemaFixes()
     .then(() => {
       console.log('✅ Schema fixes applied successfully');
-      process.exit(0);
     })
     .catch((error) => {
       console.error('❌ Failed to apply schema fixes:', error);
-      process.exit(1);
+      throw error;
     });
 }
 

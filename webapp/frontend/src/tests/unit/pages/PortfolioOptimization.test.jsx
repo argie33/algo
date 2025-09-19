@@ -37,31 +37,22 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
-// Mock API service with proper ES module support
-vi.mock("../../../services/api", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
-    getPortfolioOptimization: vi.fn(),
-    runOptimization: vi.fn(),
-    getOptimizationResults: vi.fn(),
-  };
-
-  const mockGetApiConfig = vi.fn(() => ({
-    baseURL: "http://localhost:3001",
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    // Portfolio optimization methods
+    getPortfolioOptimization: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    runOptimization: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getOptimizationResults: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
-    isDevelopment: true,
-    isProduction: false,
-    baseUrl: "/",
-  }));
-
-  return {
-    api: mockApi,
-    getApiConfig: mockGetApiConfig,
-    default: mockApi,
-  };
-});
+  })),
+}));
 
 const mockOptimizationData = {
   currentPortfolio: {
@@ -172,7 +163,7 @@ function renderPortfolioOptimization(props = {}) {
 describe("PortfolioOptimization Component", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { api } = await import("../../../services/api");
+    const api = (await import("../../../services/api")).default;
     api.getPortfolioOptimization.mockResolvedValue({
       success: true,
       data: mockOptimizationData,
@@ -185,7 +176,7 @@ describe("PortfolioOptimization Component", () => {
     expect(screen.getByText(/portfolio optimization/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      const { api } = require("../../../services/api");
+      const api = require("../../../services/api").default;
       expect(api.getPortfolioOptimization).toHaveBeenCalled();
     });
   });
@@ -264,7 +255,7 @@ describe("PortfolioOptimization Component", () => {
   });
 
   it("runs optimization when button is clicked", async () => {
-    const { api } = require("../../../services/api");
+    const api = require("../../../services/api").default;
     api.runOptimization.mockResolvedValue({
       success: true,
       data: mockOptimizationData.optimizedPortfolio,
@@ -350,7 +341,7 @@ describe("PortfolioOptimization Component", () => {
   });
 
   it("shows loading state during optimization", () => {
-    const { api } = require("../../../services/api");
+    const api = require("../../../services/api").default;
     api.runOptimization.mockImplementation(() => new Promise(() => {}));
 
     renderPortfolioOptimization();
@@ -367,7 +358,7 @@ describe("PortfolioOptimization Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    const { api } = require("../../../services/api");
+    const api = require("../../../services/api").default;
     api.getPortfolioOptimization.mockRejectedValue(
       new Error("Optimization failed")
     );
@@ -470,8 +461,8 @@ describe("PortfolioOptimization Component", () => {
       ],
     };
 
-    const { api } = require("../../../services/api");
-    api.getPortfolioOptimizationData.mockResolvedValue({
+    const api = require("../../../services/api").default;
+    api.getPortfolioOptimization.mockResolvedValue({
       success: true,
       data: mockDataWithDuplicates,
     });

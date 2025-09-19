@@ -53,33 +53,25 @@ vi.mock("../../../utils/errorLogger", () => ({
   })),
 }));
 
-// Mock API service with proper ES module support
-vi.mock("../../../services/api", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
-    getBalanceSheet: vi.fn(),
-    getIncomeStatement: vi.fn(),
-    getCashFlowStatement: vi.fn(),
-    getKeyMetrics: vi.fn(),
-    getStocks: vi.fn(),
-  };
-
-  const mockGetApiConfig = vi.fn(() => ({
-    baseURL: "http://localhost:3001",
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    // Financial data methods
+    getBalanceSheet: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getIncomeStatement: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getCashFlowStatement: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getKeyMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStocks: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  },
+  getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
-    isDevelopment: true,
-    isProduction: false,
-    baseUrl: "/",
-  }));
-
-  return {
-    api: mockApi,
-    getApiConfig: mockGetApiConfig,
-    default: mockApi,
-  };
-});
+  })),
+}));
 
 const mockStocksData = [
   { symbol: "AAPL", name: "Apple Inc." },
@@ -109,7 +101,7 @@ function renderFinancialData(props = {}) {
 describe("FinancialData Component", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { api } = await import("../../../services/api");
+    const api = (await import("../../../services/api")).default;
 
     // Setup default mocks
     api.getStocks.mockResolvedValue({
@@ -142,7 +134,7 @@ describe("FinancialData Component", () => {
   });
 
   it("handles loading state", async () => {
-    const { api } = await import("../../../services/api");
+    const api = (await import("../../../services/api")).default;
     api.getStocks.mockImplementation(() => new Promise(() => {}));
 
     renderFinancialData();
@@ -153,7 +145,7 @@ describe("FinancialData Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    const { api } = await import("../../../services/api");
+    const api = (await import("../../../services/api")).default;
     api.getStocks.mockRejectedValue(new Error("API Error"));
 
     renderFinancialData();

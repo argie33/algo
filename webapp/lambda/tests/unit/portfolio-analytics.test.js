@@ -160,8 +160,8 @@ describe("Advanced Portfolio Analytics Tests", () => {
       };
 
       query
-        .mockResolvedValueOnce(mockPortfolioData)
-        .mockResolvedValueOnce(mockBenchmarkData);
+        .mockResolvedValueOnce(mockBenchmarkData)
+        .mockResolvedValueOnce(mockPortfolioData);
 
       const response = await request(app)
         .get("/portfolio/benchmark?benchmark=SPY")
@@ -203,8 +203,8 @@ describe("Advanced Portfolio Analytics Tests", () => {
       };
 
       query
-        .mockResolvedValueOnce(mockPortfolioData)
-        .mockResolvedValueOnce(mockBenchmarkData);
+        .mockResolvedValueOnce(mockBenchmarkData)
+        .mockResolvedValueOnce(mockPortfolioData);
 
       const response = await request(app)
         .get("/portfolio/benchmark?benchmark=SPY")
@@ -414,8 +414,8 @@ describe("Advanced Portfolio Analytics Tests", () => {
       };
 
       query
-        .mockResolvedValueOnce(mockPortfolioData)
-        .mockResolvedValueOnce(mockBenchmarkData);
+        .mockResolvedValueOnce(mockBenchmarkData)
+        .mockResolvedValueOnce(mockPortfolioData);
 
       const response = await request(app)
         .get("/portfolio/benchmark?benchmark=SPY")
@@ -588,8 +588,8 @@ describe("Advanced Portfolio Analytics Tests", () => {
       const mockBenchmarkData = { rows: [{ close: 100, date: "2024-01-01" }] };
 
       query
-        .mockResolvedValueOnce(mockPortfolioData)
-        .mockResolvedValueOnce(mockBenchmarkData);
+        .mockResolvedValueOnce(mockBenchmarkData)
+        .mockResolvedValueOnce(mockPortfolioData);
 
       const benchmarks = ["SPY", "QQQ", "IWM"];
 
@@ -610,8 +610,8 @@ describe("Advanced Portfolio Analytics Tests", () => {
       const mockBenchmarkData = { rows: [{ close: 100, date: "2024-01-01" }] };
 
       query
-        .mockResolvedValueOnce(mockPortfolioData)
-        .mockResolvedValueOnce(mockBenchmarkData);
+        .mockResolvedValueOnce(mockBenchmarkData)
+        .mockResolvedValueOnce(mockPortfolioData);
 
       const response = await request(app)
         .get("/portfolio/benchmark?benchmark=SPY&period=1y")

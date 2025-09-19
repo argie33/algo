@@ -311,37 +311,33 @@ class AIStrategyGeneratorStreaming extends AIStrategyGenerator {
 
       let mockResponse;
       if (isExplicitEmptyArray) {
-        try {
-          // For empty arrays, create a minimal mock response to avoid base class error
-          let strategyName = "EmptySymbolsStrategy";
-          // Handle momentum strategy naming for empty symbols case too
-          if (
-            userPrompt.includes("momentum") ||
-            systemPrompt.includes("momentum") ||
-            originalPrompt.toLowerCase().includes("momentum")
-          ) {
-            strategyName = "Momentum-" + strategyName;
-          }
-
-          mockResponse = {
-            success: true,
-            strategy: {
-              name: strategyName,
-              description: "Strategy with no symbols",
-              code: 'import pandas as pd\n\n# No symbols provided\nprint("No symbols to analyze")',
-              language: "python",
-              symbols: [],
-              strategyType: "custom",
-              riskLevel: "low",
-              estimatedPerformance: { return: 0, volatility: 0 },
-              aiGenerated: false,
-              prompt: userPrompt,
-              generatedAt: new Date().toISOString(),
-            },
-          };
-        } catch (error) {
-          throw error;
+        // For empty arrays, create a minimal mock response to avoid base class error
+        let strategyName = "EmptySymbolsStrategy";
+        // Handle momentum strategy naming for empty symbols case too
+        if (
+          userPrompt.includes("momentum") ||
+          systemPrompt.includes("momentum") ||
+          originalPrompt.toLowerCase().includes("momentum")
+        ) {
+          strategyName = "Momentum-" + strategyName;
         }
+
+        mockResponse = {
+          success: true,
+          strategy: {
+            name: strategyName,
+            description: "Strategy with no symbols",
+            code: 'import pandas as pd\n\n# No symbols provided\nprint("No symbols to analyze")',
+            language: "python",
+            symbols: [],
+            strategyType: "custom",
+            riskLevel: "low",
+            estimatedPerformance: { return: 0, volatility: 0 },
+            aiGenerated: false,
+            prompt: userPrompt,
+            generatedAt: new Date().toISOString(),
+          },
+        };
       } else {
         const symbolsForGeneration =
           effectiveSymbols.length === 0

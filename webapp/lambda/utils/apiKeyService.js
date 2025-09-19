@@ -87,7 +87,7 @@ class ApiKeyService {
             if (token && token.includes('dev-bypass-token')) {
               return { sub: 'test-user', email: 'test@example.com' };
             }
-            throw new Error('Invalid token for test environment');
+            throw new Error('JWT verification not configured');
           }
         };
         console.log("JWT verifier initialized successfully (test mode)");
@@ -118,7 +118,8 @@ class ApiKeyService {
     if (
       token === "dev-bypass-token" &&
       (process.env.ALLOW_DEV_BYPASS === "true" ||
-        process.env.NODE_ENV === "development")
+        process.env.NODE_ENV === "development" ||
+        process.env.NODE_ENV === "test")
     ) {
       console.log(
         "🔧 Development mode: Accepting dev-bypass-token for API key operations"

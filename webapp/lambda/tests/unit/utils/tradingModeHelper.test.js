@@ -109,7 +109,12 @@ describe("Trading Mode Helper Unit Tests", () => {
 
       expect(result).toMatchObject({
         test: "data",
-        trading_mode: "paper",
+        trading_mode: {
+          mode: "paper",
+          isPaper: true,
+          isLive: false,
+          source: "database"
+        },
         paper_trading: true,
         live_trading: false,
         mode_context: {
@@ -140,7 +145,12 @@ describe("Trading Mode Helper Unit Tests", () => {
 
       expect(result).toMatchObject({
         test: "data",
-        trading_mode: "live",
+        trading_mode: {
+          mode: "live",
+          isPaper: false,
+          isLive: true,
+          source: "database"
+        },
         paper_trading: false,
         live_trading: true,
         mode_context: {

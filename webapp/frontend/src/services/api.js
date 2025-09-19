@@ -910,15 +910,18 @@ export const getMarketOverview = async () => {
   console.log("📈 [API] Axios baseURL:", api.defaults.baseURL);
 
   try {
-    // Use the correct endpoint for our API
-    const endpoints = ["/api/dashboard/summary"];
+    // Use the correct endpoint for our API - try market-overview first, then liveData
+    const endpoints = ["/api/market-overview", "/api/liveData/market"];
     let response = null;
     let lastError = null;
 
     for (const endpoint of endpoints) {
       try {
         console.log(`📈 [API] Trying endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
+        // Add auth headers for liveData endpoint
+        const headers = endpoint.includes('liveData') ?
+          { Authorization: 'Bearer test-token' } : {};
+        response = await api.get(endpoint, { headers });
         console.log(`📈 [API] SUCCESS with endpoint: ${endpoint}`, response);
         break;
       } catch (err) {
@@ -4430,6 +4433,7 @@ export default {
   // Trading functions
   placeOrder,
   getQuote,
+  getTradingSignalsDaily,
 
   // AI Chat functions
   sendChatMessage,

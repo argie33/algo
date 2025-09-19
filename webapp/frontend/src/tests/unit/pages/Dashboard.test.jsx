@@ -27,95 +27,28 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   })),
 }));
 
-// Mock API service with all Dashboard-required functions
-vi.mock("../../../services/api.js", () => ({
-  api: {
-    getDashboard: vi.fn(),
-    getMarketOverview: vi.fn(),
-    getPortfolioSummary: vi.fn(),
-    getRecentActivity: vi.fn(),
-    getStockPrices: vi.fn(),
-    getStockMetrics: vi.fn(),
-    getMarketSectors: vi.fn(),
-    getMarketSentiment: vi.fn(),
-    getScores: vi.fn(),
-  },
-  getApiConfig: vi.fn(() => ({
-    apiUrl: "http://localhost:3001",
-    environment: "test",
-  })),
-  // Dashboard-specific API functions
-  getMarketOverview: vi.fn().mockResolvedValue({
-    success: true,
-    data: {
-      sentiment_indicators: { fear_greed: { value: 50, status: "neutral" } },
-      market_breadth: { advancing: 1500, declining: 1200 },
-      market_cap: { total: 45000000000000 },
-    },
-  }),
-  getTopStocks: vi.fn().mockResolvedValue({
-    success: true,
-    data: [
-      {
-        symbol: "AAPL",
-        name: "Apple Inc.",
-        price: 150.25,
-        change: 2.5,
-        change_percent: 1.69,
-      },
-      {
-        symbol: "MSFT",
-        name: "Microsoft Corp.",
-        price: 280.75,
-        change: -1.2,
-        change_percent: -0.43,
-      },
-    ],
-  }),
-  getTradingSignalsDaily: vi.fn().mockResolvedValue({
-    success: true,
-    data: [
-      {
-        symbol: "AAPL",
-        signal: "BUY",
-        strength: 0.8,
-        timestamp: new Date().toISOString(),
-      },
-      {
-        symbol: "MSFT",
-        signal: "HOLD",
-        strength: 0.6,
-        timestamp: new Date().toISOString(),
-      },
-    ],
-  }),
-  getPortfolioAnalytics: vi.fn().mockResolvedValue({
-    success: true,
-    data: {
-      total_value: 125750.5,
-      daily_change: 2500.75,
-      daily_change_percent: 2.03,
-      holdings: [],
-      performance: { ytd: 12.5, month: 2.1, week: 0.8 },
-    },
-  }),
-  getScores: vi.fn().mockResolvedValue({
-    success: true,
-    data: [
-      { symbol: "AAPL", score: 85, category: "Large Cap" },
-      { symbol: "MSFT", score: 92, category: "Large Cap" },
-    ],
-  }),
-  getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
-  getPriceHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  getMarketStatus: vi
-    .fn()
-    .mockResolvedValue({
-      success: true,
-      data: { isOpen: true, status: "OPEN" },
-    }),
-}));
+// Mock API service with comprehensive mock
+vi.mock("../../../services/api.js", async () => {
+  const mockApi = await import("../../mocks/apiMock.js");
+  return {
+    default: mockApi.default,
+    getApiConfig: mockApi.getApiConfig,
+    getPortfolioData: mockApi.getPortfolioData,
+    getApiKeys: mockApi.getApiKeys,
+    testApiConnection: mockApi.testApiConnection,
+    importPortfolioFromBroker: mockApi.importPortfolioFromBroker,
+    healthCheck: mockApi.healthCheck,
+    getMarketOverview: mockApi.getMarketOverview,
+  };
+});
+
+// Mock dataCache service
+vi.mock("../../../services/dataCache.js", async () => {
+  const mockDataCache = await import("../../mocks/dataCacheMock.js");
+  return {
+    default: mockDataCache.default,
+  };
+});
 
 // Mock chart components
 vi.mock("recharts", () => ({
@@ -248,10 +181,9 @@ describe("Dashboard Page", () => {
       const pnlElements = screen.getAllByText(/3,200/i);
       expect(pnlElements.length).toBeGreaterThan(0);
 
-      // Market indices should be shown
-      expect(
-        screen.getByText(/S&P 500/i) || screen.getByText(/SP500/i)
-      ).toBeTruthy();
+      // Market indices should be shown (handle multiple instances)
+      const spElements = screen.queryAllByText(/S&P 500/i).concat(screen.queryAllByText(/SP500/i));
+      expect(spElements.length).toBeGreaterThan(0);
       expect(
         screen.getByText(/4,100/i) || screen.getByText(/4100/i)
       ).toBeTruthy();

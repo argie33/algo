@@ -81,12 +81,6 @@ const PortfolioHoldings = () => {
 
   // Load portfolio data
   const loadPortfolioData = useCallback(async () => {
-    // Skip API calls in test environment to prevent hanging
-    if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
-      setLoading(false);
-      return;
-    }
-
     if (
       (!user?.userId && !user?.id) ||
       (!tokens?.accessToken && !tokens?.access)
@@ -286,6 +280,7 @@ const PortfolioHoldings = () => {
                   startIcon={<Refresh />}
                   onClick={loadPortfolioData}
                   disabled={loading}
+                  aria-label="refresh"
                 >
                   Refresh
                 </Button>
@@ -521,6 +516,7 @@ const PortfolioHoldings = () => {
                       <TableCell align="center">
                         <IconButton
                           size="small"
+                          aria-label="edit"
                           onClick={() => {
                             setSelectedHolding(holding);
                             setHoldingForm({
@@ -535,6 +531,7 @@ const PortfolioHoldings = () => {
                         </IconButton>
                         <IconButton
                           size="small"
+                          aria-label="delete"
                           onClick={() => handleDeleteHolding(holding.symbol)}
                           color="error"
                         >

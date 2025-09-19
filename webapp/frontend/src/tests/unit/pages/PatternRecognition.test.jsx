@@ -20,10 +20,13 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: ({ children }) => children,
 }));
 
-// Mock the API service
+// Mock API service with standardized pattern
 vi.mock("../../../services/api.js", () => ({
-  detectPatterns: vi.fn(() =>
-    Promise.resolve({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    // Pattern recognition methods
+    detectPatterns: vi.fn().mockResolvedValue({
       success: true,
       data: {
         patterns: [
@@ -39,79 +42,29 @@ vi.mock("../../../services/api.js", () => ({
             status: "active",
             description: "Bearish head and shoulders pattern forming",
           },
-          {
-            id: "pattern-2",
-            symbol: "MSFT",
-            patternType: "ascending_triangle",
-            confidence: 0.72,
-            timeframe: "4H",
-            detectedAt: "2024-01-15T09:15:00Z",
-            priceTarget: 295.0,
-            stopLoss: 270.0,
-            status: "completed",
-            description: "Bullish ascending triangle breakout",
-          },
         ],
         summary: {
-          totalPatterns: 2,
+          totalPatterns: 1,
           activePatterns: 1,
-          completedPatterns: 1,
-          averageConfidence: 0.785,
+          completedPatterns: 0,
+          averageConfidence: 0.85,
         },
       },
-    })
-  ),
-  getPatternHistory: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: [
-        {
-          id: "pattern-old-1",
-          symbol: "TSLA",
-          patternType: "double_bottom",
-          confidence: 0.91,
-          detectedAt: "2024-01-10T14:20:00Z",
-          outcome: "successful",
-          profitLoss: 12.5,
-        },
-      ],
-    })
-  ),
-  getAvailablePatterns: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: [
-        {
-          type: "head_and_shoulders",
-          name: "Head and Shoulders",
-          category: "reversal",
-          reliability: "high",
-        },
-        {
-          type: "ascending_triangle",
-          name: "Ascending Triangle",
-          category: "continuation",
-          reliability: "medium",
-        },
-        {
-          type: "double_bottom",
-          name: "Double Bottom",
-          category: "reversal",
-          reliability: "high",
-        },
-      ],
-    })
-  ),
-  subscribeToPatternAlerts: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: { message: "Subscribed to pattern alerts" },
-    })
-  ),
-  api: {
-    get: vi.fn(() => Promise.resolve({ data: { success: true } })),
-    post: vi.fn(() => Promise.resolve({ data: { success: true } })),
+    }),
+    getPatternHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getAvailablePatterns: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    subscribeToPatternAlerts: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
   },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+  // Export individual functions for backward compatibility
+  detectPatterns: vi.fn().mockResolvedValue({ success: true, data: { patterns: [] } }),
+  getPatternHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getAvailablePatterns: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  subscribeToPatternAlerts: vi.fn().mockResolvedValue({ success: true, data: {} }),
 }));
 
 // Mock chart components

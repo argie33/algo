@@ -2,7 +2,7 @@
 
 const axios = require('axios');
 
-const FRONTEND_URL = 'http://localhost:3002';
+const FRONTEND_URL = 'http://localhost:5174';
 const API_URL = 'http://localhost:3001/api';
 
 // Test if frontend can make API calls through the proxy

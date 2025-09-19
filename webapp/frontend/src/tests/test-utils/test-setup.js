@@ -6,7 +6,7 @@ import { vi } from "vitest";
 import { render } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createApiMock, resetApiMocks } from "./api-mocks.js";
+import { createApiMock, createDataCacheMock, resetApiMocks } from "./api-mocks.js";
 
 // Global setup for all tests
 export const setupTestEnvironment = () => {
@@ -27,6 +27,9 @@ export const setupTestEnvironment = () => {
 
   // Mock the API service
   vi.mock("../../services/api.js", async () => createApiMock());
+
+  // Mock the dataCache service
+  vi.mock("../../services/dataCache.js", async () => createDataCacheMock());
 
   // Mock the logger service
   vi.mock("../../utils/apiService.jsx", () => ({
@@ -71,10 +74,36 @@ export const TestWrapper = ({ children }) => {
   );
 };
 
+// Test wrapper WITHOUT router for tests that provide their own
+export const TestWrapperNoRouter = ({ children }) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        cacheTime: 0,
+      },
+    },
+  });
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+};
+
 // Enhanced render function with all providers
 export const renderWithProviders = (ui, options = {}) => {
   return render(ui, {
     wrapper: TestWrapper,
+    ...options,
+  });
+};
+
+// Render function with providers but no router
+export const renderWithProvidersNoRouter = (ui, options = {}) => {
+  return render(ui, {
+    wrapper: TestWrapperNoRouter,
     ...options,
   });
 };

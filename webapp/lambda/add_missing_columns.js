@@ -31,11 +31,10 @@ if (require.main === module) {
   addMissingColumns()
     .then(() => {
       console.log('✅ Database columns updated successfully');
-      process.exit(0);
     })
     .catch((error) => {
       console.error('❌ Failed to update database columns:', error);
-      process.exit(1);
+      throw error;
     });
 }
 

@@ -74,5 +74,25 @@ module.exports = {
         // Test-specific rule adjustments
       },
     },
+    {
+      files: [
+        "debug_*.js",
+        "test_*.js",
+        "fix_*.js",
+        "*_test.js",
+        "run_*.js",
+        "scripts/**/*.js",
+        "tests/**/*.js",
+        "setup_*.js",
+        "apply_*.js",
+        "add_*.js"
+      ],
+      rules: {
+        "node/no-unpublished-import": "off",
+        "node/no-unpublished-require": "off",
+        "no-process-exit": "off", // Allow process.exit in debug/test scripts
+        "no-useless-catch": "off", // Allow catch blocks in test scripts
+      },
+    },
   ],
 };

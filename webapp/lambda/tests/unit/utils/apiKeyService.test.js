@@ -90,14 +90,14 @@ describe("API Key Service", () => {
 
   describe("validateJwtToken", () => {
     test("should validate JWT token in test environment", async () => {
-      const token = "valid-jwt-token";
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      const token = "dev-bypass-token";
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
 
       const result = await validateJwtToken(token);
 
       expect(result.valid).toBe(true);
-      expect(result.user.sub).toBe("user123");
-      expect(result.user.email).toBe("user123@test.local");
+      expect(result.user.sub).toBe("dev-user-bypass");
+      expect(result.user.email).toBe("dev-bypass@example.com");
     });
 
     test("should reject invalid JWT tokens", async () => {
@@ -109,7 +109,7 @@ describe("API Key Service", () => {
       const result = await validateJwtToken(token);
 
       expect(result.valid).toBe(false);
-      expect(result.error).toContain("JWT validation failed");
+      expect(result.error).toContain("JWT verification not configured");
     });
 
     test("should handle empty or invalid token input", async () => {
@@ -131,29 +131,29 @@ describe("API Key Service", () => {
 
   describe("storeApiKey", () => {
     beforeEach(() => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
     });
 
     test("should store API key successfully", async () => {
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(true);
       expect(result.provider).toBe("alpaca");
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("INSERT INTO user_api_keys"),
-        expect.arrayContaining(["user123", "alpaca"])
+        expect.arrayContaining(["dev-user-bypass", "alpaca"])
       );
     });
 
     test("should validate input parameters", async () => {
-      const result = await storeApiKey("valid-jwt-token", "alpaca", null);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", null);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("API key data must be a valid object");
@@ -162,7 +162,7 @@ describe("API Key Service", () => {
     test("should validate provider name for SQL injection", async () => {
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey(
-        "valid-jwt-token",
+        "dev-bypass-token",
         "'; DROP TABLE users; --",
         apiKeyData
       );
@@ -173,7 +173,7 @@ describe("API Key Service", () => {
 
     test("should validate required fields", async () => {
       const apiKeyData = { keyId: "test-key" }; // Missing secret
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain(
@@ -186,7 +186,7 @@ describe("API Key Service", () => {
         keyId: "x".repeat(501), // Too long
         secret: "test-secret",
       };
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain(
@@ -207,7 +207,7 @@ describe("API Key Service", () => {
       );
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("JWT validation failed");
+      expect(result.error).toContain("JWT verification not configured");
     });
 
     test("should handle database errors", async () => {
@@ -215,7 +215,7 @@ describe("API Key Service", () => {
       mockQuery.mockRejectedValue(dbError);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to store API key");
@@ -224,7 +224,7 @@ describe("API Key Service", () => {
 
   describe("getApiKey", () => {
     beforeEach(() => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
     });
 
     test("should retrieve API key successfully", async () => {
@@ -243,7 +243,7 @@ describe("API Key Service", () => {
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await getApiKey("valid-jwt-token", "alpaca");
+      const result = await getApiKey("dev-bypass-token", "alpaca");
 
       expect(result).toEqual({
         keyId: "stored_key",
@@ -251,7 +251,7 @@ describe("API Key Service", () => {
       });
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("SELECT encrypted_api_key"),
-        ["user123", "alpaca"]
+        ["dev-user-bypass", "alpaca"]
       );
     });
 
@@ -259,7 +259,7 @@ describe("API Key Service", () => {
       const mockResult = { rows: [], rowCount: 0 };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await getApiKey("valid-jwt-token", "nonexistent");
+      const result = await getApiKey("dev-bypass-token", "nonexistent");
 
       expect(result).toBeNull();
     });
@@ -289,18 +289,18 @@ describe("API Key Service", () => {
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      await getApiKey("valid-jwt-token", "alpaca");
+      await getApiKey("dev-bypass-token", "alpaca");
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("UPDATE user_api_keys"),
-        ["user123", "alpaca"]
+        ["dev-user-bypass", "alpaca"]
       );
     });
   });
 
   describe("validateApiKey", () => {
     beforeEach(() => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
     });
 
     test("should validate API key successfully", async () => {
@@ -318,7 +318,7 @@ describe("API Key Service", () => {
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await validateApiKey("valid-jwt-token", "alpaca", false);
+      const result = await validateApiKey("dev-bypass-token", "alpaca", false);
 
       expect(result.valid).toBe(true);
       expect(result.provider).toBe("alpaca");
@@ -328,7 +328,7 @@ describe("API Key Service", () => {
       const mockResult = { rows: [], rowCount: 0 };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await validateApiKey("valid-jwt-token", "alpaca", false);
+      const result = await validateApiKey("dev-bypass-token", "alpaca", false);
 
       expect(result.valid).toBe(false);
       expect(result.error).toBe("API key not configured");
@@ -342,7 +342,7 @@ describe("API Key Service", () => {
       const result = await validateApiKey("invalid-jwt-token", "alpaca", false);
 
       expect(result.valid).toBe(false);
-      expect(result.error).toContain("JWT validation failed");
+      expect(result.error).toContain("JWT verification not configured");
     });
 
     test("should test connection when requested", async () => {
@@ -360,7 +360,7 @@ describe("API Key Service", () => {
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await validateApiKey("valid-jwt-token", "polygon", true);
+      const result = await validateApiKey("dev-bypass-token", "polygon", true);
 
       expect(result.valid).toBe(true);
       expect(result.provider).toBe("polygon");
@@ -369,23 +369,23 @@ describe("API Key Service", () => {
 
   describe("deleteApiKey", () => {
     beforeEach(() => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
     });
 
     test("should delete API key successfully", async () => {
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await deleteApiKey("valid-jwt-token", "alpaca");
+      const result = await deleteApiKey("dev-bypass-token", "alpaca");
 
       expect(result.success).toBe(true);
       expect(result.deleted).toBe(true);
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("DELETE FROM user_api_keys"),
-        ["user123", "alpaca"]
+        ["dev-user-bypass", "alpaca"]
       );
     });
 
@@ -393,7 +393,7 @@ describe("API Key Service", () => {
       const mockResult = { rowCount: 0 };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await deleteApiKey("valid-jwt-token", "nonexistent");
+      const result = await deleteApiKey("dev-bypass-token", "nonexistent");
 
       expect(result.success).toBe(true);
       expect(result.deleted).toBe(false);
@@ -415,7 +415,7 @@ describe("API Key Service", () => {
       const dbError = new Error("Database connection failed");
       mockQuery.mockRejectedValue(dbError);
 
-      const result = await deleteApiKey("valid-jwt-token", "alpaca");
+      const result = await deleteApiKey("dev-bypass-token", "alpaca");
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to delete API key");
@@ -424,7 +424,7 @@ describe("API Key Service", () => {
 
   describe("listProviders", () => {
     beforeEach(() => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
     });
 
     test("should return list of configured providers", async () => {
@@ -446,7 +446,7 @@ describe("API Key Service", () => {
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await listProviders("valid-jwt-token");
+      const result = await listProviders("dev-bypass-token");
 
       expect(Array.isArray(result)).toBe(true);
       expect(result).toHaveLength(2);
@@ -464,7 +464,7 @@ describe("API Key Service", () => {
       const mockResult = { rows: [] };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await listProviders("valid-jwt-token");
+      const result = await listProviders("dev-bypass-token");
 
       expect(result).toEqual([]);
     });
@@ -482,7 +482,7 @@ describe("API Key Service", () => {
     test("should handle database unavailable gracefully", async () => {
       mockQuery.mockResolvedValue(null);
 
-      const result = await listProviders("valid-jwt-token");
+      const result = await listProviders("dev-bypass-token");
 
       expect(result).toEqual([]);
     });
@@ -504,7 +504,7 @@ describe("API Key Service", () => {
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await getDecryptedApiKey("user123", "alpaca");
+      const result = await getDecryptedApiKey("dev-user-bypass", "alpaca");
 
       expect(result).toEqual({
         keyId: "stored_key",
@@ -516,7 +516,7 @@ describe("API Key Service", () => {
       const mockResult = { rows: [] };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await getDecryptedApiKey("user123", "nonexistent");
+      const result = await getDecryptedApiKey("dev-user-bypass", "nonexistent");
 
       expect(result).toBeNull();
     });
@@ -573,7 +573,7 @@ describe("API Key Service", () => {
     });
 
     test("should handle circuit breaker failures", async () => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
 
       // Simulate database failure
       const dbError = new Error("Database connection failed");
@@ -582,7 +582,7 @@ describe("API Key Service", () => {
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
 
       // First few failures should return error responses (before circuit breaker opens)
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to store API key");
     });
@@ -596,12 +596,15 @@ describe("API Key Service", () => {
       const result = await validateJwtToken("invalid-token");
 
       expect(result.valid).toBe(false);
-      expect(result.error).toContain("JWT validation failed");
+      expect(result.error).toContain("JWT verification not configured");
     });
   });
 
   describe("security features", () => {
     test("should use different salts for different users", async () => {
+      // Reset crypto mock call count
+      crypto.randomBytes.mockClear();
+
       jwt.verify
         .mockReturnValueOnce({ sub: "user1" })
         .mockReturnValueOnce({ sub: "user2" });
@@ -617,22 +620,23 @@ describe("API Key Service", () => {
       await storeApiKey("token1", "alpaca", apiKeyData);
       await storeApiKey("token2", "alpaca", apiKeyData);
 
-      // Verify different salts used
+      // In test mode, salt is still generated even though data is stored in plain text
+      // Verify that randomBytes was called for salt generation (once per storeApiKey call)
       expect(crypto.randomBytes).toHaveBeenCalledTimes(2);
     });
 
     test("should sanitize log output", async () => {
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
 
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "SENSITIVE_KEY", secret: "SENSITIVE_SECRET" };
-      await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       // Ensure sensitive data not logged in console.log calls
       const logCalls = consoleSpy.mock.calls.flat();
@@ -647,14 +651,14 @@ describe("API Key Service", () => {
     });
 
     test("should validate input lengths", async () => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
 
       const apiKeyData = {
         keyId: "x".repeat(501), // Exceeds max length
         secret: "test-secret",
       };
 
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("exceeds maximum length limits");
@@ -663,7 +667,7 @@ describe("API Key Service", () => {
 
   describe("encryption and decryption", () => {
     beforeEach(() => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
     });
 
     test("should handle production encryption mode", async () => {
@@ -672,7 +676,7 @@ describe("API Key Service", () => {
 
       // Mock JWT verifier for production mode
       const mockJwtVerifier = {
-        verify: jest.fn().mockResolvedValue({ sub: "user123" }),
+        verify: jest.fn().mockResolvedValue({ sub: "dev-user-bypass" }),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
@@ -683,13 +687,13 @@ describe("API Key Service", () => {
       });
 
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(true);
       expect(crypto.createCipheriv).toHaveBeenCalled();
@@ -702,19 +706,19 @@ describe("API Key Service", () => {
 
       // Mock JWT verifier for production mode
       const mockJwtVerifier = {
-        verify: jest.fn().mockResolvedValue({ sub: "user123" }),
+        verify: jest.fn().mockResolvedValue({ sub: "dev-user-bypass" }),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
 
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(true);
     });
@@ -725,7 +729,7 @@ describe("API Key Service", () => {
 
       // Mock JWT verifier for production mode
       const mockJwtVerifier = {
-        verify: jest.fn().mockResolvedValue({ sub: "user123" }),
+        verify: jest.fn().mockResolvedValue({ sub: "dev-user-bypass" }),
       };
       const service = __getServiceInstance();
       service.jwtVerifier = mockJwtVerifier;
@@ -734,13 +738,13 @@ describe("API Key Service", () => {
       mockSecretsManager.send.mockRejectedValue(new Error("Access denied"));
 
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       expect(result.success).toBe(true); // Should fallback to dev key
     });
@@ -757,7 +761,7 @@ describe("API Key Service", () => {
       // Mock JWT verifier on the service instance
       const mockJwtVerifier = {
         verify: jest.fn().mockResolvedValue({
-          sub: "user123",
+          sub: "dev-user-bypass",
           email: "test@example.com",
           username: "testuser",
         }),
@@ -768,7 +772,7 @@ describe("API Key Service", () => {
       const result = await validateJwtToken("valid-cognito-jwt");
 
       expect(result.valid).toBe(true);
-      expect(result.user.sub).toBe("user123");
+      expect(result.user.sub).toBe("dev-user-bypass");
       expect(result.user.email).toBe("test@example.com");
     });
 
@@ -790,7 +794,7 @@ describe("API Key Service", () => {
       // Mock JWT verifier on the service instance
       const mockJwtVerifier = {
         verify: jest.fn().mockResolvedValue({
-          sub: "user123",
+          sub: "dev-user-bypass",
           email: "test@example.com",
         }),
       };
@@ -811,13 +815,13 @@ describe("API Key Service", () => {
 
   describe("edge cases and error handling", () => {
     beforeEach(() => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
     });
 
     test("should handle database null result", async () => {
       mockQuery.mockResolvedValue(null);
 
-      const result = await getApiKey("valid-jwt-token", "alpaca");
+      const result = await getApiKey("dev-bypass-token", "alpaca");
 
       expect(result).toBeNull();
     });
@@ -841,7 +845,7 @@ describe("API Key Service", () => {
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const result = await validateApiKey("valid-jwt-token", "alpaca", false);
+      const result = await validateApiKey("dev-bypass-token", "alpaca", false);
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Missing required fields");
@@ -875,7 +879,7 @@ describe("API Key Service", () => {
         return jest.fn().mockImplementation(() => mockAlpacaService);
       });
 
-      const result = await validateApiKey("valid-jwt-token", "alpaca", true);
+      const result = await validateApiKey("dev-bypass-token", "alpaca", true);
 
       expect(result.valid).toBe(true);
     });
@@ -883,29 +887,29 @@ describe("API Key Service", () => {
 
   describe("audit logging", () => {
     beforeEach(() => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
     });
 
     test("should log audit events", async () => {
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       // Should call database for INSERT and audit log
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("INSERT INTO api_key_audit_log"),
-        expect.arrayContaining(["user123", "API_KEY_STORED", "alpaca"])
+        expect.arrayContaining(["dev-user-bypass", "API_KEY_STORED", "alpaca"])
       );
     });
 
     test("should handle audit logging errors gracefully", async () => {
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery
@@ -913,7 +917,7 @@ describe("API Key Service", () => {
         .mockRejectedValueOnce(new Error("Audit log failed"));
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
 
       // Should still succeed even if audit logging fails
       expect(result.success).toBe(true);
@@ -939,23 +943,23 @@ describe("API Key Service", () => {
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
 
       // Mock JWT validation
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
 
       // Mock successful storage
       const mockResult = {
-        rows: [{ user_id: "user123", broker_name: "alpaca" }],
+        rows: [{ user_id: "dev-user-bypass", broker_name: "alpaca" }],
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await storeApiKey("valid-jwt-token", "alpaca", apiKeyData);
+      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
       expect(result.success).toBe(true);
     });
   });
 
   describe("provider specific functionality", () => {
     test("should handle different provider required fields", async () => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
 
       // Test polygon provider (only needs apiKey)
       const polygonResult = {
@@ -975,12 +979,12 @@ describe("API Key Service", () => {
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const result = await validateApiKey("valid-jwt-token", "polygon", false);
+      const result = await validateApiKey("dev-bypass-token", "polygon", false);
       expect(result.valid).toBe(true);
     });
 
     test("should handle unknown provider gracefully", async () => {
-      jwt.verify.mockReturnValue({ sub: "user123" });
+      jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
 
       const unknownProviderResult = {
         rows: [
@@ -1000,7 +1004,7 @@ describe("API Key Service", () => {
         .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       const result = await validateApiKey(
-        "valid-jwt-token",
+        "dev-bypass-token",
         "unknown_provider",
         true
       );

@@ -28,20 +28,73 @@ vi.mock("aws-amplify", () => ({
   configure: vi.fn(),
 }));
 
-// AuthContext is provided by the real AuthProvider in test-utils.jsx
+// Mock AuthContext to provide test values
+vi.mock("../../contexts/AuthContext", () => ({
+  useAuth: vi.fn(() => ({
+    user: { id: "test-user", email: "test@example.com" },
+    isAuthenticated: false, // Start with not authenticated for auth flow tests
+    isLoading: false,
+    error: null,
+    login: vi.fn().mockResolvedValue({ success: true }),
+    register: vi.fn().mockResolvedValue({ success: true }),
+    logout: vi.fn().mockResolvedValue({ success: true }),
+    confirmSignUp: vi.fn().mockResolvedValue({ success: true }),
+    confirmForgotPassword: vi.fn().mockResolvedValue({ success: true }),
+    forgotPassword: vi.fn().mockResolvedValue({ success: true }),
+    clearError: vi.fn(),
+  })),
+  AuthProvider: vi.fn(({ children }) => children),
+}));
+
+// Mock devAuth service
+vi.mock("../../services/devAuth", () => ({
+  default: {
+    signUp: vi.fn().mockResolvedValue({
+      success: true,
+      user: { username: "testuser", email: "test@example.com" },
+      userConfirmed: false,
+      isSignUpComplete: false,
+    }),
+    signIn: vi.fn().mockResolvedValue({
+      success: true,
+      user: { username: "testuser", email: "test@example.com" },
+      isSignedIn: true,
+    }),
+    confirmSignUp: vi.fn().mockResolvedValue({ success: true }),
+    forgotPassword: vi.fn().mockResolvedValue({ success: true }),
+    forgotPasswordSubmit: vi.fn().mockResolvedValue({ success: true }),
+    getCurrentUser: vi.fn().mockResolvedValue({
+      success: true,
+      user: { username: "testuser", email: "test@example.com" },
+    }),
+    signOut: vi.fn().mockResolvedValue({ success: true }),
+  },
+}));
 
 // Import after mocking
 import { Auth } from "aws-amplify";
 import devAuth from "../../services/devAuth";
 
-// Use TestWrapper from test-utils for consistent rendering
+// Get the mocked auth functions for direct access
+const mockLogin = vi.fn().mockResolvedValue({ success: true });
+const mockRegister = vi.fn().mockResolvedValue({ success: true });
+const mockConfirmSignUp = vi.fn().mockResolvedValue({ success: true });
+const mockConfirmForgotPassword = vi.fn().mockResolvedValue({ success: true });
+const mockForgotPassword = vi.fn().mockResolvedValue({ success: true });
 
+// Create mock auth context
 const mockAuthContext = {
   user: { id: "test-user", email: "test@example.com" },
-  isAuthenticated: true,
-  login: vi.fn(),
-  logout: vi.fn(),
-  loading: false,
+  isAuthenticated: false,
+  isLoading: false,
+  error: null,
+  login: mockLogin,
+  register: mockRegister,
+  logout: vi.fn().mockResolvedValue({ success: true }),
+  confirmSignUp: mockConfirmSignUp,
+  confirmForgotPassword: mockConfirmForgotPassword,
+  forgotPassword: mockForgotPassword,
+  clearError: vi.fn(),
 };
 
 describe("Authentication Flow Components", () => {

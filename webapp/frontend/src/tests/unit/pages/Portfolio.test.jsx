@@ -54,10 +54,10 @@ describe("Portfolio", () => {
       // Should render without crashing
       expect(document.body).toBeInTheDocument();
 
-      // Wait for the main portfolio content to appear instead of waiting for loading to finish
+      // Wait for the main portfolio heading specifically
       await waitFor(
         () => {
-          expect(screen.getByText(/Portfolio/i)).toBeInTheDocument();
+          expect(screen.getByRole("heading", { name: /Portfolio Analytics/i })).toBeInTheDocument();
         },
         { timeout: 3000 }
       );

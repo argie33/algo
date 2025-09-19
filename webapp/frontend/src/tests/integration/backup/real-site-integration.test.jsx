@@ -6,7 +6,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { BrowserRouter } from "react-router-dom";
 import { TestWrapper } from "../test-utils.jsx";
 
 // Import real site components
@@ -85,9 +84,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <Dashboard />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -118,9 +115,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <MarketOverview />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -143,9 +138,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <StockExplorer />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -182,9 +175,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <TechnicalAnalysis />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -223,9 +214,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <PortfolioHoldings />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -259,9 +248,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <Watchlist />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -276,9 +263,7 @@ describe("Real Site Integration Tests", () => {
     it("should render Settings with configuration options", async () => {
       render(
         <TestWrapper>
-          <BrowserRouter>
             <Settings />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -301,9 +286,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <ServiceHealth />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -386,7 +369,6 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <div>
               <nav>
                 <a href="/dashboard">Dashboard</a>
@@ -395,7 +377,6 @@ describe("Real Site Integration Tests", () => {
               </nav>
               <Dashboard />
             </div>
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -422,9 +403,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <Dashboard />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -453,9 +432,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <Dashboard />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -485,9 +462,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <Dashboard />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -555,9 +530,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <Settings />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -588,9 +561,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <StockExplorer />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -622,9 +593,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <PortfolioHoldings />
-          </BrowserRouter>
         </TestWrapper>
       );
 
@@ -648,9 +617,7 @@ describe("Real Site Integration Tests", () => {
 
       render(
         <TestWrapper>
-          <BrowserRouter>
             <Dashboard />
-          </BrowserRouter>
         </TestWrapper>
       );
 

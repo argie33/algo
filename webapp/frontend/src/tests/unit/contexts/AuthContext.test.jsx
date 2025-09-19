@@ -49,6 +49,7 @@ vi.mock("../../../services/sessionManager", () => ({
     getTimeUntilExpiry: vi.fn(() => 3600000),
     on: vi.fn(),
     off: vi.fn(),
+    clearAllTimers: vi.fn(),
   },
 }));
 

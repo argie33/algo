@@ -2,6 +2,26 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import ResetPasswordForm from "../../../../components/auth/ResetPasswordForm";
 
+// Mock API service with standardized pattern
+vi.mock("../../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    login: vi.fn().mockResolvedValue({ success: true, data: { token: "mock-token" } }),
+    register: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    logout: vi.fn().mockResolvedValue({ success: true }),
+    resetPassword: vi.fn().mockResolvedValue({ success: true }),
+    verifyMFA: vi.fn().mockResolvedValue({ success: true }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
 // Mock AuthContext
 const mockConfirmForgotPassword = vi.fn();
 const mockClearError = vi.fn();

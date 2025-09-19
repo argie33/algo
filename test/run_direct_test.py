@@ -75,7 +75,7 @@ def wait_for_database():
         try:
             # Use the mock credentials that match our docker-compose setup
             conn = psycopg2.connect(
-                host="postgres",
+                host="localhost",
                 port="5432",
                 user="testuser",
                 password="testpass",

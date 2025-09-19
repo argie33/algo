@@ -8,20 +8,20 @@ vi.mock("../../../hooks/useDocumentTitle", () => ({
   useDocumentTitle: vi.fn(),
 }));
 
-// Mock API service with standardized pattern
-vi.mock("../../../services/api.js", () => ({
-  default: {
-    get: vi.fn().mockResolvedValue({ data: {} }),
-    post: vi.fn().mockResolvedValue({ data: {} }),
-    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
-  },
-  getApiConfig: vi.fn(() => ({
-    apiUrl: "http://localhost:3001",
-    environment: "test",
-  })),
-}));
+// Mock API service with comprehensive mock
+vi.mock("../../../services/api.js", async () => {
+  const mockApi = await import("../../mocks/apiMock.js");
+  return {
+    default: mockApi.default,
+    getApiConfig: mockApi.getApiConfig,
+    getPortfolioData: mockApi.getPortfolioData,
+    getApiKeys: mockApi.getApiKeys,
+    testApiConnection: mockApi.testApiConnection,
+    importPortfolioFromBroker: mockApi.importPortfolioFromBroker,
+    healthCheck: mockApi.healthCheck,
+    getMarketOverview: mockApi.getMarketOverview,
+  };
+});
 
 import TradingSignals from "../../../pages/TradingSignals";
 

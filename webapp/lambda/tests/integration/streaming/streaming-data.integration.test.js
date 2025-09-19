@@ -43,10 +43,10 @@ describe("Streaming Data Integration", () => {
         }
       } else if (response.status === 404) {
         // Live data endpoint might not be implemented yet
-        const hasCustomFormat = response.body.hasOwnProperty("success");
+        const hasCustomFormat = Object.prototype.hasOwnProperty.call(response.body, "success");
         const hasExpressFormat =
-          response.body.hasOwnProperty("error") ||
-          response.body.hasOwnProperty("message");
+          Object.prototype.hasOwnProperty.call(response.body, "error") ||
+          Object.prototype.hasOwnProperty.call(response.body, "message");
         expect(hasCustomFormat || hasExpressFormat).toBe(true);
       }
     });
@@ -298,10 +298,10 @@ describe("Streaming Data Integration", () => {
 
         if (response.status >= 400) {
           // Error responses can be either custom API format or Express default
-          const hasCustomFormat = response.body.hasOwnProperty("success");
+          const hasCustomFormat = Object.prototype.hasOwnProperty.call(response.body, "success");
           const hasExpressFormat =
-            response.body.hasOwnProperty("error") ||
-            response.body.hasOwnProperty("message");
+            Object.prototype.hasOwnProperty.call(response.body, "error") ||
+            Object.prototype.hasOwnProperty.call(response.body, "message");
           expect(hasCustomFormat || hasExpressFormat).toBe(true);
         }
       }
@@ -329,10 +329,10 @@ describe("Streaming Data Integration", () => {
 
         if (response.status >= 400) {
           // Error responses can be either custom API format or Express default
-          const hasCustomFormat = response.body.hasOwnProperty("success");
+          const hasCustomFormat = Object.prototype.hasOwnProperty.call(response.body, "success");
           const hasExpressFormat =
-            response.body.hasOwnProperty("error") ||
-            response.body.hasOwnProperty("message");
+            Object.prototype.hasOwnProperty.call(response.body, "error") ||
+            Object.prototype.hasOwnProperty.call(response.body, "message");
           expect(hasCustomFormat || hasExpressFormat).toBe(true);
 
           // Error should not expose internal service details

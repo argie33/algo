@@ -36,7 +36,7 @@ const testTheme = createTheme({
 });
 
 // Test wrapper that includes all necessary providers for REAL site testing
-export const TestWrapper = ({ children }) => {
+export const TestWrapper = ({ children, initialUser = null }) => {
   const testQueryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -61,7 +61,7 @@ export const TestWrapper = ({ children }) => {
     >
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
-          <TestAuthProvider>{children}</TestAuthProvider>
+          <TestAuthProvider initialUser={initialUser}>{children}</TestAuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </MemoryRouter>
@@ -131,17 +131,8 @@ export const createMockUser = () => ({
   lastLogin: "2025-01-15T10:00:00Z",
 });
 
-// Render function with all providers for REAL testing
-export const renderWithProviders = (ui, options = {}) => {
-  // Use synchronous render for test stability
-  return render(ui, {
-    wrapper: TestWrapper,
-    ...options,
-  });
-};
-
-// Render function with authentication for testing authenticated pages - REAL AUTH
-export const renderWithAuth = (ui, options = {}) => {
+// Test wrapper WITHOUT router for tests that provide their own
+export const TestWrapperNoRouter = ({ children, initialUser = null }) => {
   const testQueryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -151,30 +142,47 @@ export const renderWithAuth = (ui, options = {}) => {
     },
   });
 
+  if (!children) {
+    console.warn("TestWrapperNoRouter received null/undefined children");
+    return null;
+  }
+
+  return (
+    <ThemeProvider theme={testTheme}>
+      <QueryClientProvider client={testQueryClient}>
+        <TestAuthProvider initialUser={initialUser}>{children}</TestAuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
+  );
+};
+
+// Render function with all providers for REAL testing
+export const renderWithProviders = (ui, options = {}) => {
+  // Use synchronous render for test stability
+  return render(ui, {
+    wrapper: TestWrapper,
+    ...options,
+  });
+};
+
+// Render function with providers but NO router
+export const renderWithProvidersNoRouter = (ui, options = {}) => {
+  return render(ui, {
+    wrapper: TestWrapperNoRouter,
+    ...options,
+  });
+};
+
+// Render function with authentication for testing authenticated pages - REAL AUTH
+export const renderWithAuth = (ui, options = {}) => {
   const mockUser = options.user || {
     id: "test-user",
     email: "test@example.com",
     name: "Test User",
   };
 
-  const AuthenticatedWrapper = ({ children }) => (
-    <MemoryRouter
-      initialEntries={["/"]}
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      <ThemeProvider theme={testTheme}>
-        <QueryClientProvider client={testQueryClient}>
-          <TestAuthProvider initialUser={mockUser}>{children}</TestAuthProvider>
-        </QueryClientProvider>
-      </ThemeProvider>
-    </MemoryRouter>
-  );
-
   return render(ui, {
-    wrapper: AuthenticatedWrapper,
+    wrapper: ({ children }) => <TestWrapper initialUser={mockUser}>{children}</TestWrapper>,
     ...options,
   });
 };

@@ -1,10 +1,18 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
-import { BrowserRouter } from "react-router-dom";
 import Dashboard from "../../pages/Dashboard";
 import { TestWrapper } from "../test-utils";
 import { AuthProvider } from "../../contexts/AuthContext";
+
+// Create a wrapper that includes AuthProvider
+const DashboardTestWrapper = ({ children }) => (
+  <AuthProvider>
+    <TestWrapper>
+      {children}
+    </TestWrapper>
+  </AuthProvider>
+);
 
 // Mock the API service with comprehensive mock
 vi.mock("../../services/api", async (_importOriginal) => {
@@ -40,7 +48,7 @@ vi.mock("recharts", () => ({
 import api from "../../services/api";
 
 const renderWithProviders = (component) => {
-  return render(component, { wrapper: TestWrapper });
+  return render(component, { wrapper: DashboardTestWrapper });
 };
 
 const mockAuthContext = {
@@ -180,7 +188,7 @@ describe("Dashboard Integration Tests", () => {
 
       // Check branded feature chips (there are multiple Real-Time elements)
       expect(screen.getAllByText("Real-Time")).toHaveLength(2);
-      expect(screen.getByText("AI-Powered")).toBeInTheDocument();
+      expect(screen.getAllByText("AI-Powered").length).toBeGreaterThan(0);
       expect(screen.getByText("Institutional")).toBeInTheDocument();
     });
 
@@ -463,11 +471,11 @@ describe("Dashboard Integration Tests", () => {
       });
 
       rerender(
-        <BrowserRouter>
+        <TestWrapper>
           <AuthProvider value={mockAuthContext}>
             <Dashboard />
           </AuthProvider>
-        </BrowserRouter>
+        </TestWrapper>
       );
 
       await waitFor(() => {

@@ -173,11 +173,14 @@ class DevAuthService {
     }
 
     // Show verification code in browser alert for easy access in development
+    // Skip alert in test environment to prevent JSDOM errors
     if (
       typeof window !== "undefined" &&
       window.location &&
       (window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1")
+        window.location.hostname === "127.0.0.1") &&
+      typeof window.alert === "function" &&
+      process.env.NODE_ENV !== "test"
     ) {
       setTimeout(() => {
         alert(
@@ -385,11 +388,14 @@ class DevAuthService {
     }
 
     // Show reset code in browser alert for easy access in development
+    // Skip alert in test environment to prevent JSDOM errors
     if (
       typeof window !== "undefined" &&
       window.location &&
       (window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1")
+        window.location.hostname === "127.0.0.1") &&
+      typeof window.alert === "function" &&
+      process.env.NODE_ENV !== "test"
     ) {
       setTimeout(() => {
         alert(

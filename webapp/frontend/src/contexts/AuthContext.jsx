@@ -369,7 +369,7 @@ export function AuthProvider({ children }) {
 
     // Cleanup function for component unmount
     return () => {
-      sessionManager.off();
+      sessionManager.clearAllTimers();
     };
   }, [
     state.isAuthenticated,

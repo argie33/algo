@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  render,
   screen,
   fireEvent,
   waitFor,
@@ -8,6 +7,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { BrowserRouter } from "react-router-dom";
+import { renderWithProvidersNoRouter } from "../test-utils.jsx";
 
 // Import vitest functions
 import { vi, describe, beforeEach, expect } from "vitest";
@@ -303,7 +303,7 @@ const MockPortfolioRealTimeComponent = ({ portfolioId, onPortfolioUpdate }) => {
 };
 
 const renderWithRouter = (component) => {
-  return render(
+  return renderWithProvidersNoRouter(
     <BrowserRouter
       future={{
         v7_startTransition: true,

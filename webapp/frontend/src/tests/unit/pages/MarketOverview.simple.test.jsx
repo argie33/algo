@@ -24,34 +24,20 @@ import { renderWithProviders } from "../../test-utils.jsx";
 // Import the component under test
 import MarketOverview from "../../../pages/MarketOverview.jsx";
 
-// Mock API service
-vi.mock("../../../services/api.js", () => ({
-  default: {
-    get: vi.fn().mockResolvedValue({ data: {} }),
-    getMarketOverview: vi.fn().mockResolvedValue({
-      success: true,
-      data: {
-        indices: [
-          {
-            symbol: "SPY",
-            name: "S&P 500",
-            price: 450.25,
-            change: 5.75,
-            changePercent: 1.29,
-          },
-        ],
-        sentiment_indicators: {
-          fear_greed: { value: 45, value_text: "Neutral" },
-        },
-        market_breadth: {
-          advancing: 1500,
-          declining: 1200,
-          total_stocks: 3000,
-        },
-      },
-    }),
-  },
-}));
+// Mock API service with comprehensive mock
+vi.mock("../../../services/api.js", async () => {
+  const mockApi = await import("../../mocks/apiMock.js");
+  return {
+    default: mockApi.default,
+    getApiConfig: mockApi.getApiConfig,
+    getPortfolioData: mockApi.getPortfolioData,
+    getApiKeys: mockApi.getApiKeys,
+    testApiConnection: mockApi.testApiConnection,
+    importPortfolioFromBroker: mockApi.importPortfolioFromBroker,
+    healthCheck: mockApi.healthCheck,
+    getMarketOverview: mockApi.getMarketOverview,
+  };
+});
 
 // Mock auth context
 vi.mock("../../../contexts/AuthContext", () => ({

@@ -829,17 +829,20 @@ router.get("/overview", async (req, res) => {
             AND pd1.close IS NOT NULL
         )
         SELECT
-          symbol,
-          current_price as price,
-          calculated_change as change,
-          calculated_change_percent as changePercent
-        FROM latest_prices
-        ORDER BY symbol
+          lp.symbol,
+          COALESCE(ss.security_name, lp.symbol) as name,
+          lp.current_price as price,
+          lp.calculated_change as change,
+          lp.calculated_change_percent as changePercent
+        FROM latest_prices lp
+        LEFT JOIN stock_symbols ss ON lp.symbol = ss.symbol
+        ORDER BY lp.symbol
       `;
       const indicesResult = await query(indicesQuery);
 
       indices = indicesResult.rows.map((row) => ({
         symbol: row.symbol,
+        name: row.name, // Now includes company name from stock_symbols table
         price: parseFloat(row.price) || 0,
         change: parseFloat(row.change) || 0,
         changePercent: parseFloat(row.changepercent) || 0,
@@ -5665,6 +5668,62 @@ router.get("/economic", async (req, res) => {
       success: false,
       error: "Failed to fetch economic indicators",
       message: error.message,
+    });
+  }
+});
+
+// Market Commentary APIs
+router.get("/trends", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        trends: [
+          { period: 'week', direction: 'up', strength: 'moderate', description: 'Market showing upward momentum' },
+          { period: 'month', direction: 'sideways', strength: 'weak', description: 'Consolidation phase' }
+        ]
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch market trends",
+      message: error.message
+    });
+  }
+});
+
+router.get("/analyst-opinions", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        opinions: [
+          { analyst: 'Goldman Sachs', rating: 'Buy', target: 185.0, date: '2024-01-15' },
+          { analyst: 'Morgan Stanley', rating: 'Hold', target: 175.0, date: '2024-01-14' }
+        ]
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch analyst opinions",
+      message: error.message
+    });
+  }
+});
+
+router.post("/commentary/subscribe", async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: { subscribed: true, categories: ['market', 'earnings', 'technical'] }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Failed to subscribe to commentary",
+      message: error.message
     });
   }
 });

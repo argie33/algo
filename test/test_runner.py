@@ -30,7 +30,7 @@ def wait_for_database():
             import psycopg2
 
             conn = psycopg2.connect(
-                host="postgres",
+                host="localhost",
                 port="5432",
                 user="testuser",
                 password="testpass",

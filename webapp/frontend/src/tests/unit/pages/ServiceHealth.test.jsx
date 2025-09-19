@@ -33,34 +33,20 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
-// Mock API service with proper ES module support
-vi.mock("../../../services/api", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
-    getHealthStatus: vi.fn(),
-    getSystemMetrics: vi.fn(),
-    runHealthCheck: vi.fn(),
-    getDiagnosticInfo: vi.fn(() =>
-      Promise.resolve({ data: { version: "1.0.0", build: "test" } })
-    ),
-    getCurrentBaseURL: vi.fn(() => "http://localhost:3001"),
-    healthCheck: vi.fn(() => Promise.resolve({ data: { status: "healthy" } })),
-  };
-
-  const mockGetApiConfig = vi.fn(() => ({
-    baseURL: "http://localhost:3001",
-    apiUrl: "http://localhost:3001",
-    environment: "test",
-    isDevelopment: true,
-    isProduction: false,
-    baseUrl: "/",
-  }));
-
+// Mock API service with comprehensive mock
+vi.mock("../../../services/api.js", async () => {
+  const mockApi = await import("../../mocks/apiMock.js");
   return {
-    api: mockApi,
-    getApiConfig: mockGetApiConfig,
-    default: mockApi,
+    default: mockApi.default,
+    getApiConfig: mockApi.getApiConfig,
+    getPortfolioData: mockApi.getPortfolioData,
+    getApiKeys: mockApi.getApiKeys,
+    testApiConnection: mockApi.testApiConnection,
+    importPortfolioFromBroker: mockApi.importPortfolioFromBroker,
+    healthCheck: mockApi.healthCheck,
+    getMarketOverview: mockApi.getMarketOverview,
+    getDiagnosticInfo: mockApi.getDiagnosticInfo,
+    getCurrentBaseURL: mockApi.getCurrentBaseURL,
   };
 });
 

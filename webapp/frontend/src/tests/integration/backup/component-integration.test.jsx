@@ -5,9 +5,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { renderWithProvidersNoRouter } from "../../test-utils.jsx";
 
 // Mock auth context first
 const mockAuthContext = {
@@ -107,11 +108,11 @@ const createTestRouter = (initialEntries = ["/"]) => {
   );
 };
 
-const renderWithProviders = (
+const renderWithProvidersAndTheme = (
   component,
   { user: _user = null, apiKeys: _apiKeys = {} } = {}
 ) => {
-  return render(<ThemeProvider theme={theme}>{component}</ThemeProvider>);
+  return renderWithProvidersNoRouter(<ThemeProvider theme={theme}>{component}</ThemeProvider>);
 };
 
 describe("Component Data Flow Integration", () => {
@@ -192,7 +193,7 @@ describe("Component Data Flow Integration", () => {
     it("should propagate authentication state from AuthContext to child components", async () => {
       const router = createTestRouter(["/"]);
 
-      renderWithProviders(<RouterProvider router={router} />, {
+      renderWithProvidersAndTheme(<RouterProvider router={router} />, {
         user: {
           id: "test-user",
           email: "test@example.com",
@@ -214,7 +215,7 @@ describe("Component Data Flow Integration", () => {
     it("should handle unauthenticated state consistently across components", async () => {
       const router = createTestRouter(["/portfolio"]);
 
-      renderWithProviders(<RouterProvider router={router} />, {
+      renderWithProvidersAndTheme(<RouterProvider router={router} />, {
         user: { isAuthenticated: false },
       });
 
@@ -240,7 +241,7 @@ describe("Component Data Flow Integration", () => {
 
       const router = createTestRouter(["/portfolio"]);
 
-      renderWithProviders(<RouterProvider router={router} />, { apiKeys });
+      renderWithProvidersAndTheme(<RouterProvider router={router} />, { apiKeys });
 
       // Portfolio should load with API keys configured
       await waitFor(
@@ -256,7 +257,7 @@ describe("Component Data Flow Integration", () => {
     it("should handle missing API keys gracefully in components that require them", async () => {
       const router = createTestRouter(["/portfolio"]);
 
-      renderWithProviders(
+      renderWithProvidersAndTheme(
         <RouterProvider router={router} />,
         { apiKeys: {} } // No API keys configured
       );
@@ -290,7 +291,7 @@ describe("Component Data Flow Integration", () => {
 
       const router = createTestRouter(["/portfolio"]);
 
-      renderWithProviders(<RouterProvider router={router} />, {
+      renderWithProvidersAndTheme(<RouterProvider router={router} />, {
         apiKeys: { alpaca: { configured: true, valid: true } },
       });
 
@@ -313,7 +314,7 @@ describe("Component Data Flow Integration", () => {
 
       const router = createTestRouter(["/portfolio"]);
 
-      renderWithProviders(<RouterProvider router={router} />, {
+      renderWithProvidersAndTheme(<RouterProvider router={router} />, {
         apiKeys: { alpaca: { configured: true, valid: true } },
       });
 
@@ -346,7 +347,7 @@ describe("Component Data Flow Integration", () => {
 
       const router = createTestRouter(["/market-overview"]);
 
-      renderWithProviders(<RouterProvider router={router} />);
+      renderWithProvidersAndTheme(<RouterProvider router={router} />);
 
       await waitFor(
         () => {
@@ -380,7 +381,7 @@ describe("Component Data Flow Integration", () => {
 
       const router = createTestRouter(["/market-overview"]);
 
-      renderWithProviders(<RouterProvider router={router} />);
+      renderWithProvidersAndTheme(<RouterProvider router={router} />);
 
       await waitFor(
         () => {
@@ -408,7 +409,7 @@ describe("Component Data Flow Integration", () => {
 
       const router = createTestRouter(["/settings"]);
 
-      const { rerender } = renderWithProviders(
+      const { rerender } = renderWithProvidersAndTheme(
         <RouterProvider router={router} />,
         { apiKeys: apiKeyContext.apiKeys }
       );
@@ -453,7 +454,7 @@ describe("Component Data Flow Integration", () => {
     it("should maintain data consistency when navigating between components", async () => {
       const router = createTestRouter(["/dashboard"]);
 
-      renderWithProviders(<RouterProvider router={router} />, {
+      renderWithProvidersAndTheme(<RouterProvider router={router} />, {
         apiKeys: { alpaca: { configured: true, valid: true } },
       });
 
@@ -496,7 +497,7 @@ describe("Component Data Flow Integration", () => {
 
       const router = createTestRouter(["/portfolio"]);
 
-      renderWithProviders(<RouterProvider router={router} />, {
+      renderWithProvidersAndTheme(<RouterProvider router={router} />, {
         apiKeys: { alpaca: { configured: true, valid: true } },
       });
 

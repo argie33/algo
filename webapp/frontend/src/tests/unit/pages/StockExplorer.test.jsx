@@ -3,57 +3,97 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "../../test-utils";
 import StockExplorer from "../../../pages/StockExplorer";
 
-// Mock API service
-vi.mock("../../../services/api.js", () => ({
-  default: {
-    get: vi.fn().mockResolvedValue({ data: {} }),
-    post: vi.fn().mockResolvedValue({ data: {} }),
-    getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  },
-  screenStocks: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: {
-        results: [
-          {
-            symbol: "AAPL",
-            companyName: "Apple Inc.",
-            price: {
-              current: 150.25,
-              previousClose: 147.90,
-              dayLow: 149.80,
-              dayHigh: 151.20,
-              fiftyTwoWeekLow: 140.50,
-              fiftyTwoWeekHigh: 195.40,
-            },
-            marketCap: 2500000000000,
-            peRatio: 28.5,
-            dividendYield: 0.52,
-            sector: "Technology",
-            volume: 45000000,
-            score: 8.2,
-            change: 2.35,
-            changePercent: 1.58,
+// Mock API service with comprehensive mocking - Direct function mocking approach
+vi.mock("../../../services/api.js", () => {
+  const mockStockData = {
+    success: true,
+    data: {
+      results: [
+        {
+          symbol: "AAPL",
+          companyName: "Apple Inc.",
+          price: {
+            current: 150.25,
+            previousClose: 147.90,
+            dayLow: 149.80,
+            dayHigh: 151.20,
+            fiftyTwoWeekLow: 140.50,
+            fiftyTwoWeekHigh: 195.40,
           },
-        ],
-        totalCount: 1,
-        totalPages: 1,
-        currentPage: 1,
-      },
-    })
-  ),
-  getStockPriceHistory: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      data: {
-        history: [
-          { date: "2024-01-01", price: 148.5, volume: 50000000 },
-          { date: "2024-01-02", price: 150.25, volume: 45000000 },
-        ],
-      },
-    })
-  ),
-}));
+          marketCap: 2500000000000,
+          peRatio: 28.5,
+          dividendYield: 0.52,
+          sector: "Technology",
+          volume: 45000000,
+          score: 8.2,
+          change: 2.35,
+          changePercent: 1.58,
+        },
+      ],
+      totalCount: 1,
+      totalPages: 1,
+      currentPage: 1,
+    },
+  };
+
+  const mockPriceHistoryData = {
+    success: true,
+    data: {
+      history: [
+        { date: "2024-01-01", price: 148.5, volume: 50000000 },
+        { date: "2024-01-02", price: 150.25, volume: 45000000 },
+      ],
+    },
+  };
+
+  // Create mock functions that return the data directly
+  const mockScreenStocks = vi.fn(async () => {
+    console.log("Mock screenStocks called, returning:", mockStockData);
+    return mockStockData;
+  });
+
+  const mockGetStockPriceHistory = vi.fn(async () => {
+    console.log("Mock getStockPriceHistory called, returning:", mockPriceHistoryData);
+    return mockPriceHistoryData;
+  });
+
+  return {
+    default: {
+      get: vi.fn().mockResolvedValue({ data: mockStockData }),
+      post: vi.fn().mockResolvedValue({ data: { success: true, data: {} } }),
+      getStockNews: vi.fn().mockResolvedValue({
+        data: {
+          success: true,
+          data: {
+            articles: [
+              { title: "Apple Reports Strong Q4", summary: "Apple Inc. reported...", url: "#", publishedAt: "2024-01-01" }
+            ]
+          }
+        }
+      }),
+      addToWatchlist: vi.fn().mockResolvedValue({ data: { success: true } }),
+      removeFromWatchlist: vi.fn().mockResolvedValue({ data: { success: true } }),
+      // Add missing functions that error handling tests expect
+      searchStocks: vi.fn().mockResolvedValue({ data: mockStockData }),
+      getStockDetails: vi.fn().mockResolvedValue({ data: { symbol: "AAPL", name: "Apple Inc.", price: 175.5 } }),
+      getStockPrices: vi.fn().mockResolvedValue(mockPriceHistoryData),
+    },
+    getApiConfig: vi.fn(() => ({
+      apiUrl: "http://localhost:3001",
+      environment: "test",
+    })),
+    // Export the named exports that the component imports - these are the actual functions that will be called
+    screenStocks: mockScreenStocks,
+    getStockPriceHistory: mockGetStockPriceHistory,
+    // Add named exports for functions used in error handling tests
+    searchStocks: vi.fn().mockResolvedValue({ data: mockStockData }),
+    getStockDetails: vi.fn().mockResolvedValue({ data: { symbol: "AAPL", name: "Apple Inc.", price: 175.5 } }),
+    getStockPrices: vi.fn().mockResolvedValue(mockPriceHistoryData),
+  };
+});
+
+// Remove React Query mock and let the API mock handle it
+// The issue is that useQuery is working but screenStocks isn't properly mocked
 
 // Mock recharts components
 vi.mock("recharts", () => ({
@@ -530,7 +570,7 @@ describe("StockExplorer", () => {
     it("provides comprehensive keyboard navigation", () => {
       renderWithProviders(<StockExplorer />);
 
-      const searchInput = screen.getByPlaceholderText(/search stocks/i);
+      const searchInput = screen.getByPlaceholderText(/ticker or company name/i);
       expect(searchInput).toHaveAttribute(
         "aria-label",
         "Search stocks by symbol or name"
@@ -586,7 +626,7 @@ describe("StockExplorer", () => {
 
       renderWithProviders(<StockExplorer />);
 
-      const searchInput = screen.getByPlaceholderText(/search stocks/i);
+      const searchInput = screen.getByPlaceholderText(/ticker or company name/i);
       fireEvent.change(searchInput, { target: { value: "AAPL" } });
       fireEvent.keyPress(searchInput, { key: "Enter" });
 
@@ -606,7 +646,7 @@ describe("StockExplorer", () => {
 
       renderWithProviders(<StockExplorer />);
 
-      const searchInput = screen.getByPlaceholderText(/search stocks/i);
+      const searchInput = screen.getByPlaceholderText(/ticker or company name/i);
       fireEvent.change(searchInput, { target: { value: "NONEXISTENT" } });
       fireEvent.keyPress(searchInput, { key: "Enter" });
 

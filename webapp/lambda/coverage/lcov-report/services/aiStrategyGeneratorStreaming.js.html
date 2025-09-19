@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">3.64% </span>
+                <span class="strong">3.68% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>7/192</span>
+                <span class='fraction'>7/190</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">3.93% </span>
+                <span class="strong">3.97% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>7/178</span>
+                <span class='fraction'>7/176</span>
             </div>
         
             
@@ -706,30 +706,26 @@
 <a name='L641'></a><a href='#L641'>641</a>
 <a name='L642'></a><a href='#L642'>642</a>
 <a name='L643'></a><a href='#L643'>643</a>
-<a name='L644'></a><a href='#L644'>644</a>
-<a name='L645'></a><a href='#L645'>645</a>
-<a name='L646'></a><a href='#L646'>646</a>
-<a name='L647'></a><a href='#L647'>647</a>
-<a name='L648'></a><a href='#L648'>648</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L644'></a><a href='#L644'>644</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">23x</span>
+<span class="cline-any cline-yes">23x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">23x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">23x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1023,7 +1019,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1036,7 +1031,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1051,8 +1045,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1356,7 +1348,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * AI Strategy Generator Streaming Service
  * Real-time streaming strategy generation using Claude with WebSocket support
@@ -1670,37 +1662,33 @@ class AIStrategyGeneratorStreaming extends AIStrategyGenerator {
 &nbsp;
       let mockResponse;
 <span class="cstat-no" title="statement not covered" >      if (isExplicitEmptyArray) {</span>
-<span class="cstat-no" title="statement not covered" >        try {</span>
-          // For empty arrays, create a minimal mock response to avoid base class error
-          let strategyName = <span class="cstat-no" title="statement not covered" >"EmptySymbolsStrategy";</span>
-          // Handle momentum strategy naming for empty symbols case too
-<span class="cstat-no" title="statement not covered" >          if (</span>
-            userPrompt.includes("momentum") ||
-            systemPrompt.includes("momentum") ||
-            originalPrompt.toLowerCase().includes("momentum")
-          ) {
-<span class="cstat-no" title="statement not covered" >            strategyName = "Momentum-" + strategyName;</span>
-          }
-&nbsp;
-<span class="cstat-no" title="statement not covered" >          mockResponse = {</span>
-            success: true,
-            strategy: {
-              name: strategyName,
-              description: "Strategy with no symbols",
-              code: 'import pandas as pd\n\n# No symbols provided\nprint("No symbols to analyze")',
-              language: "python",
-              symbols: [],
-              strategyType: "custom",
-              riskLevel: "low",
-              estimatedPerformance: { return: 0, volatility: 0 },
-              aiGenerated: false,
-              prompt: userPrompt,
-              generatedAt: new Date().toISOString(),
-            },
-          };
-        } catch (error) {
-<span class="cstat-no" title="statement not covered" >          throw error;</span>
+        // For empty arrays, create a minimal mock response to avoid base class error
+        let strategyName = <span class="cstat-no" title="statement not covered" >"EmptySymbolsStrategy";</span>
+        // Handle momentum strategy naming for empty symbols case too
+<span class="cstat-no" title="statement not covered" >        if (</span>
+          userPrompt.includes("momentum") ||
+          systemPrompt.includes("momentum") ||
+          originalPrompt.toLowerCase().includes("momentum")
+        ) {
+<span class="cstat-no" title="statement not covered" >          strategyName = "Momentum-" + strategyName;</span>
         }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >        mockResponse = {</span>
+          success: true,
+          strategy: {
+            name: strategyName,
+            description: "Strategy with no symbols",
+            code: 'import pandas as pd\n\n# No symbols provided\nprint("No symbols to analyze")',
+            language: "python",
+            symbols: [],
+            strategyType: "custom",
+            riskLevel: "low",
+            estimatedPerformance: { return: 0, volatility: 0 },
+            aiGenerated: false,
+            prompt: userPrompt,
+            generatedAt: new Date().toISOString(),
+          },
+        };
       } else {
         const symbolsForGeneration =
 <span class="cstat-no" title="statement not covered" >          effectiveSymbols.length === 0</span>
@@ -2011,7 +1999,7 @@ module.exports = AIStrategyGeneratorStreaming;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-18T21:03:54.701Z
+                at 2025-09-19T02:24:50.023Z
             </div>
         <script src="../prettify.js"></script>
         <script>

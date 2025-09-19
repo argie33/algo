@@ -60,7 +60,7 @@ async function addTradingModeContext(data, userId) {
 
   return {
     ...data,
-    trading_mode: tradingMode.mode,
+    trading_mode: tradingMode,
     paper_trading: tradingMode.isPaper,
     live_trading: tradingMode.isLive,
     mode_context: {

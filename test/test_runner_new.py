@@ -36,7 +36,7 @@ def wait_for_postgres():
         try:
             # When inside the Docker container, use service name
             conn = psycopg2.connect(
-                host="postgres",
+                host="localhost",
                 port="5432",
                 user="stocksuser",
                 password="stockspass",

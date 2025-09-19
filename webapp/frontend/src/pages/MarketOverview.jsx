@@ -471,7 +471,7 @@ function MarketOverview() {
 
   // Fix MUI Tabs validation error by ensuring tabs are ready before rendering
   useEffect(() => {
-    const timer = setTimeout(() => setTabsReady(true), 100);
+    const timer = setTimeout(() => setTabsReady(true), import.meta.env.MODE === 'test' ? 0 : 100);
     return () => clearTimeout(timer);
   }, []);
 
@@ -811,7 +811,7 @@ function MarketOverview() {
   );
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }} data-testid="market-overview-page">
       {/* Enhanced Header Section */}
       <Box sx={{ mb: 4 }}>
         <Grid container spacing={2} alignItems="center">

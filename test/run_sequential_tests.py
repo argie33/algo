@@ -29,7 +29,7 @@ def wait_for_database():
     for attempt in range(max_attempts):
         try:
             conn = psycopg2.connect(
-                host="postgres",
+                host="localhost",
                 port="5432",
                 user="testuser",
                 password="testpass",
@@ -126,7 +126,7 @@ def test_database_connection():
     logger.info("🔍 Testing database connection...")
     try:
         conn = psycopg2.connect(
-            host="postgres",
+            host="localhost",
             port="5432",
             user="testuser",
             password="testpass",

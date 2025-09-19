@@ -1,9 +1,9 @@
 {
   "summary": {
     "total": 78,
-    "working": 76,
+    "working": 78,
     "errors501": 0,
-    "otherErrors": 2
+    "otherErrors": 0
   },
   "working": [
     {
@@ -133,6 +133,11 @@
     },
     {
       "endpoint": "/settings",
+      "status": 200,
+      "data": null
+    },
+    {
+      "endpoint": "/trades",
       "status": 200,
       "data": null
     },
@@ -327,6 +332,11 @@
       "data": null
     },
     {
+      "endpoint": "/api/trades",
+      "status": 200,
+      "data": null
+    },
+    {
       "endpoint": "/api/live-data",
       "status": 200,
       "data": null
@@ -388,16 +398,5 @@
     }
   ],
   "errors501": [],
-  "errors": [
-    {
-      "endpoint": "/trades",
-      "status": 500,
-      "data": null
-    },
-    {
-      "endpoint": "/api/trades",
-      "status": 500,
-      "data": null
-    }
-  ]
+  "errors": []
 }

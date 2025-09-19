@@ -2,6 +2,26 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import MFAChallenge from "../../../../components/auth/MFAChallenge";
 
+// Mock API service with standardized pattern
+vi.mock("../../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    login: vi.fn().mockResolvedValue({ success: true, data: { token: "mock-token" } }),
+    register: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    logout: vi.fn().mockResolvedValue({ success: true }),
+    resetPassword: vi.fn().mockResolvedValue({ success: true }),
+    verifyMFA: vi.fn().mockResolvedValue({ success: true }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
 describe("MFAChallenge", () => {
   const defaultProps = {
     challengeType: "SMS_MFA",

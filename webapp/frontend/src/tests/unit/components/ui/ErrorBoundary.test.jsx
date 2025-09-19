@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { BrowserRouter } from "react-router-dom";
+import { renderWithProvidersNoRouter } from "../../../test-utils.jsx";
 import UIErrorBoundary from "../../../../components/ErrorBoundary";
 
 const ThrowError = ({ shouldThrow, error }) => {
@@ -11,7 +12,7 @@ const ThrowError = ({ shouldThrow, error }) => {
 };
 
 const renderWithRouter = (component) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>);
+  return renderWithProvidersNoRouter(<BrowserRouter>{component}</BrowserRouter>);
 };
 
 describe("UI ErrorBoundary", () => {

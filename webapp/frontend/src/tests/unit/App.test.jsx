@@ -1,5 +1,13 @@
-import { vi } from "vitest";
+import { vi, describe, test, beforeEach, expect } from "vitest";
 import { renderWithProviders, screen } from "../test-utils.jsx";
+import { MemoryRouter } from "react-router-dom";
+import { ThemeProvider } from "@mui/material/styles";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Suspense } from "react";
+import { AuthProvider } from "../../contexts/AuthContext";
+import { ApiKeyProvider } from "../../components/ApiKeyProvider";
+import ErrorBoundary from "../../components/ErrorBoundary";
+import { testTheme } from "../test-utils.jsx";
 import App from "../../App";
 
 // Mock all the page components to avoid complex dependencies
@@ -77,8 +85,33 @@ vi.mock("../../components/ErrorBoundary", () => ({
 }));
 
 describe("App", () => {
-  const renderApp = () => {
-    return renderWithProviders(<App />);
+  const renderApp = (initialRoute = "/") => {
+    const testQueryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false },
+      },
+    });
+
+    return renderWithProviders(<App />, {
+      wrapper: ({ children }) => (
+        <MemoryRouter initialEntries={[initialRoute]}>
+          <ThemeProvider theme={testTheme}>
+            <QueryClientProvider client={testQueryClient}>
+              <AuthProvider>
+                <ApiKeyProvider>
+                  <ErrorBoundary>
+                    <Suspense fallback={<div>Loading...</div>}>
+                      {children}
+                    </Suspense>
+                  </ErrorBoundary>
+                </ApiKeyProvider>
+              </AuthProvider>
+            </QueryClientProvider>
+          </ThemeProvider>
+        </MemoryRouter>
+      ),
+    });
   };
 
   beforeEach(() => {

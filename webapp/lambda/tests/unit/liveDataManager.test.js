@@ -37,15 +37,15 @@ describe("Live Data Manager", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // Mock console.log to reduce noise
+    jest.spyOn(console, "log").mockImplementation();
+
     // Clear module cache to get fresh instance
     delete require.cache[require.resolve("../../utils/liveDataManager")];
     LiveDataManager = require("../../utils/liveDataManager");
 
     // Create fresh instance for each test
     liveDataManager = new LiveDataManager();
-
-    // Mock console.log to reduce noise
-    jest.spyOn(console, "log").mockImplementation();
   });
 
   afterEach(() => {
@@ -265,7 +265,7 @@ describe("Live Data Manager", () => {
         ["GOOGL"]
       );
 
-      expect(result).toBe(false);
+      expect(result.success).toBe(false);
       expect(liveDataManager.connectionPool.size).toBe(10);
     });
   });
@@ -1202,13 +1202,11 @@ describe("Live Data Manager", () => {
       const userId = "cleanup-user";
       const symbols = ["AAPL", "MSFT", "GOOGL"];
 
-      // Create multiple connections for the user
-      const conn1Result = liveDataManager.addConnection("conn1", "alpaca", ["AAPL"]);
-      const conn2Result = liveDataManager.addConnection("conn2", "alpaca", ["MSFT"]);
+      // Create alpaca connection with the symbols so subscribe can reuse it
+      const conn1Result = liveDataManager.addConnection("conn1", "alpaca", symbols);
 
-      // Verify connections were added successfully
+      // Verify first connection was added successfully
       expect(conn1Result.success).toBe(true);
-      expect(conn2Result.success).toBe(true);
 
       const subscribeResult = liveDataManager.subscribe(userId, symbols);
 

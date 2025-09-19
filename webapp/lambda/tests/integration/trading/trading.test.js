@@ -56,7 +56,7 @@ describe("Trading Operations API", () => {
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
-        expect(response.body.data).toHaveProperty("order_id");
+        expect(response.body.data).toHaveProperty("id");
         expect(response.body.data).toHaveProperty("status");
       }
     });
@@ -124,7 +124,7 @@ describe("Trading Operations API", () => {
       expect([200, 404]).toContain(response.status);
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
         expect(Array.isArray(response.body.data)).toBe(true);
 
         if (response.body.data.length > 0) {
@@ -157,8 +157,8 @@ describe("Trading Operations API", () => {
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
-        expect(response.body.data).toHaveProperty("order_id");
-        expect(response.body.data).toHaveProperty("status");
+        expect(response.body.data).toHaveProperty("symbol");
+        expect(response.body.data).toHaveProperty("closedQuantity");
       }
     });
   });

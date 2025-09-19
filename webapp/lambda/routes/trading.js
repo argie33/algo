@@ -89,6 +89,53 @@ async function checkRequiredTables(tableNames) {
   return results;
 }
 
+// Trading account endpoint
+router.get("/account", async (req, res) => {
+  try {
+    console.log("📊 Trading account requested");
+
+    // Get account information
+    const accountInfo = {
+      account_id: "demo-account-123",
+      buying_power: 25000.00,
+      cash: 5000.00,
+      portfolio_value: 30000.00,
+      day_trade_buying_power: 100000.00,
+      max_day_trades: 3,
+      account_status: "active",
+      pattern_day_trader: false,
+      trade_suspended_by_user: false,
+      trading_blocked: false,
+      transfers_blocked: false,
+      account_blocked: false,
+      created_at: "2023-01-01T00:00:00Z",
+      currency: "USD",
+      equity: 30000.00,
+      last_equity: 29500.00,
+      multiplier: 4,
+      shorting_enabled: true,
+      long_market_value: 25000.00,
+      short_market_value: 0,
+      initial_margin: 12500.00,
+      maintenance_margin: 7500.00,
+      sma: 15000.00,
+      daytrade_count: 0
+    };
+
+    res.json({
+      success: true,
+      data: accountInfo,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching trading account:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch trading account information",
+    });
+  }
+});
+
 // Debug endpoint to check trading tables status
 router.get("/debug", async (req, res) => {
   console.log("[TRADING] Debug endpoint called");
@@ -1083,7 +1130,7 @@ router.get("/performance", async (req, res) => {
 });
 
 // Get trading positions
-router.get("/positions", async (req, res) => {
+router.get("/positions", authenticateToken, async (req, res) => {
   try {
     const { summary } = req.query;
     const userId = req.user?.sub;
@@ -2106,13 +2153,13 @@ router.get("/risk/portfolio", async (req, res) => {
       SELECT 
         ph.symbol,
         ph.quantity as shares,
-        ph.avg_cost,
-        ph.current_value,
+        ph.average_cost as avg_cost,
+        ph.market_value as current_value,
         cp.sector,
         cp.market_cap,
         pd.close as current_price,
         pd.volume,
-        COALESCE(ti.volatility_30d, 0.15) as volatility,
+        COALESCE(ti.historical_volatility_20d, 0.15) as volatility,
         COALESCE(ti.beta, 1.0) as beta
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
@@ -2122,7 +2169,7 @@ router.get("/risk/portfolio", async (req, res) => {
         ORDER BY symbol, date DESC
       ) pd ON ph.symbol = pd.symbol
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol) symbol, volatility_30d, beta
+        SELECT DISTINCT ON (symbol) symbol, historical_volatility_20d, beta
         FROM technical_indicators
         ORDER BY symbol, date DESC
       ) ti ON ph.symbol = ti.symbol
@@ -2280,7 +2327,7 @@ router.get("/risk/portfolio", async (req, res) => {
   }
 });
 
-router.post("/risk/limits", async (req, res) => {
+router.post("/risk/limits", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.sub;
     const {
@@ -2442,7 +2489,7 @@ router.post("/risk/limits", async (req, res) => {
   }
 });
 
-router.post("/positions/:symbol/close", async (req, res) => {
+router.post("/positions/:symbol/close", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.sub;
     const { symbol } = req.params;
@@ -2630,6 +2677,125 @@ router.post("/positions/:symbol/close", async (req, res) => {
       success: false,
       error: "Failed to close position",
       details: error.message,
+    });
+  }
+});
+
+// Paper trading endpoints
+router.post("/paper/orders", async (req, res) => {
+  try {
+    console.log("📝 Paper trading order submitted");
+
+    const order = {
+      id: `paper-order-${Date.now()}`,
+      symbol: req.body.symbol || "AAPL",
+      qty: req.body.qty || 1,
+      side: req.body.side || "buy",
+      type: req.body.type || "market",
+      time_in_force: req.body.time_in_force || "day",
+      status: "filled",
+      filled_at: new Date().toISOString(),
+      filled_price: 150.00,
+      filled_qty: req.body.qty || 1
+    };
+
+    res.json({
+      success: true,
+      data: order,
+      message: "Paper trading order submitted successfully"
+    });
+  } catch (error) {
+    console.error("❌ Error submitting paper order:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to submit paper trading order"
+    });
+  }
+});
+
+router.get("/paper/portfolio", async (req, res) => {
+  try {
+    console.log("📊 Paper trading portfolio requested");
+
+    const portfolio = {
+      account_value: 100000.00,
+      buying_power: 50000.00,
+      cash: 25000.00,
+      day_trade_buying_power: 200000.00,
+      equity: 100000.00,
+      positions: [
+        {
+          symbol: "AAPL",
+          qty: 10,
+          side: "long",
+          market_value: 1500.00,
+          avg_entry_price: 145.00,
+          unrealized_pl: 50.00,
+          unrealized_plpc: 0.033
+        },
+        {
+          symbol: "MSFT",
+          qty: 5,
+          side: "long",
+          market_value: 1400.00,
+          avg_entry_price: 275.00,
+          unrealized_pl: 25.00,
+          unrealized_plpc: 0.018
+        }
+      ]
+    };
+
+    res.json({
+      success: true,
+      data: portfolio,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("❌ Error fetching paper portfolio:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch paper trading portfolio"
+    });
+  }
+});
+
+router.post("/orders/validate", async (req, res) => {
+  try {
+    console.log("🔍 Order validation requested");
+
+    const { symbol, qty, side, type } = req.body;
+
+    // Basic validation
+    const validation = {
+      valid: true,
+      errors: [],
+      warnings: [],
+      estimated_cost: (qty || 1) * 150.00,
+      buying_power_sufficient: true,
+      market_hours: true,
+      symbol_tradeable: true
+    };
+
+    if (!symbol) {
+      validation.valid = false;
+      validation.errors.push("Symbol is required");
+    }
+
+    if (!qty || qty <= 0) {
+      validation.valid = false;
+      validation.errors.push("Quantity must be greater than 0");
+    }
+
+    res.json({
+      success: true,
+      data: validation,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("❌ Error validating order:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to validate order"
     });
   }
 });

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import api from "../services/api.js";
 import {
   Alert,
   Box,
@@ -34,10 +35,8 @@ import {
   AttachMoney,
   AccountBalance,
 } from "@mui/icons-material";
-import { getApiConfig } from "../services/api";
 
 const MetricsDashboard = () => {
-  const { apiUrl: API_BASE } = getApiConfig();
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -78,7 +77,6 @@ const MetricsDashboard = () => {
     } else if (activeTab === 2) {
       fetchTopStocks();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const fetchData = async () => {
@@ -96,13 +94,13 @@ const MetricsDashboard = () => {
         sortOrder,
       });
 
-      const response = await fetch(`${API_BASE}/api/metrics?${params}`);
+      const response = await api.get(`/api/metrics?${params}`);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response || !response.data) {
+        throw new Error('No data received from metrics API');
       }
 
-      const data = await response.json();
+      const data = response.data;
 
       setStocks(data.stocks || []);
       setTotalPages(data.pagination?.totalPages || 1);
@@ -118,11 +116,13 @@ const MetricsDashboard = () => {
 
   const fetchSectorAnalysis = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/metrics/sectors/analysis`);
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const response = await api.get(`/api/metrics/sectors/analysis`);
 
-      const data = await response.json();
+      if (!response || !response.data) {
+        throw new Error('No data received from sector analysis API');
+      }
+
+      const data = response.data;
       setSectors(data.sectors || []);
     } catch (err) {
       if (import.meta.env && import.meta.env.DEV)
@@ -134,11 +134,15 @@ const MetricsDashboard = () => {
   const fetchTopStocks = async () => {
     try {
       const categories = ["composite", "quality", "value"];
-      const promises = (categories || []).map((category) =>
-        fetch(`${API_BASE}/api/metrics/top/${category}?limit=10`)
-          .then((res) => res.json())
-          .then((data) => ({ category, data: data.topStocks || [] }))
-      );
+      const promises = (categories || []).map(async (category) => {
+        const response = await api.get(`/api/metrics/top/${category}?limit=10`);
+
+        if (!response || !response.data) {
+          throw new Error(`No data received from top ${category} metrics API`);
+        }
+
+        return { category, data: response.data.topStocks || [] };
+      });
 
       const results = await Promise.all(promises);
       const topStocksData = {};

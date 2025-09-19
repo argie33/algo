@@ -5,6 +5,23 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    sendChatMessage: vi.fn().mockResolvedValue({ success: true, data: { response: "Test AI response" } }),
+    getChatHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  },
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
+}));
+
 // Mock import.meta.env BEFORE any imports
 Object.defineProperty(import.meta, "env", {
   value: {

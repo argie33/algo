@@ -33,6 +33,17 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
+// Mock MUI icons
+vi.mock("@mui/icons-material", () => ({
+  Construction: ({ sx, ...props }) => (
+    <div
+      data-testid="ConstructionIcon"
+      style={{ fontSize: sx?.fontSize || 24 }}
+      {...props}
+    />
+  ),
+}));
+
 // Test render helper
 function renderComingSoon(props = {}) {
   const queryClient = new QueryClient({

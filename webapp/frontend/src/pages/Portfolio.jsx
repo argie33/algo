@@ -1518,7 +1518,7 @@ const Portfolio = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }} data-testid="portfolio-page">
       {/* Portfolio Header */}
       <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
         <Box>

@@ -33,31 +33,23 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
-// Mock API service with proper ES module support
-vi.mock("../../../services/api", () => {
-  const mockApi = {
-    get: vi.fn(() => Promise.resolve({ data: {} })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
-    getMetrics: vi.fn(),
-    getDashboardMetrics: vi.fn(),
-    getPerformanceMetrics: vi.fn(),
-  };
-
-  const mockGetApiConfig = vi.fn(() => ({
-    baseURL: "http://localhost:3001",
+// Mock API service with standardized pattern
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    // Metrics dashboard methods
+    getMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getDashboardMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getPerformanceMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  },
+  getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
-    isDevelopment: true,
-    isProduction: false,
-    baseUrl: "/",
-  }));
-
-  return {
-    api: mockApi,
-    getApiConfig: mockGetApiConfig,
-    default: mockApi,
-  };
-});
+  })),
+}));
 
 const mockMetricsData = {
   portfolio: {
@@ -109,7 +101,7 @@ function renderMetricsDashboard(props = {}) {
 describe("MetricsDashboard Component", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { api } = await import("../../../services/api");
+    const api = (await import("../../../services/api")).default;
     api.getMetrics.mockResolvedValue({
       success: true,
       data: mockMetricsData,
@@ -177,7 +169,7 @@ describe("MetricsDashboard Component", () => {
   });
 
   it("handles loading state", () => {
-    const { api } = require("../../../services/api");
+    const api = require("../../../services/api").default;
     api.getMetrics.mockImplementation(() => new Promise(() => {}));
 
     renderMetricsDashboard();
@@ -188,7 +180,7 @@ describe("MetricsDashboard Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    const { api } = require("../../../services/api");
+    const api = require("../../../services/api").default;
     api.getMetrics.mockRejectedValue(new Error("API Error"));
 
     renderMetricsDashboard();
@@ -249,7 +241,7 @@ describe("MetricsDashboard Component", () => {
   });
 
   it("handles empty metrics data", async () => {
-    const { api } = require("../../../services/api");
+    const api = require("../../../services/api").default;
     api.getMetrics.mockResolvedValue({
       success: true,
       data: {},
@@ -271,7 +263,7 @@ describe("MetricsDashboard Component", () => {
     renderMetricsDashboard();
 
     await waitFor(() => {
-      const { api } = require("../../../services/api");
+      const api = require("../../../services/api").default;
       expect(api.getMetrics).toHaveBeenCalled();
     });
 

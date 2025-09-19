@@ -62,6 +62,28 @@ export const createApiMock = () => ({
 
   // Risk analysis
   getRiskAnalysis: vi.fn(() => Promise.resolve({ data: {} })),
+
+  // Trading signals
+  getTradingSignalsDaily: vi.fn(() => Promise.resolve({ data: [] })),
+
+  // Stock data functions
+  getStockPrices: vi.fn(() => Promise.resolve({ data: [] })),
+  getStockPricesRecent: vi.fn(() => Promise.resolve({ data: [] })),
+  getStockMetrics: vi.fn(() => Promise.resolve({ data: {} })),
+});
+
+// Mock dataCache service
+export const createDataCacheMock = () => ({
+  default: {
+    get: vi.fn(() => Promise.resolve({ data: {} })),
+    set: vi.fn(),
+    clear: vi.fn(),
+    clearAll: vi.fn(),
+    getStats: vi.fn(() => ({})),
+    batchFetch: vi.fn(() => Promise.resolve([])),
+    preloadCommonData: vi.fn(),
+    isMarketHours: vi.fn(() => false),
+  },
 });
 
 // Helper to reset all mocks

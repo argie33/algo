@@ -23,15 +23,20 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
-// Mock API service
+// Mock API service with standardized pattern
 vi.mock("../../../services/api.js", () => ({
-  api: {
-    getEconomicIndicators: vi.fn(),
-    getGDPData: vi.fn(),
-    getInflationData: vi.fn(),
-    getUnemploymentData: vi.fn(),
-    getInterestRates: vi.fn(),
-    getEconomicForecasts: vi.fn(),
+  default: {
+    get: vi.fn().mockResolvedValue({ data: {} }),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    // Economic modeling methods
+    getEconomicIndicators: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getGDPData: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getInflationData: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getUnemploymentData: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getInterestRates: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getEconomicForecasts: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
   },
   getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
@@ -69,10 +74,9 @@ const mockEconomicData = {
 };
 
 describe("EconomicModeling Component", () => {
-  const { api } = require("../../../services/api.js");
-
   beforeEach(() => {
     vi.clearAllMocks();
+    const api = require("../../../services/api.js").default;
     api.getEconomicIndicators.mockResolvedValue({
       success: true,
       data: mockEconomicData.indicators,
@@ -100,6 +104,7 @@ describe("EconomicModeling Component", () => {
 
     expect(screen.getByText(/economic modeling/i)).toBeInTheDocument();
     await waitFor(() => {
+      const api = require("../../../services/api.js").default;
       expect(api.getEconomicIndicators).toHaveBeenCalled();
     });
   });
@@ -116,6 +121,7 @@ describe("EconomicModeling Component", () => {
   });
 
   it("shows loading state initially", () => {
+    const api = require("../../../services/api.js").default;
     api.getEconomicIndicators.mockImplementation(() => new Promise(() => {}));
 
     renderWithProviders(<EconomicModeling />);
@@ -124,6 +130,7 @@ describe("EconomicModeling Component", () => {
   });
 
   it("handles API errors gracefully", async () => {
+    const api = require("../../../services/api.js").default;
     api.getEconomicIndicators.mockRejectedValue(new Error("API Error"));
 
     renderWithProviders(<EconomicModeling />);
@@ -173,6 +180,7 @@ describe("EconomicModeling Component", () => {
       fireEvent.click(tabs[1]);
 
       await waitFor(() => {
+        const api = require("../../../services/api.js").default;
         expect(api.getGDPData).toHaveBeenCalled();
       });
     }
@@ -194,6 +202,7 @@ describe("EconomicModeling Component", () => {
   it("refreshes data when refresh button is clicked", async () => {
     renderWithProviders(<EconomicModeling />);
 
+    const api = require("../../../services/api.js").default;
     await waitFor(() => {
       expect(api.getEconomicIndicators).toHaveBeenCalledTimes(1);
     });
@@ -212,6 +221,7 @@ describe("EconomicModeling Component", () => {
   });
 
   it("handles empty economic data", async () => {
+    const api = require("../../../services/api.js").default;
     api.getEconomicIndicators.mockResolvedValue({
       success: true,
       data: [],
@@ -232,6 +242,7 @@ describe("EconomicModeling Component", () => {
       { metric: "Inflation Rate", forecast: 2.2, period: "2024-Q1" },
     ];
 
+    const api = require("../../../services/api.js").default;
     api.getEconomicForecasts.mockResolvedValue({
       success: true,
       data: mockForecasts,
@@ -261,6 +272,7 @@ describe("EconomicModeling Component", () => {
         fireEvent.click(options[1]);
 
         await waitFor(() => {
+          const api = require("../../../services/api.js").default;
           expect(api.getEconomicIndicators).toHaveBeenCalledTimes(2);
         });
       }
