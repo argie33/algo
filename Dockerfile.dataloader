@@ -25,11 +25,11 @@ WORKDIR /app
 # Accept build argument for requirements file
 ARG REQUIREMENTS_FILE
 
-# Copy specific requirements file for better caching
-COPY ${REQUIREMENTS_FILE} /app/loader-requirements.txt
+# Copy specific requirements file preserving original name
+COPY ${REQUIREMENTS_FILE} /app/
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r /app/loader-requirements.txt
+# Install Python dependencies using the original filename
+RUN pip install --no-cache-dir -r /app/${REQUIREMENTS_FILE}
 
 # Production stage
 FROM base as production
