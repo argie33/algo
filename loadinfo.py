@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Updated Wed Sep 18 23:15:00 CDT 2025 - 00:15 CDT
-# FIXED: Per-loader requirements files + websockets dependency
+# FIXED: Per-loader requirements files + websockets>=13.0 for yfinance compatibility
 import gc
 import json
 import logging
