@@ -188,9 +188,9 @@ describe("Trading Operations API", () => {
 
     test("should set position size limits", async () => {
       const riskLimits = {
-        max_position_size: 0.05, // 5% of portfolio
-        max_sector_exposure: 0.3, // 30% per sector
-        stop_loss_percent: 0.02, // 2% stop loss
+        maxPositionSize: 5, // 5% of portfolio (as percentage)
+        maxDrawdown: 10, // 10% max drawdown
+        stopLossPercentage: 2, // 2% stop loss
       };
 
       const response = await request(app)

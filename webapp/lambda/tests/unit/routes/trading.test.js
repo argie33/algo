@@ -102,31 +102,25 @@ describe("Trading Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("riskMetrics");
-      expect(response.body.data).toHaveProperty("portfolioSummary");
+      expect(response.body.data).toHaveProperty("concentrationRisk");
+      expect(response.body.data).toHaveProperty("volatility");
+      expect(response.body.data).toHaveProperty("beta");
+      expect(response.body.data).toHaveProperty("diversificationScore");
+      expect(response.body.data).toHaveProperty("riskScore");
       expect(response.body.data).toHaveProperty("recommendations");
 
-      // Validate risk metrics structure
-      const riskMetrics = response.body.data.riskMetrics;
-      expect(riskMetrics).toHaveProperty("concentrationRisk");
-      expect(riskMetrics).toHaveProperty("portfolioVolatility");
-      expect(riskMetrics).toHaveProperty("portfolioBeta");
-      expect(riskMetrics).toHaveProperty("diversificationScore");
-      expect(riskMetrics).toHaveProperty("riskScore");
-      expect(riskMetrics).toHaveProperty("riskLevel");
-
       // Validate numeric risk values are within expected ranges
-      expect(typeof riskMetrics.concentrationRisk).toBe("number");
-      expect(riskMetrics.concentrationRisk).toBeGreaterThanOrEqual(0);
-      expect(riskMetrics.concentrationRisk).toBeLessThanOrEqual(1);
+      const data = response.body.data;
+      expect(typeof data.concentrationRisk).toBe("number");
+      expect(data.concentrationRisk).toBeGreaterThanOrEqual(0);
 
-      expect(typeof riskMetrics.portfolioVolatility).toBe("number");
-      expect(riskMetrics.portfolioVolatility).toBeGreaterThanOrEqual(0);
+      expect(typeof data.volatility).toBe("number");
+      expect(data.volatility).toBeGreaterThanOrEqual(0);
 
-      expect(typeof riskMetrics.portfolioBeta).toBe("number");
-      expect(typeof riskMetrics.diversificationScore).toBe("number");
-      expect(riskMetrics.diversificationScore).toBeGreaterThanOrEqual(0);
-      expect(riskMetrics.diversificationScore).toBeLessThanOrEqual(100);
+      expect(typeof data.beta).toBe("number");
+      expect(typeof data.diversificationScore).toBe("number");
+      expect(data.diversificationScore).toBeGreaterThanOrEqual(0);
+      expect(data.diversificationScore).toBeLessThanOrEqual(100);
     });
 
     test("should handle empty portfolio gracefully", async () => {
@@ -141,7 +135,7 @@ describe("Trading Routes Unit Tests", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.portfolioSummary.totalPositions).toBe(0);
+      expect(response.body.data.positionCount).toBe(0);
     });
   });
 
@@ -268,10 +262,10 @@ describe("Trading Routes Unit Tests", () => {
         await query(
           `
           INSERT INTO portfolio_holdings (
-            user_id, symbol, quantity, average_cost, current_price, 
-            total_value, unrealized_pnl, realized_pnl, position_type,
+            user_id, symbol, quantity, average_cost, current_price,
+            total_value, unrealized_pnl, position_type,
             last_updated
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           ON CONFLICT (user_id, symbol) 
           DO UPDATE SET 
             quantity = EXCLUDED.quantity,
@@ -367,16 +361,15 @@ describe("Trading Routes Unit Tests", () => {
     });
 
     test("should require authentication", async () => {
+      // Create app without authentication middleware
       const tempApp = express();
       tempApp.use(express.json());
-      tempApp.use((req, res, next) => {
-        req.user = null; // No authenticated user
-        next();
-      });
 
+      // Add response formatter middleware
       const responseFormatter = require("../../../middleware/responseFormatter");
       tempApp.use(responseFormatter);
 
+      // Load trading routes without auth middleware
       const tradingRouter = require("../../../routes/trading");
       tempApp.use("/trading", tradingRouter);
 

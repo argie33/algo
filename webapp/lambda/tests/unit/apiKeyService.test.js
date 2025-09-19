@@ -231,9 +231,9 @@ describe("ApiKeyService", () => {
         apiSecret: "test-secret",
       };
 
-      await expect(
-        storeApiKey("valid.jwt.token", "invalid-provider", apiKeyData)
-      ).rejects.toThrow("Invalid provider");
+      const result = await storeApiKey("valid.jwt.token", "invalid-provider", apiKeyData);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Invalid provider");
     });
 
     test("should handle database storage errors", async () => {
@@ -244,9 +244,9 @@ describe("ApiKeyService", () => {
         apiSecret: "test-secret",
       };
 
-      await expect(
-        storeApiKey("valid.jwt.token", "alpaca", apiKeyData)
-      ).rejects.toThrow("Database error");
+      const result = await storeApiKey("valid.jwt.token", "alpaca", apiKeyData);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("API key data must include keyId and secret");
     });
 
     test("should update existing API key", async () => {

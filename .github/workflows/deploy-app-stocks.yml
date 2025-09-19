@@ -363,12 +363,13 @@ jobs:
             CACHE_FROM="type=gha,scope=$loader"
             CACHE_TO="type=gha,mode=max,scope=$loader"
 
-            echo "🔨 Building $loader with timeout protection..."
-            timeout 20m docker buildx build \
+            echo "🔨 Building $loader with optimizations..."
+            timeout 30m docker buildx build \
               --platform linux/arm64 \
               --build-arg REQUIREMENTS_FILE="$REQUIREMENTS_FILE" \
               --cache-from "$CACHE_FROM" \
               --cache-to "$CACHE_TO" \
+              --progress=plain \
               -t "$IMAGE_TAG" \
               -f Dockerfile.dataloader . --load
 

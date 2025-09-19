@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# Updated Thu Sep 19 18:12:00 CDT 2025 - Fix workflow timeouts and cancellation issues
+# Updated Thu Sep 19 18:16:00 CDT 2025 - Optimize Docker build for faster pip installs
 # FIXED: Per-loader requirements files + websockets>=13.0 for yfinance compatibility
 # FIXED: Removed main requirements.txt fallback - each loader uses its own requirements-load{name}.txt
 # FIXED: Dockerfile preserves original filename (e.g., requirements-loadinfo.txt) for better tracking
 # FIXED: Added timeout protection and better caching to prevent workflow cancellation
+# FIXED: Optimized Dockerfile with binary wheels and faster pip installs to prevent build timeouts
 import gc
 import json
 import logging

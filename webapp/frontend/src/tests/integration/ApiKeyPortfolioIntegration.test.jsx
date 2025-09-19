@@ -39,11 +39,13 @@ vi.mock("../../contexts/AuthContext", () => ({
       firstName: "Test",
       lastName: "User",
       tokens: { accessToken: "test-token" },
+      sub: "test-user",
     },
     isAuthenticated: true,
     isLoading: false,
+    loading: false,
     logout: vi.fn(),
-    checkAuthState: vi.fn(),
+    checkAuthState: vi.fn().mockResolvedValue(true),
   }),
 }));
 
