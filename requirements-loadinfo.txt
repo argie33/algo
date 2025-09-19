@@ -1,4 +1,4 @@
-# LoadInfo loader requirements - testing ECS task definition fix
+# LoadInfo loader requirements - testing optimized Docker build
 yfinance==0.2.64
 psycopg2-binary==2.9.9
 boto3==1.34.69
