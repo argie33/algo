@@ -114,11 +114,25 @@ jobs:
             ALL_CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
             echo "Debug: All changed files: $ALL_CHANGED_FILES"
 
+            # Check for direct loader file changes
             LOADER_FILES=$(echo "$ALL_CHANGED_FILES" | grep 'load.*\.py$' || true)
             echo "Debug: Loader files found: $LOADER_FILES"
 
-            CHANGED_LOADERS=$(echo "$LOADER_FILES" | sed 's/^load//' | sed 's/\.py$//' | sort || true)
-            echo "Debug: Processed loader names: $CHANGED_LOADERS"
+            # Check for requirements file changes that affect specific loaders
+            REQUIREMENTS_FILES=$(echo "$ALL_CHANGED_FILES" | grep 'requirements-load.*\.txt$' || true)
+            echo "Debug: Requirements files found: $REQUIREMENTS_FILES"
+
+            # Extract loaders from direct loader file changes
+            CHANGED_LOADERS_FROM_PY=$(echo "$LOADER_FILES" | sed 's/^load//' | sed 's/\.py$//' | sort || true)
+            echo "Debug: Loaders from .py files: $CHANGED_LOADERS_FROM_PY"
+
+            # Extract loaders from requirements file changes (requirements-loadinfo.txt -> info)
+            CHANGED_LOADERS_FROM_REQ=$(echo "$REQUIREMENTS_FILES" | sed 's/^requirements-load//' | sed 's/\.txt$//' | sort || true)
+            echo "Debug: Loaders from requirements files: $CHANGED_LOADERS_FROM_REQ"
+
+            # Combine both sources of changed loaders
+            CHANGED_LOADERS=$(echo -e "$CHANGED_LOADERS_FROM_PY\n$CHANGED_LOADERS_FROM_REQ" | grep -v '^$' | sort | uniq || true)
+            echo "Debug: Combined changed loaders: $CHANGED_LOADERS"
 
             if [[ -n "$CHANGED_LOADERS" ]]; then
               LOADERS_TO_RUN="$CHANGED_LOADERS"
@@ -149,7 +163,7 @@ jobs:
                   PRIORITY="critical"
                   TIMEOUT=30
                   ;;
-                priceweekly|pricemonthly|earningsestimate|loadinfo)
+                priceweekly|pricemonthly|earningsestimate|info)
                   PRIORITY="high"
                   TIMEOUT=45
                   ;;
