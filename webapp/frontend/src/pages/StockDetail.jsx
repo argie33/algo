@@ -260,6 +260,18 @@ function StockDetail() {
         ? formatCurrency(currentMetrics.book_value)
         : "N/A",
     },
+    {
+      label: "52-Week High",
+      value: stockData.high52Week
+        ? formatCurrency(stockData.high52Week)
+        : "N/A",
+    },
+    {
+      label: "52-Week Low",
+      value: stockData.low52Week
+        ? formatCurrency(stockData.low52Week)
+        : "N/A",
+    },
     { label: "Revenue TTM", value: formatCurrency(currentFinancials.revenue) },
     {
       label: "Net Income TTM",

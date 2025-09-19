@@ -114,7 +114,10 @@ class ErrorBoundary extends React.Component {
             <CardContent sx={{ p: 4 }}>
               <Stack spacing={3} alignItems="center" textAlign="center">
                 {/* Error Icon */}
-                <ErrorOutline sx={{ fontSize: 64, color: "error.main" }} />
+                <ErrorOutline
+                  data-testid="ErrorOutlineIcon"
+                  sx={{ fontSize: 64, color: "error.main" }}
+                />
 
                 {/* Main Error Message */}
                 <Box>
