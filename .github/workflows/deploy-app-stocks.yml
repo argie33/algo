@@ -498,8 +498,19 @@ jobs:
             '.containerDefinitions |= map(if .name == $containerName then .image = $imageUri else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)')
 
           # Register new task definition revision
-          NEW_TASK_DEF_ARN=$(echo "$UPDATED_TASK_DEF" | aws ecs register-task-definition \
-            --cli-input-json file:///dev/stdin \
+          # Write JSON to temporary file for AWS CLI
+          echo "$UPDATED_TASK_DEF" > /tmp/task_def.json
+
+          # Validate JSON syntax before sending to AWS
+          if ! jq empty /tmp/task_def.json; then
+            echo "❌ ERROR: Invalid JSON generated for task definition!"
+            echo "JSON content:"
+            cat /tmp/task_def.json
+            exit 1
+          fi
+
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/task_def.json \
             --query "taskDefinition.taskDefinitionArn" \
             --output text)
 
