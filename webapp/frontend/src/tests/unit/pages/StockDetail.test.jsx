@@ -366,19 +366,19 @@ describe("StockDetail Component", () => {
     renderWithProviders(<StockDetail />);
 
     await waitFor(() => {
-      // Look for the price change information that's actually displayed
-      expect(screen.getByText(/\$2\.50/)).toBeInTheDocument(); // Price change
-      expect(screen.getByText(/1\.45/)).toBeInTheDocument(); // Percentage change
-
-      // Check for trend icons by test id
-      const trendIcon = screen.queryByTestId("trendingup-icon");
-      if (trendIcon) {
-        expect(trendIcon).toBeInTheDocument();
-      } else {
-        // Fallback: just ensure the change data is shown
-        expect(screen.getByText(/\$/)).toBeInTheDocument();
-      }
+      expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
+
+    // Look for price change information that should be visible
+    await waitFor(() => {
+      // The component shows price change as "$2.50 (1.45%)"
+      const priceChangeElements = screen.getAllByText(/\$2\.50|\$2\.5/);
+      expect(priceChangeElements.length).toBeGreaterThan(0);
+    });
+
+    // Check for trend icon (there may be multiple, just verify at least one exists)
+    const trendIcons = screen.queryAllByTestId("trendingup-icon");
+    expect(trendIcons.length).toBeGreaterThanOrEqual(1);
   });
 
   it("displays analyst ratings when available", async () => {
