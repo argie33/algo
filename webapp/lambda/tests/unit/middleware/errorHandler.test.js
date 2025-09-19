@@ -83,7 +83,7 @@ app.get(
   )
 );
 
-// Apply error handler
+// Apply error handler AFTER all routes
 app.use(errorHandler);
 
 describe("Error Handler Middleware", () => {
@@ -274,24 +274,28 @@ describe("Error Handler Middleware", () => {
 
   describe("Edge Cases", () => {
     test("should handle null error", async () => {
-      app.get("/test-null-error", (req, res, next) => {
+      const testApp = express();
+      testApp.get("/test-null-error", (req, res, next) => {
         next(null);
       });
+      testApp.use(errorHandler);
 
-      const response = await request(app).get("/test-null-error");
+      const response = await request(testApp).get("/test-null-error");
 
       // Should not reach error handler with null error
       expect(response.status).toBe(404); // Route not found since next(null) continues
     });
 
     test("should handle error objects without stack trace", async () => {
-      app.get("/test-no-stack", (req, res, next) => {
+      const testApp = express();
+      testApp.get("/test-no-stack", (req, res, next) => {
         const err = new Error("No stack error");
         delete err.stack;
         next(err);
       });
+      testApp.use(errorHandler);
 
-      const response = await request(app).get("/test-no-stack");
+      const response = await request(testApp).get("/test-no-stack");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe("No stack error");
@@ -299,11 +303,13 @@ describe("Error Handler Middleware", () => {
 
     test("should handle very long error messages", async () => {
       const longMessage = "A".repeat(1000);
-      app.get("/test-long-message", (req, res, next) => {
+      const testApp = express();
+      testApp.get("/test-long-message", (req, res, next) => {
         next(new Error(longMessage));
       });
+      testApp.use(errorHandler);
 
-      const response = await request(app).get("/test-long-message");
+      const response = await request(testApp).get("/test-long-message");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe(longMessage);
@@ -311,11 +317,13 @@ describe("Error Handler Middleware", () => {
 
     test("should handle special characters in error messages", async () => {
       const specialMessage = "Error with special chars: <>&\"'";
-      app.get("/test-special-chars", (req, res, next) => {
+      const testApp = express();
+      testApp.get("/test-special-chars", (req, res, next) => {
         next(new Error(specialMessage));
       });
+      testApp.use(errorHandler);
 
-      const response = await request(app).get("/test-special-chars");
+      const response = await request(testApp).get("/test-special-chars");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe(specialMessage);
@@ -324,27 +332,31 @@ describe("Error Handler Middleware", () => {
 
   describe("PostgreSQL Error Code Coverage", () => {
     test("should handle unknown PostgreSQL error codes", async () => {
-      app.get("/test-unknown-pg-error", (req, res, next) => {
+      const testApp = express();
+      testApp.get("/test-unknown-pg-error", (req, res, next) => {
         const err = new Error("Unknown PostgreSQL error");
         err.code = "12345"; // Unknown code
         next(err);
       });
+      testApp.use(errorHandler);
 
-      const response = await request(app).get("/test-unknown-pg-error");
+      const response = await request(testApp).get("/test-unknown-pg-error");
 
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe("Unknown PostgreSQL error");
     });
 
     test("should prioritize custom status over default for PostgreSQL errors", async () => {
-      app.get("/test-pg-custom-status", (req, res, next) => {
+      const testApp = express();
+      testApp.get("/test-pg-custom-status", (req, res, next) => {
         const err = new Error("Custom PostgreSQL error");
         err.code = "23505"; // Unique violation
         err.status = 422; // Custom status
         next(err);
       });
+      testApp.use(errorHandler);
 
-      const response = await request(app).get("/test-pg-custom-status");
+      const response = await request(testApp).get("/test-pg-custom-status");
 
       // Should use PostgreSQL-specific status (409) not custom status (422)
       expect(response.status).toBe(409);

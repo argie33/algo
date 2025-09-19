@@ -28,21 +28,37 @@ vi.mock("aws-amplify", () => ({
   configure: vi.fn(),
 }));
 
+// Get the mocked auth functions for direct access
+const mockLogin = vi.fn().mockResolvedValue({ success: true });
+// Create a mock register function that calls devAuth.signUp
+const mockRegister = vi.fn(async (username, password, email, firstName, lastName) => {
+  // Import devAuth mock after it's been set up
+  const devAuth = await import("../../services/devAuth");
+  const result = await devAuth.default.signUp(username, password, email, firstName, lastName);
+  return result;
+});
+const mockConfirmSignUp = vi.fn().mockResolvedValue({ success: true });
+const mockConfirmForgotPassword = vi.fn().mockResolvedValue({ success: true });
+const mockForgotPassword = vi.fn().mockResolvedValue({ success: true });
+
+// Create mock auth context
+const mockAuthContext = {
+  user: { id: "test-user", email: "test@example.com" },
+  isAuthenticated: false,
+  isLoading: false,
+  error: null,
+  login: mockLogin,
+  register: mockRegister,
+  logout: vi.fn().mockResolvedValue({ success: true }),
+  confirmSignUp: mockConfirmSignUp,
+  confirmForgotPassword: mockConfirmForgotPassword,
+  forgotPassword: mockForgotPassword,
+  clearError: vi.fn(),
+};
+
 // Mock AuthContext to provide test values
 vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: vi.fn(() => ({
-    user: { id: "test-user", email: "test@example.com" },
-    isAuthenticated: false, // Start with not authenticated for auth flow tests
-    isLoading: false,
-    error: null,
-    login: vi.fn().mockResolvedValue({ success: true }),
-    register: vi.fn().mockResolvedValue({ success: true }),
-    logout: vi.fn().mockResolvedValue({ success: true }),
-    confirmSignUp: vi.fn().mockResolvedValue({ success: true }),
-    confirmForgotPassword: vi.fn().mockResolvedValue({ success: true }),
-    forgotPassword: vi.fn().mockResolvedValue({ success: true }),
-    clearError: vi.fn(),
-  })),
+  useAuth: vi.fn(() => mockAuthContext),
   AuthProvider: vi.fn(({ children }) => children),
 }));
 
@@ -54,6 +70,7 @@ vi.mock("../../services/devAuth", () => ({
       user: { username: "testuser", email: "test@example.com" },
       userConfirmed: false,
       isSignUpComplete: false,
+      nextStep: "CONFIRM_SIGN_UP",
     }),
     signIn: vi.fn().mockResolvedValue({
       success: true,
@@ -74,28 +91,6 @@ vi.mock("../../services/devAuth", () => ({
 // Import after mocking
 import { Auth } from "aws-amplify";
 import devAuth from "../../services/devAuth";
-
-// Get the mocked auth functions for direct access
-const mockLogin = vi.fn().mockResolvedValue({ success: true });
-const mockRegister = vi.fn().mockResolvedValue({ success: true });
-const mockConfirmSignUp = vi.fn().mockResolvedValue({ success: true });
-const mockConfirmForgotPassword = vi.fn().mockResolvedValue({ success: true });
-const mockForgotPassword = vi.fn().mockResolvedValue({ success: true });
-
-// Create mock auth context
-const mockAuthContext = {
-  user: { id: "test-user", email: "test@example.com" },
-  isAuthenticated: false,
-  isLoading: false,
-  error: null,
-  login: mockLogin,
-  register: mockRegister,
-  logout: vi.fn().mockResolvedValue({ success: true }),
-  confirmSignUp: mockConfirmSignUp,
-  confirmForgotPassword: mockConfirmForgotPassword,
-  forgotPassword: mockForgotPassword,
-  clearError: vi.fn(),
-};
 
 describe("Authentication Flow Components", () => {
   beforeEach(() => {
@@ -130,8 +125,8 @@ describe("Authentication Flow Components", () => {
       const onClose = vi.fn();
       renderWithProviders(<AuthModal open={true} onClose={onClose} />);
 
-      // Find close button by CloseIcon testid
-      fireEvent.click(screen.getByTestId("CloseIcon").closest("button"));
+      // Find close button by close-icon testid (lowercase with dash)
+      fireEvent.click(screen.getByTestId("close-icon").closest("button"));
 
       expect(onClose).toHaveBeenCalled();
     });

@@ -12,26 +12,26 @@ const errorHandler = (err, req, res, _next) => {
   let message = "Internal Server Error";
   let details = null;
 
-  // Handle specific error types
-  if (err.name === "ValidationError") {
-    status = 400;
-    message = "Validation Error";
-    details = err.message;
-  } else if (err.code === "23505") {
-    // PostgreSQL unique violation
+  // Handle specific error types - PostgreSQL errors take priority
+  if (err.code === "23505") {
+    // PostgreSQL unique violation - always use PostgreSQL status, ignore custom status
     status = 409;
     message = "Duplicate entry";
     details = "A record with this information already exists";
   } else if (err.code === "23503") {
-    // PostgreSQL foreign key violation
+    // PostgreSQL foreign key violation - always use PostgreSQL status, ignore custom status
     status = 400;
     message = "Invalid reference";
     details = "Referenced record does not exist";
   } else if (err.code === "42P01") {
-    // PostgreSQL table does not exist
+    // PostgreSQL table does not exist - always use PostgreSQL status, ignore custom status
     status = 500;
     message = "Database configuration error";
     details = "Required database table not found";
+  } else if (err.name === "ValidationError") {
+    status = 400;
+    message = "Validation Error";
+    details = err.message;
   } else if (err.message) {
     // If we have a custom error message, use it
     if (err.status) status = err.status;

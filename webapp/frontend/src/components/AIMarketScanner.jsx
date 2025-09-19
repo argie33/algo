@@ -113,6 +113,11 @@ const AIMarketScanner = ({ onStockSelect }) => {
       const response = await fetch(
         `/api/screener/ai-scan?type=${scanType}&limit=50`
       );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -217,8 +222,9 @@ const AIMarketScanner = ({ onStockSelect }) => {
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
-                <InputLabel>Scan Type</InputLabel>
+                <InputLabel id="scan-type-label">Scan Type</InputLabel>
                 <Select
+                  labelId="scan-type-label"
                   value={scanType}
                   onChange={(e) => setScanType(e.target.value)}
                   label="Scan Type"

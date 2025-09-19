@@ -145,7 +145,7 @@ describe("AIMarketScanner", () => {
     const scanTypeSelect = screen.getByLabelText("Scan Type");
     fireEvent.mouseDown(scanTypeSelect);
 
-    expect(screen.getByText("AI Momentum Breakouts")).toBeInTheDocument();
+    expect(screen.getAllByText("AI Momentum Breakouts")).toHaveLength(2); // One in dropdown, one selected
     expect(screen.getByText("Smart Reversal Plays")).toBeInTheDocument();
     expect(screen.getByText("Technical Breakouts")).toBeInTheDocument();
     expect(screen.getByText("Unusual Activity")).toBeInTheDocument();
@@ -298,6 +298,7 @@ describe("AIMarketScanner", () => {
       ok: false,
       status: 500,
       statusText: "Internal Server Error",
+      json: () => Promise.reject(new Error("Failed to parse JSON")),
     });
 
     render(<AIMarketScanner onStockSelect={mockOnStockSelect} />, {

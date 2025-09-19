@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import Dashboard from "../../pages/Dashboard";
@@ -51,7 +51,7 @@ const renderWithProviders = (component) => {
   return render(component, { wrapper: DashboardTestWrapper });
 };
 
-const mockAuthContext = {
+const _mockAuthContext = {
   user: { id: "test-user", email: "test@example.com" },
   isAuthenticated: true,
   login: vi.fn(),
@@ -433,55 +433,61 @@ describe("Dashboard Integration Tests", () => {
         expect(api.get).toHaveBeenCalledTimes(1);
       });
 
-      // Fast forward 5 minutes
-      vi.advanceTimersByTime(5 * 60 * 1000);
+      // Clear any existing timers and advance
+      vi.clearAllTimers();
 
+      // Fast forward time and wait for React Query to process
+      await act(async () => {
+        vi.advanceTimersByTime(60 * 60 * 1000); // 1 hour to match refetchInterval
+        await Promise.resolve(); // Allow microtasks to flush
+      });
+
+      // Check if refetch occurred within reasonable timeout
       await waitFor(() => {
         expect(api.get).toHaveBeenCalledTimes(2);
-      });
+      }, { timeout: 100 });
 
       vi.useRealTimers();
     });
 
     it("should handle real-time price updates", async () => {
-      const { rerender } = renderWithProviders(<Dashboard />);
+      renderWithProviders(<Dashboard />);
 
+      // Wait for initial render with mock data
       await waitFor(() => {
-        expect(screen.getByText("150.00")).toBeInTheDocument(); // AAPL price
+        expect(screen.getByText("$125,000.00")).toBeInTheDocument(); // Portfolio value
       });
 
-      // Simulate price update
-      const updatedData = {
-        ...mockDashboardData,
-        portfolio: {
-          ...mockDashboardData.portfolio,
-          holdings: [
-            {
-              ...mockDashboardData.portfolio.holdings[0],
-              currentPrice: 152.5,
-              marketValue: 15250.0,
-            },
-            ...mockDashboardData.portfolio.holdings.slice(1),
-          ],
-        },
+      // Simulate price update by changing mock implementation
+      const updatedPortfolioData = {
+        value: 127500,
+        pnl: { daily: 4500, mtd: 20000, ytd: 95000 },
+        allocation: [
+          { name: "AAPL", value: 40, sector: "Technology" },
+          { name: "MSFT", value: 25, sector: "Technology" },
+          { name: "GOOGL", value: 20, sector: "Technology" },
+          { name: "Cash", value: 10, sector: "Cash" },
+          { name: "Other", value: 5, sector: "Mixed" },
+        ],
       };
 
+      // Update the API mock to return new data
       api.get.mockResolvedValue({
-        data: { success: true, data: updatedData },
+        data: { success: true, data: updatedPortfolioData },
       });
 
-      rerender(
-        <TestWrapper>
-          <AuthProvider value={mockAuthContext}>
-            <Dashboard />
-          </AuthProvider>
-        </TestWrapper>
-      );
+      // Simulate refresh by clicking refresh button
+      const refreshButton = screen.getByLabelText(/refresh/i);
 
+      await act(async () => {
+        fireEvent.click(refreshButton);
+      });
+
+      // Wait for updated data to appear
       await waitFor(() => {
-        expect(screen.getByText("152.50")).toBeInTheDocument();
-        expect(screen.getByText("15250.00")).toBeInTheDocument();
-      });
+        expect(screen.getByText("$127,500.00")).toBeInTheDocument();
+        expect(screen.getByText("+$4,500.00")).toBeInTheDocument();
+      }, { timeout: 5000 });
     });
   });
 

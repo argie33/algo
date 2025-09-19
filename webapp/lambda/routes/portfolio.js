@@ -825,11 +825,19 @@ router.get("/risk-metrics", async (req, res) => {
       !holdingsResult.rows ||
       holdingsResult.rows.length === 0
     ) {
-      return res.status(400).json({
-        success: false,
-        error: "No portfolio holdings found for risk analysis",
-        details: `User ${userId} has no holdings in the portfolio_holdings table`,
-        suggestion: "Add stocks to your portfolio to perform risk analysis",
+      return res.json({
+        success: true,
+        data: {
+          risk_metrics: {
+            value_at_risk: 0,
+            expected_shortfall: 0,
+            sortino_ratio: 0,
+            concentration_risk: { hhi: 0, max_allocation: 0 },
+            portfolio_beta: 1.0,
+            message: "No holdings available for risk analysis"
+          }
+        },
+        timestamp: new Date().toISOString(),
       });
     }
 

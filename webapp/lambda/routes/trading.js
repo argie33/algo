@@ -2515,10 +2515,10 @@ router.post("/positions/:symbol/close", authenticateToken, async (req, res) => {
     // Check if position exists
     const existingPosition = await query(
       `
-      SELECT 
-        id, symbol, quantity, average_cost, current_price, total_value,
-        unrealized_pnl, realized_pnl, position_type
-      FROM portfolio_holdings 
+      SELECT
+        symbol, quantity, average_cost, current_price, total_value,
+        unrealized_pnl, position_type
+      FROM portfolio_holdings
       WHERE user_id = $1 AND symbol = $2 AND quantity > 0
     `,
       [userId, symbol]

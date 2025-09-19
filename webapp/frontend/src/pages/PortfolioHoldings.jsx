@@ -45,6 +45,7 @@ import {
   addHolding,
   updateHolding,
   deleteHolding,
+  getStockPrices,
 } from "../services/api";
 
 const PortfolioHoldings = () => {
@@ -100,6 +101,17 @@ const PortfolioHoldings = () => {
       if (holdingsResponse?.data?.holdings) {
         setHoldings(holdingsResponse.data.holdings);
         setPortfolioSummary(holdingsResponse.data.summary);
+
+        // Load current stock prices for holdings
+        const symbols = holdingsResponse.data.holdings.map(h => h.symbol);
+        if (symbols.length > 0) {
+          try {
+            await getStockPrices(symbols);
+          } catch (priceError) {
+            console.warn("Failed to fetch current stock prices:", priceError);
+            // Don't fail the entire load for price errors
+          }
+        }
       } else {
         throw new Error("No portfolio holdings found");
       }

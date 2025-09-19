@@ -136,8 +136,8 @@ export const PRODUCTION_CONFIG = {
 };
 
 // Environment-specific overrides
-export const getEnvironmentConfig = () => {
-  const env = import.meta.env.MODE || "development";
+export const getEnvironmentConfig = (envMode = null) => {
+  const env = (envMode && envMode.trim()) || import.meta.env.MODE || "development";
 
   const overrides = {
     development: {
@@ -165,6 +165,10 @@ export const getEnvironmentConfig = () => {
       errorHandling: {
         logLevel: "warn",
       },
+    },
+
+    test: {
+      // Use production defaults for test environment
     },
 
     production: {

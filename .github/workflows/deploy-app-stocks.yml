@@ -340,15 +340,18 @@ jobs:
           for loader in $LOADERS; do
             echo "🔨 Building image for $loader loader..."
 
-            # Determine requirements file for this loader
+            # Determine requirements file for this loader - MUST exist!
             REQUIREMENTS_FILE="requirements-load${loader}.txt"
 
-            # Check if specific requirements file exists, fallback to main requirements.txt
+            # Check if specific requirements file exists - NO FALLBACK!
             if [[ -f "$REQUIREMENTS_FILE" ]]; then
-              echo "Using specific requirements file: $REQUIREMENTS_FILE"
+              echo "✅ Using specific requirements file: $REQUIREMENTS_FILE"
             else
-              echo "⚠️ No specific requirements file found for $loader, using main requirements.txt"
-              REQUIREMENTS_FILE="requirements.txt"
+              echo "❌ ERROR: No specific requirements file found for $loader!"
+              echo "Expected file: $REQUIREMENTS_FILE"
+              echo "Available requirements files:"
+              ls -la requirements-load*.txt || echo "No loader requirements files found!"
+              exit 1
             fi
 
             # Build image with loader-specific requirements and cache optimization

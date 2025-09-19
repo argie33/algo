@@ -223,7 +223,8 @@ function StockExplorer() {
         });
         return result;
       } catch (err) {
-        if (import.meta.env && import.meta.env.DEV)
+        // Only log to console in dev mode and not during tests
+        if (import.meta.env && import.meta.env.DEV && !import.meta.env.VITEST)
           console.error("StockExplorer: API Error:", err);
         logger.error("screenStocks", err, {
           params: buildQueryParams().toString(),
@@ -1474,7 +1475,7 @@ function StockExplorer() {
                         Price Chart
                       </Typography>
                       <Box sx={{ width: "100%", height: 400 }}>
-                        <ResponsiveContainer>
+                        <ResponsiveContainer data-testid="responsive-container">
                           <AreaChart
                             data={[
                               ...(priceHistoryModal?.data || []),

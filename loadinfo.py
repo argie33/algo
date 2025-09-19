@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# Updated Thu Sep 19 11:10:00 CDT 2025 - Testing JSON parsing fix
+# Updated Thu Sep 19 17:54:00 CDT 2025 - Testing workflow with individual requirements files
 # FIXED: Per-loader requirements files + websockets>=13.0 for yfinance compatibility
+# FIXED: Removed main requirements.txt fallback - each loader uses its own requirements-load{name}.txt
 import gc
 import json
 import logging

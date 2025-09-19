@@ -5,7 +5,7 @@
 
 const responseFormatter = require("../../../utils/responseFormatter");
 
-describe("Response Formatter Integration Tests", () => {
+describe("Response Formatter Integration Tests - Fixed", () => {
   describe("Success Response Formatting", () => {
     test("should format successful API responses", () => {
       const testData = {

@@ -217,9 +217,11 @@ async function getDbConfig() {
     }
 
     // If no configuration is available, return null to indicate no database
-    console.warn(
-      "No database configuration found. Set DB_SECRET_ARN or DB_HOST environment variables."
-    );
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(
+        "No database configuration found. Set DB_SECRET_ARN or DB_HOST environment variables."
+      );
+    }
     return null;
   } catch (error) {
     console.error("Error getting DB config:", error);
@@ -237,16 +239,20 @@ async function initializeDatabase() {
   initPromise = (async () => {
     let config = null;
     try {
-      console.log("Initializing database connection pool...");
+      if (process.env.NODE_ENV !== 'test') {
+        console.log("Initializing database connection pool...");
+      }
       config = await getDbConfig();
 
       if (!config) {
         const error = new Error(
           "Database configuration missing. Please set DB environment variables or DB_SECRET_ARN."
         );
-        console.warn(
-          "No database configuration available. API will run in fallback mode with mock data."
-        );
+        if (process.env.NODE_ENV !== 'test') {
+          console.warn(
+            "No database configuration available. API will run in fallback mode with mock data."
+          );
+        }
         dbInitialized = false;
         pool = null;
         throw error;
@@ -278,14 +284,16 @@ async function initializeDatabase() {
         DB_NAME: process.env.DB_NAME,
         DB_USER: process.env.DB_USER,
       };
-      console.warn(
-        "Database initialization failed. API will run in fallback mode:",
-        {
-          error: error.message,
-          config: config,
-          env: error.env,
-        }
-      );
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(
+          "Database initialization failed. API will run in fallback mode:",
+          {
+            error: error.message,
+            config: config,
+            env: error.env,
+          }
+        );
+      }
       return null; // Return null instead of throwing error
     } finally {
       initPromise = null;
@@ -1084,13 +1092,17 @@ async function query(text, params = []) {
   try {
     // Ensure database is initialized
     if (!dbInitialized || !pool) {
-      console.log("Database not initialized, attempting initialization...");
+      if (process.env.NODE_ENV !== 'test') {
+        console.log("Database not initialized, attempting initialization...");
+      }
       const result = await initializeDatabase();
       if (!result || !pool) {
         // Database is not available, return null for graceful degradation
-        console.warn(
-          "Database not available - operation will return null for graceful fallback"
-        );
+        if (process.env.NODE_ENV !== 'test') {
+          console.warn(
+            "Database not available - operation will return null for graceful fallback"
+          );
+        }
         return null;
       }
     }
