@@ -317,10 +317,9 @@ jobs:
           fi
           echo "✅ ECR repository verified"
 
-          # Setup buildx for multi-platform builds
+          # Setup buildx for multi-platform builds with optimization
           echo "🔧 Setting up Docker buildx for ARM64..."
-          docker buildx create --use --name multiarch --driver docker-container || true
-          docker buildx inspect --bootstrap
+          docker buildx create --use --name multiarch --driver docker-container --bootstrap || true
 
           # Build specific images for each loader type that will be executed
           echo "🔨 Building Docker images for detected loaders..."
@@ -352,11 +351,16 @@ jobs:
               REQUIREMENTS_FILE="requirements.txt"
             fi
 
-            # Build image with loader-specific requirements
+            # Build image with loader-specific requirements and cache optimization
             IMAGE_TAG="$REPO_NAME:$loader-latest"
+            CACHE_FROM="type=gha"
+            CACHE_TO="type=gha,mode=max"
+
             if ! docker buildx build \
               --platform linux/arm64 \
               --build-arg REQUIREMENTS_FILE="$REQUIREMENTS_FILE" \
+              --cache-from "$CACHE_FROM" \
+              --cache-to "$CACHE_TO" \
               -t "$IMAGE_TAG" \
               -f Dockerfile.dataloader . --load; then
               echo "❌ ERROR: Docker build failed for $loader!"
