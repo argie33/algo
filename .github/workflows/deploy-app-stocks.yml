@@ -365,24 +365,7 @@ jobs:
             echo "✅ Docker build successful for $loader"
           done
 
-          # Also build a general image with main requirements for any unspecified loaders
-          echo "🔨 Building general image with main requirements..."
-          # Use specific requirements file to avoid conflicts, fallback to main requirements.txt
-          GENERAL_REQUIREMENTS="requirements.txt"
-          if [[ -f "requirements-loadinfo.txt" ]]; then
-            echo "Using requirements-loadinfo.txt for general image to avoid conflicts"
-            GENERAL_REQUIREMENTS="requirements-loadinfo.txt"
-          fi
-
-          if ! docker buildx build \
-            --platform linux/arm64 \
-            --build-arg REQUIREMENTS_FILE="$GENERAL_REQUIREMENTS" \
-            -t "$REPO_NAME:latest" \
-            -f Dockerfile.dataloader . --load; then
-            echo "❌ ERROR: Docker build failed for general image!"
-            exit 1
-          fi
-          echo "✅ Docker build successful for general image"
+          echo "✅ All loader-specific images built successfully"
 
           # Tag and push all images
           echo "🏷️ Tagging and pushing images..."
@@ -401,19 +384,7 @@ jobs:
             echo "✅ $loader image pushed successfully to: $LOADER_IMAGE_URI"
           done
 
-          # Push general image
-          echo "🏷️ Tagging general image..."
-          GENERAL_IMAGE_URI="${REPOSITORY_URI}:latest"
-          docker tag "$REPO_NAME:latest" "$GENERAL_IMAGE_URI"
-
-          echo "⬆️ Pushing general image to ECR..."
-          if ! docker push "$GENERAL_IMAGE_URI"; then
-            echo "❌ ERROR: Docker push failed for general image!"
-            exit 1
-          fi
-          echo "✅ General image pushed successfully to: $GENERAL_IMAGE_URI"
-
-          echo "🎯 All images pushed to ECR successfully!"
+          echo "🎯 All loader-specific images pushed to ECR successfully!"
 
   # 3. Execute loaders using matrix strategy
   execute-loaders:
@@ -505,18 +476,9 @@ jobs:
             --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
             --output text --region ${{ env.AWS_REGION }})
 
-          # Try loader-specific image first, fallback to general image
-          LOADER_IMAGE_URI="${REPOSITORY_URI}:${{ matrix.loader }}-latest"
-          GENERAL_IMAGE_URI="${REPOSITORY_URI}:latest"
-
-          # Check if loader-specific image exists in ECR
-          if aws ecr describe-images --repository-name stocks-app-registry --image-ids imageTag=${{ matrix.loader }}-latest --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
-            IMAGE_URI="$LOADER_IMAGE_URI"
-            echo "✅ Using loader-specific image: $IMAGE_URI"
-          else
-            IMAGE_URI="$GENERAL_IMAGE_URI"
-            echo "⚠️ Loader-specific image not found, using general image: $IMAGE_URI"
-          fi
+          # Use loader-specific image (only image we build)
+          IMAGE_URI="${REPOSITORY_URI}:${{ matrix.loader }}-latest"
+          echo "✅ Using loader-specific image: $IMAGE_URI"
 
           # Run ECS task with the correct image
           TASK_ARN=$(aws ecs run-task \
