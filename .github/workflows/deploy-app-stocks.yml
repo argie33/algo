@@ -367,7 +367,18 @@ jobs:
 
           # Also build a general image with main requirements for any unspecified loaders
           echo "🔨 Building general image with main requirements..."
-          if ! docker buildx build --platform linux/arm64 -t "$REPO_NAME:latest" -f Dockerfile.dataloader . --load; then
+          # Use specific requirements file to avoid conflicts, fallback to main requirements.txt
+          GENERAL_REQUIREMENTS="requirements.txt"
+          if [[ -f "requirements-loadinfo.txt" ]]; then
+            echo "Using requirements-loadinfo.txt for general image to avoid conflicts"
+            GENERAL_REQUIREMENTS="requirements-loadinfo.txt"
+          fi
+
+          if ! docker buildx build \
+            --platform linux/arm64 \
+            --build-arg REQUIREMENTS_FILE="$GENERAL_REQUIREMENTS" \
+            -t "$REPO_NAME:latest" \
+            -f Dockerfile.dataloader . --load; then
             echo "❌ ERROR: Docker build failed for general image!"
             exit 1
           fi
