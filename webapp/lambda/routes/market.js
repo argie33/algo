@@ -204,9 +204,9 @@ router.get("/summary", async (req, res) => {
 
     const breadth = breadthResult.rows[0];
     const advanceDeclineRatio =
-      breadth.declining > 0
-        ? breadth.advancing / breadth.declining
-        : breadth.advancing;
+      parseInt(breadth.declining) > 0
+        ? parseInt(breadth.advancing) / parseInt(breadth.declining)
+        : parseInt(breadth.advancing) || 0;
 
     const sectors = sectorResult.rows.slice(0, 10).map((row) => ({
       sector: row.sector,
@@ -225,7 +225,7 @@ router.get("/summary", async (req, res) => {
           advancing: parseInt(breadth.advancing),
           declining: parseInt(breadth.declining),
           unchanged: parseInt(breadth.unchanged),
-          advance_decline_ratio: advanceDeclineRatio.toFixed(2),
+          advance_decline_ratio: (advanceDeclineRatio || 0).toFixed(2),
           avg_change_percent: parseFloat(
             breadth.avg_change_percent || 0
           ).toFixed(2),

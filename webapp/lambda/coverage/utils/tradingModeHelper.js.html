@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">8.62% </span>
+                <span class="strong">1.72% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>10/116</span>
+                <span class='fraction'>2/116</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.74% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>6/89</span>
+                <span class='fraction'>0/89</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">8% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/25</span>
+                <span class='fraction'>0/25</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">8.84% </span>
+                <span class="strong">1.76% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>10/113</span>
+                <span class='fraction'>2/113</span>
             </div>
         
             
@@ -689,7 +689,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">28x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -697,21 +697,21 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -740,9 +740,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1274,7 +1274,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">28x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1315,22 +1315,22 @@ const { query } = require("./database");
  * @param {string} userId - User ID
  * @returns {Promise&lt;{mode: string, isPaper: boolean, isLive: boolean}&gt;}
  */
-async function getUserTradingMode(userId) {
-  try {
+async function <span class="fstat-no" title="function not covered" >getUserTradingMode(</span>userId) {
+<span class="cstat-no" title="statement not covered" >  try {</span>
     // Try to get user's trading mode from database
-    const result = await query(
+    const result = <span class="cstat-no" title="statement not covered" >await query(</span>
       `SELECT trading_preferences FROM user_dashboard_settings WHERE user_id = $1`,
       [userId]
     );
 &nbsp;
-    const userSettings = result.rows[0];
+    const userSettings = <span class="cstat-no" title="statement not covered" >result.rows[0];</span>
 &nbsp;
     // Default to paper trading mode for safety
     const paperTradingMode =
-      userSettings?.trading_preferences?.paper_trading_mode !== false;
-    const mode = paperTradingMode ? "paper" : <span class="branch-1 cbranch-no" title="branch not covered" >"live";</span>
+<span class="cstat-no" title="statement not covered" >      userSettings?.trading_preferences?.paper_trading_mode !== false;</span>
+    const mode = <span class="cstat-no" title="statement not covered" >paperTradingMode ? "paper" : "live";</span>
 &nbsp;
-    return {
+<span class="cstat-no" title="statement not covered" >    return {</span>
       mode,
       isPaper: paperTradingMode,
       isLive: !paperTradingMode,
@@ -1358,10 +1358,10 @@ async function getUserTradingMode(userId) {
  * @param {string} userId - User ID
  * @returns {Promise&lt;object&gt;} Enhanced data with trading mode context
  */
-async function addTradingModeContext(data, userId) {
-  const tradingMode = await getUserTradingMode(userId);
+async function <span class="fstat-no" title="function not covered" >addTradingModeContext(</span>data, userId) {
+  const tradingMode = <span class="cstat-no" title="statement not covered" >await getUserTradingMode(userId);</span>
 &nbsp;
-  return {
+<span class="cstat-no" title="statement not covered" >  return {</span>
     ...data,
     trading_mode: tradingMode,
     paper_trading: tradingMode.isPaper,
@@ -1369,10 +1369,10 @@ async function addTradingModeContext(data, userId) {
     mode_context: {
       description: tradingMode.isPaper
         ? "Paper trading - Simulated trades, no real money at risk"
-        : <span class="branch-1 cbranch-no" title="branch not covered" >"Live trading - Real money trades with actual brokerage",</span>
-      risk_level: tradingMode.isPaper ? "none" : <span class="branch-1 cbranch-no" title="branch not covered" >"high",</span>
+        : "Live trading - Real money trades with actual brokerage",
+      risk_level: tradingMode.isPaper ? "none" : "high",
       disclaimer: tradingMode.isLive
-        ? <span class="branch-0 cbranch-no" title="branch not covered" >"⚠️ Live trading involves real money. Trade responsibly."</span>
+        ? "⚠️ Live trading involves real money. Trade responsibly."
         : "📊 Paper trading for learning and strategy testing.",
     },
   };
@@ -1927,7 +1927,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-20T15:26:21.247Z
+                at 2025-09-20T18:28:27.924Z
             </div>
         <script src="../prettify.js"></script>
         <script>

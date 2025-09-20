@@ -728,7 +728,7 @@
 <a name='L663'></a><a href='#L663'>663</a>
 <a name='L664'></a><a href='#L664'>664</a>
 <a name='L665'></a><a href='#L665'>665</a>
-<a name='L666'></a><a href='#L666'>666</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">4x</span>
+<a name='L666'></a><a href='#L666'>666</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -737,11 +737,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1392,7 +1392,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const { query } = require("./database");
 &nbsp;
 /**
@@ -1480,7 +1480,7 @@ class AIMarketScanner {
 <span class="fstat-no" title="function not covered" >  as</span>ync momentumAlgorithm(limit, filters) {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.volume,
@@ -1500,14 +1500,14 @@ class AIMarketScanner {
           WHEN pd.close &gt; pd_prev.close * 1.01 AND pd.volume &gt; pd_prev.volume * 1.2 THEN 65
           ELSE 50
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -1518,13 +1518,13 @@ class AIMarketScanner {
           AND date &lt; (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
+      ) td ON s.ticker = td.symbol
       WHERE pd.close IS NOT NULL 
         AND pd_prev.close IS NOT NULL
         AND pd.close &gt; pd_prev.close * 1.01
@@ -1563,7 +1563,7 @@ class AIMarketScanner {
 <span class="fstat-no" title="function not covered" >  as</span>ync reversalAlgorithm(limit, filters) {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.volume,
@@ -1583,14 +1583,14 @@ class AIMarketScanner {
           WHEN pd.close &lt; pd_prev.close * 0.98 AND pd.volume &gt; pd_prev.volume * 1.3 THEN 60
           ELSE 50
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -1601,13 +1601,13 @@ class AIMarketScanner {
           AND date &lt; (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
+      ) td ON s.ticker = td.symbol
       WHERE pd.close IS NOT NULL 
         AND pd_prev.close IS NOT NULL
         AND pd.close &lt; pd_prev.close * 0.98
@@ -1647,7 +1647,7 @@ class AIMarketScanner {
 <span class="fstat-no" title="function not covered" >  as</span>ync breakoutAlgorithm(limit, filters) {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.high,
@@ -1667,14 +1667,14 @@ class AIMarketScanner {
           WHEN pd.close &gt; pd.open * 1.02 AND pd.volume &gt; pd_prev.volume * 1.3 THEN 72
           ELSE 60
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -1685,13 +1685,13 @@ class AIMarketScanner {
           AND date &lt; (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
+      ) td ON s.ticker = td.symbol
       WHERE pd.close IS NOT NULL 
         AND pd_prev.close IS NOT NULL
         AND pd.close &gt;= pd.high * 0.97
@@ -1733,7 +1733,7 @@ class AIMarketScanner {
 <span class="fstat-no" title="function not covered" >  as</span>ync unusualActivityAlgorithm(limit, filters) {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.volume,
@@ -1753,14 +1753,14 @@ class AIMarketScanner {
           WHEN pd.volume &gt; pd_avg.avg_volume * 2 THEN 68
           ELSE 50
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -1771,7 +1771,7 @@ class AIMarketScanner {
           AND date &lt; (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT 
           symbol,
@@ -1779,7 +1779,7 @@ class AIMarketScanner {
         FROM price_daily
         WHERE date &gt;= (SELECT MAX(date) FROM price_daily) - INTERVAL '30 days'
         GROUP BY symbol
-      ) pd_avg ON s.symbol = pd_avg.symbol
+      ) pd_avg ON s.ticker = pd_avg.symbol
       WHERE pd.volume IS NOT NULL
         AND (pd_prev.volume IS NOT NULL OR pd_avg.avg_volume IS NOT NULL)
         AND (
@@ -1820,7 +1820,7 @@ class AIMarketScanner {
 <span class="fstat-no" title="function not covered" >  as</span>ync earningsAlgorithm(limit, filters) {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.volume,
@@ -1839,14 +1839,14 @@ class AIMarketScanner {
           WHEN er.report_date &gt;= CURRENT_DATE - INTERVAL '2 days' THEN 65
           ELSE 55
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -1857,13 +1857,13 @@ class AIMarketScanner {
           AND date &lt; (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM earnings_reports
         WHERE report_date &gt;= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, report_date DESC
-      ) er ON s.symbol = er.symbol
+      ) er ON s.ticker = er.symbol
       WHERE er.report_date IS NOT NULL
         AND pd.close IS NOT NULL
         AND (er.surprise_percent &gt; 0 OR er.report_date &gt;= CURRENT_DATE - INTERVAL '2 days')
@@ -1904,7 +1904,7 @@ class AIMarketScanner {
 <span class="fstat-no" title="function not covered" >  as</span>ync newsSentimentAlgorithm(limit, filters) {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
@@ -1920,14 +1920,14 @@ class AIMarketScanner {
           WHEN n.sentiment &gt; 0.4 AND n.sentiment_confidence &gt; 0.5 THEN 65
           ELSE 55
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -1938,14 +1938,14 @@ class AIMarketScanner {
           AND date &lt; (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
           symbol, sentiment, sentiment_confidence, headline, published_at
         FROM news
         WHERE published_at &gt;= CURRENT_DATE - INTERVAL '2 days'
         ORDER BY symbol, published_at DESC
-      ) n ON s.symbol = n.symbol
+      ) n ON s.ticker = n.symbol
       WHERE n.sentiment IS NOT NULL
         AND n.sentiment &gt; 0.3
         AND pd.close IS NOT NULL
@@ -2065,7 +2065,7 @@ module.exports = { AIMarketScanner };
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-20T15:26:21.247Z
+                at 2025-09-20T18:28:27.924Z
             </div>
         <script src="../prettify.js"></script>
         <script>
