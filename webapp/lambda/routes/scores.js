@@ -112,8 +112,8 @@ router.get("/", async (req, res) => {
         cp.industry,
         NULL as market_cap,
         COALESCE(pd.close, 0) as current_price,
-        km.trailing_pe,
-        km.price_to_book,
+        fm.pe_ratio,
+        fm.price_to_book,
         
         -- Main Scores (using actual database columns)
         sc.overall_score as composite_score,
@@ -150,6 +150,7 @@ router.get("/", async (req, res) => {
         ORDER BY date DESC 
         LIMIT 1
       ) pd ON true
+      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -178,6 +179,7 @@ router.get("/", async (req, res) => {
         ORDER BY date DESC 
         LIMIT 1
       ) pd ON true
+      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
