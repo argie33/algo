@@ -395,37 +395,37 @@ router.get("/", stocksListValidation, async (req, res) => {
     // Add search filter
     if (search) {
       paramCount++;
-      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.name ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
+      whereClause += ` AND (cp.ticker ILIKE $${paramCount} OR cp.short_name ILIKE $${paramCount} OR cp.long_name ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
     // Add sector filter
     if (sector && sector.trim() !== "") {
       paramCount++;
-      whereClause += ` AND ss.sector = $${paramCount}`;
+      whereClause += ` AND cp.sector = $${paramCount}`;
       params.push(sector);
     }
 
-    // Add exchange filter (on ss.exchange)
+    // Add exchange filter (on cp.market)
     if (exchange && exchange.trim() !== "") {
       paramCount++;
-      whereClause += ` AND ss.exchange = $${paramCount}`;
+      whereClause += ` AND cp.market = $${paramCount}`;
       params.push(exchange);
     }
 
     // FAST sort columns
     const validSortColumns = {
-      ticker: "ss.symbol",
-      symbol: "ss.symbol",
-      name: "ss.name",
-      exchange: "ss.exchange",
-      type: "ss.type",
-      sector: "ss.sector",
-      industry: "ss.industry",
-      market_cap: "ss.market_cap",
+      ticker: "cp.ticker",
+      symbol: "cp.ticker",
+      name: "cp.short_name",
+      exchange: "cp.market",
+      type: "cp.quote_type",
+      sector: "cp.sector",
+      industry: "cp.industry",
+      market_cap: "md.market_cap",
     };
 
-    const sortColumn = validSortColumns[sortBy] || "ss.symbol";
+    const sortColumn = validSortColumns[sortBy] || "cp.ticker";
     const sortDirection = sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
 
     console.log("OPTIMIZED query params:", {
@@ -435,33 +435,34 @@ router.get("/", stocksListValidation, async (req, res) => {
       offset,
     });
 
-    // SIMPLIFIED QUERY: Use stock_symbols as primary source with essential data only
+    // FIXED QUERY: Use company_profile as primary source (populated by loadinfo)
     const stocksQuery = `
       SELECT
-        -- Primary stock symbols data (only columns that exist)
-        ss.symbol,
-        ss.name as company_name,
-        ss.security_name,
-        ss.exchange,
-        ss.type,
-        ss.sector,
-        ss.industry,
-        ss.currency,
-        ss.country,
-        ss.market_cap,
-        ss.is_active,
+        -- Primary company profile data (populated by loadinfo)
+        cp.ticker as symbol,
+        cp.short_name as company_name,
+        cp.long_name as security_name,
+        cp.market,
+        cp.quote_type as type,
+        cp.sector,
+        cp.industry,
+        cp.currency,
+        cp.country,
+        md.market_cap,
+        CASE WHEN cp.ticker IS NOT NULL THEN true ELSE false END as is_active,
         -- Latest price data when available (optional)
         pd.close as current_price,
         pd.volume,
         pd.date as price_date
 
-      FROM stock_symbols ss
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON ss.symbol = pd.symbol
+      ) pd ON cp.ticker = pd.symbol
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -472,7 +473,8 @@ router.get("/", stocksListValidation, async (req, res) => {
     // Count query - must match main query tables for WHERE clause compatibility
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM stock_symbols ss
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
       ${whereClause}
     `;
 
