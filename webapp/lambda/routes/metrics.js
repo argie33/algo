@@ -168,10 +168,10 @@ router.get("/", async (req, res) => {
     const stocksQuery = `
       SELECT 
         ss.symbol,
-        ss.short_name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        cp.market_cap,
+        NULL as market_cap,
         s.price as current_price,
         s.pe_ratio as trailing_pe,
         0 as price_to_book,
@@ -809,10 +809,10 @@ router.get("/:symbol", async (req, res) => {
         vm.fair_value as dcf_margin_of_safety,
         vm.fair_value as ddm_value,
         vm.value_metric as rim_value,
-        ss.short_name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        cp.market_cap,
+        NULL as market_cap,
         COALESCE(pd.close, 0) as current_price,
         km.trailing_pe,
         km.price_to_book,
@@ -1127,9 +1127,9 @@ router.get("/top/:category", async (req, res) => {
     const topStocksQuery = `
       SELECT 
         ss.symbol,
-        ss.short_name as company_name,
+        cp.short_name as company_name,
         cp.sector,
-        cp.market_cap,
+        NULL as market_cap,
         COALESCE(cp.current_price, s.current_price, 0) as current_price,
         sc.fundamental_score,
         sc.technical_score,

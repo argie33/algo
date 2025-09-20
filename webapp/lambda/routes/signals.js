@@ -190,8 +190,8 @@ router.get("/buy", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        s.price as current_price,
-        s.market_cap,
+        bs.price as current_price,
+        NULL as market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
@@ -325,8 +325,8 @@ router.get("/sell", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        s.price as current_price,
-        s.market_cap,
+        bs.price as current_price,
+        NULL as market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
@@ -463,8 +463,8 @@ router.get("/recent", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        s.price as current_price,
-        s.market_cap,
+        bs.price as current_price,
+        NULL as market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
@@ -545,8 +545,8 @@ router.get("/", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        s.price as current_price,
-        s.market_cap,
+        bs.price as current_price,
+        NULL as market_cap,
         NULL as trailing_pe,
         s.dividend_yield,
         'buy' as signal_type
@@ -566,8 +566,8 @@ router.get("/", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        s.price as current_price,
-        s.market_cap,
+        bs.price as current_price,
+        NULL as market_cap,
         NULL as trailing_pe,
         s.dividend_yield,
         'sell' as signal_type
@@ -2523,8 +2523,8 @@ router.get("/daily", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        s.price as current_price,
-        s.market_cap,
+        bs.price as current_price,
+        NULL as market_cap,
         s.dividend_yield,
         CASE 
           WHEN bs.signal = 'BUY' THEN 'buy'
@@ -2632,8 +2632,8 @@ router.get("/trending", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        s.price as current_price,
-        s.market_cap,
+        bs.price as current_price,
+        NULL as market_cap,
         s.dividend_yield,
         COUNT(*) OVER (PARTITION BY bs.symbol) as signal_count
       FROM buy_sell_${timeframe} bs

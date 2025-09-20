@@ -107,10 +107,10 @@ router.get("/", async (req, res) => {
     const stocksQuery = `
       SELECT 
         ss.symbol,
-        ss.short_name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        cp.market_cap,
+        NULL as market_cap,
         COALESCE(pd.close, 0) as current_price,
         km.trailing_pe,
         km.price_to_book,
@@ -150,7 +150,6 @@ router.get("/", async (req, res) => {
         ORDER BY date DESC 
         LIMIT 1
       ) pd ON true
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -179,7 +178,6 @@ router.get("/", async (req, res) => {
         ORDER BY date DESC 
         LIMIT 1
       ) pd ON true
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -903,7 +901,7 @@ router.get("/:symbol", async (req, res) => {
     const scoresQuery = `
       SELECT 
         sc.*,
-        ss.short_name as company_name
+        cp.short_name as company_name
       FROM stock_scores sc
       LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
       WHERE sc.symbol = $1
@@ -1261,9 +1259,9 @@ router.get("/top/:category", async (req, res) => {
     const topStocksQuery = `
       SELECT 
         ss.symbol,
-        ss.short_name as company_name,
+        cp.short_name as company_name,
         cp.sector,
-        cp.market_cap,
+        NULL as market_cap,
         NULL as current_price,
         sc.overall_score as composite_score,
         sc.${scoreColumn} as category_score,
