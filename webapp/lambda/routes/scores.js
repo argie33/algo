@@ -110,10 +110,10 @@ router.get("/", async (req, res) => {
         cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        NULL as market_cap,
+        km.market_cap,
         COALESCE(pd.close, 0) as current_price,
-        NULL,
-        NULL,
+        km.trailing_pe,
+        km.price_to_book,
         
         -- Main Scores (using actual database columns)
         sc.overall_score as composite_score,
@@ -143,14 +143,15 @@ router.get("/", async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN LATERAL (
-        SELECT close 
-        FROM price_daily 
-        WHERE symbol = ss.symbol 
-        ORDER BY date DESC 
+        SELECT close
+        FROM price_daily
+        WHERE symbol = ss.symbol
+        ORDER BY date DESC
         LIMIT 1
       ) pd ON true
-            LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
+      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
           FROM stock_scores sc2 
@@ -171,14 +172,15 @@ router.get("/", async (req, res) => {
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN LATERAL (
-        SELECT close 
-        FROM price_daily 
-        WHERE symbol = ss.symbol 
-        ORDER BY date DESC 
+        SELECT close
+        FROM price_daily
+        WHERE symbol = ss.symbol
+        ORDER BY date DESC
         LIMIT 1
       ) pd ON true
-            LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
+      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
           FROM stock_scores sc2 

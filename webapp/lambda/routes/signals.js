@@ -191,12 +191,20 @@ router.get("/buy", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        NULL as market_cap,
+        km.market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
+      LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
+      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = bs.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -326,12 +334,20 @@ router.get("/sell", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        NULL as market_cap,
+        km.market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
+      LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
+      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = bs.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -464,12 +480,20 @@ router.get("/recent", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        NULL as market_cap,
+        km.market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
+      LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
+      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = bs.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -545,14 +569,22 @@ router.get("/", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        bs.price as current_price,
-        NULL as market_cap,
-        NULL,
-        NULL,
+        COALESCE(pd.close, bs.price) as current_price,
+        km.market_cap,
+        km.trailing_pe,
+        km.dividend_yield,
         'buy' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
+      LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
+      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = bs.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -566,14 +598,22 @@ router.get("/", async (req, res) => {
         cp.sector,
         bs.signal,
         bs.date,
-        bs.price as current_price,
-        NULL as market_cap,
-        NULL,
-        NULL,
+        COALESCE(pd.close, bs.price) as current_price,
+        km.market_cap,
+        km.trailing_pe,
+        km.dividend_yield,
         'sell' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
+      LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
+      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = bs.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -2524,7 +2564,7 @@ router.get("/daily", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        NULL as market_cap,
+        km.market_cap,
         NULL as dividend_yield,
         CASE 
           WHEN bs.signal = 'BUY' THEN 'buy'
@@ -2533,7 +2573,15 @@ router.get("/daily", async (req, res) => {
         END as signal_type
       FROM buy_sell_daily bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
+      LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
+      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = bs.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -2633,12 +2681,20 @@ router.get("/trending", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        NULL as market_cap,
+        km.market_cap,
         NULL as dividend_yield,
         COUNT(*) OVER (PARTITION BY bs.symbol) as signal_count
       FROM buy_sell_${timeframe} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
+      LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
+      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN LATERAL (
+        SELECT close
+        FROM price_daily
+        WHERE symbol = bs.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) pd ON true
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.date >= CURRENT_DATE - INTERVAL '7 days'
