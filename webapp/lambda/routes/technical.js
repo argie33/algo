@@ -398,7 +398,7 @@ router.get("/indicators", async (req, res) => {
       if (!result.rows || result.rows.length === 0) {
         // Check if the stock exists in our database
         const stockCheck = await query(
-          "SELECT symbol, name FROM stocks WHERE symbol = $1",
+          "SELECT ticker as symbol, name FROM company_profile WHERE ticker = $1",
           [symbol.toUpperCase()]
         );
 
@@ -464,10 +464,10 @@ router.get("/indicators", async (req, res) => {
       if (!result.rows || result.rows.length === 0) {
         // Check if there are any stocks with price data available
         const stocksWithData = await query(`
-          SELECT DISTINCT s.symbol, s.name, COUNT(sp.symbol) as price_count
-          FROM stocks s
-          LEFT JOIN stock_prices sp ON s.symbol = sp.symbol
-          GROUP BY s.symbol, s.name
+          SELECT DISTINCT s.ticker as symbol, s.name, COUNT(sp.symbol) as price_count
+          FROM company_profile s
+          LEFT JOIN price_daily sp ON s.ticker = sp.symbol
+          GROUP BY s.ticker, s.name
           HAVING COUNT(sp.symbol) > 0
           ORDER BY COUNT(sp.symbol) DESC
           LIMIT 10
@@ -994,7 +994,7 @@ router.get("/screener", async (req, res) => {
              t.sma_50, t.sma_200, s.sector, s.market_cap, s.pe_ratio
       FROM technical_data_daily t
       JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-      LEFT JOIN stocks s ON t.symbol = s.symbol
+      LEFT JOIN company_profile s ON t.symbol = s.ticker
       WHERE t.date = (SELECT MAX(date) FROM technical_data_daily)
         AND t.rsi BETWEEN $1 AND $2
         AND p.close BETWEEN $3 AND $4  

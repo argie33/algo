@@ -211,7 +211,7 @@ router.get("/", async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      LEFT JOIN company_profile s ON ss.symbol = s.ticker
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -233,7 +233,7 @@ router.get("/", async (req, res) => {
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      LEFT JOIN company_profile s ON ss.symbol = s.ticker
       LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
@@ -421,7 +421,7 @@ router.get("/performance", async (req, res) => {
         (close - LAG(close) OVER (ORDER BY date)) as change_amount,
         high as high_price,
         low as low_price
-      FROM stock_prices 
+      FROM price_daily 
       WHERE symbol = $1 
         AND date >= CURRENT_DATE - INTERVAL '${days} days'
       ORDER BY date DESC
@@ -1139,7 +1139,7 @@ router.get("/top/:category", async (req, res) => {
       FROM stock_symbols ss
       ${joinClause}
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      LEFT JOIN company_profile s ON ss.symbol = s.ticker
       WHERE sc.date = (
         SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = ss.symbol
       )

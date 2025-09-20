@@ -1287,9 +1287,9 @@ router.post("/custom", async (req, res) => {
                 // If no portfolio holding, get stock info
                 const stockResult = await query(
                   `
-                SELECT symbol, price as current_price
-                FROM stocks
-                WHERE symbol = $1
+                SELECT ticker as symbol, price as current_price
+                FROM company_profile
+                WHERE ticker = $1
                 LIMIT 1
               `,
                   [symbol]
@@ -1512,7 +1512,7 @@ router.get("/correlations", async (req, res) => {
         const prices = await query(
           `
         SELECT symbol, date, close 
-        FROM stock_prices 
+        FROM price_daily 
         WHERE symbol = $1 AND date >= CURRENT_DATE - INTERVAL '${daysBack} days'
         ORDER BY date
       `,

@@ -186,7 +186,7 @@ router.get("/buy", async (req, res) => {
     const buySignalsQuery = `
       SELECT 
         bs.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         bs.signal,
         bs.date,
@@ -196,7 +196,7 @@ router.get("/buy", async (req, res) => {
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN stocks s ON bs.symbol = s.symbol
+      LEFT JOIN company_profile s ON bs.symbol = s.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -321,7 +321,7 @@ router.get("/sell", async (req, res) => {
     const sellSignalsQuery = `
       SELECT 
         bs.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         bs.signal,
         bs.date,
@@ -331,7 +331,7 @@ router.get("/sell", async (req, res) => {
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN stocks s ON bs.symbol = s.symbol
+      LEFT JOIN company_profile s ON bs.symbol = s.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -459,7 +459,7 @@ router.get("/recent", async (req, res) => {
       `
       SELECT 
         bs.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         bs.signal,
         bs.date,
@@ -469,7 +469,7 @@ router.get("/recent", async (req, res) => {
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN stocks s ON bs.symbol = s.symbol
+      LEFT JOIN company_profile s ON bs.symbol = s.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -541,7 +541,7 @@ router.get("/", async (req, res) => {
       `
       SELECT 
         bs.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         bs.signal,
         bs.date,
@@ -552,7 +552,7 @@ router.get("/", async (req, res) => {
         'buy' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN stocks s ON bs.symbol = s.symbol
+      LEFT JOIN company_profile s ON bs.symbol = s.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -562,7 +562,7 @@ router.get("/", async (req, res) => {
       `
       SELECT 
         bs.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         bs.signal,
         bs.date,
@@ -573,7 +573,7 @@ router.get("/", async (req, res) => {
         'sell' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN stocks s ON bs.symbol = s.symbol
+      LEFT JOIN company_profile s ON bs.symbol = s.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -1927,7 +1927,7 @@ router.get("/technical", async (req, res) => {
         END as signal_strength,
         'technical' as signal_type
       FROM ${table} t
-      LEFT JOIN stocks s ON t.symbol = s.symbol
+      LEFT JOIN company_profile s ON t.symbol = s.ticker
       WHERE t.date >= CURRENT_DATE - INTERVAL '30 days'
         ${signalTypeFilter}
       ORDER BY t.date DESC, t.rsi DESC
@@ -2509,7 +2509,7 @@ router.get("/daily", async (req, res) => {
     const signalsQuery = `
       SELECT 
         bs.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         bs.signal,
         bs.date,
@@ -2523,7 +2523,7 @@ router.get("/daily", async (req, res) => {
         END as signal_type
       FROM buy_sell_daily bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN stocks s ON bs.symbol = s.symbol
+      LEFT JOIN company_profile s ON bs.symbol = s.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -2618,7 +2618,7 @@ router.get("/trending", async (req, res) => {
     const trendingQuery = `
       SELECT 
         bs.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         cp.sector,
         bs.signal,
         bs.date,
@@ -2628,7 +2628,7 @@ router.get("/trending", async (req, res) => {
         COUNT(*) OVER (PARTITION BY bs.symbol) as signal_count
       FROM buy_sell_${timeframe} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN stocks s ON bs.symbol = s.symbol
+      LEFT JOIN company_profile s ON bs.symbol = s.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.date >= CURRENT_DATE - INTERVAL '7 days'
@@ -3140,7 +3140,7 @@ router.get("/swing-signals", async (req, res) => {
         const swingQuery = `
           SELECT 
             st.symbol,
-            cp.name as company_name,
+            cp.short_name as company_name,
             st.signal,
             st.entry_price,
             st.stop_loss,

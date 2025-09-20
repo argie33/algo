@@ -34,7 +34,7 @@ router.get("/upgrades", async (req, res) => {
     const upgradesQuery = `
       SELECT 
         asa.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         asa.upgrades_last_30d,
         asa.downgrades_last_30d,
         asa.date,
@@ -717,7 +717,7 @@ router.get("/recent-actions", async (req, res) => {
     const recentActionsQuery = `
       SELECT 
         asa.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         NULL as from_grade,
         NULL as to_grade,
         CASE 

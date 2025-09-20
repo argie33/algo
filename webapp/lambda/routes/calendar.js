@@ -219,7 +219,7 @@ router.get("/earnings", async (req, res) => {
       const symbols = [...new Set(earnings.map((e) => e.symbol))];
       if (symbols.length > 0) {
         const companyData = await query(
-          `SELECT symbol, name, sector, market_cap FROM stocks WHERE symbol = ANY($1)`,
+          `SELECT ticker as symbol, name, sector, market_cap FROM company_profile WHERE ticker = ANY($1)`,
           [symbols]
         );
 
@@ -427,7 +427,7 @@ router.get("/events", async (req, res) => {
         er.report_date as start_date,
         er.report_date as end_date,
         CONCAT('Q', er.quarter, ' ', er.year, ' Earnings Report') as title,
-        cp.name as company_name,
+        cp.short_name as company_name,
         er.eps_estimate,
         er.eps_reported,
         er.revenue
@@ -562,7 +562,7 @@ router.get("/earnings-estimates", async (req, res) => {
     const estimatesQuery = `
       SELECT 
         eh.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         eh.quarter as period,
         eh.eps_estimate as avg_estimate,
         eh.eps_estimate as low_estimate,
@@ -672,7 +672,7 @@ router.get("/earnings-history", async (req, res) => {
     const historyQuery = `
       SELECT 
         eh.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         eh.quarter,
         eh.eps_reported as eps_actual,
         eh.eps_estimate,

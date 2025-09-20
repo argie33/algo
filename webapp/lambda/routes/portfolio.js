@@ -251,7 +251,7 @@ router.get("/positions", async (req, res) => {
         h.current_price * h.quantity as market_value,
         h.average_cost * h.quantity as cost_basis
       FROM portfolio_holdings h
-      LEFT JOIN stocks s ON h.symbol = s.symbol
+      LEFT JOIN company_profile s ON h.symbol = s.ticker
       WHERE h.user_id = $1 AND h.quantity > 0
       ORDER BY h.current_price * h.quantity DESC
       LIMIT $2
@@ -312,7 +312,7 @@ router.get("/analytics", async (req, res) => {
         ph.last_updated,
         COALESCE(cp.sector, 'Unknown') as sector,
         COALESCE(cp.industry, 'Unknown') as industry,
-        COALESCE(cp.name, ph.symbol) as short_name
+        COALESCE(cp.short_name, ph.symbol) as short_name
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1 
@@ -331,7 +331,7 @@ router.get("/analytics", async (req, res) => {
       const symbols = (holdingsResult.rows || []).map((h) => h.symbol);
       const priceQuery = `
         SELECT symbol, close as current_price
-        FROM stock_prices
+        FROM price_daily
         WHERE symbol = ANY($1::text[])
       `;
 
@@ -539,9 +539,9 @@ router.get("/analysis", async (req, res) => {
     const userId = req.user.sub;
     const {
       period = "1y",
-      include_sectors = "true",
-      include_risk = "true",
-      include_performance = "true",
+      include_sectors: _include_sectors = "true",
+      include_risk: _include_risk = "true",
+      include_performance: _include_performance = "true",
     } = req.query;
 
     console.log(
@@ -845,7 +845,7 @@ router.get("/risk-metrics", async (req, res) => {
     const symbols = holdingsResult.rows.map((h) => h.symbol);
     const priceQuery = `
       SELECT symbol, close as current_price
-      FROM stock_prices
+      FROM price_daily
       WHERE symbol = ANY($1::text[])
     `;
 
@@ -3282,7 +3282,7 @@ router.get("/performance/attribution", async (req, res) => {
 
 // POST /portfolio/watchlist/add - Add symbol to watchlist
 router.post("/watchlist/add", async (req, res) => {
-  const userId = req.user.sub;
+  const _userId = req.user.sub;
   const {
     symbol,
     alertPrice,
@@ -5747,7 +5747,7 @@ router.get("/watchlist", async (req, res) => {
     const watchlistQuery = `
       SELECT 
         ph.symbol,
-        COALESCE(cp.name, ph.symbol) as name,
+        COALESCE(cp.short_name, ph.symbol) as name,
         ph.current_price as price,
         0 as change,
         0 as change_percent
@@ -6074,7 +6074,7 @@ router.get("/value", async (req, res) => {
     const topHoldingsQuery = `
       SELECT 
         ph.symbol,
-        COALESCE(cp.name, ph.symbol) as name,
+        COALESCE(cp.short_name, ph.symbol) as name,
         ph.market_value as value,
         (ph.market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
         ph.quantity as shares
@@ -6225,7 +6225,7 @@ router.get("/factors", async (req, res) => {
         COALESCE(s.beta, 1.0) as beta,
         COALESCE(s.pe_ratio, 15.0) as pe_ratio
       FROM portfolio_holdings ph
-      LEFT JOIN stocks s ON ph.symbol = s.symbol
+      LEFT JOIN company_profile s ON ph.symbol = s.ticker
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 
@@ -6336,7 +6336,7 @@ function generateFactorAnalysis(factors) {
 
 // Advanced Portfolio Analytics Functions
 
-function calculateAdvancedBenchmarkMetrics(portfolioReturns, benchmarkReturns) {
+function _calculateAdvancedBenchmarkMetrics(portfolioReturns, benchmarkReturns) {
   if (
     !portfolioReturns ||
     !benchmarkReturns ||

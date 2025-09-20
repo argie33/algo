@@ -646,7 +646,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
             ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
             ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
-            ${companyProfileExists && companyProfileColumns.short_name ? "cp.short_name" : companyProfileExists && companyProfileColumns.name ? "cp.name" : "NULL"} as company_name,
+            ${companyProfileExists ? "cp.short_name" : "NULL"} as company_name,
             ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
             ${companyProfileExists ? "cp.market_cap" : "NULL"} as market_cap,
             NULL as trailing_pe,
@@ -679,7 +679,7 @@ router.get("/signals/:timeframe", async (req, res) => {
           ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
           ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
           ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
-          ${companyProfileExists && companyProfileColumns.short_name ? "cp.short_name" : companyProfileExists && companyProfileColumns.name ? "cp.name" : "NULL"} as company_name,
+          ${companyProfileExists ? "cp.short_name" : "NULL"} as company_name,
           ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
           ${companyProfileExists ? "cp.market_cap" : "NULL"} as market_cap,
           NULL as trailing_pe,
@@ -949,7 +949,7 @@ router.get("/swing-signals", async (req, res) => {
     const swingQuery = `
       SELECT 
         st.symbol,
-        cp.name as company_name,
+        cp.short_name as company_name,
         st.signal,
         st.entry_price,
         st.stop_loss,
@@ -2768,7 +2768,7 @@ router.post("/orders/validate", async (req, res) => {
   try {
     console.log("🔍 Order validation requested");
 
-    const { symbol, qty, side, type } = req.body;
+    const { symbol, qty, _side, _type } = req.body;
 
     // Basic validation
     const validation = {
