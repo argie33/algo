@@ -2525,7 +2525,7 @@ async function getPriceDataForPatterns(symbol, _timeframe) {
     // Try to get real price data
     const tableName = "technical_data_daily";
     const priceQuery = `
-      SELECT p.close, p.high_price as high, p.low_price as low, t.date
+      SELECT p.close, p.high, p.low, t.date
       FROM ${tableName} t
       JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       WHERE t.symbol = $1

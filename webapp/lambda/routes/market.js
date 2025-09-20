@@ -3034,9 +3034,9 @@ router.get("/recession-forecast", async (req, res) => {
     // Get key recession indicators from FRED data
     const recessionQuery = `
       WITH latest_values AS (
-        SELECT 
+        SELECT
           series_id,
-          index_value as value,
+          value as value,
           date,
           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
         FROM economic_data
@@ -3180,9 +3180,9 @@ router.get("/leading-indicators", async (req, res) => {
     // Get latest values for key economic indicators from FRED data
     const economicQuery = `
       WITH latest_values AS (
-        SELECT 
+        SELECT
           series_id,
-          index_value as value,
+          value as value,
           date,
           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
         FROM economic_data
@@ -3332,9 +3332,9 @@ router.get("/sectoral-analysis", async (req, res) => {
     // Get relevant economic indicators for sector analysis
     const sectorQuery = `
       WITH latest_values AS (
-        SELECT 
+        SELECT
           series_id,
-          index_value as value,
+          value as value,
           date,
           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
         FROM economic_data
@@ -5641,7 +5641,7 @@ router.get("/economic", async (req, res) => {
       SELECT 
         series_id as indicator,
         date,
-        index_value as value,
+        value as value,
         'Economic Indicator' as name,
         'Monthly' as frequency
       FROM economic_data 
