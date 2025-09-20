@@ -55,8 +55,8 @@ def log_mem(stage: str):
 # Retry settings
 # -------------------------------
 MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.5  # seconds between download retries
-RATE_LIMIT_DELAY = 2.0  # longer delay for rate limit errors
+RETRY_DELAY = 3.0  # seconds between download retries (increased for reliability)
+RATE_LIMIT_DELAY = 10.0  # longer delay for rate limit errors (increased for success)
 
 
 # -------------------------------
@@ -80,7 +80,7 @@ def load_company_info(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading company info for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 0.1
+    CHUNK_SIZE, PAUSE = 5, 5.0  # Much smaller batches and longer pause for maximum success rate
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
