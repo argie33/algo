@@ -157,7 +157,7 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
 
     // Process portfolio data
     if (portfolioData.length > 0) {
-      portfolioData.forEach((row, index) => {
+      portfolioData.forEach((row, _index) => {
         const dailyReturn = parseFloat(row.daily_pnl_percent) || 0;
         portfolioCumulative += dailyReturn;
 
@@ -173,7 +173,7 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
 
     // Process benchmark data
     if (benchmarkData.length > 0) {
-      benchmarkData.forEach((row, index) => {
+      benchmarkData.forEach((row, _index) => {
         const dailyReturn = parseFloat(row.daily_return) || 0;
         benchmarkCumulative += dailyReturn;
 
@@ -1040,7 +1040,7 @@ router.get("/attribution", authenticateToken, async (req, res) => {
     const {
       period = "1y",
       level = "sector",
-      include_holdings = "true",
+      _include_holdings = "true",
       attribution_method = "brinson",
     } = req.query;
 

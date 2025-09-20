@@ -68,7 +68,25 @@ describe("Trading Routes Unit Tests", () => {
         });
       }
 
-      // Mock risk limits query
+      // Mock risk limits update/insert query - return the updated values
+      if (sql.includes("risk_limits")) {
+        return Promise.resolve({
+          rows: [{
+            user_id: "test-user-123",
+            max_drawdown: 15.0,
+            max_position_size: 20.0,
+            stop_loss_percentage: 8.0,
+            max_leverage: 1.5,
+            max_correlation: 0.6,
+            risk_tolerance_level: "conservative",
+            max_daily_loss: 1.5,
+            max_monthly_loss: 8.0,
+            updated_at: new Date().toISOString()
+          }]
+        });
+      }
+
+      // Mock generic UPDATE/INSERT
       if (sql.includes("UPDATE") || sql.includes("INSERT")) {
         return Promise.resolve({
           rows: [{ success: true }]

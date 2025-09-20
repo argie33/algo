@@ -234,7 +234,6 @@ describe("StockExplorer", () => {
     });
 
     it("applies sector filters correctly", async () => {
-      const _api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any sector filter input - may be dropdown or text input
@@ -253,7 +252,6 @@ describe("StockExplorer", () => {
     });
 
     it("applies market cap filters", async () => {
-      const _api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any market cap filter input
@@ -272,7 +270,6 @@ describe("StockExplorer", () => {
     });
 
     it("applies price range filters", async () => {
-      const _api = require("../../../services/api.js").default;
       renderWithProviders(<StockExplorer />);
 
       // Look for any price filter inputs

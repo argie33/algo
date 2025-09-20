@@ -563,9 +563,9 @@ router.get("/dashboard", async (req, res) => {
     );
 
     // Generate comprehensive dashboard metrics
-    const generateDashboardMetrics = (period, includeCharts) => {
+    const generateDashboardMetrics = (period, _includeCharts) => {
       const now = new Date();
-      const periodDays =
+      const _periodDays =
         period === "1D"
           ? 1
           : period === "1W"

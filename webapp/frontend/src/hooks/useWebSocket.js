@@ -10,35 +10,35 @@ export const useWebSocket = (url, options = {}) => {
     try {
       // Connect to real WebSocket server
       const wsUrl = url || "ws://localhost:3001/ws";
-      console.log("🔗 WebSocket connecting to:", wsUrl);
+      if (process.env.NODE_ENV === 'development') console.log("🔗 WebSocket connecting to:", wsUrl);
 
       ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => {
-        console.log("✅ WebSocket connected");
+        if (process.env.NODE_ENV === 'development') console.log("✅ WebSocket connected");
         setIsConnected(true);
         setError(null);
       };
 
       ws.current.onmessage = (event) => {
-        console.log("📨 WebSocket message received:", event.data);
+        if (process.env.NODE_ENV === 'development') console.log("📨 WebSocket message received:", event.data);
         if (options.onMessage) {
           options.onMessage(event.data);
         }
       };
 
       ws.current.onerror = (error) => {
-        console.error("❌ WebSocket error:", error);
+        if (process.env.NODE_ENV === 'development') console.error("❌ WebSocket error:", error);
         setError(new Error("WebSocket connection failed"));
         setIsConnected(false);
       };
 
       ws.current.onclose = () => {
-        console.log("🔌 WebSocket disconnected");
+        if (process.env.NODE_ENV === 'development') console.log("🔌 WebSocket disconnected");
         setIsConnected(false);
       };
     } catch (err) {
-      console.error("❌ WebSocket connection error:", err);
+      if (process.env.NODE_ENV === 'development') console.error("❌ WebSocket connection error:", err);
       setError(err);
       setIsConnected(false);
     }
