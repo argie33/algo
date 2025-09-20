@@ -74,7 +74,7 @@ router.get("/items", authenticateToken, async (req, res) => {
         sp.close as current_price,
         0 as change_amount,
         0 as change_percent,
-        s.name as company_name,
+        s.short_name as company_name,
         s.sector,
         s.market_cap
       FROM watchlist_items wi
@@ -219,7 +219,7 @@ router.get("/items/recent", async (req, res) => {
         pd.change_percent,
         pd.change_amount,
         pd.volume,
-        s.name as company_name,
+        s.short_name as company_name,
         s.sector,
         s.market_cap
       FROM watchlist_items wi

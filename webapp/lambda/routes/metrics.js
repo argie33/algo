@@ -168,7 +168,7 @@ router.get("/", async (req, res) => {
     const stocksQuery = `
       SELECT 
         ss.symbol,
-        ss.name as company_name,
+        ss.short_name as company_name,
         cp.sector,
         cp.industry,
         cp.market_cap,
@@ -809,7 +809,7 @@ router.get("/:symbol", async (req, res) => {
         vm.fair_value as dcf_margin_of_safety,
         vm.fair_value as ddm_value,
         vm.value_metric as rim_value,
-        ss.name as company_name,
+        ss.short_name as company_name,
         cp.sector,
         cp.industry,
         cp.market_cap,
@@ -1127,7 +1127,7 @@ router.get("/top/:category", async (req, res) => {
     const topStocksQuery = `
       SELECT 
         ss.symbol,
-        ss.name as company_name,
+        ss.short_name as company_name,
         cp.sector,
         cp.market_cap,
         COALESCE(cp.current_price, s.current_price, 0) as current_price,

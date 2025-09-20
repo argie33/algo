@@ -107,7 +107,7 @@ router.get("/", async (req, res) => {
     const stocksQuery = `
       SELECT 
         ss.symbol,
-        ss.name as company_name,
+        ss.short_name as company_name,
         cp.sector,
         cp.industry,
         cp.market_cap,
@@ -903,7 +903,7 @@ router.get("/:symbol", async (req, res) => {
     const scoresQuery = `
       SELECT 
         sc.*,
-        ss.name as company_name
+        ss.short_name as company_name
       FROM stock_scores sc
       LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
       WHERE sc.symbol = $1
@@ -1261,7 +1261,7 @@ router.get("/top/:category", async (req, res) => {
     const topStocksQuery = `
       SELECT 
         ss.symbol,
-        ss.name as company_name,
+        ss.short_name as company_name,
         cp.sector,
         cp.market_cap,
         NULL as current_price,

@@ -1906,7 +1906,7 @@ router.get("/technical", async (req, res) => {
     const technicalQuery = `
       SELECT 
         t.symbol,
-        s.name as company_name,
+        s.short_name as company_name,
         s.sector,
         t.rsi,
         t.macd,

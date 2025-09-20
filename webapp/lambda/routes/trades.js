@@ -1229,7 +1229,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
           ph.opened_at,
           ph.closed_at,
           ph.status,
-          s.name as company_name
+          s.short_name as company_name
         FROM position_history ph
         LEFT JOIN company_profile s ON ph.symbol = s.ticker
         WHERE ph.user_id = $1

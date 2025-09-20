@@ -245,7 +245,7 @@ router.get("/positions", async (req, res) => {
       SELECT 
         h.symbol, h.quantity, h.average_cost, h.current_price,
         h.last_updated as created_at, h.last_updated as updated_at,
-        s.name as company_name, COALESCE(s.sector, 'Unknown') as sector,
+        s.short_name as company_name, COALESCE(s.sector, 'Unknown') as sector,
         (h.current_price - h.average_cost) * h.quantity as unrealized_pnl,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as unrealized_pnl_percent,
         h.current_price * h.quantity as market_value,

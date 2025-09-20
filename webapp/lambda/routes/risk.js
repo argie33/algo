@@ -57,7 +57,7 @@ router.get("/analysis", async (req, res) => {
       `
       SELECT 
         h.symbol, h.quantity, h.average_cost, h.current_price,
-        s.sector, s.name as company_name,
+        s.sector, s.short_name as company_name,
         (h.current_price * h.quantity) as market_value,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as return_percent
       FROM portfolio_holdings h
