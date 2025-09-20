@@ -622,7 +622,7 @@ router.get("/quotes", async (req, res) => {
           FROM price_daily
           ORDER BY symbol, date DESC
         ) lp
-        LEFT JOIN technical_indicators ti ON lp.symbol = ti.symbol
+        LEFT JOIN technical_data_daily ti ON lp.symbol = ti.ticker AND ti.date = (SELECT MAX(date) FROM technical_data_daily td WHERE td.ticker = lp.symbol)
         LEFT JOIN market_sentiment ms ON ms.created_at >= CURRENT_DATE - INTERVAL '1 day'
       )
       SELECT 

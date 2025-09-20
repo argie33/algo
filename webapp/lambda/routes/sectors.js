@@ -123,7 +123,12 @@ router.get("/analysis", async (req, res) => {
                     
                 FROM stock_symbols s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-                LEFT JOIN latest_prices lp ON s.symbol = lp.symbol
+                LEFT JOIN (
+                    SELECT DISTINCT ON (ticker) ticker as symbol, close as current_price,
+                           (close - lag(close, 20) OVER (PARTITION BY ticker ORDER BY date)) / lag(close, 20) OVER (PARTITION BY ticker ORDER BY date) * 100 as monthly_change_pct
+                    FROM price_daily WHERE date >= NOW() - INTERVAL '30 days'
+                    ORDER BY ticker, date DESC
+                ) lp ON s.symbol = lp.symbol
                 LEFT JOIN latest_technicals lt ON s.symbol = lt.symbol
                 WHERE cp.sector IS NOT NULL 
                     AND cp.sector != ''
@@ -143,7 +148,12 @@ router.get("/analysis", async (req, res) => {
                     ROW_NUMBER() OVER (PARTITION BY cp.sector ORDER BY lp.monthly_change_pct DESC) as sector_rank
                 FROM stock_symbols s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-                INNER JOIN latest_prices lp ON s.symbol = lp.symbol
+                INNER JOIN (
+                    SELECT DISTINCT ON (ticker) ticker as symbol, close as current_price,
+                           (close - lag(close, 20) OVER (PARTITION BY ticker ORDER BY date)) / lag(close, 20) OVER (PARTITION BY ticker ORDER BY date) * 100 as monthly_change_pct
+                    FROM price_daily WHERE date >= NOW() - INTERVAL '30 days'
+                    ORDER BY ticker, date DESC
+                ) lp ON s.symbol = lp.symbol
                 LEFT JOIN latest_technicals lt ON s.symbol = lt.symbol
                 WHERE cp.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
             ),
@@ -158,7 +168,12 @@ router.get("/analysis", async (req, res) => {
                     ROW_NUMBER() OVER (PARTITION BY cp.sector ORDER BY lp.monthly_change_pct ASC) as sector_rank
                 FROM stock_symbols s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-                INNER JOIN latest_prices lp ON s.symbol = lp.symbol
+                INNER JOIN (
+                    SELECT DISTINCT ON (ticker) ticker as symbol, close as current_price,
+                           (close - lag(close, 20) OVER (PARTITION BY ticker ORDER BY date)) / lag(close, 20) OVER (PARTITION BY ticker ORDER BY date) * 100 as monthly_change_pct
+                    FROM price_daily WHERE date >= NOW() - INTERVAL '30 days'
+                    ORDER BY ticker, date DESC
+                ) lp ON s.symbol = lp.symbol
                 LEFT JOIN latest_technicals lt ON s.symbol = lt.symbol
                 WHERE cp.sector IS NOT NULL AND lp.monthly_change_pct IS NOT NULL
             )
