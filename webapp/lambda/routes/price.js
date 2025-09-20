@@ -581,7 +581,7 @@ router.get("/alerts", async (req, res) => {
       symbol,
       status = "all",
       type = "all",
-      limit = 50,
+      _limit = 50,
       sort = "created_at",
       order = "desc",
     } = req.query;
@@ -642,7 +642,7 @@ router.get("/alerts", async (req, res) => {
     }
 
     // Generate comprehensive price alerts data
-    const alertTypes = {
+    const _alertTypes = {
       price_above: "Price Above",
       price_below: "Price Below",
       percent_change: "Percent Change",
@@ -650,7 +650,7 @@ router.get("/alerts", async (req, res) => {
       technical: "Technical Indicator",
     };
 
-    const alertStatuses = {
+    const _alertStatuses = {
       active: "Active",
       triggered: "Triggered",
       expired: "Expired",
@@ -664,7 +664,7 @@ router.get("/alerts", async (req, res) => {
         message: "Please provide a symbol parameter for price analysis",
       });
     }
-    const symbols = [symbol.toUpperCase()];
+    const _symbols = [symbol.toUpperCase()];
 
     const userId = req.user?.sub;
     console.log(
@@ -1137,7 +1137,7 @@ router.get("/intraday/:symbol", async (req, res) => {
     const intradayPrices = generateIntradayData(symbol.toUpperCase(), interval);
 
     // Calculate summary statistics
-    const prices = intradayPrices.map((d) => d.close);
+    const _prices = intradayPrices.map((d) => d.close);
     const volumes = intradayPrices.map((d) => d.volume);
     const openPrice = intradayPrices.length > 0 ? intradayPrices[0].open : null;
     const closePrice =
@@ -1660,7 +1660,7 @@ router.get("/intraday/:symbol", async (req, res) => {
     const intradayPrices = generateIntradayData(symbol.toUpperCase(), interval);
 
     // Calculate summary statistics
-    const prices = intradayPrices.map((d) => d.close);
+    const _prices = intradayPrices.map((d) => d.close);
     const volumes = intradayPrices.map((d) => d.volume);
     const openPrice = intradayPrices.length > 0 ? intradayPrices[0].open : null;
     const closePrice =

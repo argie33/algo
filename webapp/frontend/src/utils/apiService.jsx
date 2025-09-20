@@ -371,12 +371,14 @@ export const withErrorHandling = (Component, componentName) => {
 
       window.addEventListener("error", handleError);
       return () => window.removeEventListener("error", handleError);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      
     }, []);
 
     return <Component {...props} />;
   };
 };
+
+export { getApiConfig };
 
 export default {
   apiCall,
@@ -384,4 +386,5 @@ export default {
   createLogger,
   createQueryConfig,
   withErrorHandling,
+  getApiConfig,
 };

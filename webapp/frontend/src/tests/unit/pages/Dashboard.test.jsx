@@ -32,8 +32,25 @@ vi.mock("../../../services/api.js", async () => {
   const mockApi = await import("../../mocks/apiMock.js");
   return {
     default: mockApi.default,
+    api: {
+      getDashboard: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          portfolio: { total_value: 1250000, daily_pnl: 3200, total_pnl: 92000 },
+          marketOverview: { sp500: { value: 4500, change: 0.5 } },
+          topGainers: [],
+          recentActivity: [],
+        },
+      }),
+    },
     getApiConfig: mockApi.getApiConfig,
     getPortfolioData: mockApi.getPortfolioData,
+    getPortfolioAnalytics: mockApi.getPortfolioAnalytics,
+    getTradingSignalsDaily: mockApi.getTradingSignalsDaily,
+    getStockPrices: mockApi.getStockPrices,
+    getStockMetrics: mockApi.getStockMetrics,
+    getTopStocks: mockApi.getTopStocks,
+    getCurrentUser: mockApi.getCurrentUser || vi.fn().mockResolvedValue({ success: true, data: { id: 1, name: 'Test User' } }),
     getApiKeys: mockApi.getApiKeys,
     testApiConnection: mockApi.testApiConnection,
     importPortfolioFromBroker: mockApi.importPortfolioFromBroker,
@@ -259,7 +276,7 @@ describe("Dashboard Page", () => {
       const { api } = await import("../../../services/api.js");
       const portfolioData = {
         portfolio: {
-          totalValue: 100000,
+          total_value: 1250000,
           todaysPnL: 1250.5, // Positive
           totalPnL: -2500.25, // Negative
           todaysReturn: 1.27,
@@ -470,7 +487,7 @@ describe("Dashboard Page", () => {
       const { api } = await import("../../../services/api.js");
       const chartData = {
         portfolioChart: [
-          { date: "2025-01-10", value: 100000 },
+          { date: "2025-01-10", total_value: 1250000 },
           { date: "2025-01-11", value: 102500 },
           { date: "2025-01-12", value: 101750 },
           { date: "2025-01-13", value: 104250 },
@@ -520,10 +537,10 @@ describe("Dashboard Page", () => {
     it("should handle live data updates", async () => {
       const { api } = await import("../../../services/api.js");
       const initialData = {
-        portfolio: { totalValue: 100000, todaysPnL: 1000 },
+        portfolio: { total_value: 1250000, daily_pnl: 3200 },
       };
       const updatedData = {
-        portfolio: { totalValue: 101500, todaysPnL: 2500 },
+        portfolio: { total_value: 1275000, daily_pnl: 28200 },
       };
 
       api.getDashboard.mockResolvedValueOnce(initialData);
@@ -566,7 +583,7 @@ describe("Dashboard Page", () => {
     it("should handle partial data failures gracefully", async () => {
       const { api } = await import("../../../services/api.js");
       const partialData = {
-        portfolio: { totalValue: 100000 },
+        portfolio: { total_value: 1250000 },
         // market data missing
         recentActivity: [],
       };
@@ -593,7 +610,7 @@ describe("Dashboard Page", () => {
     it("should adapt layout for mobile screens", async () => {
       const { api } = await import("../../../services/api.js");
       api.getDashboard.mockResolvedValue({
-        portfolio: { totalValue: 100000 },
+        portfolio: { total_value: 1250000 },
       });
 
       // Mock mobile viewport
@@ -616,7 +633,7 @@ describe("Dashboard Page", () => {
     it("should have proper heading structure", async () => {
       const { api } = await import("../../../services/api.js");
       api.getDashboard.mockResolvedValue({
-        portfolio: { totalValue: 100000 },
+        portfolio: { total_value: 1250000 },
       });
 
       renderWithProviders(<Dashboard />);
@@ -630,7 +647,7 @@ describe("Dashboard Page", () => {
     it("should have accessible charts with alt text", async () => {
       const { api } = await import("../../../services/api.js");
       api.getDashboard.mockResolvedValue({
-        portfolioChart: [{ date: "2025-01-15", value: 100000 }],
+        portfolioChart: [{ date: "2025-01-15", total_value: 1250000 }],
       });
 
       renderWithProviders(<Dashboard />);

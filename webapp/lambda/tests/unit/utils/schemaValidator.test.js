@@ -37,37 +37,36 @@ describe("Schema Validator", () => {
   });
 
   describe("validateData", () => {
-    test("should validate valid stock data successfully", () => {
-      const stockData = {
-        symbol: "AAPL",
+    test("should validate valid company profile data successfully", () => {
+      const companyData = {
+        ticker: "AAPL",
         name: "Apple Inc.",
         sector: "Technology",
         market_cap: 2500000000000,
-        price: 150.5,
-        is_active: true,
+        industry: "Consumer Electronics",
+        country: "US",
       };
 
-      const result = validateData("stocks", stockData);
+      const result = validateData("company_profile", companyData);
 
       expect(result.valid).toBe(true);
       expect(result.isValid).toBe(true);
       expect(result.errors).toHaveLength(0);
-      expect(result.data).toHaveProperty("symbol", "AAPL");
+      expect(result.data).toHaveProperty("ticker", "AAPL");
       expect(result.data).toHaveProperty("name", "Apple Inc.");
     });
 
     test("should fail validation for missing required fields", () => {
       const invalidData = {
         sector: "Technology",
-        // Missing required 'symbol' and 'name'
+        // Missing required 'ticker'
       };
 
-      const result = validateData("stocks", invalidData);
+      const result = validateData("company_profile", invalidData);
 
       expect(result.valid).toBe(false);
       expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Required field "symbol" is missing');
-      expect(result.errors).toContain('Required field "name" is missing');
+      expect(result.errors).toContain('Required field "ticker" is missing');
       expect(result.errorDetails).toHaveLength(2);
     });
 
@@ -97,22 +96,22 @@ describe("Schema Validator", () => {
     });
 
     test("should validate VARCHAR field with max length constraint", () => {
-      const longSymbolData = {
-        symbol: "VERYLONGSYMBOL", // Exceeds 10 char limit
+      const longTickerData = {
+        ticker: "VERYLONGTICKER", // Exceeds 10 char limit
         name: "Test Company",
       };
 
-      const result = validateData("stocks", longSymbolData);
+      const result = validateData("company_profile", longTickerData);
 
       expect(result.valid).toBe(false);
       expect(result.errors).toContain(
-        'Field "symbol" exceeds maximum length of 10 characters'
+        'Field "ticker" exceeds maximum length of 10 characters'
       );
     });
 
     test("should validate INTEGER field constraints", () => {
       const invalidQuarter = {
-        symbol: "AAPL",
+        ticker: "AAPL",
         report_date: "2023-01-01",
         quarter: 5, // Exceeds max of 4
       };
@@ -1073,7 +1072,7 @@ describe("Schema Validator", () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors).toContain(
-        'Field "symbol" exceeds maximum length of 10 characters'
+        'Field "ticker" exceeds maximum length of 10 characters'
       );
     });
   });

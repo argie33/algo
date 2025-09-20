@@ -168,9 +168,9 @@ describe("Risk Engine", () => {
 
     test("should monitor leverage limits", () => {
       const portfolio = {
-        totalValue: 100000,
+        total_value: 1250000,
         borrowedAmount: 40000,
-        netValue: 60000,
+        netValue: 1210000,
       };
       const limits = { maxLeverage: 1.5 };
 

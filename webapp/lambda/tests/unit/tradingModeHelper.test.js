@@ -137,7 +137,7 @@ describe("TradingModeHelper", () => {
         ],
       });
 
-      const inputData = { portfolioValue: 100000 };
+      const inputData = { portfolioValue: 1250000 };
       const result = await addTradingModeContext(inputData, "test-user-id");
 
       expect(result.trading_mode).toEqual({
@@ -146,7 +146,7 @@ describe("TradingModeHelper", () => {
         isLive: false,
         source: "database",
       });
-      expect(result.portfolioValue).toBe(100000);
+      expect(result.portfolioValue).toBe(1250000);
     });
 
     test("should add live trading context to data", async () => {
@@ -488,7 +488,7 @@ describe("TradingModeHelper", () => {
       });
 
       const portfolioData = {
-        totalValue: 100000,
+        total_value: 1250000,
         positions: [
           { symbol: "AAPL", value: 50000 },
           { symbol: "GOOGL", value: 50000 },
@@ -501,7 +501,7 @@ describe("TradingModeHelper", () => {
       );
 
       expect(result.trading_mode.mode).toBe("paper");
-      expect(result.totalValue).toBe(100000);
+      expect(result.total_value).toBe(1250000);
       expect(result.positions).toHaveLength(2);
       expect(result.display_mode).toBe("paper");
     });

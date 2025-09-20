@@ -3,7 +3,6 @@
  * Provides wrapper components and utilities for testing actual site functionality with NO MOCKS
  */
 
-/* eslint-disable react-refresh/only-export-components */
 
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";

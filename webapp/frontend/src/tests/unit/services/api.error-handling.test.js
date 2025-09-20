@@ -47,8 +47,8 @@ vi.mock("../../../services/api.js", () => ({
 }));
 
 // Import is needed for module mocking but not used in tests
-// eslint-disable-next-line unused-imports/no-unused-imports
-import api from "../../../services/api.js";
+
+import _api from "../../../services/api.js";
 
 describe("API Service - Error Handling Tests", () => {
   beforeEach(() => {

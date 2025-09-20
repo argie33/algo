@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 /**
  * Component Test Utilities
  * Helpers for React component unit testing

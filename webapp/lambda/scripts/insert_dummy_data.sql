@@ -15,9 +15,9 @@ ON CONFLICT DO NOTHING;
 INSERT INTO market_data (ticker, current_price, regular_market_price, volume, market_cap, 
                         fifty_two_week_low, fifty_two_week_high, fifty_day_avg, two_hundred_day_avg)
 VALUES 
-    ('AAPL', 186.75, 186.75, 45000000, 2900000000000, 124.17, 199.62, 185.20, 175.80),
-    ('MSFT', 411.25, 411.25, 22000000, 3100000000000, 309.45, 468.35, 408.90, 395.20),
-    ('GOOGL', 139.20, 139.20, 18000000, 1750000000000, 83.45, 153.78, 138.80, 135.60),
+    ('AAPL', 195.12, 195.12, 52840000, 3011000000000, 124.17, 199.62, 185.20, 175.80),
+    ('MSFT', 415.20, 415.20, 28450000, 3089000000000, 309.45, 468.35, 408.90, 395.20),
+    ('GOOGL', 147.65, 147.65, 31200000, 1862000000000, 83.45, 153.78, 138.80, 135.60),
     ('TSLA', 250.85, 250.85, 85000000, 800000000000, 101.81, 299.29, 245.60, 235.80),
     ('NVDA', 878.90, 878.90, 35000000, 2200000000000, 180.96, 974.00, 870.40, 780.60)
 ON CONFLICT (ticker) DO UPDATE SET
@@ -29,11 +29,11 @@ ON CONFLICT (ticker) DO UPDATE SET
 -- Check if price_daily table exists and insert data
 INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume, dividends, stock_splits)
 SELECT * FROM (VALUES 
-    ('AAPL', CURRENT_DATE, 185.50, 187.20, 184.80, 186.75, 186.75, 45000000, 0, 0),
+    ('AAPL', CURRENT_DATE, 192.80, 196.20, 192.10, 195.12, 195.12, 52840000, 0, 0),
     ('AAPL', CURRENT_DATE - INTERVAL '1 day', 183.20, 185.60, 182.90, 185.50, 185.50, 42000000, 0, 0),
-    ('MSFT', CURRENT_DATE, 410.30, 412.80, 408.50, 411.25, 411.25, 22000000, 0, 0),
+    ('MSFT', CURRENT_DATE, 412.50, 417.80, 411.10, 415.20, 415.20, 28450000, 0, 0),
     ('MSFT', CURRENT_DATE - INTERVAL '1 day', 408.75, 410.40, 407.20, 410.30, 410.30, 21500000, 0, 0),
-    ('GOOGL', CURRENT_DATE, 138.45, 139.80, 137.90, 139.20, 139.20, 18000000, 0, 0),
+    ('GOOGL', CURRENT_DATE, 145.80, 149.20, 145.10, 147.65, 147.65, 31200000, 0, 0),
     ('TSLA', CURRENT_DATE, 248.60, 252.30, 247.10, 250.85, 250.85, 85000000, 0, 0),
     ('NVDA', CURRENT_DATE, 875.20, 882.50, 870.40, 878.90, 878.90, 35000000, 0, 0)
 ) AS v(symbol, date, open, high, low, close, adj_close, volume, dividends, stock_splits)
@@ -137,6 +137,36 @@ CREATE TABLE IF NOT EXISTS portfolio_risk (
     UNIQUE(portfolio_id, date)
 );
 
+-- Insert portfolio data that matches loader schema and test expectations
+INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, last_updated)
+VALUES
+    ('canonical-user-123', 'AAPL', 247, 158.30, 195.12, CURRENT_TIMESTAMP),
+    ('canonical-user-123', 'MSFT', 85, 378.45, 415.20, CURRENT_TIMESTAMP),
+    ('canonical-user-123', 'GOOGL', 156, 142.80, 147.65, CURRENT_TIMESTAMP),
+    ('test-user-123', 'AAPL', 247, 158.30, 195.12, CURRENT_TIMESTAMP),
+    ('test-user-123', 'MSFT', 85, 378.45, 415.20, CURRENT_TIMESTAMP),
+    ('test-user-123', 'GOOGL', 156, 142.80, 147.65, CURRENT_TIMESTAMP)
+ON CONFLICT (user_id, symbol) DO UPDATE SET
+    quantity = EXCLUDED.quantity,
+    average_cost = EXCLUDED.average_cost,
+    current_price = EXCLUDED.current_price,
+    last_updated = EXCLUDED.last_updated;
+
+INSERT INTO portfolio_performance (user_id, date, total_value, daily_pnl, total_pnl, total_pnl_percent, created_at)
+VALUES
+    ('canonical-user-123', CURRENT_DATE, 1250000, 3200, 92000, 7.36, CURRENT_TIMESTAMP),
+    ('canonical-user-123', CURRENT_DATE - INTERVAL '1 day', 1246800, -2100, 88800, 7.13, CURRENT_TIMESTAMP - INTERVAL '1 day'),
+    ('canonical-user-123', CURRENT_DATE - INTERVAL '2 days', 1248900, 5400, 90900, 7.28, CURRENT_TIMESTAMP - INTERVAL '2 days'),
+    ('test-user-123', CURRENT_DATE, 1250000, 3200, 92000, 7.36, CURRENT_TIMESTAMP),
+    ('test-user-123', CURRENT_DATE - INTERVAL '1 day', 1246800, -2100, 88800, 7.13, CURRENT_TIMESTAMP - INTERVAL '1 day'),
+    ('test-user-123', CURRENT_DATE - INTERVAL '2 days', 1248900, 5400, 90900, 7.28, CURRENT_TIMESTAMP - INTERVAL '2 days')
+ON CONFLICT (user_id, date) DO UPDATE SET
+    total_value = EXCLUDED.total_value,
+    daily_pnl = EXCLUDED.daily_pnl,
+    total_pnl = EXCLUDED.total_pnl,
+    total_pnl_percent = EXCLUDED.total_pnl_percent,
+    created_at = EXCLUDED.created_at;
+
 -- Insert sample data for new tables
 INSERT INTO news (symbol, headline, summary, url, published_at, sentiment, relevance_score, source)
 VALUES 
@@ -147,9 +177,9 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO analyst_recommendations (symbol, analyst_firm, rating, target_price, current_price, date_published)
 VALUES 
-    ('AAPL', 'Goldman Sachs', 'BUY', 200.00, 186.75, CURRENT_DATE - INTERVAL '3 days'),
-    ('AAPL', 'Morgan Stanley', 'OVERWEIGHT', 195.00, 186.75, CURRENT_DATE - INTERVAL '5 days'),
-    ('MSFT', 'JP Morgan', 'OVERWEIGHT', 450.00, 411.25, CURRENT_DATE - INTERVAL '2 days'),
+    ('AAPL', 'Goldman Sachs', 'BUY', 200.00, 195.12, CURRENT_DATE - INTERVAL '3 days'),
+    ('AAPL', 'Morgan Stanley', 'OVERWEIGHT', 195.00, 195.12, CURRENT_DATE - INTERVAL '5 days'),
+    ('MSFT', 'JP Morgan', 'OVERWEIGHT', 450.00, 415.20, CURRENT_DATE - INTERVAL '2 days'),
     ('GOOGL', 'Barclays', 'EQUAL WEIGHT', 145.00, 139.20, CURRENT_DATE - INTERVAL '1 day'),
     ('TSLA', 'Wedbush', 'OUTPERFORM', 300.00, 250.85, CURRENT_DATE - INTERVAL '4 days')
 ON CONFLICT DO NOTHING;

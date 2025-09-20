@@ -61,7 +61,7 @@ router.get("/analysis", async (req, res) => {
         (h.current_price * h.quantity) as market_value,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as return_percent
       FROM portfolio_holdings h
-      LEFT JOIN stocks s ON h.symbol = s.symbol
+      LEFT JOIN company_profile s ON h.symbol = s.ticker
       WHERE h.user_id = $1 AND h.quantity > 0
       `,
       [userId]
@@ -1645,8 +1645,8 @@ router.post("/analyze", async (req, res) => {
         min(price) as min_price,
         max(price) as max_price,
         count(*) as data_points
-      FROM stocks 
-      WHERE symbol = ANY($1)
+      FROM company_profile
+      WHERE ticker = ANY($1)
       GROUP BY symbol
     `;
 

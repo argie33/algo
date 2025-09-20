@@ -91,12 +91,12 @@ const mockTechnicalData = {
       open: 187.25,
       high: 189.1,
       low: 185.6,
-      close: 186.75,
+      close: 195.12,
       volume: 41234567,
     },
     {
       date: "2024-01-24",
-      open: 186.75,
+      open: 195.12,
       high: 187.8,
       low: 184.9,
       close: 185.3,
@@ -157,7 +157,7 @@ const mockTechnicalData = {
       indicator: "RSI",
       strength: "weak",
       date: "2024-01-23",
-      price: 186.75,
+      price: 195.12,
     },
   ],
   summary: {

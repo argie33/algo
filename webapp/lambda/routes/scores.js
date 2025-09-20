@@ -348,7 +348,7 @@ router.get("/latest", async (req, res) => {
         s.sector,
         s.market_cap
       FROM stock_scores ss
-      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      LEFT JOIN company_profile s ON ss.symbol = s.ticker
       ${whereClause}
       ORDER BY ss.created_at DESC
       LIMIT $1

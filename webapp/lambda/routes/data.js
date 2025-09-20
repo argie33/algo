@@ -124,10 +124,10 @@ router.get("/etf-list", async (req, res) => {
     // Query for ETFs from stocks table where sector is 'ETF'
     // Start with simple query to avoid column mismatch issues
     const etfQuery = `
-      SELECT symbol, name, sector
-      FROM stocks
-      WHERE sector = 'ETF' OR symbol IN ('SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK', 'XLF', 'XLK', 'XLE', 'XLV')
-      ORDER BY symbol ASC
+      SELECT ticker as symbol, name, sector
+      FROM company_profile
+      WHERE sector = 'ETF' OR ticker IN ('SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK', 'XLF', 'XLK', 'XLE', 'XLV')
+      ORDER BY ticker ASC
       LIMIT 100
     `;
 

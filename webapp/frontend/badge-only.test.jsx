@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+// Import jest-dom after vitest globals are available
 import "@testing-library/jest-dom";
 import { Badge } from "./src/components/ui/badge.jsx";
 import { ThemeProvider, createTheme } from "@mui/material/styles";

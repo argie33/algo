@@ -868,7 +868,7 @@ export function AuthProvider({ children }) {
 }
 
 // Hook to use auth context with safe fallback
-// eslint-disable-next-line react-refresh/only-export-components
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === null) {

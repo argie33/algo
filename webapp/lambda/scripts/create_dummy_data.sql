@@ -186,9 +186,9 @@ CREATE TABLE IF NOT EXISTS portfolio_holdings (
 -- Price data for major stocks
 INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume, dividends, stock_splits)
 VALUES 
-    ('AAPL', CURRENT_DATE, 185.50, 187.20, 184.80, 186.75, 186.75, 45000000, 0, 0),
+    ('AAPL', CURRENT_DATE, 192.80, 196.20, 192.10, 195.12, 195.12, 52840000, 0, 0),
     ('AAPL', CURRENT_DATE - INTERVAL '1 day', 183.20, 185.60, 182.90, 185.50, 185.50, 42000000, 0, 0),
-    ('MSFT', CURRENT_DATE, 410.30, 412.80, 408.50, 411.25, 411.25, 22000000, 0, 0),
+    ('MSFT', CURRENT_DATE, 412.50, 417.80, 411.10, 415.20, 415.20, 28450000, 0, 0),
     ('MSFT', CURRENT_DATE - INTERVAL '1 day', 408.75, 410.40, 407.20, 410.30, 410.30, 21500000, 0, 0),
     ('GOOGL', CURRENT_DATE, 138.45, 139.80, 137.90, 139.20, 139.20, 18000000, 0, 0),
     ('TSLA', CURRENT_DATE, 248.60, 252.30, 247.10, 250.85, 250.85, 85000000, 0, 0),
@@ -217,8 +217,8 @@ ON CONFLICT DO NOTHING;
 -- Technical indicators
 INSERT INTO technicals_daily (symbol, date, rsi, macd, macd_signal, sma_20, sma_50, sma_200, bollinger_upper, bollinger_middle, bollinger_lower)
 VALUES 
-    ('AAPL', CURRENT_DATE, 65.4, 2.1, 1.8, 185.20, 182.50, 175.80, 190.50, 186.75, 183.00),
-    ('MSFT', CURRENT_DATE, 58.2, 5.2, 4.1, 408.90, 405.30, 395.20, 415.80, 411.25, 406.70),
+    ('AAPL', CURRENT_DATE, 65.4, 2.1, 1.8, 185.20, 182.50, 175.80, 190.50, 195.12, 183.00),
+    ('MSFT', CURRENT_DATE, 58.2, 5.2, 4.1, 408.90, 405.30, 395.20, 415.80, 415.20, 406.70),
     ('GOOGL', CURRENT_DATE, 52.1, -0.8, -0.5, 138.80, 140.20, 135.60, 142.30, 139.20, 136.10),
     ('TSLA', CURRENT_DATE, 72.8, 8.5, 6.2, 245.60, 240.30, 235.80, 255.20, 250.85, 246.50),
     ('NVDA', CURRENT_DATE, 68.9, 15.2, 12.8, 870.40, 850.20, 780.60, 890.30, 878.90, 867.50)
@@ -227,9 +227,9 @@ ON CONFLICT (symbol, date) DO NOTHING;
 -- Analyst recommendations
 INSERT INTO analyst_recommendations (symbol, analyst_firm, rating, target_price, current_price, date_published)
 VALUES 
-    ('AAPL', 'Goldman Sachs', 'BUY', 200.00, 186.75, CURRENT_DATE - INTERVAL '3 days'),
-    ('AAPL', 'Morgan Stanley', 'OVERWEIGHT', 195.00, 186.75, CURRENT_DATE - INTERVAL '5 days'),
-    ('MSFT', 'JP Morgan', 'OVERWEIGHT', 450.00, 411.25, CURRENT_DATE - INTERVAL '2 days'),
+    ('AAPL', 'Goldman Sachs', 'BUY', 200.00, 195.12, CURRENT_DATE - INTERVAL '3 days'),
+    ('AAPL', 'Morgan Stanley', 'OVERWEIGHT', 195.00, 195.12, CURRENT_DATE - INTERVAL '5 days'),
+    ('MSFT', 'JP Morgan', 'OVERWEIGHT', 450.00, 415.20, CURRENT_DATE - INTERVAL '2 days'),
     ('GOOGL', 'Barclays', 'EQUAL WEIGHT', 145.00, 139.20, CURRENT_DATE - INTERVAL '1 day'),
     ('TSLA', 'Wedbush', 'OUTPERFORM', 300.00, 250.85, CURRENT_DATE - INTERVAL '4 days')
 ON CONFLICT DO NOTHING;
@@ -237,8 +237,8 @@ ON CONFLICT DO NOTHING;
 -- Market data
 INSERT INTO market_data (symbol, date, close_price, market_cap, volume, sector, industry)
 VALUES 
-    ('AAPL', CURRENT_DATE, 186.75, 2900000000000, 45000000, 'Technology', 'Consumer Electronics'),
-    ('MSFT', CURRENT_DATE, 411.25, 3100000000000, 22000000, 'Technology', 'Software'),
+    ('AAPL', CURRENT_DATE, 195.12, 3011000000000, 52840000, 'Technology', 'Consumer Electronics'),
+    ('MSFT', CURRENT_DATE, 415.20, 3089000000000, 28450000, 'Technology', 'Software'),
     ('GOOGL', CURRENT_DATE, 139.20, 1750000000000, 18000000, 'Technology', 'Internet Services'),
     ('TSLA', CURRENT_DATE, 250.85, 800000000000, 85000000, 'Consumer Cyclical', 'Auto Manufacturers'),
     ('NVDA', CURRENT_DATE, 878.90, 2200000000000, 35000000, 'Technology', 'Semiconductors')
@@ -263,13 +263,13 @@ ON CONFLICT (portfolio_id, date) DO NOTHING;
 -- Portfolio holdings data for testing
 INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, unrealized_pnl, cost_basis, broker)
 VALUES 
-    ('dev-user-bypass', 'AAPL', 100, 150.00, 186.75, 18675.00, 3675.00, 15000.00, 'manual'),
-    ('dev-user-bypass', 'MSFT', 50, 380.00, 411.25, 20562.50, 1562.50, 19000.00, 'manual'),
+    ('dev-user-bypass', 'AAPL', 100, 150.00, 195.12, 19512.00, 4512.00, 15000.00, 'manual'),
+    ('dev-user-bypass', 'MSFT', 50, 380.00, 415.20, 20760.00, 1760.00, 19000.00, 'manual'),
     ('dev-user-bypass', 'GOOGL', 75, 120.00, 139.20, 10440.00, 1440.00, 9000.00, 'manual'),
     ('dev-user-bypass', 'TSLA', 25, 220.00, 250.85, 6271.25, 771.25, 5500.00, 'manual'),
     ('dev-user-bypass', 'NVDA', 10, 800.00, 878.90, 8789.00, 789.00, 8000.00, 'manual'),
-    ('demo_user', 'AAPL', 50, 160.00, 186.75, 9337.50, 1337.50, 8000.00, 'demo'),
-    ('demo_user', 'MSFT', 25, 400.00, 411.25, 10281.25, 281.25, 10000.00, 'demo')
+    ('demo_user', 'AAPL', 50, 160.00, 195.12, 9756.00, 1756.00, 8000.00, 'demo'),
+    ('demo_user', 'MSFT', 25, 400.00, 415.20, 10380.00, 380.00, 10000.00, 'demo')
 ON CONFLICT (user_id, symbol, broker) DO NOTHING;
 
 -- Sentiment data

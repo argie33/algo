@@ -82,9 +82,9 @@ import {
   getPortfolioAnalytics,
   getTradingSignalsDaily,
   getCurrentUser,
+  getApiConfig,
 } from "../services/api";
 import { format } from "date-fns";
-import { getApiConfig } from "../services/api";
 import HistoricalPriceChart from "../components/HistoricalPriceChart";
 import dataCache from "../services/dataCache";
 import MarketStatusBar from "../components/MarketStatusBar";
@@ -92,11 +92,6 @@ import useDevelopmentMode from "../hooks/useDevelopmentMode";
 import { formatExactNumber } from "../utils/formatters";
 
 // Logo import removed as it was unused
-
-// Get API configuration
-const config = getApiConfig();
-const API_BASE = config?.apiUrl || "http://localhost:3001";
-console.log("Dashboard API Base:", API_BASE);
 
 const WIDGET_COLORS = ["#1976d2", "#43a047", "#ffb300", "#8e24aa", "#e53935"];
 
@@ -781,6 +776,7 @@ const Dashboard = () => {
   const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
   const [_dashboardView, _setDashboardView] = useState("overview");
   const { shouldEnableQueries } = useDevelopmentMode();
+  const [_apiBase, _setApiBase] = useState("http://localhost:3001");
 
   // Responsive design and accessibility state
   const [isMobile, setIsMobile] = useState(false);
@@ -823,8 +819,22 @@ const Dashboard = () => {
       }
     };
 
+    // Get API configuration safely
+    const initializeApiConfig = () => {
+      try {
+        const config = getApiConfig();
+        const apiUrl = config?.apiUrl || "http://localhost:3001";
+        _setApiBase(apiUrl);
+        console.log("Dashboard API Base:", apiUrl);
+      } catch (error) {
+        console.warn("API config failed, using default:", error);
+        _setApiBase("http://localhost:3001");
+      }
+    };
+
     checkResponsive();
     checkHighContrast();
+    initializeApiConfig();
 
     window.addEventListener('resize', checkResponsive);
     return () => window.removeEventListener('resize', checkResponsive);
@@ -871,13 +881,37 @@ const Dashboard = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Use data or fallback to mock
+  // Get real trading signals data
+  const technicalSignalsQuery = useQuery({
+    queryKey: ["dashboard-trading-signals"],
+    queryFn: async () => {
+      try {
+        const result = await getTradingSignalsDaily({ limit: 10 });
+        // Transform real API data to match expected Dashboard format
+        return (result?.data || []).map(signal => ({
+          symbol: signal.symbol,
+          action: signal.signal === 'BUY' ? 'Buy' : signal.signal === 'SELL' ? 'Sell' : 'Hold',
+          confidence: signal.confidence || 0.75, // Default confidence if missing
+          type: signal.type || 'Technical',
+          price: parseFloat(signal.price || signal.current_price || 0),
+          date: signal.date,
+        }));
+      } catch (err) {
+        console.error("Trading signals API failed:", err);
+        return mockSignals; // Fallback to mock only if API fails
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  // Use real data or fallback to mock
   const safePortfolio = portfolioData || mockPortfolio;
-  const safeWatchlist = mockWatchlist;
-  const safeNews = mockNews;
-  const safeActivity = mockActivity;
-  const safeCalendar = mockCalendar;
-  const safeSignals = mockSignals;
+  const safeWatchlist = mockWatchlist; // TODO: Replace with real API
+  const safeNews = mockNews; // TODO: Replace with real API
+  const safeActivity = mockActivity; // TODO: Replace with real API
+  const safeCalendar = mockCalendar; // TODO: Replace with real API
+  const safeSignals = technicalSignalsQuery.data || mockSignals;
 
   const _chartData = priceData?.data
     ? priceData?.data
@@ -2221,16 +2255,5 @@ const Dashboard = () => {
     </>
   );
 };
-
-// Add some CSS animations
-const style = document.createElement("style");
-style.textContent = `
-  @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-  }
-`;
-document.head.appendChild(style);
 
 export default Dashboard;

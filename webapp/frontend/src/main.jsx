@@ -141,6 +141,16 @@ const theme = createTheme({
       light: "#ef5350",
       dark: "#c62828",
     },
+    warning: {
+      main: "#b7700d",
+      light: "#d4951a",
+      dark: "#8a5409",
+    },
+    info: {
+      main: "#0277bd",
+      light: "#29b6f6",
+      dark: "#01579b",
+    },
   },
   typography: {
     fontFamily:
@@ -170,6 +180,8 @@ const theme = createTheme({
         root: {
           textTransform: "none",
           fontWeight: 500,
+          minWidth: "44px",
+          minHeight: "44px",
           "&:focus": {
             outline: "3px solid #1976d2",
             outlineOffset: "2px",
@@ -186,6 +198,8 @@ const theme = createTheme({
     MuiIconButton: {
       styleOverrides: {
         root: {
+          minWidth: "44px",
+          minHeight: "44px",
           "&:focus": {
             outline: "3px solid #1976d2",
             outlineOffset: "2px",
@@ -229,6 +243,17 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 12,
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          minHeight: "32px",
+          "& .MuiChip-label": {
+            paddingLeft: "12px",
+            paddingRight: "12px",
+          },
         },
       },
     },

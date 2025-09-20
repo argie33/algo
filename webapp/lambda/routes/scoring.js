@@ -714,10 +714,10 @@ router.get("/stocks", async (req, res) => {
           sc.last_updated,
           p.close as current_price,
           p.volume
-        FROM stocks s
-        JOIN stock_scores sc ON s.symbol = sc.symbol
-        LEFT JOIN price_daily p ON s.symbol = p.symbol 
-          AND p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)
+        FROM company_profile s
+        JOIN stock_scores sc ON s.ticker = sc.symbol
+        LEFT JOIN price_daily p ON s.ticker = p.symbol
+          AND p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.ticker)
         WHERE sc.composite_score >= $1
         ${sectorFilter}
         ORDER BY sc.composite_score DESC

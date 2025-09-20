@@ -738,17 +738,20 @@ vi.mock("../services/devAuth.js", () => ({
   },
 }));
 
-// Mock API service for specific tests that need it
-vi.mock("../services/api.js", async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
+// Mock API service completely for unit tests
+vi.mock("../services/api.js", () => ({
     api: {
       get: vi.fn().mockResolvedValue({ data: { success: true, data: [] } }),
       post: vi.fn().mockResolvedValue({ data: { success: true } }),
       put: vi.fn().mockResolvedValue({ data: { success: true } }),
       delete: vi.fn().mockResolvedValue({ data: { success: true } }),
     },
+    // API configuration
+    getApiConfig: vi.fn(() => ({
+      baseURL: "http://localhost:3001",
+      environment: "test",
+      isDevelopment: true,
+    })),
     // Core API functions used by Dashboard
     getPortfolioData: vi.fn().mockResolvedValue({ success: true, data: [] }),
     getWatchlistData: vi.fn().mockResolvedValue({ success: true, data: [] }),
@@ -781,8 +784,31 @@ vi.mock("../services/api.js", async (importOriginal) => {
       ],
     }),
     getStockData: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
     getTradeHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
     searchStocks: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    // StockExplorer specific functions
+    screenStocks: vi.fn().mockResolvedValue({
+      success: true,
+      data: {
+        results: [
+          {
+            symbol: "AAPL",
+            companyName: "Apple Inc.",
+            sector: "Technology",
+            price: { current: 150.25 },
+            score: 82,
+          },
+        ],
+        totalCount: 1,
+        totalPages: 1,
+        currentPage: 1,
+      },
+    }),
+    getStockPriceHistory: vi.fn().mockResolvedValue({
+      success: true,
+      data: { history: [] },
+    }),
     getTradingSignalsDaily: vi.fn().mockResolvedValue({
       success: true,
       data: [
@@ -811,7 +837,7 @@ vi.mock("../services/api.js", async (importOriginal) => {
     getDashboardSummary: vi.fn().mockResolvedValue({
       success: true,
       data: {
-        portfolio_value: 100000,
+        portfolio_value: 1250000,
         daily_change: 1500,
         daily_change_percent: 1.5,
       },
@@ -845,8 +871,7 @@ vi.mock("../services/api.js", async (importOriginal) => {
       .mockResolvedValue({ success: true, data: [] }),
     getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
     getPriceHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  };
-});
+}));
 
 // Mock console methods to reduce test noise but preserve important logs
 const originalConsole = { ...console };

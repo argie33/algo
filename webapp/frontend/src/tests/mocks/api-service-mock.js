@@ -229,6 +229,50 @@ export const createApiServiceMock = () => ({
     })
   ),
 
+  getTradingSignalsDaily: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      data: [
+        {
+          id: "1",
+          symbol: "AAPL",
+          signal: "BUY",
+          strength: "Strong",
+          price: 175.43,
+          targetPrice: 185.0,
+          stopLoss: 165.0,
+          confidence: 85,
+          timeframe: "1D",
+          timestamp: new Date().toISOString(),
+          source: "Technical Analysis",
+          description: "Golden cross pattern",
+          sector: "Technology",
+          marketCap: 2800000000000,
+          volume: 50000000,
+          dividend_yield: 0.0052,
+        },
+        {
+          id: "2",
+          symbol: "GOOGL",
+          signal: "HOLD",
+          strength: "Medium",
+          price: 142.56,
+          targetPrice: 150.0,
+          stopLoss: 135.0,
+          confidence: 70,
+          timeframe: "1D",
+          timestamp: new Date().toISOString(),
+          source: "Fundamental Analysis",
+          description: "Consolidation phase",
+          sector: "Technology",
+          marketCap: 1800000000000,
+          volume: 28000000,
+          dividend_yield: 0.0,
+        },
+      ],
+    })
+  ),
+
   getTechnicalData: vi.fn((symbol = "AAPL") =>
     Promise.resolve({
       success: true,
@@ -541,6 +585,8 @@ export const getStocks = mockInstance.getStocks;
 export const screenStocks = mockInstance.screenStocks;
 export const getBuySignals = mockInstance.getBuySignals;
 export const getSellSignals = mockInstance.getSellSignals;
+export const getTradingSignals = mockInstance.getTradingSignals;
+export const getTradingSignalsDaily = mockInstance.getTradingSignalsDaily;
 export const getNaaimData = mockInstance.getNaaimData;
 export const getFearGreedData = mockInstance.getFearGreedData;
 export const getCurrentBaseURL = mockInstance.getCurrentBaseURL;

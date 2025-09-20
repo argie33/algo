@@ -1063,7 +1063,7 @@ router.get("/debug", async (req, res) => {
                     (SELECT COUNT(*) FROM price_daily) as price_count,
                     (SELECT COUNT(*) FROM company_profile) as profile_count,
                     (SELECT COUNT(*) FROM stock_symbols) as symbols_count,
-                    (SELECT COUNT(*) FROM stocks) as stocks_count
+                    (SELECT COUNT(*) FROM company_profile) as stocks_count
             `);
       debugData.data_counts = countsResult.rows[0];
     } catch (error) {
@@ -1165,7 +1165,7 @@ router.get("/analytics", async (req, res) => {
           SUM(up.market_value) as total_value,
           AVG(up.gain_loss_percent) as avg_performance
         FROM user_portfolio up
-        LEFT JOIN stocks s ON up.symbol = s.symbol
+        LEFT JOIN company_profile s ON up.symbol = s.ticker
         WHERE s.sector IS NOT NULL
         GROUP BY s.sector
         ORDER BY total_value DESC

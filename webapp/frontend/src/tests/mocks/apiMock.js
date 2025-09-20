@@ -27,16 +27,42 @@ export const getApiConfig = vi.fn(() => ({
 export const getPortfolioData = vi.fn().mockResolvedValue({
   success: true,
   data: {
-    holdings: [],
+    holdings: [
+      {
+        symbol: "AAPL",
+        name: "AAPL Corp.",
+        quantity: 100,
+        avgPrice: 150,
+        currentPrice: 191.25,
+        marketValue: 19125,
+        totalValue: 19125,
+        totalCost: 15000,
+        unrealizedPnl: 4125,
+        gainLoss: 4125,
+        unrealizedPnlPercent: 27.5,
+        gainLossPercent: 27.5,
+        dayChange: 0,
+        dayChangePercent: 0,
+        weight: 4.68,
+        sector: "Technology",
+        assetClass: "equity",
+        broker: "manual",
+        volume: 0,
+        lastUpdated: "2025-09-04T20:31:40.570Z"
+      }
+    ],
     summary: {
-      totalValue: 100000,
-      totalCost: 85000,
-      totalPnl: 15000,
-      totalPnlPercent: 17.5,
+      totalValue: 1250000,
+      totalCost: 850000,
+      totalPnl: 400000,
+      totalPnlPercent: 47.1,
+      dayPnl: 15000,
+      dayPnlPercent: 1.2,
+      positions: 5
     },
     performance: {
-      totalReturn: 15000,
-      totalReturnPercent: 17.5,
+      totalReturn: 400000,
+      totalReturnPercent: 47.1,
     },
   },
 });
@@ -66,6 +92,97 @@ export const getDiagnosticInfo = vi.fn().mockResolvedValue({
   }
 });
 export const getCurrentBaseURL = vi.fn(() => 'http://localhost:3001');
+export const getCurrentUser = vi.fn().mockResolvedValue({
+  success: true,
+  data: { id: 1, name: 'Test User', email: 'test@example.com' }
+});
+
+export const getStockPrices = vi.fn().mockResolvedValue({
+  success: true,
+  data: [
+    { date: "2024-01-01", close: 170.25, volume: 45000000, high: 172.0, low: 169.5, open: 170.0 },
+    { date: "2024-01-02", close: 172.50, volume: 42000000, high: 173.2, low: 171.8, open: 171.5 },
+    { date: "2024-01-03", close: 175.25, volume: 45678900, high: 175.8, low: 172.9, open: 173.0 }
+  ]
+});
+
+export const getStockMetrics = vi.fn().mockResolvedValue({
+  success: true,
+  data: {
+    metrics: {
+      pe_ratio: 28.5,
+      market_cap: 2800000000000,
+      dividend_yield: 0.0052,
+      book_value: 15.67,
+      beta: 1.2,
+      eps: 6.15
+    }
+  }
+});
+
+export const getPortfolioAnalytics = vi.fn().mockResolvedValue({
+  success: true,
+  data: {
+    total_value: 1250000,
+    totalCost: 85000,
+    totalPnl: 15000,
+    totalPnlPercent: 17.5,
+    performance: {
+      totalReturn: 15000,
+      totalReturnPercent: 17.5,
+    }
+  }
+});
+
+export const getTradingSignalsDaily = vi.fn().mockResolvedValue({
+  success: true,
+  data: [
+    {
+      symbol: "AAPL",
+      date: "2025-08-26T05:00:00.000Z",
+      signal: "BUY",
+      price: "169.36",
+      stoplevel: null,
+      inposition: false,
+      current_price: null,
+      company_name: "Apple Inc.",
+      sector: "Technology",
+      market_cap: "175430000000",
+      trailing_pe: null,
+      dividend_yield: null,
+      performance_percent: "0"
+    },
+    {
+      symbol: "TSLA",
+      date: "2025-08-26T05:00:00.000Z",
+      signal: "SELL",
+      price: "188.85",
+      stoplevel: null,
+      inposition: false,
+      current_price: null,
+      company_name: "Tesla Inc.",
+      sector: "Consumer Cyclical",
+      market_cap: "800000000000",
+      trailing_pe: null,
+      dividend_yield: null,
+      performance_percent: "0"
+    }
+  ],
+  timeframe: "daily",
+  count: 2,
+  pagination: {
+    page: 1,
+    limit: 10,
+    total: 15,
+    totalPages: 2,
+    hasNext: true,
+    hasPrev: false
+  },
+  metadata: {
+    signal_type: "all",
+    symbol: null
+  }
+});
 
 // Financial Data functions
 export const getKeyMetrics = vi.fn().mockResolvedValue({
@@ -373,16 +490,42 @@ const mockApi = {
   getPortfolioData: vi.fn().mockResolvedValue({
     success: true,
     data: {
-      holdings: [],
+      holdings: [
+        {
+          symbol: "AAPL",
+          name: "AAPL Corp.",
+          quantity: 100,
+          avgPrice: 150,
+          currentPrice: 191.25,
+          marketValue: 19125,
+          totalValue: 19125,
+          totalCost: 15000,
+          unrealizedPnl: 4125,
+          gainLoss: 4125,
+          unrealizedPnlPercent: 27.5,
+          gainLossPercent: 27.5,
+          dayChange: 0,
+          dayChangePercent: 0,
+          weight: 4.68,
+          sector: "Technology",
+          assetClass: "equity",
+          broker: "manual",
+          volume: 0,
+          lastUpdated: "2025-09-04T20:31:40.570Z"
+        }
+      ],
       summary: {
-        totalValue: 100000,
-        totalCost: 85000,
-        totalPnl: 15000,
-        totalPnlPercent: 17.5,
+        totalValue: 1250000,
+        totalCost: 850000,
+        totalPnl: 400000,
+        totalPnlPercent: 47.1,
+        dayPnl: 15000,
+        dayPnlPercent: 1.2,
+        positions: 5
       },
       performance: {
-        totalReturn: 15000,
-        totalReturnPercent: 17.5,
+        totalReturn: 400000,
+        totalReturnPercent: 47.1,
       },
     },
   }),
@@ -498,7 +641,14 @@ const mockApi = {
       free_cash_flow: 84726000000  // Component expects this
     }
   }),
-  getStockPrices: createMockApiFunction('getStockPrices'),
+  getStockPrices: vi.fn().mockResolvedValue({
+    success: true,
+    data: [
+      { date: "2024-01-01", close: 170.25, volume: 45000000, high: 172.0, low: 169.5, open: 170.0 },
+      { date: "2024-01-02", close: 172.50, volume: 42000000, high: 173.2, low: 171.8, open: 171.5 },
+      { date: "2024-01-03", close: 175.25, volume: 45678900, high: 175.8, low: 172.9, open: 173.0 }
+    ]
+  }),
   getMarketData: createMockApiFunction('getMarketData'),
 
   // Watchlist functions
@@ -766,6 +916,10 @@ const mockApi = {
     }
   }),
   getCurrentBaseURL: vi.fn(() => 'http://localhost:3001'),
+  getCurrentUser: vi.fn().mockResolvedValue({
+    success: true,
+    data: { id: 1, name: 'Test User', email: 'test@example.com' }
+  }),
 };
 
 export default mockApi;

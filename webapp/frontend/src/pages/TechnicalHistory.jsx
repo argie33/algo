@@ -173,7 +173,7 @@ function PriceHistory() {
   // Get visible columns for display
   const displayColumns = useMemo(() => {
     return allColumns.filter((col) => visibleColumns[col.id]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [visibleColumns]);
 
   // Fetch data function
@@ -219,7 +219,7 @@ function PriceHistory() {
   // Effects
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [symbol, timeframe, page, rowsPerPage, dateFrom, dateTo, priceFilters]);
 
   // Filter data based on search term

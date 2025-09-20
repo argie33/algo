@@ -21,31 +21,7 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
   AuthProvider: ({ children }) => children,
 }));
 
-// Mock API service with immediate resolved values
-vi.mock("../../../services/api.js", () => ({
-  api: {
-    getDashboard: vi.fn().mockResolvedValue({
-      success: true,
-      data: {
-        portfolio: { value: 10000, change: 150, changePercent: 1.5 },
-        market: { sp500: 4200, nasdaq: 13000, dow: 34000 },
-        activity: []
-      }
-    }),
-    getMarketOverview: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    getPortfolioSummary: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    getScores: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  },
-  getApiConfig: vi.fn(() => ({
-    apiUrl: "http://localhost:3001",
-    environment: "test",
-  })),
-  // Add missing API functions
-  getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
-  getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
-  getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
-}));
+// API service is mocked globally in setup.js - no duplicate needed
 
 // Mock data cache
 vi.mock("../../../services/dataCache.js", () => ({

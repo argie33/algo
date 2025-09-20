@@ -680,4 +680,26 @@ router.get("/health", (req, res) => {
   });
 });
 
+// Token validation endpoint
+router.get("/validate", authenticateToken, (req, res) => {
+  // If authenticateToken middleware passes, token is valid
+  res.json({
+    success: true,
+    valid: true,
+    user: req.user,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Logout endpoint
+router.post("/logout", (req, res) => {
+  // In a stateless JWT system, logout is typically handled client-side
+  // by removing the token from storage
+  res.json({
+    success: true,
+    message: "Logged out successfully",
+    timestamp: new Date().toISOString()
+  });
+});
+
 module.exports = router;

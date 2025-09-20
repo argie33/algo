@@ -898,11 +898,13 @@ const Portfolio = () => {
 
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `portfolio_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    if (typeof document !== 'undefined') {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `portfolio_${new Date().toISOString().split("T")[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
     handleExportClose();
   };
 
@@ -911,7 +913,7 @@ const Portfolio = () => {
     console.log("📄 PDF Export: Portfolio report generation requested");
 
     // Show a non-blocking notification instead of alert
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && typeof document !== "undefined") {
       const notification = document.createElement("div");
       notification.style.cssText = `
         position: fixed; top: 20px; right: 20px; z-index: 9999;

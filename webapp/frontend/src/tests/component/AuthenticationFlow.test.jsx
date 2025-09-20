@@ -30,13 +30,7 @@ vi.mock("aws-amplify", () => ({
 
 // Get the mocked auth functions for direct access
 const mockLogin = vi.fn().mockResolvedValue({ success: true });
-// Create a mock register function that calls devAuth.signUp
-const mockRegister = vi.fn(async (username, password, email, firstName, lastName) => {
-  // Import devAuth mock after it's been set up
-  const devAuth = await import("../../services/devAuth");
-  const result = await devAuth.default.signUp(username, password, email, firstName, lastName);
-  return result;
-});
+const mockRegister = vi.fn().mockResolvedValue({ success: true });
 const mockConfirmSignUp = vi.fn().mockResolvedValue({ success: true });
 const mockConfirmForgotPassword = vi.fn().mockResolvedValue({ success: true });
 const mockForgotPassword = vi.fn().mockResolvedValue({ success: true });

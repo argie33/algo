@@ -990,7 +990,7 @@ router.get("/positions", authenticateToken, async (req, res) => {
         s.industry
       FROM position_history ph
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN stocks s ON ph.symbol = s.symbol
+      LEFT JOIN company_profile s ON ph.symbol = s.ticker
       WHERE ph.user_id = $1 ${statusFilter}
       ORDER BY ph.opened_at DESC
       LIMIT $2 OFFSET $3
@@ -1195,7 +1195,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
           SUM(ph.net_pnl) as sector_pnl,
           AVG(ph.return_percentage) as avg_roi
         FROM position_history ph
-        LEFT JOIN stocks s ON ph.symbol = s.symbol
+        LEFT JOIN company_profile s ON ph.symbol = s.ticker
         WHERE ph.user_id = $1 
           AND ph.opened_at >= $2 
           AND ph.opened_at <= $3
@@ -1231,7 +1231,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
           ph.status,
           s.name as company_name
         FROM position_history ph
-        LEFT JOIN stocks s ON ph.symbol = s.symbol
+        LEFT JOIN company_profile s ON ph.symbol = s.ticker
         WHERE ph.user_id = $1
         ORDER BY ph.opened_at DESC
         LIMIT $2
@@ -1448,7 +1448,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
           AVG(ph.return_percentage) as avg_roi,
           SUM(ph.quantity * ph.avg_entry_price) as total_volume
         FROM position_history ph
-        LEFT JOIN stocks s ON ph.symbol = s.symbol
+        LEFT JOIN company_profile s ON ph.symbol = s.ticker
         WHERE ph.user_id = $1 
           AND ph.opened_at >= $2 
           AND ph.opened_at <= $3
@@ -1531,7 +1531,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
               AVG(ph.unrealized_plpc) as avg_roi,
               SUM(ph.market_value) as total_value
             FROM portfolio_holdings ph
-            LEFT JOIN stocks s ON ph.symbol = s.symbol
+            LEFT JOIN company_profile s ON ph.symbol = s.ticker
             WHERE ph.user_id = $1 AND ph.quantity > 0
             GROUP BY COALESCE(s.sector, 'Unknown')
             ORDER BY sector_pnl DESC
@@ -1695,7 +1695,7 @@ router.get("/analytics/:positionId", authenticateToken, async (req, res) => {
         s.name as company_description
       FROM position_history ph
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN stocks s ON ph.symbol = s.symbol
+      LEFT JOIN company_profile s ON ph.symbol = s.ticker
       WHERE ph.id = $1 AND ph.user_id = $2
     `,
       [positionId, userId]
@@ -2144,7 +2144,7 @@ router.get("/export", authenticateToken, async (req, res) => {
         AND te.user_id = ph.user_id
         AND te.execution_time BETWEEN ph.opened_at AND COALESCE(ph.closed_at, NOW())
       LEFT JOIN trade_analytics ta ON ph.id = ta.position_id
-      LEFT JOIN stocks s ON te.symbol = s.symbol
+      LEFT JOIN company_profile s ON te.symbol = s.ticker
       ${whereClause}
       ORDER BY te.execution_time DESC
     `,

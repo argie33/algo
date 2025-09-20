@@ -346,10 +346,12 @@ describe("RealTimeNewsService", () => {
 
       vi.advanceTimersByTime(2000);
 
-      await vi.runAllTimersAsync();
+      await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(realTimeNewsService.latestNews.length).toBeGreaterThan(0);
       expect(realTimeNewsService.newsBuffer.length).toBe(0);
+
+      realTimeNewsService.stopBufferProcessing();
     });
 
     test("processes up to 10 articles at a time", async () => {

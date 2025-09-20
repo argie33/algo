@@ -471,7 +471,7 @@ function MarketOverview() {
 
   // Fix MUI Tabs validation error by ensuring tabs are ready before rendering
   useEffect(() => {
-    const timer = setTimeout(() => setTabsReady(true), import.meta.env.MODE === 'test' ? 0 : 100);
+    const timer = setTimeout(() => setTabsReady(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
@@ -1607,7 +1607,7 @@ function MarketOverview() {
       </Grid>
 
       {/* Enhanced Tabs Section */}
-      <AnimatedCard delay={5}>
+      <Box>
         <Box
           sx={{
             borderBottom: 1,
@@ -1615,8 +1615,7 @@ function MarketOverview() {
             bgcolor: "background.paper",
           }}
         >
-          {tabsReady && (
-            <Tabs
+          <Tabs
               value={tabValue}
               onChange={handleTabChange}
               aria-label="market data tabs"
@@ -1640,6 +1639,7 @@ function MarketOverview() {
               }}
             >
               <Tab
+                value={0}
                 label="Market Overview"
                 icon={<ShowChart />}
                 iconPosition="start"
@@ -1647,6 +1647,7 @@ function MarketOverview() {
                 aria-controls="market-tabpanel-0"
               />
               <Tab
+                value={1}
                 label="Sentiment History"
                 icon={<Timeline />}
                 iconPosition="start"
@@ -1654,6 +1655,7 @@ function MarketOverview() {
                 aria-controls="market-tabpanel-1"
               />
               <Tab
+                value={2}
                 label="Sector Performance"
                 icon={<Business />}
                 iconPosition="start"
@@ -1661,6 +1663,7 @@ function MarketOverview() {
                 aria-controls="market-tabpanel-2"
               />
               <Tab
+                value={3}
                 label="Market Breadth"
                 icon={<Equalizer />}
                 iconPosition="start"
@@ -1668,6 +1671,7 @@ function MarketOverview() {
                 aria-controls="market-tabpanel-3"
               />
               <Tab
+                value={4}
                 label="Economic Indicators"
                 icon={<Public />}
                 iconPosition="start"
@@ -1675,6 +1679,7 @@ function MarketOverview() {
                 aria-controls="market-tabpanel-4"
               />
               <Tab
+                value={5}
                 label="Seasonality"
                 icon={<CalendarToday />}
                 iconPosition="start"
@@ -1682,6 +1687,7 @@ function MarketOverview() {
                 aria-controls="market-tabpanel-5"
               />
               <Tab
+                value={6}
                 label="Research Indicators"
                 icon={<Analytics />}
                 iconPosition="start"
@@ -1689,10 +1695,11 @@ function MarketOverview() {
                 aria-controls="market-tabpanel-6"
               />
             </Tabs>
-          )}
         </Box>
 
-        <TabPanel value={tabValue} index={0}>
+        {tabsReady && (
+          <>
+            <TabPanel value={tabValue} index={0}>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <Card>
@@ -3158,7 +3165,9 @@ function MarketOverview() {
             </Grid>
           )}
         </TabPanel>
-      </AnimatedCard>
+          </>
+        )}
+      </Box>
     </Box>
   );
 }

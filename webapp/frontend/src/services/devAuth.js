@@ -332,6 +332,11 @@ class DevAuthService {
   }
 
   async getCurrentUser() {
+    // Check for E2E test override first
+    if (typeof window !== 'undefined' && window.__DEV_AUTH_OVERRIDE__) {
+      return window.__DEV_AUTH_OVERRIDE__.user;
+    }
+
     if (!this.session || Date.now() > this.session.expiresAt) {
       throw new Error("No authenticated user");
     }
@@ -339,6 +344,13 @@ class DevAuthService {
   }
 
   async fetchAuthSession() {
+    // Check for E2E test override first
+    if (typeof window !== 'undefined' && window.__DEV_AUTH_OVERRIDE__) {
+      return {
+        tokens: window.__DEV_AUTH_OVERRIDE__.tokens,
+      };
+    }
+
     if (!this.session || Date.now() > this.session.expiresAt) {
       throw new Error("No valid session");
     }
