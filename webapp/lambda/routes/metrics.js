@@ -172,8 +172,8 @@ router.get("/", async (req, res) => {
         cp.sector,
         cp.industry,
         NULL as market_cap,
-        md.current_price,
-        fm.pe_ratio,
+        NULL,
+        NULL,
         0 as price_to_book,
         
         -- Quality Metrics from stock_scores
@@ -211,9 +211,7 @@ router.get("/", async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
+                  LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
           FROM stock_scores sc2 
@@ -234,9 +232,7 @@ router.get("/", async (req, res) => {
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
+                  LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
         AND sc.date = (
           SELECT MAX(date) 
           FROM stock_scores sc2 
@@ -816,7 +812,7 @@ router.get("/:symbol", async (req, res) => {
         cp.industry,
         NULL as market_cap,
         COALESCE(pd.close, 0) as current_price,
-        fm.pe_ratio,
+        NULL,
         km.price_to_book,
         km.dividend_yield
       FROM quality_metrics qm
@@ -1141,9 +1137,7 @@ router.get("/top/:category", async (req, res) => {
       FROM stock_symbols ss
       ${joinClause}
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
-      WHERE sc.date = (
+                  WHERE sc.date = (
         SELECT MAX(date) FROM stock_scores sc2 WHERE sc2.symbol = ss.symbol
       )
       AND COALESCE(sc.fundamental_score, 0) >= 0.1

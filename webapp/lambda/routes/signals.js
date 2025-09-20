@@ -196,7 +196,7 @@ router.get("/buy", async (req, res) => {
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
+      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -331,7 +331,7 @@ router.get("/sell", async (req, res) => {
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
+      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -469,7 +469,7 @@ router.get("/recent", async (req, res) => {
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
+      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -547,12 +547,12 @@ router.get("/", async (req, res) => {
         bs.date,
         bs.price as current_price,
         NULL as market_cap,
-        fm.pe_ratio,
-        fm.dividend_yield,
+        NULL,
+        NULL,
         'buy' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
+      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -568,12 +568,12 @@ router.get("/", async (req, res) => {
         bs.date,
         bs.price as current_price,
         NULL as market_cap,
-        fm.pe_ratio,
-        fm.dividend_yield,
+        NULL,
+        NULL,
         'sell' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
+      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -2533,7 +2533,7 @@ router.get("/daily", async (req, res) => {
         END as signal_type
       FROM buy_sell_daily bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
+      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.signal IN ('BUY', 'SELL', 'HOLD')
@@ -2638,7 +2638,7 @@ router.get("/trending", async (req, res) => {
         COUNT(*) OVER (PARTITION BY bs.symbol) as signal_count
       FROM buy_sell_${timeframe} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
-      LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
+      LEFT JOIN company_profile fm ON bs.symbol = fm.ticker
       WHERE bs.signal IS NOT NULL 
         AND bs.signal != '' 
         AND bs.date >= CURRENT_DATE - INTERVAL '7 days'
