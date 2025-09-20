@@ -413,7 +413,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       params.push(exchange);
     }
 
-    // FAST sort columns
+    // FAST sort columns - using loadinfo.py schema
     const validSortColumns = {
       ticker: "cp.ticker",
       symbol: "cp.ticker",
@@ -435,7 +435,7 @@ router.get("/", stocksListValidation, async (req, res) => {
       offset,
     });
 
-    // FIXED QUERY: Use company_profile as primary source (populated by loadinfo)
+    // FIXED QUERY: Use company_profile schema from loadinfo.py
     const stocksQuery = `
       SELECT
         -- Primary company profile data (populated by loadinfo)
