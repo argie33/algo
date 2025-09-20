@@ -2234,75 +2234,30 @@ router.get("/:ticker", async (req, res) => {
 
     console.log(`FIXED stock endpoint called for: ${tickerUpper}`);
 
-    // FIXED QUERY - Try stock_symbols first, fallback to stocks table
+    // FIXED QUERY - Use company_profile as primary source (populated by loadinfo)
     const stockQuery = `
       SELECT
-        symbol,
-        company_name,
-        sector,
-        exchange,
-        market_category,
-        market_cap,
-        current_price,
-        open,
-        high,
-        low,
-        volume,
-        price_date
-      FROM (
-        -- First try stock_symbols table
-        SELECT
-          ss.symbol,
-          ss.security_name as company_name,
-          COALESCE(cp.sector, ss.sector, 'Unknown') as sector,
-          ss.exchange,
-          ss.type as market_category,
-          COALESCE(cp.market_cap, ss.market_cap, 0) as market_cap,
-          pd.close as current_price,
-          pd.open,
-          pd.high,
-          pd.low,
-          pd.volume,
-          pd.date as price_date,
-          1 as priority
-        FROM stock_symbols ss
-        LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-        LEFT JOIN (
-          SELECT DISTINCT ON (symbol)
-            symbol, close, open, high, low, volume, date
-          FROM price_daily
-          ORDER BY symbol, date DESC
-        ) pd ON ss.symbol = pd.symbol
-        WHERE ss.symbol = $1
-
-        UNION ALL
-
-        -- Fallback to stocks table if not found in stock_symbols
-        SELECT
-          s.symbol,
-          s.symbol as company_name,
-          s.sector,
-          'Unknown' as exchange,
-          'Stock' as market_category,
-          s.market_cap,
-          pd.close as current_price,
-          pd.open,
-          pd.high,
-          pd.low,
-          pd.volume,
-          pd.date as price_date,
-          2 as priority
-        FROM stocks s
-        LEFT JOIN (
-          SELECT DISTINCT ON (symbol)
-            symbol, close, open, high, low, volume, date
-          FROM price_daily
-          ORDER BY symbol, date DESC
-        ) pd ON s.symbol = pd.symbol
-        WHERE s.symbol = $1
-          AND NOT EXISTS (SELECT 1 FROM stock_symbols WHERE symbol = $1)
-      ) combined
-      ORDER BY priority
+        cp.ticker as symbol,
+        cp.short_name as company_name,
+        cp.sector,
+        cp.market as exchange,
+        cp.quote_type as market_category,
+        md.market_cap,
+        pd.close as current_price,
+        pd.open,
+        pd.high,
+        pd.low,
+        pd.volume,
+        pd.date as price_date
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, open, high, low, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON cp.ticker = pd.symbol
+      WHERE cp.ticker = $1
       LIMIT 1
     `;
 
