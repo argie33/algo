@@ -372,7 +372,7 @@ const stocksListValidation = createValidationMiddleware({
 router.get("/", stocksListValidation, async (req, res) => {
   try {
     console.log(
-      "OPTIMIZED Stocks main endpoint called with params:",
+      "Stocks main endpoint called with params:",
       req.query
     );
     console.log("Triggering workflow deploy");
@@ -428,19 +428,18 @@ router.get("/", stocksListValidation, async (req, res) => {
     const sortColumn = validSortColumns[sortBy] || "cp.ticker";
     const sortDirection = sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
 
-    console.log("OPTIMIZED query params:", {
+    console.log("Query params:", {
       whereClause,
       params,
       limit,
       offset,
     });
 
-    // FIXED QUERY: Use company_profile schema from loadinfo.py
+    // SIMPLE FULL QUERY: Use company_profile as primary table
     const stocksQuery = `
       SELECT
-        -- Primary company profile data (populated by loadinfo)
         cp.ticker as symbol,
-        cp.short_name as company_name,
+        COALESCE(cp.short_name, cp.long_name, cp.ticker) as company_name,
         cp.long_name as security_name,
         cp.market,
         cp.quote_type as type,
@@ -449,20 +448,13 @@ router.get("/", stocksListValidation, async (req, res) => {
         cp.currency,
         cp.country,
         md.market_cap,
-        CASE WHEN cp.ticker IS NOT NULL THEN true ELSE false END as is_active,
-        -- Latest price data when available (optional)
-        pd.close as current_price,
-        pd.volume,
-        pd.date as price_date
+        true as is_active,
+        md.current_price as current_price,
+        md.volume,
+        (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker) as price_date
 
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol, close, volume, date
-        FROM price_daily
-        ORDER BY symbol, date DESC
-      ) pd ON cp.ticker = pd.symbol
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -904,7 +896,8 @@ router.get("/", stocksListValidation, async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: "Optimized query failed"
+      error: "Database query failed",
+      message: error.message
     });
   }
 });

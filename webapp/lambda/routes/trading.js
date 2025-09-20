@@ -648,7 +648,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
             ${companyProfileExists ? "cp.short_name" : "NULL"} as company_name,
             ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
-            ${companyProfileExists ? "md.market_cap" : "NULL"} as market_cap,
+            NULL as market_cap,
             NULL as trailing_pe,
             ${priceDailyExists ? "pd.dividends" : "NULL"} as dividend_yield,
             CASE 
@@ -681,7 +681,7 @@ router.get("/signals/:timeframe", async (req, res) => {
           ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
           ${companyProfileExists ? "cp.short_name" : "NULL"} as company_name,
           ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
-          ${companyProfileExists ? "md.market_cap" : "NULL"} as market_cap,
+          NULL as market_cap,
           NULL as trailing_pe,
           ${priceDailyExists ? "pd.dividends" : "NULL"} as dividend_yield,
           CASE 
@@ -2161,7 +2161,7 @@ router.get("/risk/portfolio", async (req, res) => {
         ph.average_cost as avg_cost,
         ph.market_value as current_value,
         cp.sector,
-        md.market_cap,
+        COALESCE(md.market_cap, 0) as market_cap,
         pd.close as current_price,
         pd.volume,
         COALESCE(ti.historical_volatility_20d, 0.15) as volatility,
