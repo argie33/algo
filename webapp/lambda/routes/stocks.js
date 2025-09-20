@@ -3,11 +3,8 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 // const schemaValidator = require("../utils/schemaValidator"); // Currently unused
-const {
-  createValidationMiddleware,
-  validationSchemas,
-  sanitizers,
-} = require("../middleware/validation");
+// Validation middleware temporarily disabled
+// const { createValidationMiddleware, validationSchemas, sanitizers } = require("../middleware/validation");
 
 const router = express.Router();
 
@@ -324,52 +321,52 @@ router.get("/ping", (req, res) => {
   });
 });
 
-// Validation schema for stocks list endpoint
-const stocksListValidation = createValidationMiddleware({
-  ...validationSchemas.pagination,
-  search: {
-    type: "string",
-    sanitizer: (value) =>
-      sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
-    validator: (value) => !value || value.length <= 100,
-    errorMessage: "Search query must be 100 characters or less",
-  },
-  sector: {
-    type: "string",
-    sanitizer: (value) =>
-      sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
-    validator: (value) => !value || /^[a-zA-Z\s&-]{1,50}$/.test(value),
-    errorMessage: "Sector must be valid sector name",
-  },
-  exchange: {
-    type: "string",
-    sanitizer: (value) =>
-      sanitizers.string(value, { maxLength: 10 }).toUpperCase(),
-    validator: (value) => !value || /^[A-Z]{1,10}$/.test(value),
-    errorMessage: "Exchange must be valid exchange code",
-  },
-  sortBy: {
-    type: "string",
-    sanitizer: (value) =>
-      sanitizers.string(value, { maxLength: 20, alphaNumOnly: false }),
-    validator: (value) =>
-      !value ||
-      ["symbol", "ticker", "name", "exchange"].includes(
-        value
-      ),
-    errorMessage: "Invalid sort field",
-  },
-  sortOrder: {
-    type: "string",
-    sanitizer: (value) =>
-      sanitizers.string(value, { maxLength: 4 }).toLowerCase(),
-    validator: (value) => !value || ["asc", "desc"].includes(value),
-    errorMessage: "Sort order must be asc or desc",
-  },
-});
+// Validation schema for stocks list endpoint - temporarily disabled
+// const stocksListValidation = createValidationMiddleware({
+//   ...validationSchemas.pagination,
+//   search: {
+//     type: "string",
+//     sanitizer: (value) =>
+//       sanitizers.string(value, { maxLength: 100, escapeHTML: true }),
+//     validator: (value) => !value || value.length <= 100,
+//     errorMessage: "Search query must be 100 characters or less",
+//   },
+//   sector: {
+//     type: "string",
+//     sanitizer: (value) =>
+//       sanitizers.string(value, { maxLength: 50, alphaNumOnly: false }),
+//     validator: (value) => !value || /^[a-zA-Z\s&-]{1,50}$/.test(value),
+//     errorMessage: "Sector must be valid sector name",
+//   },
+//   exchange: {
+//     type: "string",
+//     sanitizer: (value) =>
+//       sanitizers.string(value, { maxLength: 10 }).toUpperCase(),
+//     validator: (value) => !value || /^[A-Z]{1,10}$/.test(value),
+//     errorMessage: "Exchange must be valid exchange code",
+//   },
+//   sortBy: {
+//     type: "string",
+//     sanitizer: (value) =>
+//       sanitizers.string(value, { maxLength: 20, alphaNumOnly: false }),
+//     validator: (value) =>
+//       !value ||
+//       ["symbol", "ticker", "name", "exchange"].includes(
+//         value
+//       ),
+//     errorMessage: "Invalid sort field",
+//   },
+//   sortOrder: {
+//     type: "string",
+//     sanitizer: (value) =>
+//       sanitizers.string(value, { maxLength: 4 }).toLowerCase(),
+//     validator: (value) => !value || ["asc", "desc"].includes(value),
+//     errorMessage: "Sort order must be asc or desc",
+//   },
+// });
 
 // OPTIMIZED: Main stocks endpoint with fast queries and all data visible
-router.get("/", stocksListValidation, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     console.log(
       "Stocks main endpoint called with params:",

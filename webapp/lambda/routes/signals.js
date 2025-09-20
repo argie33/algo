@@ -70,10 +70,10 @@ router.post("/backtest", async (req, res) => {
           ELSE 0
         END as return_percent,
         cp.sector,
-        md.market_cap
+        COALESCE(md.market_cap, 0) as market_cap
       FROM buy_sell_daily bs
       JOIN price_daily pd ON bs.symbol = pd.symbol AND bs.date = pd.date
-      LEFT JOIN price_daily pd_future ON bs.symbol = pd_future.symbol 
+      LEFT JOIN price_daily pd_future ON bs.symbol = pd_future.symbol
         AND pd_future.date = bs.date + INTERVAL '30 days'
       LEFT JOIN company_profile cp ON bs.symbol = cp.ticker
       LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
