@@ -21,7 +21,7 @@ describe("Analysts Routes", () => {
     test("should return analysts API overview", async () => {
       const response = await request(app).get("/api/analysts");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("message", "Analysts API - Ready");
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("endpoints");
@@ -38,7 +38,7 @@ describe("Analysts Routes", () => {
     test("should include expected endpoints in overview", async () => {
       const response = await request(app).get("/api/analysts");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       const endpoints = response.body.endpoints;
       expect(endpoints.some((ep) => ep.includes("/upgrades"))).toBe(true);
       expect(endpoints.some((ep) => ep.includes("/recent-actions"))).toBe(true);
@@ -59,7 +59,7 @@ describe("Analysts Routes", () => {
     test("should return analyst upgrades with pagination", async () => {
       const response = await request(app).get("/api/analysts/upgrades");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -95,7 +95,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/upgrades?page=2&limit=10"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.pagination.page).toBe(2);
@@ -108,7 +108,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/upgrades?page=invalid&limit=abc"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         // Should use defaults
@@ -122,7 +122,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/upgrades?page=0&limit=-5"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         // Should use defaults for invalid values
@@ -149,7 +149,7 @@ describe("Analysts Routes", () => {
     test("should handle database connection issues", async () => {
       const response = await request(app).get("/api/analysts/upgrades");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 503) {
         expect(response.body.error).toContain(
@@ -166,7 +166,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/AAPL/earnings-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("ticker", "AAPL");
@@ -183,7 +183,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/aapl/earnings-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.ticker).toBe("AAPL");
@@ -211,7 +211,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/BRK.A/earnings-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.ticker).toBe("BRK.A");
@@ -223,7 +223,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/INVALID123/earnings-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.ticker).toBe("INVALID123");
@@ -238,7 +238,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/AAPL/revenue-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("ticker", "AAPL");
@@ -255,7 +255,7 @@ describe("Analysts Routes", () => {
           `/api/analysts/${ticker}/revenue-estimates`
         );
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body.ticker).toBe(ticker.toUpperCase());
@@ -283,7 +283,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/AAPL/earnings-history"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("ticker", "AAPL");
@@ -313,7 +313,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/tesla/earnings-history"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.ticker).toBe("TESLA");
@@ -327,7 +327,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/AAPL/eps-revisions"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("ticker", "AAPL");
@@ -364,7 +364,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/googl/eps-revisions"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.ticker).toBe("GOOGL");
@@ -376,7 +376,7 @@ describe("Analysts Routes", () => {
     test("should return EPS trend for valid ticker", async () => {
       const response = await request(app).get("/api/analysts/AAPL/eps-trend");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("ticker", "AAPL");
@@ -409,7 +409,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/AAPL/growth-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("ticker", "AAPL");
@@ -441,7 +441,7 @@ describe("Analysts Routes", () => {
     test("should return comprehensive analyst overview", async () => {
       const response = await request(app).get("/api/analysts/AAPL/overview");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("ticker", "AAPL");
@@ -476,7 +476,7 @@ describe("Analysts Routes", () => {
           `/api/analysts/${ticker}/overview`
         );
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body.ticker).toBe(ticker);
@@ -500,7 +500,7 @@ describe("Analysts Routes", () => {
     test("should return recent analyst actions", async () => {
       const response = await request(app).get("/api/analysts/recent-actions");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -532,7 +532,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/recent-actions?limit=5"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.length).toBeLessThanOrEqual(5);
@@ -544,7 +544,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/recent-actions?limit=invalid"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       // Should handle gracefully with default limit
     });
 
@@ -686,7 +686,7 @@ describe("Analysts Routes", () => {
     test("should return price targets for valid symbol", async () => {
       const response = await request(app).get("/api/analysts/targets/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -716,7 +716,7 @@ describe("Analysts Routes", () => {
           `/api/analysts/targets/${symbol}`
         );
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body.data.symbol).toBe(symbol.toUpperCase());
@@ -774,7 +774,7 @@ describe("Analysts Routes", () => {
     test("should return consensus analysis for valid symbol", async () => {
       const response = await request(app).get("/api/analysts/consensus/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -823,7 +823,7 @@ describe("Analysts Routes", () => {
           `/api/analysts/consensus/${symbol}`
         );
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body.data.symbol).toBe(symbol.toUpperCase());
@@ -845,7 +845,7 @@ describe("Analysts Routes", () => {
     test("should handle database connection errors", async () => {
       const response = await request(app).get("/api/analysts/upgrades");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if ([500, 503].includes(response.status)) {
         expect(response.body).toHaveProperty("success", false);
@@ -858,7 +858,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/AAPL%20invalid/earnings-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
 
     test("should handle extremely long ticker symbols", async () => {
@@ -875,7 +875,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/A@PPL/earnings-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
   });
 
@@ -883,7 +883,7 @@ describe("Analysts Routes", () => {
     test("should validate timestamp formats", async () => {
       const response = await request(app).get("/api/analysts");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       const timestamp = new Date(response.body.timestamp);
       expect(timestamp).toBeInstanceOf(Date);
       expect(timestamp.getTime()).not.toBeNaN();
@@ -918,7 +918,7 @@ describe("Analysts Routes", () => {
       const responseTime = Date.now() - startTime;
 
       expect(responseTime).toBeLessThan(3000);
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
 
     test("should handle concurrent requests", async () => {
@@ -932,7 +932,7 @@ describe("Analysts Routes", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       });
     });
   });
@@ -951,7 +951,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/123/earnings-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.ticker).toBe("123");
@@ -963,7 +963,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/upgrades?page=999999&limit=1000"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.pagination.page).toBe(999999);
@@ -976,7 +976,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/BRK%2EA/earnings-estimates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.ticker).toBe("BRK.A");

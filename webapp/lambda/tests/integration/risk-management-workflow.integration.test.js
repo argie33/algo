@@ -482,7 +482,7 @@ describe("Risk Management Workflow Integration Tests", () => {
 
       // All operations should succeed
       results.forEach((response) => {
-        expect([200, 404]).toContain(response.status); // 404 acceptable if position already closed
+        expect(response.status).toBe(200); // 404 acceptable if position already closed
         expect(response.body).toHaveProperty("success");
       });
 

@@ -165,7 +165,7 @@ describe("Alerts Routes Unit Tests", () => {
           .put(`/alerts/${alertId}/dismiss`)
           .set("Authorization", "Bearer dev-bypass-token");
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         if (response.status === 200) {
           expect(response.body).toHaveProperty("success", true);
           expect(response.body).toHaveProperty("message");

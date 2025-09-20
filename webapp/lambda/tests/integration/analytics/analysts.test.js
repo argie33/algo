@@ -14,7 +14,7 @@ describe("Analysts API", () => {
         "/api/analysts/recommendations/AAPL"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -50,7 +50,7 @@ describe("Analysts API", () => {
     test("should retrieve analyst coverage for stock", async () => {
       const response = await request(app).get("/api/analysts/coverage/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -79,7 +79,7 @@ describe("Analysts API", () => {
         "/api/analysts/price-targets/AAPL"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -97,7 +97,7 @@ describe("Analysts API", () => {
     test("should provide consensus price targets", async () => {
       const response = await request(app).get("/api/analysts/consensus/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -126,7 +126,7 @@ describe("Analysts API", () => {
         "/api/analysts/research?symbol=AAPL&limit=10"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -146,7 +146,7 @@ describe("Analysts API", () => {
         "/api/analysts/research?firm=Goldman&limit=5"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

@@ -14,7 +14,7 @@ describe("Technical Analysis", () => {
         "/api/technical/daily/AAPL?indicators=rsi&period=14"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -47,7 +47,7 @@ describe("Technical Analysis", () => {
         "/api/technical/daily/AAPL?indicators=macd"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -71,7 +71,7 @@ describe("Technical Analysis", () => {
         "/api/technical/daily/AAPL?indicators=sma,ema&periods=20,50"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -95,7 +95,7 @@ describe("Technical Analysis", () => {
         "/api/technical/daily/AAPL?indicators=bollinger&period=20&std=2"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -119,7 +119,7 @@ describe("Technical Analysis", () => {
         "/api/technical/daily/AAPL?indicators=rsi,macd,sma,bollinger"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -145,7 +145,7 @@ describe("Technical Analysis", () => {
     test("should generate trading signals based on technical analysis", async () => {
       const response = await request(app).get("/api/technical/signals/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -185,7 +185,7 @@ describe("Technical Analysis", () => {
         "/api/technical/signals/MSFT?include_confidence=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -213,7 +213,7 @@ describe("Technical Analysis", () => {
         "/api/technical/signals/GOOGL?include_targets=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -245,7 +245,7 @@ describe("Technical Analysis", () => {
         "/api/technical/chart/AAPL?period=1M&interval=1d"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -282,7 +282,7 @@ describe("Technical Analysis", () => {
           `/api/technical/chart/SPY?period=1D&interval=${interval}`
         );
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body).toHaveProperty("success", true);
@@ -300,7 +300,7 @@ describe("Technical Analysis", () => {
         "/api/technical/chart/AAPL?period=1M&include_volume=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -320,7 +320,7 @@ describe("Technical Analysis", () => {
     test("should identify chart patterns", async () => {
       const response = await request(app).get("/api/technical/patterns/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -346,7 +346,7 @@ describe("Technical Analysis", () => {
     test("should detect support and resistance levels", async () => {
       const response = await request(app).get("/api/technical/levels/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -371,7 +371,7 @@ describe("Technical Analysis", () => {
         "/api/technical/multi-timeframe/AAPL?timeframes=1D,1W,1M"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -392,7 +392,7 @@ describe("Technical Analysis", () => {
     test("should aggregate signals across timeframes", async () => {
       const response = await request(app).get("/api/technical/consensus/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

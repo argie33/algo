@@ -20,7 +20,7 @@ describe("Analytics Routes", () => {
     test("should return analytics endpoints", async () => {
       const response = await request(app).get("/api/analytics");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("message");
@@ -33,7 +33,7 @@ describe("Analytics Routes", () => {
     test("should return performance analytics", async () => {
       const response = await request(app).get("/api/analytics/performance");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -46,7 +46,7 @@ describe("Analytics Routes", () => {
     test("should return risk analytics", async () => {
       const response = await request(app).get("/api/analytics/risk");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -59,7 +59,7 @@ describe("Analytics Routes", () => {
     test("should return allocation analytics", async () => {
       const response = await request(app).get("/api/analytics/allocation");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -72,7 +72,7 @@ describe("Analytics Routes", () => {
     test("should return returns analysis", async () => {
       const response = await request(app).get("/api/analytics/returns");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -85,7 +85,7 @@ describe("Analytics Routes", () => {
     test("should return sector analysis", async () => {
       const response = await request(app).get("/api/analytics/sectors");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -100,7 +100,7 @@ describe("Analytics Routes", () => {
         .get("/api/analytics/correlation")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -113,7 +113,7 @@ describe("Analytics Routes", () => {
     test("should return volatility analysis", async () => {
       const response = await request(app).get("/api/analytics/volatility");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -126,7 +126,7 @@ describe("Analytics Routes", () => {
     test("should return trend analysis", async () => {
       const response = await request(app).get("/api/analytics/trends");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -147,7 +147,7 @@ describe("Analytics Routes", () => {
         .post("/api/analytics/custom")
         .send(analyticsRequest);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body.success).toBe(true);

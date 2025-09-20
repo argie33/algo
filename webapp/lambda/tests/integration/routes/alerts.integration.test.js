@@ -24,7 +24,7 @@ describe("Alerts Routes", () => {
         .get("/api/alerts/active")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -86,7 +86,7 @@ describe("Alerts Routes", () => {
         .put(`/api/alerts/${alertId}/acknowledge`)
         .send({ action: "acknowledge" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.alert_id).toBe(alertId);
       expect(response.body.data.action).toBe("acknowledge");
@@ -103,7 +103,7 @@ describe("Alerts Routes", () => {
         .put(`/api/alerts/${alertId}/acknowledge`)
         .send({ action: "dismiss" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.action).toBe("dismiss");
       expect(response.body.data.alert_id).toBe(alertId);
@@ -116,7 +116,7 @@ describe("Alerts Routes", () => {
         .put(`/api/alerts/${alertId}/acknowledge`)
         .send({});
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data.action).toBe("acknowledge");
     });
   });
@@ -129,7 +129,7 @@ describe("Alerts Routes", () => {
         .put(`/api/alerts/${alertId}/snooze`)
         .send({});
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.alert_id).toBe(alertId);
       expect(response.body.data.duration_minutes).toBe(60);
@@ -145,7 +145,7 @@ describe("Alerts Routes", () => {
         .put(`/api/alerts/${alertId}/snooze`)
         .send({ duration_minutes: 120 });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data.duration_minutes).toBe(120);
     });
 
@@ -160,7 +160,7 @@ describe("Alerts Routes", () => {
       const snoozeUntil = new Date(response.body.data.snooze_until);
       const expectedTime = new Date(beforeRequest + 30 * 60 * 1000);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(snoozeUntil.getTime()).toBeGreaterThan(
         expectedTime.getTime() - 5000
       ); // 5s tolerance
@@ -218,7 +218,7 @@ describe("Alerts Routes", () => {
     test("should return alerts summary with default timeframe", async () => {
       const response = await request(app).get("/api/alerts/summary");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("summary");
       expect(response.body.data).toHaveProperty("severity_breakdown");
@@ -242,7 +242,7 @@ describe("Alerts Routes", () => {
           `/api/alerts/summary?timeframe=${timeframe}`
         );
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.body.data.summary.timeframe).toBe(timeframe);
       }
     });
@@ -263,7 +263,7 @@ describe("Alerts Routes", () => {
         "/api/alerts/summary?include_trends=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data).toHaveProperty("trends");
       expect(response.body.data.metadata.includes_trends).toBe(true);
     });
@@ -273,7 +273,7 @@ describe("Alerts Routes", () => {
         "/api/alerts/summary?include_stats=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data).toHaveProperty("detailed_statistics");
       expect(response.body.data.metadata.includes_stats).toBe(true);
     });
@@ -300,7 +300,7 @@ describe("Alerts Routes", () => {
     test("should return comprehensive alert settings", async () => {
       const response = await request(app).get("/api/alerts/settings");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("settings");
       expect(response.body.data).toHaveProperty("summary");
@@ -378,7 +378,7 @@ describe("Alerts Routes", () => {
     test("should return alert rules", async () => {
       const response = await request(app).get("/api/alerts/rules");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("rules");
       expect(response.body).toHaveProperty("summary");
@@ -491,7 +491,7 @@ describe("Alerts Routes", () => {
         .delete(`/api/alerts/delete/${alertId}`)
         .send({ reason: "no_longer_needed" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.deleted_alert.alert_id).toBe(alertId);
       expect(response.body.data.deleted_alert.user_id).toBe("test_user_123");
@@ -509,7 +509,7 @@ describe("Alerts Routes", () => {
         .delete(`/api/alerts/delete/${alertId}`)
         .send({});
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data.deleted_alert.deletion_reason).toBe(
         "user_requested"
       );
@@ -575,7 +575,7 @@ describe("Alerts Routes", () => {
         .put(`/api/alerts/update/${alertId}`)
         .send(updateData);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.updated_alert.alert_id).toBe(alertId);
       expect(response.body.data.updated_alert.threshold).toBe(180.0);
@@ -597,7 +597,7 @@ describe("Alerts Routes", () => {
         .put(`/api/alerts/update/${alertId}`)
         .send({});
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data.updated_alert.symbol).toBe("AAPL");
       expect(response.body.data.updated_alert.enabled).toBe(true);
       expect(response.body.data.updated_alert.update_reason).toBe(

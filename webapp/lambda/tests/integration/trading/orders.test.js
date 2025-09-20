@@ -21,7 +21,7 @@ describe("Orders Management", () => {
         .post("/api/orders")
         .send(orderPayload);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
@@ -44,7 +44,7 @@ describe("Orders Management", () => {
         .post("/api/orders")
         .send(orderPayload);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body.data).toHaveProperty("type", "limit");
@@ -73,7 +73,7 @@ describe("Orders Management", () => {
         "/api/orders/history?limit=25&page=1"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -105,7 +105,7 @@ describe("Orders Management", () => {
         "/api/orders/history?status=filled"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 && response.body.data.length > 0) {
         response.body.data.forEach((order) => {
@@ -119,7 +119,7 @@ describe("Orders Management", () => {
         "/api/orders/history?symbol=AAPL"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 && response.body.data.length > 0) {
         response.body.data.forEach((order) => {
@@ -133,7 +133,7 @@ describe("Orders Management", () => {
     test("should cancel pending order", async () => {
       const response = await request(app).delete("/api/orders/test-order-123");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -152,7 +152,7 @@ describe("Orders Management", () => {
         .put("/api/orders/test-order-456")
         .send(modifications);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -163,7 +163,7 @@ describe("Orders Management", () => {
     test("should retrieve order details by ID", async () => {
       const response = await request(app).get("/api/orders/test-order-789");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -179,7 +179,7 @@ describe("Orders Management", () => {
     test("should retrieve current positions", async () => {
       const response = await request(app).get("/api/orders/positions");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -198,7 +198,7 @@ describe("Orders Management", () => {
     test("should calculate position P&L", async () => {
       const response = await request(app).get("/api/orders/positions/pnl");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

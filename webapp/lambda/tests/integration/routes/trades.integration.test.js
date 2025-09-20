@@ -40,7 +40,7 @@ describe("Trades Routes", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/api/trades/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("service", "trades");
       expect(response.body).toHaveProperty(
@@ -111,7 +111,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/import/status")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("brokerStatus");
@@ -169,7 +169,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/summary")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -191,7 +191,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/positions")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -206,7 +206,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/positions?status=open&limit=10&offset=0")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.pagination.limit).toBe(10);
@@ -228,7 +228,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/analytics")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -258,7 +258,7 @@ describe("Trades Routes", () => {
           .get(`/api/trades/analytics?timeframe=${timeframe}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body.metadata.timeframe).toBe(timeframe);
@@ -280,7 +280,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/analytics/overview")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -351,7 +351,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/performance")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -383,7 +383,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/insights")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -399,7 +399,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/insights?limit=5")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
 
     test("should require authentication", async () => {
@@ -416,7 +416,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/export")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -429,7 +429,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/export?format=csv")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.headers["content-type"]).toBe(
@@ -445,7 +445,7 @@ describe("Trades Routes", () => {
         .get("/api/trades/export?startDate=2023-01-01&endDate=2023-12-31")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
 
     test("should require authentication", async () => {
@@ -475,7 +475,7 @@ describe("Trades Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ confirm: "DELETE_ALL_TRADE_DATA" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("message");
@@ -522,7 +522,7 @@ describe("Trades Routes", () => {
       const responseTime = Date.now() - startTime;
 
       expect(responseTime).toBeLessThan(3000);
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
 
     test("should handle concurrent requests", async () => {
@@ -542,9 +542,9 @@ describe("Trades Routes", () => {
 
       responses.forEach((response, index) => {
         if (index === 0) {
-          expect([200, 404]).toContain(response.status);
+          expect(response.status).toBe(200);
         } else {
-          expect([200, 404]).toContain(response.status);
+          expect(response.status).toBe(200);
         }
       });
     });

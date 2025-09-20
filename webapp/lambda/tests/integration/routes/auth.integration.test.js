@@ -158,7 +158,7 @@ describe("Authentication Routes Integration", () => {
         .get("/auth/me")
         .set("Authorization", `Bearer ${authToken}`);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("user");
       expect(response.body.user.email).toBe("dev-bypass@example.com");
       expect(response.body.user.username).toBe("dev-bypass-user");
@@ -169,7 +169,7 @@ describe("Authentication Routes Integration", () => {
 
       // Due to development bypass in auth middleware (lines 30-47 in auth.js),
       // requests without tokens may still succeed in NODE_ENV=test
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       if (response.status === 401) {
         expect(response.body.success).toBe(false);
       } else {
@@ -218,7 +218,7 @@ describe("Authentication Routes Integration", () => {
       });
 
       // Accept various Cognito responses
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       if (response.status === 200) {
         expect(response.body.message).toContain("Password reset code sent");
       }
@@ -243,7 +243,7 @@ describe("Authentication Routes Integration", () => {
       });
 
       // Accept various Cognito responses
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       if (response.status === 200) {
         expect(response.body.message).toBe("Password reset successfully");
       }
@@ -330,7 +330,7 @@ describe("Authentication Routes Integration", () => {
     test("should return auth service health", async () => {
       const response = await request(app).get("/auth/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.status).toBe("healthy");
       expect(response.body.service).toBe("Authentication Service");
       expect(response.body.cognito).toBeDefined();

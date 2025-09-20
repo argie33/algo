@@ -22,7 +22,7 @@ describe("Watchlist Routes", () => {
         .get("/api/watchlist")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -104,7 +104,7 @@ describe("Watchlist Routes", () => {
         .get("/api/watchlist/performance")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -119,7 +119,7 @@ describe("Watchlist Routes", () => {
         .get("/api/watchlist/alerts")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -151,7 +151,7 @@ describe("Watchlist Routes", () => {
         .get("/api/watchlist/export")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.headers["content-type"]).toContain("text/csv");

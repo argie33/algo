@@ -21,7 +21,7 @@ describe("WebSocket Routes", () => {
     test("should return websocket API overview", async () => {
       const response = await request(app).get("/api/websocket");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty(
@@ -38,7 +38,7 @@ describe("WebSocket Routes", () => {
     test("should include expected endpoints", async () => {
       const response = await request(app).get("/api/websocket");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       const endpoints = response.body.data.endpoints;
       expect(endpoints.some((ep) => ep.includes("/test"))).toBe(true);
       expect(endpoints.some((ep) => ep.includes("/health"))).toBe(true);
@@ -51,7 +51,7 @@ describe("WebSocket Routes", () => {
     test("should return test endpoint response", async () => {
       const response = await request(app).get("/api/websocket/test");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty(
         "status",
         "websocket route is working"
@@ -68,7 +68,7 @@ describe("WebSocket Routes", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/api/websocket/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body.data).toHaveProperty("status", "operational");
       expect(response.body.data).toHaveProperty("service", "websocket");
@@ -111,7 +111,7 @@ describe("WebSocket Routes", () => {
     test("should handle dependencies gracefully", async () => {
       const response = await request(app).get("/api/websocket/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.dependencies).toBeDefined();
@@ -126,7 +126,7 @@ describe("WebSocket Routes", () => {
     test("should return status information", async () => {
       const response = await request(app).get("/api/websocket/status");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("activeUsers");
@@ -146,7 +146,7 @@ describe("WebSocket Routes", () => {
     test("should handle status errors gracefully", async () => {
       const response = await request(app).get("/api/websocket/status");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 500) {
         expect(response.body).toHaveProperty("success", false);
@@ -434,7 +434,7 @@ describe("WebSocket Routes", () => {
           dataTypes: ["quotes", "trades"],
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -460,7 +460,7 @@ describe("WebSocket Routes", () => {
           symbols: ["aapl", "msft"],
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.subscribed).toContain("AAPL");
@@ -476,7 +476,7 @@ describe("WebSocket Routes", () => {
           symbols: ["AAPL"],
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.dataTypes).toContain("quotes");
@@ -508,7 +508,7 @@ describe("WebSocket Routes", () => {
         .get("/api/websocket/subscriptions")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -551,7 +551,7 @@ describe("WebSocket Routes", () => {
           symbols: ["AAPL", "MSFT"],
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -573,7 +573,7 @@ describe("WebSocket Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -592,7 +592,7 @@ describe("WebSocket Routes", () => {
           symbols: [],
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
   });
 
@@ -608,7 +608,7 @@ describe("WebSocket Routes", () => {
         .get("/api/websocket/connections")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -663,7 +663,7 @@ describe("WebSocket Routes", () => {
         .get("/api/websocket/connections?details=true")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (
         response.status === 200 &&
@@ -687,7 +687,7 @@ describe("WebSocket Routes", () => {
         .get("/api/websocket/connections?details=false")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data).not.toHaveProperty("symbol_details");
@@ -735,7 +735,7 @@ describe("WebSocket Routes", () => {
       const responseTime = Date.now() - startTime;
 
       expect(responseTime).toBeLessThan(3000);
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
 
     test("should handle concurrent requests", async () => {
@@ -753,7 +753,7 @@ describe("WebSocket Routes", () => {
       responses.forEach((response, index) => {
         if (index < 3) {
           // Public endpoints
-          expect([200, 404]).toContain(response.status);
+          expect(response.status).toBe(200);
         } else {
           // Authenticated endpoints
           expect([200, 401].includes(response.status)).toBe(true);
@@ -766,7 +766,7 @@ describe("WebSocket Routes", () => {
     test("should validate timestamp formats", async () => {
       const response = await request(app).get("/api/websocket");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       const timestamp = new Date(response.body.timestamp);
       expect(timestamp).toBeInstanceOf(Date);
       expect(timestamp.getTime()).not.toBeNaN();

@@ -111,7 +111,7 @@ describe("Cross-Service Integration", () => {
         .set("Authorization", authToken)
         .send(orderData);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       // If order is processed, it should involve:
       // 1. Order validation service
@@ -176,7 +176,7 @@ describe("Cross-Service Integration", () => {
         .set("Authorization", authToken)
         .query({ symbols: "AAPL" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       // Should handle external service failures gracefully
       if (response.status >= 500) {
@@ -196,7 +196,7 @@ describe("Cross-Service Integration", () => {
           end_date: "2024-12-31",
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       // Should return within reasonable time even for large requests
       expect(response.body).toHaveProperty("success");
@@ -243,7 +243,7 @@ describe("Cross-Service Integration", () => {
           },
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       // Should handle complex operation failures without crashing
       expect(response.body).toHaveProperty("success");

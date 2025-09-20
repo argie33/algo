@@ -14,7 +14,7 @@ describe("Recommendations API", () => {
         .get("/api/recommendations")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -47,7 +47,7 @@ describe("Recommendations API", () => {
         .get("/api/recommendations?type=buy&limit=10")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -65,7 +65,7 @@ describe("Recommendations API", () => {
     test("should provide sector-based recommendations", async () => {
       const response = await request(app).get("/api/recommendations/sectors");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -93,7 +93,7 @@ describe("Recommendations API", () => {
         "/api/recommendations/sectors/Technology"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -110,7 +110,7 @@ describe("Recommendations API", () => {
         )
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -130,7 +130,7 @@ describe("Recommendations API", () => {
         .get("/api/recommendations/allocation")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -154,7 +154,7 @@ describe("Recommendations API", () => {
         "/api/recommendations/similar/AAPL"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -174,7 +174,7 @@ describe("Recommendations API", () => {
         .get("/api/recommendations/alternatives")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -195,7 +195,7 @@ describe("Recommendations API", () => {
         .get("/api/recommendations/performance")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

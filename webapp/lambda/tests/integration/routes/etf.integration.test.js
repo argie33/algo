@@ -24,7 +24,7 @@ describe("ETF Routes Integration Tests", () => {
       for (const symbol of etfSymbols) {
         const response = await request(app).get(`/api/etf/${symbol}/holdings`);
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body).toHaveProperty("success", true);
@@ -91,7 +91,7 @@ describe("ETF Routes Integration Tests", () => {
           `/api/etf/SPY/holdings?limit=${limit}`
         );
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200 && response.body.data.holdings.length > 0) {
           expect(response.body.data.holdings.length).toBeLessThanOrEqual(
@@ -126,7 +126,7 @@ describe("ETF Routes Integration Tests", () => {
     test("should return ETF performance data", async () => {
       const response = await request(app).get("/api/etf/SPY/performance");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -177,7 +177,7 @@ describe("ETF Routes Integration Tests", () => {
     test("should return comprehensive ETF analytics", async () => {
       const response = await request(app).get("/api/etf/SPY/analytics");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -204,7 +204,7 @@ describe("ETF Routes Integration Tests", () => {
     test("should return ETF screener results", async () => {
       const response = await request(app).get("/api/etf/screener");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -349,7 +349,7 @@ describe("ETF Routes Integration Tests", () => {
     test("should return trending ETFs", async () => {
       const response = await request(app).get("/api/etf/trending");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -384,7 +384,7 @@ describe("ETF Routes Integration Tests", () => {
     test("should return ETF flow data", async () => {
       const response = await request(app).get("/api/etf/flows");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -423,7 +423,7 @@ describe("ETF Routes Integration Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       });
     });
 
@@ -440,7 +440,7 @@ describe("ETF Routes Integration Tests", () => {
       const response = await request(app).get("/api/etf/screener");
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(15000);
     });
 
@@ -459,7 +459,7 @@ describe("ETF Routes Integration Tests", () => {
     test("should handle database connection failures gracefully", async () => {
       const response = await request(app).get("/api/etf/SPY/holdings");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
@@ -509,7 +509,7 @@ describe("ETF Routes Integration Tests", () => {
 
       responses.forEach((response) => {
         if (response.status) {
-          expect([200, 404]).toContain(response.status);
+          expect(response.status).toBe(200);
         }
       });
     });

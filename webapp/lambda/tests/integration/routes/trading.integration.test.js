@@ -49,7 +49,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return health status without authentication", async () => {
       const response = await request(app).get("/api/trading/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("service", "trading");
       expect(response.body).toHaveProperty("timestamp");
@@ -64,7 +64,7 @@ describe("Trading Routes Integration Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.body.status).toBe("operational");
       });
     });
@@ -74,7 +74,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return debug information about trading tables", async () => {
       const response = await request(app).get("/api/trading/debug");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("status");
@@ -90,7 +90,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return all trading signals without authentication", async () => {
       const response = await request(app).get("/api/trading/signals");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -103,7 +103,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should handle limit parameter for signals", async () => {
       const response = await request(app).get("/api/trading/signals?limit=50");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 && response.body.data.length > 0) {
         expect(response.body.data.length).toBeLessThanOrEqual(50);
@@ -115,7 +115,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/signals?symbol=AAPL&limit=25"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 && response.body.data.length > 0) {
         response.body.data.forEach((signal) => {
@@ -129,7 +129,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/signals?signal_type=buy&limit=25"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 && response.body.data.length > 0) {
         response.body.data.forEach((signal) => {
@@ -159,7 +159,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return daily signals", async () => {
       const response = await request(app).get("/api/trading/signals/daily");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -173,7 +173,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return weekly signals", async () => {
       const response = await request(app).get("/api/trading/signals/weekly");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.timeframe).toBe("weekly");
@@ -183,7 +183,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return monthly signals", async () => {
       const response = await request(app).get("/api/trading/signals/monthly");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.timeframe).toBe("monthly");
@@ -201,7 +201,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/signals/daily?page=1&limit=10"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.pagination).toHaveProperty("page", 1);
@@ -214,7 +214,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/signals/daily?latest_only=true&limit=5"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 && response.body.data.length > 0) {
         // Each symbol should appear only once with latest_only=true
@@ -229,7 +229,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/signals/daily?symbol=AAPL&signal_type=buy&limit=5"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 && response.body.data.length > 0) {
         response.body.data.forEach((signal) => {
@@ -243,7 +243,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return daily signals summary", async () => {
       const response = await request(app).get("/api/trading/summary/daily");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -258,7 +258,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return weekly signals summary", async () => {
       const response = await request(app).get("/api/trading/summary/weekly");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.timeframe).toBe("weekly");
@@ -276,7 +276,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return swing trading signals", async () => {
       const response = await request(app).get("/api/trading/swing-signals");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -299,7 +299,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/swing-signals?page=1&limit=10"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.pagination).toHaveProperty("page", 1);
@@ -312,7 +312,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return technical indicators for a stock", async () => {
       const response = await request(app).get("/api/trading/AAPL/technicals");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("ticker", "AAPL");
@@ -331,7 +331,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/MSFT/technicals?timeframe=weekly"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.timeframe).toBe("weekly");
@@ -343,7 +343,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/TSLA/technicals?timeframe=monthly"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.timeframe).toBe("monthly");
@@ -355,7 +355,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return performance summary of recent signals", async () => {
       const response = await request(app).get("/api/trading/performance");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("period_days", 30);
@@ -370,7 +370,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/performance?days=60"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.period_days).toBe(60);
@@ -394,7 +394,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return current trading positions", async () => {
       const response = await request(app).get("/api/trading/positions");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -409,7 +409,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/positions?summary=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -435,7 +435,7 @@ describe("Trading Routes Integration Tests", () => {
         .get("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -635,7 +635,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return trading simulation results with default parameters", async () => {
       const response = await request(app).get("/api/trading/simulator");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("simulation_parameters");
@@ -660,7 +660,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/simulator?portfolio=50000&strategy=mean_reversion&symbols=AAPL,MSFT,GOOGL"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.simulation_parameters.starting_portfolio).toBe(
@@ -706,7 +706,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should return all trading strategies", async () => {
       const response = await request(app).get("/api/trading/strategies");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data");
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body).toHaveProperty("summary");
@@ -720,7 +720,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies?category=momentum"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.filters_applied.category).toBe("momentum");
 
       if (response.body.data.length > 0) {
@@ -735,7 +735,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies?risk_level=low"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.filters_applied.risk_level).toBe("low");
 
       if (response.body.data.length > 0) {
@@ -750,7 +750,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies?active_only=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.filters_applied.active_only).toBe(true);
 
       if (response.body.data.length > 0) {
@@ -765,7 +765,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies?limit=3"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.filters_applied.limit).toBe(3);
       expect(response.body.data.length).toBeLessThanOrEqual(3);
     });
@@ -775,7 +775,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies?category=trend_following&risk_level=medium&active_only=true&limit=5"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.filters_applied.category).toBe("trend_following");
       expect(response.body.filters_applied.risk_level).toBe("medium");
       expect(response.body.filters_applied.active_only).toBe(true);
@@ -789,7 +789,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/momentum_breakout_v1"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data");
       expect(response.body).toHaveProperty("metadata");
       expect(response.body).toHaveProperty("timestamp");
@@ -808,7 +808,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/momentum_breakout_v1?include_signals=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data).toHaveProperty("current_signals");
       expect(Array.isArray(response.body.data.current_signals)).toBe(true);
       expect(response.body.metadata.includes_signals).toBe(true);
@@ -828,7 +828,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/momentum_breakout_v1?include_backtest=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data).toHaveProperty("backtest_results");
       expect(response.body.metadata.includes_backtest).toBe(true);
 
@@ -845,7 +845,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/momentum_breakout_v1?include_signals=true&include_backtest=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data).toHaveProperty("current_signals");
       expect(response.body.data).toHaveProperty("backtest_results");
       expect(response.body.metadata.includes_signals).toBe(true);
@@ -860,7 +860,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/momentum_breakout_v1"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("id", "momentum_breakout_v1");
       expect(response.body).toHaveProperty("metadata");
@@ -872,7 +872,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/momentum_breakout_v1?include_signals=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data).toHaveProperty("current_signals");
       expect(Array.isArray(response.body.data.current_signals)).toBe(true);
       expect(response.body.metadata.includes_signals).toBe(true);
@@ -883,7 +883,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/momentum_breakout_v1?include_backtest=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data).toHaveProperty("backtest_results");
       expect(response.body.metadata.includes_backtest).toBe(true);
     });
@@ -893,7 +893,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/momentum_breakout_v1?include_signals=true&include_backtest=true"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.data).toHaveProperty("current_signals");
       expect(response.body.data).toHaveProperty("backtest_results");
       expect(response.body.metadata.includes_signals).toBe(true);
@@ -905,7 +905,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies/nonexistent_strategy"
       );
 
-      expect([200, 404]).toContain(response.status); // Current implementation returns success
+      expect(response.status).toBe(200); // Current implementation returns success
       expect(response.body).toHaveProperty("data");
     });
   });
@@ -1060,7 +1060,7 @@ describe("Trading Routes Integration Tests", () => {
       }
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       });
     });
 
@@ -1073,7 +1073,7 @@ describe("Trading Routes Integration Tests", () => {
         const responseTime = Date.now() - startTime;
 
         responseMap.set(i, responseTime);
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(responseTime).toBeLessThan(5000);
       }
     });
@@ -1146,7 +1146,7 @@ describe("Trading Routes Integration Tests", () => {
         "/api/trading/strategies?limit=2"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data");
       expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("filters_applied");
@@ -1170,7 +1170,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should gracefully handle database connection timeouts", async () => {
       const response = await request(app).get("/api/trading/signals");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 503) {
         expect(response.body).toHaveProperty("message");
@@ -1181,7 +1181,7 @@ describe("Trading Routes Integration Tests", () => {
     test("should handle partial data availability scenarios", async () => {
       const response = await request(app).get("/api/trading/debug");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("tables");
@@ -1280,7 +1280,7 @@ describe("Trading Routes Integration Tests", () => {
 
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(30000); // 30 second timeout
     });
 

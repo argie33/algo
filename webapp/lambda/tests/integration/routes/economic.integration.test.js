@@ -21,7 +21,7 @@ describe("Economic Routes Integration Tests", () => {
     test("should return economic data with pagination", async () => {
       const response = await request(app).get("/api/economic");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -107,7 +107,7 @@ describe("Economic Routes Integration Tests", () => {
     test("should return available economic indicators", async () => {
       const response = await request(app).get("/api/economic/indicators");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -156,7 +156,7 @@ describe("Economic Routes Integration Tests", () => {
     test("should return economic calendar events", async () => {
       const response = await request(app).get("/api/economic/calendar");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -222,7 +222,7 @@ describe("Economic Routes Integration Tests", () => {
           `/api/economic/series/${seriesId}`
         );
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body).toHaveProperty("success", true);
@@ -311,7 +311,7 @@ describe("Economic Routes Integration Tests", () => {
         "/api/economic/forecast?series=GDP"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -349,7 +349,7 @@ describe("Economic Routes Integration Tests", () => {
         "/api/economic/correlations?series=FEDERAL_FUNDS"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -386,7 +386,7 @@ describe("Economic Routes Integration Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       });
     });
 
@@ -401,7 +401,7 @@ describe("Economic Routes Integration Tests", () => {
       const response = await request(app).get("/api/economic/indicators");
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(15000);
     });
 
@@ -439,7 +439,7 @@ describe("Economic Routes Integration Tests", () => {
     test("should handle database connection failures gracefully", async () => {
       const response = await request(app).get("/api/economic");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");

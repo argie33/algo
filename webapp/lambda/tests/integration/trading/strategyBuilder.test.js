@@ -41,7 +41,7 @@ describe("Strategy Builder API", () => {
         .set("Authorization", "Bearer test-token")
         .send(strategyData);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
@@ -74,7 +74,7 @@ describe("Strategy Builder API", () => {
         .get("/api/strategy-builder")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -94,7 +94,7 @@ describe("Strategy Builder API", () => {
         .get("/api/strategy-builder/test-strategy-id")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -118,7 +118,7 @@ describe("Strategy Builder API", () => {
         .set("Authorization", "Bearer test-token")
         .send(updateData);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -142,7 +142,7 @@ describe("Strategy Builder API", () => {
         .set("Authorization", "Bearer test-token")
         .send(backtestParams);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -169,7 +169,7 @@ describe("Strategy Builder API", () => {
         .post("/api/strategy-builder/validate/test-strategy-id")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -193,7 +193,7 @@ describe("Strategy Builder API", () => {
         "/api/strategy-builder/templates"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -224,7 +224,7 @@ describe("Strategy Builder API", () => {
         .set("Authorization", "Bearer test-token")
         .send(templateParams);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
@@ -239,7 +239,7 @@ describe("Strategy Builder API", () => {
         .get("/api/strategy-builder/signals/test-strategy-id")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -266,7 +266,7 @@ describe("Strategy Builder API", () => {
         .set("Authorization", "Bearer test-token")
         .send(executionParams);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

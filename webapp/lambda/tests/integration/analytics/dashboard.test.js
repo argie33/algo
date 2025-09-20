@@ -14,7 +14,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -47,7 +47,7 @@ describe("Dashboard API", () => {
     test("should provide market summary for dashboard", async () => {
       const response = await request(app).get("/api/dashboard/market-summary");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -65,7 +65,7 @@ describe("Dashboard API", () => {
     test("should include major market indices", async () => {
       const response = await request(app).get("/api/dashboard/indices");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -94,7 +94,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard/portfolio")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -121,7 +121,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard/portfolio/top-positions?limit=5")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -136,7 +136,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard/watchlists")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -155,7 +155,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard/watchlists/performance")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -167,7 +167,7 @@ describe("Dashboard API", () => {
     test("should provide market news for dashboard", async () => {
       const response = await request(app).get("/api/dashboard/news?limit=10");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -187,7 +187,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard/news/personalized")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -202,7 +202,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard/alerts/recent")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -215,7 +215,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard/alerts/summary")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -250,7 +250,7 @@ describe("Dashboard API", () => {
         .set("Authorization", "Bearer test-token")
         .send(layoutConfig);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
@@ -263,7 +263,7 @@ describe("Dashboard API", () => {
         .get("/api/dashboard/preferences")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

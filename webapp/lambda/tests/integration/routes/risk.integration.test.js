@@ -26,7 +26,7 @@ describe("Risk Routes Integration", () => {
     test("should return risk analysis data", async () => {
       const response = await request(app).get("/risk");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -35,7 +35,7 @@ describe("Risk Routes Integration", () => {
         .get("/risk")
         .query({ type: "portfolio" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -44,7 +44,7 @@ describe("Risk Routes Integration", () => {
         .get("/risk")
         .query({ symbol: "AAPL" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });
@@ -59,7 +59,7 @@ describe("Risk Routes Integration", () => {
           confidence_level: 0.95,
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
       expect(response.body).toHaveProperty("success", true);
     });
@@ -70,7 +70,7 @@ describe("Risk Routes Integration", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .query({ period: "1m" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
       expect(response.body).toHaveProperty("success", true);
     });
@@ -80,7 +80,7 @@ describe("Risk Routes Integration", () => {
         .get("/risk/analysis")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
       expect(response.body).toHaveProperty("success", true);
     });
@@ -90,7 +90,7 @@ describe("Risk Routes Integration", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/risk/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("service", "risk-analysis");
@@ -117,7 +117,7 @@ describe("Risk Routes Integration", () => {
       const response = await request(app).get("/risk");
 
       // Should not crash even if database issues occur
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });
@@ -130,7 +130,7 @@ describe("Risk Routes Integration", () => {
       });
 
       // Should handle malicious input safely
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -143,7 +143,7 @@ describe("Risk Routes Integration", () => {
           confidence_level: "<img src=x onerror=alert('xss')>",
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -156,7 +156,7 @@ describe("Risk Routes Integration", () => {
           confidence_level: "999999",
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });
@@ -169,7 +169,7 @@ describe("Risk Routes Integration", () => {
 
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(5000);
     });
 
@@ -181,7 +181,7 @@ describe("Risk Routes Integration", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.body).toBeDefined();
       });
     });

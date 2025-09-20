@@ -21,7 +21,7 @@ describe("Performance Routes Integration Tests", () => {
     test("should return performance API information", async () => {
       const response = await request(app).get("/api/performance");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("message");
@@ -39,7 +39,7 @@ describe("Performance Routes Integration Tests", () => {
     test("should return performance service health status", async () => {
       const response = await request(app).get("/api/performance/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("status", "operational");

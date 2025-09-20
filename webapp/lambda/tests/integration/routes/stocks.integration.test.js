@@ -20,7 +20,7 @@ describe("Stocks Routes Integration Tests", () => {
     test("should return sectors data", async () => {
       const response = await request(app).get("/api/stocks/sectors");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toBeDefined();
@@ -35,7 +35,7 @@ describe("Stocks Routes Integration Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.headers["content-type"]).toMatch(/json/);
       });
     });
@@ -380,7 +380,7 @@ describe("Stocks Routes Integration Tests", () => {
         .get("/api/stocks/sectors")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");

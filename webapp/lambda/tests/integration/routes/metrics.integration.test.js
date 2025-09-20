@@ -26,7 +26,7 @@ describe("Metrics Routes Integration", () => {
     test("should return ping response", async () => {
       const response = await request(app).get("/metrics/ping");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "ok");
       expect(response.body).toHaveProperty("endpoint", "metrics");
       expect(response.body).toHaveProperty("timestamp");
@@ -37,7 +37,7 @@ describe("Metrics Routes Integration", () => {
     test("should return metrics data", async () => {
       const response = await request(app).get("/metrics");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -46,7 +46,7 @@ describe("Metrics Routes Integration", () => {
         .get("/metrics")
         .query({ page: 1, limit: 10 });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -55,7 +55,7 @@ describe("Metrics Routes Integration", () => {
         .get("/metrics")
         .query({ search: "AAPL" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -64,7 +64,7 @@ describe("Metrics Routes Integration", () => {
         .get("/metrics")
         .query({ sector: "Technology" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -73,7 +73,7 @@ describe("Metrics Routes Integration", () => {
         .get("/metrics")
         .query({ minMetric: 0.5, maxMetric: 1.0 });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -82,14 +82,14 @@ describe("Metrics Routes Integration", () => {
         .get("/metrics")
         .query({ sortBy: "composite_metric", sortOrder: "desc" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
     test("should handle limit boundary conditions", async () => {
       const response = await request(app).get("/metrics").query({ limit: 300 }); // Should be capped at 200
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -101,7 +101,7 @@ describe("Metrics Routes Integration", () => {
         maxMetric: "invalid",
       });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });
@@ -124,7 +124,7 @@ describe("Metrics Routes Integration", () => {
       const response = await request(app).get("/metrics");
 
       // Should not crash even if database issues occur
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });
@@ -137,7 +137,7 @@ describe("Metrics Routes Integration", () => {
 
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(5000); // 5 second timeout
     });
 
@@ -149,7 +149,7 @@ describe("Metrics Routes Integration", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("status", "ok");
       });
     });
@@ -159,7 +159,7 @@ describe("Metrics Routes Integration", () => {
     test("should handle empty query parameters", async () => {
       const response = await request(app).get("/metrics").query({});
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -170,7 +170,7 @@ describe("Metrics Routes Integration", () => {
       });
 
       // Should handle malicious input safely
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -180,7 +180,7 @@ describe("Metrics Routes Integration", () => {
         sector: "<img src=x onerror=alert('xss')>",
       });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
 
       // Response should not contain script tags
@@ -196,7 +196,7 @@ describe("Metrics Routes Integration", () => {
         .get("/metrics")
         .query({ search: longString });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });

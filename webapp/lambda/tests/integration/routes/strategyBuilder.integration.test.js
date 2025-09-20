@@ -193,7 +193,7 @@ describe("Strategy Builder Routes", () => {
           },
         });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -469,7 +469,7 @@ describe("Strategy Builder Routes", () => {
         .get("/api/strategies/available-symbols")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -489,7 +489,7 @@ describe("Strategy Builder Routes", () => {
         .get("/api/strategies/available-symbols")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
   });
 
@@ -546,7 +546,7 @@ describe("Strategy Builder Routes", () => {
         .get("/api/strategies/templates")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -583,7 +583,7 @@ describe("Strategy Builder Routes", () => {
         .get("/api/strategies/templates")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.templates).toBeDefined();
@@ -644,7 +644,7 @@ describe("Strategy Builder Routes", () => {
       const responseTime = Date.now() - startTime;
 
       expect(responseTime).toBeLessThan(5000);
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
 
     test("should handle concurrent requests", async () => {

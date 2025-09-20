@@ -26,7 +26,7 @@ describe("Scores Routes Integration", () => {
     test("should return ping response", async () => {
       const response = await request(app).get("/scores/ping");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "ok");
       expect(response.body).toHaveProperty("endpoint", "scores");
       expect(response.body).toHaveProperty("timestamp");
@@ -37,7 +37,7 @@ describe("Scores Routes Integration", () => {
     test("should return scores data", async () => {
       const response = await request(app).get("/scores");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -46,7 +46,7 @@ describe("Scores Routes Integration", () => {
         .get("/scores")
         .query({ page: 1, limit: 10 });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -55,7 +55,7 @@ describe("Scores Routes Integration", () => {
         .get("/scores")
         .query({ search: "AAPL" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -64,7 +64,7 @@ describe("Scores Routes Integration", () => {
         .get("/scores")
         .query({ sector: "Technology" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -73,7 +73,7 @@ describe("Scores Routes Integration", () => {
         .get("/scores")
         .query({ minScore: 50, maxScore: 100 });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -82,14 +82,14 @@ describe("Scores Routes Integration", () => {
         .get("/scores")
         .query({ sortBy: "composite_score", sortOrder: "desc" });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
     test("should handle limit boundary conditions", async () => {
       const response = await request(app).get("/scores").query({ limit: 300 }); // Should be capped at 200
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -101,7 +101,7 @@ describe("Scores Routes Integration", () => {
         maxScore: "invalid",
       });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });
@@ -124,7 +124,7 @@ describe("Scores Routes Integration", () => {
       const response = await request(app).get("/scores");
 
       // Should not crash even if database issues occur
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });
@@ -137,7 +137,7 @@ describe("Scores Routes Integration", () => {
       });
 
       // Should handle malicious input safely
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -147,7 +147,7 @@ describe("Scores Routes Integration", () => {
         sector: "<img src=x onerror=alert('xss')>",
       });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
@@ -158,7 +158,7 @@ describe("Scores Routes Integration", () => {
         .get("/scores")
         .query({ search: longString });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
   });
@@ -171,7 +171,7 @@ describe("Scores Routes Integration", () => {
 
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(5000);
     });
 
@@ -183,7 +183,7 @@ describe("Scores Routes Integration", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("status", "ok");
       });
     });

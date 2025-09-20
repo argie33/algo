@@ -20,7 +20,7 @@ describe("Screener Routes", () => {
     test("should return screener endpoints", async () => {
       const response = await request(app).get("/api/screener");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("message");
       expect(response.body).toHaveProperty("endpoints");
     });
@@ -32,7 +32,7 @@ describe("Screener Routes", () => {
         "/api/screener/screen?market_cap_min=1000000000"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body.data.length).toBeLessThanOrEqual(100);
@@ -43,7 +43,7 @@ describe("Screener Routes", () => {
         "/api/screener/screen?market_cap_min=1000000000&pe_max=25&volume_min=1000000"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
@@ -53,7 +53,7 @@ describe("Screener Routes", () => {
         "/api/screener/screen?sector=Technology"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
   });
@@ -62,7 +62,7 @@ describe("Screener Routes", () => {
     test("should return screening presets", async () => {
       const response = await request(app).get("/api/screener/presets");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
 
@@ -78,7 +78,7 @@ describe("Screener Routes", () => {
     test("should return specific preset", async () => {
       const response = await request(app).get("/api/screener/presets/growth");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -92,7 +92,7 @@ describe("Screener Routes", () => {
     test("should return growth stocks", async () => {
       const response = await request(app).get("/api/screener/growth");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
@@ -102,7 +102,7 @@ describe("Screener Routes", () => {
         "/api/screener/momentum?timeframe=1M"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
   });
@@ -111,7 +111,7 @@ describe("Screener Routes", () => {
     test("should return value stocks", async () => {
       const response = await request(app).get("/api/screener/value");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
@@ -121,7 +121,7 @@ describe("Screener Routes", () => {
     test("should return growth stocks", async () => {
       const response = await request(app).get("/api/screener/growth");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
@@ -131,7 +131,7 @@ describe("Screener Routes", () => {
     test("should return dividend stocks", async () => {
       const response = await request(app).get("/api/screener/dividend");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
@@ -141,7 +141,7 @@ describe("Screener Routes", () => {
         "/api/screener/dividend?min_yield=3"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
   });
@@ -152,7 +152,7 @@ describe("Screener Routes", () => {
         "/api/screener/technical?rsi_min=30&rsi_max=70"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
@@ -195,7 +195,7 @@ describe("Screener Routes", () => {
         "/api/screener/backtest?strategy=momentum&start_date=2023-01-01"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -217,7 +217,7 @@ describe("Screener Routes", () => {
         "/api/screener/export?market_cap_min=1000000000&format=csv"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.headers["content-type"]).toContain("text/csv");

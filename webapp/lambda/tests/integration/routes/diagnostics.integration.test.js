@@ -23,7 +23,7 @@ describe("Diagnostics Routes", () => {
         .get("/api/diagnostics")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.message).toBe("Diagnostics API - Ready");
       expect(response.body.status).toBe("operational");
       expect(response.body.authentication).toBe("Required for all endpoints");
@@ -97,7 +97,7 @@ describe("Diagnostics Routes", () => {
         .get("/api/diagnostics/api-key-service")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("health");
@@ -172,7 +172,7 @@ describe("Diagnostics Routes", () => {
         .get("/api/diagnostics/api-key-service")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 500) {
         expect(response.body).toHaveProperty("success", false);
@@ -205,7 +205,7 @@ describe("Diagnostics Routes", () => {
       const responseTime = Date.now() - startTime;
 
       expect(responseTime).toBeLessThan(3000);
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
 
     test("should handle concurrent diagnostic requests", async () => {

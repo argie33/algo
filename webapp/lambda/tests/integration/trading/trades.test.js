@@ -22,7 +22,7 @@ describe("Trades API", () => {
         .set("Authorization", "Bearer test-token")
         .send(tradeData);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
@@ -47,7 +47,7 @@ describe("Trades API", () => {
         .set("Authorization", "Bearer test-token")
         .send(limitOrder);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
@@ -78,7 +78,7 @@ describe("Trades API", () => {
         .get("/api/trades?limit=50")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -100,7 +100,7 @@ describe("Trades API", () => {
         .get("/api/trades?status=filled&limit=25")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -118,7 +118,7 @@ describe("Trades API", () => {
         .get("/api/trades/test-trade-id")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -144,7 +144,7 @@ describe("Trades API", () => {
         .delete("/api/trades/test-trade-id")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -163,7 +163,7 @@ describe("Trades API", () => {
         .set("Authorization", "Bearer test-token")
         .send(modificationData);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -178,7 +178,7 @@ describe("Trades API", () => {
         .get("/api/trades/performance?period=30d")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -205,7 +205,7 @@ describe("Trades API", () => {
         .get("/api/trades/analysis/patterns")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -251,7 +251,7 @@ describe("Trades API", () => {
         .set("Authorization", "Bearer test-token")
         .send(batchTrades);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
@@ -270,7 +270,7 @@ describe("Trades API", () => {
         .set("Authorization", "Bearer test-token")
         .send(cancelData);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -285,7 +285,7 @@ describe("Trades API", () => {
         .get("/api/trades/export?format=csv&from=2023-01-01&to=2023-12-31")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -298,7 +298,7 @@ describe("Trades API", () => {
         .get("/api/trades/statistics?period=1y")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

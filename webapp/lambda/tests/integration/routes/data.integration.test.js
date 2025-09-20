@@ -20,7 +20,7 @@ describe("Data Routes", () => {
     test("should return data API information", async () => {
       const response = await request(app).get("/api/data");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.message).toBe("Data API - Ready");
       expect(response.body.status).toBe("operational");
       expect(response.body).toHaveProperty("timestamp");
@@ -100,7 +100,7 @@ describe("Data Routes", () => {
       const response = await request(app).get("/api/data/");
 
       // Should return the main API info instead
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.message).toBe("Data API - Ready");
     });
 

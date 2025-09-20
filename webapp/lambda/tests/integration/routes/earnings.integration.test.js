@@ -97,7 +97,7 @@ describe("Earnings Data Integration", () => {
     test("should handle delegation errors gracefully", async () => {
       const response = await request(app).get("/api/earnings/INVALID_SYMBOL");
 
-      expect([200, 404, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 400) {
         expect(response.body).toHaveProperty("success", false);

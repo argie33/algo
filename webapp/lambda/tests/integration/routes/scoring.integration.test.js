@@ -12,7 +12,7 @@ describe("Scoring Analysis API", () => {
     test("should retrieve scoring endpoints", async () => {
       const response = await request(app).get("/api/scoring");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("message");
@@ -26,7 +26,7 @@ describe("Scoring Analysis API", () => {
     test("should retrieve scoring factors analysis", async () => {
       const response = await request(app).get("/api/scoring/factors");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -47,7 +47,7 @@ describe("Scoring Analysis API", () => {
         "/api/scoring/factors?category=fundamental"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -60,7 +60,7 @@ describe("Scoring Analysis API", () => {
     test("should calculate scoring metrics for symbol", async () => {
       const response = await request(app).get("/api/scoring/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -86,7 +86,7 @@ describe("Scoring Analysis API", () => {
     test("should provide factor-based scoring breakdown", async () => {
       const response = await request(app).get("/api/scoring/AAPL/factors");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -112,7 +112,7 @@ describe("Scoring Analysis API", () => {
         "/api/scoring/compare?symbols=AAPL,GOOGL,MSFT"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -131,7 +131,7 @@ describe("Scoring Analysis API", () => {
     test("should provide sector-based scoring analysis", async () => {
       const response = await request(app).get("/api/scoring/sectors");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

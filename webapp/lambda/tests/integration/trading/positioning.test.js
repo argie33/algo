@@ -14,7 +14,7 @@ describe("Positioning API", () => {
         .get("/api/positioning/analysis")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -40,7 +40,7 @@ describe("Positioning API", () => {
         .get("/api/positioning/sizing?symbol=AAPL&risk_level=moderate")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -68,7 +68,7 @@ describe("Positioning API", () => {
         .get("/api/positioning/risk")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -95,7 +95,7 @@ describe("Positioning API", () => {
         .get("/api/positioning/diversification")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -123,7 +123,7 @@ describe("Positioning API", () => {
         .get("/api/positioning/correlations")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -143,7 +143,7 @@ describe("Positioning API", () => {
         .get("/api/positioning/correlations/high?threshold=0.7")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -158,7 +158,7 @@ describe("Positioning API", () => {
         .get("/api/positioning/rebalance")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -193,7 +193,7 @@ describe("Positioning API", () => {
         .set("Authorization", "Bearer test-token")
         .send({ targets: rebalanceTargets });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

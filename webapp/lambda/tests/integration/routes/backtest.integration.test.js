@@ -23,7 +23,7 @@ describe("Backtest Routes", () => {
         .get("/api/backtest")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data");
       expect(response.body).toHaveProperty("count");
       expect(response.body).toHaveProperty("timestamp");
@@ -36,7 +36,7 @@ describe("Backtest Routes", () => {
         .get("/api/backtest")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.count).toBeGreaterThanOrEqual(0);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
@@ -58,7 +58,7 @@ describe("Backtest Routes", () => {
         .send(backtestData);
 
       // POST endpoints may return 500 due to missing dependencies
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -80,7 +80,7 @@ describe("Backtest Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data).toHaveProperty("name", "Test Backtest");
@@ -183,7 +183,7 @@ describe("Backtest Routes", () => {
         .get("/api/backtest/results")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body).toHaveProperty("total");
@@ -197,7 +197,7 @@ describe("Backtest Routes", () => {
         .get("/api/backtest/results?limit=5")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.returned).toBeLessThanOrEqual(5);
       expect(response.body.filters.limit).toBe(5);
     });
@@ -207,7 +207,7 @@ describe("Backtest Routes", () => {
         .get("/api/backtest/results?backtestId=test-id")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.filters.backtestId).toBe("test-id");
     });
 
@@ -216,7 +216,7 @@ describe("Backtest Routes", () => {
         .get("/api/backtest/results?status=completed")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.filters.status).toBe("completed");
     });
   });
@@ -259,7 +259,7 @@ describe("Backtest Routes", () => {
         .get("/api/backtest/templates")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("templates");
       expect(Array.isArray(response.body.templates)).toBe(true);
@@ -278,7 +278,7 @@ describe("Backtest Routes", () => {
         .get("/api/backtest/templates")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       const templateIds = response.body.templates.map((t) => t.id);
       expect(templateIds).toContain("buy_and_hold");
       expect(templateIds).toContain("moving_average_crossover");
@@ -302,7 +302,7 @@ describe("Backtest Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ strategy: strategyCode });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("valid", true);
       expect(response.body).toHaveProperty("message");
@@ -320,7 +320,7 @@ describe("Backtest Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ strategy: invalidCode });
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("valid");
 
       if (!response.body.valid) {
@@ -365,7 +365,7 @@ describe("Backtest Routes", () => {
           .get("/api/backtest/strategies")
           .set("Authorization", "Bearer dev-bypass-token");
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("strategies");
         expect(Array.isArray(response.body.strategies)).toBe(true);
@@ -385,7 +385,7 @@ describe("Backtest Routes", () => {
           .set("Authorization", "Bearer dev-bypass-token")
           .send(strategy);
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("strategy");
         expect(response.body.strategy).toHaveProperty("name", strategy.name);

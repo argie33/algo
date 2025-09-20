@@ -20,7 +20,7 @@ describe("Health Routes", () => {
     test("should return quick health check", async () => {
       const response = await request(app).get("/api/health?quick=true");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.status).toBe("healthy");
       expect(response.body.healthy).toBe(true);
       expect(response.body.service).toBe("Financial Dashboard API");
@@ -37,7 +37,7 @@ describe("Health Routes", () => {
     test("should return full health check with database", async () => {
       const response = await request(app).get("/api/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.status).toBe("healthy");
@@ -61,7 +61,7 @@ describe("Health Routes", () => {
       const response = await request(app).get("/api/health");
 
       // In test environment, should return 200
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty(
         "service",
         "Financial Dashboard API"
@@ -76,7 +76,7 @@ describe("Health Routes", () => {
     test("should return comprehensive database health", async () => {
       const response = await request(app).get("/api/health/database");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.status).toBe("ok");
@@ -116,7 +116,7 @@ describe("Health Routes", () => {
     test("should test database connection", async () => {
       const response = await request(app).get("/api/health/test-connection");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.status).toBe("ok");
@@ -160,7 +160,7 @@ describe("Health Routes", () => {
         "/api/health/database/diagnostics"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("status");

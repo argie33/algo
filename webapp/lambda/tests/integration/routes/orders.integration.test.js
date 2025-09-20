@@ -397,7 +397,7 @@ describe("Orders Routes Integration Tests", () => {
         .get("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");

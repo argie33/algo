@@ -20,7 +20,7 @@ describe("News Routes", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/api/news/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.status).toBe("operational");
       expect(response.body.service).toBe("news");
       expect(response.body.message).toBe("News service is running");
@@ -32,7 +32,7 @@ describe("News Routes", () => {
     test("should return news API status", async () => {
       const response = await request(app).get("/api/news");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.message).toBe("News API - Ready");
       expect(response.body.status).toBe("operational");
       expect(response.body.timestamp).toBeDefined();
@@ -43,7 +43,7 @@ describe("News Routes", () => {
     test("should return recent news", async () => {
       const response = await request(app).get("/api/news/recent");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
 
@@ -58,7 +58,7 @@ describe("News Routes", () => {
     test("should handle limit parameter", async () => {
       const response = await request(app).get("/api/news/recent?limit=5");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data.length).toBeLessThanOrEqual(5);
     });
@@ -68,7 +68,7 @@ describe("News Routes", () => {
         "/api/news/recent?category=earnings"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
   });
@@ -77,7 +77,7 @@ describe("News Routes", () => {
     test("should search news articles", async () => {
       const response = await request(app).get("/api/news/search?q=market");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -90,7 +90,7 @@ describe("News Routes", () => {
     test("should return news sentiment analysis", async () => {
       const response = await request(app).get("/api/news/sentiment");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -103,7 +103,7 @@ describe("News Routes", () => {
     test("should return news for specific symbol", async () => {
       const response = await request(app).get("/api/news/symbols/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });

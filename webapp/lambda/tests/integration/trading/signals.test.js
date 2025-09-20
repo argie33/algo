@@ -12,7 +12,7 @@ describe("Trading Signals API", () => {
     test("should generate trading signals for symbol", async () => {
       const response = await request(app).get("/api/signals/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -35,7 +35,7 @@ describe("Trading Signals API", () => {
         "/api/signals/AAPL/history?period=1M"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -62,7 +62,7 @@ describe("Trading Signals API", () => {
         "/api/signals/bulk?symbols=AAPL,GOOGL,MSFT&signal_type=momentum"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -93,7 +93,7 @@ describe("Trading Signals API", () => {
         .post("/api/signals/strategy")
         .send(strategyRequest);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -110,7 +110,7 @@ describe("Trading Signals API", () => {
         "/api/signals/performance?strategy=momentum&period=6M"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -136,7 +136,7 @@ describe("Trading Signals API", () => {
         "/api/signals/live?watchlist=tech_stocks"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

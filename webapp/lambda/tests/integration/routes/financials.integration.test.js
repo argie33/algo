@@ -20,7 +20,7 @@ describe("Financials Routes", () => {
     test("should return financials endpoints", async () => {
       const response = await request(app).get("/api/financials");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("message");
       expect(response.body).toHaveProperty("endpoints");
     });
@@ -30,7 +30,7 @@ describe("Financials Routes", () => {
     test("should return financial data for symbol", async () => {
       const response = await request(app).get("/api/financials/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("symbol");
       expect(response.body.data).toHaveProperty("financials");
@@ -47,7 +47,7 @@ describe("Financials Routes", () => {
     test("should return income statement", async () => {
       const response = await request(app).get("/api/financials/AAPL/income");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("income_statement");
     });
@@ -57,7 +57,7 @@ describe("Financials Routes", () => {
         "/api/financials/AAPL/income?period=annual"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
   });
@@ -66,7 +66,7 @@ describe("Financials Routes", () => {
     test("should return balance sheet", async () => {
       const response = await request(app).get("/api/financials/AAPL/balance");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("balance_sheet");
     });
@@ -76,7 +76,7 @@ describe("Financials Routes", () => {
     test("should return cash flow statement", async () => {
       const response = await request(app).get("/api/financials/AAPL/cash");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("cash_flow");
     });
@@ -86,7 +86,7 @@ describe("Financials Routes", () => {
     test("should return financial ratios", async () => {
       const response = await request(app).get("/api/financials/AAPL/ratios");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("ratios");
 
@@ -101,7 +101,7 @@ describe("Financials Routes", () => {
     test("should return key financial metrics", async () => {
       const response = await request(app).get("/api/financials/AAPL/metrics");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("metrics");
     });
@@ -111,7 +111,7 @@ describe("Financials Routes", () => {
     test("should return growth metrics", async () => {
       const response = await request(app).get("/api/financials/AAPL/growth");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("growth");
     });
@@ -121,7 +121,7 @@ describe("Financials Routes", () => {
     test("should return analyst estimates", async () => {
       const response = await request(app).get("/api/financials/AAPL/estimates");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("estimates");
     });
@@ -133,7 +133,7 @@ describe("Financials Routes", () => {
         "/api/financials/compare?symbols=AAPL,MSFT,GOOGL"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
@@ -151,7 +151,7 @@ describe("Financials Routes", () => {
         "/api/financials/screener?pe_max=25&debt_to_equity_max=0.5"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });

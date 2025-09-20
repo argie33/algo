@@ -14,7 +14,7 @@ describe("Performance Analytics API", () => {
         .get("/api/performance/portfolio")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -41,7 +41,7 @@ describe("Performance Analytics API", () => {
         "/api/performance/returns?period=1Y"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -62,7 +62,7 @@ describe("Performance Analytics API", () => {
         "/api/performance/benchmark?indices=SPY,QQQ,VTI&period=1Y"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -93,7 +93,7 @@ describe("Performance Analytics API", () => {
         "/api/performance/risk?period=1Y"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -122,7 +122,7 @@ describe("Performance Analytics API", () => {
         "/api/performance/attribution?type=sector&period=6M"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -149,7 +149,7 @@ describe("Performance Analytics API", () => {
         "/api/performance/attribution?type=stocks&period=3M&top=10"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -178,7 +178,7 @@ describe("Performance Analytics API", () => {
         .set("Authorization", "Bearer test-token")
         .send(reportRequest);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -192,7 +192,7 @@ describe("Performance Analytics API", () => {
         .get("/api/performance/analytics")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -222,7 +222,7 @@ describe("Performance Analytics API", () => {
         .set("Authorization", "Bearer test-token")
         .send(alertConfig);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);

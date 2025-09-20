@@ -54,7 +54,7 @@ describe("Sentiment Routes", () => {
     test("should return ping response", async () => {
       const response = await request(app).get("/api/sentiment/ping");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "ok");
       expect(response.body).toHaveProperty("endpoint", "sentiment");
       expect(response.body).toHaveProperty("timestamp");
@@ -82,7 +82,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -129,7 +129,7 @@ describe("Sentiment Routes", () => {
           .get(`/api/sentiment/analysis?symbol=AAPL&period=${period}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body.data.period).toBe(period);
@@ -142,7 +142,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=MSFT")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.period).toBe("7d");
@@ -154,7 +154,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=TSLA&period=invalid")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         // Should fall back to default period
@@ -167,7 +167,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=aapl")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("AAPL");
@@ -179,7 +179,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=BRK.A")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("BRK.A");
@@ -345,7 +345,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=TEST_ERROR_SYMBOL")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 500) {
         expect(response.body).toHaveProperty("success", false);
@@ -375,7 +375,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=BRK%2EA&period=7d")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("BRK.A");
@@ -476,7 +476,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=123")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("123");
@@ -497,7 +497,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/analysis?symbol=AAPL&period=7d&extra=ignored")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.data.symbol).toBe("AAPL");

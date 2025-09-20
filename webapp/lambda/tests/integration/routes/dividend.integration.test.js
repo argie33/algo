@@ -24,7 +24,7 @@ describe("Dividend Routes Integration Tests", () => {
       for (const symbol of dividendStocks) {
         const response = await request(app).get(`/api/dividend/${symbol}`);
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body).toHaveProperty("success", true);
@@ -88,7 +88,7 @@ describe("Dividend Routes Integration Tests", () => {
       for (const symbol of nonDividendStocks) {
         const response = await request(app).get(`/api/dividend/${symbol}`);
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
 
         if (response.status === 200) {
           expect(response.body.data.dividends).toEqual([]);
@@ -123,7 +123,7 @@ describe("Dividend Routes Integration Tests", () => {
     test("should return upcoming dividend events", async () => {
       const response = await request(app).get("/api/dividend/calendar");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -194,7 +194,7 @@ describe("Dividend Routes Integration Tests", () => {
     test("should return dividend aristocrat stocks", async () => {
       const response = await request(app).get("/api/dividend/aristocrats");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -250,7 +250,7 @@ describe("Dividend Routes Integration Tests", () => {
         "/api/dividend/growth?symbol=AAPL"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -304,7 +304,7 @@ describe("Dividend Routes Integration Tests", () => {
     test("should return dividend stock screening results", async () => {
       const response = await request(app).get("/api/dividend/screener");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -387,7 +387,7 @@ describe("Dividend Routes Integration Tests", () => {
         "/api/dividend/forecast?symbol=AAPL"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -429,7 +429,7 @@ describe("Dividend Routes Integration Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       });
     });
 
@@ -484,7 +484,7 @@ describe("Dividend Routes Integration Tests", () => {
       const response = await request(app).get("/api/dividend/calendar");
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(15000);
     });
 
@@ -494,7 +494,7 @@ describe("Dividend Routes Integration Tests", () => {
       for (const symbol of specialSymbols) {
         const response = await request(app).get(`/api/dividend/${symbol}`);
 
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       }
     });
 
@@ -510,7 +510,7 @@ describe("Dividend Routes Integration Tests", () => {
     test("should handle database connection failures gracefully", async () => {
       const response = await request(app).get("/api/dividend/AAPL");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
@@ -542,7 +542,7 @@ describe("Dividend Routes Integration Tests", () => {
 
       responses.forEach((response) => {
         if (response.status) {
-          expect([200, 404]).toContain(response.status);
+          expect(response.status).toBe(200);
         }
       });
     });

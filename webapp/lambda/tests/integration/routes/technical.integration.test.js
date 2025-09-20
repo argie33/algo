@@ -525,7 +525,7 @@ describe("Technical Router", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
       });
     });

@@ -20,7 +20,7 @@ describe("Commodities Routes Integration Tests", () => {
     test("should return commodities system information", async () => {
       const response = await request(app).get("/api/commodities");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -56,7 +56,7 @@ describe("Commodities Routes Integration Tests", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/api/commodities/health");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("status", "operational");
@@ -74,7 +74,7 @@ describe("Commodities Routes Integration Tests", () => {
     test("should return commodity categories", async () => {
       const response = await request(app).get("/api/commodities/categories");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -134,7 +134,7 @@ describe("Commodities Routes Integration Tests", () => {
     test("should return current commodity prices", async () => {
       const response = await request(app).get("/api/commodities/prices");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -193,7 +193,7 @@ describe("Commodities Routes Integration Tests", () => {
         "/api/commodities/market-summary"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -251,7 +251,7 @@ describe("Commodities Routes Integration Tests", () => {
     test("should return correlation analysis", async () => {
       const response = await request(app).get("/api/commodities/correlations");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -307,7 +307,7 @@ describe("Commodities Routes Integration Tests", () => {
     test("should return commodity-related news", async () => {
       const response = await request(app).get("/api/commodities/news");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -385,7 +385,7 @@ describe("Commodities Routes Integration Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       });
     });
 
@@ -396,7 +396,7 @@ describe("Commodities Routes Integration Tests", () => {
       );
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(15000);
     });
 
@@ -464,7 +464,7 @@ describe("Commodities Routes Integration Tests", () => {
     test("should handle database connection issues gracefully", async () => {
       const response = await request(app).get("/api/commodities/prices");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");

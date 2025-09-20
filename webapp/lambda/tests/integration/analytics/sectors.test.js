@@ -12,7 +12,7 @@ describe("Sectors Analysis API", () => {
     test("should retrieve sector performance data", async () => {
       const response = await request(app).get("/api/sectors/performance");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -39,7 +39,7 @@ describe("Sectors Analysis API", () => {
     test("should analyze sector rotation patterns", async () => {
       const response = await request(app).get("/api/sectors/rotation");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -61,7 +61,7 @@ describe("Sectors Analysis API", () => {
     test("should retrieve stocks by sector", async () => {
       const response = await request(app).get("/api/sectors/technology/stocks");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

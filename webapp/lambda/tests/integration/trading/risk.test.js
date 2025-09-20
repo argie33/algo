@@ -14,7 +14,7 @@ describe("Risk Management API", () => {
         .get("/api/risk/portfolio/assessment")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -36,7 +36,7 @@ describe("Risk Management API", () => {
         "/api/risk/positions/AAPL/analysis"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -66,7 +66,7 @@ describe("Risk Management API", () => {
         "/api/risk/var?confidence=95&horizon=1d&method=historical"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -83,7 +83,7 @@ describe("Risk Management API", () => {
         "/api/risk/var/scenarios?horizons=1d,5d,10d&confidence=99"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -112,7 +112,7 @@ describe("Risk Management API", () => {
         .set("Authorization", "Bearer test-token")
         .send(stressScenario);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -137,7 +137,7 @@ describe("Risk Management API", () => {
         "/api/risk/stress-test/historical?events=2008_crisis,covid_2020,dot_com_bubble"
       );
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -166,7 +166,7 @@ describe("Risk Management API", () => {
         .set("Authorization", "Bearer test-token")
         .send(riskLimits);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -179,7 +179,7 @@ describe("Risk Management API", () => {
         .get("/api/risk/limits/violations")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -210,7 +210,7 @@ describe("Risk Management API", () => {
         .set("Authorization", "Bearer test-token")
         .send(reportConfig);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -224,7 +224,7 @@ describe("Risk Management API", () => {
         .get("/api/risk/dashboard")
         .set("Authorization", "Bearer test-token");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -261,7 +261,7 @@ describe("Risk Management API", () => {
         .set("Authorization", "Bearer test-token")
         .send(alertConfig);
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);

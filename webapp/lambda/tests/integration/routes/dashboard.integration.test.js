@@ -21,7 +21,7 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should return dashboard endpoints and operational status", async () => {
       const response = await request(app).get("/api/dashboard");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.message).toBe("Dashboard API - Ready");
@@ -48,7 +48,7 @@ describe("Dashboard Routes Integration Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       });
     });
   });
@@ -57,7 +57,7 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should return comprehensive dashboard summary data", async () => {
       const response = await request(app).get("/api/dashboard/summary");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -116,7 +116,7 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should handle database connectivity issues gracefully", async () => {
       const response = await request(app).get("/api/dashboard/summary");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
@@ -290,7 +290,7 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should return comprehensive market data", async () => {
       const response = await request(app).get("/api/dashboard/market-data");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -363,7 +363,7 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should return debug information about database connectivity", async () => {
       const response = await request(app).get("/api/dashboard/debug");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -424,7 +424,7 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should return market overview data", async () => {
       const response = await request(app).get("/api/dashboard/overview");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -508,7 +508,7 @@ describe("Dashboard Routes Integration Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([200, 404]).toContain(response.status);
+        expect(response.status).toBe(200);
       });
     });
 
@@ -517,7 +517,7 @@ describe("Dashboard Routes Integration Tests", () => {
       const response = await request(app).get("/api/dashboard/summary");
       const responseTime = Date.now() - startTime;
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
       expect(responseTime).toBeLessThan(15000);
     });
 
@@ -542,7 +542,7 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should handle database connection failures gracefully", async () => {
       const response = await request(app).get("/api/dashboard/summary");
 
-      expect([200, 404]).toContain(response.status);
+      expect(response.status).toBe(200);
 
       if (response.status >= 500) {
         expect(response.body).toHaveProperty("error");
