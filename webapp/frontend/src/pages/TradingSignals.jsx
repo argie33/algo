@@ -593,8 +593,8 @@ function TradingSignals() {
           <Grid item xs={12} md={3} key={perf.signal}>
             <PerformanceCard
               title={`${perf.signal} Win Rate`}
-              value={`${(perf.win_rate || 0).toFixed(1)}%`}
-              subtitle={`${perf.winning_trades}/${perf.total_signals} trades | Avg: ${formatPercentage(perf.avg_performance / 100)}`}
+              value={`${(Number(perf.win_rate) || 0).toFixed(1)}%`}
+              subtitle={`${perf.winning_trades || 0}/${perf.total_signals || 0} trades | Avg: ${formatPercentage((Number(perf.avg_performance) || 0) / 100)}`}
               icon={perf.signal === "BUY" ? <TrendingUp /> : <TrendingDown />}
               color={perf.signal === "BUY" ? "#10B981" : "#DC2626"}
             />
