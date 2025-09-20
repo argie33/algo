@@ -1327,7 +1327,7 @@ router.post("/export", async (req, res) => {
     const result = await query(`
       SELECT 
         ss.ticker,
-        COALESCE(cp.name, ss.name, ss.ticker || ' Inc.') as company_name,
+        COALESCE(cp.short_name, ss.name, ss.ticker || ' Inc.') as company_name,
         cp.sector as sector,
         md.close as price,
         cp.market_cap,
