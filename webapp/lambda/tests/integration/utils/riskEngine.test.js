@@ -28,6 +28,10 @@ describe("Risk Engine Integration Tests", () => {
   });
 
   async function setupTestData() {
+    // Clean up any existing test data first
+    await query("DELETE FROM portfolio_holdings WHERE user_id = 'test-user-123'");
+    await query("DELETE FROM price_daily WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY')");
+
     // Insert test portfolio data
     const testPortfolio = [
       { symbol: "AAPL", quantity: 100, cost_basis: 150, current_price: 175 },
@@ -40,13 +44,8 @@ describe("Risk Engine Integration Tests", () => {
     for (const position of testPortfolio) {
       await query(
         `
-        INSERT INTO user_portfolio (user_id, symbol, quantity, cost_basis, current_price) 
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (user_id, symbol) 
-        DO UPDATE SET 
-          quantity = EXCLUDED.quantity,
-          cost_basis = EXCLUDED.cost_basis,
-          current_price = EXCLUDED.current_price
+        INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, cost_basis)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       `,
         [
           "test-user-123",
@@ -54,6 +53,8 @@ describe("Risk Engine Integration Tests", () => {
           position.quantity,
           position.cost_basis,
           position.current_price,
+          position.quantity * position.current_price, // market_value
+          position.quantity * position.cost_basis, // cost_basis total
         ]
       );
     }
@@ -497,13 +498,8 @@ describe("Risk Engine Integration Tests", () => {
       // Simulate adding a high-risk position that would trigger alerts
       await query(
         `
-        INSERT INTO user_portfolio (user_id, symbol, quantity, cost_basis, current_price) 
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (user_id, symbol) 
-        DO UPDATE SET 
-          quantity = EXCLUDED.quantity,
-          cost_basis = EXCLUDED.cost_basis,
-          current_price = EXCLUDED.current_price
+        INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, cost_basis)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       `,
         ["test-user-123", "RISKY_STOCK", 1000, 100, 95]
       ); // Large position with recent loss

@@ -483,9 +483,11 @@ function PriceHistory() {
 
         <Box display="flex" gap={1}>
           <Tooltip title="Export Data">
-            <IconButton onClick={exportData} disabled={!(data?.length || 0)}>
-              <GetApp />
-            </IconButton>
+            <span>
+              <IconButton onClick={exportData} disabled={!(data?.length || 0)}>
+                <GetApp />
+              </IconButton>
+            </span>
           </Tooltip>
           <Tooltip title="Toggle View">
             <IconButton

@@ -287,40 +287,32 @@ const Settings = () => {
 
   // Load settings when authenticated - USING REF TO AVOID USER OBJECT DEPENDENCY
   const hasLoadedRef = useRef(false);
+  const loadUserSettingsRef = useRef(loadUserSettings);
+
+  // Update ref when loadUserSettings changes
+  useEffect(() => {
+    loadUserSettingsRef.current = loadUserSettings;
+  }, [loadUserSettings]);
 
   useEffect(() => {
-    console.log("🔥 Settings useEffect triggered!", {
-      isAuthenticated,
-      isAuthenticatedType: typeof isAuthenticated,
-      hasLoaded: hasLoadedRef.current,
-      loading,
-      loadingType: typeof loading,
-      timestamp: new Date().toISOString(),
-      loadUserSettingsRef: loadUserSettings,
-    });
-
     // Only load if authenticated and we haven't loaded yet
     if (isAuthenticated && !hasLoadedRef.current && !loading) {
-      console.log(
-        "🚨 CALLING loadUserSettings - this should happen ONLY ONCE!"
-      );
       hasLoadedRef.current = true; // Mark as loaded immediately
 
       logger.info("User authenticated, loading settings", {
         userId: user?.sub || user?.id,
         email: user?.email,
       });
-      loadUserSettings();
+      loadUserSettingsRef.current();
     }
   }, [
     isAuthenticated,
-    loadUserSettings,
     loading,
     logger,
     user?.email,
     user?.id,
     user?.sub,
-  ]); // Dependencies required by ESLint
+  ]); // Removed loadUserSettings from dependencies to prevent infinite loop
 
   // Separate session recovery logic (production only)
   useEffect(() => {

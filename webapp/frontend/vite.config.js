@@ -91,6 +91,8 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       include: [
         "@mui/styled-engine",
+        "@mui/material",
+        "@mui/icons-material",
         "@emotion/react",
         "@emotion/styled",
         "react-is",

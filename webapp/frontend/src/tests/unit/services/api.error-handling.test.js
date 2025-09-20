@@ -35,6 +35,15 @@ vi.mock("../../../services/api.js", () => ({
     baseURL: "http://localhost:3001",
     environment: "test",
   })),
+  // Add missing exports for error handling tests
+  fetchPortfolioHoldings: vi.fn(),
+  fetchMarketOverview: vi.fn(),
+  fetchStockData: vi.fn(),
+  fetchTechnicalData: vi.fn(),
+  fetchPortfolioPerformance: vi.fn(),
+  fetchMarketData: vi.fn(),
+  fetchEarningsData: vi.fn(),
+  fetchHistoricalData: vi.fn(),
 }));
 
 // Import is needed for module mocking but not used in tests

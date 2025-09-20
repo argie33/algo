@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { getApiConfig } from "../services/api";
 import {
   Box,
   Container,
@@ -178,7 +179,8 @@ const TradeHistory = () => {
     }
 
     try {
-      const response = await fetch("/api/trades/analytics/overview", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/analytics/overview`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       if (response.ok) {
@@ -201,7 +203,8 @@ const TradeHistory = () => {
     }
 
     try {
-      const response = await fetch("/api/trades/insights", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/insights`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       if (response.ok) {
@@ -224,7 +227,8 @@ const TradeHistory = () => {
     }
 
     try {
-      const response = await fetch("/api/trades/performance", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/performance`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       if (response.ok) {
@@ -248,7 +252,8 @@ const TradeHistory = () => {
 
     try {
       setLoading(true);
-      const response = await fetch("/api/trades/import/alpaca", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/trades/import/alpaca`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}` },
       });

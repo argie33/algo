@@ -187,7 +187,7 @@ async function getDbConfig() {
         host,
         port: parseInt(process.env.DB_PORT) || 5432,
         user,
-        password: process.env.DB_PASSWORD,
+        password: process.env.DB_PASSWORD || '',
         database,
         // AWS Lambda optimized connection pool settings
         max: parseInt(process.env.DB_POOL_MAX) || 3, // Reduced for Lambda - avoid connection exhaustion

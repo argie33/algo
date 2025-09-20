@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated Thu Sep 19 23:18:00 CDT 2025 - Test Docker build with workflow fix for loadinfo naming
 # Updated Thu Sep 19 18:16:00 CDT 2025 - Optimize Docker build for faster pip installs
 # FIXED: Per-loader requirements files + websockets>=13.0 for yfinance compatibility
 # FIXED: Removed main requirements.txt fallback - each loader uses its own requirements-load{name}.txt

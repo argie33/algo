@@ -34,7 +34,7 @@ router.post('/fix-financial-schema', async (req, res) => {
     // Handle multi-line SQL commands properly - parse complete statements
     const commands = [];
     let currentCommand = '';
-    let inStatement = false;
+    let _inStatement = false;
     let parenCount = 0;
 
     const lines = sqlCommands.split('\n');

@@ -1,402 +1,702 @@
 {
-  "summary": {
-    "total": 78,
-    "working": 78,
-    "errors501": 0,
-    "otherErrors": 0
-  },
-  "working": [
+  "totalTests": 77,
+  "successful": 0,
+  "failed": 77,
+  "successRate": "0.0%",
+  "timestamp": "2025-09-20T03:03:21.238Z",
+  "results": [
     {
+      "name": "Health",
       "endpoint": "/health",
-      "status": 200,
-      "data": null
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/auth/login",
-      "status": 200,
-      "data": null
+      "name": "Auth Status",
+      "endpoint": "/auth/status",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/stocks",
-      "status": 200,
-      "data": null
+      "name": "Market Overview",
+      "endpoint": "/market/overview",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/screener",
-      "status": 200,
-      "data": null
+      "name": "Market Sectors",
+      "endpoint": "/market/sectors",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/scores",
-      "status": 200,
-      "data": null
+      "name": "Market Indices",
+      "endpoint": "/market/indices",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/metrics",
-      "status": 200,
-      "data": null
+      "name": "Market Movers",
+      "endpoint": "/market/movers",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/market",
-      "status": 200,
-      "data": null
+      "name": "Dashboard Summary",
+      "endpoint": "/dashboard/summary",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/analysts",
-      "status": 200,
-      "data": null
+      "name": "Dashboard Metrics",
+      "endpoint": "/dashboard/metrics",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/analytics",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/commodities",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/data",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/financials",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/trading",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/technical/daily",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/calendar",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/dashboard",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/signals",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/backtest",
-      "status": 200,
-      "data": null
-    },
-    {
+      "name": "Portfolio Summary",
       "endpoint": "/portfolio",
-      "status": 200,
-      "data": null
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/performance",
-      "status": 200,
-      "data": null
+      "name": "Portfolio Holdings",
+      "endpoint": "/portfolio/holdings",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/scoring",
-      "status": 200,
-      "data": null
+      "name": "Portfolio Performance",
+      "endpoint": "/portfolio/performance",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/price",
-      "status": 200,
-      "data": null
+      "name": "Stocks List",
+      "endpoint": "/stocks",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/risk",
-      "status": 200,
-      "data": null
+      "name": "Stocks Popular",
+      "endpoint": "/stocks/popular",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/sectors",
-      "status": 200,
-      "data": null
+      "name": "Stock Detail AAPL",
+      "endpoint": "/stocks/AAPL",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/sentiment",
-      "status": 200,
-      "data": null
+      "name": "Stock Detail MSFT",
+      "endpoint": "/stocks/MSFT",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
+      "name": "Stock Price AAPL",
+      "endpoint": "/stocks/AAPL/price",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Stock Financials AAPL",
+      "endpoint": "/stocks/AAPL/financials",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Stock Technical AAPL",
+      "endpoint": "/stocks/AAPL/technical",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Screener Default",
+      "endpoint": "/screener",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Screener Results",
+      "endpoint": "/screener/results",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Analytics Portfolio",
+      "endpoint": "/analytics/portfolio",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Analytics Performance",
+      "endpoint": "/analytics/performance",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Technical Indicators",
+      "endpoint": "/technical/indicators",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Technical Analysis",
+      "endpoint": "/technical/analysis",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Sentiment Analysis",
+      "endpoint": "/sentiment/analysis",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Sentiment Summary",
+      "endpoint": "/sentiment/summary",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "News Latest",
+      "endpoint": "/news/latest",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "News Stock AAPL",
+      "endpoint": "/news/AAPL",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Calendar Earnings",
+      "endpoint": "/calendar/earnings",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Calendar Events",
+      "endpoint": "/calendar/events",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Scores Overview",
+      "endpoint": "/scores",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Scores Stock AAPL",
+      "endpoint": "/scores/AAPL",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Metrics Market",
+      "endpoint": "/metrics/market",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Metrics Performance",
+      "endpoint": "/metrics/performance",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Risk Analysis",
+      "endpoint": "/risk/analysis",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Risk Portfolio",
+      "endpoint": "/risk/portfolio",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Settings User",
       "endpoint": "/settings",
-      "status": 200,
-      "data": null
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/trades",
-      "status": 200,
-      "data": null
+      "name": "Settings Preferences",
+      "endpoint": "/settings/preferences",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/live-data",
-      "status": 200,
-      "data": null
+      "name": "Sectors Overview",
+      "endpoint": "/sectors",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/orders",
-      "status": 200,
-      "data": null
+      "name": "Sectors Performance",
+      "endpoint": "/sectors/performance",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/news",
-      "status": 200,
-      "data": null
+      "name": "Signals Trading",
+      "endpoint": "/signals/trading",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/diagnostics",
-      "status": 200,
-      "data": null
+      "name": "Signals Buy",
+      "endpoint": "/signals/buy",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
+      "name": "Signals Sell",
+      "endpoint": "/signals/sell",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Backtest Results",
+      "endpoint": "/backtest/results",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Financial Statements",
+      "endpoint": "/financials/statements",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Financial Ratios",
+      "endpoint": "/financials/ratios",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Trading Positions",
+      "endpoint": "/trading/positions",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Trading History",
+      "endpoint": "/trading/history",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Price Data AAPL",
+      "endpoint": "/price/AAPL",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Price Historical AAPL",
+      "endpoint": "/price/AAPL/historical",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Performance Metrics",
+      "endpoint": "/performance/metrics",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Performance Summary",
+      "endpoint": "/performance/summary",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Watchlist Default",
       "endpoint": "/watchlist",
-      "status": 200,
-      "data": null
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
+      "name": "Data Sources",
+      "endpoint": "/data/sources",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Data Status",
+      "endpoint": "/data/status",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Economic Indicators",
+      "endpoint": "/economic/indicators",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Economic Data",
+      "endpoint": "/economic/data",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Commodities Prices",
+      "endpoint": "/commodities/prices",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "Commodities Overview",
+      "endpoint": "/commodities",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
+    },
+    {
+      "name": "ETF List",
       "endpoint": "/etf",
-      "status": 200,
-      "data": null
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/insider",
-      "status": 200,
-      "data": null
+      "name": "ETF Popular",
+      "endpoint": "/etf/popular",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/dividend",
-      "status": 200,
-      "data": null
+      "name": "Insider Trading",
+      "endpoint": "/insider/trading",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/health",
-      "status": 200,
-      "data": null
+      "name": "Insider Activity",
+      "endpoint": "/insider/activity",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/auth/login",
-      "status": 200,
-      "data": null
+      "name": "Dividend Calendar",
+      "endpoint": "/dividend/calendar",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/stocks",
-      "status": 200,
-      "data": null
+      "name": "Dividend History",
+      "endpoint": "/dividend/history",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/screener",
-      "status": 200,
-      "data": null
+      "name": "Live Data Stream",
+      "endpoint": "/live-data/stream",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/scores",
-      "status": 200,
-      "data": null
+      "name": "Live Data Quotes",
+      "endpoint": "/live-data/quotes",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/metrics",
-      "status": 200,
-      "data": null
+      "name": "Orders Active",
+      "endpoint": "/orders/active",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/market",
-      "status": 200,
-      "data": null
+      "name": "Orders History",
+      "endpoint": "/orders/history",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/analysts",
-      "status": 200,
-      "data": null
+      "name": "Analysts Recommendations",
+      "endpoint": "/analysts/recommendations",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/analytics",
-      "status": 200,
-      "data": null
+      "name": "Analysts Upgrades",
+      "endpoint": "/analysts/upgrades",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/commodities",
-      "status": 200,
-      "data": null
+      "name": "Earnings Estimates",
+      "endpoint": "/earnings/estimates",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/data",
-      "status": 200,
-      "data": null
+      "name": "Earnings History",
+      "endpoint": "/earnings/history",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/financials",
-      "status": 200,
-      "data": null
+      "name": "Positioning Data",
+      "endpoint": "/positioning/data",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/trading",
-      "status": 200,
-      "data": null
+      "name": "Strategy Builder",
+      "endpoint": "/strategyBuilder/strategies",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/technical/daily",
-      "status": 200,
-      "data": null
+      "name": "Diagnostics System",
+      "endpoint": "/diagnostics/system",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     },
     {
-      "endpoint": "/api/calendar",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/dashboard",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/economic",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/signals",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/backtest",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/portfolio",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/performance",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/recommendations",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/research",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/earnings",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/scoring",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/price",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/risk",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/sectors",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/sentiment",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/settings",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/trades",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/live-data",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/orders",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/news",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/diagnostics",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/watchlist",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/etf",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/insider",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/dividend",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/positioning",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/strategyBuilder",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/liveData",
-      "status": 200,
-      "data": null
-    },
-    {
-      "endpoint": "/api/alerts",
-      "status": 200,
-      "data": null
+      "name": "Diagnostics Performance",
+      "endpoint": "/diagnostics/performance",
+      "status": "ERROR",
+      "statusCode": "N/A",
+      "responseTime": "N/A",
+      "error": "connect ECONNREFUSED 127.0.0.1:3001",
+      "errorType": "ECONNREFUSED"
     }
-  ],
-  "errors501": [],
-  "errors": []
+  ]
 }

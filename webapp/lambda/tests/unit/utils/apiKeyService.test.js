@@ -543,7 +543,7 @@ describe("API Key Service", () => {
 
       expect(health).toEqual(
         expect.objectContaining({
-          apiKeyCircuitBreaker: expect.objectContaining({
+          circuitBreaker: expect.objectContaining({
             state: expect.any(String),
             failures: expect.any(Number),
           }),
@@ -551,7 +551,7 @@ describe("API Key Service", () => {
             state: expect.any(String),
             failures: expect.any(Number),
           }),
-          cache: expect.objectContaining({
+          cacheStats: expect.objectContaining({
             keyCache: expect.any(Number),
             sessionCache: expect.any(Number),
           }),

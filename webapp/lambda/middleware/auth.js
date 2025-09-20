@@ -13,10 +13,7 @@ const authenticateToken = (req, res, next) => {
     const authHeader = req.headers["authorization"];
 
     if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        error: "Authorization required",
-      });
+      return res.unauthorized("Access token required");
     }
 
     // Handle malformed authorization header first
@@ -24,10 +21,7 @@ const authenticateToken = (req, res, next) => {
       !authHeader.startsWith("Bearer ") &&
       !authHeader.startsWith("bearer ")
     ) {
-      return res.status(401).json({
-        success: false,
-        error: "Invalid authorization format",
-      });
+      return res.unauthorized("Invalid token format");
     }
 
     // Handle multiple spaces by filtering out empty parts
@@ -35,20 +29,14 @@ const authenticateToken = (req, res, next) => {
     let token = tokenParts[1]; // Bearer TOKEN
 
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        error: "Authorization required",
-      });
+      return res.unauthorized("Access token required");
     }
 
     // Trim whitespace from token (in case of trailing spaces)
     token = token.trim();
 
     if (token === "") {
-      return res.status(401).json({
-        success: false,
-        error: "Authorization required",
-      });
+      return res.unauthorized("Access token required");
     }
 
     // Check for special bypass tokens in test environment
@@ -56,10 +44,10 @@ const authenticateToken = (req, res, next) => {
       console.log(`🔧 Test mode: Using ${token} for authentication`);
       req.user = {
         sub: token === "dev-bypass-token" ? "dev-user-bypass" : "test-user-123",
-        email: "test@example.com",
-        username: "test-user",
+        email: token === "dev-bypass-token" ? "dev-bypass@example.com" : "test@example.com",
+        username: token === "dev-bypass-token" ? "dev-bypass-user" : "test-user",
         role: "admin",
-        sessionId: "test-session",
+        sessionId: token === "dev-bypass-token" ? "dev-bypass-session" : "test-session",
       };
       req.token = token;
       return next();
@@ -92,27 +80,15 @@ const authenticateToken = (req, res, next) => {
         return next();
       } catch (error) {
         if (error.name === "TokenExpiredError") {
-          return res.status(401).json({
-            success: false,
-            error: "Session expired",
-          });
+          return res.unauthorized("Token expired");
         }
         if (error.name === "JsonWebTokenError") {
-          return res.status(401).json({
-            success: false,
-            error: "Invalid authentication",
-          });
+          return res.unauthorized("Invalid token");
         }
-        return res.status(401).json({
-          success: false,
-          error: "Authentication failed",
-        });
+        return res.unauthorized("Authentication failed");
       }
     } catch (error) {
-      return res.status(401).json({
-        success: false,
-        error: "Authentication failed",
-      });
+      return res.unauthorized("Authentication failed");
     }
   }
 

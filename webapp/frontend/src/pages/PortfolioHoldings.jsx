@@ -242,7 +242,7 @@ const PortfolioHoldings = () => {
 
   if (loading && !holdings.length) {
     return (
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }} data-testid="portfolio-page">
         <Box
           display="flex"
           justifyContent="center"
@@ -259,7 +259,7 @@ const PortfolioHoldings = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }} data-testid="portfolio-page">
       <Grid container spacing={3}>
         {/* Header */}
         <Grid item xs={12}>

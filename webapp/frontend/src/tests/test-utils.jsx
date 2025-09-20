@@ -23,7 +23,7 @@ const TestAuthContext = createContext({
 });
 
 // Real site theme for testing
-const testTheme = createTheme({
+export const testTheme = createTheme({
   palette: {
     mode: "light",
     primary: {

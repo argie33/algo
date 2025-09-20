@@ -73,7 +73,22 @@ describe("API Key and Portfolio Import Integration", () => {
 
     // Mock successful API responses by default with immediate resolution
     global.fetch.mockImplementation(async (url) => {
+      // Add small delay to simulate real API timing
+      await new Promise(resolve => setTimeout(resolve, 10));
       // Handle different API endpoints
+      if (url.includes("/api/user/settings")) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              theme: "light",
+              notifications: { email: true, push: false },
+              riskTolerance: "moderate",
+            },
+          }),
+        };
+      }
       if (url.includes("/api/portfolio/api-keys")) {
         return {
           ok: true,
@@ -91,6 +106,20 @@ describe("API Key and Portfolio Import Integration", () => {
                 totalPnL: 0,
                 totalPnLPercent: 0,
               },
+            },
+          }),
+        };
+      }
+      if (url.includes("/api/user/profile")) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            user: {
+              id: "test-user",
+              email: "test@example.com",
+              firstName: "Test",
+              lastName: "User",
             },
           }),
         };

@@ -448,7 +448,8 @@ function TechnicalSignalsWidget({ enabled = true }) {
         console.error("Trading signals API failed:", err);
         // Try to get market data from dashboard instead
         try {
-          const dashboardResponse = await fetch("/api/dashboard/summary", {
+          const { apiUrl } = getApiConfig();
+          const dashboardResponse = await fetch(`${apiUrl}/api/dashboard/summary`, {
             headers: { Authorization: "Bearer dev-bypass-token" },
           });
           if (dashboardResponse.ok) {

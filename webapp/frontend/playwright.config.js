@@ -32,77 +32,99 @@ export default defineConfig({
   },
 
   projects: [
-    // Setup project for authentication and database seeding
-    {
-      name: 'setup',
-      testMatch: /.*\.setup\.js/,
-    },
-
-    // Desktop Chrome - Primary testing
+    // Desktop Chrome - Primary testing with enhanced stability
     {
       name: 'desktop-chrome',
-      use: { 
+      use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1920, height: 1080 },
         launchOptions: {
           args: [
             '--no-sandbox',
-            '--disable-setuid-sandbox', 
+            '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
+            '--disable-features=VizDisplayCompositor',
+            '--headless=new',
+            '--disable-gpu',
+            '--disable-extensions',
+            '--no-first-run',
+            '--disable-default-apps',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding'
           ]
         }
       },
-      // dependencies: ['setup'], // Setup dependency removed
     },
 
-    // Desktop Firefox - Cross-browser coverage
+    // Desktop Firefox - Enhanced for better compatibility
     {
       name: 'desktop-firefox',
-      use: { 
+      use: {
         ...devices['Desktop Firefox'],
         viewport: { width: 1920, height: 1080 },
+        launchOptions: {
+          firefoxUserPrefs: {
+            'media.navigator.streams.fake': true,
+            'media.navigator.permission.disabled': true,
+            'dom.webnotifications.enabled': false,
+            'dom.push.enabled': false
+          }
+        }
       },
-      // dependencies: ['setup'], // Temporarily disabled
     },
 
-    // Desktop Safari - WebKit engine
-    {
+    // Desktop Safari - Skip if system deps missing
+    ...(process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS ? [] : [{
       name: 'desktop-safari',
-      use: { 
+      use: {
         ...devices['Desktop Safari'],
         viewport: { width: 1920, height: 1080 },
       },
-      // dependencies: ['setup'], // Temporarily disabled
-    },
+    }]),
 
     // Tablet testing
     {
       name: 'tablet-chrome',
-      use: { 
+      use: {
         ...devices['iPad Pro'],
+        launchOptions: {
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--headless=new',
+            '--disable-gpu'
+          ]
+        }
       },
-      // dependencies: ['setup'], // Temporarily disabled
     },
 
     // Mobile Chrome - Responsive testing
     {
       name: 'mobile-chrome',
-      use: { 
+      use: {
         ...devices['Pixel 5'],
+        launchOptions: {
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--headless=new',
+            '--disable-gpu'
+          ]
+        }
       },
-      // dependencies: ['setup'], // Temporarily disabled
     },
 
-    // Mobile Safari - iOS testing
-    {
+    // Mobile Safari - Skip if system deps missing
+    ...(process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS ? [] : [{
       name: 'mobile-safari',
-      use: { 
+      use: {
         ...devices['iPhone 12'],
       },
-      // dependencies: ['setup'], // Temporarily disabled
-    },
+    }]),
 
     // Visual regression testing
     {
@@ -140,10 +162,10 @@ export default defineConfig({
 
   // Start dev server for testing
   webServer: {
-    command: 'npm run dev',
+    command: process.env.CI ? 'npm run dev' : 'npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
-    timeout: 120000, // Increased timeout for slower startup
+    timeout: 120000,
     stdout: 'pipe',
     stderr: 'pipe',
   },

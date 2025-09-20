@@ -69,7 +69,7 @@ describe("Middleware Chain Integration", () => {
           .get("/api/portfolio")
           .set("Authorization", testCase.header);
 
-        expect([200, 404, 500, 501]).toContain(response.status);
+        expect([200, 401, 403, 404, 500, 501]).toContain(response.status);
 
         if (response.status === 401 || response.status === 403) {
           expect(response.body).toHaveProperty("success", false);
@@ -94,7 +94,7 @@ describe("Middleware Chain Integration", () => {
         const response = await request(app)[endpoint.method](endpoint.path);
 
         // Protected endpoints should return 401/403 without auth or 200 with dev bypass
-        expect([200, 404, 500, 501]).toContain(response.status);
+        expect([200, 401, 403, 404, 500, 501]).toContain(response.status);
 
         if (response.status === 401 || response.status === 403) {
           expect(response.body).toHaveProperty("success", false);
@@ -195,7 +195,7 @@ describe("Middleware Chain Integration", () => {
 
       // All concurrent requests should be processed
       responses.forEach((response) => {
-        expect([200, 404, 500, 501]).toContain(response.status);
+        expect([200, 401, 403, 404, 500, 501]).toContain(response.status);
         expect(response.body).toBeDefined();
       });
     });

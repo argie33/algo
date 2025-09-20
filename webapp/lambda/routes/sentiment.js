@@ -8,12 +8,9 @@ const router = express.Router();
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
   res.json({
-    success: true,
-    data: {
-      status: "operational",
-      service: "sentiment",
-      message: "Sentiment analysis service is running",
-    },
+    status: "operational",
+    service: "sentiment",
+    message: "Sentiment analysis service is running",
     timestamp: new Date().toISOString(),
   });
 });

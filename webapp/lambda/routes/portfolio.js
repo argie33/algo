@@ -2055,31 +2055,27 @@ router.post("/rebalance/execute", async (req, res) => {
     // Update portfolio metadata with rebalance timestamp
     const updateMetadataQuery = `
       INSERT INTO portfolio_metadata (
-        user_id, 
+        user_id,
         broker,
-        last_rebalance_date, 
-        rebalance_count,
         updated_at
       )
-      VALUES ($1, $2, $3, 1, $4)
-      ON CONFLICT (user_id, broker) 
-      DO UPDATE SET 
-        last_rebalance_date = $3,
-        rebalance_count = COALESCE(portfolio_metadata.rebalance_count, 0) + 1,
-        updated_at = $4
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, broker)
+      DO UPDATE SET
+        updated_at = $3
     `;
 
     const now = new Date();
-    await query(updateMetadataQuery, [userId, "default", now, now]);
+    await query(updateMetadataQuery, [userId, "default", now]);
 
     // Log rebalance transactions
     for (const rec of recommendations) {
       if (rec.action !== "hold") {
         const transactionQuery = `
           INSERT INTO portfolio_transactions (
-            user_id, symbol, transaction_type, quantity, price, total_value, created_at
+            user_id, symbol, transaction_type, quantity, price, total_amount, created_at, executed_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `;
 
         const quantity = Math.abs(rec.shares_to_trade || 0);
@@ -2092,6 +2088,7 @@ router.post("/rebalance/execute", async (req, res) => {
           quantity,
           price,
           quantity * price,
+          now,
           now,
         ]);
       }

@@ -2,7 +2,7 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
-const schemaValidator = require("../utils/schemaValidator");
+// const schemaValidator = require("../utils/schemaValidator"); // Currently unused
 const {
   createValidationMiddleware,
   validationSchemas,
@@ -923,7 +923,9 @@ router.get("/screen", async (req, res) => {
       limit = 25,
     } = req.query;
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 25));
+    const offset = (pageNum - 1) * limitNum;
 
     // Build dynamic query based on screening criteria
     let whereConditions = [
@@ -1125,7 +1127,7 @@ router.get("/search", async (req, res) => {
       Math.max(1, isNaN(parsedLimit) ? 20 : parsedLimit),
       100
     ); // Max 100 results, min 1, default 20
-    const offset = (pageNum - 1) * limitNum;
+    const _offset = (pageNum - 1) * limitNum; // Calculated but not used in mock implementation
 
     console.log(`🔍 Stock search requested for: ${search}`);
 

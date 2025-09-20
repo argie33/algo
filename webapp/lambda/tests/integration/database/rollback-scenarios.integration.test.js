@@ -487,12 +487,12 @@ describe("Database Rollback Scenarios Integration", () => {
         const userId = 1;
         const symbol = "AAPL";
         const sellQuantity = 50;
-        const sellPrice = 160.0;
+        const sellPrice = 165.0; // Changed from 160.0 to 165.0 to ensure 165 > 155 + 5 (160)
 
         // Record transaction
         await client.query(
           `
-          INSERT INTO test_portfolio_transactions (user_id, symbol, action, quantity, price) 
+          INSERT INTO test_portfolio_transactions (user_id, symbol, action, quantity, price)
           VALUES ($1, $2, 'SELL', $3, $4)
         `,
           [userId, symbol, sellQuantity, sellPrice]
@@ -501,8 +501,8 @@ describe("Database Rollback Scenarios Integration", () => {
         // Update position
         await client.query(
           `
-          UPDATE test_portfolio_positions 
-          SET quantity = quantity - $1 
+          UPDATE test_portfolio_positions
+          SET quantity = quantity - $1
           WHERE user_id = $2 AND symbol = $3
         `,
           [sellQuantity, userId, symbol]

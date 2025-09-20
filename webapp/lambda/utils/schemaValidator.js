@@ -612,9 +612,259 @@ const tableSchemas = {
   },
 };
 
+/**
+ * Application-level schemas for business objects
+ */
+const applicationSchemas = {
+  stockQuote: {
+    required: ["symbol", "price"],
+    properties: {
+      symbol: { type: "string", maxLength: 10 },
+      price: { type: "number", minimum: 0 },
+      volume: { type: "number", minimum: 0 },
+      timestamp: { type: "string", format: "date-time" },
+      change: { type: "number" },
+      changePercent: { type: "number" },
+    },
+  },
+  portfolio: {
+    required: ["holdings", "totalValue"],
+    properties: {
+      holdings: { type: "array", items: { type: "object" } },
+      totalValue: { type: "number", minimum: 0 },
+      cash: { type: "number", minimum: 0 },
+      dayChange: { type: "number" },
+      dayChangePercent: { type: "number" },
+    },
+  },
+  tradingOrder: {
+    required: ["symbol", "side", "quantity"],
+    properties: {
+      symbol: { type: "string", maxLength: 10 },
+      side: { type: "string", enum: ["buy", "sell"] },
+      type: { type: "string", enum: ["market", "limit", "stop"] },
+      quantity: { type: "number", minimum: 0.001 },
+      price: { type: "number", minimum: 0 },
+      timeInForce: { type: "string", enum: ["DAY", "GTC", "IOC", "FOK"] },
+    },
+  },
+  userRegistration: {
+    required: ["email", "password"],
+    properties: {
+      email: { type: "string", format: "email" },
+      password: { type: "string", minLength: 8 },
+      firstName: { type: "string", maxLength: 50 },
+      lastName: { type: "string", maxLength: 50 },
+    },
+  },
+  apiKeyConfig: {
+    required: ["broker", "apiKey"],
+    properties: {
+      broker: { type: "string", maxLength: 50 },
+      apiKey: { type: "string" },
+      apiSecret: { type: "string" },
+      sandbox: { type: "boolean" },
+    },
+  },
+  technicalIndicator: {
+    required: ["symbol", "date", "indicators"],
+    properties: {
+      symbol: { type: "string", maxLength: 10 },
+      date: { type: "string", format: "date" },
+      indicators: { type: "object" },
+      rsi: { type: "number", minimum: 0, maximum: 100 },
+      macd: { type: "number" },
+      sma: { type: "number", minimum: 0 },
+    },
+  },
+  earningsData: {
+    required: ["symbol", "reportDate"],
+    properties: {
+      symbol: { type: "string", maxLength: 10 },
+      reportDate: { type: "string", format: "date" },
+      eps: { type: "number" },
+      revenue: { type: "number", minimum: 0 },
+      quarter: { type: "integer", minimum: 1, maximum: 4 },
+      year: { type: "integer", minimum: 2000 },
+    },
+  },
+  webSocketMessage: {
+    required: ["type", "data"],
+    properties: {
+      type: { type: "string", enum: ["quote", "trade", "order", "position"] },
+      data: { type: "object" },
+      timestamp: { type: "string", format: "date-time" },
+      channel: { type: "string" },
+    },
+  },
+  streamingDataBatch: {
+    required: ["messages"],
+    properties: {
+      messages: { type: "array", items: { type: "object" } },
+      batchId: { type: "string" },
+      timestamp: { type: "string", format: "date-time" },
+    },
+  },
+};
+
 class SchemaValidator {
   constructor() {
     this.schemas = tableSchemas;
+    this.applicationSchemas = applicationSchemas;
+  }
+
+  /**
+   * Validate data against application schema (for tests and API validation)
+   */
+  validate(data, schemaName) {
+    const schema = this.applicationSchemas[schemaName];
+    if (!schema) {
+      return {
+        isValid: false,
+        errors: [`Unknown schema: ${schemaName}`],
+        sanitizedData: {},
+      };
+    }
+
+    const errors = [];
+    const sanitizedData = {};
+
+    // Check required fields
+    for (const requiredField of schema.required) {
+      if (data[requiredField] === undefined || data[requiredField] === null) {
+        errors.push(`Required field "${requiredField}" is missing`);
+      }
+    }
+
+    // Validate each field
+    for (const [fieldName, fieldValue] of Object.entries(data)) {
+      const propDef = schema.properties[fieldName];
+      if (!propDef) {
+        errors.push(`Unknown field "${fieldName}" for schema "${schemaName}"`);
+        continue;
+      }
+
+      const fieldErrors = this.validateApplicationField(fieldName, fieldValue, propDef);
+      errors.push(...fieldErrors);
+
+      if (fieldErrors.length === 0) {
+        sanitizedData[fieldName] = this.sanitizeApplicationField(fieldValue, propDef);
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors: errors,
+      sanitizedData: sanitizedData,
+    };
+  }
+
+  /**
+   * Validate individual application field
+   */
+  validateApplicationField(fieldName, value, propDef) {
+    const errors = [];
+
+    // Skip validation for null values unless required
+    if (value === null || value === undefined) {
+      return errors;
+    }
+
+    // Type validation
+    switch (propDef.type) {
+      case "string":
+        if (typeof value !== "string") {
+          errors.push(`Field "${fieldName}" must be a string`);
+        } else {
+          if (propDef.maxLength && value.length > propDef.maxLength) {
+            errors.push(`Field "${fieldName}" exceeds maximum length of ${propDef.maxLength} characters`);
+          }
+          if (propDef.minLength && value.length < propDef.minLength) {
+            errors.push(`Field "${fieldName}" must be at least ${propDef.minLength} characters`);
+          }
+          if (propDef.enum && !propDef.enum.includes(value)) {
+            errors.push(`Field "${fieldName}" must be one of: ${propDef.enum.join(", ")}`);
+          }
+          if (propDef.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+            errors.push(`Field "${fieldName}" must be a valid email address`);
+          }
+          if (propDef.format === "date" && isNaN(Date.parse(value))) {
+            errors.push(`Field "${fieldName}" must be a valid date`);
+          }
+          if (propDef.format === "date-time" && isNaN(Date.parse(value))) {
+            errors.push(`Field "${fieldName}" must be a valid date-time`);
+          }
+        }
+        break;
+
+      case "number":
+        if (typeof value !== "number" || isNaN(value)) {
+          errors.push(`Field "${fieldName}" must be a number`);
+        } else {
+          if (propDef.minimum !== undefined && value < propDef.minimum) {
+            errors.push(`Field "${fieldName}" must be at least ${propDef.minimum}`);
+          }
+          if (propDef.maximum !== undefined && value > propDef.maximum) {
+            errors.push(`Field "${fieldName}" must be at most ${propDef.maximum}`);
+          }
+        }
+        break;
+
+      case "integer":
+        if (!Number.isInteger(value)) {
+          errors.push(`Field "${fieldName}" must be an integer`);
+        } else {
+          if (propDef.minimum !== undefined && value < propDef.minimum) {
+            errors.push(`Field "${fieldName}" must be at least ${propDef.minimum}`);
+          }
+          if (propDef.maximum !== undefined && value > propDef.maximum) {
+            errors.push(`Field "${fieldName}" must be at most ${propDef.maximum}`);
+          }
+        }
+        break;
+
+      case "boolean":
+        if (typeof value !== "boolean") {
+          errors.push(`Field "${fieldName}" must be a boolean`);
+        }
+        break;
+
+      case "array":
+        if (!Array.isArray(value)) {
+          errors.push(`Field "${fieldName}" must be an array`);
+        }
+        break;
+
+      case "object":
+        if (typeof value !== "object" || Array.isArray(value)) {
+          errors.push(`Field "${fieldName}" must be an object`);
+        }
+        break;
+    }
+
+    return errors;
+  }
+
+  /**
+   * Sanitize application field value
+   */
+  sanitizeApplicationField(value, propDef) {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    switch (propDef.type) {
+      case "string":
+        return String(value).trim();
+      case "number":
+        return Number(value);
+      case "integer":
+        return Math.floor(Number(value));
+      case "boolean":
+        return Boolean(value);
+      default:
+        return value;
+    }
   }
 
   /**
@@ -1299,6 +1549,7 @@ class SchemaValidator {
 const schemaValidator = new SchemaValidator();
 
 module.exports = {
+  validate: (data, schemaName) => schemaValidator.validate(data, schemaName),
   validateData: (tableName, data) =>
     schemaValidator.validateData(tableName, data),
   validateTableStructure: (tableName) =>
@@ -1316,4 +1567,5 @@ module.exports = {
   safeQuery: (queryText, params) =>
     schemaValidator.safeQuery(queryText, params),
   schemas: tableSchemas,
+  applicationSchemas: applicationSchemas,
 };

@@ -28,9 +28,9 @@ router.get("/", async (req, res) => {
 // Get analyst upgrades/downgrades
 router.get("/upgrades", async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const offset = (page - 1) * limit;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 25));
+    const offset = Math.max(0, (page - 1) * limit);
     const upgradesQuery = `
       SELECT 
         asa.symbol,
@@ -684,7 +684,7 @@ router.get("/:ticker/overview", async (req, res) => {
 // Get recent analyst actions (upgrades/downgrades) for the most recent day
 router.get("/recent-actions", async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = Math.max(1, Math.min(50, parseInt(req.query.limit) || 10));
 
     // Get the most recent date with analyst actions from sentiment analysis
     const recentDateQuery = `

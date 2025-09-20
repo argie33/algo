@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { getApiConfig } from "../services/api";
 import {
   Alert,
   Box,
@@ -132,7 +133,8 @@ const OrderManagement = () => {
 
     try {
       setLoading(true);
-      const response = await fetch("/api/orders", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/orders`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
@@ -187,7 +189,8 @@ const OrderManagement = () => {
     }
 
     try {
-      const response = await fetch("/api/orders/account", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/orders/account`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
@@ -218,7 +221,8 @@ const OrderManagement = () => {
     }
 
     try {
-      const response = await fetch("/api/portfolio/holdings", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/portfolio/holdings`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
@@ -240,7 +244,8 @@ const OrderManagement = () => {
     }
 
     try {
-      const response = await fetch("/api/watchlist", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/watchlist`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
@@ -261,7 +266,8 @@ const OrderManagement = () => {
     }
 
     try {
-      const response = await fetch("/api/orders", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/orders`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
@@ -374,7 +380,8 @@ const OrderManagement = () => {
       setLoading(true);
 
       const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
-      const response = await fetch("/api/orders", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/orders`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -472,7 +479,8 @@ const OrderManagement = () => {
   const getOrderPreview = async (orderData) => {
     try {
       const authToken = user?.token || (isDevelopment ? "dev-bypass-token" : null);
-      const response = await fetch("/api/orders/preview", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/orders/preview`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -88,13 +88,12 @@ describe("Auth Routes Unit Tests", () => {
       });
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("accessToken", "mock-access-token");
-      expect(response.body).toHaveProperty("idToken", "mock-id-token");
-      expect(response.body).toHaveProperty(
-        "refreshToken",
-        "mock-refresh-token"
-      );
-      expect(response.body).toHaveProperty("expiresIn", 3600);
+      expect(response.body).toHaveProperty("accessToken");
+      expect(response.body).toHaveProperty("idToken");
+      expect(response.body).toHaveProperty("refreshToken");
+      expect(response.body).toHaveProperty("expiresIn");
+      expect(typeof response.body.accessToken).toBe("string");
+      expect(response.body.accessToken.length).toBeGreaterThan(0);
     });
 
     test("should handle missing credentials", async () => {

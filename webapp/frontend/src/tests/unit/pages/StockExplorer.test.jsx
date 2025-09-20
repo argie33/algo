@@ -111,11 +111,29 @@ vi.mock("recharts", () => ({
       {children}
     </div>
   ),
+  AreaChart: ({ children, data, ...props }) => (
+    <div
+      data-testid="area-chart"
+      data-chart-data={JSON.stringify(data)}
+      {...props}
+    >
+      {children}
+    </div>
+  ),
   Line: ({ dataKey, stroke, ...props }) => (
     <div
       data-testid="chart-line"
       data-key={dataKey}
       data-stroke={stroke}
+      {...props}
+    />
+  ),
+  Area: ({ dataKey, stroke, fill, ...props }) => (
+    <div
+      data-testid="chart-area"
+      data-key={dataKey}
+      data-stroke={stroke}
+      data-fill={fill}
       {...props}
     />
   ),
@@ -377,8 +395,8 @@ describe("StockExplorer", () => {
       await waitFor(() => {
         // Check for the mocked chart components from recharts mock
         expect(screen.getByTestId("responsive-container")).toBeInTheDocument();
-        expect(screen.getByTestId("line-chart")).toBeInTheDocument();
-        expect(screen.getByTestId("chart-line")).toBeInTheDocument();
+        expect(screen.getByTestId("area-chart")).toBeInTheDocument();
+        expect(screen.getByTestId("chart-area")).toBeInTheDocument();
       }, { timeout: 3000 });
     });
 

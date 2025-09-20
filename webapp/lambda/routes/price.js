@@ -316,8 +316,10 @@ router.get("/history/:timeframe", async (req, res) => {
   }
 
   try {
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const maxLimit = Math.min(parseInt(limit), 200);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit) || 50));
+    const offset = (pageNum - 1) * limitNum;
+    const maxLimit = limitNum;
 
     // Build WHERE clause
     let whereClause = "WHERE 1=1";

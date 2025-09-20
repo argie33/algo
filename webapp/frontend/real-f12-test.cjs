@@ -6,7 +6,7 @@ async function testReactApp() {
   const http = require('http');
   try {
     const serverCheck = await new Promise((resolve, reject) => {
-      const req = http.get('http://localhost:3006', (res) => {
+      const req = http.get('http://localhost:5173', (res) => {
         resolve(res.statusCode === 200);
       });
       req.on('error', () => resolve(false));
@@ -14,7 +14,7 @@ async function testReactApp() {
     });
     
     if (!serverCheck) {
-      console.log('❌ Dev server not responding at http://localhost:3006');
+      console.log('❌ Dev server not responding at http://localhost:5173');
       console.log('🔧 Start server with: npm run dev');
       return false;
     }
@@ -101,7 +101,7 @@ async function testReactApp() {
     
     // Navigate with better error handling
     console.log('📡 Loading application...');
-    await page.goto('http://localhost:3006', { 
+    await page.goto('http://localhost:5173', { 
       waitUntil: 'domcontentloaded',
       timeout: 15000 
     });
@@ -132,7 +132,7 @@ async function testReactApp() {
     for (const route of testRoutes) {
       try {
         console.log(`📱 Testing route: ${route}`);
-        await page.goto(`http://localhost:3006${route}`, { 
+        await page.goto(`http://localhost:5173${route}`, { 
           waitUntil: 'domcontentloaded',
           timeout: 10000 
         });
@@ -351,7 +351,7 @@ async function testReactApp() {
     // Fallback to basic HTTP check
     try {
       const html = await new Promise((resolve, reject) => {
-        const req = http.get('http://localhost:3006', (res) => {
+        const req = http.get('http://localhost:5173', (res) => {
           let data = '';
           res.on('data', chunk => data += chunk);
           res.on('end', () => resolve(data));

@@ -261,8 +261,8 @@ const Portfolio = () => {
 
       // Use real portfolio data from database
       setPortfolioData({
-        holdings: portfolioResponse.holdings || [],
-        summary: portfolioResponse.summary || {
+        holdings: portfolioResponse.data?.holdings || portfolioResponse.holdings || [],
+        summary: portfolioResponse.data?.summary || portfolioResponse.summary || {
           totalValue: 0,
           totalCost: 0,
           totalPnl: 0,
@@ -293,7 +293,7 @@ const Portfolio = () => {
   const loadAvailableConnections = useCallback(async () => {
     try {
       const response = await getApiKeys();
-      const connections = response?.apiKeys || [];
+      const connections = response?.data?.apiKeys || response?.apiKeys || [];
       setAvailableConnections(
         connections.filter((conn) =>
           ["alpaca", "robinhood"].includes(conn.brokerName.toLowerCase())

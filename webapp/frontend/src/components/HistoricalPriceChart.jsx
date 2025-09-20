@@ -251,18 +251,42 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
 
         {/* Chart */}
         {!isLoading && !error && chartData.length > 0 && (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={[...chartData].reverse()}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} domain={["auto", "auto"]} />
-              <Tooltip content={<CustomTooltip />} />
+          <ResponsiveContainer
+            width="100%"
+            height={300}
+            data-testid="responsive-container"
+          >
+            <LineChart
+              data={[...chartData].reverse()}
+              data-testid="line-chart"
+              data-chart-data={JSON.stringify(chartData)}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                data-testid="cartesian-grid"
+              />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12 }}
+                data-testid="x-axis"
+                data-key="date"
+              />
+              <YAxis
+                tick={{ fontSize: 12 }}
+                domain={["auto", "auto"]}
+                data-testid="y-axis"
+              />
+              <Tooltip
+                content={<CustomTooltip />}
+                data-testid="chart-tooltip"
+              />
               <Line
                 type="monotone"
                 dataKey="close"
                 stroke="#1976d2"
                 strokeWidth={2}
                 dot={{ r: 0 }}
+                data-testid="chart-line"
               />
             </LineChart>
           </ResponsiveContainer>

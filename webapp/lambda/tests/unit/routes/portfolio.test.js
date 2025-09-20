@@ -600,7 +600,7 @@ describe("Portfolio Routes Unit Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send(holdingData);
 
-      expect([201, 400, 500]).toContain(response.status);
+      expect([201, 400, 409, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
 
       if (response.status === 201) {

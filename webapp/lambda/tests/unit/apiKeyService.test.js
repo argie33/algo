@@ -196,13 +196,16 @@ describe("ApiKeyService", () => {
         email: "test@example.com",
       });
 
-      query.mockResolvedValue({ rows: [], rowCount: 1 });
+      query.mockResolvedValue({
+        rows: [{ id: 'test-id', user_id: 'test-user-id', provider: 'alpaca' }],
+        rowCount: 1
+      });
     });
 
     test("should store API key successfully", async () => {
       const apiKeyData = {
-        apiKey: "test-api-key",
-        apiSecret: "test-secret",
+        keyId: "test-api-key",
+        secret: "test-secret",
       };
 
       const result = await storeApiKey("valid.jwt.token", "alpaca", apiKeyData);
@@ -240,13 +243,13 @@ describe("ApiKeyService", () => {
       query.mockRejectedValue(new Error("Database error"));
 
       const apiKeyData = {
-        apiKey: "test-api-key",
-        apiSecret: "test-secret",
+        keyId: "test-api-key",
+        secret: "test-secret",
       };
 
       const result = await storeApiKey("valid.jwt.token", "alpaca", apiKeyData);
       expect(result.success).toBe(false);
-      expect(result.error).toContain("API key data must include keyId and secret");
+      expect(result.error).toContain("Database error");
     });
 
     test("should update existing API key", async () => {
@@ -276,9 +279,9 @@ describe("ApiKeyService", () => {
         apiSecret: "test-secret",
       };
 
-      await expect(
-        storeApiKey("invalid.jwt.token", "alpaca", apiKeyData)
-      ).rejects.toThrow("Invalid token");
+      const result = await storeApiKey("invalid.jwt.token", "alpaca", apiKeyData);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("JWT verification not configured");
     });
   });
 
@@ -310,7 +313,7 @@ describe("ApiKeyService", () => {
 
       expect(result).toBeDefined();
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("SELECT encrypted_data, iv FROM user_api_keys"),
+        expect.stringContaining("SELECT encrypted_api_key, encrypted_api_secret"),
         ["test-user-id", "alpaca"]
       );
     });
@@ -551,9 +554,10 @@ describe("ApiKeyService", () => {
     test("should handle database errors during listing", async () => {
       query.mockRejectedValue(new Error("Database error"));
 
-      await expect(listProviders("valid.jwt.token")).rejects.toThrow(
-        "Database error"
-      );
+      const result = await listProviders("valid.jwt.token");
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Database error");
     });
   });
 
@@ -616,7 +620,7 @@ describe("ApiKeyService", () => {
 
       expect(result).toBeDefined();
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("SELECT encrypted_data, iv FROM user_api_keys"),
+        expect.stringContaining("SELECT encrypted_api_key, encrypted_api_secret"),
         ["test-user-id", "alpaca"]
       );
     });
@@ -682,17 +686,20 @@ describe("ApiKeyService", () => {
 
       const apiKeyData = { apiKey: "test", apiSecret: "test" };
 
-      await expect(
-        storeApiKey("valid.jwt.token", "", apiKeyData)
-      ).rejects.toThrow("Invalid provider");
+      const result = await storeApiKey("valid.jwt.token", "", apiKeyData);
 
-      await expect(
-        storeApiKey("valid.jwt.token", null, apiKeyData)
-      ).rejects.toThrow("Invalid provider");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Invalid provider");
 
-      await expect(
-        storeApiKey("valid.jwt.token", "   ", apiKeyData)
-      ).rejects.toThrow("Invalid provider");
+      const result2 = await storeApiKey("valid.jwt.token", null, apiKeyData);
+
+      expect(result2.success).toBe(false);
+      expect(result2.error).toContain("Invalid provider");
+
+      const result3 = await storeApiKey("valid.jwt.token", "   ", apiKeyData);
+
+      expect(result3.success).toBe(false);
+      expect(result3.error).toContain("Invalid provider");
     });
 
     test("should handle concurrent API key operations", async () => {
@@ -719,7 +726,10 @@ describe("ApiKeyService", () => {
         email: "test@example.com",
       });
 
-      query.mockResolvedValue({ rows: [], rowCount: 1 });
+      query.mockResolvedValue({
+        rows: [{ id: 'test-id', user_id: 'test-user-id', provider: 'alpaca' }],
+        rowCount: 1
+      });
 
       const largeApiKeyData = {
         apiKey: "x".repeat(10000),

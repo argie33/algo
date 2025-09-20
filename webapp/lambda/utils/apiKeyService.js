@@ -687,7 +687,7 @@ class ApiKeyService {
             secret_iv = EXCLUDED.secret_iv,
             secret_auth_tag = EXCLUDED.secret_auth_tag,
             updated_at = NOW()
-          RETURNING user_id, broker_name
+          RETURNING id, user_id, broker_name
         `,
           [
             userId,
@@ -726,7 +726,7 @@ class ApiKeyService {
             secret_iv = EXCLUDED.secret_iv,
             secret_auth_tag = EXCLUDED.secret_auth_tag,
             updated_at = NOW()
-          RETURNING user_id, broker_name
+          RETURNING id, user_id, broker_name
         `,
           [
             userId,
@@ -1199,23 +1199,27 @@ class ApiKeyService {
           "API key providers query returned null result, database may be unavailable"
         );
         this.recordFailure(new Error("Database temporarily unavailable"));
-        return []; // Return empty array for graceful degradation
+        return { providers: [] }; // Return empty providers array for graceful degradation
       }
 
       this.recordSuccess();
 
-      // Return array of provider objects as expected by tests
-      return dbResult.rows.map((row) => ({
-        provider: row.provider,
-        configured: true,
-        lastUpdated: new Date(row.updated_at),
-        createdAt: new Date(row.created_at),
-        lastUsed: row.last_used ? new Date(row.last_used) : null,
-      }));
+      // Return object with providers array as expected by tests
+      const providers = dbResult.rows.map((row) => row.provider);
+      return {
+        providers: providers,
+        details: dbResult.rows.map((row) => ({
+          provider: row.provider,
+          configured: true,
+          lastUpdated: new Date(row.updated_at),
+          createdAt: new Date(row.created_at),
+          lastUsed: row.last_used ? new Date(row.last_used) : null,
+        }))
+      };
     } catch (error) {
       this.recordFailure(error);
       console.error("Provider listing error:", error);
-      return []; // Return empty array for graceful degradation
+      throw error; // Re-throw error so wrapper can handle it
     }
   }
 
@@ -1240,7 +1244,7 @@ class ApiKeyService {
    */
   getHealthStatus() {
     return {
-      apiKeyCircuitBreaker: {
+      circuitBreaker: {
         state: this.circuitBreaker.state,
         failures: this.circuitBreaker.failures,
         lastFailureTime: this.circuitBreaker.lastFailureTime,
@@ -1250,7 +1254,7 @@ class ApiKeyService {
         failures: this.jwtCircuitBreaker.failures,
         lastFailureTime: this.jwtCircuitBreaker.lastFailureTime,
       },
-      cache: {
+      cacheStats: {
         keyCache: this.keyCache.size,
         sessionCache: this.sessionCache.size,
         timeout: this.cacheTimeout,
@@ -1310,6 +1314,13 @@ class ApiKeyService {
 
       // For development - handle unencrypted test data
       // In production, proper decryption would be implemented
+
+      // Check if encrypted data is valid
+      if (!encrypted_api_key || !encrypted_api_secret) {
+        console.warn("Invalid encrypted data found in database");
+        return null;
+      }
+
       const decryptedData = {
         keyId: encrypted_api_key, // Using plain text for dev
         secret: encrypted_api_secret, // Using plain text for dev

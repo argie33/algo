@@ -387,6 +387,22 @@ vi.mock("recharts", () => ({
       "data-fill": fill,
       ...props,
     }),
+  // SVG gradient-related components to prevent warnings
+  defs: ({ children, ...props }) =>
+    React.createElement("div", {
+      "data-testid": "svg-defs",
+      ...props,
+    }, children),
+  linearGradient: ({ children, ...props }) =>
+    React.createElement("div", {
+      "data-testid": "linear-gradient",
+      ...props,
+    }, children),
+  stop: (props) =>
+    React.createElement("div", {
+      "data-testid": "gradient-stop",
+      ...props,
+    }),
   BarChart: ({ children, data, ...props }) =>
     React.createElement(
       "div",

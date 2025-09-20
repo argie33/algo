@@ -23,6 +23,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { getApiConfig } from "../../utils/apiService";
 
 const CHAT_CONSTANTS = {
   DATA_PREFIX_LENGTH: 6, // 'data: '.length
@@ -60,9 +61,10 @@ const EnhancedChatInterface = ({
    */
   const loadConversationHistory = useCallback(async () => {
     try {
+      const { apiUrl } = getApiConfig();
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `/api/ai-assistant/conversations/${conversationId}/history`,
+        `${apiUrl}/api/ai-assistant/conversations/${conversationId}/history`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -227,8 +229,9 @@ const EnhancedChatInterface = ({
   const executeCode = useCallback(
     async (code, language) => {
       try {
+        const { apiUrl } = getApiConfig();
         const token = localStorage.getItem("token");
-        const response = await fetch("/api/ai-assistant/code/execute", {
+        const response = await fetch(`${apiUrl}/api/ai-assistant/code/execute`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -308,7 +311,8 @@ const EnhancedChatInterface = ({
     async (messageId, type) => {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("/api/ai-assistant/feedback", {
+        const { apiUrl } = getApiConfig();
+        const response = await fetch(`${apiUrl}/api/ai-assistant/feedback`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -407,7 +411,8 @@ const EnhancedChatInterface = ({
         abortControllerRef.current = new AbortController();
 
         // Start streaming request
-        const response = await fetch("/api/ai-assistant/chat/stream", {
+        const { apiUrl } = getApiConfig();
+        const response = await fetch(`${apiUrl}/api/ai-assistant/chat/stream`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -495,7 +500,8 @@ const EnhancedChatInterface = ({
   const regenerateResponse = async (messageId) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/ai-assistant/chat/regenerate", {
+      const { apiUrl } = getApiConfig();
+      const response = await fetch(`${apiUrl}/api/ai-assistant/chat/regenerate`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -538,8 +544,9 @@ const EnhancedChatInterface = ({
   const exportConversation = async (format = "json") => {
     try {
       const token = localStorage.getItem("token");
+      const { apiUrl } = getApiConfig();
       const response = await fetch(
-        `/api/ai-assistant/conversations/${conversationId}/export?format=${format}`,
+        `${apiUrl}/api/ai-assistant/conversations/${conversationId}/export?format=${format}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

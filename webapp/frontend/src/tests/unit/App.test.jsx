@@ -19,7 +19,7 @@ vi.mock("../../pages/MarketOverview", () => ({
   default: () => <div data-testid="market-overview-page">Market Overview</div>,
 }));
 
-vi.mock("../../pages/Portfolio", () => ({
+vi.mock("../../pages/PortfolioHoldings", () => ({
   default: () => <div data-testid="portfolio-page">Portfolio</div>,
 }));
 
@@ -29,11 +29,6 @@ vi.mock("../../pages/Settings", () => ({
 
 // Mock all other page components with a simple fallback
 
-vi.mock("../../pages/PortfolioHoldings", () => ({
-  default: () => (
-    <div data-testid="portfolioholdings-page">PortfolioHoldings</div>
-  ),
-}));
 
 vi.mock("../../pages/TechnicalAnalysis", () => ({
   default: () => (

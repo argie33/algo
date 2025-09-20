@@ -1301,11 +1301,9 @@ router.get("/health", async (req, res) => {
       service: "live-data",
       timestamp: new Date().toISOString(),
       uptime: `${Math.floor(process.uptime())}s`,
-      services: {
-        database: "connected",
-        websocket: "operational",
-        cache: "active",
-      },
+      database_connection: "connected",
+      streaming_status: "operational",
+      cache_status: "active",
     };
 
     if (detailed) {
@@ -1319,7 +1317,10 @@ router.get("/health", async (req, res) => {
       };
     }
 
-    res.json(healthData);
+    res.json({
+      success: true,
+      data: healthData,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
