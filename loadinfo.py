@@ -81,6 +81,7 @@ def load_company_info(symbols, cur, conn):
     logging.info(f"Loading company info for {total} symbols")
     processed, failed = 0, []
     CHUNK_SIZE, PAUSE = 5, 5.0  # Much smaller batches and longer pause for maximum success rate
+    # Conservative settings prioritize data completeness over speed
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
