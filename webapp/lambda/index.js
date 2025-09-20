@@ -221,6 +221,7 @@ app.use(
       // Specific allowed origins
       const allowedOrigins = [
         "https://d1copuy2oqlazx.cloudfront.net",
+        "https://qda42av7je.execute-api.us-east-1.amazonaws.com",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
@@ -252,8 +253,31 @@ app.use(
       "X-Amz-Date",
       "X-Amz-Security-Token",
     ],
+    preflightContinue: false,
+    optionsSuccessStatus: 200
   })
 );
+
+// Additional CORS headers for API Gateway compatibility
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  // Set CORS headers explicitly for CloudFront
+  if (origin && origin.includes('cloudfront.net')) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token');
+  }
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  next();
+});
 
 // Request parsing
 app.use(express.json({ limit: "10mb" }));

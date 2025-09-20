@@ -207,6 +207,16 @@ class RealTimeDataService {
 
     return new Promise((resolve, reject) => {
       try {
+        // Skip WebSocket connection for API Gateway - not supported
+        if (this.apiConfig.baseURL.includes('execute-api')) {
+          if (import.meta.env?.DEV || process.env.NODE_ENV === 'development') {
+            console.log("📡 RealTimeDataService: Skipping WebSocket for API Gateway endpoint");
+          }
+          this.isConnectedState = false;
+          this.connectionStatus = "disabled_api_gateway";
+          return resolve();
+        }
+
         // Convert HTTP URL to WebSocket URL
         const wsUrl =
           this.apiConfig.baseURL
