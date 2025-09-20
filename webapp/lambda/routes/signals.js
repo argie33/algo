@@ -191,13 +191,13 @@ router.get("/buy", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        km.market_cap,
+        ss.market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
-      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN fundamental_metrics km ON bs.symbol = km.symbol
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -334,13 +334,13 @@ router.get("/sell", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        km.market_cap,
+        ss.market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
-      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN fundamental_metrics km ON bs.symbol = km.symbol
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -480,13 +480,13 @@ router.get("/recent", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        km.market_cap,
+        ss.market_cap,
         NULL as trailing_pe,
         s.dividend_yield
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
-      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN fundamental_metrics km ON bs.symbol = km.symbol
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -570,14 +570,14 @@ router.get("/", async (req, res) => {
         bs.signal,
         bs.date,
         COALESCE(pd.close, bs.price) as current_price,
-        km.market_cap,
-        km.trailing_pe,
-        km.dividend_yield,
+        ss.market_cap,
+        NULL as trailing_pe,
+        NULL as dividend_yield,
         'buy' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
-      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN fundamental_metrics km ON bs.symbol = km.symbol
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -599,14 +599,14 @@ router.get("/", async (req, res) => {
         bs.signal,
         bs.date,
         COALESCE(pd.close, bs.price) as current_price,
-        km.market_cap,
-        km.trailing_pe,
-        km.dividend_yield,
+        ss.market_cap,
+        NULL as trailing_pe,
+        NULL as dividend_yield,
         'sell' as signal_type
       FROM ${tableName} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
-      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN fundamental_metrics km ON bs.symbol = km.symbol
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -2564,7 +2564,7 @@ router.get("/daily", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        km.market_cap,
+        ss.market_cap,
         NULL as dividend_yield,
         CASE 
           WHEN bs.signal = 'BUY' THEN 'buy'
@@ -2574,7 +2574,7 @@ router.get("/daily", async (req, res) => {
       FROM buy_sell_daily bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
-      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN fundamental_metrics km ON bs.symbol = km.symbol
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -2681,13 +2681,13 @@ router.get("/trending", async (req, res) => {
         bs.signal,
         bs.date,
         bs.price as current_price,
-        km.market_cap,
+        ss.market_cap,
         NULL as dividend_yield,
         COUNT(*) OVER (PARTITION BY bs.symbol) as signal_count
       FROM buy_sell_${timeframe} bs
       JOIN company_profile cp ON bs.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bs.symbol = ss.symbol
-      LEFT JOIN key_metrics km ON bs.symbol = km.ticker
+      LEFT JOIN fundamental_metrics km ON bs.symbol = km.symbol
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
