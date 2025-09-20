@@ -171,10 +171,10 @@ router.get("/", async (req, res) => {
         cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        ss.market_cap,
-        COALESCE(pd.close, 0) as current_price,
-        15.5,
-        2.5,
+        COALESCE(md.market_cap, ss.market_cap) as market_cap,
+        COALESCE(md.current_price, pd.close, 0) as current_price,
+        fm.pe_ratio,
+        fm.price_to_book,
         
         -- Quality Metrics from stock_scores
         sc.fundamental_score as quality_metric,
@@ -189,10 +189,10 @@ router.get("/", async (req, res) => {
         -- Value Metrics from stock_scores
         sc.technical_score as value_metric,
         sc.technical_score as multiples_metric,
-        15.5 as intrinsic_value,
-        2.5 as fair_value,
-        15.5 as dcf_intrinsic_value,
-        2.5 as dcf_margin_of_safety,
+        fm.pe_ratio as intrinsic_value,
+        fm.price_to_book as fair_value,
+        fm.pe_ratio as dcf_intrinsic_value,
+        fm.price_to_book as dcf_margin_of_safety,
 
         -- Growth Metrics using default data
         0.5 as growth_composite_score,
@@ -211,6 +211,8 @@ router.get("/", async (req, res) => {
         
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -239,6 +241,8 @@ router.get("/", async (req, res) => {
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -824,11 +828,11 @@ router.get("/:symbol", async (req, res) => {
         cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        ss.market_cap,
-        COALESCE(pd.close, 0) as current_price,
-        15.5,
-        2.5,
-        0.025
+        COALESCE(md.market_cap, ss.market_cap) as market_cap,
+        COALESCE(md.current_price, pd.close, 0) as current_price,
+        fm.pe_ratio,
+        fm.price_to_book,
+        fm.dividend_yield
       FROM quality_metrics qm
       LEFT JOIN value_metrics vm ON qm.symbol = vm.symbol AND qm.date = vm.date
       LEFT JOIN stock_symbols ss ON qm.symbol = ss.symbol
@@ -1150,6 +1154,9 @@ router.get("/top/:category", async (req, res) => {
       FROM stock_symbols ss
       ${joinClause}
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily

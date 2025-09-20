@@ -86,14 +86,14 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.close as prev_price,
         pd_prev.volume as prev_volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         td.rsi,
         td.sma_20,
@@ -135,7 +135,7 @@ class AIMarketScanner {
         AND pd.close > pd_prev.close * 1.01
         AND pd.volume > pd_prev.volume * 1.2
         AND pd.close > 5
-        AND (cp.market_cap IS NULL OR cp.market_cap > 100000000)
+        AND (md.market_cap IS NULL OR md.market_cap > 100000000)
       ORDER BY 
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) * 
         (pd.volume / NULLIF(pd_prev.volume, 1)) DESC
@@ -169,14 +169,14 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.close as prev_price,
         pd_prev.volume as prev_volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         td.rsi,
         td.sma_20,
@@ -218,7 +218,7 @@ class AIMarketScanner {
         AND pd.close < pd_prev.close * 0.98
         AND pd.volume > pd_prev.volume * 1.3
         AND pd.close > 2
-        AND (cp.market_cap IS NULL OR cp.market_cap > 50000000)
+        AND (md.market_cap IS NULL OR md.market_cap > 50000000)
       ORDER BY 
         (pd.volume / NULLIF(pd_prev.volume, 1)) * 
         ABS((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0)) DESC
@@ -253,7 +253,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.high,
         pd.low,
@@ -262,7 +262,7 @@ class AIMarketScanner {
         pd_prev.volume as prev_volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         td.sma_20,
         td.sma_50,
@@ -303,7 +303,7 @@ class AIMarketScanner {
         AND pd.close > pd.open * 1.01
         AND pd.volume > pd_prev.volume * 1.2
         AND pd.close > 5
-        AND (cp.market_cap IS NULL OR cp.market_cap > 100000000)
+        AND (md.market_cap IS NULL OR md.market_cap > 100000000)
       ORDER BY 
         (pd.close / NULLIF(pd.high, 0)) * 
         (pd.volume / NULLIF(pd_prev.volume, 1)) DESC
@@ -339,7 +339,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.volume as prev_volume,
@@ -347,7 +347,7 @@ class AIMarketScanner {
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         (pd.volume / NULLIF(pd_avg.avg_volume, 1)) as volume_vs_avg,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         CASE 
           WHEN pd.volume > pd_avg.avg_volume * 10 THEN 95
@@ -392,7 +392,7 @@ class AIMarketScanner {
           pd.volume > COALESCE(pd_avg.avg_volume * 2, 0)
         )
         AND pd.close > 1
-        AND (cp.market_cap IS NULL OR cp.market_cap > 10000000)
+        AND (md.market_cap IS NULL OR md.market_cap > 10000000)
       ORDER BY 
         GREATEST(
           pd.volume / NULLIF(pd_prev.volume, 1),
@@ -426,7 +426,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
@@ -435,7 +435,7 @@ class AIMarketScanner {
         er.actual_eps,
         er.eps_surprise,
         er.surprise_percent,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         CASE 
           WHEN er.surprise_percent > 20 AND ABS(EXTRACT(DAYS FROM (CURRENT_DATE - er.report_date))) <= 2 THEN 90
@@ -472,7 +472,7 @@ class AIMarketScanner {
       WHERE er.report_date IS NOT NULL
         AND pd.close IS NOT NULL
         AND (er.surprise_percent > 0 OR er.report_date >= CURRENT_DATE - INTERVAL '2 days')
-        AND (cp.market_cap IS NULL OR cp.market_cap > 100000000)
+        AND (md.market_cap IS NULL OR md.market_cap > 100000000)
       ORDER BY 
         COALESCE(er.surprise_percent, 0) DESC,
         ABS(EXTRACT(DAYS FROM (CURRENT_DATE - er.report_date))) ASC
@@ -510,14 +510,14 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         n.sentiment,
         n.sentiment_confidence,
         n.headline,
         n.published_at,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         CASE 
           WHEN n.sentiment > 0.8 AND n.sentiment_confidence > 0.7 THEN 85
@@ -554,7 +554,7 @@ class AIMarketScanner {
       WHERE n.sentiment IS NOT NULL
         AND n.sentiment > 0.3
         AND pd.close IS NOT NULL
-        AND (cp.market_cap IS NULL OR cp.market_cap > 50000000)
+        AND (md.market_cap IS NULL OR md.market_cap > 50000000)
       ORDER BY 
         (n.sentiment * n.sentiment_confidence) DESC
       LIMIT $1

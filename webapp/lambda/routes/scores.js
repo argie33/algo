@@ -105,15 +105,15 @@ router.get("/", async (req, res) => {
 
     // Main query to get stocks with scores
     const stocksQuery = `
-      SELECT 
+      SELECT
         ss.symbol,
         cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        ss.market_cap,
-        COALESCE(pd.close, 0) as current_price,
-        15.5,
-        2.5,
+        COALESCE(md.market_cap, 0) as market_cap,
+        COALESCE(md.current_price, pd.close, 0) as current_price,
+        fm.pe_ratio as trailing_pe,
+        fm.price_to_book,
         
         -- Main Scores (using actual database columns)
         sc.overall_score as composite_score,
@@ -124,14 +124,14 @@ router.get("/", async (req, res) => {
         sc.sentiment_score,
         sc.fundamental_score as positioning_score,
         
-        -- Sub-scores for detailed analysis (using real key_metrics data)
-        0.75 as earnings_quality_subscore,
-        0.65 as balance_sheet_subscore,
-        0.7 as profitability_subscore,
+        -- Sub-scores for detailed analysis (using real fundamental_metrics data)
+        COALESCE(fm.roe * 10, 7.5) as earnings_quality_subscore,
+        COALESCE(fm.current_ratio * 25, 65) as balance_sheet_subscore,
+        COALESCE(fm.profit_margin * 100, 7) as profitability_subscore,
         sc.fundamental_score as management_subscore,
-        15.5 as multiples_subscore,
-        2.5 as intrinsic_value_subscore,
-        0.6 as relative_value_subscore,
+        COALESCE(fm.pe_ratio, 15.5) as multiples_subscore,
+        COALESCE(fm.price_to_book, 2.5) as intrinsic_value_subscore,
+        COALESCE(fm.price_to_sales * 10, 6) as relative_value_subscore,
 
         -- Metadata (using available columns and calculated values)
         sc.overall_score as confidence_score,
@@ -140,9 +140,11 @@ router.get("/", async (req, res) => {
         60 as percentile_rank,
         sc.created_at as score_date,
         sc.created_at as last_updated
-        
+
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -150,10 +152,10 @@ router.get("/", async (req, res) => {
         ORDER BY date DESC
         LIMIT 1
       ) pd ON true
-      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
+      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol
         AND sc.date = (
-          SELECT MAX(date) 
-          FROM stock_scores sc2 
+          SELECT MAX(date)
+          FROM stock_scores sc2
           WHERE sc2.symbol = ss.symbol
         )
       ${whereClause}
@@ -171,6 +173,8 @@ router.get("/", async (req, res) => {
       SELECT COUNT(DISTINCT ss.symbol) as total
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON ss.symbol = fm.symbol
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       LEFT JOIN LATERAL (
         SELECT close
         FROM price_daily
@@ -178,10 +182,10 @@ router.get("/", async (req, res) => {
         ORDER BY date DESC
         LIMIT 1
       ) pd ON true
-      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol 
+      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol
         AND sc.date = (
-          SELECT MAX(date) 
-          FROM stock_scores sc2 
+          SELECT MAX(date)
+          FROM stock_scores sc2
           WHERE sc2.symbol = ss.symbol
         )
       ${whereClause}
@@ -413,7 +417,7 @@ router.get("/composite", async (req, res) => {
         sc.technical_score as market_component,
         sc.sentiment_score as esg_component,
         sc.fundamental_score as risk_component,
-        COALESCE(pd.close, 0) as current_price,
+        COALESCE(md.current_price, pd.close, 0) as current_price,
         CASE
           WHEN sc.overall_score >= 80 THEN 'Excellent'
           WHEN sc.overall_score >= 70 THEN 'Good'

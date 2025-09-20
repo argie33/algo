@@ -63,12 +63,12 @@ router.get("/screen", async (req, res) => {
 
     // Market cap filters
     if (filters.marketCapMin) {
-      whereConditions.push(`cp.market_cap >= $${paramIndex}`);
+      whereConditions.push(`md.market_cap >= $${paramIndex}`);
       params.push(parseFloat(filters.marketCapMin));
       paramIndex++;
     }
     if (filters.marketCapMax) {
-      whereConditions.push(`cp.market_cap <= $${paramIndex}`);
+      whereConditions.push(`md.market_cap <= $${paramIndex}`);
       params.push(parseFloat(filters.marketCapMax));
       paramIndex++;
     }
@@ -234,7 +234,7 @@ router.get("/screen", async (req, res) => {
     }
 
     // Build ORDER BY clause
-    let orderBy = "ORDER BY cp.market_cap DESC NULLS LAST";
+    let orderBy = "ORDER BY md.market_cap DESC NULLS LAST";
     if (filters.sortBy) {
       const sortField = filters.sortBy;
       const sortOrder = filters.sortOrder === "desc" ? "DESC" : "ASC";
@@ -244,7 +244,7 @@ router.get("/screen", async (req, res) => {
         symbol: "s.ticker",
         companyName: "s.ticker",
         price: "pd.close",
-        marketCap: "cp.market_cap",
+        marketCap: "md.market_cap",
         peRatio: "25.0",
         dividendYield: "0.02",
         beta: "1.0",
@@ -254,7 +254,7 @@ router.get("/screen", async (req, res) => {
         sector: "COALESCE(cp.sector, 'Technology')",
       };
 
-      const dbField = fieldMap[sortField] || "cp.market_cap";
+      const dbField = fieldMap[sortField] || "md.market_cap";
       orderBy = `ORDER BY ${dbField} ${sortOrder}`;
     }
 
@@ -268,7 +268,7 @@ router.get("/screen", async (req, res) => {
         pd.close as price,
         pd.volume,
         pd.date as price_date,
-        cp.market_cap,
+        md.market_cap,
         km.trailing_pe as pe_ratio,
         km.dividend_yield,
         sc.overall_score as factor_score,
@@ -1330,7 +1330,7 @@ router.post("/export", async (req, res) => {
         COALESCE(cp.short_name, ss.name, ss.ticker || ' Inc.') as company_name,
         cp.sector as sector,
         md.close as price,
-        cp.market_cap,
+        md.market_cap,
         km.trailing_pe as pe_ratio,
         km.dividend_yield,
         0,
@@ -1351,7 +1351,7 @@ router.post("/export", async (req, res) => {
         ORDER BY symbol, date DESC
       ) sc ON ss.ticker = sc.symbol
       WHERE ss.ticker IN (${symbolsStr})
-      ORDER BY cp.market_cap DESC NULLS LAST
+      ORDER BY md.market_cap DESC NULLS LAST
     `);
 
     if (format === "csv") {
@@ -1799,13 +1799,13 @@ router.get("/stocks", async (req, res) => {
     // Market cap filter
     if (market_cap !== "all") {
       if (market_cap === "large") {
-        whereConditions.push(`cp.market_cap >= 10000000000`);
+        whereConditions.push(`md.market_cap >= 10000000000`);
       } else if (market_cap === "mid") {
-        whereConditions.push(`cp.market_cap >= 2000000000 AND cp.market_cap < 10000000000`);
+        whereConditions.push(`md.market_cap >= 2000000000 AND md.market_cap < 10000000000`);
       } else if (market_cap === "small") {
-        whereConditions.push(`cp.market_cap >= 300000000 AND cp.market_cap < 2000000000`);
+        whereConditions.push(`md.market_cap >= 300000000 AND md.market_cap < 2000000000`);
       } else if (market_cap === "micro") {
-        whereConditions.push(`cp.market_cap < 300000000`);
+        whereConditions.push(`md.market_cap < 300000000`);
       }
     }
 
@@ -1851,7 +1851,7 @@ router.get("/stocks", async (req, res) => {
     }
 
     // Build ORDER BY clause
-    let orderBy = "cp.market_cap DESC";
+    let orderBy = "md.market_cap DESC";
     if (sort_by === "price") {
       orderBy = `sp.price ${sort_order.toUpperCase()}`;
     } else if (sort_by === "volume") {
@@ -1861,7 +1861,7 @@ router.get("/stocks", async (req, res) => {
     } else if (sort_by === "dividend_yield") {
       orderBy = `sp.symbol ${sort_order.toUpperCase()}`; // dividend_yield not available, fallback to symbol
     } else {
-      orderBy = `cp.market_cap ${sort_order.toUpperCase()} NULLS LAST`;
+      orderBy = `md.market_cap ${sort_order.toUpperCase()} NULLS LAST`;
     }
 
     // Add limit parameter
@@ -1876,7 +1876,7 @@ router.get("/stocks", async (req, res) => {
         sp.price,
         sp.change_percent,
         sp.volume,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         cp.industry,
         km.pe_ratio,

@@ -66,33 +66,52 @@ router.get("/:symbol", async (req, res) => {
         });
       }
 
-      // Provide fallback mock data for common symbols when database is empty
-      const today = new Date().toISOString().split('T')[0];
-      const mockPrice = Math.random() * 200 + 50; // Random price between 50-250
-      const mockData = {
-        symbol: symbolUpper,
-        date: today,
-        price: +mockPrice.toFixed(2),
-        open: +(mockPrice * 0.98).toFixed(2),
-        high: +(mockPrice * 1.03).toFixed(2),
-        low: +(mockPrice * 0.95).toFixed(2),
-        close: +mockPrice.toFixed(2),
-        adj_close: +mockPrice.toFixed(2),
-        volume: Math.floor(Math.random() * 10000000) + 1000000
-      };
+      // Try market_data table for current price data
+      const marketResult = await query(
+        `SELECT
+          ticker as symbol, current_price, open_price as open,
+          day_high as high, day_low as low, previous_close as close,
+          regular_market_price as adj_close, volume
+         FROM market_data
+         WHERE ticker = $1`,
+        [symbolUpper]
+      );
 
-      console.log(`📊 Returning mock data for ${symbolUpper} - database not populated`);
+      if (marketResult && marketResult.rows && marketResult.rows.length > 0) {
+        const marketData = marketResult.rows[0];
+        const today = new Date().toISOString().split('T')[0];
 
-      return res.json({
-        success: true,
-        data: mockData,
-        meta: {
-          symbol: symbolUpper,
-          source: "mock_data",
-          disclaimer: "Mock data for development - not real market data",
-          last_updated: new Date().toISOString()
-        },
-        timestamp: new Date().toISOString()
+        console.log(`📊 Returning real market data for ${symbolUpper} from market_data table`);
+
+        return res.json({
+          success: true,
+          data: {
+            symbol: symbolUpper,
+            date: today,
+            price: marketData.current_price,
+            open: marketData.open,
+            high: marketData.high,
+            low: marketData.low,
+            close: marketData.close,
+            adj_close: marketData.adj_close,
+            volume: marketData.volume
+          },
+          meta: {
+            symbol: symbolUpper,
+            source: "market_data_table",
+            disclaimer: "Real market data from loader script",
+            last_updated: new Date().toISOString()
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // If no data found in either table, return 404
+      console.log(`❌ No data found for ${symbolUpper} in price_daily or market_data tables`);
+      return res.status(404).json({
+        success: false,
+        error: `No price data found for symbol ${symbolUpper}`,
+        timestamp: new Date().toISOString(),
       });
     }
 
