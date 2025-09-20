@@ -295,12 +295,20 @@ jobs:
           REPO_NAME=$(echo "$REPOSITORY_URI" | cut -d'/' -f2)
           echo "Repository name: $REPO_NAME"
 
-          # Check if Dockerfile exists
-          if [[ ! -f "Dockerfile.dataloader" ]]; then
-            echo "❌ ERROR: Dockerfile.dataloader not found!"
+          # Check if individual Dockerfiles exist for each loader
+          MISSING_DOCKERFILES=""
+          for loader in $LOADERS; do
+            DOCKERFILE="Dockerfile.$loader"
+            if [[ ! -f "$DOCKERFILE" ]]; then
+              MISSING_DOCKERFILES="$MISSING_DOCKERFILES $loader"
+            fi
+          done
+
+          if [[ -n "$MISSING_DOCKERFILES" ]]; then
+            echo "❌ ERROR: Missing Dockerfiles for loaders:$MISSING_DOCKERFILES"
             exit 1
           fi
-          echo "✅ Dockerfile.dataloader found"
+          echo "✅ All required Dockerfiles found"
 
           # Login to ECR
           echo "🔑 Logging into ECR..."
@@ -344,21 +352,7 @@ jobs:
           for loader in $LOADERS; do
             echo "🔨 Building image for $loader loader..."
 
-            # Determine requirements file for this loader - MUST exist!
-            REQUIREMENTS_FILE="requirements-load${loader}.txt"
-
-            # Check if specific requirements file exists - NO FALLBACK!
-            if [[ -f "$REQUIREMENTS_FILE" ]]; then
-              echo "✅ Using specific requirements file: $REQUIREMENTS_FILE"
-            else
-              echo "❌ ERROR: No specific requirements file found for $loader!"
-              echo "Expected file: $REQUIREMENTS_FILE"
-              echo "Available requirements files:"
-              ls -la requirements-load*.txt || echo "No loader requirements files found!"
-              exit 1
-            fi
-
-            # Build image with loader-specific requirements and cache optimization
+            # Build image with cache optimization
             IMAGE_TAG="$REPO_NAME:$loader-latest"
             CACHE_FROM="type=gha,scope=$loader"
             CACHE_TO="type=gha,mode=max,scope=$loader"
@@ -366,12 +360,11 @@ jobs:
             echo "🔨 Building $loader with optimizations..."
             timeout 30m docker buildx build \
               --platform linux/arm64 \
-              --build-arg REQUIREMENTS_FILE="$REQUIREMENTS_FILE" \
               --cache-from "$CACHE_FROM" \
               --cache-to "$CACHE_TO" \
               --progress=plain \
               -t "$IMAGE_TAG" \
-              -f Dockerfile.dataloader . --load
+              -f Dockerfile.$loader . --load
 
             if [ $? -ne 0 ]; then
               echo "❌ ERROR: Docker build failed or timed out for $loader!"

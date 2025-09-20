@@ -5,6 +5,8 @@
 # FIXED: Dockerfile preserves original filename (e.g., requirements-loadinfo.txt) for better tracking
 # FIXED: Added timeout protection and better caching to prevent workflow cancellation
 # FIXED: Optimized Dockerfile with binary wheels and faster pip installs to prevent build timeouts
+# FIXED: Updated workflow to use individual Dockerfiles per loader instead of generic dataloader
+# FIXED: Added pip root user warning suppression to prevent Docker build failures
 import gc
 import json
 import logging

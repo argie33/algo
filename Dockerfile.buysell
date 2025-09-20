@@ -3,6 +3,11 @@
 # 1) Base image
 FROM python:3.11-slim
 
+# Set environment variables to suppress pip warnings
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+
 # 2) Where we'll live inside the container
 WORKDIR /app
 

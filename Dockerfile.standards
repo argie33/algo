@@ -4,6 +4,11 @@
 # Python Services
 FROM python:3.11-slim as base
 
+# Set environment variables to suppress pip warnings
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+
 # Node.js Services  
 FROM node:18-alpine as node-base
 
