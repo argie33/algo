@@ -131,7 +131,7 @@ describe("Logger Integration Tests", () => {
 
   describe("Specialized Logging Methods", () => {
     test("should log database operations", () => {
-      const operation = "SELECT * FROM stocks";
+      const operation = "SELECT * FROM company_profile";
       const context = { duration: 150, rows: 25 };
 
       expect(() => {
@@ -268,7 +268,7 @@ describe("Logger Integration Tests", () => {
         portfolioId: "port456",
         symbols: ["AAPL", "GOOGL", "MSFT"],
         metrics: {
-          totalValue: 100000,
+          total_value: 1250000,
           gainLoss: 5000,
           returnPercent: 5.0,
         },

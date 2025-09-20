@@ -172,9 +172,9 @@ router.get("/public/sample", async (req, res) => {
         price,
         change_percent,
         volume
-      FROM stocks 
-      WHERE ticker IS NOT NULL 
-        AND name IS NOT NULL 
+      FROM company_profile
+      WHERE ticker IS NOT NULL
+        AND name IS NOT NULL
         AND price > 0
       ORDER BY market_cap DESC NULLS LAST
       LIMIT $1
@@ -1007,7 +1007,7 @@ router.get("/screen", async (req, res) => {
     // Get total count for pagination
     const countQuery = `
       SELECT COUNT(*) as total 
-      FROM stocks 
+      FROM company_profile 
       WHERE ${whereClause}
     `;
 
@@ -1037,7 +1037,7 @@ router.get("/screen", async (req, res) => {
         pe_ratio,
         dividend_yield,
         beta
-      FROM stocks 
+      FROM company_profile 
       WHERE ${whereClause}
       ORDER BY ${safeSortBy} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -1222,7 +1222,7 @@ router.get("/analysis", async (req, res) => {
         sp.volume,
         (sp.close - sp.open_price) / sp.open_price * 100 as daily_change_percent
       FROM stock_symbols ss
-      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      LEFT JOIN company_profile s ON ss.symbol = s.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open_price, volume, date
@@ -1433,7 +1433,7 @@ router.get("/recommendations", async (req, res) => {
         'BUY' as recommendation,
         'Strong fundamentals and market position' as reason
       FROM stock_symbols ss
-      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      LEFT JOIN company_profile s ON ss.symbol = s.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open_price, volume, date
@@ -1620,7 +1620,7 @@ router.get("/screener", authenticateToken, async (req, res) => {
         pd.volume,
         s.market_cap
       FROM stock_symbols ss
-      LEFT JOIN stocks s ON ss.symbol = s.symbol
+      LEFT JOIN company_profile s ON ss.symbol = s.ticker
       JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date

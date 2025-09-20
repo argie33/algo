@@ -1943,7 +1943,7 @@ router.get("/strategies/:strategyId", async (req, res) => {
       },
 
       parameters: {
-        technical_indicators: {
+        technical_data_daily: {
           breakout_confirmation: 2.0,
           volume_threshold: 1.5,
           rsi_filter: { enabled: true, min: 40, max: 80 },
@@ -2175,7 +2175,7 @@ router.get("/risk/portfolio", async (req, res) => {
       ) pd ON ph.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) symbol, historical_volatility_20d, beta
-        FROM technical_indicators
+        FROM technical_data_daily
         ORDER BY symbol, date DESC
       ) ti ON ph.symbol = ti.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0

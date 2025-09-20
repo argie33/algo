@@ -727,7 +727,7 @@ describe("schemaValidator", () => {
       const mockResult = { rows: [{ id: 1 }], rowCount: 1 };
       query.mockResolvedValue(mockResult);
 
-      const result = await schemaValidator.safeQuery("SELECT * FROM stocks");
+      const result = await schemaValidator.safeQuery("SELECT * FROM company_profile");
 
       expect(result).toEqual(mockResult);
     });
@@ -735,14 +735,14 @@ describe("schemaValidator", () => {
     test("should return null on database errors", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
 
-      const result = await schemaValidator.safeQuery("SELECT * FROM stocks");
+      const result = await schemaValidator.safeQuery("SELECT * FROM company_profile");
 
       expect(result).toBeNull();
       expect(logger.warn).toHaveBeenCalledWith(
         "Safe query failed, database may be unavailable",
         expect.objectContaining({
           error: "Database connection failed",
-          queryText: "SELECT * FROM stocks",
+          queryText: "SELECT * FROM company_profile",
         })
       );
     });
@@ -751,7 +751,7 @@ describe("schemaValidator", () => {
       query.mockRejectedValue(new Error("Database error"));
 
       const longQuery =
-        "SELECT * FROM stocks WHERE ".repeat(10) + "condition = 1";
+        "SELECT * FROM company_profile WHERE ".repeat(10) + "condition = 1";
       const result = await schemaValidator.safeQuery(longQuery);
 
       expect(result).toBeNull();

@@ -87,7 +87,7 @@ describe("Database Comprehensive Integration Tests", () => {
     });
 
     test("should handle queries with no results", async () => {
-      const result = await query("SELECT * FROM stocks WHERE symbol = $1", [
+      const result = await query("SELECT * FROM company_profile WHERE ticker = $1", [
         "NOEXIST",
       ]);
 
@@ -98,22 +98,22 @@ describe("Database Comprehensive Integration Tests", () => {
     test("should handle complex queries with JOINs", async () => {
       // First ensure we have some test data using correct column names
       await query(`
-        INSERT INTO stocks (symbol, name, exchange, sector) 
+        INSERT INTO company_profile (ticker, name, exchange, sector)
         VALUES ('TESTSTOCK', 'Test Company', 'NASDAQ', 'Technology')
-        ON CONFLICT (symbol) DO NOTHING
+        ON CONFLICT (ticker) DO NOTHING
       `);
 
       const result = await query(
         `
-        SELECT ss.symbol, ss.name, ss.sector
-        FROM stocks ss
-        WHERE ss.symbol = $1
+        SELECT ss.ticker, ss.name, ss.sector
+        FROM company_profile ss
+        WHERE ss.ticker = $1
       `,
         ["TESTSTOCK"]
       );
 
       if (result.rows.length > 0) {
-        expect(result.rows[0]).toHaveProperty("symbol", "TESTSTOCK");
+        expect(result.rows[0]).toHaveProperty("ticker", "TESTSTOCK");
         expect(result.rows[0]).toHaveProperty("name", "Test Company");
         expect(result.rows[0]).toHaveProperty("sector", "Technology");
       }
@@ -125,21 +125,21 @@ describe("Database Comprehensive Integration Tests", () => {
       const result = await transaction(async (client) => {
         // Insert test data
         await client.query(`
-          INSERT INTO stocks (symbol, name, exchange, sector) 
+          INSERT INTO company_profile (ticker, name, exchange, sector)
           VALUES ('TRANS', 'Transaction Test Co', 'NASDAQ', 'Technology')
-          ON CONFLICT (symbol) DO UPDATE SET name = EXCLUDED.name
+          ON CONFLICT (ticker) DO UPDATE SET name = EXCLUDED.name
         `);
 
         // Verify insertion
         const checkResult = await client.query(
-          "SELECT * FROM stocks WHERE symbol = $1",
+          "SELECT * FROM company_profile WHERE ticker = $1",
           ["TRANS"]
         );
 
         return checkResult.rows[0];
       });
 
-      expect(result).toHaveProperty("symbol", "TRANS");
+      expect(result).toHaveProperty("ticker", "TRANS");
       expect(result).toHaveProperty("name", "Transaction Test Co");
     });
 
@@ -148,9 +148,9 @@ describe("Database Comprehensive Integration Tests", () => {
         await transaction(async (client) => {
           // Valid operation
           await client.query(`
-            INSERT INTO stocks (symbol, name, sector, market_cap) 
+            INSERT INTO company_profile (ticker, name, sector, market_cap)
             VALUES ('ROLLBACK', 'Rollback Test Co', 'Technology', 500000000)
-            ON CONFLICT (symbol) DO NOTHING
+            ON CONFLICT (ticker) DO NOTHING
           `);
 
           // Force an error to trigger rollback
@@ -165,7 +165,7 @@ describe("Database Comprehensive Integration Tests", () => {
 
       // Verify the rollback worked - data should not exist
       const checkResult = await query(
-        "SELECT * FROM stocks WHERE symbol = $1",
+        "SELECT * FROM company_profile WHERE ticker = $1",
         ["ROLLBACK"]
       );
       expect(checkResult.rows).toHaveLength(0);
@@ -175,22 +175,22 @@ describe("Database Comprehensive Integration Tests", () => {
       const result = await transaction(async (client) => {
         // Multiple operations in single transaction
         await client.query(`
-          INSERT INTO stocks (symbol, name, sector, market_cap) 
+          INSERT INTO company_profile (ticker, name, sector, market_cap)
           VALUES ('NEST1', 'Nested Test 1', 'Technology', 1000000)
-          ON CONFLICT (symbol) DO UPDATE SET market_cap = EXCLUDED.market_cap
+          ON CONFLICT (ticker) DO UPDATE SET market_cap = EXCLUDED.market_cap
         `);
 
         await client.query(`
-          INSERT INTO stocks (symbol, name, sector, market_cap) 
+          INSERT INTO company_profile (ticker, name, sector, market_cap)
           VALUES ('NEST2', 'Nested Test 2', 'Healthcare', 2000000)
-          ON CONFLICT (symbol) DO UPDATE SET market_cap = EXCLUDED.market_cap
+          ON CONFLICT (ticker) DO UPDATE SET market_cap = EXCLUDED.market_cap
         `);
 
         // Count inserted records
         const countResult = await client.query(`
-          SELECT COUNT(*) as count 
-          FROM stocks 
-          WHERE symbol IN ('NEST1', 'NEST2')
+          SELECT COUNT(*) as count
+          FROM company_profile
+          WHERE ticker IN ('NEST1', 'NEST2')
         `);
 
         return countResult.rows[0].count;
@@ -225,18 +225,18 @@ describe("Database Comprehensive Integration Tests", () => {
       // Try to insert duplicate primary key
       try {
         await query(`
-          INSERT INTO stocks (symbol, name, sector, market_cap) 
+          INSERT INTO company_profile (ticker, name, sector, market_cap)
           VALUES ('DUPTEST', 'Test Company', 'Technology', 1000000)
         `);
 
-        // Try to insert same symbol again (should trigger conflict handling)
+        // Try to insert same ticker again (should trigger conflict handling)
         await query(`
-          INSERT INTO stocks (symbol, name, sector, market_cap) 
+          INSERT INTO company_profile (ticker, name, sector, market_cap)
           VALUES ('DUPTEST', 'Different Company', 'Finance', 2000000)
         `);
 
         // If we get here, the constraint was handled (likely with ON CONFLICT)
-        const result = await query("SELECT * FROM stocks WHERE symbol = $1", [
+        const result = await query("SELECT * FROM company_profile WHERE ticker = $1", [
           "DUPTEST",
         ]);
         expect(result.rows).toHaveLength(1);
@@ -259,16 +259,16 @@ describe("Database Comprehensive Integration Tests", () => {
       const startTime = Date.now();
 
       await transaction(async (client) => {
-        for (const [symbol, name, sector, marketCap] of bulkData) {
+        for (const [ticker, name, sector, marketCap] of bulkData) {
           await client.query(
             `
-            INSERT INTO stocks (symbol, name, sector, market_cap) 
+            INSERT INTO company_profile (ticker, name, sector, market_cap)
             VALUES ($1, $2, $3, $4)
-            ON CONFLICT (symbol) DO UPDATE SET 
+            ON CONFLICT (ticker) DO UPDATE SET
               name = EXCLUDED.name,
               market_cap = EXCLUDED.market_cap
           `,
-            [symbol, name, sector, marketCap]
+            [ticker, name, sector, marketCap]
           );
         }
       });
@@ -278,9 +278,9 @@ describe("Database Comprehensive Integration Tests", () => {
 
       // Verify data was inserted
       const countResult = await query(`
-        SELECT COUNT(*) as count 
-        FROM stocks 
-        WHERE symbol LIKE 'BULK_%'
+        SELECT COUNT(*) as count
+        FROM company_profile
+        WHERE ticker LIKE 'BULK_%'
       `);
 
       expect(parseInt(countResult.rows[0].count)).toBe(100);
@@ -292,15 +292,15 @@ describe("Database Comprehensive Integration Tests", () => {
         transaction(async (client) => {
           await client.query(
             `
-            INSERT INTO stocks (symbol, name, sector, market_cap) 
+            INSERT INTO company_profile (ticker, name, sector, market_cap)
             VALUES ($1, $2, 'Technology', $3)
-            ON CONFLICT (symbol) DO UPDATE SET market_cap = EXCLUDED.market_cap
+            ON CONFLICT (ticker) DO UPDATE SET market_cap = EXCLUDED.market_cap
           `,
             [`CONC${i}`, `Concurrent Test ${i}`, 1000000 + i]
           );
 
           const result = await client.query(
-            "SELECT * FROM stocks WHERE symbol = $1",
+            "SELECT * FROM company_profile WHERE ticker = $1",
             [`CONC${i}`]
           );
 
@@ -312,7 +312,7 @@ describe("Database Comprehensive Integration Tests", () => {
 
       expect(results).toHaveLength(10);
       results.forEach((result, index) => {
-        expect(result.symbol).toBe(`CONC${index}`);
+        expect(result.ticker).toBe(`CONC${index}`);
         expect(parseInt(result.market_cap)).toBe(1000000 + index);
       });
     });
@@ -325,9 +325,9 @@ describe("Database Comprehensive Integration Tests", () => {
       // Insert initial data
       await query(
         `
-        INSERT INTO stocks (symbol, name, sector, market_cap) 
+        INSERT INTO company_profile (ticker, name, sector, market_cap)
         VALUES ($1, 'Integrity Test Co', 'Technology', 1000000)
-        ON CONFLICT (symbol) DO UPDATE SET name = EXCLUDED.name
+        ON CONFLICT (ticker) DO UPDATE SET name = EXCLUDED.name
       `,
         [testSymbol]
       );
@@ -335,15 +335,15 @@ describe("Database Comprehensive Integration Tests", () => {
       // Update the data
       await query(
         `
-        UPDATE stocks 
-        SET market_cap = $2, sector = $3 
-        WHERE symbol = $1
+        UPDATE company_profile
+        SET market_cap = $2, sector = $3
+        WHERE ticker = $1
       `,
         [testSymbol, 2000000, "Healthcare"]
       );
 
       // Verify consistency
-      const result = await query("SELECT * FROM stocks WHERE symbol = $1", [
+      const result = await query("SELECT * FROM company_profile WHERE ticker = $1", [
         testSymbol,
       ]);
 
@@ -357,9 +357,9 @@ describe("Database Comprehensive Integration Tests", () => {
       // We'll test with a simple relationship if it exists
 
       const result = await query(`
-        SELECT column_name, data_type 
-        FROM information_schema.columns 
-        WHERE table_name = 'stocks' 
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_name = 'company_profile'
         ORDER BY ordinal_position
       `);
 
@@ -367,7 +367,7 @@ describe("Database Comprehensive Integration Tests", () => {
 
       // Verify expected columns exist
       const columnNames = result.rows.map((row) => row.column_name);
-      expect(columnNames).toContain("symbol");
+      expect(columnNames).toContain("ticker");
       expect(columnNames).toContain("name");
     });
 
@@ -376,9 +376,9 @@ describe("Database Comprehensive Integration Tests", () => {
 
       await query(
         `
-        INSERT INTO stocks (symbol, name, sector, market_cap) 
+        INSERT INTO company_profile (ticker, name, sector, market_cap)
         VALUES ($1, $2, NULL, NULL)
-        ON CONFLICT (symbol) DO UPDATE SET 
+        ON CONFLICT (ticker) DO UPDATE SET
           name = EXCLUDED.name,
           sector = EXCLUDED.sector,
           market_cap = EXCLUDED.market_cap
@@ -386,11 +386,11 @@ describe("Database Comprehensive Integration Tests", () => {
         [testSymbol, "Null Test Company"]
       );
 
-      const result = await query("SELECT * FROM stocks WHERE symbol = $1", [
+      const result = await query("SELECT * FROM company_profile WHERE ticker = $1", [
         testSymbol,
       ]);
 
-      expect(result.rows[0].symbol).toBe(testSymbol);
+      expect(result.rows[0].ticker).toBe(testSymbol);
       expect(result.rows[0].name).toBe("Null Test Company");
       expect(result.rows[0].sector).toBeNull();
       expect(result.rows[0].market_cap).toBeNull();
@@ -401,8 +401,8 @@ describe("Database Comprehensive Integration Tests", () => {
     test("should query table schema information", async () => {
       const result = await query(`
         SELECT table_name, column_name, data_type, is_nullable
-        FROM information_schema.columns 
-        WHERE table_name IN ('stocks', 'market_data')
+        FROM information_schema.columns
+        WHERE table_name IN ('company_profile', 'market_data')
         ORDER BY table_name, ordinal_position
       `);
 
@@ -410,19 +410,19 @@ describe("Database Comprehensive Integration Tests", () => {
 
       // Verify we have expected tables
       const tableNames = [...new Set(result.rows.map((row) => row.table_name))];
-      expect(tableNames).toEqual(expect.arrayContaining(["stocks"]));
+      expect(tableNames).toEqual(expect.arrayContaining(["company_profile"]));
     });
 
     test("should check database statistics", async () => {
       const result = await query(`
-        SELECT 
+        SELECT
           schemaname,
           relname as tablename,
           n_tup_ins,
           n_tup_upd,
           n_tup_del
-        FROM pg_stat_user_tables 
-        WHERE relname IN ('stocks', 'market_data')
+        FROM pg_stat_user_tables
+        WHERE relname IN ('company_profile', 'market_data')
       `);
 
       // Should return statistics even if tables are empty
@@ -452,27 +452,27 @@ describe("Database Comprehensive Integration Tests", () => {
       // Clean up test data (using IN clause for efficiency)
       const placeholders = testSymbols.map((_, i) => `$${i + 1}`).join(",");
       const deleteResult = await query(
-        `DELETE FROM stocks WHERE symbol IN (${placeholders})`,
+        `DELETE FROM company_profile WHERE ticker IN (${placeholders})`,
         testSymbols
       );
 
       // Also clean up bulk test data
-      await query("DELETE FROM stocks WHERE symbol LIKE 'BULK_%'");
-      await query("DELETE FROM stocks WHERE symbol LIKE 'CONC%'");
+      await query("DELETE FROM company_profile WHERE ticker LIKE 'BULK_%'");
+      await query("DELETE FROM company_profile WHERE ticker LIKE 'CONC%'");
 
       expect(deleteResult.rowCount).toBeGreaterThanOrEqual(0);
     });
 
     test("should verify cleanup completed", async () => {
       const result = await query(`
-        SELECT COUNT(*) as count 
-        FROM stocks 
-        WHERE symbol LIKE 'TEST_%' 
-           OR symbol LIKE 'TRANS_%' 
-           OR symbol LIKE 'NEST%'
-           OR symbol LIKE 'BULK_%'
-           OR symbol LIKE 'CONC%'
-           OR symbol IN ('DUPTEST', 'INTGTEST', 'NULLTEST')
+        SELECT COUNT(*) as count
+        FROM company_profile
+        WHERE ticker LIKE 'TEST_%'
+           OR ticker LIKE 'TRANS_%'
+           OR ticker LIKE 'NEST%'
+           OR ticker LIKE 'BULK_%'
+           OR ticker LIKE 'CONC%'
+           OR ticker IN ('DUPTEST', 'INTGTEST', 'NULLTEST')
       `);
 
       expect(parseInt(result.rows[0].count)).toBe(0);

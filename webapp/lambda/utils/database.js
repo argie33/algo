@@ -982,7 +982,7 @@ async function insertInitialData() {
 
     // Insert sample stocks data if the table is empty
     const stocksCountResult = await query(
-      "SELECT COUNT(*) as count FROM stocks"
+      "SELECT COUNT(*) as count FROM company_profile"
     );
     const stocksCount = parseInt(stocksCountResult.rows[0].count);
 
@@ -990,7 +990,7 @@ async function insertInitialData() {
       console.log("Inserting initial stocks data...");
 
       const insertStocksSQL = `
-        INSERT INTO stocks (symbol, name, sector, industry, market_cap, price, dividend_yield, beta, exchange) VALUES
+        INSERT INTO company_profile (ticker, name, sector, industry, market_cap, price, dividend_yield, beta, exchange) VALUES
         ('AAPL', 'Apple Inc.', 'Technology', 'Consumer Electronics', 3000000000000, 177.25, 0.52, 1.28, 'NASDAQ'),
         ('MSFT', 'Microsoft Corporation', 'Technology', 'Software', 2800000000000, 423.80, 0.68, 0.90, 'NASDAQ'),
         ('GOOGL', 'Alphabet Inc.', 'Technology', 'Internet Services', 1800000000000, 144.75, 0.00, 1.05, 'NASDAQ'),

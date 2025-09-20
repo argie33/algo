@@ -4876,7 +4876,7 @@ async function estimatePortfolioVolatility(holdings) {
     try {
       const volQuery = `
         SELECT historical_volatility_20d 
-        FROM technical_indicators 
+        FROM technical_data_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 
         LIMIT 1

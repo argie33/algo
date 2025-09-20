@@ -749,9 +749,14 @@ router.get("/recommendations", async (req, res) => {
            FROM price_daily pd 
            WHERE pd.symbol = lp.symbol 
            AND pd.date >= CURRENT_DATE - INTERVAL '10 days') as momentum_10d
-        FROM latest_prices lp
-        LEFT JOIN technical_indicators ti ON lp.symbol = ti.symbol 
-        AND ti.date = (SELECT MAX(date) FROM technical_indicators WHERE symbol = ti.symbol)
+        FROM (
+          SELECT DISTINCT ON (symbol)
+            symbol, close as current_price, volume, change_amount, change_percent, date
+          FROM price_daily
+          ORDER BY symbol, date DESC
+        ) lp
+        LEFT JOIN technical_data_daily ti ON lp.symbol = ti.symbol 
+        AND ti.date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = ti.symbol)
       ),
       recommendation_scores AS (
         SELECT 
@@ -953,7 +958,7 @@ router.get("/recommendations", async (req, res) => {
       troubleshooting: {
         suggestion:
           "Check database connection and ensure required tables have data",
-        required_tables: ["price_daily", "technical_indicators"],
+        required_tables: ["price_daily", "technical_data_daily"],
         error_details:
           process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
@@ -1015,7 +1020,7 @@ router.get("/momentum", async (req, res) => {
           ti.rsi_14,
           ti.macd
         FROM price_changes pc
-        LEFT JOIN technical_indicators ti ON pc.symbol = ti.symbol AND pc.date = ti.date
+        LEFT JOIN technical_data_daily ti ON pc.symbol = ti.symbol AND pc.date = ti.date
         WHERE pc.price_5d_ago IS NOT NULL 
         AND pc.price_10d_ago IS NOT NULL 
         AND pc.price_20d_ago IS NOT NULL
@@ -1151,7 +1156,7 @@ router.get("/momentum", async (req, res) => {
       troubleshooting: {
         suggestion:
           "Check database connection and ensure price_daily table has recent data",
-        required_tables: ["price_daily", "technical_indicators"],
+        required_tables: ["price_daily", "technical_data_daily"],
         error_details:
           process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
@@ -1979,7 +1984,7 @@ router.get("/technical", async (req, res) => {
       signal: row.signal,
       signal_strength: parseFloat(row.signal_strength).toFixed(2),
       signal_type: "TECHNICAL",
-      technical_indicators: {
+      technical_data_daily: {
         rsi: parseFloat(row.rsi || 0).toFixed(2),
         macd: parseFloat(row.macd || 0).toFixed(4),
         sma_20: parseFloat(row.sma_20 || 0).toFixed(2),
@@ -2138,8 +2143,13 @@ router.get("/ai-signals", authenticateToken, async (req, res) => {
           
           lp.date as timestamp
           
-        FROM latest_prices lp
-        LEFT JOIN technical_indicators ti ON lp.symbol = ti.symbol
+        FROM (
+          SELECT DISTINCT ON (symbol)
+            symbol, close as current_price, volume, change_amount, change_percent, date
+          FROM price_daily
+          ORDER BY symbol, date DESC
+        ) lp
+        LEFT JOIN technical_data_daily ti ON lp.symbol = ti.symbol
         LEFT JOIN market_sentiment ms ON ms.created_at >= CURRENT_DATE - INTERVAL '1 day'
         LEFT JOIN factor_scores fs ON fs.symbol = lp.symbol AND fs.date = lp.date
         WHERE lp.close > 0
@@ -2460,7 +2470,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         COUNT(CASE WHEN ti.macd > 0 THEN 1 END) as bullish_macd_count,
         COUNT(CASE WHEN ti.macd < 0 THEN 1 END) as bearish_macd_count
       FROM price_daily p
-      LEFT JOIN technical_indicators ti ON p.symbol = ti.symbol
+      LEFT JOIN technical_data_daily ti ON p.symbol = ti.symbol
       WHERE p.date >= CURRENT_DATE - INTERVAL '${period === "7d" ? "7 days" : period === "90d" ? "90 days" : "30 days"}'
     `;
 
@@ -2904,7 +2914,7 @@ router.post("/backtest", async (req, res) => {
              bs.signal as signal_type,
              bs.recommendation
       FROM price_daily pd
-      LEFT JOIN technical_indicators ti ON pd.symbol = ti.symbol AND pd.date = ti.date
+      LEFT JOIN technical_data_daily ti ON pd.symbol = ti.symbol AND pd.date = ti.date
       LEFT JOIN buy_sell_daily bs ON pd.symbol = bs.symbol AND pd.date = bs.date
       WHERE pd.symbol = ANY($1::text[]) 
         AND pd.date BETWEEN $2 AND $3

@@ -85,7 +85,7 @@ class AIMarketScanner {
   async momentumAlgorithm(limit, filters) {
     const baseQuery = `
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.volume,
@@ -105,14 +105,14 @@ class AIMarketScanner {
           WHEN pd.close > pd_prev.close * 1.01 AND pd.volume > pd_prev.volume * 1.2 THEN 65
           ELSE 50
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -123,13 +123,13 @@ class AIMarketScanner {
           AND date < (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
+      ) td ON s.ticker = td.symbol
       WHERE pd.close IS NOT NULL 
         AND pd_prev.close IS NOT NULL
         AND pd.close > pd_prev.close * 1.01
@@ -168,7 +168,7 @@ class AIMarketScanner {
   async reversalAlgorithm(limit, filters) {
     const baseQuery = `
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.volume,
@@ -188,14 +188,14 @@ class AIMarketScanner {
           WHEN pd.close < pd_prev.close * 0.98 AND pd.volume > pd_prev.volume * 1.3 THEN 60
           ELSE 50
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -206,13 +206,13 @@ class AIMarketScanner {
           AND date < (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
+      ) td ON s.ticker = td.symbol
       WHERE pd.close IS NOT NULL 
         AND pd_prev.close IS NOT NULL
         AND pd.close < pd_prev.close * 0.98
@@ -252,7 +252,7 @@ class AIMarketScanner {
   async breakoutAlgorithm(limit, filters) {
     const baseQuery = `
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.high,
@@ -272,14 +272,14 @@ class AIMarketScanner {
           WHEN pd.close > pd.open * 1.02 AND pd.volume > pd_prev.volume * 1.3 THEN 72
           ELSE 60
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -290,13 +290,13 @@ class AIMarketScanner {
           AND date < (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
+      ) td ON s.ticker = td.symbol
       WHERE pd.close IS NOT NULL 
         AND pd_prev.close IS NOT NULL
         AND pd.close >= pd.high * 0.97
@@ -338,7 +338,7 @@ class AIMarketScanner {
   async unusualActivityAlgorithm(limit, filters) {
     const baseQuery = `
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.volume,
@@ -358,14 +358,14 @@ class AIMarketScanner {
           WHEN pd.volume > pd_avg.avg_volume * 2 THEN 68
           ELSE 50
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -376,7 +376,7 @@ class AIMarketScanner {
           AND date < (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT 
           symbol,
@@ -384,7 +384,7 @@ class AIMarketScanner {
         FROM price_daily
         WHERE date >= (SELECT MAX(date) FROM price_daily) - INTERVAL '30 days'
         GROUP BY symbol
-      ) pd_avg ON s.symbol = pd_avg.symbol
+      ) pd_avg ON s.ticker = pd_avg.symbol
       WHERE pd.volume IS NOT NULL
         AND (pd_prev.volume IS NOT NULL OR pd_avg.avg_volume IS NOT NULL)
         AND (
@@ -425,7 +425,7 @@ class AIMarketScanner {
   async earningsAlgorithm(limit, filters) {
     const baseQuery = `
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         pd.volume,
@@ -444,14 +444,14 @@ class AIMarketScanner {
           WHEN er.report_date >= CURRENT_DATE - INTERVAL '2 days' THEN 65
           ELSE 55
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -462,13 +462,13 @@ class AIMarketScanner {
           AND date < (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM earnings_reports
         WHERE report_date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, report_date DESC
-      ) er ON s.symbol = er.symbol
+      ) er ON s.ticker = er.symbol
       WHERE er.report_date IS NOT NULL
         AND pd.close IS NOT NULL
         AND (er.surprise_percent > 0 OR er.report_date >= CURRENT_DATE - INTERVAL '2 days')
@@ -509,7 +509,7 @@ class AIMarketScanner {
   async newsSentimentAlgorithm(limit, filters) {
     const baseQuery = `
       SELECT DISTINCT
-        s.symbol,
+        s.ticker,
         COALESCE(cp.name, s.name) as company_name,
         pd.close as price,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
@@ -525,14 +525,14 @@ class AIMarketScanner {
           WHEN n.sentiment > 0.4 AND n.sentiment_confidence > 0.5 THEN 65
           ELSE 55
         END as ai_score
-      FROM stocks s
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      FROM company_profile s
+      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
@@ -543,14 +543,14 @@ class AIMarketScanner {
           AND date < (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
         )
         ORDER BY symbol, date DESC
-      ) pd_prev ON s.symbol = pd_prev.symbol
+      ) pd_prev ON s.ticker = pd_prev.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) 
           symbol, sentiment, sentiment_confidence, headline, published_at
         FROM news
         WHERE published_at >= CURRENT_DATE - INTERVAL '2 days'
         ORDER BY symbol, published_at DESC
-      ) n ON s.symbol = n.symbol
+      ) n ON s.ticker = n.symbol
       WHERE n.sentiment IS NOT NULL
         AND n.sentiment > 0.3
         AND pd.close IS NOT NULL

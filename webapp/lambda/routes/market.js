@@ -98,9 +98,9 @@ router.get("/data", async (req, res) => {
     } else if (tableStatus.stocks) {
       // Fallback to stocks table
       const stocksResult = await query(`
-        SELECT symbol, current_price, volume, 
+        SELECT ticker as symbol, current_price, volume,
                change_amount, change_percent
-        FROM stocks 
+        FROM company_profile
         WHERE current_price IS NOT NULL
         ORDER BY volume DESC NULLS LAST
         LIMIT 50
@@ -831,10 +831,16 @@ router.get("/overview", async (req, res) => {
         SELECT
           lp.symbol,
           COALESCE(ss.security_name, lp.symbol) as name,
-          lp.current_price as price,
+          lp.price,
           lp.calculated_change as change,
           lp.calculated_change_percent as changePercent
-        FROM latest_prices lp
+        FROM (
+          SELECT DISTINCT ON (symbol)
+            symbol, close as price, volume, change_amount, change_percent,
+            close as calculated_change, change_percent as calculated_change_percent
+          FROM price_daily
+          ORDER BY symbol, date DESC
+        ) lp
         LEFT JOIN stock_symbols ss ON lp.symbol = ss.symbol
         ORDER BY lp.symbol
       `;
@@ -1063,7 +1069,7 @@ router.get("/sectors/performance", async (req, res) => {
         SUM(pd.volume) as total_volume,
         AVG(s.market_cap) as avg_market_cap
       FROM price_daily pd
-      JOIN stocks s ON pd.symbol = s.symbol
+      JOIN company_profile s ON pd.symbol = s.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily)
         AND s.sector IS NOT NULL
         AND s.sector != ''
@@ -1827,7 +1833,7 @@ router.get("/sectors", async (req, res) => {
           AVG(s.market_cap) as avg_market_cap,
           0.0 as performance_1d,
           0 as total_volume
-        FROM stocks s
+        FROM company_profile s
         WHERE s.sector IS NOT NULL
           AND s.sector != ''
         GROUP BY s.sector
@@ -2010,7 +2016,7 @@ router.get("/indicators", async (req, res) => {
         s.sector,
         pd.date
       FROM price_daily pd
-      JOIN stocks s ON pd.symbol = s.symbol
+      JOIN company_profile s ON pd.symbol = s.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily)
       ORDER BY pd.symbol
     `;
@@ -5229,9 +5235,9 @@ router.get("/trending", async (req, res) => {
           p.change_percent,
           p.volume,
           p.date
-        FROM stocks s
-        JOIN price_daily p ON s.symbol = p.symbol
-        WHERE p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)
+        FROM company_profile s
+        JOIN price_daily p ON s.ticker = p.symbol
+        WHERE p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.ticker)
         AND p.volume > 1000000  -- High volume threshold
         ORDER BY (p.volume * ABS(p.change_percent)) DESC  -- Trending score
         LIMIT $1

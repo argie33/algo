@@ -252,7 +252,7 @@ describe("Logger", () => {
 
   describe("Specialized Logging Methods", () => {
     test("should log database operations", () => {
-      logger.database("SELECT * FROM stocks", { table: "stocks" });
+      logger.database("SELECT * FROM company_profile", { table: "company_profile" });
 
       expect(consoleSpy).toHaveBeenCalled();
     });

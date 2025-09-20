@@ -616,7 +616,12 @@ router.get("/quotes", async (req, res) => {
           -- Market sentiment
           COALESCE(ms.value, 0.5) as market_sentiment,
           lp.date as last_updated
-        FROM latest_prices lp
+        FROM (
+          SELECT DISTINCT ON (symbol)
+            symbol, close as current_price, volume, change_amount, change_percent, date
+          FROM price_daily
+          ORDER BY symbol, date DESC
+        ) lp
         LEFT JOIN technical_indicators ti ON lp.symbol = ti.symbol
         LEFT JOIN market_sentiment ms ON ms.created_at >= CURRENT_DATE - INTERVAL '1 day'
       )
@@ -1027,14 +1032,14 @@ router.get("/stream", authenticateToken, async (req, res) => {
       try {
         // Get latest prices from database for streaming symbols
         const streamQuery = `
-          SELECT DISTINCT ON (s.symbol)
-            s.symbol,
+          SELECT DISTINCT ON (s.ticker)
+            s.ticker as symbol,
             s.price as close,
             0 as volume,
             CURRENT_TIMESTAMP as date
-          FROM stocks s
-          WHERE s.symbol = ANY($1)
-          ORDER BY s.symbol
+          FROM company_profile s
+          WHERE s.ticker = ANY($1)
+          ORDER BY s.ticker
         `;
 
         const result = await query(streamQuery, [symbolList]);
