@@ -496,52 +496,224 @@ router.get("/ping", (req, res) => {
   });
 });
 
-// Get comprehensive market overview with sentiment indicators (OPTIMIZED)
+// Get comprehensive market overview using real loader table structures
 router.get("/overview", async (req, res) => {
-  console.log("Market overview endpoint called - MINIMAL DEBUG VERSION");
+  console.log("Market overview endpoint called - REAL LOADER TABLES");
 
   try {
-    // Return minimal working response immediately to test basic functionality
-    const responseData = {
-      indices: [
-        {
-          symbol: "SPY",
-          name: "SPDR S&P 500 ETF",
-          price: 450.00,
-          change: 2.50,
-          changePercent: 0.56
-        }
-      ],
-      sentiment_indicators: {
-        fear_greed: {
-          value: 50,
-          value_text: "Neutral",
-          timestamp: new Date().toISOString()
-        }
-      },
-      market_breadth: {
-        total_stocks: 3000,
-        advancing: 1500,
-        declining: 1200,
-        unchanged: 300,
-        advance_decline_ratio: "1.25",
-        average_change_percent: "0.25"
-      },
-      market_cap: {
-        large_cap: 35000000000000,
-        mid_cap: 7500000000000,
-        small_cap: 2500000000000,
-        total: 45000000000000
-      },
-      economic_indicators: [],
-      debug: {
-        version: "minimal_fallback",
-        reason: "investigating_timeout_issue",
-        timestamp: new Date().toISOString()
-      }
-    };
+    const startTime = Date.now();
+    let sentimentIndicators = {};
+    let indices = [];
+    let marketBreadth = {};
+    let marketCap = {};
+    let economicIndicators = [];
 
-    console.log("Market overview completed successfully - minimal fallback response");
+    // Query 1: Fear & Greed Index from loadfeargreed.py table
+    try {
+      const fearGreedResult = await query(`
+        SELECT index_value as value,
+          CASE
+            WHEN index_value >= 75 THEN 'Extreme Greed'
+            WHEN index_value >= 55 THEN 'Greed'
+            WHEN index_value >= 45 THEN 'Neutral'
+            WHEN index_value >= 25 THEN 'Fear'
+            ELSE 'Extreme Fear'
+          END as value_text,
+          date as timestamp
+        FROM fear_greed_index
+        ORDER BY date DESC
+        LIMIT 1
+      `);
+
+      if (fearGreedResult.rows.length > 0) {
+        const fg = fearGreedResult.rows[0];
+        sentimentIndicators.fear_greed = {
+          value: fg.value,
+          value_text: fg.value_text,
+          timestamp: fg.timestamp
+        };
+      }
+    } catch (e) {
+      console.error("Fear & Greed query failed:", e.message);
+    }
+
+    // Query 2: NAAIM data from loadnaaim.py table
+    try {
+      const naaimResult = await query(`
+        SELECT naaim_number_mean as average,
+          bullish as bullish_8100,
+          bearish,
+          date as week_ending
+        FROM naaim
+        ORDER BY date DESC
+        LIMIT 1
+      `);
+
+      if (naaimResult.rows.length > 0) {
+        const naaim = naaimResult.rows[0];
+        sentimentIndicators.naaim = {
+          average: naaim.average,
+          bullish_8100: naaim.bullish_8100,
+          bearish: naaim.bearish,
+          week_ending: naaim.week_ending
+        };
+      }
+    } catch (e) {
+      console.error("NAAIM query failed:", e.message);
+    }
+
+    // Query 3: AAII sentiment from loadaaiidata.py table
+    try {
+      const aaiiResult = await query(`
+        SELECT bullish, neutral, bearish, date
+        FROM aaii_sentiment
+        ORDER BY date DESC
+        LIMIT 1
+      `);
+
+      if (aaiiResult.rows.length > 0) {
+        sentimentIndicators.aaii = {
+          bullish: aaiiResult.rows[0].bullish,
+          neutral: aaiiResult.rows[0].neutral,
+          bearish: aaiiResult.rows[0].bearish,
+          date: aaiiResult.rows[0].date
+        };
+      }
+    } catch (e) {
+      console.error("AAII query failed:", e.message);
+    }
+
+    // Query 4: Market indices from market_data table (loadmarket.py)
+    try {
+      const indicesResult = await query(`
+        SELECT symbol, name, price,
+          (price - LAG(price) OVER (PARTITION BY symbol ORDER BY date)) as change,
+          ((price - LAG(price) OVER (PARTITION BY symbol ORDER BY date)) / LAG(price) OVER (PARTITION BY symbol ORDER BY date) * 100) as changePercent
+        FROM market_data
+        WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
+        AND date = (SELECT MAX(date) FROM market_data WHERE symbol = market_data.symbol)
+        ORDER BY symbol
+      `);
+
+      indices = indicesResult.rows.map(row => ({
+        symbol: row.symbol,
+        name: row.name || row.symbol,
+        price: parseFloat(row.price) || 0,
+        change: parseFloat(row.change) || 0,
+        changePercent: parseFloat(row.changepercent) || 0
+      }));
+    } catch (e) {
+      console.error("Indices query failed:", e.message);
+      // Fallback to price_daily table if market_data doesn't work
+      try {
+        const priceResult = await query(`
+          SELECT DISTINCT ON (symbol)
+            symbol,
+            close as price,
+            (close - open) as change,
+            CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as changePercent
+          FROM price_daily
+          WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
+          ORDER BY symbol, date DESC
+        `);
+
+        indices = priceResult.rows.map(row => ({
+          symbol: row.symbol,
+          name: row.symbol,
+          price: parseFloat(row.price) || 0,
+          change: parseFloat(row.change) || 0,
+          changePercent: parseFloat(row.changepercent) || 0
+        }));
+      } catch (e2) {
+        console.error("Price daily fallback failed:", e2.message);
+      }
+    }
+
+    // Query 5: Market breadth from price_daily table (simplified for performance)
+    try {
+      const breadthResult = await query(`
+        SELECT
+          COUNT(*) as total_stocks,
+          COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged
+        FROM price_daily
+        WHERE date = (SELECT MAX(date) FROM price_daily)
+          AND close IS NOT NULL AND open IS NOT NULL
+      `);
+
+      if (breadthResult.rows.length > 0) {
+        const breadth = breadthResult.rows[0];
+        const advancing = parseInt(breadth.advancing) || 0;
+        const declining = parseInt(breadth.declining) || 0;
+
+        marketBreadth = {
+          total_stocks: parseInt(breadth.total_stocks) || 0,
+          advancing: advancing,
+          declining: declining,
+          unchanged: parseInt(breadth.unchanged) || 0,
+          advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : "N/A",
+          average_change_percent: "0.00"
+        };
+      }
+    } catch (e) {
+      console.error("Market breadth query failed:", e.message);
+    }
+
+    // Query 6: Market cap from market_data table (loadmarket.py)
+    try {
+      const marketCapResult = await query(`
+        SELECT
+          SUM(CASE WHEN market_cap >= 10000000000 THEN market_cap ELSE 0 END) as large_cap,
+          SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
+          SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
+          SUM(market_cap) as total
+        FROM market_data
+        WHERE market_cap IS NOT NULL AND market_cap > 0
+      `);
+
+      if (marketCapResult.rows.length > 0 && marketCapResult.rows[0].total > 0) {
+        const cap = marketCapResult.rows[0];
+        marketCap = {
+          large_cap: parseFloat(cap.large_cap) || 0,
+          mid_cap: parseFloat(cap.mid_cap) || 0,
+          small_cap: parseFloat(cap.small_cap) || 0,
+          total: parseFloat(cap.total) || 0
+        };
+      }
+    } catch (e) {
+      console.error("Market cap query failed:", e.message);
+    }
+
+    // Query 7: Economic indicators from loadecondata.py table
+    try {
+      const economicResult = await query(`
+        SELECT series_id as name, value, 'Index' as unit, date as timestamp
+        FROM economic_data
+        ORDER BY date DESC
+        LIMIT 10
+      `);
+
+      economicIndicators = economicResult.rows.map(row => ({
+        name: row.name,
+        value: row.value,
+        unit: row.unit,
+        timestamp: row.timestamp
+      }));
+    } catch (e) {
+      console.error("Economic query failed:", e.message);
+    }
+
+    const totalTime = Date.now() - startTime;
+    console.log(`Market overview completed in ${totalTime}ms using real loader tables`);
+
+    const responseData = {
+      indices: indices,
+      sentiment_indicators: sentimentIndicators,
+      market_breadth: marketBreadth,
+      market_cap: marketCap,
+      economic_indicators: economicIndicators,
+    };
 
     res.json({
       success: true,
