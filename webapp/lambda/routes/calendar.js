@@ -87,22 +87,22 @@ router.get("/earnings", async (req, res) => {
 
     // Add symbol filter if provided
     if (symbol) {
-      whereClause += ` AND symbol = $${paramIndex}`;
+      whereClause += ` AND eh.symbol = $${paramIndex}`;
       params.push(symbol.toUpperCase());
       paramIndex++;
     }
 
     // Add date range filter
     if (start_date && end_date) {
-      whereClause += ` AND report_date >= $${paramIndex} AND report_date <= $${paramIndex + 1}`;
+      whereClause += ` AND eh.date >= $${paramIndex} AND eh.date <= $${paramIndex + 1}`;
       params.push(start_date, end_date);
       paramIndex += 2;
     } else {
       // Default to upcoming earnings (next N days)
-      whereClause += ` AND report_date >= CURRENT_DATE AND report_date <= CURRENT_DATE + INTERVAL '${parsedDaysAhead} days'`;
+      whereClause += ` AND eh.date >= CURRENT_DATE AND eh.date <= CURRENT_DATE + INTERVAL '${parsedDaysAhead} days'`;
     }
 
-    whereClause += ` ORDER BY report_date ASC, symbol ASC LIMIT $${paramIndex}`;
+    whereClause += ` ORDER BY eh.date ASC, eh.symbol ASC LIMIT $${paramIndex}`;
     params.push(parsedLimit);
 
     // Use actual earnings_history table from yfinance loaders
@@ -110,15 +110,15 @@ router.get("/earnings", async (req, res) => {
       `
       SELECT
         eh.symbol,
-        eh.quarter as report_date,
-        eh.eps_actual,
+        eh.date as report_date,
+        eh.eps_reported as eps_actual,
         eh.eps_estimate,
-        eh.eps_difference,
+        (eh.eps_reported - eh.eps_estimate) as eps_difference,
         eh.surprise_percent,
-        EXTRACT(QUARTER FROM eh.quarter) as quarter,
-        EXTRACT(YEAR FROM eh.quarter) as year
+        eh.quarter,
+        eh.year
       FROM earnings_history eh
-      ${whereClause.replace('report_date', 'eh.quarter')}
+      ${whereClause}
       `,
       params
     );
@@ -369,7 +369,9 @@ router.get("/events", async (req, res) => {
         break;
       case "upcoming":
       default:
-        whereClause += ` AND er.report_date >= CURRENT_DATE`;
+        // For earnings, we can't filter by future dates since quarter is just a number
+        // Instead, we'll show all earnings and let the frontend handle filtering
+        whereClause += ` AND eh.quarter IS NOT NULL`;
         break;
     }
 
@@ -381,14 +383,14 @@ router.get("/events", async (req, res) => {
         'earnings' as event_type,
         eh.quarter as start_date,
         eh.quarter as end_date,
-        CONCAT('Q', EXTRACT(QUARTER FROM eh.quarter), ' ', EXTRACT(YEAR FROM eh.quarter), ' Earnings Report') as title,
+        CONCAT('Q', eh.quarter, ' Earnings Report') as title,
         cp.short_name as company_name,
         eh.eps_estimate,
         eh.eps_actual as eps_reported,
         NULL as revenue
       FROM earnings_history eh
       LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
-      ${whereClause.replace(/er\./g, 'eh.').replace('report_date', 'quarter')}
+      ${whereClause.replace(/er\./g, 'eh.')}
       ORDER BY eh.quarter ASC
       LIMIT $1 OFFSET $2
     `;
@@ -396,7 +398,7 @@ router.get("/events", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM earnings_history eh
-      ${whereClause.replace(/er\./g, 'eh.').replace('report_date', 'quarter')}
+      ${whereClause.replace(/er\./g, 'eh.')}
     `;
     console.log("Executing queries with limit:", limit, "offset:", offset);
 

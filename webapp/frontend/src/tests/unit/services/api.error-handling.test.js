@@ -23,12 +23,26 @@ const mockAxiosInstance = {
   },
 };
 
-// Don't mock the API module - we want to test the actual error handling logic
-// Just mock axios to control network responses
+// Mock only the necessary parts - use real API functions with mocked axios
+vi.mock("../../../services/api.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    // Keep all original exports, just mock axios underneath
+  };
+});
 
-// Import is needed for module mocking but not used in tests
-
-import _api from "../../../services/api.js";
+// Import the API functions after mocking
+const {
+  fetchPortfolioHoldings,
+  fetchMarketOverview,
+  fetchStockData,
+  fetchTechnicalData,
+  fetchPortfolioPerformance,
+  fetchMarketData,
+  fetchEarningsData,
+  fetchHistoricalData,
+} = await import("../../../services/api.js");
 
 describe("API Service - Error Handling Tests", () => {
   beforeEach(() => {

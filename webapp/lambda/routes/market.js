@@ -87,19 +87,18 @@ router.get("/data", async (req, res) => {
 
     if (tableStatus.market_data) {
       const marketResult = await query(`
-        SELECT symbol,
-               name,
-               price as current_price,
-               return_1d * 100 as change_percent,
-               CASE WHEN price IS NOT NULL AND return_1d IS NOT NULL
-                    THEN price * return_1d
-                    ELSE 0 END as change_amount,
-               volume,
-               market_cap,
-               date
-        FROM market_data
-        WHERE price IS NOT NULL AND date = (SELECT MAX(date) FROM market_data)
-        ORDER BY market_cap DESC NULLS LAST
+        SELECT
+               md.ticker as symbol,
+               COALESCE(cp.short_name, md.ticker) as name,
+               md.current_price,
+               COALESCE(md.post_market_change_pct, 0) as change_percent,
+               COALESCE(md.post_market_change, 0) as change_amount,
+               md.volume,
+               md.market_cap
+        FROM market_data md
+        LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+        WHERE md.current_price IS NOT NULL
+        ORDER BY md.market_cap DESC NULLS LAST
         LIMIT 50
       `);
       marketData = marketResult.rows || [];
@@ -204,7 +203,7 @@ router.get("/summary", async (req, res) => {
 
     const indices = indicesResult.rows.map((row) => ({
       symbol: row.symbol,
-      price: parseFloat(row.close).toFixed(2),
+      price: parseFloat(row.close || 0).toFixed(2),
       change: parseFloat(row.change_amount || 0).toFixed(2),
       change_percent: parseFloat(row.change_percent || 0).toFixed(2),
       volume: parseInt(row.volume || 0),
@@ -586,13 +585,19 @@ router.get("/overview", async (req, res) => {
     // Query 4: Market indices from market_data table (loadmarket.py)
     try {
       const indicesResult = await query(`
-        SELECT symbol, name, price,
-          (price - LAG(price) OVER (PARTITION BY symbol ORDER BY date)) as change,
-          ((price - LAG(price) OVER (PARTITION BY symbol ORDER BY date)) / LAG(price) OVER (PARTITION BY symbol ORDER BY date) * 100) as changePercent
-        FROM market_data
-        WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
-        AND date = (SELECT MAX(date) FROM market_data WHERE symbol = market_data.symbol)
-        ORDER BY symbol
+        SELECT
+          md.ticker as symbol,
+          COALESCE(cp.short_name, md.ticker) as name,
+          md.current_price as price,
+          (md.current_price - md.previous_close) as change,
+          CASE
+            WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
+            ELSE 0
+          END as changePercent
+        FROM market_data md
+        LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+        WHERE md.ticker IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
+        ORDER BY md.ticker
       `);
 
       indices = indicesResult.rows.map(row => ({
@@ -2611,26 +2616,26 @@ router.get("/research-indicators", async (req, res) => {
 
     try {
       const highsResult = await query(`
-        SELECT COUNT(*) as count 
-        FROM price_daily 
-        WHERE date = CURRENT_DATE 
-        AND close >= (
-          SELECT MAX(close) 
-          FROM price_daily 
-          WHERE symbol = market_data.symbol 
-          AND date >= CURRENT_DATE - INTERVAL '52 weeks'
+        SELECT COUNT(DISTINCT p1.symbol) as count
+        FROM price_daily p1
+        WHERE p1.date = CURRENT_DATE
+        AND p1.close >= (
+          SELECT MAX(p2.close)
+          FROM price_daily p2
+          WHERE p2.symbol = p1.symbol
+          AND p2.date >= CURRENT_DATE - INTERVAL '52 weeks'
         )
       `);
 
       const lowsResult = await query(`
-        SELECT COUNT(*) as count 
-        FROM price_daily 
-        WHERE date = CURRENT_DATE 
-        AND close <= (
-          SELECT MIN(close) 
-          FROM price_daily 
-          WHERE symbol = market_data.symbol 
-          AND date >= CURRENT_DATE - INTERVAL '52 weeks'
+        SELECT COUNT(DISTINCT p1.symbol) as count
+        FROM price_daily p1
+        WHERE p1.date = CURRENT_DATE
+        AND p1.close <= (
+          SELECT MIN(p2.close)
+          FROM price_daily p2
+          WHERE p2.symbol = p1.symbol
+          AND p2.date >= CURRENT_DATE - INTERVAL '52 weeks'
         )
       `);
 
@@ -5342,12 +5347,12 @@ router.get("/indices", async (req, res) => {
     let result;
     if (symbol) {
       result = await query(
-        "SELECT * FROM market_data WHERE UPPER(symbol) = UPPER($1)",
+        "SELECT * FROM market_data WHERE UPPER(ticker) = UPPER($1)",
         [symbol]
       );
     } else {
       result = await query(
-        "SELECT * FROM market_data ORDER BY symbol LIMIT 50"
+        "SELECT * FROM market_data ORDER BY ticker LIMIT 50"
       );
     }
 
@@ -5384,11 +5389,11 @@ router.get("/sectors", async (req, res) => {
 
     // Query sector performance data
     const result = await query(`
-      SELECT 
+      SELECT
         sector,
         COUNT(*) as stock_count,
         AVG(current_price) as avg_price,
-        AVG(COALESCE(change_percent, 0)) as avg_change_percent,
+        AVG(COALESCE(md.post_market_change_pct, 0)) as avg_change_percent,
         SUM(volume) as total_volume
       FROM market_data md
       JOIN company_profile cp ON md.ticker = cp.ticker
@@ -5557,6 +5562,109 @@ router.post("/commentary/subscribe", async (req, res) => {
       success: false,
       error: "Failed to subscribe to commentary",
       message: error.message,
+    });
+  }
+});
+
+// Live market data endpoint
+router.get("/live", async (req, res) => {
+  try {
+    const { symbols } = req.query;
+    console.log(`📈 Live market data requested for symbols: ${symbols || 'none'}`);
+
+    if (!symbols) {
+      return res.status(400).json({
+        success: false,
+        error: "symbols parameter is required"
+      });
+    }
+
+    const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
+
+    // Get current price data from market_data table
+    const result = await query(`
+      SELECT
+        md.ticker as symbol,
+        md.current_price as price,
+        md.post_market_change as change,
+        md.post_market_change_pct as change_percent,
+        md.volume,
+        COALESCE(cp.short_name, md.ticker) as name
+      FROM market_data md
+      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+      WHERE md.ticker = ANY($1)
+    `, [symbolList]);
+
+    res.json({
+      success: true,
+      data: result.rows || [],
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Live market data error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch live market data",
+      message: error.message
+    });
+  }
+});
+
+// Historical market data endpoint (query parameter version)
+router.get("/historical", async (req, res) => {
+  try {
+    const { symbols, start_date, end_date } = req.query;
+    console.log(`📊 Historical market data requested for symbols: ${symbols || 'none'}`);
+
+    if (!symbols) {
+      return res.status(400).json({
+        success: false,
+        error: "symbols parameter is required"
+      });
+    }
+
+    const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
+
+    // Build query with optional date filters
+    let query_text = `
+      SELECT
+        symbol,
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume
+      FROM price_daily
+      WHERE symbol = ANY($1)
+    `;
+    const params = [symbolList];
+
+    if (start_date) {
+      params.push(start_date);
+      query_text += ` AND date >= $${params.length}`;
+    }
+
+    if (end_date) {
+      params.push(end_date);
+      query_text += ` AND date <= $${params.length}`;
+    }
+
+    query_text += ` ORDER BY symbol, date DESC`;
+
+    const result = await query(query_text, params);
+
+    res.json({
+      success: true,
+      data: result.rows || [],
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Historical market data error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch historical market data",
+      message: error.message
     });
   }
 });

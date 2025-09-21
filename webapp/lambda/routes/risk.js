@@ -1638,15 +1638,16 @@ router.post("/analyze", async (req, res) => {
 
     // Get price volatility data for the symbols
     const volatilityQuery = `
-      SELECT 
+      SELECT
         symbol,
-        stddev(price) as price_volatility,
-        avg(price) as avg_price,
-        min(price) as min_price,
-        max(price) as max_price,
+        stddev(close) as price_volatility,
+        avg(close) as avg_price,
+        min(close) as min_price,
+        max(close) as max_price,
         count(*) as data_points
-      FROM company_profile
-      WHERE ticker = ANY($1)
+      FROM price_daily
+      WHERE symbol = ANY($1)
+      AND date >= CURRENT_DATE - INTERVAL '90 days'
       GROUP BY symbol
     `;
 

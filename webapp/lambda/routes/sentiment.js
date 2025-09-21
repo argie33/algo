@@ -73,7 +73,7 @@ router.get("/analysis", async (req, res) => {
       FROM news_articles
       WHERE sentiment IS NOT NULL
         AND (symbols @> ARRAY[$1] OR $1 = ANY(symbols))
-        AND published_at >= NOW() - INTERVAL $2 * interval '1 day'
+        AND published_at >= NOW() - INTERVAL '$2 days'
       ORDER BY published_at DESC
       LIMIT 100
       `,
@@ -503,79 +503,71 @@ router.get("/social/reddit", async (req, res) => {
       `🔗 Reddit sentiment requested - symbol: ${symbol || "all"}, limit: ${limit}, sort: ${sort}`
     );
 
-    // Generate Reddit-specific sentiment data
-    const generateRedditSentiment = (targetSymbol, maxResults, sortBy) => {
-      const subreddits = [
-        "wallstreetbets",
-        "stocks",
-        "investing",
-        "SecurityAnalysis",
-        "ValueInvesting",
-      ];
-      const symbols = targetSymbol
-        ? [targetSymbol.toUpperCase()]
-        : ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "META", "AMZN", "NFLX"];
+    // Query real Reddit sentiment data from database
+    const { query } = require("../utils/database");
 
-      const posts = [];
+    let redditQuery = `
+      SELECT
+        id, symbol, subreddit, title, author, upvotes, downvotes,
+        comments, sentiment_score, sentiment_label, created_utc,
+        url, flair, mention_count
+      FROM reddit_sentiment
+      WHERE 1=1
+    `;
+    const queryParams = [];
+    let paramCount = 0;
 
-      symbols.forEach((sym) => {
-        for (let i = 0; i < Math.min(maxResults / symbols.length, 10); i++) {
-          const subreddit =
-            subreddits[Math.floor(Math.random() * subreddits.length)];
-          const sentiment = Math.random();
-          const upvotes = Math.floor(Math.random() * 5000) + 10;
-          const comments = Math.floor(Math.random() * 500) + 1;
+    if (symbol) {
+      paramCount++;
+      redditQuery += ` AND symbol = $${paramCount}`;
+      queryParams.push(symbol.toUpperCase());
+    }
 
-          posts.push({
-            id: `reddit_${sym.toLowerCase()}_${i}_${Date.now()}`,
-            symbol: sym,
-            subreddit: subreddit,
-            title: `Discussion about ${sym} - ${sentiment > 0.6 ? "Bullish" : sentiment < 0.4 ? "Bearish" : "Mixed"} sentiment`,
-            author: `u/trader${Math.floor(Math.random() * 9999)}`,
-            upvotes: upvotes,
-            downvotes: Math.floor(upvotes * (Math.random() * 0.3)),
-            comments: comments,
-            sentiment_score: parseFloat(sentiment.toFixed(3)),
-            sentiment_label:
-              sentiment > 0.6
-                ? "positive"
-                : sentiment < 0.4
-                  ? "negative"
-                  : "neutral",
-            created_utc:
-              Math.floor(Date.now() / 1000) -
-              Math.floor(Math.random() * 86400 * 7),
-            url: `https://reddit.com/r/${subreddit}/comments/sample_${i}`,
-            flair:
-              Math.random() > 0.7
-                ? ["DD", "YOLO", "Discussion", "News"][
-                    Math.floor(Math.random() * 4)
-                  ]
-                : null,
-            mention_count: Math.floor(Math.random() * 20) + 1,
-          });
-        }
-      });
-
-      // Sort posts
-      if (sortBy === "sentiment") {
-        posts.sort((a, b) => b.sentiment_score - a.sentiment_score);
-      } else if (sortBy === "engagement") {
-        posts.sort((a, b) => b.upvotes + b.comments - (a.upvotes + a.comments));
-      } else {
-        posts.sort((a, b) => b.created_utc - a.created_utc);
-      }
-
-      return posts.slice(0, maxResults);
+    // Add sorting
+    const sortOptions = {
+      relevance: "mention_count DESC, upvotes DESC",
+      sentiment: "sentiment_score DESC",
+      engagement: "(upvotes + comments) DESC",
+      recent: "created_utc DESC"
     };
+    redditQuery += ` ORDER BY ${sortOptions[sort] || sortOptions.relevance}`;
 
-    const redditData = generateRedditSentiment(symbol, parseInt(limit), sort);
+    paramCount++;
+    redditQuery += ` LIMIT $${paramCount}`;
+    queryParams.push(parseInt(limit));
+
+    const result = await query(redditQuery, queryParams);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No Reddit sentiment data found",
+        message: "No Reddit sentiment data available for the specified criteria"
+      });
+    }
+
+    const redditData = result.rows;
 
     res.json({
       success: true,
       platform: "reddit",
       data: {
-        posts: redditData,
+        posts: redditData.map(row => ({
+          id: row.id,
+          symbol: row.symbol,
+          subreddit: row.subreddit,
+          title: row.title,
+          author: row.author,
+          upvotes: parseInt(row.upvotes) || 0,
+          downvotes: parseInt(row.downvotes) || 0,
+          comments: parseInt(row.comments) || 0,
+          sentiment_score: parseFloat(row.sentiment_score) || 0,
+          sentiment_label: row.sentiment_label,
+          created_utc: row.created_utc,
+          url: row.url,
+          flair: row.flair,
+          mention_count: parseInt(row.mention_count) || 0,
+        })),
         total: redditData.length,
       },
       filters: {
@@ -587,30 +579,22 @@ router.get("/social/reddit", async (req, res) => {
         total_posts: redditData.length,
         avg_sentiment:
           redditData.length > 0
-            ? redditData.reduce((sum, post) => sum + post.sentiment_score, 0) /
+            ? redditData.reduce((sum, post) => sum + (parseFloat(post.sentiment_score) || 0), 0) /
               redditData.length
             : 0,
         by_sentiment: {
-          positive: redditData.filter((p) => p.sentiment_label === "positive")
-            .length,
-          negative: redditData.filter((p) => p.sentiment_label === "negative")
-            .length,
-          neutral: redditData.filter((p) => p.sentiment_label === "neutral")
-            .length,
+          positive: redditData.filter((p) => p.sentiment_label === "positive").length,
+          negative: redditData.filter((p) => p.sentiment_label === "negative").length,
+          neutral: redditData.filter((p) => p.sentiment_label === "neutral").length,
         },
         by_subreddit: redditData.reduce((acc, post) => {
           acc[post.subreddit] = (acc[post.subreddit] || 0) + 1;
           return acc;
         }, {}),
         total_engagement: redditData.reduce(
-          (sum, post) => sum + post.upvotes + post.comments,
+          (sum, post) => sum + (parseInt(post.upvotes) || 0) + (parseInt(post.comments) || 0),
           0
         ),
-      },
-      metadata: {
-        note: "Reddit sentiment data not fully implemented",
-        data_source: "Generated sample data for demo purposes",
-        implementation_status: "requires Reddit API integration",
       },
       timestamp: new Date().toISOString(),
     });

@@ -22,56 +22,6 @@ router.get("/results/:testId", async (req, res) => {
     // Get backtest from store
     let backtest = backtestStore.getBacktest(testId);
 
-    // Special case for "test" ID - return sample data for API testing
-    if (!backtest && testId === "test") {
-      backtest = {
-        id: "test",
-        status: "completed",
-        config: {
-          strategy: "sample_strategy",
-          symbols: ["AAPL", "MSFT"],
-          startDate: "2024-01-01",
-          endDate: "2024-12-31",
-          initialCapital: 100000,
-        },
-        results: {
-          summary: {
-            totalReturn: 15.23,
-            annualizedReturn: 15.23,
-            totalTrades: 45,
-            winRate: 64.4,
-            sharpeRatio: 1.2,
-            maxDrawdown: -8.5,
-            finalValue: 115230,
-          },
-          trades: [
-            {
-              date: "2024-01-15",
-              symbol: "AAPL",
-              type: "buy",
-              quantity: 100,
-              price: 175.5,
-              pnl: 0,
-            },
-            {
-              date: "2024-02-01",
-              symbol: "AAPL",
-              type: "sell",
-              quantity: 100,
-              price: 182.3,
-              pnl: 680,
-            },
-          ],
-          equity: [
-            { date: "2024-01-01", value: 100000 },
-            { date: "2024-06-30", value: 107500 },
-            { date: "2024-12-31", value: 115230 },
-          ],
-        },
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-      };
-    }
 
     if (!backtest) {
       return res.status(404).json({

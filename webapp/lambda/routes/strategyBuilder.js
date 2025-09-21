@@ -565,12 +565,15 @@ router.get("/list", authenticateToken, async (req, res) => {
     // Get user strategies from database and backtest store
     try {
       // Get strategies from database (deployed strategies)
+      // Note: backtest_id and deployment_status columns may not exist in all table versions
       const dbStrategiesQuery = `
-        SELECT 
-          id, strategy_name, strategy_description, backtest_id,
-          deployment_status, created_at, updated_at
-        FROM trading_strategies 
-        WHERE user_id = $1 
+        SELECT
+          id, strategy_name, strategy_description,
+          NULL as backtest_id,
+          COALESCE(status, 'draft') as deployment_status,
+          created_at, updated_at
+        FROM trading_strategies
+        WHERE user_id = $1
         ORDER BY created_at DESC
       `;
 

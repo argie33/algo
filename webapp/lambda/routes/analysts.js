@@ -1305,27 +1305,50 @@ router.get("/:ticker/coverage", async (req, res) => {
     const { ticker } = req.params;
     const tickerUpper = ticker.toUpperCase();
 
+    // Query real analyst coverage data from database
+    const coverageQuery = `
+      SELECT
+        firm, rating, price_target, date_updated
+      FROM analyst_coverage
+      WHERE symbol = $1
+      ORDER BY date_updated DESC
+    `;
+
+    const result = await query(coverageQuery, [tickerUpper]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No analyst coverage data found",
+        message: `No analyst coverage data available for ${tickerUpper}`
+      });
+    }
+
+    // Calculate summary statistics
+    const coverage = result.rows;
+    const totalAnalysts = coverage.length;
+    const buyRatings = coverage.filter(c => c.rating?.toLowerCase().includes('buy')).length;
+    const holdRatings = coverage.filter(c => c.rating?.toLowerCase().includes('hold')).length;
+    const sellRatings = coverage.filter(c => c.rating?.toLowerCase().includes('sell')).length;
+    const avgPriceTarget = coverage.reduce((sum, c) => sum + (parseFloat(c.price_target) || 0), 0) / totalAnalysts;
+
     res.json({
       success: true,
       ticker: tickerUpper,
       data: {
-        total_analysts: 12,
-        buy_ratings: 8,
-        hold_ratings: 3,
-        sell_ratings: 1,
-        strong_buy: 4,
-        coverage_firms: [
-          { firm: "Goldman Sachs", rating: "Buy", price_target: 195 },
-          { firm: "Morgan Stanley", rating: "Buy", price_target: 190 },
-          { firm: "JP Morgan", rating: "Hold", price_target: 180 },
-        ],
-        avg_price_target: 188.33,
+        total_analysts: totalAnalysts,
+        buy_ratings: buyRatings,
+        hold_ratings: holdRatings,
+        sell_ratings: sellRatings,
+        coverage_firms: coverage.map(c => ({
+          firm: c.firm,
+          rating: c.rating,
+          price_target: parseFloat(c.price_target) || 0,
+          date_updated: c.date_updated
+        })),
+        avg_price_target: avgPriceTarget.toFixed(2),
         last_updated: new Date().toISOString(),
-      },
-      metadata: {
-        data_source: "sample_data",
-        note: "This is sample analyst coverage data",
-      },
+      }
     });
   } catch (error) {
     console.error("Analyst coverage error:", error);
@@ -1343,48 +1366,72 @@ router.get("/:ticker/price-targets", async (req, res) => {
     const { ticker } = req.params;
     const tickerUpper = ticker.toUpperCase();
 
+    // Query real price targets from database
+    const priceTargetsQuery = `
+      SELECT
+        firm, price_target, date_updated, action
+      FROM analyst_price_targets
+      WHERE symbol = $1
+      ORDER BY date_updated DESC
+    `;
+
+    const result = await query(priceTargetsQuery, [tickerUpper]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No price target data found",
+        message: `No price target data available for ${tickerUpper}`
+      });
+    }
+
+    // Get current price from price_daily table
+    const currentPriceQuery = `
+      SELECT close as current_price
+      FROM price_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    const priceResult = await query(currentPriceQuery, [tickerUpper]);
+    const currentPrice = priceResult.rows[0]?.current_price || 0;
+
+    // Calculate statistics
+    const targets = result.rows.map(row => parseFloat(row.price_target) || 0);
+    const avgTarget = targets.reduce((sum, target) => sum + target, 0) / targets.length;
+    const highTarget = Math.max(...targets);
+    const lowTarget = Math.min(...targets);
+    const medianTarget = targets.sort((a, b) => a - b)[Math.floor(targets.length / 2)];
+    const upsidePotential = currentPrice > 0 ? ((avgTarget - currentPrice) / currentPrice * 100) : 0;
+
+    // Calculate distribution
+    const distribution = {
+      above_200: targets.filter(t => t > 200).length,
+      "180_200": targets.filter(t => t >= 180 && t <= 200).length,
+      "160_180": targets.filter(t => t >= 160 && t < 180).length,
+      below_160: targets.filter(t => t < 160).length,
+    };
+
     res.json({
       success: true,
       ticker: tickerUpper,
       data: {
-        current_price: 175.43,
-        avg_price_target: 188.33,
-        high_target: 210.0,
-        low_target: 160.0,
-        median_target: 185.0,
-        upside_potential: 7.35,
-        price_targets: [
-          {
-            firm: "Goldman Sachs",
-            target: 195,
-            date: "2024-11-15",
-            action: "Maintain",
-          },
-          {
-            firm: "Morgan Stanley",
-            target: 190,
-            date: "2024-11-12",
-            action: "Upgrade",
-          },
-          {
-            firm: "JP Morgan",
-            target: 180,
-            date: "2024-11-10",
-            action: "Hold",
-          },
-        ],
-        target_distribution: {
-          above_200: 2,
-          "180_200": 7,
-          "160_180": 3,
-          below_160: 0,
-        },
+        current_price: parseFloat(currentPrice).toFixed(2),
+        avg_price_target: avgTarget.toFixed(2),
+        high_target: highTarget.toFixed(2),
+        low_target: lowTarget.toFixed(2),
+        median_target: medianTarget.toFixed(2),
+        upside_potential: upsidePotential.toFixed(2),
+        price_targets: result.rows.map(row => ({
+          firm: row.firm,
+          target: parseFloat(row.price_target) || 0,
+          date: row.date_updated,
+          action: row.action,
+        })),
+        target_distribution: distribution,
         last_updated: new Date().toISOString(),
-      },
-      metadata: {
-        data_source: "sample_data",
-        note: "This is sample price target data",
-      },
+      }
     });
   } catch (error) {
     console.error("Price targets error:", error);
@@ -1401,51 +1448,59 @@ router.get("/research", async (req, res) => {
   try {
     const { symbol, firm, limit = 10 } = req.query;
 
+    // Query real research reports from database
+    let researchQuery = `
+      SELECT
+        id, symbol, firm, title, rating, price_target,
+        published_date, analyst, summary
+      FROM research_reports
+      WHERE 1=1
+    `;
+    const queryParams = [];
+    let paramCount = 0;
+
+    if (symbol) {
+      paramCount++;
+      researchQuery += ` AND symbol = $${paramCount}`;
+      queryParams.push(symbol.toUpperCase());
+    }
+
+    if (firm) {
+      paramCount++;
+      researchQuery += ` AND firm = $${paramCount}`;
+      queryParams.push(firm);
+    }
+
+    paramCount++;
+    researchQuery += ` ORDER BY published_date DESC LIMIT $${paramCount}`;
+    queryParams.push(parseInt(limit));
+
+    const result = await query(researchQuery, queryParams);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No research reports found",
+        message: "No research reports available with the specified criteria"
+      });
+    }
+
     res.json({
       success: true,
-      data: [
-        {
-          id: "research_001",
-          symbol: symbol || "AAPL",
-          firm: firm || "Goldman Sachs",
-          title: "Technology Sector Outlook: Strong Fundamentals",
-          rating: "Buy",
-          price_target: 195,
-          published_date: "2024-11-15",
-          analyst: "John Smith",
-          summary:
-            "Strong quarterly performance and positive forward guidance support our Buy rating",
-        },
-        {
-          id: "research_002",
-          symbol: symbol || "AAPL",
-          firm: firm || "Morgan Stanley",
-          title: "Innovation Pipeline Drives Growth",
-          rating: "Buy",
-          price_target: 190,
-          published_date: "2024-11-12",
-          analyst: "Sarah Johnson",
-          summary:
-            "New product launches and market expansion create multiple growth catalysts",
-        },
-        {
-          id: "research_003",
-          symbol: symbol || "AAPL",
-          firm: firm || "JP Morgan",
-          title: "Maintaining Neutral Stance",
-          rating: "Hold",
-          price_target: 180,
-          published_date: "2024-11-10",
-          analyst: "Michael Chen",
-          summary:
-            "While fundamentals remain solid, valuation appears fairly priced at current levels",
-        },
-      ].slice(0, parseInt(limit)),
+      data: result.rows.map(row => ({
+        id: row.id,
+        symbol: row.symbol,
+        firm: row.firm,
+        title: row.title,
+        rating: row.rating,
+        price_target: parseFloat(row.price_target) || 0,
+        published_date: row.published_date,
+        analyst: row.analyst,
+        summary: row.summary,
+      })),
       metadata: {
-        total_reports: 3,
+        total_reports: result.rows.length,
         filters: { symbol, firm, limit },
-        data_source: "sample_data",
-        note: "This is sample research data",
       },
     });
   } catch (error) {

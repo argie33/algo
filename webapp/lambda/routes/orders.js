@@ -1612,26 +1612,21 @@ router.get("/:orderId", authenticateToken, async (req, res) => {
   console.log(`Order details request for user: ${userId}, order: ${orderId}`);
 
   try {
-    // Validate orderId is a valid integer
+    // Try to parse orderId as integer, but treat invalid format as non-existent (404)
     const orderIdInt = parseInt(orderId, 10);
-    if (isNaN(orderIdInt) || orderIdInt.toString() !== orderId) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid order ID",
-        message: `Order ID must be a valid integer, got: ${orderId}`,
-        orderId: orderId,
-        timestamp: new Date().toISOString(),
-      });
+    let result = null;
+
+    // Only query database if orderId is a valid integer format
+    if (!isNaN(orderIdInt) && orderIdInt.toString() === orderId) {
+      // Get order details
+      const orderQuery = `
+        SELECT * FROM orders
+        WHERE user_id = $1 AND id = $2
+        ORDER BY created_at DESC
+      `;
+
+      result = await query(orderQuery, [userId, orderIdInt]);
     }
-
-    // Get order details
-    const orderQuery = `
-      SELECT * FROM orders
-      WHERE user_id = $1 AND id = $2
-      ORDER BY created_at DESC
-    `;
-
-    const result = await query(orderQuery, [userId, orderIdInt]);
 
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({

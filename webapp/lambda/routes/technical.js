@@ -512,15 +512,54 @@ router.get("/chart/:symbol", async (req, res) => {
       });
     }
 
-    // Should query actual chart data from database instead of generating mock data
-    return res.status(404).json({
-      success: false,
-      error: "Chart data not available",
-      message: `No chart data found for symbol ${symbolUpper} with the specified parameters`,
-      symbol: symbolUpper,
-      period: period,
-      interval: interval,
-      include_volume: include_volume === "true"
+    // Query actual chart data from price_daily table
+    const chartQuery = `
+      SELECT date, open, high, low, close, adj_close, volume,
+             fetched_at as timestamp
+      FROM price_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+
+    const chartResult = await query(chartQuery, [symbolUpper, parseInt(limit)]);
+
+    if (!chartResult || !chartResult.rows || chartResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No chart data found",
+        message: `No price data available for symbol ${symbolUpper}`,
+        symbol: symbolUpper,
+        period: period,
+        interval: interval,
+        include_volume: include_volume === "true"
+      });
+    }
+
+    // Format chart data for response
+    const chartData = chartResult.rows.map(row => ({
+      timestamp: row.date,
+      date: row.date,
+      open: parseFloat(row.open) || 0,
+      high: parseFloat(row.high) || 0,
+      low: parseFloat(row.low) || 0,
+      close: parseFloat(row.close) || 0,
+      adj_close: parseFloat(row.adj_close) || 0,
+      volume: parseInt(row.volume) || 0
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        symbol: symbolUpper,
+        period: period,
+        interval: interval,
+        include_volume: include_volume === "true",
+        chart_data: chartData,
+        records_count: chartData.length,
+        source: "price_daily_table"
+      },
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error("Chart data error:", error);
@@ -628,7 +667,7 @@ router.get("/chart", async (req, res) => {
       indicatorColumns += ", adx, plus_di, minus_di";
 
     const chartQuery = `
-      SELECT t.date, p.open_price as open, p.high_price as high, p.low_price as low, p.close, p.volume${indicatorColumns}
+      SELECT t.date, p.open, p.high, p.low, p.close, p.volume${indicatorColumns}
       FROM ${tableName} t
       JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       WHERE t.symbol = $1
@@ -880,12 +919,13 @@ router.get("/compare", async (req, res) => {
       for (const symbol of symbolList) {
         const techResult = await query(
           `
-          SELECT 
-            symbol, rsi, macd_line, sma_20, volume, close as price,
-            date
-          FROM technical_data_daily 
-          WHERE symbol = $1 
-          ORDER BY date DESC 
+          SELECT
+            t.symbol, t.rsi, t.macd, t.sma_20, p.volume, p.close as price,
+            t.date
+          FROM technical_data_daily t
+          JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+          WHERE t.symbol = $1
+          ORDER BY t.date DESC
           LIMIT 1
           `,
           [symbol]
@@ -896,7 +936,7 @@ router.get("/compare", async (req, res) => {
           comparison.push({
             symbol: data.symbol,
             rsi: parseFloat(data.rsi || 0).toFixed(2),
-            macd: parseFloat(data.macd_line || 0).toFixed(4),
+            macd: parseFloat(data.macd || 0).toFixed(4),
             sma_20: parseFloat(data.sma_20 || 0).toFixed(2),
             volume: parseInt(data.volume || 0),
             price: parseFloat(data.price || 0).toFixed(2),
@@ -1260,9 +1300,9 @@ router.get("/data/:symbol", async (req, res) => {
       SELECT 
         t.symbol,
         t.date,
-        p.open_price as open,
-        p.high_price as high,
-        p.low_price as low,
+        p.open,
+        p.high,
+        p.low,
         p.close,
         p.volume,
         t.rsi,
@@ -1454,9 +1494,9 @@ router.get("/history/:symbol", async (req, res) => {
       SELECT 
         t.symbol,
         t.date,
-        p.open_price as open,
-        p.high_price as high,
-        p.low_price as low,
+        p.open,
+        p.high,
+        p.low,
         p.close,
         p.volume,
         t.rsi,
@@ -1570,8 +1610,8 @@ router.get("/support-resistance/:symbol", async (req, res) => {
       SELECT 
         t.symbol,
         t.date,
-        p.high_price as high,
-        p.low_price as low,
+        p.high,
+        p.low,
         p.close,
         t.pivot_high,
         t.pivot_low,
@@ -1780,9 +1820,9 @@ router.get("/data", async (req, res) => {
       SELECT 
         t.symbol,
         t.date,
-        p.open_price as open,
-        p.high_price as high,
-        p.low_price as low,
+        p.open,
+        p.high,
+        p.low,
         p.close,
         p.volume,
         t.rsi,
@@ -2926,9 +2966,9 @@ router.get("/:timeframe", async (req, res) => {
       SELECT 
         t.symbol,
         t.date,
-        p.open_price as open,
-        p.high_price as high,
-        p.low_price as low,
+        p.open,
+        p.high,
+        p.low,
         p.close,
         p.volume,
         t.rsi,
@@ -3994,40 +4034,7 @@ function findPriceCluster(prices, tolerance = 0.01) {
   return clusters.filter((c) => c.touchCount >= 2);
 }
 
-function generateMockTechnicalData(symbol, timeframe, count) {
-  const data = [];
-  const basePrice = 100 + Math.random() * 200; // Random price between 100-300
-  const now = new Date();
-
-  for (let i = 0; i < count; i++) {
-    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000); // Go back i days
-    const priceVariation = 1 + (Math.random() - 0.5) * 0.1; // ±5% variation
-    const close = basePrice * priceVariation;
-    const open = close * (1 + (Math.random() - 0.5) * 0.02); // ±1% variation from close
-    const high = Math.max(open, close) * (1 + Math.random() * 0.02); // Up to 2% higher
-    const low = Math.min(open, close) * (1 - Math.random() * 0.02); // Up to 2% lower
-    const volume = Math.floor(Math.random() * 10000000) + 1000000; // 1M-11M volume
-
-    data.push({
-      symbol: symbol,
-      date: date.toISOString().split("T")[0],
-      open: Number(open.toFixed(2)),
-      high: Number(high.toFixed(2)),
-      low: Number(low.toFixed(2)),
-      close: Number(close.toFixed(2)),
-      volume: volume,
-      rsi: Number((Math.random() * 100).toFixed(2)),
-      macd: Number((Math.random() - 0.5).toFixed(4)),
-      macd_signal: Number((Math.random() - 0.5).toFixed(4)),
-      sma_20: Number((close * (1 + (Math.random() - 0.5) * 0.05)).toFixed(2)),
-      ema_20: Number((close * (1 + (Math.random() - 0.5) * 0.03)).toFixed(2)),
-      bollinger_upper: Number((close * 1.02).toFixed(2)),
-      bollinger_lower: Number((close * 0.98).toFixed(2)),
-      created_at: new Date().toISOString(),
-    });
-  }
-
-  return data.reverse(); // Return oldest to newest
-}
+// Removed unused mock technical data generation function
+// All technical data should now be queried from real loader tables
 
 module.exports = router;

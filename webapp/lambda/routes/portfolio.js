@@ -992,10 +992,9 @@ router.get("/:id/holdings", async (req, res) => {
       SELECT
         ph.symbol, ph.quantity, ph.average_cost, ph.current_price, ph.market_value,
         ph.unrealized_pnl, ph.unrealized_pnl_percent, ph.last_updated,
-        COALESCE(fm.sector, cp.sector, 'Unknown') as sector
+        COALESCE(cp.sector, 'Unknown') as sector
       FROM portfolio_holdings ph
       LEFT JOIN stock_symbols ss ON ph.symbol = ss.symbol
-      LEFT JOIN fundamental_metrics fm ON ph.symbol = fm.symbol
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker 
       WHERE ph.user_id = $1
       ORDER BY ph.market_value DESC

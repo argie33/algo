@@ -355,11 +355,10 @@ router.get("/ratios", async (req, res) => {
           fr.profit_margin as profit_margin_pct,
           fr.return_on_equity as return_on_equity_pct,
           fr.return_on_assets as return_on_assets_pct,
-          fm.quarterly_revenue_growth as revenue_growth_1yr,
-          fm.quarterly_earnings_growth as earnings_growth_1yr
+          0.0 as revenue_growth_1yr,
+          0.0 as earnings_growth_1yr
         FROM financial_ratios fr
-        FULL OUTER JOIN fundamental_metrics fm ON fr.symbol = fm.symbol
-        WHERE (fr.symbol ILIKE $1 OR fm.symbol ILIKE $1)
+        WHERE fr.symbol ILIKE $1
         ORDER BY fr.fiscal_year DESC
         LIMIT 1
       `;
@@ -1015,12 +1014,12 @@ router.get("/:ticker/financials", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(`Financials database error for ${ticker}:`, error.message);
+    console.error(`Financials database error for ${req.params.ticker}:`, error.message);
     res.status(500).json({
       success: false,
       error: "Financials database error",
       message: "Unable to retrieve financial data from database. Check database connection and table structure.",
-      symbol: ticker.toUpperCase(),
+      symbol: req.params.ticker.toUpperCase(),
       details: error.message
     });
   }
@@ -1367,16 +1366,16 @@ router.get("/ratios/:symbol", async (req, res) => {
         fr.quick_ratio,
         fr.return_on_equity as return_on_equity_pct,
         fr.return_on_assets as return_on_assets_pct,
-        fm.quarterly_revenue_growth as revenue_growth_pct,
-        fm.quarterly_earnings_growth as earnings_growth_pct,
+        NULL as revenue_growth_pct,
+        NULL as earnings_growth_pct,
         fr.profit_margin as profit_margin_pct,
         NULL as gross_margin_pct,
         fm.enterprise_to_ebitda as ev_to_ebitda,
         cp.sector,
         cp.industry
       FROM financial_ratios fr
-      LEFT JOIN company_profile cp ON fr.symbol = cp.ticker
       LEFT JOIN fundamental_metrics fm ON fr.symbol = fm.symbol
+      LEFT JOIN company_profile cp ON fr.symbol = cp.ticker
       WHERE fr.symbol ILIKE $1
       ORDER BY fr.fiscal_year DESC
       LIMIT 1

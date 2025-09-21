@@ -46,7 +46,7 @@ router.get("/", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
-        FROM stock_prices
+        FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON td.symbol = pd.symbol
       WHERE td.date = (
@@ -149,7 +149,7 @@ router.get("/:symbol", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
-        FROM stock_prices
+        FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON td.symbol = pd.symbol
       WHERE td.symbol = $1

@@ -622,10 +622,13 @@ router.get("/signals/:timeframe", async (req, res) => {
       queryParams.push(symbol.toUpperCase());
     }
 
+    // Use dynamic column detection for signal field
+    const signalColumn = tradingTableColumns.signal_type ? 'signal_type' : 'signal';
+
     if (signal_type === "buy") {
-      conditions.push("bs.signal_type = 'buy'");
+      conditions.push(`bs.${signalColumn} = 'buy'`);
     } else if (signal_type === "sell") {
-      conditions.push("bs.signal_type = 'sell'");
+      conditions.push(`bs.${signalColumn} = 'sell'`);
     }
 
     if (conditions.length > 0) {
@@ -640,15 +643,15 @@ router.get("/signals/:timeframe", async (req, res) => {
           SELECT 
             bs.symbol,
             bs.date,
-            bs.signal_type as signal,
+            bs.${signalColumn} as signal,
             bs.price,
             ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
             ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
             ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
             ${companyProfileExists ? "cp.short_name" : "NULL"} as company_name,
             ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
-            fm.market_cap as market_cap,
-            fm.pe_ratio as trailing_pe,
+            NULL as market_cap,
+            NULL as trailing_pe,
             ${priceDailyExists ? "pd.dividends" : "NULL"} as dividend_yield,
             CASE 
               WHEN bs.signal_type = 'buy' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
@@ -660,7 +663,6 @@ router.get("/signals/:timeframe", async (req, res) => {
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
           ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
-          LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
           ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
           ${whereClause}
         )
@@ -674,26 +676,25 @@ router.get("/signals/:timeframe", async (req, res) => {
         SELECT 
           bs.symbol,
           bs.date,
-          bs.signal_type as signal,
+          bs.${signalColumn} as signal,
           bs.price,
           ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
           ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
           ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
           ${companyProfileExists ? "cp.short_name" : "NULL"} as company_name,
           ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
-          fm.market_cap as market_cap,
-          fm.pe_ratio as trailing_pe,
+          NULL as market_cap,
+          NULL as trailing_pe,
           ${priceDailyExists ? "pd.dividends" : "NULL"} as dividend_yield,
           CASE 
-            WHEN bs.signal_type = 'buy' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
+            WHEN bs.${signalColumn} = 'buy' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
             THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
-            WHEN bs.signal_type = 'sell' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
+            WHEN bs.${signalColumn} = 'sell' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
             THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
             ELSE 0
           END as performance_percent
         FROM ${tableName} bs
         ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
-        LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol
         ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
         ${whereClause}
         ORDER BY bs.date DESC, bs.symbol ASC
@@ -2980,14 +2981,48 @@ router.get("/quotes/:symbol", async (req, res) => {
       });
     }
 
-    // Return mock quote data
+    // Query real quote data from price_daily table first
+    let result = await query(
+      `SELECT symbol, date, open, high, low, close, adj_close, volume
+       FROM price_daily
+       WHERE symbol = $1
+       ORDER BY date DESC
+       LIMIT 1`,
+      [symbol.toUpperCase()]
+    );
+
+    // If no data in price_daily, try market_data table
+    if (!result || !result.rows || result.rows.length === 0) {
+      result = await query(
+        `SELECT ticker as symbol, current_price, open_price, day_high, day_low, volume
+         FROM market_data
+         WHERE ticker = $1`,
+        [symbol.toUpperCase()]
+      );
+    }
+
+    // If no real data found, return 404
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No quote data found for symbol ${symbol}`,
+        message: "No data available in price_daily or market_data tables",
+        symbol: symbol.toUpperCase(),
+      });
+    }
+
+    // Format real quote data
+    const row = result.rows[0];
     const quote = {
-      symbol,
-      price: 155.23,
-      change: 2.45,
-      changePercent: 1.6,
-      volume: 2567891,
+      symbol: symbol.toUpperCase(),
+      price: parseFloat(row.close || row.current_price) || 0,
+      open: parseFloat(row.open || row.open_price) || 0,
+      high: parseFloat(row.high || row.day_high) || 0,
+      low: parseFloat(row.low || row.day_low) || 0,
+      volume: parseInt(row.volume) || 0,
+      date: row.date || new Date().toISOString().split('T')[0],
       timestamp: new Date().toISOString(),
+      source: row.date ? "price_daily_table" : "market_data_table"
     };
 
     res.json({

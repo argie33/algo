@@ -2781,7 +2781,7 @@ router.post("/volume", authenticateToken, async (req, res) => {
 router.get("/volume/analysis/:symbol", authenticateToken, async (req, res) => {
   try {
     const { symbol } = req.params;
-    const userId = req.user?.sub || "dev-user-bypass";
+    const _userId = req.user?.sub || "dev-user-bypass";
 
     // Get current volume analysis
     const analysisResult = await query(

@@ -59,7 +59,7 @@ PRICE_COLUMNS = [
     "adj_close",
     "volume",
     "dividends",
-    "stock_splits",
+    "splits",
 ]
 COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
 
@@ -237,7 +237,7 @@ if __name__ == "__main__":
             adj_close    DOUBLE PRECISION,
             volume       BIGINT,
             dividends    DOUBLE PRECISION,
-            stock_splits DOUBLE PRECISION,
+            splits DOUBLE PRECISION,
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """
@@ -258,7 +258,7 @@ if __name__ == "__main__":
             adj_close    DOUBLE PRECISION,
             volume       BIGINT,
             dividends    DOUBLE PRECISION,
-            stock_splits DOUBLE PRECISION,
+            splits DOUBLE PRECISION,
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """

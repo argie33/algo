@@ -93,32 +93,38 @@ async function ensureTestData() {
       )
     `);
 
-    await query(`
-      CREATE TABLE IF NOT EXISTS fundamental_metrics (
-        symbol VARCHAR(10) NOT NULL,
-        pe_ratio DECIMAL(10,2),
-        forward_pe DECIMAL(10,2),
-        price_to_book DECIMAL(10,2),
-        price_to_sales DECIMAL(10,2),
-        dividend_yield DECIMAL(8,4),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol)
-      )
-    `);
+    // fundamental_metrics table removed - using actual loader tables instead
 
     await query(`
       CREATE TABLE IF NOT EXISTS price_daily (
+        id SERIAL PRIMARY KEY,
         symbol VARCHAR(10) NOT NULL,
         date DATE NOT NULL,
-        open DECIMAL(12,4),
-        high DECIMAL(12,4),
-        low DECIMAL(12,4),
-        close DECIMAL(12,4),
+        open DOUBLE PRECISION,
+        high DOUBLE PRECISION,
+        low DOUBLE PRECISION,
+        close DOUBLE PRECISION,
+        adj_close DOUBLE PRECISION,
         volume BIGINT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date)
+        dividends DOUBLE PRECISION,
+        stock_splits DOUBLE PRECISION,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Add unique constraint separately to handle existing tables
+    try {
+      await query(`
+        ALTER TABLE price_daily
+        ADD CONSTRAINT unique_symbol_date
+        UNIQUE (symbol, date)
+      `);
+    } catch (error) {
+      // Ignore error if constraint already exists
+      if (!error.message.includes('already exists') && !error.message.includes('relation "unique_symbol_date" already exists')) {
+        console.warn('Could not add unique constraint to price_daily:', error.message);
+      }
+    }
 
     await query(`
       CREATE TABLE IF NOT EXISTS stock_scores (
@@ -250,20 +256,17 @@ async function ensureTestData() {
       ON CONFLICT (ticker) DO NOTHING
     `);
 
-    await query(`
-      INSERT INTO fundamental_metrics (symbol, pe_ratio, forward_pe, price_to_book, price_to_sales, dividend_yield) VALUES
-      ('AAPL', 25.5, 22.8, 45.2, 7.8, 0.46),
-      ('MSFT', 28.7, 24.1, 12.5, 12.3, 0.72)
-      ON CONFLICT (symbol) DO NOTHING
-    `);
+    // fundamental_metrics data insertion removed - using actual loader tables instead
 
     await query(`
-      INSERT INTO price_daily (symbol, date, open, high, low, close, volume) VALUES
-      ('AAPL', '2024-01-02', 149.50, 151.25, 148.75, 150.25, 65000000),
-      ('AAPL', '2024-01-01', 148.00, 150.50, 147.50, 149.50, 58000000),
-      ('MSFT', '2024-01-02', 348.25, 352.50, 347.00, 350.75, 45000000),
-      ('MSFT', '2024-01-01', 346.50, 349.25, 345.75, 348.25, 42000000)
-      ON CONFLICT (symbol, date) DO NOTHING
+      INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume) VALUES
+      ('AAPL', '2024-01-02', 149.50, 151.25, 148.75, 150.25, 150.25, 65000000),
+      ('AAPL', '2024-01-01', 148.00, 150.50, 147.50, 149.50, 149.50, 58000000),
+      ('MSFT', '2024-01-02', 348.25, 352.50, 347.00, 350.75, 350.75, 45000000),
+      ('MSFT', '2024-01-01', 346.50, 349.25, 345.75, 348.25, 348.25, 42000000),
+      ('GOOGL', '2024-01-02', 139.75, 142.50, 138.25, 141.80, 141.80, 28000000),
+      ('GOOGL', '2024-01-01', 137.50, 140.25, 136.75, 139.75, 139.75, 25000000)
+      ON CONFLICT DO NOTHING
     `);
 
     await query(`
@@ -280,17 +283,10 @@ async function ensureTestData() {
       ('AAPL', '2024-01-02', 'daily', 'hold', 60.0, 152.75, 45.2, 0.85, 68000000, 61000000, 6.1, 9.2, 0.45, 147.25, 157.50, 65.2, 58.7, 35.8),
       ('MSFT', '2024-01-01', 'daily', 'sell', 75.3, 350.50, 70.8, -0.75, 45000000, 43000000, -2.5, -1.8, 0.85, 340.25, 365.75, 25.8, 18.5, 78.2),
       ('MSFT', '2024-01-02', 'daily', 'buy', 80.2, 348.25, 30.1, 0.95, 47000000, 44000000, 1.2, 3.8, 0.35, 342.50, 358.00, 82.1, 75.6, 28.9)
-      ON CONFLICT (symbol, date, timeframe, signal_type) DO NOTHING
+      ON CONFLICT ON CONSTRAINT buy_sell_daily_pkey DO NOTHING
     `);
 
-    await query(`
-      INSERT INTO technical_data_daily (symbol, date, rsi, macd, bb_upper, bb_lower) VALUES
-      ('AAPL', '2024-01-01', 25.5, 1.25, 155.75, 145.50),
-      ('AAPL', '2024-01-02', 45.2, 0.85, 157.50, 147.25),
-      ('MSFT', '2024-01-01', 70.8, -0.75, 365.75, 340.25),
-      ('MSFT', '2024-01-02', 30.1, 0.95, 358.00, 342.50)
-      ON CONFLICT (symbol, date) DO NOTHING
-    `);
+    // Technical data already inserted by globalSetup.js - no duplicate insert needed
 
     console.log('✅ Basic test data and loader tables created');
   } catch (error) {

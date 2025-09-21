@@ -1,11 +1,12 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
+const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
 // Get stock recommendations
-router.get("/", async (req, res) => {
+router.get("/", authenticateToken, async (req, res) => {
   try {
     const {
       symbol,
@@ -35,9 +36,9 @@ router.get("/", async (req, res) => {
       paramIndex++;
     }
 
-    // Category filter (rating)
+    // Category filter (to_grade)
     if (category !== "all") {
-      whereClause += ` AND LOWER(rating) LIKE $${paramIndex}`;
+      whereClause += ` AND LOWER(to_grade) LIKE $${paramIndex}`;
       let ratingPattern;
       if (category === "buy") ratingPattern = "%buy%";
       else if (category === "sell") ratingPattern = "%sell%";
@@ -49,42 +50,43 @@ router.get("/", async (req, res) => {
 
     // Analyst firm filter
     if (analyst !== "all") {
-      whereClause += ` AND LOWER(analyst_firm) LIKE $${paramIndex}`;
+      whereClause += ` AND LOWER(firm) LIKE $${paramIndex}`;
       queryParams.push(`%${analyst.toLowerCase()}%`);
       paramIndex++;
     }
 
     // Timeframe filter
     if (timeframe === "recent") {
-      whereClause += ` AND date_published >= CURRENT_DATE - INTERVAL '30 days'`;
+      whereClause += ` AND date >= CURRENT_DATE - INTERVAL '30 days'`;
     } else if (timeframe === "week") {
-      whereClause += ` AND date_published >= CURRENT_DATE - INTERVAL '7 days'`;
+      whereClause += ` AND date >= CURRENT_DATE - INTERVAL '7 days'`;
     } else if (timeframe === "month") {
-      whereClause += ` AND date_published >= CURRENT_DATE - INTERVAL '30 days'`;
+      whereClause += ` AND date >= CURRENT_DATE - INTERVAL '30 days'`;
     }
 
     const recommendationsQuery = `
-      SELECT 
+      SELECT
         symbol,
-        analyst_firm,
-        rating,
-        target_price,
-        current_price,
-        date_published,
-        date_updated,
-        CASE 
-          WHEN target_price > current_price THEN target_price - current_price
-          ELSE 0
-        END as upside_potential,
+        firm as analyst_firm,
+        to_grade as rating,
+        action,
+        from_grade,
+        to_grade,
+        date as date_published,
+        details,
+        0 as target_price,
+        0 as current_price,
+        0 as upside_potential,
         CASE
-          WHEN LOWER(rating) LIKE '%buy%' OR LOWER(rating) LIKE '%strong buy%' THEN 'BUY'
-          WHEN LOWER(rating) LIKE '%sell%' OR LOWER(rating) LIKE '%strong sell%' THEN 'SELL'
-          WHEN LOWER(rating) LIKE '%hold%' THEN 'HOLD'
-          ELSE UPPER(rating)
-        END as recommendation_type
-      FROM analyst_upgrade_downgrade 
+          WHEN LOWER(to_grade) LIKE '%buy%' OR LOWER(to_grade) LIKE '%strong buy%' THEN 'BUY'
+          WHEN LOWER(to_grade) LIKE '%sell%' OR LOWER(to_grade) LIKE '%strong sell%' THEN 'SELL'
+          WHEN LOWER(to_grade) LIKE '%hold%' THEN 'HOLD'
+          ELSE UPPER(COALESCE(to_grade, action))
+        END as recommendation_type,
+        fetched_at
+      FROM analyst_upgrade_downgrade
       ${whereClause}
-      ORDER BY date_published DESC, target_price DESC
+      ORDER BY date DESC, symbol ASC
       LIMIT $${paramIndex}
     `;
 
@@ -183,7 +185,7 @@ router.get("/", async (req, res) => {
 });
 
 // Get analyst coverage for specific symbol
-router.get("/analysts/:symbol", async (req, res) => {
+router.get("/analysts/:symbol", authenticateToken, async (req, res) => {
   try {
     const { symbol } = req.params;
     const { limit = 10 } = req.query;
@@ -196,33 +198,33 @@ router.get("/analysts/:symbol", async (req, res) => {
 
     // Get analyst coverage for specific symbol
     const coverageQuery = `
-      SELECT 
-        analyst_firm,
-        rating,
-        target_price,
-        current_price,
-        date_published,
-        date_updated,
-        CASE 
-          WHEN target_price > current_price THEN 
-            ROUND(((target_price - current_price) / current_price * 100)::numeric, 2)
+      SELECT
+        firm as analyst_firm,
+        to_grade as rating,
+        0 as target_price,
+        0 as current_price,
+        date as date_published,
+        fetched_at as date_updated,
+        CASE
+          WHEN 0 > 0 THEN
+            ROUND(((0 - 0) / 0 * 100)::numeric, 2)
           ELSE 0
         END as upside_percentage,
         CASE
-          WHEN LOWER(rating) LIKE '%buy%' OR LOWER(rating) LIKE '%strong buy%' THEN 'BUY'
-          WHEN LOWER(rating) LIKE '%sell%' OR LOWER(rating) LIKE '%strong sell%' THEN 'SELL' 
-          WHEN LOWER(rating) LIKE '%hold%' THEN 'HOLD'
-          ELSE UPPER(rating)
+          WHEN LOWER(to_grade) LIKE '%buy%' OR LOWER(to_grade) LIKE '%strong buy%' THEN 'BUY'
+          WHEN LOWER(to_grade) LIKE '%sell%' OR LOWER(to_grade) LIKE '%strong sell%' THEN 'SELL'
+          WHEN LOWER(to_grade) LIKE '%hold%' THEN 'HOLD'
+          ELSE UPPER(COALESCE(to_grade, action))
         END as recommendation_type
-      FROM analyst_upgrade_downgrade 
+      FROM analyst_upgrade_downgrade
       WHERE symbol = $1
-      ORDER BY date_published DESC, target_price DESC
+      ORDER BY date DESC, firm
       LIMIT $2
     `;
 
     const result = await query(coverageQuery, [
       symbol.toUpperCase(),
-      parseInt(limit),
+      Math.max(1, Math.min(parseInt(limit) || 10, 100)),
     ]);
 
     if (result.rows.length === 0) {
@@ -310,7 +312,7 @@ router.get("/analysts/:symbol", async (req, res) => {
 });
 
 // AI-powered stock recommendations endpoint
-router.get("/ai", async (req, res) => {
+router.get("/ai", authenticateToken, async (req, res) => {
   try {
     const {
       symbol,

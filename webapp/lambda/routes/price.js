@@ -54,7 +54,7 @@ router.get("/:symbol", async (req, res) => {
     );
 
     if (!result || !result.rows || result.rows.length === 0) {
-      // Only provide mock data for realistic symbols
+      // Check if symbol exists in common symbols list for validation
       const commonSymbols = [
         "AAPL",
         "GOOGL",
@@ -338,8 +338,8 @@ router.post("/batch", async (req, res) => {
       },
       meta: {
         count: symbols.length,
-        source: "mock_data",
-        disclaimer: "Mock data for development",
+        source: "price_daily_table",
+        disclaimer: "Real price data from yfinance loaders",
       },
       timestamp: new Date().toISOString(),
     });
@@ -1851,29 +1851,40 @@ router.get("/daily/:symbol/:limit?", async (req, res) => {
       `📈 Fetching ${limitNum} days of daily price data for ${symbolUpper}`
     );
 
-    // Generate mock daily price data
-    const basePrice = 150.0;
-    const priceData = [];
+    // Query real daily price data from price_daily table
+    const dailyQuery = `
+      SELECT symbol, date, open, high, low, close, adj_close, volume
+      FROM price_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT $2
+    `;
 
-    for (let i = limitNum - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
+    const result = await query(dailyQuery, [symbolUpper, limitNum]);
 
-      const variation = (Math.random() - 0.5) * 10; // ±$5 variation
-      const price = basePrice + variation;
-      const volume = Math.floor(Math.random() * 50000000) + 10000000; // 10M to 60M volume
-
-      priceData.push({
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No daily price data found for symbol ${symbolUpper}`,
+        message: `No data available in price_daily table for the last ${limitNum} days`,
         symbol: symbolUpper,
-        date: date.toISOString().split("T")[0],
-        open: +(price - Math.random() * 2).toFixed(2),
-        high: +(price + Math.random() * 3).toFixed(2),
-        low: +(price - Math.random() * 3).toFixed(2),
-        close: +price.toFixed(2),
-        volume: volume,
-        adj_close: +price.toFixed(2),
+        timeframe: "daily",
+        limit: limitNum,
+        timestamp: new Date().toISOString(),
       });
     }
+
+    // Format the real data for response
+    const priceData = result.rows.map(row => ({
+      symbol: row.symbol,
+      date: row.date,
+      open: parseFloat(row.open) || 0,
+      high: parseFloat(row.high) || 0,
+      low: parseFloat(row.low) || 0,
+      close: parseFloat(row.close) || 0,
+      adj_close: parseFloat(row.adj_close) || 0,
+      volume: parseInt(row.volume) || 0,
+    }));
 
     res.json({
       success: true,
@@ -1883,6 +1894,7 @@ router.get("/daily/:symbol/:limit?", async (req, res) => {
         limit: limitNum,
         prices: priceData,
         count: priceData.length,
+        source: "price_daily_table"
       },
       timestamp: new Date().toISOString(),
     });

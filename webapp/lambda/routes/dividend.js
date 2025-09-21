@@ -17,6 +17,118 @@ router.get("/", async (req, res) => {
   });
 });
 
+// Get dividend data for a symbol (main endpoint that tests expect)
+router.get("/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { limit = 20, years = 5 } = req.query;
+    console.log(`💰 Dividend data requested for ${symbol.toUpperCase()}`);
+
+    // Query dividend data from dividend_calendar table
+    const dividendQuery = `
+      SELECT
+        symbol,
+        ex_dividend_date,
+        record_date,
+        payment_date,
+        dividend_amount,
+        dividend_yield,
+        dividend_type,
+        frequency
+      FROM dividend_calendar
+      WHERE UPPER(symbol) = UPPER($1)
+      ORDER BY payment_date DESC NULLS LAST
+      LIMIT $2
+    `;
+
+    const result = await query(dividendQuery, [
+      symbol.toUpperCase(),
+      parseInt(limit),
+    ]);
+
+    // Handle cases where query returns undefined or null
+    if (!result) {
+      console.warn(`No database result for dividend query: ${symbol}`);
+      return res.status(404).json({
+        success: false,
+        error: "No dividend data found",
+        data: {
+          symbol: symbol.toUpperCase(),
+          dividends: [],
+          summary: {
+            total_dividends: 0,
+            average_dividend: 0,
+            annualized_dividend: 0,
+            dividend_yield: null,
+          },
+        },
+        message: "Symbol not found or no dividend history available",
+      });
+    }
+
+    const dividendHistory = result.rows || [];
+
+    // Calculate summary statistics
+    let totalDividends = 0;
+    let avgDividend = 0;
+    let annualizedDividend = 0;
+    let dividend_yield = null;
+
+    if (dividendHistory.length > 0) {
+      totalDividends = dividendHistory.reduce(
+        (sum, div) => sum + parseFloat(div.dividend_amount || 0),
+        0
+      );
+      avgDividend = totalDividends / dividendHistory.length;
+
+      const currentYearDividends = dividendHistory.filter(
+        (div) =>
+          new Date(div.payment_date).getFullYear() === new Date().getFullYear()
+      );
+      annualizedDividend = currentYearDividends.reduce(
+        (sum, div) => sum + parseFloat(div.dividend_amount || 0),
+        0
+      );
+
+      // Simple yield calculation (would need current price for accuracy)
+      dividend_yield = annualizedDividend > 0 ? (annualizedDividend * 4) : null;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        dividends: dividendHistory.map(div => ({
+          ex_date: div.ex_dividend_date,
+          record_date: div.record_date,
+          payment_date: div.payment_date,
+          amount: parseFloat(div.dividend_amount || 0),
+          dividend_type: div.dividend_type,
+          frequency: div.frequency,
+          currency: div.currency || 'USD'
+        })),
+        dividend_yield: dividend_yield,
+        summary: {
+          total_dividends: parseFloat(totalDividends.toFixed(4)),
+          avg_dividend: parseFloat(avgDividend.toFixed(4)),
+          annualized_dividend: parseFloat(annualizedDividend.toFixed(4)),
+          payments_count: dividendHistory.length,
+          years_covered: years
+        }
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Dividend data error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dividend data",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Dividend history endpoint
 router.get("/history/:symbol", async (req, res) => {
   try {
@@ -139,15 +251,15 @@ router.get("/calendar", async (req, res) => {
       `📅 Dividend calendar requested for next ${days} days, type: ${event_type}, symbol: ${symbol || "all"}`
     );
 
-    // Try to get dividend calendar from database, but fall back to generated data on any error
+    // Get dividend calendar from database - return error if no data found
     let dividendEvents = [];
-    let dataSource = "generated";
+    let dataSource = "database";
 
     try {
       console.log("🔍 Attempting to query dividend_calendar database...");
       const { query } = require("../utils/database");
 
-      // Try to query with database - use generated query if database fails
+      // Query database for real dividend data
       let calendarQuery = `
         SELECT 
           symbol, 
@@ -225,20 +337,20 @@ router.get("/calendar", async (req, res) => {
         dataSource = "database";
       } else {
         console.log(
-          "ℹ️ No dividend events found in database, generating sample data..."
+          "ℹ️ No dividend events found in database"
         );
-        throw new Error("No data in database, using generated data");
+        throw new Error("No data in database");
       }
     } catch (dbError) {
       console.log(
-        "⚠️ Database query failed, using generated data:",
+        "⚠️ Database query failed:",
         dbError.message
       );
-      dataSource = "generated";
+      dataSource = "error";
     }
 
     // If database failed, return error instead of generating data
-    if (dataSource === "generated") {
+    if (dataSource === "error") {
       return res.status(503).json({
         success: false,
         error: "Dividend calendar data unavailable",
@@ -413,6 +525,104 @@ router.get("/history", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Dividend history unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Get dividend aristocrats
+router.get("/aristocrats", async (req, res) => {
+  try {
+    const { limit = 50, min_years = 25 } = req.query;
+    console.log(`👑 Dividend aristocrats requested - min_years: ${min_years}, limit: ${limit}`);
+
+    // Query dividend aristocrats from database
+    const aristocratsQuery = `
+      SELECT
+        da.symbol,
+        da.company_name,
+        da.current_yield,
+        da.years_of_increases,
+        da.payout_ratio,
+        da.annual_increase_rate,
+        da.sector,
+        da.market_cap,
+        da.dividend_growth_rate_5yr,
+        da.last_increase_date
+      FROM dividend_aristocrats da
+      WHERE da.years_of_increases >= $1
+      ORDER BY da.years_of_increases DESC, da.current_yield DESC
+      LIMIT $2
+    `;
+
+    const result = await query(aristocratsQuery, [
+      parseInt(min_years),
+      parseInt(limit)
+    ]);
+
+    const aristocrats = result.rows || [];
+
+    // Calculate summary statistics
+    const summary = {
+      total_aristocrats: aristocrats.length,
+      avg_yield: aristocrats.length > 0
+        ? aristocrats.reduce((sum, stock) => sum + (parseFloat(stock.current_yield) || 0), 0) / aristocrats.length
+        : 0,
+      avg_years_of_increases: aristocrats.length > 0
+        ? aristocrats.reduce((sum, stock) => sum + (parseInt(stock.years_of_increases) || 0), 0) / aristocrats.length
+        : 0,
+      by_sector: {},
+      yield_distribution: {
+        low: aristocrats.filter(s => (parseFloat(s.current_yield) || 0) < 2).length,
+        medium: aristocrats.filter(s => {
+          const yield_val = parseFloat(s.current_yield) || 0;
+          return yield_val >= 2 && yield_val < 4;
+        }).length,
+        high: aristocrats.filter(s => (parseFloat(s.current_yield) || 0) >= 4).length,
+      }
+    };
+
+    // Calculate sector distribution
+    aristocrats.forEach(stock => {
+      const sector = stock.sector || 'Unknown';
+      summary.by_sector[sector] = (summary.by_sector[sector] || 0) + 1;
+    });
+
+    res.json({
+      success: true,
+      data: {
+        aristocrats: aristocrats.map(stock => ({
+          symbol: stock.symbol,
+          company_name: stock.company_name,
+          current_yield: parseFloat(stock.current_yield) || 0,
+          years_of_increases: parseInt(stock.years_of_increases) || 0,
+          payout_ratio: parseFloat(stock.payout_ratio) || 0,
+          annual_increase_rate: parseFloat(stock.annual_increase_rate) || 0,
+          sector: stock.sector,
+          market_cap: parseFloat(stock.market_cap) || 0,
+          dividend_growth_rate_5yr: parseFloat(stock.dividend_growth_rate_5yr) || 0,
+          last_increase_date: stock.last_increase_date
+        })),
+        summary: {
+          total_aristocrats: summary.total_aristocrats,
+          avg_yield: parseFloat(summary.avg_yield.toFixed(2)),
+          avg_years_of_increases: parseFloat(summary.avg_years_of_increases.toFixed(1)),
+          by_sector: summary.by_sector,
+          yield_distribution: summary.yield_distribution
+        }
+      },
+      filters: {
+        min_years: parseInt(min_years),
+        limit: parseInt(limit)
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Dividend aristocrats error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch dividend aristocrats",
       message: error.message,
       timestamp: new Date().toISOString(),
     });
