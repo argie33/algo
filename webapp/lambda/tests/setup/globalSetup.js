@@ -32,13 +32,14 @@ module.exports = async () => {
       )
     `);
 
-    // Create buy_sell_daily table (from loadlatestbuyselldaily.py)
+    // Recreate buy_sell_daily table with correct schema
+    await query(`DROP TABLE IF EXISTS buy_sell_daily`);
     await query(`
-      CREATE TABLE IF NOT EXISTS buy_sell_daily (
+      CREATE TABLE buy_sell_daily (
         symbol VARCHAR(20) NOT NULL,
         date DATE NOT NULL,
         timeframe VARCHAR(10) NOT NULL DEFAULT 'daily',
-        signal_type VARCHAR(10) NOT NULL,
+        signal VARCHAR(10) NOT NULL,
         confidence DECIMAL(5,2) NOT NULL DEFAULT 0.0,
         price DECIMAL(12,4),
         rsi DECIMAL(5,2),
@@ -54,13 +55,21 @@ module.exports = async () => {
         momentum_score DECIMAL(5,2),
         risk_score DECIMAL(5,2),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date, timeframe, signal_type)
+        buylevel REAL,
+        stoplevel REAL,
+        inposition BOOLEAN,
+        open REAL,
+        high REAL,
+        low REAL,
+        close REAL,
+        PRIMARY KEY (symbol, date, timeframe, signal)
       )
     `);
 
-    // Create earnings_history table (from loadearningshistory.py)
+    // Recreate earnings_history table with correct schema
+    await query(`DROP TABLE IF EXISTS earnings_history`);
     await query(`
-      CREATE TABLE IF NOT EXISTS earnings_history (
+      CREATE TABLE earnings_history (
         symbol VARCHAR(20) NOT NULL,
         quarter DATE NOT NULL,
         eps_actual NUMERIC,
@@ -206,8 +215,9 @@ module.exports = async () => {
       )
     `);
 
+    await query(`DROP TABLE IF EXISTS price_daily`);
     await query(`
-      CREATE TABLE IF NOT EXISTS price_daily (
+      CREATE TABLE price_daily (
         id           SERIAL PRIMARY KEY,
         symbol       VARCHAR(10) NOT NULL,
         date         DATE         NOT NULL,
@@ -218,7 +228,7 @@ module.exports = async () => {
         adj_close    DOUBLE PRECISION,
         volume       BIGINT,
         dividends    DOUBLE PRECISION,
-        splits DOUBLE PRECISION,
+        stock_splits DOUBLE PRECISION,
         created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(symbol, date)
       )
@@ -382,7 +392,7 @@ module.exports = async () => {
       ('AAPL', '2024-01-02', 'daily', 'HOLD', 152.75, 147.25, 68000000, 150.25, 152.80, 149.85, 151.50),
       ('MSFT', '2024-01-01', 'daily', 'SELL', 350.50, 340.25, 45000000, 348.25, 352.50, 347.00, 350.75),
       ('MSFT', '2024-01-02', 'daily', 'BUY', 348.25, 342.50, 47000000, 347.25, 350.50, 346.80, 349.95)
-      ON CONFLICT (date, symbol) DO NOTHING
+      ON CONFLICT (symbol, date, timeframe, signal) DO NOTHING
     `);
 
     await query(`
@@ -421,6 +431,7 @@ module.exports = async () => {
       ('NVDA', '2024-01-01', 860.00, 880.00, 855.25, 872.50, 17500000),
       ('META', '2024-01-02', 485.00, 492.75, 482.25, 489.50, 8500000),
       ('META', '2024-01-01', 478.00, 487.50, 475.75, 483.25, 8200000)
+      ON CONFLICT (symbol, date) DO NOTHING
     `);
 
     await query(`
@@ -437,14 +448,14 @@ module.exports = async () => {
 
     // Add earnings_history test data
     await query(`
-      INSERT INTO earnings_history (symbol, date, quarter, year, eps_reported, eps_estimate, surprise_percent) VALUES
-      ('AAPL', '2024-01-01', 1, 2024, 2.18, 2.10, 3.8),
-      ('AAPL', '2023-10-01', 4, 2023, 1.89, 1.85, 2.2),
-      ('MSFT', '2024-01-01', 1, 2024, 2.93, 2.85, 2.8),
-      ('MSFT', '2023-10-01', 4, 2023, 2.69, 2.65, 1.5),
-      ('GOOGL', '2024-01-01', 1, 2024, 1.64, 1.59, 3.1),
-      ('TSLA', '2024-01-01', 1, 2024, 0.71, 0.73, -2.7)
-      ON CONFLICT (symbol, date) DO NOTHING
+      INSERT INTO earnings_history (symbol, quarter, eps_actual, eps_estimate, surprise_percent) VALUES
+      ('AAPL', '2024-01-01', 2.18, 2.10, 3.8),
+      ('AAPL', '2023-10-01', 1.89, 1.85, 2.2),
+      ('MSFT', '2024-01-01', 2.93, 2.85, 2.8),
+      ('MSFT', '2023-10-01', 2.69, 2.65, 1.5),
+      ('GOOGL', '2024-01-01', 1.64, 1.59, 3.1),
+      ('TSLA', '2024-01-01', 0.71, 0.73, -2.7)
+      ON CONFLICT (symbol, quarter) DO NOTHING
     `);
 
     // Add earnings_estimates test data
@@ -519,6 +530,36 @@ module.exports = async () => {
       ('dev-user-bypass', 'GOOGL', 'long', 25, 2850.00, 2865.75, 393.75, 0.55, 'open', '2024-01-02 09:30:00', NULL),
       ('dev-user-bypass', 'TSLA', 'short', 75, 247.80, 244.25, 266.25, 1.43, 'closed', '2024-01-01 12:00:00', '2024-01-02 16:00:00')
       ON CONFLICT (id) DO NOTHING
+    `);
+
+    // Create trades table for trading functionality (matching create_trades_table.sql)
+    await query(`
+      CREATE TABLE IF NOT EXISTS trades (
+        trade_id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        type VARCHAR(20) NOT NULL DEFAULT 'market',
+        limit_price DECIMAL(10,4),
+        stop_price DECIMAL(10,4),
+        time_in_force VARCHAR(10) DEFAULT 'day',
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        executed_at TIMESTAMP,
+        average_fill_price DECIMAL(10,4),
+        filled_quantity INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Add sample trades test data
+    await query(`
+      INSERT INTO trades (trade_id, user_id, symbol, side, quantity, type, status, created_at) VALUES
+      ('test-trade-1', 'test-user', 'AAPL', 'buy', 100, 'market', 'filled', NOW() - INTERVAL '1 day'),
+      ('test-trade-2', 'test-user', 'MSFT', 'sell', 50, 'limit', 'pending', NOW() - INTERVAL '2 hours'),
+      ('test-trade-3', 'test-user', 'TSLA', 'buy', 25, 'market', 'filled', NOW() - INTERVAL '1 week')
+      ON CONFLICT (trade_id) DO NOTHING
     `);
 
     // Create sentiment tables matching loader structures
@@ -760,8 +801,9 @@ module.exports = async () => {
       )
     `);
 
+    await query(`DROP TABLE IF EXISTS annual_balance_sheet`);
     await query(`
-      CREATE TABLE IF NOT EXISTS annual_balance_sheet (
+      CREATE TABLE annual_balance_sheet (
         symbol VARCHAR(10) NOT NULL,
         ticker VARCHAR(10),
         year INTEGER,
@@ -812,13 +854,14 @@ module.exports = async () => {
 
     // Add test data for price_daily (to support technical route JOINs)
     await query(`
-      INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume, dividends, splits) VALUES
+      INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume, dividends, stock_splits) VALUES
       ('AAPL', '2024-01-02', 150.25, 152.80, 149.85, 151.50, 151.50, 25847600, 0.00, 0.00),
       ('AAPL', '2024-01-01', 149.80, 151.25, 148.95, 150.85, 150.85, 23985400, 0.00, 0.00),
       ('MSFT', '2024-01-02', 348.50, 352.75, 347.25, 350.85, 350.85, 18562300, 0.00, 0.00),
       ('MSFT', '2024-01-01', 347.25, 350.50, 346.80, 349.95, 349.95, 16847200, 0.00, 0.00),
       ('GOOGL', '2024-01-02', 2845.25, 2865.80, 2835.50, 2855.75, 2855.75, 1285400, 0.00, 0.00),
       ('TSLA', '2024-01-02', 245.50, 248.85, 244.25, 247.25, 247.25, 35847600, 0.00, 0.00)
+      ON CONFLICT (symbol, date) DO NOTHING
     `);
 
     // Add test data for fundamental_metrics (to support metrics route)
@@ -848,6 +891,7 @@ module.exports = async () => {
       ('AAPL', '2024-01-01', 60.2, 0.95, 0.88, 150.50, 147.25, 144.80),
       ('MSFT', '2024-01-01', 55.8, 1.35, 1.25, 348.75, 345.50, 340.25),
       ('GOOGL', '2024-01-01', 48.5, -0.25, -0.15, 2840.25, 2815.50, 2775.00)
+      ON CONFLICT (symbol, date) DO NOTHING
     `);
 
     await query(`
@@ -855,6 +899,7 @@ module.exports = async () => {
       ('AAPL', '2024-01-01', 58.5, 1.15, 1.05, 149.25, 145.75, 142.50),
       ('MSFT', '2024-01-01', 52.8, 1.55, 1.45, 346.50, 342.25, 337.75),
       ('GOOGL', '2024-01-01', 51.2, -0.15, -0.05, 2825.75, 2800.25, 2760.50)
+      ON CONFLICT (symbol, date) DO NOTHING
     `);
 
     // Add test data for financial statements

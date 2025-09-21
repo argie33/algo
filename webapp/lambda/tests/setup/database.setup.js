@@ -276,15 +276,7 @@ async function ensureTestData() {
       ON CONFLICT (symbol, date) DO NOTHING
     `);
 
-    // Add comprehensive test signal data matching loadlatestbuyselldaily.py structure
-    await query(`
-      INSERT INTO buy_sell_daily (symbol, date, timeframe, signal_type, confidence, price, rsi, macd, volume, volume_avg_10d, price_vs_ma20, price_vs_ma50, bollinger_position, support_level, resistance_level, pattern_score, momentum_score, risk_score) VALUES
-      ('AAPL', '2024-01-01', 'daily', 'buy', 85.5, 150.25, 25.5, 1.25, 65000000, 60000000, 5.2, 8.1, 0.25, 145.50, 155.75, 78.5, 82.3, 22.1),
-      ('AAPL', '2024-01-02', 'daily', 'hold', 60.0, 152.75, 45.2, 0.85, 68000000, 61000000, 6.1, 9.2, 0.45, 147.25, 157.50, 65.2, 58.7, 35.8),
-      ('MSFT', '2024-01-01', 'daily', 'sell', 75.3, 350.50, 70.8, -0.75, 45000000, 43000000, -2.5, -1.8, 0.85, 340.25, 365.75, 25.8, 18.5, 78.2),
-      ('MSFT', '2024-01-02', 'daily', 'buy', 80.2, 348.25, 30.1, 0.95, 47000000, 44000000, 1.2, 3.8, 0.35, 342.50, 358.00, 82.1, 75.6, 28.9)
-      ON CONFLICT ON CONSTRAINT buy_sell_daily_pkey DO NOTHING
-    `);
+    // Buy_sell_daily test data is already handled by globalSetup.js - no duplicate insert needed
 
     // Technical data already inserted by globalSetup.js - no duplicate insert needed
 

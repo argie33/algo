@@ -1196,7 +1196,7 @@ router.get("/search", async (req, res) => {
     }
 
     // For international characters or non-ASCII characters, use simpler search
-    const hasInternational = /[^\x00-\x7F]/.test(search);
+    const hasInternational = /[^\u0020-\u007F]/.test(search);
 
     if (hasInternational) {
       // Return empty results for international characters to avoid PostgreSQL UPPER() issues

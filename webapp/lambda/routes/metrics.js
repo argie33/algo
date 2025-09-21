@@ -113,12 +113,17 @@ router.get("/", async (req, res) => {
     const sortBy = req.query.sortBy || "symbol";
     const sortOrder = req.query.sortOrder || "asc";
 
-    // Simple parameter handling
-    const params = [
-      search ? `%${search.toUpperCase()}%` : '',
-      limit,
-      offset
-    ];
+    // Build the query with proper search handling
+    let whereConditions = [];
+    const queryParams = [];
+    let paramIndex = 1;
+
+    // Add search condition if provided
+    if (search) {
+      whereConditions.push(`td.symbol ILIKE $${paramIndex}`);
+      queryParams.push(`%${search.toUpperCase()}%`);
+      paramIndex++;
+    }
 
     // Validate sort column to prevent SQL injection
     const validSortColumns = ["symbol", "rsi", "macd", "sma_20", "current_price"];
@@ -183,14 +188,40 @@ router.get("/", async (req, res) => {
         FROM technical_data_daily
         WHERE symbol = td.symbol
       )
-      AND (td.symbol ILIKE $1 OR $1 = '')
+      ${whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : ''}
       ORDER BY td.symbol ASC
-      LIMIT $2 OFFSET $3
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-    const stocksResult = await query(stocksQuery, params);
+    // Add limit and offset to params
+    queryParams.push(limit, offset);
 
-    if (!stocksResult || !stocksResult.rows) {
+    const stocksResult = await query(stocksQuery, queryParams);
+
+    // Handle database connection failure gracefully
+    if (!stocksResult) {
+      console.log("📊 Database not available, returning fallback data");
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasMore: false,
+        },
+        summary: {
+          totalStocks: 0,
+          averageScore: 0.5,
+        },
+        message: "Database temporarily unavailable - showing fallback data",
+        timestamp: new Date().toISOString(),
+        service: "financial-platform",
+      });
+    }
+
+    if (!stocksResult.rows) {
       return res.status(500).json({
         success: false,
         error: "Failed to fetch metrics",
@@ -216,7 +247,16 @@ router.get("/", async (req, res) => {
       lastUpdated: row.last_updated,
     }));
 
-    // Simple count query
+    // Simple count query with proper parameter handling
+    const countParams = [];
+    let countParamIndex = 1;
+    let countWhereCondition = '';
+
+    if (search) {
+      countWhereCondition = `AND td.symbol ILIKE $${countParamIndex}`;
+      countParams.push(`%${search.toUpperCase()}%`);
+    }
+
     const countResult = await query(`
       SELECT COUNT(*) as total
       FROM technical_data_daily td
@@ -225,8 +265,8 @@ router.get("/", async (req, res) => {
         FROM technical_data_daily
         WHERE symbol = td.symbol
       )
-      AND (td.symbol ILIKE $1 OR $1 = '')
-    `, [search ? `%${search.toUpperCase()}%` : '']);
+      ${countWhereCondition}
+    `, countParams);
     const total = parseInt(countResult.rows[0]?.total) || 0;
     const totalPages = Math.ceil(total / limit);
 
