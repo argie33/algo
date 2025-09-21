@@ -348,7 +348,6 @@ router.get("/:symbol/analytics", async (req, res) => {
   }
 });
 
-
 // Popular ETFs
 router.get("/popular", async (req, res) => {
   try {
@@ -357,8 +356,8 @@ router.get("/popular", async (req, res) => {
       data: {
         etfs: [
           { symbol: "SPY", name: "SPDR S&P 500 ETF", volume: 50000000 },
-          { symbol: "QQQ", name: "Invesco QQQ Trust", volume: 30000000 }
-        ]
+          { symbol: "QQQ", name: "Invesco QQQ Trust", volume: 30000000 },
+        ],
       },
       timestamp: new Date().toISOString(),
     });

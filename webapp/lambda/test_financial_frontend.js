@@ -1,32 +1,31 @@
-
 /**
  * Test Financial Frontend Integration
  * Tests the specific endpoints that the frontend FinancialData page calls
  */
 
-const axios = require('axios');
+const axios = require("axios");
 
-const BASE_URL = 'http://localhost:3001';
+const BASE_URL = "http://localhost:3001";
 
 async function testFinancialFrontendEndpoints() {
-  console.log('🧪 Testing Financial Frontend Integration\n');
+  console.log("🧪 Testing Financial Frontend Integration\n");
 
   const tests = [
     {
-      name: 'Balance Sheet (Frontend)',
+      name: "Balance Sheet (Frontend)",
       url: `${BASE_URL}/api/financials/AAPL/balance-sheet?period=annual`,
-      expectedFields: ['totalAssets', 'currentAssets', 'date']
+      expectedFields: ["totalAssets", "currentAssets", "date"],
     },
     {
-      name: 'Income Statement (Frontend)',
+      name: "Income Statement (Frontend)",
       url: `${BASE_URL}/api/financials/AAPL/income-statement?period=annual`,
-      expectedFields: ['revenue', 'netIncome', 'date']
+      expectedFields: ["revenue", "netIncome", "date"],
     },
     {
-      name: 'Comprehensive Statements (Backend)',
+      name: "Comprehensive Statements (Backend)",
       url: `${BASE_URL}/api/financials/AAPL/statements?period=annual`,
-      expectedFields: ['statements', 'summary']
-    }
+      expectedFields: ["statements", "summary"],
+    },
   ];
 
   let passed = 0;
@@ -45,11 +44,11 @@ async function testFinancialFrontendEndpoints() {
 
         // Check for expected fields in first item
         const firstItem = Array.isArray(data) ? data[0] : data;
-        const hasRequiredFields = test.expectedFields.every(field => {
-          if (field === 'statements' || field === 'summary') {
+        const hasRequiredFields = test.expectedFields.every((field) => {
+          if (field === "statements" || field === "summary") {
             return firstItem && firstItem[field];
           }
-          return firstItem && (firstItem[field] !== undefined);
+          return firstItem && firstItem[field] !== undefined;
         });
 
         if (hasRequiredFields) {
@@ -63,9 +62,13 @@ async function testFinancialFrontendEndpoints() {
           }
 
           if (dateValid) {
-            console.log(`   ✅ ${response.status} - ${elapsed}ms - ${data.length || 1} records`);
+            console.log(
+              `   ✅ ${response.status} - ${elapsed}ms - ${data.length || 1} records`
+            );
             if (response.data.metadata?.dataSource) {
-              console.log(`   📊 Data Source: ${response.data.metadata.dataSource}`);
+              console.log(
+                `   📊 Data Source: ${response.data.metadata.dataSource}`
+              );
             }
             passed++;
           } else {
@@ -73,20 +76,28 @@ async function testFinancialFrontendEndpoints() {
             console.log(`   🔍 Sample date: ${data[0]?.date}`);
           }
         } else {
-          console.log(`   ❌ Missing required fields: ${test.expectedFields.join(', ')}`);
-          console.log(`   🔍 Available fields: ${Object.keys(firstItem || {}).join(', ')}`);
+          console.log(
+            `   ❌ Missing required fields: ${test.expectedFields.join(", ")}`
+          );
+          console.log(
+            `   🔍 Available fields: ${Object.keys(firstItem || {}).join(", ")}`
+          );
         }
       } else {
-        console.log(`   ❌ ${response.status} - ${response.data.error || 'Unknown error'}`);
+        console.log(
+          `   ❌ ${response.status} - ${response.data.error || "Unknown error"}`
+        );
       }
     } catch (error) {
       console.log(`   ❌ Error - ${error.message}`);
     }
-    console.log('');
+    console.log("");
   }
 
   console.log(`\n📋 FINANCIAL FRONTEND TEST RESULTS:`);
-  console.log(`✅ Passed: ${passed}/${total} (${Math.round(passed/total*100)}%)`);
+  console.log(
+    `✅ Passed: ${passed}/${total} (${Math.round((passed / total) * 100)}%)`
+  );
 
   if (passed === total) {
     console.log(`🎉 ALL FRONTEND FINANCIAL ENDPOINTS WORKING!`);
@@ -98,6 +109,6 @@ async function testFinancialFrontendEndpoints() {
 }
 
 // Run the tests
-testFinancialFrontendEndpoints().then(success => {
+testFinancialFrontendEndpoints().then((success) => {
   process.exit(success ? 0 : 1);
 });

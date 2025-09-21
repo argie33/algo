@@ -7,15 +7,13 @@ const router = express.Router();
 
 // Health check endpoint
 router.get("/health", (req, res) => {
-  res
-    .status(200)
-    .json({
-      success: true,
-      status: "healthy",
-      service: "dashboard",
-      timestamp: new Date().toISOString(),
-      database: "connected",
-    });
+  res.status(200).json({
+    success: true,
+    status: "healthy",
+    service: "dashboard",
+    timestamp: new Date().toISOString(),
+    database: "connected",
+  });
 });
 
 // Root dashboard route - returns available endpoints
@@ -265,9 +263,9 @@ router.get("/summary", async (req, res) => {
 
     // Helper function to parse numeric fields in database results
     const parseNumericFields = (rows, numericFields) => {
-      return rows.map(row => {
+      return rows.map((row) => {
         const parsed = { ...row };
-        numericFields.forEach(field => {
+        numericFields.forEach((field) => {
           if (parsed[field] !== null && parsed[field] !== undefined) {
             parsed[field] = parseFloat(parsed[field]);
           }
@@ -277,22 +275,54 @@ router.get("/summary", async (req, res) => {
     };
 
     const summary = {
-      market_overview: parseNumericFields(marketResult.rows, ['current_price', 'change_percent', 'change_amount', 'volume']),
-      top_gainers: parseNumericFields(gainersResult.rows, ['current_price', 'change_percent', 'change_amount', 'volume']),
-      top_losers: parseNumericFields(losersResult.rows, ['current_price', 'change_percent', 'change_amount', 'volume']),
-      sector_performance: parseNumericFields(sectorResult.rows, ['stock_count', 'avg_change', 'avg_volume']),
-      recent_earnings: parseNumericFields(earningsResult.rows, ['eps_estimate', 'eps_actual', 'surprise_percent']),
-      market_sentiment: sentimentResult.rows[0] ? {
-        ...sentimentResult.rows[0],
-        value: parseFloat(sentimentResult.rows[0].value)
-      } : null,
-      volume_leaders: parseNumericFields(volumeResult.rows, ['current_price', 'volume', 'change_percent', 'change_amount']),
-      market_breadth: breadthResult.rows[0] ? {
-        ...breadthResult.rows[0],
-        advancing: parseInt(breadthResult.rows[0].advancing),
-        declining: parseInt(breadthResult.rows[0].declining),
-        unchanged: parseInt(breadthResult.rows[0].unchanged)
-      } : null,
+      market_overview: parseNumericFields(marketResult.rows, [
+        "current_price",
+        "change_percent",
+        "change_amount",
+        "volume",
+      ]),
+      top_gainers: parseNumericFields(gainersResult.rows, [
+        "current_price",
+        "change_percent",
+        "change_amount",
+        "volume",
+      ]),
+      top_losers: parseNumericFields(losersResult.rows, [
+        "current_price",
+        "change_percent",
+        "change_amount",
+        "volume",
+      ]),
+      sector_performance: parseNumericFields(sectorResult.rows, [
+        "stock_count",
+        "avg_change",
+        "avg_volume",
+      ]),
+      recent_earnings: parseNumericFields(earningsResult.rows, [
+        "eps_estimate",
+        "eps_actual",
+        "surprise_percent",
+      ]),
+      market_sentiment: sentimentResult.rows[0]
+        ? {
+            ...sentimentResult.rows[0],
+            value: parseFloat(sentimentResult.rows[0].value),
+          }
+        : null,
+      volume_leaders: parseNumericFields(volumeResult.rows, [
+        "current_price",
+        "volume",
+        "change_percent",
+        "change_amount",
+      ]),
+      market_breadth: breadthResult.rows[0]
+        ? {
+            ...breadthResult.rows[0],
+            advancing: parseInt(breadthResult.rows[0].advancing),
+            declining: parseInt(breadthResult.rows[0].declining),
+            unchanged: parseInt(breadthResult.rows[0].unchanged),
+          }
+        : null,
       timestamp: new Date().toISOString(),
     };
 
@@ -624,10 +654,10 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     }
 
     const alerts = alertsResult.rows;
-    const summary = summaryResult.rows.map(row => ({
+    const summary = summaryResult.rows.map((row) => ({
       ...row,
       count: parseInt(row.count),
-      active_count: parseInt(row.active_count)
+      active_count: parseInt(row.active_count),
     }));
 
     res.json({
@@ -690,7 +720,7 @@ router.get("/market-data", async (req, res) => {
     const sectorRotationQuery = `
             SELECT 
                 cp.sector,
-                AVG(pd.change_percent) as avg_change,
+                AVG(((pd.close - pd.open) / pd.open * 100)) as avg_change,
                 COUNT(DISTINCT pd.symbol) as stock_count,
                 AVG(pd.volume) as avg_volume,
                 SUM(pd.volume * pd.close) as total_value
@@ -699,7 +729,7 @@ router.get("/market-data", async (req, res) => {
             WHERE cp.sector IS NOT NULL 
                 AND pd.date >= CURRENT_DATE - INTERVAL '1 day'
                 AND pd.close IS NOT NULL
-                AND pd.change_percent IS NOT NULL
+                AND ((pd.close - pd.open) / pd.open * 100) IS NOT NULL
             GROUP BY cp.sector
             ORDER BY avg_change DESC
             LIMIT 20
@@ -1377,7 +1407,7 @@ router.get("/metrics", async (req, res) => {
 
     const [marketResult, portfolioResult] = await Promise.all([
       query(marketMetricsQuery),
-      query(portfolioMetricsQuery).catch(() => ({ rows: [{}] }))
+      query(portfolioMetricsQuery).catch(() => ({ rows: [{}] })),
     ]);
 
     const marketMetrics = marketResult.rows[0] || {};
@@ -1402,7 +1432,7 @@ router.get("/metrics", async (req, res) => {
           uptime: process.uptime(),
           memory_usage: process.memoryUsage(),
           timestamp: new Date().toISOString(),
-        }
+        },
       },
       timestamp: new Date().toISOString(),
     });

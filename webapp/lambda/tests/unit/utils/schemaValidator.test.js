@@ -486,22 +486,50 @@ describe("Schema Validator", () => {
       // Mock successful table existence and column queries
       mockQuery
         .mockResolvedValueOnce({ rows: [{ exists: true }] }) // stocks table exists
-        .mockResolvedValueOnce({ // stocks table columns
+        .mockResolvedValueOnce({
+          // stocks table columns
           rows: [
-            { column_name: "symbol", data_type: "character varying", is_nullable: "NO", column_default: null },
-            { column_name: "name", data_type: "character varying", is_nullable: "NO", column_default: null },
+            {
+              column_name: "symbol",
+              data_type: "character varying",
+              is_nullable: "NO",
+              column_default: null,
+            },
+            {
+              column_name: "name",
+              data_type: "character varying",
+              is_nullable: "NO",
+              column_default: null,
+            },
           ],
         })
         .mockResolvedValueOnce({ rows: [{ exists: true }] }) // user_portfolio_holdings table exists
-        .mockResolvedValueOnce({ // user_portfolio_holdings table columns
+        .mockResolvedValueOnce({
+          // user_portfolio_holdings table columns
           rows: [
-            { column_name: "user_id", data_type: "character varying", is_nullable: "NO", column_default: null },
-            { column_name: "symbol", data_type: "character varying", is_nullable: "NO", column_default: null },
+            {
+              column_name: "user_id",
+              data_type: "character varying",
+              is_nullable: "NO",
+              column_default: null,
+            },
+            {
+              column_name: "symbol",
+              data_type: "character varying",
+              is_nullable: "NO",
+              column_default: null,
+            },
           ],
         })
-        .mockResolvedValue({ // fallback for any additional calls
+        .mockResolvedValue({
+          // fallback for any additional calls
           rows: [
-            { column_name: "id", data_type: "integer", is_nullable: "NO", column_default: null },
+            {
+              column_name: "id",
+              data_type: "integer",
+              is_nullable: "NO",
+              column_default: null,
+            },
           ],
         });
 
@@ -892,9 +920,7 @@ describe("Schema Validator", () => {
     test("should return valid for table without indexes", async () => {
       // Mock database query to return the expected created_at index
       mockQuery.mockResolvedValueOnce({
-        rows: [
-          { indexname: "fear_greed_index_created_at_idx" }
-        ],
+        rows: [{ indexname: "fear_greed_index_created_at_idx" }],
       });
 
       const result = await validateIndexes("fear_greed_index"); // Table with only created_at index

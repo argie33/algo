@@ -14,6 +14,7 @@ The Trade History page requires authentication to display trade data. Here's how
 ## What's Happening
 
 The app is running in development mode with a dev authentication system that creates a default user automatically. The Trade History page checks for authentication and shows:
+
 - "Please log in to view your trade history" if not authenticated
 - "No authentication token available" if the user object exists but has no token
 
@@ -21,11 +22,12 @@ The app is running in development mode with a dev authentication system that cre
 
 ✅ **Working**: Trade history API endpoint returns 14 trade records
 ✅ **Working**: Authentication with `dev-bypass-token`
-⚠️  **Issues**: Some secondary endpoints need fixes but the core functionality works
+⚠️ **Issues**: Some secondary endpoints need fixes but the core functionality works
 
 ## Trade History Data Available
 
 The system has sample trade data with 14 trades including:
+
 - AAPL, MSFT, GOOGL, SPY, QQQ, TSLA, NVDA, VTI, BND
 - Mix of buy orders from 2024-2025
 - P&L data and execution times
@@ -33,6 +35,7 @@ The system has sample trade data with 14 trades including:
 ## Next Steps After Login
 
 Once logged in, the Trade History page should display:
+
 - **Trade List**: Sortable table with all trades
 - **Performance Chart**: P&L visualization over time
 - **Analytics**: Trading statistics and metrics

@@ -130,7 +130,7 @@ describe("Database Rollback Scenarios Integration", () => {
       const pool = new Pool({
         connectionString:
           process.env.DATABASE_URL ||
-`postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'password'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'stocks'}`,
+          `postgresql://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "password"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || "stocks"}`,
       });
 
       const client = await pool.connect();

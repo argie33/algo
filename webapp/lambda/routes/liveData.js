@@ -538,12 +538,10 @@ router.get("/sectors", authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch sector performance data",
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch sector performance data",
+    });
   }
 });
 
@@ -1231,33 +1229,21 @@ router.get("/latest/:symbols", async (req, res) => {
         [symbolList]
       );
     } catch (dbError) {
-      console.log(
-        "Database schema error for latest data, using fallback:",
-        dbError.message
-      );
-      result = { rows: [] }; // Set to empty so it falls back to mock data
+      console.error("Database error for latest data:", dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Live data database error",
+        message: "Unable to retrieve live data from database. Check database connection and table structure.",
+        details: dbError.message,
+      });
     }
 
     if (!result || result.rows.length === 0) {
-      // Return mock data for testing when no database data exists
-      const mockData = symbolList.map((symbol) => ({
-        symbol: symbol,
-        price: 150.0 + Math.random() * 50,
-        open: 148.5 + Math.random() * 50,
-        high: 152.25 + Math.random() * 50,
-        low: 147.1 + Math.random() * 50,
-        volume: Math.floor(Math.random() * 10000000),
-        timestamp: new Date().toISOString(),
-        change: (Math.random() - 0.5) * 10,
-        changePercent: ((Math.random() - 0.5) * 5).toFixed(2),
-      }));
-
-      return res.json({
-        success: true,
-        data: symbolList.length === 1 ? mockData[0] : mockData,
+      return res.status(404).json({
+        success: false,
+        error: "No live data found",
+        message: `No recent data found for symbols: ${symbolList.join(', ')}. Ensure live data has been loaded from data providers.`,
         symbols: symbolList,
-        count: mockData.length,
-        message: "No recent data found for the requested symbols",
         timestamp: new Date().toISOString(),
       });
     }
@@ -1433,7 +1419,6 @@ router.post("/subscriptions", async (req, res) => {
   }
 });
 
-
 // Live data stream
 router.get("/stream", async (req, res) => {
   try {
@@ -1441,7 +1426,7 @@ router.get("/stream", async (req, res) => {
       success: true,
       data: {
         stream: "unavailable",
-        message: "Live streaming not implemented"
+        message: "Live streaming not implemented",
       },
       timestamp: new Date().toISOString(),
     });
@@ -1461,7 +1446,7 @@ router.get("/quotes", async (req, res) => {
     res.json({
       success: true,
       data: {
-        quotes: []
+        quotes: [],
       },
       timestamp: new Date().toISOString(),
     });

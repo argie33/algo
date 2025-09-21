@@ -744,11 +744,18 @@ class SchemaValidator {
         continue;
       }
 
-      const fieldErrors = this.validateApplicationField(fieldName, fieldValue, propDef);
+      const fieldErrors = this.validateApplicationField(
+        fieldName,
+        fieldValue,
+        propDef
+      );
       errors.push(...fieldErrors);
 
       if (fieldErrors.length === 0) {
-        sanitizedData[fieldName] = this.sanitizeApplicationField(fieldValue, propDef);
+        sanitizedData[fieldName] = this.sanitizeApplicationField(
+          fieldValue,
+          propDef
+        );
       }
     }
 
@@ -777,15 +784,24 @@ class SchemaValidator {
           errors.push(`Field "${fieldName}" must be a string`);
         } else {
           if (propDef.maxLength && value.length > propDef.maxLength) {
-            errors.push(`Field "${fieldName}" exceeds maximum length of ${propDef.maxLength} characters`);
+            errors.push(
+              `Field "${fieldName}" exceeds maximum length of ${propDef.maxLength} characters`
+            );
           }
           if (propDef.minLength && value.length < propDef.minLength) {
-            errors.push(`Field "${fieldName}" must be at least ${propDef.minLength} characters`);
+            errors.push(
+              `Field "${fieldName}" must be at least ${propDef.minLength} characters`
+            );
           }
           if (propDef.enum && !propDef.enum.includes(value)) {
-            errors.push(`Field "${fieldName}" must be one of: ${propDef.enum.join(", ")}`);
+            errors.push(
+              `Field "${fieldName}" must be one of: ${propDef.enum.join(", ")}`
+            );
           }
-          if (propDef.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          if (
+            propDef.format === "email" &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+          ) {
             errors.push(`Field "${fieldName}" must be a valid email address`);
           }
           if (propDef.format === "date" && isNaN(Date.parse(value))) {
@@ -802,10 +818,14 @@ class SchemaValidator {
           errors.push(`Field "${fieldName}" must be a number`);
         } else {
           if (propDef.minimum !== undefined && value < propDef.minimum) {
-            errors.push(`Field "${fieldName}" must be at least ${propDef.minimum}`);
+            errors.push(
+              `Field "${fieldName}" must be at least ${propDef.minimum}`
+            );
           }
           if (propDef.maximum !== undefined && value > propDef.maximum) {
-            errors.push(`Field "${fieldName}" must be at most ${propDef.maximum}`);
+            errors.push(
+              `Field "${fieldName}" must be at most ${propDef.maximum}`
+            );
           }
         }
         break;
@@ -815,10 +835,14 @@ class SchemaValidator {
           errors.push(`Field "${fieldName}" must be an integer`);
         } else {
           if (propDef.minimum !== undefined && value < propDef.minimum) {
-            errors.push(`Field "${fieldName}" must be at least ${propDef.minimum}`);
+            errors.push(
+              `Field "${fieldName}" must be at least ${propDef.minimum}`
+            );
           }
           if (propDef.maximum !== undefined && value > propDef.maximum) {
-            errors.push(`Field "${fieldName}" must be at most ${propDef.maximum}`);
+            errors.push(
+              `Field "${fieldName}" must be at most ${propDef.maximum}`
+            );
           }
         }
         break;

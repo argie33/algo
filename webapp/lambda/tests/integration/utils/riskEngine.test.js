@@ -29,8 +29,12 @@ describe("Risk Engine Integration Tests", () => {
 
   async function setupTestData() {
     // Clean up any existing test data first
-    await query("DELETE FROM portfolio_holdings WHERE user_id = 'test-user-123'");
-    await query("DELETE FROM price_daily WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY')");
+    await query(
+      "DELETE FROM portfolio_holdings WHERE user_id = 'test-user-123'"
+    );
+    await query(
+      "DELETE FROM price_daily WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY')"
+    );
 
     // Insert test portfolio data
     const testPortfolio = [

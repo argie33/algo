@@ -55,7 +55,18 @@ router.get("/:symbol", async (req, res) => {
 
     if (!result || !result.rows || result.rows.length === 0) {
       // Only provide mock data for realistic symbols
-      const commonSymbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'SPY', 'QQQ'];
+      const commonSymbols = [
+        "AAPL",
+        "GOOGL",
+        "MSFT",
+        "AMZN",
+        "TSLA",
+        "META",
+        "NVDA",
+        "NFLX",
+        "SPY",
+        "QQQ",
+      ];
 
       if (!commonSymbols.includes(symbolUpper) && symbolUpper.length > 5) {
         console.log(`❌ Invalid symbol requested: ${symbolUpper}`);
@@ -79,9 +90,11 @@ router.get("/:symbol", async (req, res) => {
 
       if (marketResult && marketResult.rows && marketResult.rows.length > 0) {
         const marketData = marketResult.rows[0];
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split("T")[0];
 
-        console.log(`📊 Returning real market data for ${symbolUpper} from market_data table`);
+        console.log(
+          `📊 Returning real market data for ${symbolUpper} from market_data table`
+        );
 
         return res.json({
           success: true,
@@ -94,20 +107,22 @@ router.get("/:symbol", async (req, res) => {
             low: marketData.low,
             close: marketData.close,
             adj_close: marketData.adj_close,
-            volume: marketData.volume
+            volume: marketData.volume,
           },
           meta: {
             symbol: symbolUpper,
             source: "market_data_table",
             disclaimer: "Real market data from loader script",
-            last_updated: new Date().toISOString()
+            last_updated: new Date().toISOString(),
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
 
       // If no data found in either table, return 404
-      console.log(`❌ No data found for ${symbolUpper} in price_daily or market_data tables`);
+      console.log(
+        `❌ No data found for ${symbolUpper} in price_daily or market_data tables`
+      );
       return res.status(404).json({
         success: false,
         error: `No price data found for symbol ${symbolUpper}`,
@@ -151,7 +166,9 @@ router.get("/:symbol/history", async (req, res) => {
     const { period = "1Y", limit = 100 } = req.query;
     const symbolUpper = symbol.toUpperCase();
 
-    console.log(`📈 Price history requested for ${symbolUpper} (period: ${period})`);
+    console.log(
+      `📈 Price history requested for ${symbolUpper} (period: ${period})`
+    );
 
     // Try to get historical data from price_daily table
     let result = await query(
@@ -174,17 +191,19 @@ router.get("/:symbol/history", async (req, res) => {
         const basePrice = Math.random() * 200 + 50;
         mockData.push({
           symbol: symbolUpper,
-          date: date.toISOString().split('T')[0],
+          date: date.toISOString().split("T")[0],
           open: +(basePrice * 0.98).toFixed(2),
           high: +(basePrice * 1.03).toFixed(2),
           low: +(basePrice * 0.95).toFixed(2),
           close: +basePrice.toFixed(2),
           adj_close: +basePrice.toFixed(2),
-          volume: Math.floor(Math.random() * 10000000) + 1000000
+          volume: Math.floor(Math.random() * 10000000) + 1000000,
         });
       }
 
-      console.log(`📊 Returning mock historical data for ${symbolUpper} - ${mockData.length} periods`);
+      console.log(
+        `📊 Returning mock historical data for ${symbolUpper} - ${mockData.length} periods`
+      );
 
       return res.json({
         success: true,
@@ -194,9 +213,9 @@ router.get("/:symbol/history", async (req, res) => {
           period,
           count: mockData.length,
           source: "mock_data",
-          disclaimer: "Mock data for development - not real market data"
+          disclaimer: "Mock data for development - not real market data",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -207,9 +226,9 @@ router.get("/:symbol/history", async (req, res) => {
         symbol: symbolUpper,
         period,
         count: result.rows.length,
-        source: "database"
+        source: "database",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error(`Price history error for ${req.params.symbol}:`, error);
@@ -228,14 +247,16 @@ router.get("/:symbol/intraday", async (req, res) => {
     const { interval = "5m" } = req.query;
     const symbolUpper = symbol.toUpperCase();
 
-    console.log(`⏰ Intraday data requested for ${symbolUpper} (interval: ${interval})`);
+    console.log(
+      `⏰ Intraday data requested for ${symbolUpper} (interval: ${interval})`
+    );
 
     // For now, return mock intraday data since we don't have intraday tables
     const mockData = [];
     const now = new Date();
     for (let i = 0; i < 20; i++) {
       const time = new Date(now);
-      time.setMinutes(time.getMinutes() - (i * 5));
+      time.setMinutes(time.getMinutes() - i * 5);
       const basePrice = Math.random() * 200 + 50;
       mockData.push({
         symbol: symbolUpper,
@@ -244,7 +265,7 @@ router.get("/:symbol/intraday", async (req, res) => {
         high: +(basePrice * 1.001).toFixed(2),
         low: +(basePrice * 0.998).toFixed(2),
         close: +basePrice.toFixed(2),
-        volume: Math.floor(Math.random() * 100000) + 10000
+        volume: Math.floor(Math.random() * 100000) + 10000,
       });
     }
 
@@ -256,9 +277,9 @@ router.get("/:symbol/intraday", async (req, res) => {
         interval,
         count: mockData.length,
         source: "mock_data",
-        disclaimer: "Mock intraday data for development"
+        disclaimer: "Mock intraday data for development",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error(`Intraday data error for ${req.params.symbol}:`, error);
@@ -279,7 +300,7 @@ router.post("/batch", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "symbols array is required",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -295,21 +316,21 @@ router.post("/batch", async (req, res) => {
         change: +((Math.random() - 0.5) * 10).toFixed(2),
         change_percent: +((Math.random() - 0.5) * 5).toFixed(2),
         volume: Math.floor(Math.random() * 10000000) + 1000000,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
 
     return res.json({
       success: true,
       data: {
-        prices: prices
+        prices: prices,
       },
       meta: {
         count: symbols.length,
         source: "mock_data",
-        disclaimer: "Mock data for development"
+        disclaimer: "Mock data for development",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error(`Batch price error:`, error);
@@ -557,14 +578,12 @@ router.get("/latest/:symbol", async (req, res) => {
     const result = await query(latestQuery, [symbol.toUpperCase()]);
 
     if (!result || !result.rows || result.rows.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          error: "Symbol not found",
-          symbol: symbol.toUpperCase(),
-          message: "No price data available for symbol",
-        });
+      return res.status(404).json({
+        success: false,
+        error: "Symbol not found",
+        symbol: symbol.toUpperCase(),
+        message: "No price data available for symbol",
+      });
     }
 
     const latestData = result.rows[0];
@@ -583,13 +602,11 @@ router.get("/latest/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Latest price query error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch latest price",
-        message: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch latest price",
+      message: error.message,
+    });
   }
 });
 
@@ -1786,7 +1803,6 @@ router.get("/futures/:symbol", async (req, res) => {
   }
 });
 
-
 // Historical price data
 router.get("/:symbol/historical", async (req, res) => {
   try {
@@ -1799,7 +1815,7 @@ router.get("/:symbol/historical", async (req, res) => {
         symbol: symbol.toUpperCase(),
         period: period,
         interval: interval,
-        prices: []
+        prices: [],
       },
       timestamp: new Date().toISOString(),
     });
@@ -1820,10 +1836,12 @@ router.get("/daily/:symbol/:limit?", async (req, res) => {
     const limitNum = parseInt(limit || "30", 10);
     const symbolUpper = symbol.toUpperCase();
 
-    console.log(`📈 Fetching ${limitNum} days of daily price data for ${symbolUpper}`);
+    console.log(
+      `📈 Fetching ${limitNum} days of daily price data for ${symbolUpper}`
+    );
 
     // Generate mock daily price data
-    const basePrice = 150.00;
+    const basePrice = 150.0;
     const priceData = [];
 
     for (let i = limitNum - 1; i >= 0; i--) {
@@ -1836,13 +1854,13 @@ router.get("/daily/:symbol/:limit?", async (req, res) => {
 
       priceData.push({
         symbol: symbolUpper,
-        date: date.toISOString().split('T')[0],
-        open: +(price - (Math.random() * 2)).toFixed(2),
-        high: +(price + (Math.random() * 3)).toFixed(2),
-        low: +(price - (Math.random() * 3)).toFixed(2),
+        date: date.toISOString().split("T")[0],
+        open: +(price - Math.random() * 2).toFixed(2),
+        high: +(price + Math.random() * 3).toFixed(2),
+        low: +(price - Math.random() * 3).toFixed(2),
         close: +price.toFixed(2),
         volume: volume,
-        adj_close: +price.toFixed(2)
+        adj_close: +price.toFixed(2),
       });
     }
 
@@ -1853,12 +1871,15 @@ router.get("/daily/:symbol/:limit?", async (req, res) => {
         timeframe: "daily",
         limit: limitNum,
         prices: priceData,
-        count: priceData.length
+        count: priceData.length,
       },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(`❌ Error fetching daily prices for ${req.params.symbol}:`, error);
+    console.error(
+      `❌ Error fetching daily prices for ${req.params.symbol}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       error: "Failed to fetch daily price data",

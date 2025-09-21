@@ -44,10 +44,15 @@ const authenticateToken = (req, res, next) => {
       console.log(`🔧 Test mode: Using ${token} for authentication`);
       req.user = {
         sub: token === "dev-bypass-token" ? "dev-user-bypass" : "test-user-123",
-        email: token === "dev-bypass-token" ? "dev-bypass@example.com" : "test@example.com",
-        username: token === "dev-bypass-token" ? "dev-bypass-user" : "test-user",
+        email:
+          token === "dev-bypass-token"
+            ? "dev-bypass@example.com"
+            : "test@example.com",
+        username:
+          token === "dev-bypass-token" ? "dev-bypass-user" : "test-user",
         role: "admin",
-        sessionId: token === "dev-bypass-token" ? "dev-bypass-session" : "test-session",
+        sessionId:
+          token === "dev-bypass-token" ? "dev-bypass-session" : "test-session",
       };
       req.token = token;
       return next();

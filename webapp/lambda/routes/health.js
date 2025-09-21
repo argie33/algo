@@ -362,26 +362,32 @@ router.get("/", async (req, res) => {
         const countQueries = existingTables.map((tableName) =>
           Promise.race([
             // Use pg_stat_user_tables for much faster table statistics
-            query(`
+            query(
+              `
               SELECT
                 COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
               FROM pg_stat_user_tables
               WHERE relname = $1
-            `, [tableName]),
+            `,
+              [tableName]
+            ),
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error(`Stats timeout for ${tableName}`)),
-                500  // Reduced timeout since stats are much faster
+                500 // Reduced timeout since stats are much faster
               )
             ),
           ])
             .then((result) => ({
               table: tableName,
-              count: result.rows.length > 0 ? parseInt(result.rows[0].estimated_count) || 0 : 0,
+              count:
+                result.rows.length > 0
+                  ? parseInt(result.rows[0].estimated_count) || 0
+                  : 0,
             }))
             .catch((err) => ({
               table: tableName,
-              count: 0,  // Default to 0 instead of null for cleaner response
+              count: 0, // Default to 0 instead of null for cleaner response
               error: err.message,
             }))
         );
@@ -591,12 +597,18 @@ router.get("/database", async (req, res) => {
         const tableName = tableRow.table_name;
         try {
           // Use fast table statistics instead of slow COUNT(*)
-          const statsResult = await query(`
+          const statsResult = await query(
+            `
             SELECT COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
             FROM pg_stat_user_tables
             WHERE relname = $1
-          `, [tableName]);
-          const recordCount = statsResult.rows.length > 0 ? parseInt(statsResult.rows[0].estimated_count) || 0 : 0;
+          `,
+            [tableName]
+          );
+          const recordCount =
+            statsResult.rows.length > 0
+              ? parseInt(statsResult.rows[0].estimated_count) || 0
+              : 0;
 
           let status = "healthy";
           if (recordCount === 0) {
@@ -876,13 +888,11 @@ router.get("/database/diagnostics", async (req, res) => {
       diagnostics.recommendations.push(
         "Database connection failed. Check credentials, network, and DB status."
       );
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Internal server error",
-          details: err.message,
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        details: err.message,
+      });
     }
     // Host info
     try {
@@ -926,12 +936,18 @@ router.get("/database/diagnostics", async (req, res) => {
       for (const table of tables) {
         try {
           // Use table statistics for faster performance instead of COUNT(*)
-          const stats = await query(`
+          const stats = await query(
+            `
             SELECT COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
             FROM pg_stat_user_tables
             WHERE relname = $1
-          `, [table.table_name]);
-          const recordCount = stats.rows.length > 0 ? parseInt(stats.rows[0].estimated_count) || 0 : 0;
+          `,
+            [table.table_name]
+          );
+          const recordCount =
+            stats.rows.length > 0
+              ? parseInt(stats.rows[0].estimated_count) || 0
+              : 0;
           table.record_count = recordCount;
           // Try to get last updated timestamp
           let lastUpdate = null;

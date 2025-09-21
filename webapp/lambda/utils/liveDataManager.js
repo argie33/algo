@@ -2035,8 +2035,8 @@ class LiveDataManager extends EventEmitter {
       providers[providerId] = {
         requests,
         connections: provider.connections?.size || 0,
-        status: provider.status || 'active',
-        latency: provider.metrics?.latency || []
+        status: provider.status || "active",
+        latency: provider.metrics?.latency || [],
       };
     });
 
@@ -2051,9 +2051,9 @@ class LiveDataManager extends EventEmitter {
 
     // Calculate system health based on active providers and connections
     const systemHealth = {
-      status: this.providers.size > 0 ? 'healthy' : 'degraded',
+      status: this.providers.size > 0 ? "healthy" : "degraded",
       uptime: Date.now() - (this.startTime || Date.now()),
-      lastUpdate: new Date().toISOString()
+      lastUpdate: new Date().toISOString(),
     };
 
     return {
@@ -2062,7 +2062,7 @@ class LiveDataManager extends EventEmitter {
       activeProviders: this.providers.size,
       activeConnections: this.connectionPool.size,
       systemHealth,
-      providers
+      providers,
     };
   }
 

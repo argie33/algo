@@ -1225,7 +1225,7 @@ describe("Trading Routes Integration Tests", () => {
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .set("Content-Type", "application/json")
-        .send('{"invalid": json}');
+        .send('{"invalid": ');
 
       expect([400, 500].includes(response.status)).toBe(true);
     }, 30000);

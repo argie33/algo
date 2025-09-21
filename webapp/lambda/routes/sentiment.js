@@ -23,7 +23,7 @@ router.get("/", (req, res) => {
     data: {
       status: "operational",
       service: "sentiment",
-      endpoints: ["analysis", "trends", "social", "news"]
+      endpoints: ["analysis", "trends", "social", "news"],
     },
     timestamp: new Date().toISOString(),
   });
@@ -64,20 +64,20 @@ router.get("/analysis", async (req, res) => {
     // Get sentiment data from news articles
     const newsResult = await query(
       `
-      SELECT 
+      SELECT
         sentiment,
         published_at,
         title,
         source,
         symbols
-      FROM news_articles 
-      WHERE sentiment IS NOT NULL 
+      FROM news_articles
+      WHERE sentiment IS NOT NULL
         AND (symbols @> ARRAY[$1] OR $1 = ANY(symbols))
-        AND published_at >= NOW() - INTERVAL '${days} days'
+        AND published_at >= NOW() - INTERVAL $2 * interval '1 day'
       ORDER BY published_at DESC
       LIMIT 100
       `,
-      [targetSymbol.toUpperCase()]
+      [targetSymbol.toUpperCase(), days]
     ).catch(() => ({ rows: [] }));
 
     // Calculate sentiment metrics
@@ -101,7 +101,17 @@ router.get("/analysis", async (req, res) => {
 
     // Group articles by date for trend analysis
     const dailySentiment = articles.reduce((daily, article) => {
-      const date = article.published_at.toISOString().split("T")[0];
+      // Handle missing or invalid published_at dates
+      const publishedDate = article.published_at;
+      let date;
+      if (publishedDate && typeof publishedDate.toISOString === 'function') {
+        date = publishedDate.toISOString().split("T")[0];
+      } else if (publishedDate && typeof publishedDate === 'string') {
+        date = new Date(publishedDate).toISOString().split("T")[0];
+      } else {
+        date = new Date().toISOString().split("T")[0]; // Use today as fallback
+      }
+
       if (!daily[date]) {
         daily[date] = { positive: 0, negative: 0, neutral: 0, total: 0 };
       }
@@ -767,7 +777,9 @@ router.get("/social/twitter", async (req, res) => {
 router.get("/social/:symbol", async (req, res) => {
   const { symbol } = req.params;
   try {
-    console.log(`📱 Social sentiment for ${symbol} requested - not implemented`);
+    console.log(
+      `📱 Social sentiment for ${symbol} requested - not implemented`
+    );
 
     res.status(500).json({
       success: false,
@@ -1045,7 +1057,8 @@ router.get("/trending", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Trending sentiment data not available",
-      message: "Trending social media sentiment analysis is not yet implemented",
+      message:
+        "Trending social media sentiment analysis is not yet implemented",
       data_source: "Aggregated social media APIs and trending algorithms",
       timestamp: new Date().toISOString(),
     });
@@ -1404,7 +1417,7 @@ router.get("/stock/:symbol/trend", async (req, res) => {
 
     console.log(`📈 Stock sentiment trend for ${symbol}, period: ${period}`);
 
-    const days = parseInt(period.replace('d', '')) || 30;
+    const days = parseInt(period.replace("d", "")) || 30;
     const trendData = [];
 
     for (let i = days; i >= 0; i--) {
@@ -1417,7 +1430,7 @@ router.get("/stock/:symbol/trend", async (req, res) => {
       const sentimentScore = Math.max(0, Math.min(1, baseValue + noise));
 
       trendData.push({
-        date: date.toISOString().split('T')[0],
+        date: date.toISOString().split("T")[0],
         sentiment_score: parseFloat(sentimentScore.toFixed(3)),
         mentions: Math.floor(Math.random() * 100) + 50,
       });
@@ -1447,12 +1460,21 @@ router.get("/social/trending", async (req, res) => {
 
     console.log(`📈 Social trending sentiment requested, limit: ${limit}`);
 
-    const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'NFLX'];
-    const trendingData = symbols.slice(0, parseInt(limit)).map(symbol => ({
+    const symbols = [
+      "AAPL",
+      "TSLA",
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "META",
+      "NVDA",
+      "NFLX",
+    ];
+    const trendingData = symbols.slice(0, parseInt(limit)).map((symbol) => ({
       symbol: symbol,
       mention_count: Math.floor(Math.random() * 1000) + 100,
       sentiment_score: parseFloat((Math.random() * 0.6 + 0.2).toFixed(3)),
-      trend: Math.random() > 0.5 ? 'up' : 'down',
+      trend: Math.random() > 0.5 ? "up" : "down",
       velocity: Math.floor(Math.random() * 50) + 10,
     }));
 
@@ -1480,11 +1502,19 @@ router.get("/sectors", async (req, res) => {
     console.log("🏭 Sector sentiment analysis requested");
 
     const sectors = [
-      'Technology', 'Healthcare', 'Financial', 'Energy', 'Consumer Discretionary',
-      'Consumer Staples', 'Industrials', 'Materials', 'Utilities', 'Real Estate'
+      "Technology",
+      "Healthcare",
+      "Financial",
+      "Energy",
+      "Consumer Discretionary",
+      "Consumer Staples",
+      "Industrials",
+      "Materials",
+      "Utilities",
+      "Real Estate",
     ];
 
-    const sectorData = sectors.map(sector => ({
+    const sectorData = sectors.map((sector) => ({
       sector: sector,
       sentiment_score: parseFloat((Math.random() * 0.6 + 0.2).toFixed(3)),
       total_mentions: Math.floor(Math.random() * 500) + 100,
@@ -1552,10 +1582,14 @@ router.get("/news/articles", async (req, res) => {
     const articles = [];
     for (let i = 0; i < parseInt(limit); i++) {
       articles.push({
-        headline: `${symbol || 'Market'} Related News Article ${i + 1}`,
+        headline: `${symbol || "Market"} Related News Article ${i + 1}`,
         sentiment_score: parseFloat((Math.random() * 0.8 + 0.1).toFixed(3)),
-        published_date: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-        source: ['Reuters', 'Bloomberg', 'CNBC', 'Yahoo Finance'][Math.floor(Math.random() * 4)],
+        published_date: new Date(
+          Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+        source: ["Reuters", "Bloomberg", "CNBC", "Yahoo Finance"][
+          Math.floor(Math.random() * 4)
+        ],
       });
     }
 
@@ -1582,7 +1616,9 @@ router.get("/institutional/:symbol", async (req, res) => {
 
     const institutionalSentiment = {
       symbol: symbol.toUpperCase(),
-      institutional_sentiment: parseFloat((Math.random() * 0.6 + 0.2).toFixed(3)),
+      institutional_sentiment: parseFloat(
+        (Math.random() * 0.6 + 0.2).toFixed(3)
+      ),
       analyst_ratings: {
         buy: Math.floor(Math.random() * 15) + 5,
         hold: Math.floor(Math.random() * 10) + 3,
@@ -1596,7 +1632,7 @@ router.get("/institutional/:symbol", async (req, res) => {
       insider_trading: {
         recent_buys: Math.floor(Math.random() * 5),
         recent_sells: Math.floor(Math.random() * 3),
-        net_sentiment: Math.random() > 0.5 ? 'positive' : 'negative',
+        net_sentiment: Math.random() > 0.5 ? "positive" : "negative",
       },
     };
 
@@ -1658,19 +1694,19 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     const alerts = [
       {
         id: 1,
-        symbol: 'AAPL',
-        alert_type: 'sentiment_spike',
-        message: 'AAPL sentiment increased significantly',
+        symbol: "AAPL",
+        alert_type: "sentiment_spike",
+        message: "AAPL sentiment increased significantly",
         triggered_at: new Date().toISOString(),
-        status: 'active',
+        status: "active",
       },
       {
         id: 2,
-        symbol: 'TSLA',
-        alert_type: 'negative_sentiment',
-        message: 'TSLA sentiment turned negative',
+        symbol: "TSLA",
+        alert_type: "negative_sentiment",
+        message: "TSLA sentiment turned negative",
         triggered_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        status: 'acknowledged',
+        status: "acknowledged",
       },
     ];
 
@@ -1694,7 +1730,9 @@ router.post("/alerts", authenticateToken, async (req, res) => {
     const { symbol, alert_type, threshold } = req.body;
     const userId = req.user.sub;
 
-    console.log(`🚨 Creating sentiment alert for ${symbol}, type: ${alert_type}`);
+    console.log(
+      `🚨 Creating sentiment alert for ${symbol}, type: ${alert_type}`
+    );
 
     const alert = {
       id: Date.now(),
@@ -1702,7 +1740,7 @@ router.post("/alerts", authenticateToken, async (req, res) => {
       symbol: symbol.toUpperCase(),
       alert_type: alert_type,
       threshold: threshold,
-      status: 'active',
+      status: "active",
       created_at: new Date().toISOString(),
     };
 

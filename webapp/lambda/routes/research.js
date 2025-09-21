@@ -14,8 +14,8 @@ router.get("/", async (req, res) => {
           "/reports - Research reports",
           "/analysis - Market analysis",
           "/recommendations - Analyst recommendations",
-          "/ratings - Stock ratings"
-        ]
+          "/ratings - Stock ratings",
+        ],
       },
       timestamp: new Date().toISOString(),
     });
@@ -36,7 +36,7 @@ router.get("/reports", async (req, res) => {
       data: {
         reports: [],
         total: 0,
-        message: "No research reports available"
+        message: "No research reports available",
       },
       timestamp: new Date().toISOString(),
     });
@@ -57,7 +57,7 @@ router.get("/analysis", async (req, res) => {
       data: {
         analysis: [],
         total: 0,
-        message: "No market analysis available"
+        message: "No market analysis available",
       },
       timestamp: new Date().toISOString(),
     });
@@ -78,7 +78,7 @@ router.get("/recommendations", async (req, res) => {
       data: {
         recommendations: [],
         total: 0,
-        message: "No recommendations available"
+        message: "No recommendations available",
       },
       timestamp: new Date().toISOString(),
     });
@@ -99,7 +99,7 @@ router.get("/ratings", async (req, res) => {
       data: {
         ratings: [],
         total: 0,
-        message: "No ratings available"
+        message: "No ratings available",
       },
       timestamp: new Date().toISOString(),
     });

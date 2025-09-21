@@ -26,7 +26,7 @@ describe("Malformed Request Integration", () => {
     test("should handle malformed JSON gracefully", async () => {
       const malformedJsonTests = [
         { body: '{"incomplete": json', description: "Incomplete JSON object" },
-        { body: '{invalid: "json"}', description: "Invalid JSON syntax" },
+        { body: '{invalid: "json"', description: "Invalid JSON syntax" },
         {
           body: '{"nested": {"incomplete": }',
           description: "Nested incomplete JSON",
@@ -616,7 +616,7 @@ describe("Malformed Request Integration", () => {
               .post("/api/portfolio/analyze")
               .set("Authorization", "Bearer dev-bypass-token")
               .set("Content-Type", "application/json")
-              .send('{"invalid": json}'),
+              .send('{"invalid": '),
         },
         {
           type: "malformed_auth",
@@ -663,7 +663,7 @@ describe("Malformed Request Integration", () => {
           .post("/api/portfolio/analyze")
           .set("Authorization", "Bearer dev-bypass-token")
           .set("Content-Type", "application/json")
-          .send('{"invalid": json}'),
+          .send('{"invalid": '),
         // Another valid request
         request(app).get("/api/market/overview"),
         // Malformed headers

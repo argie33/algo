@@ -237,7 +237,7 @@ router.get("/analysis", async (req, res) => {
 // Risk assessment endpoint - comprehensive risk assessment
 router.get("/assessment", async (req, res) => {
   try {
-    const userId = req.user?.sub || 'dev-user';
+    const userId = req.user?.sub || "dev-user";
     const {
       type = "comprehensive",
       timeframe = "1y",

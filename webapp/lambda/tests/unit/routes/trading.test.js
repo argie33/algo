@@ -3,7 +3,7 @@ const request = require("supertest");
 
 // Mock database for unit tests
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn()
+  query: jest.fn(),
 }));
 
 const { query } = require("../../../utils/database");
@@ -13,7 +13,7 @@ jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
     req.user = { sub: "test-user-123" };
     next();
-  }
+  },
 }));
 
 describe("Trading Routes Unit Tests", () => {
@@ -51,16 +51,18 @@ describe("Trading Routes Unit Tests", () => {
       // Mock user settings query
       if (sql.includes("user_dashboard_settings")) {
         return Promise.resolve({
-          rows: [{
-            trading_preferences: { paper_trading_mode: true }
-          }]
+          rows: [
+            {
+              trading_preferences: { paper_trading_mode: true },
+            },
+          ],
         });
       }
 
       // Mock trading positions query
       if (sql.includes("buy_sell_daily")) {
         return Promise.resolve({
-          rows: []
+          rows: [],
         });
       }
 
@@ -73,23 +75,25 @@ describe("Trading Routes Unit Tests", () => {
         }
         // Return AAPL position for most tests
         return Promise.resolve({
-          rows: [{
-            symbol: "AAPL",
-            quantity: 100,
-            average_cost: 158.30,
-            current_price: 195.12,
-            market_value: 482037,
-            unrealized_pnl: 9087,
-            position_type: "long",
-            user_id: "test-user-123"
-          }]
+          rows: [
+            {
+              symbol: "AAPL",
+              quantity: 100,
+              average_cost: 158.3,
+              current_price: 195.12,
+              market_value: 482037,
+              unrealized_pnl: 9087,
+              position_type: "long",
+              user_id: "test-user-123",
+            },
+          ],
         });
       }
 
       // Mock table exists query
       if (sql.includes("EXISTS") || sql.includes("information_schema")) {
         return Promise.resolve({
-          rows: [{ exists: true }]
+          rows: [{ exists: true }],
         });
       }
 
@@ -101,7 +105,7 @@ describe("Trading Routes Unit Tests", () => {
         if (sql.includes("SELECT id FROM user_risk_limits")) {
           // Return existing user if we have risk limits, empty if new
           return Promise.resolve({
-            rows: userRiskLimits ? [{ id: 1 }] : []
+            rows: userRiskLimits ? [{ id: 1 }] : [],
           });
         }
 
@@ -118,7 +122,7 @@ describe("Trading Routes Unit Tests", () => {
             max_daily_loss: params[7] !== undefined ? params[7] : 2.0,
             max_monthly_loss: params[8] !== undefined ? params[8] : 10.0,
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           };
           userRiskLimits = result;
           return Promise.resolve({ rows: [result] });
@@ -138,7 +142,7 @@ describe("Trading Routes Unit Tests", () => {
               risk_tolerance_level: "conservative",
               max_daily_loss: 1.5,
               max_monthly_loss: 8.0,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             };
           }
 
@@ -162,13 +166,13 @@ describe("Trading Routes Unit Tests", () => {
       // Mock generic UPDATE/INSERT
       if (sql.includes("UPDATE") || sql.includes("INSERT")) {
         return Promise.resolve({
-          rows: [{ success: true }]
+          rows: [{ success: true }],
         });
       }
 
       // Default fallback
       return Promise.resolve({
-        rows: []
+        rows: [],
       });
     });
   });

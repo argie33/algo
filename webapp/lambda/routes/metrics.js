@@ -10,15 +10,13 @@ router.use(responseFormatter);
 
 // Health check endpoint
 router.get("/health", (req, res) => {
-  res
-    .status(200)
-    .json({
-      success: true,
-      status: "healthy",
-      service: "metrics",
-      timestamp: new Date().toISOString(),
-      database: "connected",
-    });
+  res.status(200).json({
+    success: true,
+    status: "healthy",
+    service: "metrics",
+    timestamp: new Date().toISOString(),
+    database: "connected",
+  });
 });
 
 // Basic ping endpoint
@@ -44,7 +42,7 @@ router.get("/market", async (req, res) => {
         gainers: 2850,
         decliners: 1650,
         market_status: "open",
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       },
       timestamp: new Date().toISOString(),
     });
@@ -171,7 +169,7 @@ router.get("/", async (req, res) => {
         cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        COALESCE(md.market_cap, ss.market_cap) as market_cap,
+        COALESCE(md.market_cap, md.market_cap) as market_cap,
         COALESCE(md.current_price, pd.close, 0) as current_price,
         fm.pe_ratio,
         fm.price_to_book,
@@ -391,15 +389,13 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in metrics endpoint:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch metrics",
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        service: "financial-platform",
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch metrics",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      service: "financial-platform",
+    });
   }
 });
 
@@ -456,23 +452,25 @@ router.get("/performance", async (req, res) => {
           total_return: "8.5%",
           volatility: "24.2%",
           max_drawdown: "-12.3%",
-          sharpe_ratio: 1.42
+          sharpe_ratio: 1.42,
         },
         price_range: {
-          high: 165.80,
-          low: 135.20,
-          average: "150.50"
+          high: 165.8,
+          low: 135.2,
+          average: "150.50",
         },
         trading_activity: {
           avg_volume: 2500000,
           max_volume: 4200000,
-          min_volume: 1800000
+          min_volume: 1800000,
         },
         data_points: 30,
         date_range: {
-          from: new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          to: new Date().toISOString().split('T')[0]
-        }
+          from: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0],
+          to: new Date().toISOString().split("T")[0],
+        },
       };
 
       return res.json({
@@ -480,9 +478,10 @@ router.get("/performance", async (req, res) => {
         data: mockData,
         meta: {
           source: "mock_data",
-          disclaimer: "Mock performance data for development - not real market data"
+          disclaimer:
+            "Mock performance data for development - not real market data",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -828,7 +827,7 @@ router.get("/:symbol", async (req, res) => {
         cp.short_name as company_name,
         cp.sector,
         cp.industry,
-        COALESCE(md.market_cap, ss.market_cap) as market_cap,
+        COALESCE(md.market_cap, md.market_cap) as market_cap,
         COALESCE(md.current_price, pd.close, 0) as current_price,
         fm.pe_ratio,
         fm.price_to_book,
@@ -856,16 +855,14 @@ router.get("/:symbol", async (req, res) => {
       console.warn(
         "Metrics query returned null result, database may be unavailable"
       );
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Database temporarily unavailable",
-          message:
-            "Stock metrics temporarily unavailable - database connection issue",
-          symbol,
-          timestamp: new Date().toISOString(),
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Database temporarily unavailable",
+        message:
+          "Stock metrics temporarily unavailable - database connection issue",
+        symbol,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     if (metricsResult.rows.length === 0) {
@@ -1095,15 +1092,13 @@ router.get("/sectors/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in sector analysis:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch sector analysis",
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        service: "financial-platform",
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch sector analysis",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      service: "financial-platform",
+    });
   }
 });
 
@@ -1144,7 +1139,7 @@ router.get("/top/:category", async (req, res) => {
         ss.symbol,
         cp.short_name as company_name,
         cp.sector,
-        ss.market_cap,
+        md.market_cap,
         COALESCE(pd.close, 0) as current_price,
         sc.fundamental_score,
         sc.technical_score,
@@ -1210,15 +1205,13 @@ router.get("/top/:category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting top stocks:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch top stocks",
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        service: "financial-platform",
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch top stocks",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      service: "financial-platform",
+    });
   }
 });
 

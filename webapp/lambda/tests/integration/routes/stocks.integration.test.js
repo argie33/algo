@@ -59,7 +59,8 @@ describe("Stocks Routes Integration Tests", () => {
         .get("/api/stocks/search")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401].includes(response.status)).toBe(true);
+      expect(response.status).toBe(200);
+      expect(response.body.data.results).toEqual([]);
     });
 
     test("should handle empty search query", async () => {
@@ -67,7 +68,8 @@ describe("Stocks Routes Integration Tests", () => {
         .get("/api/stocks/search?q=")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401].includes(response.status)).toBe(true);
+      expect(response.status).toBe(200);
+      expect(response.body.data.results).toEqual([]);
     });
 
     test("should handle search with limit parameter", async () => {
@@ -149,7 +151,11 @@ describe("Stocks Routes Integration Tests", () => {
         .get("/api/stocks/screener")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 401].includes(response.status)).toBe(true);
+      expect(response.status).toBe(200);
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+      }
     });
 
     test("should handle screener filters", async () => {
@@ -157,7 +163,11 @@ describe("Stocks Routes Integration Tests", () => {
         .get("/api/stocks/screener?market_cap_min=1000000&pe_ratio_max=20")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 400, 401].includes(response.status)).toBe(true);
+      expect(response.status).toBe(200);
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+      }
     });
   });
 

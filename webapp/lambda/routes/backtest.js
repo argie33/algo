@@ -666,7 +666,7 @@ router.get("/symbols", async (req, res) => {
     const { search = "", limit = 100 } = req.query;
 
     const sqlQuery = `
-      SELECT DISTINCT ticker as symbol, name as short_name
+      SELECT DISTINCT ticker as symbol, short_name
       FROM company_profile
       WHERE ticker ILIKE $1
       ORDER BY ticker
@@ -983,13 +983,11 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching backtest results:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch backtest results",
-        details: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch backtest results",
+      details: error.message,
+    });
   }
 });
 
@@ -1023,13 +1021,11 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating backtest:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to create backtest",
-        details: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to create backtest",
+      details: error.message,
+    });
   }
 });
 
@@ -1054,13 +1050,11 @@ router.get("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching backtest:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch backtest",
-        details: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch backtest",
+      details: error.message,
+    });
   }
 });
 
@@ -1085,13 +1079,11 @@ router.delete("/:id", async (req, res) => {
     res.json({ message: `Backtest ${id} deleted successfully`, deletedId: id });
   } catch (error) {
     console.error("Error deleting backtest:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to delete backtest",
-        details: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to delete backtest",
+      details: error.message,
+    });
   }
 });
 

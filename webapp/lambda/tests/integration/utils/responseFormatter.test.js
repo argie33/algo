@@ -15,16 +15,16 @@ describe("Response Formatter Integration Tests", () => {
         changePercent: 1.68,
       };
 
-      const formatted = responseFormatter.success(
-        testData,
-        200,
-        { message: "Stock data retrieved successfully" }
-      );
+      const formatted = responseFormatter.success(testData, 200, {
+        message: "Stock data retrieved successfully",
+      });
 
       expect(formatted).toBeDefined();
       expect(formatted.response.success).toBe(true);
       expect(formatted.response.data).toEqual(testData);
-      expect(formatted.response.message).toBe("Stock data retrieved successfully");
+      expect(formatted.response.message).toBe(
+        "Stock data retrieved successfully"
+      );
       expect(formatted.response.timestamp).toBeDefined();
       expect(formatted.statusCode).toBe(200);
     });
@@ -36,11 +36,10 @@ describe("Response Formatter Integration Tests", () => {
         { symbol: "MSFT", price: 310.75 },
       ];
 
-      const formatted = responseFormatter.success(
-        testArray,
-        200,
-        { message: "Portfolio data retrieved", count: 3 }
-      );
+      const formatted = responseFormatter.success(testArray, 200, {
+        message: "Portfolio data retrieved",
+        count: 3,
+      });
 
       expect(formatted.response.success).toBe(true);
       expect(Array.isArray(formatted.response.data)).toBe(true);
@@ -109,7 +108,7 @@ describe("Response Formatter Integration Tests", () => {
     test("should format validation errors", () => {
       const errors = [
         { field: "symbol", message: "Symbol is required" },
-        { field: "quantity", message: "Quantity must be positive" }
+        { field: "quantity", message: "Quantity must be positive" },
       ];
 
       const formatted = responseFormatter.validationError(errors);

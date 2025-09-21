@@ -34,11 +34,15 @@ describe("Scores Routes Integration", () => {
   });
 
   describe("GET /scores", () => {
-    test("should return scores data", async () => {
+    test("should return scores data with AWS-compatible structure", async () => {
       const response = await request(app).get("/scores");
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
     });
 
     test("should handle pagination parameters", async () => {
@@ -47,7 +51,13 @@ describe("Scores Routes Integration", () => {
         .query({ page: 1, limit: 10 });
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
+      expect(response.body.pagination).toHaveProperty("page", 1);
+      expect(response.body.pagination).toHaveProperty("limit", 10);
     });
 
     test("should handle search parameter", async () => {
@@ -56,7 +66,10 @@ describe("Scores Routes Integration", () => {
         .query({ search: "AAPL" });
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle sector filter", async () => {
@@ -65,7 +78,10 @@ describe("Scores Routes Integration", () => {
         .query({ sector: "Technology" });
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle score range filters", async () => {
@@ -74,7 +90,10 @@ describe("Scores Routes Integration", () => {
         .query({ minScore: 50, maxScore: 100 });
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle sorting parameters", async () => {
@@ -83,14 +102,25 @@ describe("Scores Routes Integration", () => {
         .query({ sortBy: "composite_score", sortOrder: "desc" });
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      if (response.body.data.scores.length > 0) {
+        expect(response.body.data.scores[0]).toHaveProperty("composite_score");
+      }
     });
 
     test("should handle limit boundary conditions", async () => {
       const response = await request(app).get("/scores").query({ limit: 300 }); // Should be capped at 200
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.pagination).toHaveProperty("limit");
+      expect(response.body.pagination.limit).toBeLessThanOrEqual(200);
     });
 
     test("should handle invalid parameters gracefully", async () => {
@@ -102,7 +132,10 @@ describe("Scores Routes Integration", () => {
       });
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
   });
 
@@ -125,7 +158,10 @@ describe("Scores Routes Integration", () => {
 
       // Should not crash even if database issues occur
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
   });
 
@@ -138,7 +174,10 @@ describe("Scores Routes Integration", () => {
 
       // Should handle malicious input safely
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle XSS attempts", async () => {
@@ -148,7 +187,10 @@ describe("Scores Routes Integration", () => {
       });
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle large payloads", async () => {
@@ -159,7 +201,10 @@ describe("Scores Routes Integration", () => {
         .query({ search: longString });
 
       expect(response.status).toBe(200);
-      expect(response.body).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
   });
 

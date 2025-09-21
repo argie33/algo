@@ -66,13 +66,19 @@ function calculateCorrelation(x, y) {
   const sumYY = y.reduce((sum, yi) => sum + yi * yi, 0);
 
   const numerator = n * sumXY - sumX * sumY;
-  const denominator = Math.sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
+  const denominator = Math.sqrt(
+    (n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY)
+  );
 
   return denominator === 0 ? 0 : numerator / denominator;
 }
 
 function calculateBeta(portfolioReturns, benchmarkReturns) {
-  if (portfolioReturns.length !== benchmarkReturns.length || portfolioReturns.length < 2) return 1;
+  if (
+    portfolioReturns.length !== benchmarkReturns.length ||
+    portfolioReturns.length < 2
+  )
+    return 1;
 
   const correlation = calculateCorrelation(portfolioReturns, benchmarkReturns);
   const portfolioStd = calculateStandardDeviation(portfolioReturns);
@@ -84,15 +90,24 @@ function calculateBeta(portfolioReturns, benchmarkReturns) {
 function calculateAlpha(portfolioReturns, benchmarkReturns, beta) {
   if (portfolioReturns.length < 1 || benchmarkReturns.length < 1) return 0;
 
-  const avgPortfolioReturn = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
-  const avgBenchmarkReturn = benchmarkReturns.reduce((a, b) => a + b, 0) / benchmarkReturns.length;
+  const avgPortfolioReturn =
+    portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
+  const avgBenchmarkReturn =
+    benchmarkReturns.reduce((a, b) => a + b, 0) / benchmarkReturns.length;
   const riskFreeRate = 2; // Assume 2% risk-free rate
 
-  return avgPortfolioReturn - (riskFreeRate + beta * (avgBenchmarkReturn - riskFreeRate));
+  return (
+    avgPortfolioReturn -
+    (riskFreeRate + beta * (avgBenchmarkReturn - riskFreeRate))
+  );
 }
 
 function calculateTrackingError(portfolioReturns, benchmarkReturns) {
-  if (portfolioReturns.length !== benchmarkReturns.length || portfolioReturns.length < 2) return 0;
+  if (
+    portfolioReturns.length !== benchmarkReturns.length ||
+    portfolioReturns.length < 2
+  )
+    return 0;
 
   const excessReturns = portfolioReturns.map((r, i) => r - benchmarkReturns[i]);
   return calculateStandardDeviation(excessReturns);
@@ -102,7 +117,9 @@ function calculateStandardDeviation(values) {
   if (values.length < 2) return 0;
 
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / (values.length - 1);
+  const variance =
+    values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) /
+    (values.length - 1);
   return Math.sqrt(variance);
 }
 
@@ -834,8 +851,8 @@ router.get("/risk-metrics", async (req, res) => {
             sortino_ratio: 0,
             concentration_risk: { hhi: 0, max_allocation: 0 },
             portfolio_beta: 1.0,
-            message: "No holdings available for risk analysis"
-          }
+            message: "No holdings available for risk analysis",
+          },
         },
         timestamp: new Date().toISOString(),
       });
@@ -868,15 +885,13 @@ router.get("/risk-metrics", async (req, res) => {
 
     // Validate database response
     if (!holdingsResult || !holdingsResult.rows) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Failed to fetch portfolio holdings for risk metrics",
-          details: "Database query returned empty result",
-          suggestion:
-            "Ensure database connection is available and user_portfolio table exists",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch portfolio holdings for risk metrics",
+        details: "Database query returned empty result",
+        suggestion:
+          "Ensure database connection is available and user_portfolio table exists",
+      });
     }
 
     // Calculate basic risk metrics
@@ -974,30 +989,30 @@ router.get("/:id/holdings", async (req, res) => {
 
     const result = await query(
       `
-      SELECT 
+      SELECT
         ph.symbol, ph.quantity, ph.average_cost, ph.current_price, ph.market_value,
         ph.unrealized_pnl, ph.unrealized_pnl_percent, ph.last_updated,
-        COALESCE(ss.sector, 'Unknown') as sector
+        COALESCE(fm.sector, cp.sector, 'Unknown') as sector
       FROM portfolio_holdings ph
-      LEFT JOIN stock_symbols ss ON ph.symbol = ss.symbol 
+      LEFT JOIN stock_symbols ss ON ph.symbol = ss.symbol
+      LEFT JOIN fundamental_metrics fm ON ph.symbol = fm.symbol
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker 
       WHERE ph.user_id = $1
       ORDER BY ph.market_value DESC
       `,
       [id]
     );
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        portfolio_id: id,
-        holdings: result.rows,
-        total_holdings: result.rows.length,
-        total_value: result.rows.reduce(
-          (sum, h) => sum + parseFloat(h.market_value || 0),
-          0
-        ),
-      });
+    res.status(200).json({
+      success: true,
+      portfolio_id: id,
+      holdings: result.rows,
+      total_holdings: result.rows.length,
+      total_value: result.rows.reduce(
+        (sum, h) => sum + parseFloat(h.market_value || 0),
+        0
+      ),
+    });
   } catch (error) {
     console.error(`Portfolio holdings error for ID ${req.params.id}:`, error);
 
@@ -1048,15 +1063,13 @@ router.get("/:id/performance", async (req, res) => {
       [id]
     );
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        portfolio_id: id,
-        performance: result.rows,
-        count: result.rows.length,
-        timeframe: timeframe,
-      });
+    res.status(200).json({
+      success: true,
+      portfolio_id: id,
+      performance: result.rows,
+      count: result.rows.length,
+      timeframe: timeframe,
+    });
   } catch (error) {
     console.error(
       `Portfolio performance error for ID ${req.params.id}:`,
@@ -1203,15 +1216,13 @@ router.get("/performance", async (req, res) => {
     res.json(responseWithTradingMode);
   } catch (error) {
     console.error("Portfolio performance error:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch portfolio performance",
-        details: error.message,
-        suggestion:
-          "Ensure portfolio performance data has been recorded or import from broker",
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch portfolio performance",
+      details: error.message,
+      suggestion:
+        "Ensure portfolio performance data has been recorded or import from broker",
+    });
   }
 });
 
@@ -1480,8 +1491,8 @@ router.get("/benchmark", async (req, res) => {
             alpha: null,
             tracking_error: null,
             information_ratio: null,
-            excess_return: null
-          }
+            excess_return: null,
+          },
         },
       });
     }
@@ -1512,7 +1523,7 @@ router.get("/benchmark", async (req, res) => {
     });
 
     // Get portfolio performance data for comparison
-    const userId = req.user?.sub || 'test-user-123';
+    const userId = req.user?.sub || "test-user-123";
     const portfolioQuery = `
       SELECT
         date,
@@ -1534,7 +1545,7 @@ router.get("/benchmark", async (req, res) => {
       alpha: null,
       tracking_error: null,
       information_ratio: null,
-      excess_return: null
+      excess_return: null,
     };
 
     if (portfolioData.length > 0 && benchmarkData.length > 0) {
@@ -1542,42 +1553,62 @@ router.get("/benchmark", async (req, res) => {
         // Align data by date and calculate returns
         const alignedData = [];
         portfolioData.forEach((pRow, index) => {
-          const bRow = benchmarkData.find(b => b.date === pRow.date);
+          const bRow = benchmarkData.find((b) => b.date === pRow.date);
           if (bRow) {
             // Calculate benchmark return from close prices
             let benchmarkReturn = 0;
             if (index > 0) {
-              const prevBenchmarkRow = benchmarkData.find(b => b.date === portfolioData[index - 1].date);
+              const prevBenchmarkRow = benchmarkData.find(
+                (b) => b.date === portfolioData[index - 1].date
+              );
               if (prevBenchmarkRow) {
-                const prevPrice = parseFloat(prevBenchmarkRow.close || prevBenchmarkRow.price || 0);
+                const prevPrice = parseFloat(
+                  prevBenchmarkRow.close || prevBenchmarkRow.price || 0
+                );
                 const currentPrice = parseFloat(bRow.close || bRow.price || 0);
                 if (prevPrice > 0) {
-                  benchmarkReturn = ((currentPrice - prevPrice) / prevPrice) * 100;
+                  benchmarkReturn =
+                    ((currentPrice - prevPrice) / prevPrice) * 100;
                 }
               }
             }
 
             alignedData.push({
               portfolioReturn: parseFloat(pRow.total_pnl_percent || 0),
-              benchmarkReturn: benchmarkReturn
+              benchmarkReturn: benchmarkReturn,
             });
           }
         });
 
         if (alignedData.length >= 2) {
           // Calculate correlation
-          const portfolioReturns = alignedData.map(d => d.portfolioReturn);
-          const benchmarkReturns = alignedData.map(d => d.benchmarkReturn);
+          const portfolioReturns = alignedData.map((d) => d.portfolioReturn);
+          const benchmarkReturns = alignedData.map((d) => d.benchmarkReturn);
 
-          const correlation = calculateCorrelation(portfolioReturns, benchmarkReturns);
+          const correlation = calculateCorrelation(
+            portfolioReturns,
+            benchmarkReturns
+          );
           const beta = calculateBeta(portfolioReturns, benchmarkReturns);
-          const alpha = calculateAlpha(portfolioReturns, benchmarkReturns, beta);
-          const trackingError = calculateTrackingError(portfolioReturns, benchmarkReturns);
+          const alpha = calculateAlpha(
+            portfolioReturns,
+            benchmarkReturns,
+            beta
+          );
+          const trackingError = calculateTrackingError(
+            portfolioReturns,
+            benchmarkReturns
+          );
 
-          const avgPortfolioReturn = portfolioReturns.reduce((a, b) => a + b, 0) / portfolioReturns.length;
-          const avgBenchmarkReturn = benchmarkReturns.reduce((a, b) => a + b, 0) / benchmarkReturns.length;
+          const avgPortfolioReturn =
+            portfolioReturns.reduce((a, b) => a + b, 0) /
+            portfolioReturns.length;
+          const avgBenchmarkReturn =
+            benchmarkReturns.reduce((a, b) => a + b, 0) /
+            benchmarkReturns.length;
           const excessReturn = avgPortfolioReturn - avgBenchmarkReturn;
-          const informationRatio = trackingError > 0 ? excessReturn / trackingError : 0;
+          const informationRatio =
+            trackingError > 0 ? excessReturn / trackingError : 0;
 
           benchmark_metrics = {
             correlation: Math.round(correlation * 10000) / 10000,
@@ -1585,7 +1616,7 @@ router.get("/benchmark", async (req, res) => {
             alpha: Math.round(alpha * 10000) / 10000,
             tracking_error: Math.round(trackingError * 10000) / 10000,
             information_ratio: Math.round(informationRatio * 10000) / 10000,
-            excess_return: Math.round(excessReturn * 100) / 100
+            excess_return: Math.round(excessReturn * 100) / 100,
           };
         }
       } catch (error) {
@@ -1596,7 +1627,7 @@ router.get("/benchmark", async (req, res) => {
           alpha: null,
           tracking_error: null,
           information_ratio: null,
-          excess_return: null
+          excess_return: null,
         };
       }
     }
@@ -1609,7 +1640,7 @@ router.get("/benchmark", async (req, res) => {
         totalReturn: Math.round(totalReturn * 100) / 100,
         timeframe,
         dataPoints: performance.length,
-        benchmark_metrics: benchmark_metrics
+        benchmark_metrics: benchmark_metrics,
       },
       timestamp: new Date().toISOString(),
     });
@@ -2339,13 +2370,11 @@ router.post("/sync/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          error:
-            "No API key found for this broker. Please connect your account first.",
-        });
+      return res.status(404).json({
+        success: false,
+        error:
+          "No API key found for this broker. Please connect your account first.",
+      });
     }
 
     const keyData = keyResult.rows[0];
@@ -2406,27 +2435,23 @@ router.post("/sync/:brokerName", async (req, res) => {
 
     console.log(`Portfolio sync completed successfully for user ${userId}`);
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Portfolio synchronized successfully",
-        data: syncResult,
-        timestamp: new Date().toISOString(),
-      });
+    res.status(200).json({
+      success: true,
+      message: "Portfolio synchronized successfully",
+      data: syncResult,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error(
       `Portfolio sync error for broker ${req.params.brokerName}:`,
       error.message
     );
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error:
-          "Failed to sync portfolio. Please check your API credentials and try again.",
-        details: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      error:
+        "Failed to sync portfolio. Please check your API credentials and try again.",
+      details: error.message,
+    });
   }
 });
 
@@ -2558,13 +2583,11 @@ router.get("/valuation/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          error:
-            "No API key found for this broker. Please connect your account first.",
-        });
+      return res.status(404).json({
+        success: false,
+        error:
+          "No API key found for this broker. Please connect your account first.",
+      });
     }
 
     const keyData = keyResult.rows[0];
@@ -2617,27 +2640,23 @@ router.get("/valuation/:brokerName", async (req, res) => {
         );
     }
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Portfolio valuation retrieved successfully",
-        data: valuation,
-        timestamp: new Date().toISOString(),
-      });
+    res.status(200).json({
+      success: true,
+      message: "Portfolio valuation retrieved successfully",
+      data: valuation,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error(
       `Portfolio valuation error for broker ${req.params.brokerName}:`,
       error.message
     );
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error:
-          "Failed to retrieve portfolio valuation. Please check your API credentials and try again.",
-        details: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      error:
+        "Failed to retrieve portfolio valuation. Please check your API credentials and try again.",
+      details: error.message,
+    });
   }
 });
 
@@ -3640,15 +3659,19 @@ function calculateSortinoRatio(returns) {
   const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
 
   // Calculate downside returns (negative returns only)
-  const downsideReturns = returns.filter(r => r < 0);
+  const downsideReturns = returns.filter((r) => r < 0);
 
   if (downsideReturns.length === 0) return avgReturn > 0 ? 10 : 0; // No downside risk
 
   // Calculate downside deviation
-  const downsideVariance = downsideReturns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / downsideReturns.length;
+  const downsideVariance =
+    downsideReturns.reduce((sum, r) => sum + Math.pow(r, 2), 0) /
+    downsideReturns.length;
   const downsideDeviation = Math.sqrt(downsideVariance);
 
-  return downsideDeviation > 0 ? (avgReturn * 252) / (downsideDeviation * Math.sqrt(252)) : 0;
+  return downsideDeviation > 0
+    ? (avgReturn * 252) / (downsideDeviation * Math.sqrt(252))
+    : 0;
 }
 
 function getTopSector(holdings) {
@@ -3777,12 +3800,10 @@ router.post("/api-keys", async (req, res) => {
 
     // Validate required fields
     if (!brokerName || !apiKey) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "Broker name and API key are required",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "Broker name and API key are required",
+      });
     }
 
     // Create user-specific salt
@@ -3833,15 +3854,13 @@ router.post("/api-keys", async (req, res) => {
       `API key stored securely for user ${userId}, broker: ${brokerName}`
     );
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "API key stored securely",
-        broker: brokerName,
-        sandbox,
-        timestamp: new Date().toISOString(),
-      });
+    res.status(200).json({
+      success: true,
+      message: "API key stored securely",
+      broker: brokerName,
+      sandbox,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("Error storing API key:", error.message); // Don't log full error which might contain keys
     return res.status(500).json({
@@ -3867,15 +3886,13 @@ router.get("/api-keys", async (req, res) => {
 
     // Validate database result
     if (!result) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Failed to fetch API keys from database",
-          details: "Database query returned empty result",
-          suggestion:
-            "Ensure database connection is available and user_api_keys table exists",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch API keys from database",
+        details: "Database query returned empty result",
+        suggestion:
+          "Ensure database connection is available and user_api_keys table exists",
+      });
     }
 
     res.status(200).json({
@@ -3919,14 +3936,12 @@ router.delete("/api-keys/:brokerName", async (req, res) => {
 
     console.log(`API key deleted for user ${userId}, broker: ${brokerName}`);
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "API key deleted successfully",
-        broker: brokerName,
-        timestamp: new Date().toISOString(),
-      });
+    res.status(200).json({
+      success: true,
+      message: "API key deleted successfully",
+      broker: brokerName,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("Error deleting API key:", error);
     return res
@@ -3954,13 +3969,11 @@ router.post("/test-connection/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          error:
-            "No API key found for this broker. Please connect your account first.",
-        });
+      return res.status(404).json({
+        success: false,
+        error:
+          "No API key found for this broker. Please connect your account first.",
+      });
     }
 
     const keyData = keyResult.rows[0];
@@ -4096,26 +4109,22 @@ router.post("/test-connection/:brokerName", async (req, res) => {
       );
     }
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        connection: connectionResult,
-        broker: brokerName,
-        timestamp: new Date().toISOString(),
-      });
+    res.status(200).json({
+      success: true,
+      connection: connectionResult,
+      broker: brokerName,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error(
       `Connection test error for broker ${req.params.brokerName}:`,
       error.message
     );
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to test broker connection",
-        details: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to test broker connection",
+      details: error.message,
+    });
   }
 });
 
@@ -4140,13 +4149,11 @@ router.post("/import/:brokerName", async (req, res) => {
     const keyResult = await query(keyQuery, [userId, brokerName]);
 
     if (keyResult.rows.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          error:
-            "No API key found for this broker. Please connect your account first.",
-        });
+      return res.status(404).json({
+        success: false,
+        error:
+          "No API key found for this broker. Please connect your account first.",
+      });
     }
 
     const keyData = keyResult.rows[0];
@@ -4241,14 +4248,12 @@ router.post("/import/:brokerName", async (req, res) => {
       `Portfolio import error for broker ${req.params.brokerName}:`,
       error.message
     );
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error:
-          "Failed to import portfolio. Please check your API credentials and try again.",
-        details: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      error:
+        "Failed to import portfolio. Please check your API credentials and try again.",
+      details: error.message,
+    });
   }
 });
 
@@ -4724,13 +4729,11 @@ router.get("/risk/correlation", authenticateToken, async (req, res) => {
     };
 
     if (holdings.rows.length < 2) {
-      return res
-        .status(200)
-        .json({
-          success: true,
-          correlations: [],
-          message: "Need at least 2 holdings for correlation analysis",
-        });
+      return res.status(200).json({
+        success: true,
+        correlations: [],
+        message: "Need at least 2 holdings for correlation analysis",
+      });
     }
 
     // Calculate correlation matrix
@@ -4739,40 +4742,34 @@ router.get("/risk/correlation", authenticateToken, async (req, res) => {
       period
     );
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        correlations: correlationMatrix,
-        symbols: holdings.map((h) => h.symbol),
-        period: period,
-        highCorrelations: correlationMatrix.filter(
-          (c) => Math.abs(c.correlation) > 0.7
-        ),
-        averageCorrelation:
-          correlationMatrix.reduce(
-            (sum, c) => sum + Math.abs(c.correlation),
-            0
-          ) / correlationMatrix.length,
-      });
+    res.status(200).json({
+      success: true,
+      correlations: correlationMatrix,
+      symbols: holdings.map((h) => h.symbol),
+      period: period,
+      highCorrelations: correlationMatrix.filter(
+        (c) => Math.abs(c.correlation) > 0.7
+      ),
+      averageCorrelation:
+        correlationMatrix.reduce((sum, c) => sum + Math.abs(c.correlation), 0) /
+        correlationMatrix.length,
+    });
   } catch (error) {
     console.error("Correlation analysis error:", error);
 
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Correlation analysis failed",
-        details: error.message,
-        suggestion:
-          "Correlation analysis requires at least 2 portfolio positions with sufficient price history. Please ensure you have multiple holdings with adequate historical data.",
-        service: "portfolio-correlation",
-        requirements: [
-          "At least 2 active portfolio positions",
-          "Historical price data for correlation calculations",
-          "Sufficient data points for statistical significance",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Correlation analysis failed",
+      details: error.message,
+      suggestion:
+        "Correlation analysis requires at least 2 portfolio positions with sufficient price history. Please ensure you have multiple holdings with adequate historical data.",
+      service: "portfolio-correlation",
+      requirements: [
+        "At least 2 active portfolio positions",
+        "Historical price data for correlation calculations",
+        "Sufficient data points for statistical significance",
+      ],
+    });
   }
 });
 
@@ -6336,7 +6333,10 @@ function generateFactorAnalysis(factors) {
 
 // Advanced Portfolio Analytics Functions
 
-function _calculateAdvancedBenchmarkMetrics(portfolioReturns, benchmarkReturns) {
+function _calculateAdvancedBenchmarkMetrics(
+  portfolioReturns,
+  benchmarkReturns
+) {
   if (
     !portfolioReturns ||
     !benchmarkReturns ||

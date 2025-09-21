@@ -142,7 +142,11 @@ describe("API Key Service", () => {
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(true);
       expect(result.provider).toBe("alpaca");
@@ -173,7 +177,11 @@ describe("API Key Service", () => {
 
     test("should validate required fields", async () => {
       const apiKeyData = { keyId: "test-key" }; // Missing secret
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(false);
       expect(result.error).toContain(
@@ -186,7 +194,11 @@ describe("API Key Service", () => {
         keyId: "x".repeat(501), // Too long
         secret: "test-secret",
       };
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(false);
       expect(result.error).toContain(
@@ -215,7 +227,11 @@ describe("API Key Service", () => {
       mockQuery.mockRejectedValue(dbError);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to store API key");
@@ -582,7 +598,11 @@ describe("API Key Service", () => {
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
 
       // First few failures should return error responses (before circuit breaker opens)
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to store API key");
     });
@@ -658,7 +678,11 @@ describe("API Key Service", () => {
         secret: "test-secret",
       };
 
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("exceeds maximum length limits");
@@ -693,7 +717,11 @@ describe("API Key Service", () => {
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(true);
       expect(crypto.createCipheriv).toHaveBeenCalled();
@@ -718,7 +746,11 @@ describe("API Key Service", () => {
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(true);
     });
@@ -744,7 +776,11 @@ describe("API Key Service", () => {
       mockQuery.mockResolvedValue(mockResult);
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       expect(result.success).toBe(true); // Should fallback to dev key
     });
@@ -917,7 +953,11 @@ describe("API Key Service", () => {
         .mockRejectedValueOnce(new Error("Audit log failed"));
 
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
 
       // Should still succeed even if audit logging fails
       expect(result.success).toBe(true);
@@ -952,7 +992,11 @@ describe("API Key Service", () => {
       };
       mockQuery.mockResolvedValue(mockResult);
 
-      const result = await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      const result = await storeApiKey(
+        "dev-bypass-token",
+        "alpaca",
+        apiKeyData
+      );
       expect(result.success).toBe(true);
     });
   });

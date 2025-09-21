@@ -773,12 +773,10 @@ router.get("/recent-actions", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching recent analyst actions:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch recent analyst actions",
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch recent analyst actions",
+    });
   }
 });
 
@@ -1460,14 +1458,13 @@ router.get("/research", async (req, res) => {
   }
 });
 
-
 // Analyst recommendations
 router.get("/recommendations", async (req, res) => {
   try {
     res.json({
       success: true,
       data: {
-        recommendations: []
+        recommendations: [],
       },
       timestamp: new Date().toISOString(),
     });

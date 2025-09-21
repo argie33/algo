@@ -1,4 +1,4 @@
-const { query } = require('./utils/database');
+const { query } = require("./utils/database");
 
 async function checkTables() {
   try {
@@ -10,7 +10,7 @@ async function checkTables() {
     `);
 
     console.log('Tables with "metrics" in name:');
-    result.rows.forEach(row => console.log('-', row.table_name));
+    result.rows.forEach((row) => console.log("-", row.table_name));
 
     // Also check key_metrics specifically
     const keyMetricsCheck = await query(`
@@ -21,7 +21,7 @@ async function checkTables() {
       ) as exists
     `);
 
-    console.log('\nkey_metrics table exists:', keyMetricsCheck.rows[0].exists);
+    console.log("\nkey_metrics table exists:", keyMetricsCheck.rows[0].exists);
 
     // Check fundamental_metrics specifically
     const fundamentalMetricsCheck = await query(`
@@ -32,12 +32,15 @@ async function checkTables() {
       ) as exists
     `);
 
-    console.log('fundamental_metrics table exists:', fundamentalMetricsCheck.rows[0].exists);
+    console.log(
+      "fundamental_metrics table exists:",
+      fundamentalMetricsCheck.rows[0].exists
+    );
 
-    process.exit(0);
+    console.log("✅ Tables check completed successfully");
   } catch (error) {
-    console.error('Error checking tables:', error);
-    process.exit(1);
+    console.error("Error checking tables:", error);
+    throw error;
   }
 }
 

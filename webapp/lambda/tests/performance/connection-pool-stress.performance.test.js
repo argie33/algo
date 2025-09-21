@@ -20,11 +20,11 @@ describe("Connection Pool Stress Integration", () => {
 
     // Create test pool with known limits for stress testing
     const dbConfig = {
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
-      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || "postgres",
+      password: process.env.DB_PASSWORD || "password",
+      host: process.env.DB_HOST || "localhost",
       port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'stocks',
+      database: process.env.DB_NAME || "stocks",
       max: 10, // Small pool for stress testing
       min: 2,
       idleTimeoutMillis: 5000,
@@ -33,6 +33,28 @@ describe("Connection Pool Stress Integration", () => {
     };
 
     testPool = new Pool(dbConfig);
+
+    // Create test table needed for transaction stress tests
+    const client = await testPool.connect();
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS test_transaction_stress (
+          id SERIAL PRIMARY KEY,
+          value INTEGER NOT NULL,
+          updated_by VARCHAR(50),
+          transaction_id VARCHAR(50),
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Insert initial test data
+      await client.query(`
+        INSERT INTO test_transaction_stress (value, updated_by) VALUES (100, 'initial')
+        ON CONFLICT DO NOTHING
+      `);
+    } finally {
+      client.release();
+    }
   });
 
   afterAll(async () => {
@@ -142,7 +164,7 @@ describe("Connection Pool Stress Integration", () => {
       const queueTestPool = new Pool({
         connectionString:
           process.env.DATABASE_URL ||
-  `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'password'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'stocks'}`,
+          `postgresql://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "password"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || "stocks"}`,
         max: poolSize,
         connectionTimeoutMillis: 5000,
         acquireTimeoutMillis: 5000,
@@ -224,7 +246,7 @@ describe("Connection Pool Stress Integration", () => {
       const recoveryTestPool = new Pool({
         connectionString:
           process.env.DATABASE_URL ||
-  `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'password'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'stocks'}`,
+          `postgresql://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "password"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || "stocks"}`,
         max: 5,
         min: 1,
         idleTimeoutMillis: 1000,
@@ -310,7 +332,7 @@ describe("Connection Pool Stress Integration", () => {
       const idleTestPool = new Pool({
         connectionString:
           process.env.DATABASE_URL ||
-  `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'password'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'stocks'}`,
+          `postgresql://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "password"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || "stocks"}`,
         max: 8,
         min: 2,
         idleTimeoutMillis: 1000, // 1 second idle timeout
@@ -543,7 +565,7 @@ describe("Connection Pool Stress Integration", () => {
       const shutdownTestPool = new Pool({
         connectionString:
           process.env.DATABASE_URL ||
-  `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'password'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'stocks'}`,
+          `postgresql://${process.env.DB_USER || "postgres"}:${process.env.DB_PASSWORD || "password"}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || "stocks"}`,
         max: 3,
         min: 1,
       });

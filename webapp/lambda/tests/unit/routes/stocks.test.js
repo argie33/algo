@@ -31,16 +31,34 @@ describe("Stocks Routes Unit Tests", () => {
   });
 
   describe("GET /stocks/", () => {
-    test("should return stocks data", async () => {
+    test("should return stocks data with correct loader table structure", async () => {
       const response = await request(app)
         .get("/stocks/")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
+      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body).toHaveProperty("metadata");
-      expect(response.body).toHaveProperty("pagination");
       expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
+
+      // Verify loader table structure fields when data exists
+      if (response.body.data.length > 0) {
+        const stock = response.body.data[0];
+        // company_profile table fields from loadinfo.py via API transformation
+        expect(stock).toHaveProperty("symbol"); // API uses symbol (maps to ticker)
+        expect(stock).toHaveProperty("name"); // maps to company_name from short_name/long_name
+        expect(stock).toHaveProperty("shortName"); // from company_profile.short_name
+        expect(stock).toHaveProperty("fullName"); // from company_profile.long_name
+        expect(stock).toHaveProperty("sector"); // from company_profile.sector
+        expect(stock).toHaveProperty("industry"); // from company_profile.industry
+        expect(stock).toHaveProperty("marketCap"); // from market_data.market_cap
+        expect(stock).toHaveProperty("price"); // object containing current_price from market_data
+        expect(stock).toHaveProperty("volume"); // from market_data table
+        if (stock.price) {
+          expect(stock.price).toHaveProperty("current"); // current_price from market_data
+        }
+      }
     });
   });
 
@@ -57,27 +75,42 @@ describe("Stocks Routes Unit Tests", () => {
   });
 
   describe("GET /stocks/list", () => {
-    test("should handle stock list endpoint", async () => {
+    test("should return stock list with correct loader table structure", async () => {
       const response = await request(app)
         .get("/stocks/list")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer dev-bypass-token")
+        .expect(200);
 
-      // This endpoint has database issues, expecting 500 for now
-      if (response.status === 500) {
-        expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error");
-      } else {
-        expect(response.status).toBe(200);
-        expect(response.body).toHaveProperty("success");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+
+      // Check the data structure matches what the loader creates
+      if (response.body.data.length > 0) {
+        const stock = response.body.data[0];
+        expect(stock).toHaveProperty("symbol"); // ticker as symbol
+        expect(stock).toHaveProperty("name"); // name from company_profile
+        expect(stock).toHaveProperty("sector"); // sector from company_profile
+        expect(stock).toHaveProperty("market_cap"); // market_cap from market_data table
       }
     });
   });
 
   describe("GET /stocks/sectors", () => {
-    test("should return sector data", async () => {
+    test("should return sector data from company_profile table", async () => {
       const response = await request(app).get("/stocks/sectors").expect(200);
 
-      expect(response.body).toHaveProperty("success");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+
+      // Check the sector data structure matches loader expectations
+      if (response.body.data.length > 0) {
+        const sector = response.body.data[0];
+        expect(sector).toHaveProperty("sector");
+        expect(sector).toHaveProperty("count");
+        expect(sector).toHaveProperty("avg_market_cap"); // From market_data.market_cap aggregated
+      }
     });
   });
 

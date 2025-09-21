@@ -28,7 +28,7 @@ describe("4xx Client Error Scenarios Integration", () => {
         {
           endpoint: "/api/portfolio/analyze",
           method: "post",
-          body: '{"invalid": json}',
+          body: '{"invalid": ',
           auth: true,
         },
         {
@@ -582,7 +582,7 @@ describe("4xx Client Error Scenarios Integration", () => {
         {
           endpoint: "/api/portfolio/analyze",
           method: "post",
-          body: '{"invalid": json}',
+          body: '{"invalid": ',
           expectedStatus: [400, 422],
           auth: true,
         },

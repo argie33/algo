@@ -47,14 +47,49 @@ describe("Metrics Routes", () => {
         totalItems: expect.any(Number),
       });
 
-      // If we have stocks in the response, verify the structure
-      if (response.body.stocks.length > 0) {
-        const firstStock = response.body.stocks[0];
+      // If we have stocks in the response, verify the loader table structure
+      if (response.body.metrics && response.body.metrics.stocks.length > 0) {
+        const firstStock = response.body.metrics.stocks[0];
+
+        // Verify company_profile table fields (from loadinfo.py)
         expect(firstStock).toHaveProperty("symbol");
-        expect(firstStock).toHaveProperty("companyName");
+        expect(firstStock).toHaveProperty("companyName"); // maps to short_name
         expect(firstStock).toHaveProperty("sector");
+        expect(firstStock).toHaveProperty("industry");
+
+        // Verify market_data table fields (from loadinfo.py)
+        expect(firstStock).toHaveProperty("marketCap");
+        expect(firstStock).toHaveProperty("currentPrice");
+
+        // Verify key_metrics table fields (from loadinfo.py)
+        expect(firstStock).toHaveProperty("pe"); // trailing_pe
+        expect(firstStock).toHaveProperty("pb"); // price_to_book
+
+        // Verify stock_scores derived metrics structure
         expect(firstStock).toHaveProperty("metrics");
         expect(firstStock.metrics).toHaveProperty("composite");
+        expect(firstStock.metrics).toHaveProperty("quality");
+        expect(firstStock.metrics).toHaveProperty("value");
+        expect(firstStock.metrics).toHaveProperty("growth");
+
+        // Verify breakdown structures match loader data expectations
+        expect(firstStock).toHaveProperty("qualityBreakdown");
+        expect(firstStock.qualityBreakdown).toHaveProperty("overall");
+        expect(firstStock.qualityBreakdown).toHaveProperty("piotrosiScore");
+        expect(firstStock.qualityBreakdown).toHaveProperty("altmanZScore");
+
+        expect(firstStock).toHaveProperty("valueBreakdown");
+        expect(firstStock.valueBreakdown).toHaveProperty("intrinsicValue");
+        expect(firstStock.valueBreakdown).toHaveProperty("marginOfSafety");
+
+        expect(firstStock).toHaveProperty("growthBreakdown");
+        expect(firstStock.growthBreakdown).toHaveProperty("revenue");
+        expect(firstStock.growthBreakdown).toHaveProperty("earnings");
+
+        // Verify metadata from loader timestamps
+        expect(firstStock).toHaveProperty("metadata");
+        expect(firstStock.metadata).toHaveProperty("metricDate");
+        expect(firstStock.metadata).toHaveProperty("lastUpdated");
       }
     });
 

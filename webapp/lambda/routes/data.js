@@ -124,7 +124,7 @@ router.get("/etf-list", async (req, res) => {
     // Query for ETFs from stocks table where sector is 'ETF'
     // Start with simple query to avoid column mismatch issues
     const etfQuery = `
-      SELECT ticker as symbol, name, sector
+      SELECT ticker as symbol, short_name as name, sector
       FROM company_profile
       WHERE sector = 'ETF' OR ticker IN ('SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK', 'XLF', 'XLK', 'XLE', 'XLV')
       ORDER BY ticker ASC
@@ -141,16 +141,14 @@ router.get("/etf-list", async (req, res) => {
         etfs: result.rows,
         count: result.rows.length,
         categories: {
-          broad_market: result.rows.filter(etf =>
-            ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO'].includes(etf.symbol)
+          broad_market: result.rows.filter((etf) =>
+            ["SPY", "QQQ", "IWM", "VTI", "VOO"].includes(etf.symbol)
           ),
-          sector_specific: result.rows.filter(etf =>
-            ['XLF', 'XLK', 'XLE', 'XLV'].includes(etf.symbol)
+          sector_specific: result.rows.filter((etf) =>
+            ["XLF", "XLK", "XLE", "XLV"].includes(etf.symbol)
           ),
-          thematic: result.rows.filter(etf =>
-            ['ARKK'].includes(etf.symbol)
-          ),
-        }
+          thematic: result.rows.filter((etf) => ["ARKK"].includes(etf.symbol)),
+        },
       },
       timestamp: new Date().toISOString(),
     });
@@ -175,8 +173,8 @@ router.get("/sources", async (req, res) => {
         sources: [
           { name: "Alpha Vantage", status: "active" },
           { name: "Yahoo Finance", status: "active" },
-          { name: "PostgreSQL", status: "connected" }
-        ]
+          { name: "PostgreSQL", status: "connected" },
+        ],
       },
       timestamp: new Date().toISOString(),
     });
@@ -200,8 +198,8 @@ router.get("/status", async (req, res) => {
         last_update: new Date().toISOString(),
         tables: {
           price_daily: "active",
-          company_profile: "active"
-        }
+          company_profile: "active",
+        },
       },
       timestamp: new Date().toISOString(),
     });
@@ -541,7 +539,6 @@ router.get("/realtime/:symbol", async (req, res) => {
   }
 });
 
-
 // NOTE: /sources and /status routes moved before /:symbol route to prevent conflicts
 
 // Stock search endpoint
@@ -564,25 +561,28 @@ router.get("/stocks/search", async (req, res) => {
     // Mock search results based on the query
     const mockResults = [
       {
-        symbol: searchTerm.startsWith('A') ? 'AAPL' : 'MSFT',
-        name: searchTerm.startsWith('A') ? 'Apple Inc.' : 'Microsoft Corporation',
-        exchange: 'NASDAQ',
-        type: 'Common Stock',
+        symbol: searchTerm.startsWith("A") ? "AAPL" : "MSFT",
+        name: searchTerm.startsWith("A")
+          ? "Apple Inc."
+          : "Microsoft Corporation",
+        exchange: "NASDAQ",
+        type: "Common Stock",
         match_score: 0.95,
-        description: searchTerm.startsWith('A') ?
-          'Technology company that designs and manufactures consumer electronics' :
-          'Technology corporation that develops and licenses software and services'
+        description: searchTerm.startsWith("A")
+          ? "Technology company that designs and manufactures consumer electronics"
+          : "Technology corporation that develops and licenses software and services",
       },
       {
-        symbol: searchTerm.length > 2 ? 'GOOGL' : 'TSLA',
-        name: searchTerm.length > 2 ? 'Alphabet Inc.' : 'Tesla Inc.',
-        exchange: 'NASDAQ',
-        type: 'Common Stock',
+        symbol: searchTerm.length > 2 ? "GOOGL" : "TSLA",
+        name: searchTerm.length > 2 ? "Alphabet Inc." : "Tesla Inc.",
+        exchange: "NASDAQ",
+        type: "Common Stock",
         match_score: 0.78,
-        description: searchTerm.length > 2 ?
-          'Technology conglomerate and parent company of Google' :
-          'Electric vehicle and clean energy company'
-      }
+        description:
+          searchTerm.length > 2
+            ? "Technology conglomerate and parent company of Google"
+            : "Electric vehicle and clean energy company",
+      },
     ];
 
     res.json({
@@ -591,7 +591,7 @@ router.get("/stocks/search", async (req, res) => {
         query: searchTerm,
         results: mockResults,
         count: mockResults.length,
-        total_matches: mockResults.length
+        total_matches: mockResults.length,
       },
       timestamp: new Date().toISOString(),
     });

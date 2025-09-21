@@ -427,9 +427,9 @@ describe("Live Data Routes Integration Tests", () => {
       expect(response.status).toBe(200);
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty("status");
-        expect(response.body).toHaveProperty("service", "live-data");
-        expect(response.body).toHaveProperty("timestamp");
+        expect(response.body.data).toHaveProperty("status");
+        expect(response.body.data).toHaveProperty("service", "live-data");
+        expect(response.body.data).toHaveProperty("timestamp");
       }
     });
 
@@ -437,8 +437,8 @@ describe("Live Data Routes Integration Tests", () => {
       const response = await request(app).get("/api/livedata/health");
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty("uptime");
-        expect(typeof response.body.uptime).toBe("string");
+        expect(response.body.data).toHaveProperty("uptime");
+        expect(typeof response.body.data.uptime).toBe("string");
       }
     });
 

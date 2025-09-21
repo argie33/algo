@@ -52,7 +52,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle pagination parameters", async () => {
@@ -64,7 +65,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle search parameter", async () => {
@@ -76,7 +78,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle sector filter", async () => {
@@ -88,7 +91,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle score range filters", async () => {
@@ -100,7 +104,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle sorting parameters", async () => {
@@ -112,7 +117,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should cap limit at 200", async () => {
@@ -124,7 +130,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle invalid numeric parameters gracefully", async () => {
@@ -141,7 +148,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle empty results gracefully", async () => {
@@ -153,7 +161,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
   });
 
@@ -171,7 +180,8 @@ describe("Scores Routes Unit Tests", () => {
       // Should still return successful response with safe handling
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle empty string parameters", async () => {
@@ -186,7 +196,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
 
     test("should handle out of range score filters", async () => {
@@ -201,7 +212,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("scores");
+      expect(Array.isArray(response.body.data.scores)).toBe(true);
     });
   });
 

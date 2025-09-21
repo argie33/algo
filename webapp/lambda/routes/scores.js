@@ -50,7 +50,7 @@ router.get("/", async (req, res) => {
     // Add search filter
     if (search) {
       paramCount++;
-      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.name ILIKE $${paramCount})`;
+      whereClause += ` AND (ss.symbol ILIKE $${paramCount} OR ss.security_name ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
@@ -125,9 +125,9 @@ router.get("/", async (req, res) => {
         sc.fundamental_score as positioning_score,
         
         -- Sub-scores for detailed analysis (using real fundamental_metrics data)
-        COALESCE(fm.roe * 10, 7.5) as earnings_quality_subscore,
+        COALESCE(fm.return_on_equity * 10, 7.5) as earnings_quality_subscore,
         COALESCE(fm.current_ratio * 25, 65) as balance_sheet_subscore,
-        COALESCE(fm.profit_margin * 100, 7) as profitability_subscore,
+        COALESCE((fm.net_income::decimal / NULLIF(fm.gross_profit, 0)) * 100, 7) as profitability_subscore,
         sc.fundamental_score as management_subscore,
         COALESCE(fm.pe_ratio, 15.5) as multiples_subscore,
         COALESCE(fm.price_to_book, 2.5) as intrinsic_value_subscore,
@@ -827,7 +827,18 @@ router.get("/momentum", async (req, res) => {
     );
 
     // Generate momentum scores data
-    const symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'CRM', 'ORCL'];
+    const symbols = [
+      "AAPL",
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "TSLA",
+      "META",
+      "NVDA",
+      "NFLX",
+      "CRM",
+      "ORCL",
+    ];
 
     const generateMomentumScore = () => {
       const rsi = Math.random() * 100;
@@ -838,9 +849,14 @@ router.get("/momentum", async (req, res) => {
         rsi: Math.round(rsi * 100) / 100,
         macd: Math.round(macd * 100) / 100,
         momentum: Math.round(momentum * 100) / 100,
-        momentum_score: Math.round((rsi + (momentum + 100)) / 2 * 100) / 100,
-        signal: rsi > 70 ? 'overbought' : rsi < 30 ? 'oversold' : 'neutral',
-        strength: rsi > 80 || rsi < 20 ? 'strong' : rsi > 60 || rsi < 40 ? 'moderate' : 'weak'
+        momentum_score: Math.round(((rsi + (momentum + 100)) / 2) * 100) / 100,
+        signal: rsi > 70 ? "overbought" : rsi < 30 ? "oversold" : "neutral",
+        strength:
+          rsi > 80 || rsi < 20
+            ? "strong"
+            : rsi > 60 || rsi < 40
+              ? "moderate"
+              : "weak",
       };
     };
 
@@ -849,24 +865,24 @@ router.get("/momentum", async (req, res) => {
       filteredSymbols = [symbol.toUpperCase()];
     }
 
-    const momentumData = filteredSymbols.slice(0, limit).map(sym => ({
+    const momentumData = filteredSymbols.slice(0, limit).map((sym) => ({
       symbol: sym,
       timeframe,
       period: parseInt(period),
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split("T")[0],
       ...generateMomentumScore(),
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
     }));
 
     // Apply threshold filter
-    const filteredData = momentumData.filter(item =>
+    const filteredData = momentumData.filter((item) =>
       threshold ? item.momentum_score >= threshold : true
     );
 
     // Sort data
-    const sortField = sortBy === 'momentum_score' ? 'momentum_score' : 'rsi';
+    const sortField = sortBy === "momentum_score" ? "momentum_score" : "rsi";
     filteredData.sort((a, b) => {
-      if (sortOrder === 'desc') {
+      if (sortOrder === "desc") {
         return b[sortField] - a[sortField];
       } else {
         return a[sortField] - b[sortField];
@@ -882,8 +898,8 @@ router.get("/momentum", async (req, res) => {
         period: parseInt(period),
         threshold,
         sortBy,
-        sortOrder
-      }
+        sortOrder,
+      },
     });
   } catch (error) {
     console.error("Momentum scores error:", error);

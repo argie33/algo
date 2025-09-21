@@ -397,7 +397,6 @@ router.get("/calendar", async (req, res) => {
 
 // Helper functions removed - not needed for not implemented endpoints
 
-
 // Dividend history
 router.get("/history", async (req, res) => {
   try {
@@ -406,7 +405,7 @@ router.get("/history", async (req, res) => {
       success: true,
       data: {
         symbol: symbol || "ALL",
-        dividends: []
+        dividends: [],
       },
       timestamp: new Date().toISOString(),
     });

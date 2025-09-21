@@ -8,7 +8,7 @@ const request = require("supertest");
 
 // Mock the database utility
 jest.mock("../../../utils/database", () => ({
-  _query: jest.fn(),
+  query: jest.fn(),
 }));
 
 // Mock the auth middleware
@@ -32,8 +32,8 @@ describe("Sentiment Routes Unit Tests", () => {
     jest.clearAllMocks();
 
     // Set up mocks
-    const { _query } = require("../../../utils/database");
-    mockQuery = _query;
+    const { query } = require("../../../utils/database");
+    mockQuery = query;
 
     // Create test app
     app = express();

@@ -85,7 +85,7 @@ module.exports = {
         "tests/**/*.js",
         "setup_*.js",
         "apply_*.js",
-        "add_*.js"
+        "add_*.js",
       ],
       rules: {
         "node/no-unpublished-import": "off",

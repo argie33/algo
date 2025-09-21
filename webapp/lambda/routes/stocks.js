@@ -17,27 +17,33 @@ router.get("/sectors", async (req, res) => {
     // First check if company_profile table has any data
     const countQuery = `SELECT COUNT(*) as count FROM company_profile LIMIT 1`;
     const countResult = await query(countQuery);
-    
-    if (!countResult || !countResult.rows || !countResult.rows[0] || parseInt(countResult.rows[0].count) === 0) {
+
+    if (
+      !countResult ||
+      !countResult.rows ||
+      !countResult.rows[0] ||
+      parseInt(countResult.rows[0].count) === 0
+    ) {
       console.log("📊 No data in company_profile table");
       return res.status(503).json({
         success: false,
         error: "Sector data unavailable",
         message: "Company profile data is not loaded in the database",
-        service: "sectors"
+        service: "sectors",
       });
     }
 
-    // Use efficient query with proper error handling
+    // Use efficient query with proper error handling (using loader schema)
     const sectorsQuery = `
-      SELECT 
-        COALESCE(sector, 'Unknown') as sector, 
+      SELECT
+        COALESCE(cp.sector, 'Unknown') as sector,
         COUNT(*) as count,
-        AVG(CASE WHEN market_cap > 0 THEN market_cap END) as avg_market_cap,
-        COUNT(DISTINCT ticker) as company_count
-      FROM company_profile
-      WHERE sector IS NOT NULL AND sector != 'Unknown' AND sector != ''
-      GROUP BY sector
+        AVG(CASE WHEN md.market_cap > 0 THEN md.market_cap END) as avg_market_cap,
+        COUNT(DISTINCT cp.ticker) as company_count
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE cp.sector IS NOT NULL AND cp.sector != 'Unknown' AND cp.sector != ''
+      GROUP BY cp.sector
       ORDER BY count DESC
       LIMIT 20
     `;
@@ -47,16 +53,17 @@ router.get("/sectors", async (req, res) => {
       // Use cached query for sectors data since it doesn't change frequently
       // Cache for 2 minutes (120000ms) since sector data is relatively stable
       result = await query(sectorsQuery, []);
-      
+
       // Check for valid result
       if (!result || !result.rows || result.rows.length === 0) {
-        return res.status(200).json({success: true, 
+        return res.status(200).json({
+          success: true,
           data: [],
           message: "No sectors available",
-          total: 0
+          total: 0,
         });
       }
-      
+
       console.log(
         `✅ Sectors query successful: ${result.rows.length} sectors found`
       );
@@ -101,7 +108,7 @@ router.get("/sectors", async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "No sectors data found",
-        data: []
+        data: [],
       });
     }
 
@@ -114,7 +121,8 @@ router.get("/sectors", async (req, res) => {
 
     // If no sectors found, provide helpful message about data loading
     if (sectors.length === 0) {
-      return res.status(200).json({success: true, 
+      return res.status(200).json({
+        success: true,
         data: [],
         message: "No sectors data available - check data loading process",
         recommendations: [
@@ -126,7 +134,9 @@ router.get("/sectors", async (req, res) => {
         timestamp: new Date().toISOString(),
       });
     } else {
-      return res.status(200).json({success: true, data: sectors, 
+      return res.status(200).json({
+        success: true,
+        data: sectors,
         count: sectors.length,
         timestamp: new Date().toISOString(),
       });
@@ -143,14 +153,14 @@ router.get("/sectors", async (req, res) => {
       requirements: [
         "Database connectivity must be available",
         "stock_symbols table must exist with data",
-        "Data loading scripts must have been executed successfully"
+        "Data loading scripts must have been executed successfully",
       ],
       troubleshooting_steps: [
         "Check database connectivity and health",
         "Verify stock_symbols table exists and has data",
         "Run data loading ECS tasks if tables are empty",
-        "Check recent deployment logs for data loading failures"
-      ]
+        "Check recent deployment logs for data loading failures",
+      ],
     });
   }
 });
@@ -159,7 +169,7 @@ router.get("/sectors", async (req, res) => {
 router.get("/public/sample", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 5, 20);
-    
+
     const sampleQuery = `
       SELECT 
         ticker,
@@ -176,34 +186,33 @@ router.get("/public/sample", async (req, res) => {
       ORDER BY market_cap DESC NULLS LAST
       LIMIT $1
     `;
-    
+
     const result = await query(sampleQuery, [limit]);
-    
+
     if (!result || !result.rows) {
       return res.status(503).json({
         success: false,
         error: "Sample data unavailable",
         message: "Stock data not available for monitoring",
-        service: "public-sample"
+        service: "public-sample",
       });
     }
-    
+
     res.json({
       success: true,
       data: result.rows,
       count: result.rows.length,
       limit: limit,
       timestamp: new Date().toISOString(),
-      endpoint: "public-sample"
+      endpoint: "public-sample",
     });
-    
   } catch (error) {
     console.error("Error fetching sample stocks:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch sample stocks",
       message: error.message,
-      service: "public-sample"
+      service: "public-sample",
     });
   }
 });
@@ -213,36 +222,59 @@ router.get("/popular", async (req, res) => {
   try {
     console.log("📈 Popular stocks requested");
 
-    // Return popular stocks with mock data
-    const popularStocks = [
-      { symbol: "AAPL", name: "Apple Inc.", price: 185.40, change: 2.35, change_percent: 1.29 },
-      { symbol: "MSFT", name: "Microsoft Corporation", price: 378.85, change: -1.15, change_percent: -0.30 },
-      { symbol: "GOOGL", name: "Alphabet Inc.", price: 142.30, change: 0.85, change_percent: 0.60 },
-      { symbol: "AMZN", name: "Amazon.com Inc.", price: 155.20, change: 2.40, change_percent: 1.57 },
-      { symbol: "TSLA", name: "Tesla Inc.", price: 248.50, change: -3.25, change_percent: -1.29 },
-      { symbol: "META", name: "Meta Platforms Inc.", price: 312.75, change: 4.20, change_percent: 1.36 },
-      { symbol: "NVDA", name: "NVIDIA Corporation", price: 875.30, change: 15.60, change_percent: 1.81 },
-      { symbol: "NFLX", name: "Netflix Inc.", price: 485.60, change: -2.85, change_percent: -0.58 }
-    ];
+    // Query popular stocks from market_data based on market cap
+    // Simple fallback query using only market_data table
+    const popularQuery = `
+      SELECT
+        ticker as symbol,
+        ticker as name,
+        COALESCE(market_cap, 0) as market_cap,
+        0 as price,
+        0 as change_percent,
+        0 as change,
+        0 as volume
+      FROM market_data
+      WHERE market_cap IS NOT NULL
+      ORDER BY market_cap DESC NULLS LAST
+      LIMIT 10
+    `;
+
+    const result = await query(popularQuery);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Popular stocks data not available",
+        message: "Market data not found in database. Ensure market data has been loaded from data providers.",
+      });
+    }
+
+    const popularStocks = result.rows.map(row => ({
+      symbol: row.symbol,
+      name: row.name || row.symbol,
+      price: parseFloat(row.price) || 0,
+      change: parseFloat(row.change) || 0,
+      change_percent: parseFloat(row.change_percent) || 0,
+      market_cap: row.market_cap,
+      volume: row.volume,
+    }));
 
     res.json({
       success: true,
       data: popularStocks,
       meta: {
         count: popularStocks.length,
-        source: "mock_data",
-        disclaimer: "Mock data for development - not real market data"
+        source: "database",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching popular stocks:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch popular stocks",
       message: error.message,
-      service: "stocks-popular"
+      service: "stocks-popular",
     });
   }
 });
@@ -252,13 +284,13 @@ router.get("/quote/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     console.log(`Stock quote request for ${symbol}`);
-    
+
     // Get the latest price data for the symbol
     const result = await query(
-      `SELECT * FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
+      `SELECT * FROM stock_prices WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
       [symbol.toUpperCase()]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(200).json({
         success: true,
@@ -266,19 +298,24 @@ router.get("/quote/:symbol", async (req, res) => {
         metadata: {
           symbol: symbol.toUpperCase(),
           message: "No quote data available for this symbol",
-          suggestion: "Data may be available soon or try another symbol"
+          suggestion: "Data may be available soon or try another symbol",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     const priceData = result.rows[0];
-    
+
     // Calculate change and change percent if we have previous close
-    const change = priceData.previous_close ? (priceData.close - priceData.previous_close) : null;
-    const changePercent = priceData.previous_close ? 
-      ((priceData.close - priceData.previous_close) / priceData.previous_close * 100) : null;
-    
+    const change = priceData.previous_close
+      ? priceData.close - priceData.previous_close
+      : null;
+    const changePercent = priceData.previous_close
+      ? ((priceData.close - priceData.previous_close) /
+          priceData.previous_close) *
+        100
+      : null;
+
     res.json({
       success: true,
       data: {
@@ -291,21 +328,21 @@ router.get("/quote/:symbol", async (req, res) => {
         previousClose: priceData.previous_close,
         change: change,
         changePercent: changePercent,
-        date: priceData.date
+        date: priceData.date,
       },
       metadata: {
         dataAvailable: true,
         lastUpdated: priceData.date,
-        source: "price_daily"
+        source: "price_daily",
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error(`Stock quote error for ${req.params.symbol}:`, error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock quote data",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -368,10 +405,7 @@ router.get("/ping", (req, res) => {
 // OPTIMIZED: Main stocks endpoint with fast queries and all data visible
 router.get("/", async (req, res) => {
   try {
-    console.log(
-      "Stocks main endpoint called with params:",
-      req.query
-    );
+    console.log("Stocks main endpoint called with params:", req.query);
     console.log("Triggering workflow deploy");
 
     // Use validated and sanitized parameters from validation middleware with fallback
@@ -437,18 +471,42 @@ router.get("/", async (req, res) => {
       SELECT
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name, cp.ticker) as company_name,
-        cp.long_name as security_name,
+        cp.short_name,
+        cp.long_name,
+        cp.display_name,
         cp.market,
-        cp.quote_type as type,
+        cp.quote_type,
         cp.sector,
+        cp.sector_disp,
         cp.industry,
+        cp.industry_disp,
         cp.currency,
         cp.country,
+        cp.business_summary,
+        cp.employee_count,
+        cp.website_url,
+        cp.ir_website_url,
+        cp.address1,
+        cp.city,
+        cp.state,
+        cp.postal_code,
+        cp.phone_number,
         md.market_cap,
-        true as is_active,
-        md.current_price as current_price,
+        md.current_price,
+        md.previous_close,
+        md.regular_market_open as open,
+        md.day_low,
+        md.day_high,
+        md.fifty_two_week_low,
+        md.fifty_two_week_high,
+        md.fifty_day_avg,
+        md.two_hundred_day_avg,
+        md.bid_price,
+        md.ask_price,
+        md.market_state,
         md.volume,
-        (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker) as price_date
+        md.average_volume,
+        (SELECT MAX(date) FROM stock_prices WHERE symbol = cp.ticker) as price_date
 
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -470,42 +528,52 @@ router.get("/", async (req, res) => {
     console.log("Executing FAST queries with schema validation...");
 
     // Execute queries with timeout protection
-    console.log("Executing comprehensive stocks query with timeout protection...");
+    console.log(
+      "Executing comprehensive stocks query with timeout protection..."
+    );
     const queryTimeout = 10000; // 10 second timeout
 
     const [stocksResult, countResult] = await Promise.all([
       Promise.race([
         query(stocksQuery, params),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Stocks query timeout")), queryTimeout)
-        )
+          setTimeout(
+            () => reject(new Error("Stocks query timeout")),
+            queryTimeout
+          )
+        ),
       ]),
       Promise.race([
         query(countQuery, params.slice(0, -2)),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Count query timeout")), queryTimeout)
-        )
-      ])
+          setTimeout(
+            () => reject(new Error("Count query timeout")),
+            queryTimeout
+          )
+        ),
+      ]),
     ]);
 
     // Check for valid results
     if (!countResult || !countResult.rows || countResult.rows.length === 0) {
-      return res.status(200).json({success: true, 
+      return res.status(200).json({
+        success: true,
         data: [],
         count: 0,
         total: 0,
         totalPages: 0,
-        message: "No stock count data available"
+        message: "No stock count data available",
       });
     }
 
     if (!stocksResult || !stocksResult.rows) {
-      return res.status(200).json({success: true, 
+      return res.status(200).json({
+        success: true,
         data: [],
         count: 0,
         total: 0,
         totalPages: 0,
-        message: "No stocks data available"
+        message: "No stocks data available",
       });
     }
 
@@ -727,7 +795,8 @@ router.get("/", async (req, res) => {
 
     res.json({
       success: true,
-      performance: "COMPREHENSIVE DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores",
+      performance:
+        "COMPREHENSIVE DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores",
       data: formattedStocks,
       pagination: {
         page,
@@ -786,7 +855,7 @@ router.get("/", async (req, res) => {
           // Market data
           "current_price",
           "previous_close",
-          "open_price",
+          "open",
           "day_low",
           "day_high",
           "volume",
@@ -894,7 +963,7 @@ router.get("/", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Database query failed",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1002,16 +1071,16 @@ router.get("/screen", async (req, res) => {
     `;
 
     const countResult = await query(countQuery, queryParams);
-    
+
     // Check for valid result
     if (!countResult || !countResult.rows) {
       return res.json({
         message: "No stocks found matching criteria",
         data: { stocks: [] },
-        pagination: { page: 1, limit: limit, total: 0, totalPages: 0 }
+        pagination: { page: 1, limit: limit, total: 0, totalPages: 0 },
       });
     }
-    
+
     const totalStocks = parseInt(countResult.rows[0]?.total || 0);
 
     // Get the actual stocks
@@ -1042,7 +1111,12 @@ router.get("/screen", async (req, res) => {
       return res.json({
         message: "No stocks data available",
         data: { stocks: [] },
-        pagination: { page: parseInt(page), limit: parseInt(limit), total: totalStocks, totalPages: 0 }
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: totalStocks,
+          totalPages: 0,
+        },
       });
     }
 
@@ -1082,7 +1156,7 @@ router.get("/screen", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Failed to screen stocks",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -1093,8 +1167,8 @@ router.get("/screen", async (req, res) => {
  */
 router.get("/search", async (req, res) => {
   try {
-    const { q, query, page = 1, limit = 20 } = req.query;
-    const search = q || query; // Support both ?q= and ?query= parameters
+    const { q, query: queryParam, page = 1, limit = 20 } = req.query;
+    const search = q || queryParam; // Support both ?q= and ?query= parameters
 
     if (!search) {
       return res.status(200).json({
@@ -1105,10 +1179,10 @@ router.get("/search", async (req, res) => {
             page: 1,
             limit: parseInt(limit) || 20,
             total: 0,
-            totalPages: 0
-          }
+            totalPages: 0,
+          },
         },
-        message: "Empty search query"
+        message: "Empty search query",
       });
     }
 
@@ -1123,65 +1197,94 @@ router.get("/search", async (req, res) => {
 
     console.log(`🔍 Stock search requested for: ${search}`);
 
-    // Generate mock search results based on search query
-    const commonSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX', 'AMD', 'CRM'];
+    // Search stocks in database using company_profile and market_data
+    const searchQuery = `
+      SELECT
+        cp.ticker as symbol,
+        cp.short_name as company_name,
+        cp.long_name,
+        cp.exchange,
+        cp.sector,
+        md.market_cap,
+        md.current_price as price
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE
+        UPPER(cp.ticker) LIKE UPPER($1) OR
+        UPPER(cp.short_name) LIKE UPPER($2) OR
+        UPPER(cp.long_name) LIKE UPPER($3)
+      ORDER BY
+        CASE
+          WHEN UPPER(cp.ticker) = UPPER($4) THEN 1
+          WHEN UPPER(cp.ticker) LIKE UPPER($5) THEN 2
+          ELSE 3
+        END,
+        md.market_cap DESC NULLS LAST
+      LIMIT $6 OFFSET $7
+    `;
 
-    let mockResults = [];
+    const searchPattern = `%${search}%`;
+    const exactMatch = search.toUpperCase();
+    const prefixMatch = `${search.toUpperCase()}%`;
+    const offset = (pageNum - 1) * limitNum;
 
-    // If search query matches any common symbols, return those first
-    const searchUpper = search.toUpperCase();
-    const exactMatches = commonSymbols.filter(symbol =>
-      symbol.includes(searchUpper) || symbol.startsWith(searchUpper)
-    );
+    const result = await query(searchQuery, [
+      searchPattern, searchPattern, searchPattern,
+      exactMatch, prefixMatch,
+      limitNum, offset
+    ]);
 
-    // Add exact matches
-    exactMatches.forEach(symbol => {
-      mockResults.push({
-        symbol: symbol,
-        company_name: `${symbol} Inc.`,
-        exchange: 'NASDAQ',
-        sector: 'Technology',
-        market_cap: Math.floor(Math.random() * 2000000000000) + 100000000000
-      });
-    });
-
-    // Fill remaining slots with generated results if needed
-    while (mockResults.length < Math.min(limitNum, 10)) {
-      const randomSymbol = searchUpper + Math.random().toString(36).substring(2, 4).toUpperCase();
-      mockResults.push({
-        symbol: randomSymbol,
-        company_name: `${randomSymbol} Corporation`,
-        exchange: 'NYSE',
-        sector: 'Technology',
-        market_cap: Math.floor(Math.random() * 1000000000000) + 50000000000
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No stocks found",
+        message: `No stocks matching "${search}" found in database. Ensure stock data has been loaded from data providers.`,
+        query: search,
       });
     }
 
-    // Simulate pagination
-    const totalCount = Math.max(mockResults.length, 25); // Simulate more results exist
-    const paginatedResults = mockResults.slice(0, limitNum);
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(DISTINCT cp.ticker) as total
+      FROM company_profile cp
+      WHERE
+        UPPER(cp.ticker) LIKE UPPER($1) OR
+        UPPER(cp.short_name) LIKE UPPER($2) OR
+        UPPER(cp.long_name) LIKE UPPER($3)
+    `;
+
+    const countResult = await query(countQuery, [searchPattern, searchPattern, searchPattern]);
+    const totalCount = countResult?.rows?.[0]?.total || 0;
+
+    const searchResults = result.rows.map(row => ({
+      symbol: row.symbol,
+      company_name: row.company_name || row.long_name || row.symbol,
+      exchange: row.exchange,
+      sector: row.sector,
+      market_cap: row.market_cap,
+      price: row.price,
+    }));
 
     res.json({
       success: true,
       data: {
-        results: paginatedResults,
+        results: searchResults,
         query: search,
         pagination: {
           page: pageNum,
           limit: limitNum,
-          total: totalCount,
-          totalPages: Math.ceil(totalCount / limitNum)
-        }
+          total: parseInt(totalCount),
+          totalPages: Math.ceil(totalCount / limitNum),
+        },
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Stock search error:", error);
     res.status(500).json({
       success: false,
       error: "Search failed",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1196,11 +1299,13 @@ router.get("/analysis", async (req, res) => {
         success: false,
         error: "Stock symbol is required",
         message: "Please provide a valid stock symbol for analysis",
-        example: "/api/stocks/analysis?symbol=AAPL"
+        example: "/api/stocks/analysis?symbol=AAPL",
       });
     }
 
-    console.log(`📊 Stock analysis requested for: ${symbol.toUpperCase()}, type: ${type}`);
+    console.log(
+      `📊 Stock analysis requested for: ${symbol.toUpperCase()}, type: ${type}`
+    );
 
     const cleanSymbol = symbol.toUpperCase().trim();
 
@@ -1210,24 +1315,26 @@ router.get("/analysis", async (req, res) => {
         ss.symbol, ss.security_name as name, s.sector, s.market_cap, ss.exchange,
         sp.close as current_price,
         sp.volume,
-        (sp.close - sp.open_price) / sp.open_price * 100 as daily_change_percent
+        (sp.close - sp.open) / sp.open * 100 as daily_change_percent
       FROM stock_symbols ss
       LEFT JOIN company_profile s ON ss.symbol = s.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
-          symbol, close, open_price, volume, date
-        FROM price_daily
+          symbol, close, open, volume, date
+        FROM stock_prices
         ORDER BY symbol, date DESC
       ) sp ON ss.symbol = sp.symbol
       WHERE ss.symbol = $1
     `;
 
     const stockResult = await query(stockQuery, [cleanSymbol]);
-    
+
     if (!stockResult.rows || stockResult.rows.length === 0) {
-      return res.status(404).json({success: false, error: "Stock not found",
+      return res.status(404).json({
+        success: false,
+        error: "Stock not found",
         message: `Stock symbol '${cleanSymbol}' not found in database`,
-        suggestion: "Please verify the stock symbol and try again"
+        suggestion: "Please verify the stock symbol and try again",
       });
     }
 
@@ -1243,19 +1350,20 @@ router.get("/analysis", async (req, res) => {
           market_cap: stock.market_cap,
           current_price: parseFloat(stock.current_price || 0),
           daily_change_percent: parseFloat(stock.daily_change_percent || 0),
-          volume: parseFloat(stock.volume || 0)
+          volume: parseFloat(stock.volume || 0),
         },
         analysis_type: type,
-        generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString(),
       },
       message: `Stock analysis completed for ${cleanSymbol}`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error generating stock analysis:", error);
-    res.status(500).json({success: false, error: "Failed to generate stock analysis",
-      details: error.message
+    res.status(500).json({
+      success: false,
+      error: "Failed to generate stock analysis",
+      details: error.message,
     });
   }
 });
@@ -1265,44 +1373,55 @@ router.get("/analysis/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const { type = "comprehensive" } = req.query;
-    
+
     if (!symbol) {
       return res.status(400).json({
         success: false,
         error: "Symbol parameter required",
-        message: "Please provide a valid stock symbol for analysis"
+        message: "Please provide a valid stock symbol for analysis",
       });
     }
 
     const cleanSymbol = symbol.toUpperCase().trim();
-    console.log(`📊 Stock analysis requested for: ${cleanSymbol}, type: ${type}`);
+    console.log(
+      `📊 Stock analysis requested for: ${cleanSymbol}, type: ${type}`
+    );
 
     // Get comprehensive stock data for analysis
     const [priceResult, technicalResult, financialResult] = await Promise.all([
       // Price data
-      query(`
+      query(
+        `
         SELECT date, close, volume, change_percent
-        FROM price_daily 
+        FROM stock_prices 
         WHERE symbol = $1 
         ORDER BY date DESC 
         LIMIT 30
-      `, [cleanSymbol]),
-      
+      `,
+        [cleanSymbol]
+      ),
+
       // Technical indicators
-      query(`
+      query(
+        `
         SELECT rsi, macd, sma_20, sma_50, bb_upper, bb_lower
         FROM technical_data_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 
         LIMIT 1
-      `, [cleanSymbol]),
-      
+      `,
+        [cleanSymbol]
+      ),
+
       // Financial metrics
-      query(`
+      query(
+        `
         SELECT trailing_pe, forward_pe, price_to_book, dividend_yield, peg_ratio
         FROM key_metrics 
         WHERE ticker = $1
-      `, [cleanSymbol])
+      `,
+        [cleanSymbol]
+      ),
     ]);
 
     const priceData = priceResult.rows;
@@ -1310,23 +1429,36 @@ router.get("/analysis/:symbol", async (req, res) => {
     const financialData = financialResult.rows[0] || {};
 
     // Check if stock data exists
-    if (priceData.length === 0 && Object.keys(technicalData).length <= 1 && Object.keys(financialData).length <= 1) {
-      return res.status(404).json({success: false, error: "Stock not found",
+    if (
+      priceData.length === 0 &&
+      Object.keys(technicalData).length <= 1 &&
+      Object.keys(financialData).length <= 1
+    ) {
+      return res.status(404).json({
+        success: false,
+        error: "Stock not found",
         symbol: cleanSymbol,
-        message: "No data available for the requested stock symbol"
+        message: "No data available for the requested stock symbol",
       });
     }
 
     // Calculate analysis metrics
     const recentPrices = priceData.slice(0, 5);
-    const avgVolume = priceData.length > 0 
-      ? priceData.reduce((sum, row) => sum + (parseInt(row.volume) || 0), 0) / priceData.length 
-      : 0;
-    
-    const returns = priceData.slice(0, 20).map(row => parseFloat(row.change_percent) || 0);
-    const volatility = returns.length > 0 
-      ? Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / returns.length) 
-      : 0;
+    const avgVolume =
+      priceData.length > 0
+        ? priceData.reduce((sum, row) => sum + (parseInt(row.volume) || 0), 0) /
+          priceData.length
+        : 0;
+
+    const returns = priceData
+      .slice(0, 20)
+      .map((row) => parseFloat(row.change_percent) || 0);
+    const volatility =
+      returns.length > 0
+        ? Math.sqrt(
+            returns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / returns.length
+          )
+        : 0;
 
     // Generate analysis insights
     const analysis = {
@@ -1334,49 +1466,68 @@ router.get("/analysis/:symbol", async (req, res) => {
       analysis_type: type,
       price_analysis: {
         current_price: recentPrices[0]?.close || null,
-        price_trend: recentPrices.length >= 2 
-          ? (parseFloat(recentPrices[0]?.close) > parseFloat(recentPrices[1]?.close) ? "upward" : "downward")
-          : "neutral",
+        price_trend:
+          recentPrices.length >= 2
+            ? parseFloat(recentPrices[0]?.close) >
+              parseFloat(recentPrices[1]?.close)
+              ? "upward"
+              : "downward"
+            : "neutral",
         avg_volume_30d: Math.round(avgVolume),
-        volatility_score: Math.round(volatility * 100) / 100
+        volatility_score: Math.round(volatility * 100) / 100,
       },
       technical_analysis: {
         rsi: technicalData.rsi ? parseFloat(technicalData.rsi) : null,
         macd: technicalData.macd ? parseFloat(technicalData.macd) : null,
         sma_20: technicalData.sma_20 ? parseFloat(technicalData.sma_20) : null,
         sma_50: technicalData.sma_50 ? parseFloat(technicalData.sma_50) : null,
-        bollinger_position: technicalData.bb_upper && technicalData.bb_lower && recentPrices[0]
-          ? calculateBollingerPosition(parseFloat(recentPrices[0].close), parseFloat(technicalData.bb_upper), parseFloat(technicalData.bb_lower))
-          : "unknown"
+        bollinger_position:
+          technicalData.bb_upper && technicalData.bb_lower && recentPrices[0]
+            ? calculateBollingerPosition(
+                parseFloat(recentPrices[0].close),
+                parseFloat(technicalData.bb_upper),
+                parseFloat(technicalData.bb_lower)
+              )
+            : "unknown",
       },
       fundamental_analysis: {
-        pe_ratio: financialData.trailing_pe ? parseFloat(financialData.trailing_pe) : null,
-        forward_pe: financialData.forward_pe ? parseFloat(financialData.forward_pe) : null,
-        price_to_book: financialData.price_to_book ? parseFloat(financialData.price_to_book) : null,
-        dividend_yield: financialData.dividend_yield ? parseFloat(financialData.dividend_yield) : null,
-        peg_ratio: financialData.peg_ratio ? parseFloat(financialData.peg_ratio) : null
+        pe_ratio: financialData.trailing_pe
+          ? parseFloat(financialData.trailing_pe)
+          : null,
+        forward_pe: financialData.forward_pe
+          ? parseFloat(financialData.forward_pe)
+          : null,
+        price_to_book: financialData.price_to_book
+          ? parseFloat(financialData.price_to_book)
+          : null,
+        dividend_yield: financialData.dividend_yield
+          ? parseFloat(financialData.dividend_yield)
+          : null,
+        peg_ratio: financialData.peg_ratio
+          ? parseFloat(financialData.peg_ratio)
+          : null,
       },
       summary: {
         data_points: priceData.length,
         technical_indicators: Object.keys(technicalData).length,
         fundamental_metrics: Object.keys(financialData).length,
         volatility: volatility,
-        risk_level: volatility > 5 ? "high" : volatility > 2 ? "medium" : "low"
-      }
+        risk_level: volatility > 5 ? "high" : volatility > 2 ? "medium" : "low",
+      },
     };
 
     res.json({
       success: true,
       data: analysis,
       message: `Stock analysis completed for ${cleanSymbol}`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error generating stock analysis:", error);
     res.status(500).json({
       success: false,
       error: "Failed to generate stock analysis",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1389,13 +1540,14 @@ function calculateBollingerPosition(price, upper, lower) {
   return price > middle ? "upper_half" : "lower_half";
 }
 
-
-// Stock recommendations endpoint (must come before /:ticker) 
+// Stock recommendations endpoint (must come before /:ticker)
 router.get("/recommendations", async (req, res) => {
   try {
     const { limit = 10, sector, min_market_cap } = req.query;
 
-    console.log(`💡 Stock recommendations requested - limit: ${limit}, sector: ${sector || 'all'}`);
+    console.log(
+      `💡 Stock recommendations requested - limit: ${limit}, sector: ${sector || "all"}`
+    );
 
     let whereConditions = ["s.market_cap > 0"];
     const queryParams = [];
@@ -1413,7 +1565,7 @@ router.get("/recommendations", async (req, res) => {
       paramIndex++;
     }
 
-    const whereClause = whereConditions.join(' AND ');
+    const whereClause = whereConditions.join(" AND ");
 
     const recommendationsQuery = `
       SELECT
@@ -1426,20 +1578,23 @@ router.get("/recommendations", async (req, res) => {
       LEFT JOIN company_profile s ON ss.symbol = s.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
-          symbol, close, open_price, volume, date
-        FROM price_daily
+          symbol, close, open, volume, date
+        FROM stock_prices
         ORDER BY symbol, date DESC
       ) sp ON ss.symbol = sp.symbol
-      WHERE ${whereClause.replace(/s\./g, 'ss.')}
+      WHERE ${whereClause.replace(/s\./g, "ss.")}
       ORDER BY s.market_cap DESC
       LIMIT $${paramIndex}
     `;
 
     queryParams.push(parseInt(limit));
 
-    const recommendationsResult = await query(recommendationsQuery, queryParams);
-    
-    const recommendations = (recommendationsResult.rows).map(stock => ({
+    const recommendationsResult = await query(
+      recommendationsQuery,
+      queryParams
+    );
+
+    const recommendations = recommendationsResult.rows.map((stock) => ({
       symbol: stock.symbol,
       company_name: stock.name,
       sector: stock.sector,
@@ -1447,7 +1602,7 @@ router.get("/recommendations", async (req, res) => {
       current_price: parseFloat(stock.current_price || 0),
       recommendation: stock.recommendation,
       reason: stock.reason,
-      confidence_score: parseFloat(stock.confidence_score || 0)
+      confidence_score: parseFloat(stock.confidence_score || 0),
     }));
 
     res.json({
@@ -1456,16 +1611,17 @@ router.get("/recommendations", async (req, res) => {
       filters: {
         sector: sector || null,
         min_market_cap: min_market_cap || null,
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       },
       message: `Generated ${recommendations.length} stock recommendations`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error generating stock recommendations:", error);
-    res.status(500).json({success: false, error: "Failed to generate stock recommendations",
-      details: error.message
+    res.status(500).json({
+      success: false,
+      error: "Failed to generate stock recommendations",
+      details: error.message,
     });
   }
 });
@@ -1475,22 +1631,23 @@ router.get("/list", async (req, res) => {
   try {
     console.log("📋 Stock list endpoint called");
     const limit = parseInt(req.query.limit) || 50;
-    
-    // Get stock list from company_profile table
+
+    // Get stock list from company_profile table (using loader schema)
     const listQuery = `
       SELECT
-        ticker as symbol,
-        name,
-        sector,
-        market_cap
-      FROM company_profile
-      WHERE ticker IS NOT NULL
-      ORDER BY market_cap DESC NULLS LAST
+        cp.ticker as symbol,
+        COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
+        cp.sector,
+        md.market_cap
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE cp.ticker IS NOT NULL
+      ORDER BY md.market_cap DESC NULLS LAST, cp.ticker
       LIMIT $1
     `;
-    
+
     const result = await query(listQuery, [limit]);
-    
+
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(503).json({
         success: false,
@@ -1498,24 +1655,23 @@ router.get("/list", async (req, res) => {
         message: "Stock list requires database tables to be populated",
         troubleshooting: {
           suggestion: "Ensure company_profile table is populated with data",
-          required_tables: ["company_profile", "stocks"]
-        }
+          required_tables: ["company_profile", "stocks"],
+        },
       });
     }
-    
+
     res.json({
       success: true,
       data: result.rows,
       count: result.rowCount,
-      limit: limit
+      limit: limit,
     });
-    
   } catch (error) {
     console.error("❌ Stock list error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock list",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1541,14 +1697,14 @@ router.get("/trending", authenticateToken, async (req, res) => {
       JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
-        FROM price_daily
+        FROM stock_prices
         ORDER BY symbol, date DESC
       ) pd ON ss.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close
-        FROM price_daily
-        WHERE date = (SELECT MAX(date) - INTERVAL '1 day' FROM price_daily)
+        FROM stock_prices
+        WHERE date = (SELECT MAX(date) - INTERVAL '1 day' FROM stock_prices)
         ORDER BY symbol, date DESC
       ) prev_pd ON ss.symbol = prev_pd.symbol
       WHERE pd.volume > 100000
@@ -1563,15 +1719,15 @@ router.get("/trending", authenticateToken, async (req, res) => {
       data: {
         trending_stocks: result.rows || [],
         timeframe,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("Trending stocks error:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trending stocks",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1587,10 +1743,14 @@ router.get("/screener", authenticateToken, async (req, res) => {
       max_price = 99999,
       min_volume = 0,
       sector,
-      limit = 50
+      limit = 50,
     } = req.query;
 
-    let whereConditions = ["pd.close >= $1", "pd.close <= $2", "pd.volume >= $3"];
+    let whereConditions = [
+      "pd.close >= $1",
+      "pd.close <= $2",
+      "pd.volume >= $3",
+    ];
     let queryParams = [min_price, max_price, min_volume];
     let paramCount = 3;
 
@@ -1608,13 +1768,14 @@ router.get("/screener", authenticateToken, async (req, res) => {
         s.sector,
         pd.close as current_price,
         pd.volume,
-        s.market_cap
+        md.market_cap
       FROM stock_symbols ss
       LEFT JOIN company_profile s ON ss.symbol = s.ticker
+      LEFT JOIN market_data md ON ss.symbol = md.ticker
       JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
-        FROM price_daily
+        FROM stock_prices
         ORDER BY symbol, date DESC
       ) pd ON ss.symbol = pd.symbol
       WHERE ${whereConditions.join(" AND ")}
@@ -1631,15 +1792,15 @@ router.get("/screener", authenticateToken, async (req, res) => {
         stocks: result.rows || [],
         filters: { min_price, max_price, min_volume, sector },
         count: result.rows?.length || 0,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("Stock screener error:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to execute stock screener",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1667,7 +1828,7 @@ router.get("/watchlist", async (req, res) => {
           symbol: "GOOGL",
           name: "Alphabet Inc.",
           price: 142.56,
-          change: -1.20,
+          change: -1.2,
           changePercent: -0.83,
         },
         {
@@ -1676,17 +1837,17 @@ router.get("/watchlist", async (req, res) => {
           name: "Microsoft Corporation",
           price: 338.11,
           change: 5.67,
-          changePercent: 1.70,
-        }
+          changePercent: 1.7,
+        },
       ],
-      total: 3
+      total: 3,
     });
   } catch (error) {
     console.error("Watchlist error:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to fetch watchlist",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1702,7 +1863,7 @@ router.post("/watchlist", authenticateToken, async (req, res) => {
     if (!symbol) {
       return res.status(400).json({
         success: false,
-        error: "Missing required field: symbol"
+        error: "Missing required field: symbol",
       });
     }
 
@@ -1713,15 +1874,15 @@ router.post("/watchlist", authenticateToken, async (req, res) => {
         message: `${symbol} would be added to watchlist`,
         symbol: symbol.toUpperCase(),
         action: "add",
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("Add to watchlist error:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to add to watchlist",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1737,7 +1898,7 @@ router.post("/watchlist/add", authenticateToken, async (req, res) => {
     if (!symbol) {
       return res.status(400).json({
         success: false,
-        error: "Missing required field: symbol"
+        error: "Missing required field: symbol",
       });
     }
 
@@ -1748,15 +1909,15 @@ router.post("/watchlist/add", authenticateToken, async (req, res) => {
         message: `${symbol} would be added to watchlist`,
         symbol: symbol.toUpperCase(),
         action: "add",
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("Add to watchlist error:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to add to watchlist",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1772,7 +1933,7 @@ router.delete("/watchlist/remove", authenticateToken, async (req, res) => {
     if (!symbol) {
       return res.status(400).json({
         success: false,
-        error: "Missing required field: symbol"
+        error: "Missing required field: symbol",
       });
     }
 
@@ -1783,15 +1944,15 @@ router.delete("/watchlist/remove", authenticateToken, async (req, res) => {
         message: `${symbol} would be removed from watchlist`,
         symbol: symbol.toUpperCase(),
         action: "remove",
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("Remove from watchlist error:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to remove from watchlist",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1807,7 +1968,7 @@ router.post("/watchlist/remove", authenticateToken, async (req, res) => {
     if (!symbol) {
       return res.status(400).json({
         success: false,
-        error: "Missing required field: symbol"
+        error: "Missing required field: symbol",
       });
     }
 
@@ -1818,15 +1979,15 @@ router.post("/watchlist/remove", authenticateToken, async (req, res) => {
         message: `${symbol} would be removed from watchlist`,
         symbol: symbol.toUpperCase(),
         action: "remove",
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("Remove from watchlist error:", error.message);
     res.status(500).json({
       success: false,
       error: "Failed to remove from watchlist",
-      details: error.message
+      details: error.message,
     });
   }
 });
@@ -1840,14 +2001,15 @@ router.get("/:symbol/technicals", authenticateToken, async (req, res) => {
       data: {
         symbol: symbol.toUpperCase(),
         technicals: [],
-        message: "Technical indicators endpoint - implementation pending"
-      }
+        message: "Technical indicators endpoint - implementation pending",
+      },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: "Technical data unavailable" });
+    res
+      .status(500)
+      .json({ success: false, error: "Technical data unavailable" });
   }
 });
-
 
 router.get("/:symbol/options", authenticateToken, async (req, res) => {
   try {
@@ -1857,8 +2019,8 @@ router.get("/:symbol/options", authenticateToken, async (req, res) => {
       data: {
         symbol: symbol.toUpperCase(),
         options: [],
-        message: "Options data endpoint - implementation pending"
-      }
+        message: "Options data endpoint - implementation pending",
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: "Options data unavailable" });
@@ -1873,8 +2035,8 @@ router.get("/:symbol/insider", authenticateToken, async (req, res) => {
       data: {
         symbol: symbol.toUpperCase(),
         insider_trades: [],
-        message: "Insider trading data endpoint - implementation pending"
-      }
+        message: "Insider trading data endpoint - implementation pending",
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: "Insider data unavailable" });
@@ -1889,8 +2051,8 @@ router.get("/:symbol/analysts", authenticateToken, async (req, res) => {
       data: {
         symbol: symbol.toUpperCase(),
         analyst_ratings: [],
-        message: "Analyst ratings endpoint - implementation pending"
-      }
+        message: "Analyst ratings endpoint - implementation pending",
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: "Analyst data unavailable" });
@@ -1905,11 +2067,13 @@ router.get("/:symbol/earnings", authenticateToken, async (req, res) => {
       data: {
         symbol: symbol.toUpperCase(),
         earnings: [],
-        message: "Earnings data endpoint - implementation pending"
-      }
+        message: "Earnings data endpoint - implementation pending",
+      },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: "Earnings data unavailable" });
+    res
+      .status(500)
+      .json({ success: false, error: "Earnings data unavailable" });
   }
 });
 
@@ -1921,11 +2085,13 @@ router.get("/:symbol/dividends", authenticateToken, async (req, res) => {
       data: {
         symbol: symbol.toUpperCase(),
         dividends: [],
-        message: "Dividend data endpoint - implementation pending"
-      }
+        message: "Dividend data endpoint - implementation pending",
+      },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: "Dividend data unavailable" });
+    res
+      .status(500)
+      .json({ success: false, error: "Dividend data unavailable" });
   }
 });
 
@@ -1937,11 +2103,13 @@ router.get("/:symbol/sentiment", authenticateToken, async (req, res) => {
       data: {
         symbol: symbol.toUpperCase(),
         sentiment: {},
-        message: "Sentiment analysis endpoint - implementation pending"
-      }
+        message: "Sentiment analysis endpoint - implementation pending",
+      },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: "Sentiment data unavailable" });
+    res
+      .status(500)
+      .json({ success: false, error: "Sentiment data unavailable" });
   }
 });
 
@@ -1953,8 +2121,8 @@ router.get("/:symbol/social", authenticateToken, async (req, res) => {
       data: {
         symbol: symbol.toUpperCase(),
         social_data: [],
-        message: "Social media data endpoint - implementation pending"
-      }
+        message: "Social media data endpoint - implementation pending",
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: "Social data unavailable" });
@@ -1967,7 +2135,7 @@ router.get("/details/", (req, res) => {
   res.status(404).json({
     success: false,
     error: "Not found",
-    message: "Stock symbol is required"
+    message: "Stock symbol is required",
   });
 });
 
@@ -1981,7 +2149,7 @@ router.get("/details/:symbol", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "Symbol not found",
-        message: "Stock symbol is required"
+        message: "Stock symbol is required",
       });
     }
 
@@ -1997,16 +2165,16 @@ router.get("/details/:symbol", async (req, res) => {
         pe_ratio: 25.4,
         dividend_yield: 0.5,
         beta: 1.2,
-        price: 175.00
+        price: 175.0,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock details error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock details",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2022,21 +2190,21 @@ router.get("/movers", async (req, res) => {
       data: {
         gainers: [
           { symbol: "AAPL", change: 5.2, change_percent: 3.1 },
-          { symbol: "MSFT", change: 8.5, change_percent: 2.8 }
+          { symbol: "MSFT", change: 8.5, change_percent: 2.8 },
         ],
         losers: [
           { symbol: "TSLA", change: -12.3, change_percent: -4.2 },
-          { symbol: "NFLX", change: -8.7, change_percent: -2.1 }
-        ]
+          { symbol: "NFLX", change: -8.7, change_percent: -2.1 },
+        ],
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Market movers error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market movers",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2045,38 +2213,40 @@ router.get("/movers", async (req, res) => {
 router.get("/compare", async (req, res) => {
   try {
     const { symbols, metrics = "price,volume,pe_ratio" } = req.query;
-    console.log(`Stock comparison requested for symbols: ${symbols}, metrics: ${metrics}`);
+    console.log(
+      `Stock comparison requested for symbols: ${symbols}, metrics: ${metrics}`
+    );
 
     if (!symbols) {
       return res.json({
         success: true,
         data: [],
-        message: "No symbols provided for comparison"
+        message: "No symbols provided for comparison",
       });
     }
 
-    const symbolList = symbols.split(',').slice(0, 10); // Limit to 10 stocks
+    const symbolList = symbols.split(",").slice(0, 10); // Limit to 10 stocks
 
     res.json({
       success: true,
       data: {
-        comparison: symbolList.map(symbol => ({
+        comparison: symbolList.map((symbol) => ({
           symbol: symbol.toUpperCase(),
           price: Math.random() * 200 + 50,
           volume: Math.floor(Math.random() * 10000000),
-          pe_ratio: Math.random() * 30 + 10
+          pe_ratio: Math.random() * 30 + 10,
         })),
-        metrics: metrics.split(','),
-        count: symbolList.length
+        metrics: metrics.split(","),
+        count: symbolList.length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock comparison error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to compare stocks",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2094,27 +2264,27 @@ router.get("/stats", async (req, res) => {
           total_stocks: 5000,
           gainers: 1250,
           losers: 1100,
-          unchanged: 2650
+          unchanged: 2650,
         },
         sector_performance: {
           technology: { change: 2.3, count: 800 },
           healthcare: { change: 1.1, count: 650 },
-          finance: { change: -0.5, count: 450 }
+          finance: { change: -0.5, count: 450 },
         },
         volume_stats: {
           total_volume: 8500000000,
-          avg_volume: 1700000
-        }
+          avg_volume: 1700000,
+        },
       },
       filter: { sector },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock statistics error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock statistics",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2124,32 +2294,49 @@ router.get("/recommendations/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const { criteria = "all" } = req.query;
-    console.log(`Stock recommendations requested for ${symbol}, criteria: ${criteria}`);
+    console.log(
+      `Stock recommendations requested for ${symbol}, criteria: ${criteria}`
+    );
 
     res.json({
       success: true,
       data: {
         symbol: symbol.toUpperCase(),
         recommendations: [
-          { source: "Analyst A", rating: "BUY", target_price: 200, confidence: 85 },
-          { source: "Analyst B", rating: "HOLD", target_price: 180, confidence: 78 },
-          { source: "Technical", rating: "BUY", target_price: 195, confidence: 72 }
+          {
+            source: "Analyst A",
+            rating: "BUY",
+            target_price: 200,
+            confidence: 85,
+          },
+          {
+            source: "Analyst B",
+            rating: "HOLD",
+            target_price: 180,
+            confidence: 78,
+          },
+          {
+            source: "Technical",
+            rating: "BUY",
+            target_price: 195,
+            confidence: 72,
+          },
         ],
         consensus: {
           rating: "BUY",
           avg_target: 191.67,
-          total_analysts: 3
+          total_analysts: 3,
         },
-        criteria
+        criteria,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock recommendations error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock recommendations",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2159,7 +2346,9 @@ router.get("/price/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const { timeframe = "1d", historical = false, days = 30 } = req.query;
-    console.log(`Stock price requested for ${symbol}, timeframe: ${timeframe}, historical: ${historical}`);
+    console.log(
+      `Stock price requested for ${symbol}, timeframe: ${timeframe}, historical: ${historical}`
+    );
 
     // Generate realistic price data
     const basePrice = Math.random() * 200 + 50;
@@ -2169,14 +2358,18 @@ router.get("/price/:symbol", async (req, res) => {
       change: (Math.random() - 0.5) * 10,
       change_percent: (Math.random() - 0.5) * 5,
       volume: Math.floor(Math.random() * 10000000) + 1000000,
-      market_cap: Math.floor(basePrice * (Math.random() * 500000000 + 100000000))
+      market_cap: Math.floor(
+        basePrice * (Math.random() * 500000000 + 100000000)
+      ),
     };
 
     if (historical) {
       priceData.historical = Array.from({ length: parseInt(days) }, (_, i) => ({
-        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0],
         price: basePrice * (0.95 + Math.random() * 0.1),
-        volume: Math.floor(Math.random() * 5000000) + 500000
+        volume: Math.floor(Math.random() * 5000000) + 500000,
       }));
     }
 
@@ -2184,14 +2377,14 @@ router.get("/price/:symbol", async (req, res) => {
       success: true,
       data: priceData,
       timeframe,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock price error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock price",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2208,23 +2401,27 @@ router.get("/:ticker", async (req, res) => {
         success: false,
         error: "Invalid symbol",
         message: "Symbol parameter is required",
-        symbol: ticker
+        symbol: ticker,
       });
     }
 
     // Check for invalid characters or patterns
-    if (ticker.length > 5 || !/^[A-Za-z0-9.-]+$/.test(ticker) || ticker === "INVALID") {
+    if (
+      ticker.length > 5 ||
+      !/^[A-Za-z0-9.-]+$/.test(ticker) ||
+      ticker === "INVALID"
+    ) {
       return res.status(400).json({
         success: false,
         error: "Invalid symbol format",
         message: "Symbol contains invalid characters or is too long",
-        symbol: ticker
+        symbol: ticker,
       });
     }
 
     console.log(`FIXED stock endpoint called for: ${tickerUpper}`);
 
-    // FIXED QUERY - Use company_profile as primary source (populated by loadinfo)
+    // FIXED QUERY - Use company_profile and stock_prices (populated by loader scripts)
     const stockQuery = `
       SELECT
         cp.ticker as symbol,
@@ -2233,52 +2430,65 @@ router.get("/:ticker", async (req, res) => {
         cp.market as exchange,
         cp.quote_type as market_category,
         md.market_cap,
-        pd.close as current_price,
-        pd.open,
-        pd.high,
-        pd.low,
-        pd.volume,
-        pd.date as price_date
+        sp.close as current_price,
+        sp.open,
+        sp.high,
+        sp.low,
+        sp.volume,
+        sp.date as price_date
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, high, low, volume, date
-        FROM price_daily
+        FROM stock_prices
         ORDER BY symbol, date DESC
-      ) pd ON cp.ticker = pd.symbol
+      ) sp ON cp.ticker = sp.symbol
       WHERE cp.ticker = $1
       LIMIT 1
     `;
 
     console.log(`FIXED stock endpoint - executing query for ${tickerUpper}`);
-    
+
     let result;
     try {
       result = await query(stockQuery, [tickerUpper]);
-      console.log(`FIXED stock endpoint - query result:`, result ? `${result.rows?.length} rows` : 'null result');
+      console.log(
+        `FIXED stock endpoint - query result:`,
+        result ? `${result.rows?.length} rows` : "null result"
+      );
     } catch (error) {
       console.error(`FIXED stock endpoint - query error:`, error.message);
-      return res.status(500).json({success: false, error: "Database query failed",
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
         symbol: tickerUpper,
         details: error.message,
         timestamp: new Date().toISOString(),
       });
     }
-    
+
     if (result?.rows?.length > 0) {
       console.log(`FIXED stock endpoint - first row data:`, result.rows[0]);
     }
 
     // Add null checking for database availability
     if (!result || !result.rows) {
-      console.warn("Database query returned null result, database may be unavailable");
-      return res.status(500).json({success: false, error: "Service temporarily unavailable",type: "service_unavailable"});
+      console.warn(
+        "Database query returned null result, database may be unavailable"
+      );
+      return res.status(500).json({
+        success: false,
+        error: "Service temporarily unavailable",
+        type: "service_unavailable",
+      });
     }
 
     if (result.rows.length === 0) {
       console.log(`FIXED stock endpoint - No rows found for ${tickerUpper}`);
-      return res.status(404).json({success: false, error: "Stock not found",
+      return res.status(404).json({
+        success: false,
+        error: "Stock not found",
         symbol: tickerUpper,
         message: `Symbol '${tickerUpper}' not found in database`,
         timestamp: new Date().toISOString(),
@@ -2296,9 +2506,11 @@ router.get("/:ticker", async (req, res) => {
         exchange: stock.exchange,
         marketCategory: stock.market_category || "Standard",
         sector: stock.sector,
-        isETF: stock.market_category === 'ETF' || false,
+        isETF: stock.market_category === "ETF" || false,
       },
-      currentPrice: stock.current_price ? parseFloat(stock.current_price) : null,
+      currentPrice: stock.current_price
+        ? parseFloat(stock.current_price)
+        : null,
       priceData: stock.current_price
         ? {
             date: stock.price_date,
@@ -2323,13 +2535,15 @@ router.get("/:ticker", async (req, res) => {
     };
 
     console.log(
-      `✅ FIXED: Successfully returned data for ${tickerUpper} with price: ${stock.current_price || 'null'}`
+      `✅ FIXED: Successfully returned data for ${tickerUpper} with price: ${stock.current_price || "null"}`
     );
 
     return res.json(response);
   } catch (error) {
     console.error("Error in fixed stock endpoint:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch stock data"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch stock data" });
   }
 });
 
@@ -2386,16 +2600,18 @@ router.get("/:symbol/prices", async (req, res) => {
       cleanCache();
     }
 
-    // Use price_daily table for all timeframes since weekly/monthly tables don't exist
+    // Use stock_prices table for all timeframes since weekly/monthly tables don't exist
     // For weekly/monthly data, we'll aggregate the daily data appropriately
-    const tableName = "price_daily";
-    
-    console.log(`DEBUG: Using tableName: ${tableName} for symbol: ${symbol}, timeframe: ${timeframe}`);
+    const tableName = "stock_prices";
+
+    console.log(
+      `DEBUG: Using tableName: ${tableName} for symbol: ${symbol}, timeframe: ${timeframe}`
+    );
 
     // Build appropriate query based on timeframe - all use price_daily table
     let pricesQuery;
-    
-    if (timeframe === 'weekly') {
+
+    if (timeframe === "weekly") {
       // Aggregate daily data into weekly data (Monday to Sunday)
       console.log(`DEBUG: Building weekly query with tableName: ${tableName}`);
       pricesQuery = `
@@ -2406,7 +2622,7 @@ router.get("/:symbol/prices", async (req, res) => {
             MAX(high) as high,
             MIN(low) as low,
             (ARRAY_AGG(close ORDER BY date DESC))[1] as close,
-            (ARRAY_AGG(close ORDER BY date DESC))[1] as adj_close,
+            (ARRAY_AGG(close ORDER BY date DESC))[1] as adjusted_close,
             SUM(volume) as volume
           FROM ${tableName}
           WHERE symbol = $1
@@ -2423,7 +2639,7 @@ router.get("/:symbol/prices", async (req, res) => {
             high::DECIMAL(12,4) as high,
             low::DECIMAL(12,4) as low,
             close::DECIMAL(12,4) as close,
-            close::DECIMAL(12,4) as adj_close,
+            close::DECIMAL(12,4) as adjusted_close,
             volume::BIGINT as volume,
             LAG(close) OVER (ORDER BY date DESC) as prev_close
           FROM weekly_data
@@ -2434,7 +2650,7 @@ router.get("/:symbol/prices", async (req, res) => {
           high, 
           low,
           close,
-          adj_close,
+          adjusted_close,
           volume,
           CASE 
             WHEN prev_close IS NOT NULL AND prev_close > 0 
@@ -2449,7 +2665,7 @@ router.get("/:symbol/prices", async (req, res) => {
         FROM price_data
         ORDER BY date DESC;
       `;
-    } else if (timeframe === 'monthly') {
+    } else if (timeframe === "monthly") {
       // Aggregate daily data into monthly data
       pricesQuery = `
         WITH monthly_data AS (
@@ -2459,7 +2675,7 @@ router.get("/:symbol/prices", async (req, res) => {
             MAX(high) as high,
             MIN(low) as low,
             (ARRAY_AGG(close ORDER BY date DESC))[1] as close,
-            (ARRAY_AGG(close ORDER BY date DESC))[1] as adj_close,
+            (ARRAY_AGG(close ORDER BY date DESC))[1] as adjusted_close,
             SUM(volume) as volume
           FROM ${tableName}
           WHERE symbol = $1
@@ -2476,7 +2692,7 @@ router.get("/:symbol/prices", async (req, res) => {
             high::DECIMAL(12,4) as high,
             low::DECIMAL(12,4) as low,
             close::DECIMAL(12,4) as close,
-            close::DECIMAL(12,4) as adj_close,
+            close::DECIMAL(12,4) as adjusted_close,
             volume::BIGINT as volume,
             LAG(close) OVER (ORDER BY date DESC) as prev_close
           FROM monthly_data
@@ -2487,7 +2703,7 @@ router.get("/:symbol/prices", async (req, res) => {
           high, 
           low,
           close,
-          adj_close,
+          adjusted_close,
           volume,
           CASE 
             WHEN prev_close IS NOT NULL AND prev_close > 0 
@@ -2512,7 +2728,7 @@ router.get("/:symbol/prices", async (req, res) => {
             high::DECIMAL(12,4) as high,
             low::DECIMAL(12,4) as low,
             close::DECIMAL(12,4) as close,
-            close::DECIMAL(12,4) as adj_close,
+            close::DECIMAL(12,4) as adjusted_close,
             volume::BIGINT as volume,
             LAG(close) OVER (ORDER BY date DESC) as prev_close
           FROM ${tableName}
@@ -2528,7 +2744,7 @@ router.get("/:symbol/prices", async (req, res) => {
           high, 
           low,
           close,
-          adj_close,
+          adjusted_close,
           volume,
           CASE 
             WHEN prev_close IS NOT NULL AND prev_close > 0 
@@ -2550,10 +2766,13 @@ router.get("/:symbol/prices", async (req, res) => {
     console.log(`📊 Query length: ${pricesQuery.length} characters`);
     console.log(`🔧 Parameters: [${symbol}, ${limit}]`);
     console.log(`📝 FULL QUERY:\n${pricesQuery}`);
-    console.log(`🎯 Query position 763 is at character:`, pricesQuery.charAt(762));
-    
+    console.log(
+      `🎯 Query position 763 is at character:`,
+      pricesQuery.charAt(762)
+    );
+
     // Check table schema first for weekly/monthly queries
-    if (timeframe === 'weekly' || timeframe === 'monthly') {
+    if (timeframe === "weekly" || timeframe === "monthly") {
       try {
         console.log(`🔍 DEBUG: Checking price_daily table schema...`);
         const schemaResult = await query(`
@@ -2563,25 +2782,33 @@ router.get("/:symbol/prices", async (req, res) => {
           ORDER BY ordinal_position;
         `);
         console.log(`📋 price_daily columns:`, schemaResult.rows);
-        
+
         // Also check if data exists for this symbol
-        const dataCheck = await query(`
+        const dataCheck = await query(
+          `
           SELECT COUNT(*), MIN(date), MAX(date) 
-          FROM price_daily 
+          FROM stock_prices 
           WHERE symbol = $1;
-        `, [symbol]);
+        `,
+          [symbol]
+        );
         console.log(`📊 Data check for ${symbol}:`, dataCheck.rows[0]);
       } catch (schemaError) {
         console.error(`❌ Schema check failed:`, schemaError);
       }
     }
-    
+
     // Execute query with timeout protection
     const queryPromise = query(pricesQuery, [symbol, limit]);
     const timeoutPromise = new Promise((_, reject) => {
       const queryTimeoutMs = parseInt(process.env.DB_QUERY_TIMEOUT) || 20000; // Default 20 seconds
       setTimeout(
-        () => reject(new Error(`Query timeout - database taking too long (${queryTimeoutMs/1000}s)`)),
+        () =>
+          reject(
+            new Error(
+              `Query timeout - database taking too long (${queryTimeoutMs / 1000}s)`
+            )
+          ),
         queryTimeoutMs
       );
     });
@@ -2590,10 +2817,12 @@ router.get("/:symbol/prices", async (req, res) => {
 
     // Check for valid result
     if (!result || !result.rows) {
-      return res.status(404).json({success: false, error: "Price data unavailable", 
+      return res.status(404).json({
+        success: false,
+        error: "Price data unavailable",
         message: "No price data found",
         data: [],
-        ticker: req.params.ticker
+        ticker: req.params.ticker,
       });
     }
 
@@ -2633,49 +2862,12 @@ router.get("/:symbol/prices", async (req, res) => {
         }
       );
 
-      // Return sample fallback data to match test expectations
-      const today = new Date();
-      const fallbackData = [];
-
-      // Generate sample price data for the last 30 days
-      for (let i = limit - 1; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-
-        const basePrice = symbol === 'AAPL' ? 175.0 :
-                         symbol === 'GOOGL' ? 142.0 :
-                         symbol === 'MSFT' ? 338.0 : 150.0;
-
-        const randomVariation = (Math.random() - 0.5) * 10; // ±5 price variation
-        const price = Math.max(basePrice + randomVariation, 1);
-        const volume = Math.floor(Math.random() * 50000000) + 20000000;
-
-        fallbackData.push({
-          date: date.toISOString().split('T')[0],
-          open: +(price * 0.998).toFixed(2),
-          high: +(price * 1.015).toFixed(2),
-          low: +(price * 0.985).toFixed(2),
-          close: +price.toFixed(2),
-          adj_close: +price.toFixed(2),
-          volume: volume,
-          change: i === 0 ? 0 : +(price - (basePrice + (Math.random() - 0.5) * 10)).toFixed(2),
-          change_percent: i === 0 ? 0 : +((Math.random() - 0.5) * 4).toFixed(2)
-        });
-      }
-
-      return res.json({
-        success: true,
+      // Return proper error when no price data found
+      return res.status(404).json({
+        success: false,
+        error: `No price data found for symbol ${symbol}`,
+        message: "Price data not available in database. Ensure price data has been loaded from data providers.",
         ticker: symbol,
-        dataPoints: fallbackData.length,
-        data: fallbackData,
-        summary: {
-          latestPrice: fallbackData[0]?.close || null,
-          latestDate: fallbackData[0]?.date || null,
-          periodReturn: Math.random() * 10 - 5, // Random return
-          latestVolume: fallbackData[0]?.volume || null,
-        },
-        data_source: "sample_fallback",
-        message: "Sample data provided for demonstration",
         timestamp: new Date().toISOString(),
         queryTime: Date.now() - startTime,
       });
@@ -2688,7 +2880,7 @@ router.get("/:symbol/prices", async (req, res) => {
       high: parseFloat(row.high),
       low: parseFloat(row.low),
       close: parseFloat(row.close),
-      adjClose: parseFloat(row.adj_close),
+      adjClose: parseFloat(row.adjusted_close),
       volume: parseInt(row.volume) || 0,
       priceChange: row.price_change ? parseFloat(row.price_change) : null,
       priceChangePct: row.price_change_pct
@@ -2748,17 +2940,20 @@ router.get("/:symbol/prices", async (req, res) => {
   } catch (error) {
     console.error(`❌ Error fetching ${symbol} prices:`, error);
 
-    return res.status(503).json({success: false, error: "Failed to fetch stock prices",
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch stock prices",
       details: error.message,
-      suggestion: "Stock price data requires database connectivity and populated price history.",
+      suggestion:
+        "Stock price data requires database connectivity and populated price history.",
       service: "stock-prices",
       ticker: symbol,
       requirements: [
         "Database connectivity must be available",
-        "price_daily or price_daily tables must exist with data", 
-        "Historical price data must be current (within acceptable time range)"
+        "price_daily or price_daily tables must exist with data",
+        "Historical price data must be current (within acceptable time range)",
       ],
-      retry_after: 30
+      retry_after: 30,
     });
   }
 });
@@ -2774,8 +2969,8 @@ router.get("/:symbol/prices/recent", async (req, res) => {
     );
 
     const pricesQuery = `
-      SELECT date, open, high, low, close, adj_close, volume
-      FROM price_daily
+      SELECT date, open, high, low, close, adjusted_close, volume
+      FROM stock_prices
       WHERE UPPER(symbol) = UPPER($1)
       ORDER BY date DESC
       LIMIT $2
@@ -2785,7 +2980,9 @@ router.get("/:symbol/prices/recent", async (req, res) => {
 
     // Check for valid result
     if (!result || !result.rows) {
-      return res.status(404).json({success: false, error: "Price data unavailable", 
+      return res.status(404).json({
+        success: false,
+        error: "Price data unavailable",
         ticker: ticker.toUpperCase(),
         message: "No price data available",
         data: [],
@@ -2795,47 +2992,11 @@ router.get("/:symbol/prices/recent", async (req, res) => {
     }
 
     if (result.rows.length === 0) {
-      console.log(`📊 [STOCKS] No price data found for ${ticker}, providing mock data for E2E testing`);
-
-      // Generate mock price data for E2E testing
-      const mockPrices = [];
-      const basePrice = ticker === 'AAPL' ? 150.25 : ticker === 'GOOGL' ? 2500.75 : ticker === 'MSFT' ? 280.50 : 100;
-      const today = new Date();
-
-      for (let i = 0; i < 30; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-
-        const variation = (Math.random() - 0.5) * 0.05; // ±2.5% variation
-        const price = basePrice * (1 + variation);
-
-        mockPrices.push({
-          date: date.toISOString().split('T')[0],
-          open: parseFloat((price * 0.995).toFixed(2)),
-          high: parseFloat((price * 1.015).toFixed(2)),
-          low: parseFloat((price * 0.985).toFixed(2)),
-          close: parseFloat(price.toFixed(2)),
-          volume: Math.floor(Math.random() * 30000000) + 10000000,
-          ticker: ticker.toUpperCase()
-        });
-      }
-
-      const latest = mockPrices[0];
-      const change = parseFloat((Math.random() * 4 - 2).toFixed(2)); // ±$2 change
-      const changePercent = parseFloat(((change / latest.close) * 100).toFixed(2));
-
-      return res.json({
-        success: true,
+      return res.status(404).json({
+        success: false,
+        error: `No price data found for symbol ${ticker}`,
+        message: "Price data not available in database. Ensure price data has been loaded from data providers.",
         ticker: ticker.toUpperCase(),
-        mock_data: true,
-        message: "Mock price data for E2E testing",
-        data: mockPrices,
-        summary: {
-          latest_price: latest.close,
-          change: change,
-          change_percent: changePercent,
-          volume: latest.volume
-        },
         timestamp: new Date().toISOString(),
       });
     }
@@ -2865,7 +3026,7 @@ router.get("/:symbol/prices/recent", async (req, res) => {
         high: parseFloat(price.high),
         low: parseFloat(price.low),
         close: parseFloat(price.close),
-        adjClose: parseFloat(price.adj_close),
+        adjClose: parseFloat(price.adjusted_close),
         volume: parseInt(price.volume) || 0,
         priceChange,
         priceChangePct,
@@ -2876,7 +3037,8 @@ router.get("/:symbol/prices/recent", async (req, res) => {
       `📊 [STOCKS] Successfully returning ${pricesWithChange.length} price records for ${ticker}`
     );
 
-    res.json({ticker: ticker.toUpperCase(),
+    res.json({
+      ticker: ticker.toUpperCase(),
       dataPoints: result.rows.length,
       data: pricesWithChange,
       summary: {
@@ -2889,7 +3051,9 @@ router.get("/:symbol/prices/recent", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ [STOCKS] Error fetching recent stock prices:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch recent stock prices", 
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch recent stock prices",
       details: error.message,
       data: [], // Always return data as an array for frontend safety
       ticker: req.params.ticker,
@@ -2915,7 +3079,9 @@ router.get("/filters/sectors", async (req, res) => {
 
     if (!result || !result.rows) {
       console.error("Stock exchanges query returned null result");
-      return res.status(500).json({success: false, error: "Failed to fetch stock exchanges"});
+      return res
+        .status(500)
+        .json({ success: false, error: "Failed to fetch stock exchanges" });
     }
 
     return res.json({
@@ -2929,7 +3095,9 @@ router.get("/filters/sectors", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching stock exchanges:", error);
-    return res.status(500).json({success: false, error: "Failed to fetch stock exchanges"});
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch stock exchanges" });
   }
 });
 
@@ -2961,22 +3129,28 @@ router.get("/screen/stats", async (req, res) => {
     let result;
     try {
       result = await query(statsQuery);
-      
+
       // Add null checking for database availability
       if (!result || !result.rows) {
-        console.warn("Screen stats query returned null result, database may be unavailable");
-        return res.status(503).json({success: false, error: "Screen statistics unavailable",
-          details: "Database connection issue prevents loading screening statistics",
-          suggestion: "Screen statistics require database connectivity and populated stock data.",
+        console.warn(
+          "Screen stats query returned null result, database may be unavailable"
+        );
+        return res.status(503).json({
+          success: false,
+          error: "Screen statistics unavailable",
+          details:
+            "Database connection issue prevents loading screening statistics",
+          suggestion:
+            "Screen statistics require database connectivity and populated stock data.",
           service: "screen-stats",
           requirements: [
             "Database connectivity must be available",
             "stock_symbols table must exist with statistical data",
-            "Database tables must be populated with market cap, PE ratio, and other metrics"
-          ]
+            "Database tables must be populated with market cap, PE ratio, and other metrics",
+          ],
         });
       }
-      
+
       console.log(
         `✅ Screen stats query successful: ${result.rows.length} stats found`
       );
@@ -3089,7 +3263,9 @@ router.get("/screen/stats", async (req, res) => {
         }
       );
 
-      return res.status(503).json({success: false, error: "Screener statistics unavailable", 
+      return res.status(503).json({
+        success: false,
+        error: "Screener statistics unavailable",
         message:
           "Unable to retrieve screener statistics due to database issues",
         timestamp: new Date().toISOString(),
@@ -3098,7 +3274,9 @@ router.get("/screen/stats", async (req, res) => {
     }
   } catch (error) {
     console.error("Error in screen stats endpoint:", error);
-    return res.status(500).json({success: false, error: "Failed to retrieve screener statistics", 
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve screener statistics",
       details: error.message,
       timestamp: new Date().toISOString(),
     });
@@ -3109,65 +3287,84 @@ router.get("/screen/stats", async (req, res) => {
 router.post("/init-price-data", authenticateToken, async (req, res) => {
   try {
     console.log("Price data initialization endpoint called");
-    
-    const { symbols, start_date, end_date, frequency = 'daily', force_refresh = false } = req.body;
-    
+
+    const {
+      symbols,
+      start_date,
+      end_date,
+      frequency = "daily",
+      force_refresh = false,
+    } = req.body;
+
     // Validate input parameters
     if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
       return res.status(400).json({
         success: false,
         error: "Invalid symbols array",
         details: "symbols must be a non-empty array",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
-    
+
     // Simulate various error scenarios based on test requirements
     if (req.body && req.body.force_error) {
       throw new Error("Database initialization failed");
     }
-    
+
     // Set default date range if not provided
     const endDate = end_date ? new Date(end_date) : new Date();
-    const startDate = start_date ? new Date(start_date) : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000); // 1 year ago
-    
+    const startDate = start_date
+      ? new Date(start_date)
+      : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000); // 1 year ago
+
     // Generate realistic price data for each symbol
     const initializationResults = [];
-    
-    for (const symbol of symbols.slice(0, 50)) { // Limit to 50 symbols for performance
-      const priceData = generateHistoricalPriceData(symbol, startDate, endDate, frequency);
-      
+
+    for (const symbol of symbols.slice(0, 50)) {
+      // Limit to 50 symbols for performance
+      const priceData = generateHistoricalPriceData(
+        symbol,
+        startDate,
+        endDate,
+        frequency
+      );
+
       // In a real implementation, this would save to database
       // For demo purposes, we'll simulate the process
       const result = {
         symbol: symbol,
         records_generated: priceData.length,
         date_range: {
-          start: startDate.toISOString().split('T')[0],
-          end: endDate.toISOString().split('T')[0]
+          start: startDate.toISOString().split("T")[0],
+          end: endDate.toISOString().split("T")[0],
         },
         frequency: frequency,
         sample_data: priceData.slice(0, 3), // First 3 records as sample
         latest_price: priceData[priceData.length - 1],
         price_stats: {
-          highest: Math.max(...priceData.map(p => p.high)),
-          lowest: Math.min(...priceData.map(p => p.low)),
-          avg_volume: Math.round(priceData.reduce((sum, p) => sum + p.volume, 0) / priceData.length),
-          total_trading_days: priceData.length
-        }
+          highest: Math.max(...priceData.map((p) => p.high)),
+          lowest: Math.min(...priceData.map((p) => p.low)),
+          avg_volume: Math.round(
+            priceData.reduce((sum, p) => sum + p.volume, 0) / priceData.length
+          ),
+          total_trading_days: priceData.length,
+        },
       };
-      
+
       initializationResults.push(result);
     }
-    
+
     // Calculate summary statistics
-    const totalRecords = initializationResults.reduce((sum, r) => sum + r.records_generated, 0);
-    const avgPriceChange = initializationResults.map(r => {
+    const totalRecords = initializationResults.reduce(
+      (sum, r) => sum + r.records_generated,
+      0
+    );
+    const avgPriceChange = initializationResults.map((r) => {
       const first = r.sample_data[0];
       const last = r.latest_price;
       return ((last.close - first.open) / first.open) * 100;
     });
-    
+
     res.json({
       success: true,
       message: "Price data initialization completed",
@@ -3177,86 +3374,104 @@ router.post("/init-price-data", authenticateToken, async (req, res) => {
           symbols_processed: initializationResults.length,
           total_records_generated: totalRecords,
           date_range: {
-            start: startDate.toISOString().split('T')[0],
-            end: endDate.toISOString().split('T')[0],
-            days_covered: Math.ceil((endDate - startDate) / (24 * 60 * 60 * 1000))
+            start: startDate.toISOString().split("T")[0],
+            end: endDate.toISOString().split("T")[0],
+            days_covered: Math.ceil(
+              (endDate - startDate) / (24 * 60 * 60 * 1000)
+            ),
           },
           frequency: frequency,
-          avg_price_change_percent: avgPriceChange.length > 0 ? 
-            parseFloat((avgPriceChange.reduce((a, b) => a + b, 0) / avgPriceChange.length).toFixed(2)) : 0,
-          force_refresh: force_refresh
+          avg_price_change_percent:
+            avgPriceChange.length > 0
+              ? parseFloat(
+                  (
+                    avgPriceChange.reduce((a, b) => a + b, 0) /
+                    avgPriceChange.length
+                  ).toFixed(2)
+                )
+              : 0,
+          force_refresh: force_refresh,
         },
         processing_time: `${Math.random() * 2000 + 500}ms`, // Simulated processing time
         data_source: "simulation", // In real app would be external API
-        next_update_recommendation: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // Tomorrow
+        next_update_recommendation: new Date(
+          Date.now() + 24 * 60 * 60 * 1000
+        ).toISOString(), // Tomorrow
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
   } catch (error) {
     console.error("Price data initialization error:", error);
     return res.status(500).json({
       success: false,
       error: "Failed to initialize price data",
       details: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
 // Helper function to generate realistic historical price data
-function generateHistoricalPriceData(symbol, startDate, endDate, frequency = 'daily') {
+function generateHistoricalPriceData(
+  symbol,
+  startDate,
+  endDate,
+  frequency = "daily"
+) {
   const priceData = [];
   const current = new Date(startDate);
   const end = new Date(endDate);
-  
+
   // Base price for the symbol (simulate different price ranges)
   const basePrice = symbol.length * 10 + Math.random() * 100 + 20;
   let currentPrice = basePrice;
-  
+
   while (current <= end) {
     // Skip weekends for daily data
-    if (frequency === 'daily' && (current.getDay() === 0 || current.getDay() === 6)) {
+    if (
+      frequency === "daily" &&
+      (current.getDay() === 0 || current.getDay() === 6)
+    ) {
       current.setDate(current.getDate() + 1);
       continue;
     }
-    
+
     // Generate realistic price movement (random walk with slight upward bias)
     const priceChange = (Math.random() - 0.48) * currentPrice * 0.05; // Slight upward bias
     currentPrice = Math.max(currentPrice + priceChange, 0.01); // Prevent negative prices
-    
+
     const dailyVolatility = Math.random() * 0.03 + 0.01; // 1-4% daily volatility
     const high = currentPrice * (1 + dailyVolatility);
     const low = currentPrice * (1 - dailyVolatility);
     const open = currentPrice + (Math.random() - 0.5) * currentPrice * 0.02;
     const close = currentPrice;
-    
+
     // Generate realistic volume (higher volume on larger price movements)
     const volumeBase = 1000000 + Math.random() * 5000000;
     const volumeMultiplier = 1 + Math.abs(priceChange / currentPrice) * 5;
     const volume = Math.round(volumeBase * volumeMultiplier);
-    
+
     priceData.push({
-      date: current.toISOString().split('T')[0],
+      date: current.toISOString().split("T")[0],
       open: parseFloat(open.toFixed(2)),
       high: parseFloat(high.toFixed(2)),
       low: parseFloat(low.toFixed(2)),
       close: parseFloat(close.toFixed(2)),
       volume: volume,
       symbol: symbol,
-      frequency: frequency
+      frequency: frequency,
     });
-    
+
     // Move to next period
-    if (frequency === 'weekly') {
+    if (frequency === "weekly") {
       current.setDate(current.getDate() + 7);
-    } else if (frequency === 'monthly') {
+    } else if (frequency === "monthly") {
       current.setMonth(current.getMonth() + 1);
     } else {
       current.setDate(current.getDate() + 1);
     }
   }
-  
+
   return priceData;
 }
 
@@ -3266,47 +3481,58 @@ router.get("/:symbol/quote", async (req, res) => {
   try {
     const { symbol } = req.params;
     console.log(`Alternative stock quote request for ${symbol}`);
-    
+
     // Get the latest price data for the symbol
     const result = await query(
-      `SELECT * FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
+      `SELECT * FROM stock_prices WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
       [symbol.toUpperCase()]
     );
-    
+
     if (result.rows.length === 0) {
-      return res.success({
-        quote: null,
-        metadata: {
-          symbol: symbol.toUpperCase(),
-          message: "No quote data available for this symbol",
-          suggestion: "Data may be available soon or try another symbol"
-        }
-      }, 200, { message: "Quote request processed" });
+      return res.success(
+        {
+          quote: null,
+          metadata: {
+            symbol: symbol.toUpperCase(),
+            message: "No quote data available for this symbol",
+            suggestion: "Data may be available soon or try another symbol",
+          },
+        },
+        200,
+        { message: "Quote request processed" }
+      );
     }
 
     const quote = result.rows[0];
-    res.success({
-      quote: {
-        symbol: quote.symbol,
-        price: parseFloat(quote.close),
-        change: parseFloat(quote.close) - parseFloat(quote.open),
-        change_percent: ((parseFloat(quote.close) - parseFloat(quote.open)) / parseFloat(quote.open) * 100).toFixed(2),
-        volume: parseInt(quote.volume || 0),
-        high: parseFloat(quote.high),
-        low: parseFloat(quote.low),
-        open: parseFloat(quote.open),
-        close: parseFloat(quote.close),
-        date: quote.date
+    res.success(
+      {
+        quote: {
+          symbol: quote.symbol,
+          price: parseFloat(quote.close),
+          change: parseFloat(quote.close) - parseFloat(quote.open),
+          change_percent: (
+            ((parseFloat(quote.close) - parseFloat(quote.open)) /
+              parseFloat(quote.open)) *
+            100
+          ).toFixed(2),
+          volume: parseInt(quote.volume || 0),
+          high: parseFloat(quote.high),
+          low: parseFloat(quote.low),
+          open: parseFloat(quote.open),
+          close: parseFloat(quote.close),
+          date: quote.date,
+        },
+        metadata: {
+          symbol: symbol.toUpperCase(),
+          last_updated: quote.date,
+        },
       },
-      metadata: {
-        symbol: symbol.toUpperCase(),
-        last_updated: quote.date
-      }
-    }, 200, { message: "Quote data retrieved successfully" });
-
+      200,
+      { message: "Quote data retrieved successfully" }
+    );
   } catch (err) {
-    console.error('Stock quote error:', err);
-    res.serverError('Failed to retrieve stock quote', { error: err.message });
+    console.error("Stock quote error:", err);
+    res.serverError("Failed to retrieve stock quote", { error: err.message });
   }
 });
 
@@ -3315,39 +3541,46 @@ router.get("/:symbol/price", async (req, res) => {
   try {
     const { symbol } = req.params;
     console.log(`Stock price request for ${symbol}`);
-    
+
     // Get the latest price data for the symbol
     const result = await query(
-      `SELECT symbol, close, date, volume, high, low, open FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
+      `SELECT symbol, close, date, volume, high, low, open FROM stock_prices WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
       [symbol.toUpperCase()]
     );
-    
+
     if (result.rows.length === 0) {
-      return res.success({
-        price: null,
-        metadata: {
-          symbol: symbol.toUpperCase(),
-          message: "No price data available for this symbol"
-        }
-      }, 200, { message: "Price request processed" });
+      return res.success(
+        {
+          price: null,
+          metadata: {
+            symbol: symbol.toUpperCase(),
+            message: "No price data available for this symbol",
+          },
+        },
+        200,
+        { message: "Price request processed" }
+      );
     }
 
     const priceData = result.rows[0];
-    res.success({
-      price: {
-        symbol: priceData.symbol,
-        current_price: parseFloat(priceData.close),
-        date: priceData.date,
-        volume: parseInt(priceData.volume || 0),
-        high: parseFloat(priceData.high),
-        low: parseFloat(priceData.low),
-        open: parseFloat(priceData.open)
-      }
-    }, 200, { message: "Price data retrieved successfully" });
-
+    res.success(
+      {
+        price: {
+          symbol: priceData.symbol,
+          current_price: parseFloat(priceData.close),
+          date: priceData.date,
+          volume: parseInt(priceData.volume || 0),
+          high: parseFloat(priceData.high),
+          low: parseFloat(priceData.low),
+          open: parseFloat(priceData.open),
+        },
+      },
+      200,
+      { message: "Price data retrieved successfully" }
+    );
   } catch (err) {
-    console.error('Stock price error:', err);
-    res.serverError('Failed to retrieve stock price', { error: err.message });
+    console.error("Stock price error:", err);
+    res.serverError("Failed to retrieve stock price", { error: err.message });
   }
 });
 
@@ -3356,13 +3589,13 @@ router.get("/:symbol/technical", async (req, res) => {
   try {
     const { symbol } = req.params;
     console.log(`Technical analysis request for ${symbol}`);
-    
+
     // Get recent price data for technical calculations
     const result = await query(
-      `SELECT * FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 50`,
+      `SELECT * FROM stock_prices WHERE symbol = $1 ORDER BY date DESC LIMIT 50`,
       [symbol.toUpperCase()]
     );
-    
+
     if (result.rows.length === 0) {
       return res.json({
         success: true,
@@ -3374,42 +3607,54 @@ router.get("/:symbol/technical", async (req, res) => {
             sma_20: 174.8,
             sma_50: 172.1,
             ema_12: 175.4,
-            ema_26: 173.9
+            ema_26: 173.9,
           },
-          signals: ['bullish_macd', 'neutral_rsi'],
-          trend: 'upward',
-          strength: 'moderate'
-        }
+          signals: ["bullish_macd", "neutral_rsi"],
+          trend: "upward",
+          strength: "moderate",
+        },
       });
     }
 
-    const prices = result.rows.map(row => parseFloat(row.close)).reverse();
-    const volumes = result.rows.map(row => parseInt(row.volume || 0)).reverse();
-    
-    // Calculate basic technical indicators
-    const sma20 = prices.length >= 20 ? 
-      prices.slice(-20).reduce((a, b) => a + b) / 20 : null;
-    const sma50 = prices.length >= 50 ? 
-      prices.slice(-50).reduce((a, b) => a + b) / 50 : null;
-    
-    const avgVolume = volumes.slice(-10).reduce((a, b) => a + b) / Math.min(volumes.length, 10);
-    const currentPrice = prices[prices.length - 1];
-    
-    res.success({
-      technical: {
-        symbol: symbol.toUpperCase(),
-        sma_20: sma20 ? parseFloat(sma20.toFixed(2)) : null,
-        sma_50: sma50 ? parseFloat(sma50.toFixed(2)) : null,
-        current_price: currentPrice,
-        avg_volume_10d: Math.round(avgVolume),
-        price_trend: sma20 && currentPrice > sma20 ? 'bullish' : 'bearish',
-        data_points: prices.length
-      }
-    }, 200, { message: "Technical analysis data retrieved" });
+    const prices = result.rows.map((row) => parseFloat(row.close)).reverse();
+    const volumes = result.rows
+      .map((row) => parseInt(row.volume || 0))
+      .reverse();
 
+    // Calculate basic technical indicators
+    const sma20 =
+      prices.length >= 20
+        ? prices.slice(-20).reduce((a, b) => a + b) / 20
+        : null;
+    const sma50 =
+      prices.length >= 50
+        ? prices.slice(-50).reduce((a, b) => a + b) / 50
+        : null;
+
+    const avgVolume =
+      volumes.slice(-10).reduce((a, b) => a + b) / Math.min(volumes.length, 10);
+    const currentPrice = prices[prices.length - 1];
+
+    res.success(
+      {
+        technical: {
+          symbol: symbol.toUpperCase(),
+          sma_20: sma20 ? parseFloat(sma20.toFixed(2)) : null,
+          sma_50: sma50 ? parseFloat(sma50.toFixed(2)) : null,
+          current_price: currentPrice,
+          avg_volume_10d: Math.round(avgVolume),
+          price_trend: sma20 && currentPrice > sma20 ? "bullish" : "bearish",
+          data_points: prices.length,
+        },
+      },
+      200,
+      { message: "Technical analysis data retrieved" }
+    );
   } catch (err) {
-    console.error('Technical analysis error:', err);
-    res.serverError('Failed to retrieve technical data', { error: err.message });
+    console.error("Technical analysis error:", err);
+    res.serverError("Failed to retrieve technical data", {
+      error: err.message,
+    });
   }
 });
 
@@ -3418,54 +3663,68 @@ router.get("/:symbol/fundamentals", async (req, res) => {
   try {
     const { symbol } = req.params;
     console.log(`Fundamentals request for ${symbol}`);
-    
+
     // Get company profile data
     const result = await query(
       `SELECT * FROM company_profile WHERE ticker = $1`,
       [symbol.toUpperCase()]
     );
-    
+
     if (result.rows.length === 0) {
-      return res.success({
-        fundamentals: null,
-        metadata: {
-          symbol: symbol.toUpperCase(),
-          message: "No fundamental data available for this symbol"
-        }
-      }, 200, { message: "Fundamentals request processed" });
+      return res.success(
+        {
+          fundamentals: null,
+          metadata: {
+            symbol: symbol.toUpperCase(),
+            message: "No fundamental data available for this symbol",
+          },
+        },
+        200,
+        { message: "Fundamentals request processed" }
+      );
     }
 
     const company = result.rows[0];
-    res.success({
-      fundamentals: {
-        symbol: company.ticker,
-        company_name: company.company_name,
-        sector: company.sector,
-        industry: company.industry,
-        market_cap: company.market_cap,
-        employees: company.employees,
-        description: company.description?.substring(0, 500) + '...' || "No description available"
-      }
-    }, 200, { message: "Fundamental data retrieved successfully" });
-
+    res.success(
+      {
+        fundamentals: {
+          symbol: company.ticker,
+          company_name: company.company_name,
+          sector: company.sector,
+          industry: company.industry,
+          market_cap: company.market_cap,
+          employees: company.employees,
+          description:
+            company.description?.substring(0, 500) + "..." ||
+            "No description available",
+        },
+      },
+      200,
+      { message: "Fundamental data retrieved successfully" }
+    );
   } catch (err) {
-    console.error('Fundamentals error:', err);
-    res.serverError('Failed to retrieve fundamental data', { error: err.message });
+    console.error("Fundamentals error:", err);
+    res.serverError("Failed to retrieve fundamental data", {
+      error: err.message,
+    });
   }
 });
 
 // History alias route - redirect /history/:ticker to /:ticker/prices for contract compatibility
 router.get("/history/:ticker", async (req, res) => {
   const { ticker } = req.params;
-  console.log(`🔄 [STOCKS] History alias endpoint redirecting ${ticker} to prices endpoint`);
-  
+  console.log(
+    `🔄 [STOCKS] History alias endpoint redirecting ${ticker} to prices endpoint`
+  );
+
   // Forward all query parameters
-  const queryString = Object.keys(req.query).length > 0 
-    ? '?' + new URLSearchParams(req.query).toString() 
-    : '';
-  
+  const queryString =
+    Object.keys(req.query).length > 0
+      ? "?" + new URLSearchParams(req.query).toString()
+      : "";
+
   const redirectUrl = `/api/stocks/${ticker}/prices${queryString}`;
-  
+
   res.redirect(301, redirectUrl);
 });
 
@@ -3475,86 +3734,51 @@ router.get("/:symbol/financials", async (req, res) => {
     const { symbol } = req.params;
     const { period = "annual", type = "all" } = req.query;
 
-    console.log(`📊 Stock financials requested for ${symbol}, period: ${period}, type: ${type}`);
+    console.log(
+      `📊 Stock financials requested for ${symbol}, period: ${period}, type: ${type}`
+    );
 
     // Query financial data with graceful fallback for missing columns
     let result = { rows: [] };
     try {
       const financialsQuery = `
-        WITH balance_sheet_pivot AS (
-          SELECT
-            symbol,
-            date,
-            MAX(CASE WHEN item_name = 'Total Assets' THEN value::numeric ELSE 0 END) as total_assets,
-            MAX(CASE WHEN item_name = 'Total Liabilities' THEN value::numeric ELSE 0 END) as total_liabilities,
-            MAX(CASE WHEN item_name = 'Total Equity' THEN value::numeric ELSE 0 END) as shareholders_equity,
-            MAX(CASE WHEN item_name = 'Cash And Cash Equivalents' THEN value::numeric ELSE 0 END) as cash
-          FROM annual_balance_sheet
-          WHERE UPPER(symbol) = UPPER($1)
-          GROUP BY symbol, date
-        ),
-        income_pivot AS (
-          SELECT
-            symbol,
-            date,
-            MAX(CASE WHEN item_name = 'Total Revenue' THEN value::numeric ELSE 0 END) as revenue,
-            MAX(CASE WHEN item_name = 'Net Income' THEN value::numeric ELSE 0 END) as net_income
-          FROM annual_income_statement
-          WHERE UPPER(symbol) = UPPER($1)
-          GROUP BY symbol, date
-        )
         SELECT
-          'balance_sheet' as statement_type,
-          COALESCE(b.total_assets, 0) as total_assets,
-          COALESCE(b.total_liabilities, 0) as total_liabilities,
-          COALESCE(b.shareholders_equity, 0) as shareholders_equity,
+          'income_statement' as statement_type,
+          0 as total_assets,
+          0 as total_liabilities,
+          0 as shareholders_equity,
           0 as total_debt,
-          COALESCE(i.revenue, 0) as revenue,
-          COALESCE(i.net_income, 0) as net_income,
-          COALESCE(b.cash, 0) as cash
-        FROM balance_sheet_pivot b
-        LEFT JOIN income_pivot i ON b.symbol = i.symbol AND b.date = i.date
-        ORDER BY b.date DESC
+          SUM(CASE WHEN item_name = 'Total Revenue' THEN value::numeric ELSE 0 END) as revenue,
+          SUM(CASE WHEN item_name = 'Net Income' THEN value::numeric ELSE 0 END) as net_income,
+          0 as cash,
+          EXTRACT(YEAR FROM date) as year
+        FROM annual_income_statement
+        WHERE symbol ILIKE $1
+        GROUP BY EXTRACT(YEAR FROM date)
+        ORDER BY year DESC
         LIMIT 5
       `;
 
       result = await query(financialsQuery, [symbol]);
     } catch (dbError) {
-      console.log(`📊 [STOCKS] Database schema issue for financials, using mock data: ${dbError.message}`);
-      result = { rows: [] }; // Force mock data fallback
+      console.error(`Financials database error for ${symbol}:`, dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Financials database error",
+        message: "Unable to retrieve financial data from database. Check database connection and table structure.",
+        symbol: symbol.toUpperCase(),
+        details: dbError.message,
+      });
     }
 
     if (!result.rows || result.rows.length === 0) {
-      // Return mock financial data when database is empty
-      const mockFinancials = [{
-        statement_type: 'balance_sheet',
-        total_assets: 365725000000,
-        total_liabilities: 290437000000,
-        shareholders_equity: 75288000000,
-        total_debt: 123456000000,
-        revenue: 383285000000,
-        net_income: 97914000000,
-        cash: 29965000000
-      }];
-
-      return res.json({
-        success: true,
-        data: {
-          symbol: symbol.toUpperCase(),
-          period,
-          type,
-          financials: mockFinancials,
-          summary: {
-            total_records: 1,
-            latest_year: "2023",
-            data_source: "mock_data"
-          }
-        },
-        meta: {
-          source: "mock_data",
-          disclaimer: "Mock financial data for development - not real financial statements"
-        },
-        timestamp: new Date().toISOString(),
+      return res.status(404).json({
+        success: false,
+        error: `No financial data found for symbol ${symbol}`,
+        message: "Financial data not available in database. Ensure financial data has been loaded from data providers.",
+        symbol: symbol.toUpperCase(),
+        period,
+        type,
       });
     }
 
@@ -3585,7 +3809,7 @@ router.get("/details/", (req, res) => {
   res.status(404).json({
     success: false,
     error: "Not found",
-    message: "Stock symbol is required"
+    message: "Stock symbol is required",
   });
 });
 
@@ -3605,16 +3829,16 @@ router.get("/details/:symbol", async (req, res) => {
         pe_ratio: 25.4,
         dividend_yield: 0.5,
         beta: 1.2,
-        price: 175.00
+        price: 175.0,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock details error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock details",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3630,21 +3854,21 @@ router.get("/movers", async (req, res) => {
       data: {
         gainers: [
           { symbol: "AAPL", change: 5.2, change_percent: 3.1 },
-          { symbol: "MSFT", change: 8.5, change_percent: 2.8 }
+          { symbol: "MSFT", change: 8.5, change_percent: 2.8 },
         ],
         losers: [
           { symbol: "TSLA", change: -12.3, change_percent: -4.2 },
-          { symbol: "NFLX", change: -8.7, change_percent: -2.1 }
-        ]
+          { symbol: "NFLX", change: -8.7, change_percent: -2.1 },
+        ],
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Market movers error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market movers",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3653,38 +3877,40 @@ router.get("/movers", async (req, res) => {
 router.get("/compare", async (req, res) => {
   try {
     const { symbols, metrics = "price,volume,pe_ratio" } = req.query;
-    console.log(`Stock comparison requested for symbols: ${symbols}, metrics: ${metrics}`);
+    console.log(
+      `Stock comparison requested for symbols: ${symbols}, metrics: ${metrics}`
+    );
 
     if (!symbols) {
       return res.json({
         success: true,
         data: [],
-        message: "No symbols provided for comparison"
+        message: "No symbols provided for comparison",
       });
     }
 
-    const symbolList = symbols.split(',').slice(0, 10); // Limit to 10 stocks
+    const symbolList = symbols.split(",").slice(0, 10); // Limit to 10 stocks
 
     res.json({
       success: true,
       data: {
-        comparison: symbolList.map(symbol => ({
+        comparison: symbolList.map((symbol) => ({
           symbol: symbol.toUpperCase(),
           price: Math.random() * 200 + 50,
           volume: Math.floor(Math.random() * 10000000),
-          pe_ratio: Math.random() * 30 + 10
+          pe_ratio: Math.random() * 30 + 10,
         })),
-        metrics: metrics.split(','),
-        count: symbolList.length
+        metrics: metrics.split(","),
+        count: symbolList.length,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock comparison error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to compare stocks",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3702,27 +3928,27 @@ router.get("/stats", async (req, res) => {
           total_stocks: 5000,
           gainers: 1250,
           losers: 1100,
-          unchanged: 2650
+          unchanged: 2650,
         },
         sector_performance: {
           technology: { change: 2.3, count: 800 },
           healthcare: { change: 1.1, count: 650 },
-          finance: { change: -0.5, count: 450 }
+          finance: { change: -0.5, count: 450 },
         },
         volume_stats: {
           total_volume: 8500000000,
-          avg_volume: 1700000
-        }
+          avg_volume: 1700000,
+        },
       },
       filter: { sector },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock statistics error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock statistics",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3732,32 +3958,49 @@ router.get("/recommendations/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const { criteria = "all" } = req.query;
-    console.log(`Stock recommendations requested for ${symbol}, criteria: ${criteria}`);
+    console.log(
+      `Stock recommendations requested for ${symbol}, criteria: ${criteria}`
+    );
 
     res.json({
       success: true,
       data: {
         symbol: symbol.toUpperCase(),
         recommendations: [
-          { source: "Analyst A", rating: "BUY", target_price: 200, confidence: 85 },
-          { source: "Analyst B", rating: "HOLD", target_price: 180, confidence: 78 },
-          { source: "Technical", rating: "BUY", target_price: 195, confidence: 72 }
+          {
+            source: "Analyst A",
+            rating: "BUY",
+            target_price: 200,
+            confidence: 85,
+          },
+          {
+            source: "Analyst B",
+            rating: "HOLD",
+            target_price: 180,
+            confidence: 78,
+          },
+          {
+            source: "Technical",
+            rating: "BUY",
+            target_price: 195,
+            confidence: 72,
+          },
         ],
         consensus: {
           rating: "BUY",
           avg_target: 191.67,
-          total_analysts: 3
+          total_analysts: 3,
         },
-        criteria
+        criteria,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock recommendations error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock recommendations",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3767,7 +4010,9 @@ router.get("/price/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
     const { timeframe = "1d", historical = false, days = 30 } = req.query;
-    console.log(`Stock price requested for ${symbol}, timeframe: ${timeframe}, historical: ${historical}`);
+    console.log(
+      `Stock price requested for ${symbol}, timeframe: ${timeframe}, historical: ${historical}`
+    );
 
     // Generate realistic price data
     const basePrice = Math.random() * 200 + 50;
@@ -3777,14 +4022,18 @@ router.get("/price/:symbol", async (req, res) => {
       change: (Math.random() - 0.5) * 10,
       change_percent: (Math.random() - 0.5) * 5,
       volume: Math.floor(Math.random() * 10000000) + 1000000,
-      market_cap: Math.floor(basePrice * (Math.random() * 500000000 + 100000000))
+      market_cap: Math.floor(
+        basePrice * (Math.random() * 500000000 + 100000000)
+      ),
     };
 
     if (historical) {
       priceData.historical = Array.from({ length: parseInt(days) }, (_, i) => ({
-        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0],
         price: basePrice * (0.95 + Math.random() * 0.1),
-        volume: Math.floor(Math.random() * 5000000) + 500000
+        volume: Math.floor(Math.random() * 5000000) + 500000,
       }));
     }
 
@@ -3792,14 +4041,14 @@ router.get("/price/:symbol", async (req, res) => {
       success: true,
       data: priceData,
       timeframe,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Stock price error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock price",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3820,15 +4069,15 @@ router.get("/:symbol/key-metrics", async (req, res) => {
           roe: 0.175,
           roa: 0.283,
           revenue_growth: 0.078,
-          eps_growth: 0.092
-        }
-      ]
+          eps_growth: 0.092,
+        },
+      ],
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch key metrics",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3848,15 +4097,15 @@ router.get("/:symbol/profile", async (req, res) => {
           description: `${symbol.toUpperCase()} Inc. designs, manufactures, and markets smartphones...`,
           country: "US",
           website: `https://www.${symbol.toLowerCase()}.com`,
-          employees: 154000
-        }
-      ]
+          employees: 154000,
+        },
+      ],
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock profile",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3866,15 +4115,25 @@ router.get("/:symbol/analyst-recommendations", async (req, res) => {
     res.json({
       success: true,
       data: [
-        { analyst: 'Goldman Sachs', rating: 'Buy', target: 185.0, date: '2024-01-15' },
-        { analyst: 'Morgan Stanley', rating: 'Hold', target: 175.0, date: '2024-01-14' }
-      ]
+        {
+          analyst: "Goldman Sachs",
+          rating: "Buy",
+          target: 185.0,
+          date: "2024-01-15",
+        },
+        {
+          analyst: "Morgan Stanley",
+          rating: "Hold",
+          target: 175.0,
+          date: "2024-01-14",
+        },
+      ],
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch analyst recommendations",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3889,15 +4148,15 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
           total_liabilities: 290437000000,
           stockholder_equity: 62318000000,
           cash_and_equivalents: 51355000000,
-          total_debt: 123000000000
-        }
-      ]
+          total_debt: 123000000000,
+        },
+      ],
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch balance sheet",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3913,15 +4172,15 @@ router.get("/:symbol/income-statement", async (req, res) => {
           gross_profit: 170782000000,
           operating_expenses: 55013000000,
           operating_income: 115769000000,
-          net_income: 99803000000
-        }
-      ]
+          net_income: 99803000000,
+        },
+      ],
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch income statement",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3936,15 +4195,15 @@ router.get("/:symbol/cash-flow", async (req, res) => {
           investing_cash_flow: -10635000000,
           financing_cash_flow: -108488000000,
           free_cash_flow: 84726000000,
-          capital_expenditures: -7309000000
-        }
-      ]
+          capital_expenditures: -7309000000,
+        },
+      ],
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch cash flow statement",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3955,7 +4214,7 @@ router.get("/:symbol/analyst-overview", async (req, res) => {
       success: true,
       data: {
         consensus_rating: "Buy",
-        average_target: 185.50,
+        average_target: 185.5,
         high_target: 200.0,
         low_target: 165.0,
         analyst_count: 25,
@@ -3963,14 +4222,14 @@ router.get("/:symbol/analyst-overview", async (req, res) => {
         buy: 8,
         hold: 5,
         sell: 2,
-        strong_sell: 0
-      }
+        strong_sell: 0,
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch analyst overview",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -3980,16 +4239,37 @@ router.get("/:symbol/prices/recent", async (req, res) => {
     res.json({
       success: true,
       data: [
-        { date: "2024-01-01", close: 170.25, volume: 45000000, high: 172.0, low: 169.5, open: 170.0 },
-        { date: "2024-01-02", close: 172.50, volume: 42000000, high: 173.2, low: 171.8, open: 171.5 },
-        { date: "2024-01-03", close: 175.25, volume: 45678900, high: 175.8, low: 172.9, open: 173.0 }
-      ]
+        {
+          date: "2024-01-01",
+          close: 170.25,
+          volume: 45000000,
+          high: 172.0,
+          low: 169.5,
+          open: 170.0,
+        },
+        {
+          date: "2024-01-02",
+          close: 172.5,
+          volume: 42000000,
+          high: 173.2,
+          low: 171.8,
+          open: 171.5,
+        },
+        {
+          date: "2024-01-03",
+          close: 175.25,
+          volume: 45678900,
+          high: 175.8,
+          low: 172.9,
+          open: 173.0,
+        },
+      ],
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch recent prices",
-      message: error.message
+      message: error.message,
     });
   }
 });

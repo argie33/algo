@@ -219,7 +219,10 @@ router.get("/earnings", async (req, res) => {
       const symbols = [...new Set(earnings.map((e) => e.symbol))];
       if (symbols.length > 0) {
         const companyData = await query(
-          `SELECT ticker as symbol, name, sector, market_cap FROM company_profile WHERE ticker = ANY($1)`,
+          `SELECT cp.ticker as symbol, cp.short_name as name, cp.sector, md.market_cap
+           FROM company_profile cp
+           LEFT JOIN market_data md ON cp.ticker = md.ticker
+           WHERE cp.ticker = ANY($1)`,
           [symbols]
         );
 

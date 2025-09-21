@@ -113,7 +113,7 @@ describe("Trading Mode Helper Unit Tests", () => {
           mode: "paper",
           isPaper: true,
           isLive: false,
-          source: "database"
+          source: "database",
         },
         paper_trading: true,
         live_trading: false,
@@ -149,7 +149,7 @@ describe("Trading Mode Helper Unit Tests", () => {
           mode: "live",
           isPaper: false,
           isLive: true,
-          source: "database"
+          source: "database",
         },
         paper_trading: false,
         live_trading: true,

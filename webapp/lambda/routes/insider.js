@@ -270,14 +270,13 @@ router.get("/trades", async (req, res) => {
   }
 });
 
-
 // Insider trading
 router.get("/trading", async (req, res) => {
   try {
     res.json({
       success: true,
       data: {
-        trades: []
+        trades: [],
       },
       timestamp: new Date().toISOString(),
     });
@@ -297,7 +296,7 @@ router.get("/activity", async (req, res) => {
     res.json({
       success: true,
       data: {
-        activity: []
+        activity: [],
       },
       timestamp: new Date().toISOString(),
     });

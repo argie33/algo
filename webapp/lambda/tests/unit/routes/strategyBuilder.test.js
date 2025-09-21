@@ -621,7 +621,7 @@ describe("Strategy Builder Routes", () => {
       const response = await request(app)
         .post("/api/strategies/ai-generate")
         .set("Content-Type", "application/json")
-        .send('{"invalid": json}')
+        .send('{"invalid": ')
         .expect(400);
 
       // Express handles malformed JSON automatically

@@ -103,10 +103,11 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
       // At least one should return error due to concurrent limit
       const failed = results.find(
-        (r) => r.status === "fulfilled" &&
-        r.value.success === false &&
-        r.value.error &&
-        r.value.error.includes("Maximum concurrent streams reached")
+        (r) =>
+          r.status === "fulfilled" &&
+          r.value.success === false &&
+          r.value.error &&
+          r.value.error.includes("Maximum concurrent streams reached")
       );
       expect(failed).toBeDefined();
     });
@@ -131,7 +132,9 @@ describe("AIStrategyGeneratorStreaming Service", () => {
 
       expect(result.success).toBe(true);
       // When empty symbols provided, should use default symbols
-      expect(result.strategy.symbols).toEqual(expect.arrayContaining(["AAPL", "GOOGL", "MSFT", "SPY", "QQQ"]));
+      expect(result.strategy.symbols).toEqual(
+        expect.arrayContaining(["AAPL", "GOOGL", "MSFT", "SPY", "QQQ"])
+      );
     });
 
     test("should clean up stream after completion", async () => {

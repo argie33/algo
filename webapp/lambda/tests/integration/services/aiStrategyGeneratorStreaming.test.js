@@ -266,7 +266,10 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
       );
 
       // Try to start second stream immediately
-      const result2 = await streamingGenerator.generateWithStreaming("Strategy 2", mockSymbols);
+      const result2 = await streamingGenerator.generateWithStreaming(
+        "Strategy 2",
+        mockSymbols
+      );
       expect(result2.success).toBe(false);
       expect(result2.error).toContain("Maximum concurrent streams reached");
 

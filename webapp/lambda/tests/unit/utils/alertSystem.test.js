@@ -579,7 +579,7 @@ describe("Alert System", () => {
         ok: true,
         status: 200,
         statusText: "OK",
-        text: jest.fn().mockResolvedValue("success")
+        text: jest.fn().mockResolvedValue("success"),
       });
 
       // Mock console.log to capture webhook notification

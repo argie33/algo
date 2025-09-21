@@ -5,7 +5,13 @@
 
 // Mock dependencies before any imports
 jest.mock("jsonwebtoken");
-jest.mock("../../../utils/apiKeyService");
+jest.mock("../../../utils/apiKeyService", () => ({
+  validateJwtToken: jest.fn(),
+  initializeJwtVerifier: jest.fn(),
+  getDefaultApiCredentials: jest.fn(),
+  getApiKeyByProvider: jest.fn(),
+  getApiKey: jest.fn(),
+}));
 jest.mock("../../../utils/database");
 
 const jwt = require("jsonwebtoken");
@@ -397,7 +403,8 @@ describe("OptionalAuth Middleware", () => {
     next = jest.fn();
     jest.clearAllMocks();
 
-    apiKeyService.validateJwtToken = jest.fn();
+    // Reset the mock for each test
+    apiKeyService.validateJwtToken.mockReset();
   });
 
   test("should continue without auth when no token provided", async () => {
@@ -640,10 +647,13 @@ describe("ValidateSession Middleware", () => {
   });
 
   test("should continue on validation errors", async () => {
+    // Create a user object that will cause a real error when accessed
     req.user = {
       sub: "user123",
-      tokenExpirationTime: "invalid-timestamp", // This will cause an error
-      tokenIssueTime: "also-invalid",
+      get tokenExpirationTime() {
+        throw new Error("Database connection lost");
+      },
+      tokenIssueTime: Date.now() / 1000,
     };
 
     const consoleSpy = jest.spyOn(console, "error").mockImplementation();

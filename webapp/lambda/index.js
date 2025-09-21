@@ -1,5 +1,5 @@
 // Load environment variables first - trigger webapp deployment
-require('dotenv').config();
+require("dotenv").config();
 
 // Financial Dashboard API - Lambda Function
 // Updated: 2025-06-25 - Fixed CORS configuration for API Gateway
@@ -254,7 +254,7 @@ app.use(
       "X-Amz-Security-Token",
     ],
     preflightContinue: false,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
   })
 );
 
@@ -263,15 +263,18 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
 
   // Set CORS headers explicitly for CloudFront
-  if (origin && origin.includes('cloudfront.net')) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token');
+  if (origin && origin.includes("cloudfront.net")) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token"
+    );
   }
 
   // Handle preflight requests
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     res.status(200).end();
     return;
   }
@@ -328,7 +331,9 @@ const ensureDatabase = async () => {
         setTimeout(
           () =>
             reject(
-              new Error(`Database initialization timeout after ${timeoutMs/1000} seconds`)
+              new Error(
+                `Database initialization timeout after ${timeoutMs / 1000} seconds`
+              )
             ),
           timeoutMs
         );
@@ -492,7 +497,6 @@ app.use("/api/strategies", strategyBuilderRoutes); // Alias for strategies
 app.use("/api/liveData", liveDataRoutes);
 app.use("/api/livedata", liveDataRoutes);
 
-
 app.use("/api/debug", debugRoutes); // Debug routes for development
 
 // API info endpoint
@@ -653,14 +657,14 @@ app.get("/api/market-overview", async (req, res) => {
           total_stocks: 3000,
         },
         timestamp: new Date().toISOString(),
-        source: "test-compatible-endpoint"
-      }
+        source: "test-compatible-endpoint",
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Market overview endpoint error",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

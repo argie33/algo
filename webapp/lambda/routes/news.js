@@ -628,7 +628,8 @@ router.get("/market-sentiment", async (req, res) => {
       categories: [],
       top_symbols: [],
       trend: [],
-      message: "News sentiment data temporarily unavailable - returning neutral baseline",
+      message:
+        "News sentiment data temporarily unavailable - returning neutral baseline",
     };
 
     res.json({ success: true, data: marketSentiment });
@@ -1136,7 +1137,8 @@ router.get("/sentiment-dashboard", async (req, res) => {
         symbol_sentiment: [],
         timeframe,
         updated_at: new Date().toISOString(),
-        message: "Sentiment data temporarily unavailable - showing neutral baseline",
+        message:
+          "Sentiment data temporarily unavailable - showing neutral baseline",
       },
       timestamp: new Date().toISOString(),
     };
@@ -1199,13 +1201,19 @@ router.get("/sentiment-dashboard", async (req, res) => {
 
     // Check if queries returned valid results
     if (!marketResult || !marketResult.rows) {
-      throw new Error('Market sentiment query failed - news tables may not exist');
+      throw new Error(
+        "Market sentiment query failed - news tables may not exist"
+      );
     }
     if (!sectorResult || !sectorResult.rows) {
-      throw new Error('Sector sentiment query failed - news tables may not exist');
+      throw new Error(
+        "Sector sentiment query failed - news tables may not exist"
+      );
     }
     if (!symbolResult || !symbolResult.rows) {
-      throw new Error('Symbol sentiment query failed - news tables may not exist');
+      throw new Error(
+        "Symbol sentiment query failed - news tables may not exist"
+      );
     }
 
     // Process market sentiment
@@ -1276,8 +1284,10 @@ router.get("/sentiment-dashboard", async (req, res) => {
     console.error("Sentiment dashboard error:", error);
 
     // Check if tables don't exist
-    if (error.message.includes('relation "news_articles" does not exist') ||
-        error.message.includes('news tables may not exist')) {
+    if (
+      error.message.includes('relation "news_articles" does not exist') ||
+      error.message.includes("news tables may not exist")
+    ) {
       return res.status(503).json({
         success: false,
         error: "Sentiment dashboard service not initialized",

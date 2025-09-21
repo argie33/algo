@@ -7,14 +7,12 @@ const router = express.Router();
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {
-  res
-    .status(200)
-    .json({
-      success: true,
-      status: "ok",
-      endpoint: "analytics",
-      timestamp: new Date().toISOString(),
-    });
+  res.status(200).json({
+    success: true,
+    status: "ok",
+    endpoint: "analytics",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Helper function for correlation calculation
@@ -1626,7 +1624,6 @@ router.get("/correlations", async (req, res) => {
   }
 });
 
-
 // Portfolio analytics
 router.get("/portfolio", async (req, res) => {
   try {
@@ -1638,8 +1635,8 @@ router.get("/portfolio", async (req, res) => {
           total_return: 12.5,
           sharpe_ratio: 1.2,
           volatility: 15.8,
-          max_drawdown: -8.2
-        }
+          max_drawdown: -8.2,
+        },
       },
       timestamp: new Date().toISOString(),
     });

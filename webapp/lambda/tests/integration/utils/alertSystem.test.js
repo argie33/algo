@@ -9,14 +9,11 @@ const {
   query,
 } = require("../../../utils/database");
 
-const AlertSystem = require("../../../utils/alertSystem");
+const alertSystem = require("../../../utils/alertSystem");
 
 describe("Alert System Integration Tests", () => {
-  let alertSystem;
-
   beforeAll(async () => {
     await initializeDatabase();
-    alertSystem = new AlertSystem();
   });
 
   afterAll(async () => {

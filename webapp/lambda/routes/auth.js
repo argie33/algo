@@ -235,7 +235,7 @@ router.post("/register", async (req, res) => {
         return res.status(400).json({
           success: false,
           error: "Invalid parameters",
-          details: "Invalid email format"
+          details: "Invalid email format",
         });
       }
 
@@ -244,7 +244,7 @@ router.post("/register", async (req, res) => {
         return res.status(400).json({
           success: false,
           error: "Invalid parameters",
-          details: "Password must be at least 8 characters"
+          details: "Password must be at least 8 characters",
         });
       }
 
@@ -261,7 +261,7 @@ router.post("/register", async (req, res) => {
         return res.status(400).json({
           success: false,
           error: "Username exists",
-          details: "Email already registered"
+          details: "Email already registered",
         });
       }
 
@@ -659,8 +659,8 @@ router.get("/login", (req, res) => {
       "POST /auth/confirm": "Confirm registration",
       "GET /auth/status": "Authentication status",
       "POST /auth/forgot-password": "Reset password request",
-      "POST /auth/reset-password": "Confirm password reset"
-    }
+      "POST /auth/reset-password": "Confirm password reset",
+    },
   });
 });
 
@@ -687,7 +687,7 @@ router.get("/validate", authenticateToken, (req, res) => {
     success: true,
     valid: true,
     user: req.user,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -698,7 +698,7 @@ router.post("/logout", (req, res) => {
   res.json({
     success: true,
     message: "Logged out successfully",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 

@@ -132,26 +132,24 @@ router.get("/", async (req, res) => {
   } catch (error) {
     console.error("Error fetching orders:", error);
 
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Orders service unavailable",
-        details: error.message,
-        suggestion:
-          "Order history requires database connectivity to retrieve user orders.",
-        service: "orders-list",
-        requirements: [
-          "Database connectivity must be available",
-          "orders table must exist with user order data",
-          "Valid user authentication required",
-        ],
-        troubleshooting: [
-          "Check database connection status",
-          "Verify orders table schema and data",
-          "Ensure user_id is valid and has orders",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Orders service unavailable",
+      details: error.message,
+      suggestion:
+        "Order history requires database connectivity to retrieve user orders.",
+      service: "orders-list",
+      requirements: [
+        "Database connectivity must be available",
+        "orders table must exist with user order data",
+        "Valid user authentication required",
+      ],
+      troubleshooting: [
+        "Check database connection status",
+        "Verify orders table schema and data",
+        "Ensure user_id is valid and has orders",
+      ],
+    });
   }
 });
 
@@ -237,14 +235,12 @@ router.post("/preview", async (req, res) => {
 
     const accountResult = await query(accountQuery, [userId]);
     if (accountResult.rows.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          error: "Account not found",
-          message: "User account information not available",
-          userId: userId,
-        });
+      return res.status(404).json({
+        success: false,
+        error: "Account not found",
+        message: "User account information not available",
+        userId: userId,
+      });
     }
 
     const buyingPower = parseFloat(accountResult.rows[0].buying_power);
@@ -304,28 +300,26 @@ router.post("/preview", async (req, res) => {
   } catch (error) {
     console.error("Error generating order preview:", error);
 
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Order preview service unavailable",
-        details: error.message,
-        suggestion:
-          "Order preview requires market data and account information to be available.",
-        service: "order-preview",
-        requirements: [
-          "Database connectivity must be available",
-          "market_data_realtime table must exist with current prices",
-          "account table must exist with user buying power data",
-          "Real-time market data service must be operational",
-        ],
-        troubleshooting: [
-          "Check database connection status",
-          "Verify market data tables are populated",
-          "Ensure account data is available for user",
-          "Check real-time data service health",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Order preview service unavailable",
+      details: error.message,
+      suggestion:
+        "Order preview requires market data and account information to be available.",
+      service: "order-preview",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data_realtime table must exist with current prices",
+        "account table must exist with user buying power data",
+        "Real-time market data service must be operational",
+      ],
+      troubleshooting: [
+        "Check database connection status",
+        "Verify market data tables are populated",
+        "Ensure account data is available for user",
+        "Check real-time data service health",
+      ],
+    });
   }
 });
 
@@ -496,31 +490,28 @@ router.post("/", async (req, res) => {
   } catch (error) {
     console.error("Error submitting order:", error);
 
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Order submission service unavailable",
-        details: error.message,
-        suggestion:
-          "Order submission requires database connectivity and broker integration to be available.",
-        service: "orders-submit",
-        requirements: [
-          "Database connectivity must be available",
-          "orders table must exist for order storage",
-          "Broker API integration must be functional",
-          "Valid user authentication and API keys required",
-        ],
-        troubleshooting: [
-          "Check database connection status",
-          "Verify broker API credentials and connectivity",
-          "Ensure user has valid API keys configured",
-          "Check order validation logic and market conditions",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Order submission service unavailable",
+      details: error.message,
+      suggestion:
+        "Order submission requires database connectivity and broker integration to be available.",
+      service: "orders-submit",
+      requirements: [
+        "Database connectivity must be available",
+        "orders table must exist for order storage",
+        "Broker API integration must be functional",
+        "Valid user authentication and API keys required",
+      ],
+      troubleshooting: [
+        "Check database connection status",
+        "Verify broker API credentials and connectivity",
+        "Ensure user has valid API keys configured",
+        "Check order validation logic and market conditions",
+      ],
+    });
   }
 });
-
 
 // Cancel order
 router.post("/:orderId/cancel", async (req, res) => {
@@ -844,14 +835,12 @@ router.get("/updates", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching order updates:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch order updates",
-        details: error.message,
-        suggestion: "Please check your database connection and try again later",
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch order updates",
+      details: error.message,
+      suggestion: "Please check your database connection and try again later",
+    });
   }
 });
 
@@ -881,15 +870,13 @@ router.get("/account", async (req, res) => {
     res.json({ data: result.rows[0], timestamp: new Date().toISOString() });
   } catch (error) {
     console.error("Error fetching account info:", error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch account information",
-        details: error.message,
-        suggestion:
-          "Please check your database connection and broker integration settings",
-      });
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch account information",
+      details: error.message,
+      suggestion:
+        "Please check your database connection and broker integration settings",
+    });
   }
 });
 
@@ -1675,7 +1662,6 @@ router.get("/:orderId", authenticateToken, async (req, res) => {
       },
       timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Order details error:", error);
 
@@ -1684,7 +1670,8 @@ router.get("/:orderId", authenticateToken, async (req, res) => {
       return res.status(503).json({
         success: false,
         error: "Orders service not initialized",
-        message: "Orders database table needs to be created. Please run the database setup script.",
+        message:
+          "Orders database table needs to be created. Please run the database setup script.",
         details: "Missing required table: orders",
         timestamp: new Date().toISOString(),
       });
@@ -1694,7 +1681,8 @@ router.get("/:orderId", authenticateToken, async (req, res) => {
       success: false,
       error: "Failed to fetch order details",
       message: "An error occurred while retrieving the order",
-      details: process.env.NODE_ENV === "development" ? error.message : undefined,
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
       timestamp: new Date().toISOString(),
     });
   }

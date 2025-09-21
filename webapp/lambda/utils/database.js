@@ -146,9 +146,11 @@ async function getDbConfig() {
             parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 10000,
           connectionTimeoutMillis:
             parseInt(process.env.DB_CONNECT_TIMEOUT) || 3000,
-          acquireTimeoutMillis: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 3000,
+          acquireTimeoutMillis:
+            parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 3000,
           createTimeoutMillis: parseInt(process.env.DB_CREATE_TIMEOUT) || 3000,
-          statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT) || 30000,
+          statement_timeout:
+            parseInt(process.env.DB_STATEMENT_TIMEOUT) || 30000,
           query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT) || 25000,
           ssl:
             process.env.DB_SSL === "false"
@@ -187,7 +189,7 @@ async function getDbConfig() {
         host,
         port: parseInt(process.env.DB_PORT) || 5432,
         user,
-        password: process.env.DB_PASSWORD || '',
+        password: process.env.DB_PASSWORD || "",
         database,
         // AWS Lambda optimized connection pool settings
         max: parseInt(process.env.DB_POOL_MAX) || 3, // Reduced for Lambda - avoid connection exhaustion
@@ -217,7 +219,7 @@ async function getDbConfig() {
     }
 
     // If no configuration is available, return null to indicate no database
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== "test") {
       console.warn(
         "No database configuration found. Set DB_SECRET_ARN or DB_HOST environment variables."
       );
@@ -239,7 +241,7 @@ async function initializeDatabase() {
   initPromise = (async () => {
     let config = null;
     try {
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         console.log("Initializing database connection pool...");
       }
       config = await getDbConfig();
@@ -248,11 +250,9 @@ async function initializeDatabase() {
         const error = new Error(
           "Database configuration missing. Please set DB environment variables or DB_SECRET_ARN."
         );
-        if (process.env.NODE_ENV !== 'test') {
-          console.warn(
-            "No database configuration available. API will run in fallback mode with mock data."
-          );
-        }
+        console.error(
+          "No database configuration available. Application cannot function without database."
+        );
         dbInitialized = false;
         pool = null;
         throw error;
@@ -284,7 +284,7 @@ async function initializeDatabase() {
         DB_NAME: process.env.DB_NAME,
         DB_USER: process.env.DB_USER,
       };
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         console.warn(
           "Database initialization failed. API will run in fallback mode:",
           {
@@ -330,14 +330,227 @@ async function initializeSchema() {
       {
         name: "company_profile",
         sql: `CREATE TABLE IF NOT EXISTS company_profile (
-          symbol VARCHAR(10) UNIQUE NOT NULL,
-          name VARCHAR(200),
+          ticker VARCHAR(10) PRIMARY KEY,
+          short_name VARCHAR(100),
+          long_name VARCHAR(200),
+          display_name VARCHAR(200),
+          quote_type VARCHAR(50),
+          symbol_type VARCHAR(50),
+          triggerable BOOLEAN,
+          has_pre_post_market_data BOOLEAN,
+          price_hint INT,
+          max_age_sec INT,
+          language VARCHAR(20),
+          region VARCHAR(20),
+          financial_currency VARCHAR(10),
+          currency VARCHAR(10),
+          market VARCHAR(50),
+          quote_source_name VARCHAR(100),
+          custom_price_alert_confidence VARCHAR(20),
+          address1 VARCHAR(200),
+          city VARCHAR(100),
+          state VARCHAR(50),
+          zip_code VARCHAR(10),
+          country VARCHAR(50),
+          phone VARCHAR(50),
+          website VARCHAR(200),
+          industry VARCHAR(200),
+          industry_key VARCHAR(100),
+          industry_disp VARCHAR(200),
           sector VARCHAR(100),
-          industry VARCHAR(100),
+          sector_key VARCHAR(100),
+          sector_disp VARCHAR(100),
+          longBusinessSummary TEXT,
+          fullTimeEmployees INT,
+          companyOfficers TEXT,
+          website_fallback VARCHAR(200),
+          isEsgPopulated BOOLEAN,
+          governance_epochs_date BIGINT,
+          compensation_epochs_date BIGINT,
+          maxAge INT,
+          priceHint INT,
+          previous_close NUMERIC,
+          open_price NUMERIC,
+          day_low NUMERIC,
+          day_high NUMERIC,
+          regularMarketPreviousClose NUMERIC,
+          regularMarketOpen NUMERIC,
+          regularMarketDayLow NUMERIC,
+          regularMarketDayHigh NUMERIC,
+          dividendRate NUMERIC,
+          dividendYield NUMERIC,
+          exDividendDate BIGINT,
+          payoutRatio NUMERIC,
+          fiveYearAvgDividendYield NUMERIC,
+          beta NUMERIC,
+          trailingPE NUMERIC,
+          forwardPE NUMERIC,
+          volume BIGINT,
+          regularMarketVolume BIGINT,
+          averageVolume BIGINT,
+          averageVolume10days BIGINT,
+          averageDailyVolume10Day BIGINT,
+          bid NUMERIC,
+          ask NUMERIC,
+          bidSize INT,
+          askSize INT,
+          marketCap BIGINT,
+          fiftyTwoWeekLow NUMERIC,
+          fiftyTwoWeekHigh NUMERIC,
+          priceToSalesTrailing12Months NUMERIC,
+          fiftyDayAverage NUMERIC,
+          twoHundredDayAverage NUMERIC,
+          trailingAnnualDividendRate NUMERIC,
+          trailingAnnualDividendYield NUMERIC,
+          currency_2 VARCHAR(10),
+          enterpriseValue BIGINT,
+          profitMargins NUMERIC,
+          floatShares BIGINT,
+          sharesOutstanding BIGINT,
+          sharesShort BIGINT,
+          sharesShortPriorMonth BIGINT,
+          sharesShortPreviousMonthDate BIGINT,
+          dateShortInterest BIGINT,
+          sharesPercentSharesOut NUMERIC,
+          heldPercentInsiders NUMERIC,
+          heldPercentInstitutions NUMERIC,
+          shortRatio NUMERIC,
+          shortPercentOfFloat NUMERIC,
+          impliedSharesOutstanding BIGINT,
+          bookValue NUMERIC,
+          priceToBook NUMERIC,
+          lastFiscalYearEnd BIGINT,
+          nextFiscalYearEnd BIGINT,
+          mostRecentQuarter BIGINT,
+          earningsQuarterlyGrowth NUMERIC,
+          netIncomeToCommon BIGINT,
+          trailingEps NUMERIC,
+          forwardEps NUMERIC,
+          pegRatio NUMERIC,
+          lastSplitFactor VARCHAR(20),
+          lastSplitDate BIGINT,
+          enterpriseToRevenue NUMERIC,
+          enterpriseToEbitda NUMERIC,
+          fiftyTwoWeekChange NUMERIC,
+          SandP52WeekChange NUMERIC,
+          lastDividendValue NUMERIC,
+          lastDividendDate BIGINT,
+          exchange VARCHAR(50),
+          quoteType VARCHAR(50),
+          symbol VARCHAR(10),
+          underlyingSymbol VARCHAR(10),
+          shortName VARCHAR(100),
+          longName VARCHAR(200),
+          firstTradeDateEpochUtc BIGINT,
+          timeZoneFullName VARCHAR(100),
+          timeZoneShortName VARCHAR(10),
+          uuid VARCHAR(100),
+          messageBoardId VARCHAR(50),
+          gmtOffSetMilliseconds BIGINT,
+          currentPrice NUMERIC,
+          targetHighPrice NUMERIC,
+          targetLowPrice NUMERIC,
+          targetMeanPrice NUMERIC,
+          targetMedianPrice NUMERIC,
+          recommendationMean NUMERIC,
+          recommendationKey VARCHAR(50),
+          numberOfAnalystOpinions INT,
+          totalCash BIGINT,
+          totalCashPerShare NUMERIC,
+          ebitda BIGINT,
+          totalDebt BIGINT,
+          quickRatio NUMERIC,
+          currentRatio NUMERIC,
+          totalRevenue BIGINT,
+          debtToEquity NUMERIC,
+          revenuePerShare NUMERIC,
+          returnOnAssets NUMERIC,
+          returnOnEquity NUMERIC,
+          grossProfits BIGINT,
+          freeCashflow BIGINT,
+          operatingCashflow BIGINT,
+          earningsGrowth NUMERIC,
+          revenueGrowth NUMERIC,
+          grossMargins NUMERIC,
+          ebitdaMargins NUMERIC,
+          operatingMargins NUMERIC,
+          financialCurrency VARCHAR(10),
+          trailingPegRatio NUMERIC
+        )`,
+      },
+      {
+        name: "market_data",
+        sql: `CREATE TABLE IF NOT EXISTS market_data (
+          ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+          previous_close NUMERIC,
+          regular_market_previous_close NUMERIC,
+          open_price NUMERIC,
+          regular_market_open NUMERIC,
+          day_low NUMERIC,
+          regular_market_day_low NUMERIC,
+          day_high NUMERIC,
+          regular_market_day_high NUMERIC,
+          regular_market_price NUMERIC,
+          current_price NUMERIC,
+          post_market_price NUMERIC,
+          post_market_change NUMERIC,
+          post_market_change_pct NUMERIC,
+          volume BIGINT,
+          regular_market_volume BIGINT,
+          average_volume BIGINT,
+          avg_volume_10d BIGINT,
+          avg_daily_volume_10d BIGINT,
+          avg_daily_volume_3m BIGINT,
           market_cap BIGINT,
-          description TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          bid NUMERIC,
+          ask NUMERIC,
+          bid_size INT,
+          ask_size INT,
+          fifty_two_week_low NUMERIC,
+          fifty_two_week_high NUMERIC,
+          fifty_day_average NUMERIC,
+          two_hundred_day_average NUMERIC
+        )`,
+      },
+      {
+        name: "fundamental_metrics",
+        sql: `CREATE TABLE IF NOT EXISTS fundamental_metrics (
+          ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+          trailing_pe NUMERIC,
+          forward_pe NUMERIC,
+          price_to_sales_ttm NUMERIC,
+          price_to_book NUMERIC,
+          book_value NUMERIC,
+          peg_ratio NUMERIC,
+          enterprise_value BIGINT,
+          ev_to_revenue NUMERIC,
+          ev_to_ebitda NUMERIC,
+          total_revenue BIGINT,
+          net_income BIGINT,
+          ebitda BIGINT,
+          gross_profit BIGINT,
+          eps_trailing NUMERIC,
+          eps_forward NUMERIC,
+          eps_current_year NUMERIC,
+          price_eps_current_year NUMERIC,
+          earnings_q_growth_pct NUMERIC,
+          earnings_ts_ms BIGINT,
+          revenue_q_growth_pct NUMERIC,
+          gross_margins NUMERIC,
+          ebitda_margins NUMERIC,
+          operating_margins NUMERIC,
+          profit_margins NUMERIC,
+          return_on_assets NUMERIC,
+          return_on_equity NUMERIC,
+          revenue_per_share NUMERIC,
+          total_cash BIGINT,
+          total_cash_per_share NUMERIC,
+          total_debt BIGINT,
+          debt_to_equity NUMERIC,
+          current_ratio NUMERIC,
+          quick_ratio NUMERIC,
+          operating_cash_flow BIGINT,
+          free_cash_flow BIGINT
         )`,
       },
       {
@@ -485,19 +698,18 @@ async function initializeSchema() {
       {
         name: "price_daily",
         sql: `CREATE TABLE IF NOT EXISTS price_daily (
+          id SERIAL PRIMARY KEY,
           symbol VARCHAR(10) NOT NULL,
           date DATE NOT NULL,
-          open_price DECIMAL(10,4),
-          high_price DECIMAL(10,4),
-          low_price DECIMAL(10,4),
-          close DECIMAL(10,4),
+          open DOUBLE PRECISION,
+          high DOUBLE PRECISION,
+          low DOUBLE PRECISION,
+          close DOUBLE PRECISION,
+          adj_close DOUBLE PRECISION,
           volume BIGINT,
-          change_percent DECIMAL(8,4),
-          dividends DECIMAL(8,4) DEFAULT 0,
-          splits DECIMAL(8,4) DEFAULT 0,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (symbol, date)
+          dividends DOUBLE PRECISION,
+          stock_splits DOUBLE PRECISION,
+          fetched_at TIMESTAMP NOT NULL DEFAULT NOW()
         )`,
       },
       {
@@ -537,13 +749,20 @@ async function initializeSchema() {
         name: "buy_sell_daily",
         sql: `CREATE TABLE IF NOT EXISTS buy_sell_daily (
           id SERIAL PRIMARY KEY,
-          symbol VARCHAR(10) NOT NULL,
+          symbol VARCHAR(20) NOT NULL,
+          timeframe VARCHAR(10) NOT NULL,
           date DATE NOT NULL,
+          open REAL,
+          high REAL,
+          low REAL,
+          close REAL,
+          volume BIGINT,
           signal VARCHAR(10),
-          price NUMERIC,
-          position_value NUMERIC DEFAULT 0,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(symbol, date)
+          buylevel REAL,
+          stoplevel REAL,
+          inposition BOOLEAN,
+          confidence NUMERIC DEFAULT 0.5,
+          UNIQUE(symbol, timeframe, date)
         )`,
       },
       {
@@ -1092,13 +1311,13 @@ async function query(text, params = []) {
   try {
     // Ensure database is initialized
     if (!dbInitialized || !pool) {
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         console.log("Database not initialized, attempting initialization...");
       }
       const result = await initializeDatabase();
       if (!result || !pool) {
         // Database is not available, return null for graceful degradation
-        if (process.env.NODE_ENV !== 'test') {
+        if (process.env.NODE_ENV !== "test") {
           console.warn(
             "Database not available - operation will return null for graceful fallback"
           );
@@ -1121,13 +1340,17 @@ async function query(text, params = []) {
     const queryTimeout = parseInt(process.env.DB_QUERY_TIMEOUT) || 25000; // 25 seconds
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        reject(new Error(`Query timeout after ${queryTimeout}ms: ${text.slice(0, 100)}...`));
+        reject(
+          new Error(
+            `Query timeout after ${queryTimeout}ms: ${text.slice(0, 100)}...`
+          )
+        );
       }, queryTimeout);
     });
 
     const result = await Promise.race([
       pool.query(text, params),
-      timeoutPromise
+      timeoutPromise,
     ]);
 
     const duration = Date.now() - start;

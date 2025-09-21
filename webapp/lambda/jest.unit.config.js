@@ -13,20 +13,22 @@ module.exports = {
     "!tests/**",
     "!coverage/**",
   ],
+  // Remove moduleNameMapper - use real database module
   testMatch: ["**/tests/unit/**/*.test.js", "**/tests/unit/**/*.spec.js"],
-  // NO setupFilesAfterEnv - unit tests should not connect to real database
-  testTimeout: 25000, // Increased for mock-based unit tests
+  setupFilesAfterEnv: ["<rootDir>/tests/setup/database.setup.js"],
+  testTimeout: 30000, // Increased for real database connections
   maxWorkers: 1,
   forceExit: true,
   detectOpenHandles: true,
   verbose: false,
   silent: false,
-  // NO globalSetup or globalTeardown - unit tests are isolated
+  // globalSetup: "<rootDir>/tests/setup/globalSetup.js",
+  // globalTeardown: "<rootDir>/tests/setup/globalTeardown.js",
   testEnvironmentOptions: {
     NODE_ENV: "test",
   },
-  // Ensure mocks work properly
+  // Clear mocks but allow real database connections
   clearMocks: true,
-  resetMocks: true,
-  restoreMocks: true,
+  resetMocks: false, // Keep real database module
+  restoreMocks: false
 };

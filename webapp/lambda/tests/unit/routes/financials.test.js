@@ -105,7 +105,7 @@ describe("Financials Routes Unit Tests", () => {
         ],
       };
 
-      mockQuery.mockResolvedValueOnce(mockFinancialData);
+      mockQuery.mockResolvedValue(mockFinancialData);
 
       const response = await request(app)
         .get("/financials/statements")
@@ -118,7 +118,7 @@ describe("Financials Routes Unit Tests", () => {
       expect(response.body.data).toHaveProperty("statements");
       expect(Array.isArray(response.body.data.statements)).toBe(true);
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("financial_statements"),
+        expect.stringContaining("annual_income_statement"),
         expect.arrayContaining(["AAPL"])
       );
     });
@@ -172,7 +172,7 @@ describe("Financials Routes Unit Tests", () => {
 
       expect(response.status).toBe(200);
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("balance_sheet"),
+        expect.stringContaining("annual_balance_sheet"),
         expect.any(Array)
       );
     });
@@ -191,7 +191,7 @@ describe("Financials Routes Unit Tests", () => {
 
     test("should handle database errors", async () => {
       const dbError = new Error("Database connection failed");
-      mockQuery.mockRejectedValueOnce(dbError);
+      mockQuery.mockRejectedValue(dbError);
 
       const response = await request(app)
         .get("/financials/statements")
@@ -263,16 +263,15 @@ describe("Financials Routes Unit Tests", () => {
         rows: [
           {
             symbol: "GOOGL",
-            pe_ratio: 22.8,
-            pb_ratio: 4.2,
+            trailing_pe: 22.8,
+            forward_pe: 21.5,
+            price_to_book: 4.2,
             debt_to_equity: 0.12,
             current_ratio: 2.8,
             quick_ratio: 2.6,
-            roe: 0.18,
-            roa: 0.15,
-            gross_margin: 0.57,
-            operating_margin: 0.25,
-            net_margin: 0.21,
+            profit_margin_pct: 0.21,
+            return_on_equity_pct: 0.18,
+            return_on_assets_pct: 0.15,
           },
         ],
       };
@@ -286,9 +285,9 @@ describe("Financials Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("ratios");
       expect(response.body.data.ratios).toHaveProperty("pe_ratio", 22.8);
-      expect(response.body.data.ratios).toHaveProperty("roe", 0.18);
+      expect(response.body.data.ratios).toHaveProperty("return_on_equity_pct", 0.18);
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("financial_ratios"),
+        expect.stringContaining("key_metrics"),
         ["GOOGL"]
       );
     });

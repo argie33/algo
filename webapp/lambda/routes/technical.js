@@ -99,7 +99,7 @@ router.get("/daily/summary", async (req, res) => {
           volume: summary.avg_volume ? parseInt(summary.avg_volume) : null,
         },
       },
-      topSymbols: topSymbolsResult.rows.map(row => ({
+      topSymbols: topSymbolsResult.rows.map((row) => ({
         symbol: row.symbol,
         recordCount: parseInt(row.record_count),
       })),
@@ -219,34 +219,38 @@ router.get("/weekly/:symbol", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      console.log(`📊 No weekly data in database for ${symbolUpper}, returning mock data`);
+      console.log(
+        `📊 No weekly data in database for ${symbolUpper}, returning mock data`
+      );
 
       // Generate mock weekly technical data
-      const mockData = [{
-        symbol: symbolUpper,
-        date: new Date().toISOString(),
-        rsi: 58.7,
-        macd: 0.23,
-        macd_signal: 0.18,
-        macd_hist: 0.05,
-        mom: 1.8,
-        roc: 1.2,
-        adx: 42.3,
-        atr: 3.45,
-        sma_20: 148.5,
-        sma_50: 145.2,
-        sma_200: 142.8,
-        ema_21: 149.1,
-        bbands_lower: 145.0,
-        bbands_middle: 148.5,
-        bbands_upper: 152.0,
-        volume: 145000000,
-        close: 148.75,
-        open: 147.25,
-        high: 150.00,
-        low: 146.50,
-        fetched_at: new Date().toISOString()
-      }];
+      const mockData = [
+        {
+          symbol: symbolUpper,
+          date: new Date().toISOString(),
+          rsi: 58.7,
+          macd: 0.23,
+          macd_signal: 0.18,
+          macd_hist: 0.05,
+          mom: 1.8,
+          roc: 1.2,
+          adx: 42.3,
+          atr: 3.45,
+          sma_20: 148.5,
+          sma_50: 145.2,
+          sma_200: 142.8,
+          ema_21: 149.1,
+          bbands_lower: 145.0,
+          bbands_middle: 148.5,
+          bbands_upper: 152.0,
+          volume: 145000000,
+          close: 148.75,
+          open: 147.25,
+          high: 150.0,
+          low: 146.5,
+          fetched_at: new Date().toISOString(),
+        },
+      ];
 
       return res.json({
         success: true,
@@ -255,9 +259,9 @@ router.get("/weekly/:symbol", async (req, res) => {
           timeframe: "weekly",
           indicators: mockData,
           count: mockData.length,
-          source: "mock_data"
+          source: "mock_data",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -302,34 +306,38 @@ router.get("/monthly/:symbol", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      console.log(`📊 No monthly data in database for ${symbolUpper}, returning mock data`);
+      console.log(
+        `📊 No monthly data in database for ${symbolUpper}, returning mock data`
+      );
 
       // Generate mock monthly technical data
-      const mockData = [{
-        symbol: symbolUpper,
-        date: new Date().toISOString(),
-        rsi: 62.1,
-        macd: 0.89,
-        macd_signal: 0.72,
-        macd_hist: 0.17,
-        mom: 3.2,
-        roc: 2.8,
-        adx: 48.6,
-        atr: 4.25,
-        sma_20: 146.8,
-        sma_50: 142.5,
-        sma_200: 138.2,
-        ema_21: 147.8,
-        bbands_lower: 142.0,
-        bbands_middle: 146.8,
-        bbands_upper: 151.6,
-        volume: 580000000,
-        close: 147.25,
-        open: 144.75,
-        high: 149.50,
-        low: 143.25,
-        fetched_at: new Date().toISOString()
-      }];
+      const mockData = [
+        {
+          symbol: symbolUpper,
+          date: new Date().toISOString(),
+          rsi: 62.1,
+          macd: 0.89,
+          macd_signal: 0.72,
+          macd_hist: 0.17,
+          mom: 3.2,
+          roc: 2.8,
+          adx: 48.6,
+          atr: 4.25,
+          sma_20: 146.8,
+          sma_50: 142.5,
+          sma_200: 138.2,
+          ema_21: 147.8,
+          bbands_lower: 142.0,
+          bbands_middle: 146.8,
+          bbands_upper: 151.6,
+          volume: 580000000,
+          close: 147.25,
+          open: 144.75,
+          high: 149.5,
+          low: 143.25,
+          fetched_at: new Date().toISOString(),
+        },
+      ];
 
       return res.json({
         success: true,
@@ -338,9 +346,9 @@ router.get("/monthly/:symbol", async (req, res) => {
           timeframe: "monthly",
           indicators: mockData,
           count: mockData.length,
-          source: "mock_data"
+          source: "mock_data",
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -398,7 +406,7 @@ router.get("/indicators", async (req, res) => {
       if (!result.rows || result.rows.length === 0) {
         // Check if the stock exists in our database
         const stockCheck = await query(
-          "SELECT ticker as symbol, name FROM company_profile WHERE ticker = $1",
+          "SELECT ticker as symbol, short_name as name FROM company_profile WHERE ticker = $1",
           [symbol.toUpperCase()]
         );
 
@@ -518,13 +526,11 @@ router.get("/indicators", async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching technical indicators:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch technical indicators",
-        details: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch technical indicators",
+      details: error.message,
+    });
   }
 });
 
@@ -553,8 +559,15 @@ router.get("/chart/:symbol", async (req, res) => {
       );
     `);
 
-    if (!tableCheck || !tableCheck.rows || !tableCheck.rows[0] || !tableCheck.rows[0].exists) {
-      console.log("Chart data tables not available or database connection failed - using mock data");
+    if (
+      !tableCheck ||
+      !tableCheck.rows ||
+      !tableCheck.rows[0] ||
+      !tableCheck.rows[0].exists
+    ) {
+      console.log(
+        "Chart data tables not available or database connection failed - using mock data"
+      );
     }
 
     // Generate realistic chart data with OHLCV and technical indicators
@@ -1590,15 +1603,13 @@ router.get("/indicators/:symbol", async (req, res) => {
 
     if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
       console.error(`Technical data table not found for symbol ${symbol}`);
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Technical indicators not available",
-          message: "Technical data table does not exist",
-          symbol: symbol.toUpperCase(),
-          service: "technical-indicators",
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Technical indicators not available",
+        message: "Technical data table does not exist",
+        symbol: symbol.toUpperCase(),
+        service: "technical-indicators",
+      });
     }
 
     // Get latest technical indicators for the symbol
@@ -1685,15 +1696,13 @@ router.get("/history/:symbol", async (req, res) => {
 
     if (!tableExists.rows[0].exists) {
       console.error(`Technical data table not found for symbol ${symbol}`);
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Technical history not available",
-          message: "Technical data table does not exist",
-          symbol: symbol.toUpperCase(),
-          service: "technical-history",
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Technical history not available",
+        message: "Technical data table does not exist",
+        symbol: symbol.toUpperCase(),
+        service: "technical-history",
+      });
     }
 
     // Get technical history for the symbol
@@ -4247,7 +4256,7 @@ function generateMockTechnicalData(symbol, timeframe, count) {
   const now = new Date();
 
   for (let i = 0; i < count; i++) {
-    const date = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000)); // Go back i days
+    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000); // Go back i days
     const priceVariation = 1 + (Math.random() - 0.5) * 0.1; // ±5% variation
     const close = basePrice * priceVariation;
     const open = close * (1 + (Math.random() - 0.5) * 0.02); // ±1% variation from close
@@ -4257,7 +4266,7 @@ function generateMockTechnicalData(symbol, timeframe, count) {
 
     data.push({
       symbol: symbol,
-      date: date.toISOString().split('T')[0],
+      date: date.toISOString().split("T")[0],
       open: Number(open.toFixed(2)),
       high: Number(high.toFixed(2)),
       low: Number(low.toFixed(2)),
@@ -4270,7 +4279,7 @@ function generateMockTechnicalData(symbol, timeframe, count) {
       ema_20: Number((close * (1 + (Math.random() - 0.5) * 0.03)).toFixed(2)),
       bollinger_upper: Number((close * 1.02).toFixed(2)),
       bollinger_lower: Number((close * 0.98).toFixed(2)),
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     });
   }
 

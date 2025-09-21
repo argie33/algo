@@ -15,12 +15,7 @@ router.use(responseFormatter);
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
-    const {
-      limit = 50,
-      status = "all",
-      symbol,
-      offset = 0
-    } = req.query;
+    const { limit = 50, status = "all", symbol, offset = 0 } = req.query;
 
     let query_str = `
       SELECT trade_id, symbol, side, quantity, status, type,
@@ -55,15 +50,15 @@ router.get("/", authenticateToken, async (req, res) => {
       meta: {
         limit: parseInt(limit),
         offset: parseInt(offset),
-        count: result.rows.length
-      }
+        count: result.rows.length,
+      },
     });
   } catch (error) {
     console.error("Error listing trades:", error);
     res.status(500).json({
       success: false,
       error: "Failed to list trades",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -90,7 +85,7 @@ router.post("/", authenticateToken, async (req, res) => {
       type = "market",
       limit_price,
       stop_price,
-      time_in_force = "day"
+      time_in_force = "day",
     } = req.body;
 
     // Validate required fields
@@ -98,7 +93,7 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
-        message: "symbol, side, and quantity are required"
+        message: "symbol, side, and quantity are required",
       });
     }
 
@@ -107,7 +102,7 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(422).json({
         success: false,
         error: "Invalid side",
-        message: "side must be 'buy' or 'sell'"
+        message: "side must be 'buy' or 'sell'",
       });
     }
 
@@ -116,7 +111,7 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(422).json({
         success: false,
         error: "Invalid quantity",
-        message: "quantity must be greater than 0"
+        message: "quantity must be greater than 0",
       });
     }
 
@@ -140,20 +135,20 @@ router.post("/", authenticateToken, async (req, res) => {
       limit_price ? parseFloat(limit_price) : null,
       stop_price ? parseFloat(stop_price) : null,
       time_in_force,
-      "pending"
+      "pending",
     ]);
 
     res.status(201).json({
       success: true,
       data: result.rows[0],
-      message: "Trade created successfully"
+      message: "Trade created successfully",
     });
   } catch (error) {
     console.error("Error creating trade:", error);
     res.status(500).json({
       success: false,
       error: "Failed to create trade",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -198,7 +193,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
           END as unrealized_pnl,
           -- Get current market data
           pd.close as current_price,
-          pd.change_percent as daily_change,
+          ((pd.close - pd.open) / pd.open * 100) as daily_change,
           -- Calculate position info
           CASE 
             WHEN th.side = 'buy' THEN th.quantity
@@ -445,7 +440,6 @@ router.get("/recent", authenticateToken, async (req, res) => {
     });
   }
 });
-
 
 // Helper functions to replace missing userApiKeyHelper
 const validateUserAuthentication = (req) => {
@@ -1265,14 +1259,12 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         "Database query failed for trade analytics:",
         dbError.message
       );
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Failed to retrieve trade analytics",
-          details: dbError.message,
-          suggestion: "Please ensure trade data is available in the database",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Failed to retrieve trade analytics",
+        details: dbError.message,
+        suggestion: "Please ensure trade data is available in the database",
+      });
     }
 
     res.json({
@@ -2742,12 +2734,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const tradeId = req.params.id;
-    const {
-      quantity,
-      limit_price,
-      stop_price,
-      time_in_force
-    } = req.body;
+    const { quantity, limit_price, stop_price, time_in_force } = req.body;
 
     // Check if trade exists and belongs to user
     const checkQuery = `
@@ -2760,7 +2747,8 @@ router.put("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "Trade not found",
-        message: "Trade does not exist or you don't have permission to modify it"
+        message:
+          "Trade does not exist or you don't have permission to modify it",
       });
     }
 
@@ -2769,7 +2757,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Cannot modify trade",
-        message: "Only pending trades can be modified"
+        message: "Only pending trades can be modified",
       });
     }
 
@@ -2806,7 +2794,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "No fields to update",
-        message: "At least one field must be provided for update"
+        message: "At least one field must be provided for update",
       });
     }
 
@@ -2825,14 +2813,14 @@ router.put("/:id", authenticateToken, async (req, res) => {
     res.json({
       success: true,
       data: result.rows[0],
-      message: "Trade updated successfully"
+      message: "Trade updated successfully",
     });
   } catch (error) {
     console.error("Error updating trade:", error);
     res.status(500).json({
       success: false,
       error: "Failed to update trade",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2854,7 +2842,8 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "Trade not found",
-        message: "Trade does not exist or you don't have permission to delete it"
+        message:
+          "Trade does not exist or you don't have permission to delete it",
       });
     }
 
@@ -2873,7 +2862,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       res.json({
         success: true,
         data: result.rows[0],
-        message: "Trade cancelled successfully"
+        message: "Trade cancelled successfully",
       });
     } else {
       // For executed trades, just soft delete or mark as archived
@@ -2888,7 +2877,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
       res.json({
         success: true,
         data: result.rows[0],
-        message: "Trade archived successfully"
+        message: "Trade archived successfully",
       });
     }
   } catch (error) {
@@ -2896,7 +2885,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to delete trade",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -2922,20 +2911,20 @@ router.get("/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "Trade not found",
-        message: "Trade does not exist or you don't have permission to view it"
+        message: "Trade does not exist or you don't have permission to view it",
       });
     }
 
     res.json({
       success: true,
-      data: result.rows[0]
+      data: result.rows[0],
     });
   } catch (error) {
     console.error("Error fetching trade:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch trade",
-      message: error.message
+      message: error.message,
     });
   }
 });

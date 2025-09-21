@@ -181,13 +181,11 @@ router.post("/ai-generate", authenticateToken, async (req, res) => {
     // Get available symbols if none provided
     let targetSymbols = symbols;
     if (targetSymbols.length === 0) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "No symbols provided for strategy",
-          message: "Strategy requires at least one symbol",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "No symbols provided for strategy",
+        message: "Strategy requires at least one symbol",
+      });
     }
 
     // Generate strategy using AI
@@ -522,13 +520,11 @@ router.get("/available-symbols", authenticateToken, async (req, res) => {
     );
 
     if (!result || !result.rows) {
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Unable to fetch available symbols",
-          service: "symbols",
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Unable to fetch available symbols",
+        service: "symbols",
+      });
     }
 
     const symbols = result.rows.map((row) => row.symbol);
@@ -683,14 +679,13 @@ router.get("/templates", authenticateToken, async (req, res) => {
   }
 });
 
-
 // Strategy builder strategies
 router.get("/strategies", async (req, res) => {
   try {
     res.json({
       success: true,
       data: {
-        strategies: []
+        strategies: [],
       },
       timestamp: new Date().toISOString(),
     });

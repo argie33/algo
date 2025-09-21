@@ -728,7 +728,7 @@
 <a name='L663'></a><a href='#L663'>663</a>
 <a name='L664'></a><a href='#L664'>664</a>
 <a name='L665'></a><a href='#L665'>665</a>
-<a name='L666'></a><a href='#L666'>666</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">25x</span>
+<a name='L666'></a><a href='#L666'>666</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -737,11 +737,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1392,7 +1392,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const { query } = require("./database");
 &nbsp;
 /**
@@ -1481,14 +1481,14 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.close as prev_price,
         pd_prev.volume as prev_volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         td.rsi,
         td.sma_20,
@@ -1530,7 +1530,7 @@ class AIMarketScanner {
         AND pd.close &gt; pd_prev.close * 1.01
         AND pd.volume &gt; pd_prev.volume * 1.2
         AND pd.close &gt; 5
-        AND (cp.market_cap IS NULL OR cp.market_cap &gt; 100000000)
+        AND (md.market_cap IS NULL OR md.market_cap &gt; 100000000)
       ORDER BY 
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) * 
         (pd.volume / NULLIF(pd_prev.volume, 1)) DESC
@@ -1564,14 +1564,14 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.close as prev_price,
         pd_prev.volume as prev_volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         td.rsi,
         td.sma_20,
@@ -1613,7 +1613,7 @@ class AIMarketScanner {
         AND pd.close &lt; pd_prev.close * 0.98
         AND pd.volume &gt; pd_prev.volume * 1.3
         AND pd.close &gt; 2
-        AND (cp.market_cap IS NULL OR cp.market_cap &gt; 50000000)
+        AND (md.market_cap IS NULL OR md.market_cap &gt; 50000000)
       ORDER BY 
         (pd.volume / NULLIF(pd_prev.volume, 1)) * 
         ABS((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0)) DESC
@@ -1648,7 +1648,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.high,
         pd.low,
@@ -1657,7 +1657,7 @@ class AIMarketScanner {
         pd_prev.volume as prev_volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         td.sma_20,
         td.sma_50,
@@ -1698,7 +1698,7 @@ class AIMarketScanner {
         AND pd.close &gt; pd.open * 1.01
         AND pd.volume &gt; pd_prev.volume * 1.2
         AND pd.close &gt; 5
-        AND (cp.market_cap IS NULL OR cp.market_cap &gt; 100000000)
+        AND (md.market_cap IS NULL OR md.market_cap &gt; 100000000)
       ORDER BY 
         (pd.close / NULLIF(pd.high, 0)) * 
         (pd.volume / NULLIF(pd_prev.volume, 1)) DESC
@@ -1734,7 +1734,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.volume as prev_volume,
@@ -1742,7 +1742,7 @@ class AIMarketScanner {
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         (pd.volume / NULLIF(pd_avg.avg_volume, 1)) as volume_vs_avg,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         CASE 
           WHEN pd.volume &gt; pd_avg.avg_volume * 10 THEN 95
@@ -1787,7 +1787,7 @@ class AIMarketScanner {
           pd.volume &gt; COALESCE(pd_avg.avg_volume * 2, 0)
         )
         AND pd.close &gt; 1
-        AND (cp.market_cap IS NULL OR cp.market_cap &gt; 10000000)
+        AND (md.market_cap IS NULL OR md.market_cap &gt; 10000000)
       ORDER BY 
         GREATEST(
           pd.volume / NULLIF(pd_prev.volume, 1),
@@ -1821,7 +1821,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         pd.volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
@@ -1830,7 +1830,7 @@ class AIMarketScanner {
         er.actual_eps,
         er.eps_surprise,
         er.surprise_percent,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         CASE 
           WHEN er.surprise_percent &gt; 20 AND ABS(EXTRACT(DAYS FROM (CURRENT_DATE - er.report_date))) &lt;= 2 THEN 90
@@ -1867,7 +1867,7 @@ class AIMarketScanner {
       WHERE er.report_date IS NOT NULL
         AND pd.close IS NOT NULL
         AND (er.surprise_percent &gt; 0 OR er.report_date &gt;= CURRENT_DATE - INTERVAL '2 days')
-        AND (cp.market_cap IS NULL OR cp.market_cap &gt; 100000000)
+        AND (md.market_cap IS NULL OR md.market_cap &gt; 100000000)
       ORDER BY 
         COALESCE(er.surprise_percent, 0) DESC,
         ABS(EXTRACT(DAYS FROM (CURRENT_DATE - er.report_date))) ASC
@@ -1905,14 +1905,14 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.name, s.name) as company_name,
+        COALESCE(cp.long_name, s.name) as company_name,
         pd.close as price,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         n.sentiment,
         n.sentiment_confidence,
         n.headline,
         n.published_at,
-        cp.market_cap,
+        md.market_cap,
         cp.sector,
         CASE 
           WHEN n.sentiment &gt; 0.8 AND n.sentiment_confidence &gt; 0.7 THEN 85
@@ -1949,7 +1949,7 @@ class AIMarketScanner {
       WHERE n.sentiment IS NOT NULL
         AND n.sentiment &gt; 0.3
         AND pd.close IS NOT NULL
-        AND (cp.market_cap IS NULL OR cp.market_cap &gt; 50000000)
+        AND (md.market_cap IS NULL OR md.market_cap &gt; 50000000)
       ORDER BY 
         (n.sentiment * n.sentiment_confidence) DESC
       LIMIT $1
@@ -2065,7 +2065,7 @@ module.exports = { AIMarketScanner };
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-20T18:37:12.636Z
+                at 2025-09-21T11:32:13.318Z
             </div>
         <script src="../prettify.js"></script>
         <script>

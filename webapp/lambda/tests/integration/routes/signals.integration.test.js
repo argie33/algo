@@ -17,15 +17,29 @@ describe("Signals Routes", () => {
   });
 
   describe("GET /api/signals", () => {
-    test("should return database schema error", async () => {
+    test("should return signals with proper AWS-compatible structure", async () => {
       const response = await request(app).get("/api/signals");
 
-      expect([500, 404]).toContain(response.status);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Failed to fetch signals");
-      expect(response.body.details).toContain(
-        "column cp.symbol does not exist"
-      );
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("signals");
+      expect(Array.isArray(response.body.signals)).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("buy_signals");
+      expect(Array.isArray(response.body.data.buy_signals)).toBe(true);
+      expect(response.body.data).toHaveProperty("sell_signals");
+      expect(Array.isArray(response.body.data.sell_signals)).toBe(true);
+
+      // Verify loader table structure fields from buy_sell_daily when data exists
+      if (response.body.signals.length > 0) {
+        const signal = response.body.signals[0];
+        expect(signal).toHaveProperty("symbol");
+        expect(signal).toHaveProperty("signal");
+        expect(signal).toHaveProperty("signal_date");
+        expect(signal).toHaveProperty("confidence");
+        expect(signal).toHaveProperty("entry_price"); // from price_daily JOIN
+        expect(signal).toHaveProperty("sector"); // from company_profile JOIN
+      }
     });
   });
 
@@ -54,51 +68,64 @@ describe("Signals Routes", () => {
   });
 
   describe("GET /api/signals/buy", () => {
-    test("should return database schema error", async () => {
+    test("should return buy signals with AWS-compatible structure", async () => {
       const response = await request(app).get("/api/signals/buy");
 
-      expect([500, 404]).toContain(response.status);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Failed to fetch buy signals");
-      expect(response.body.details).toContain(
-        "column cp.symbol does not exist"
-      );
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+      if (response.body.data.length > 0) {
+        const signal = response.body.data[0];
+        expect(signal).toHaveProperty("symbol");
+        expect(signal).toHaveProperty("signal");
+        expect(signal).toHaveProperty("signal_date");
+        expect(signal).toHaveProperty("confidence");
+        expect(signal).toHaveProperty("entry_price"); // from price_daily JOIN
+        expect(signal).toHaveProperty("sector"); // from company_profile JOIN
+      }
     });
 
-    test("should return same error with filters", async () => {
+    test("should handle filters properly", async () => {
       const response = await request(app).get(
         "/api/signals/buy?min_strength=0.8"
       );
 
-      expect([500, 404]).toContain(response.status);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Failed to fetch buy signals");
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
     });
   });
 
   describe("GET /api/signals/sell", () => {
-    test("should return database schema error", async () => {
+    test("should return sell signals with AWS-compatible structure", async () => {
       const response = await request(app).get("/api/signals/sell");
 
-      expect([500, 404]).toContain(response.status);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Failed to fetch sell signals");
-      expect(response.body.details).toContain(
-        "column cp.symbol does not exist"
-      );
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+      if (response.body.data.length > 0) {
+        const signal = response.body.data[0];
+        expect(signal).toHaveProperty("symbol");
+        expect(signal).toHaveProperty("signal");
+        expect(signal).toHaveProperty("signal_date");
+        expect(signal).toHaveProperty("confidence");
+        expect(signal).toHaveProperty("entry_price"); // from price_daily JOIN
+        expect(signal).toHaveProperty("sector"); // from company_profile JOIN
+      }
     });
   });
 
   describe("GET /api/signals/alerts", () => {
-    test("should return database schema error", async () => {
+    test("should return alerts with AWS-compatible structure", async () => {
       const response = await request(app).get("/api/signals/alerts");
 
-      expect([500, 404]).toContain(response.status);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Failed to fetch trading alerts");
-      expect(response.body.message).toContain(
-        'column "alert_id" does not exist'
-      );
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
     });
   });
 

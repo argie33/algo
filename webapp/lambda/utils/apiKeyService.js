@@ -12,7 +12,7 @@ const { query } = require("./database");
 function generateUUID() {
   try {
     // Try the newer crypto.randomUUID() first (Node 14.17.0+)
-    if (encrypt.randomUUID && typeof encrypt.randomUUID === 'function') {
+    if (encrypt.randomUUID && typeof encrypt.randomUUID === "function") {
       return encrypt.randomUUID();
     }
   } catch (error) {
@@ -20,9 +20,9 @@ function generateUUID() {
   }
 
   // Fallback UUID v4 generation for older Node.js versions
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c == "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
@@ -84,11 +84,11 @@ class ApiKeyService {
         this.jwtVerifier = {
           verify: async (token) => {
             // Mock verification for tests - always pass dev tokens, fail others
-            if (token && token.includes('dev-bypass-token')) {
-              return { sub: 'test-user', email: 'test@example.com' };
+            if (token && token.includes("dev-bypass-token")) {
+              return { sub: "test-user", email: "test@example.com" };
             }
-            throw new Error('JWT verification not configured');
-          }
+            throw new Error("JWT verification not configured");
+          },
         };
         console.log("JWT verifier initialized successfully (test mode)");
       } else {
@@ -1214,7 +1214,7 @@ class ApiKeyService {
           lastUpdated: new Date(row.updated_at),
           createdAt: new Date(row.created_at),
           lastUsed: row.last_used ? new Date(row.last_used) : null,
-        }))
+        })),
       };
     } catch (error) {
       this.recordFailure(error);

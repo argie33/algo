@@ -28,7 +28,7 @@ router.get("/", (req, res) => {
     data: {
       status: "operational",
       service: "performance-analytics",
-      endpoints: ["api", "health", "system", "database"]
+      endpoints: ["api", "health", "system", "database"],
     },
     timestamp: new Date().toISOString(),
   });
@@ -266,22 +266,38 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
         portfolio: portfolioMetrics,
         benchmark: benchmarkMetrics,
         comparison: {
-          outperformance: portfolioMetrics.total_return - benchmarkMetrics.total_return,
-          correlation: Math.abs(portfolioMetrics.volatility / benchmarkMetrics.volatility) || 0,
+          outperformance:
+            portfolioMetrics.total_return - benchmarkMetrics.total_return,
+          correlation:
+            Math.abs(
+              portfolioMetrics.volatility / benchmarkMetrics.volatility
+            ) || 0,
           beta: beta,
-          alpha: portfolioMetrics.total_return - beta * benchmarkMetrics.total_return,
-          excess_return: portfolioMetrics.total_return - benchmarkMetrics.total_return,
-          information_ratio: portfolioMetrics.volatility !== 0
-            ? (portfolioMetrics.total_return - benchmarkMetrics.total_return) / portfolioMetrics.volatility
-            : 0,
-          tracking_error: Math.abs(portfolioMetrics.volatility - benchmarkMetrics.volatility),
+          alpha:
+            portfolioMetrics.total_return -
+            beta * benchmarkMetrics.total_return,
+          excess_return:
+            portfolioMetrics.total_return - benchmarkMetrics.total_return,
+          information_ratio:
+            portfolioMetrics.volatility !== 0
+              ? (portfolioMetrics.total_return -
+                  benchmarkMetrics.total_return) /
+                portfolioMetrics.volatility
+              : 0,
+          tracking_error: Math.abs(
+            portfolioMetrics.volatility - benchmarkMetrics.volatility
+          ),
         },
         benchmark_symbol: benchmark.toUpperCase(),
         period: period,
-        comparison_data: comparisonData.sort((a, b) => new Date(a.date) - new Date(b.date)),
+        comparison_data: comparisonData.sort(
+          (a, b) => new Date(a.date) - new Date(b.date)
+        ),
         summary: {
-          portfolio_outperformed: portfolioMetrics.total_return > benchmarkMetrics.total_return,
-          outperformance_amount: portfolioMetrics.total_return - benchmarkMetrics.total_return,
+          portfolio_outperformed:
+            portfolioMetrics.total_return > benchmarkMetrics.total_return,
+          outperformance_amount:
+            portfolioMetrics.total_return - benchmarkMetrics.total_return,
           data_points: comparisonData.length,
           period_analyzed: `${days} days`,
         },
@@ -1185,7 +1201,7 @@ router.get("/attribution", authenticateToken, async (req, res) => {
           total_effect: 209.2,
           contribution: 209.2,
           holdings_count: 5,
-          sector_value: 52800.00,
+          sector_value: 52800.0,
         },
         {
           sector: "Healthcare",
@@ -1199,7 +1215,7 @@ router.get("/attribution", authenticateToken, async (req, res) => {
           total_effect: 26.2,
           contribution: 26.2,
           holdings_count: 3,
-          sector_value: 27750.00,
+          sector_value: 27750.0,
         },
       ];
 
@@ -1212,7 +1228,7 @@ router.get("/attribution", authenticateToken, async (req, res) => {
         worst_sector: "Healthcare",
         total_sectors: 2,
         total_holdings: 8,
-        portfolio_value: 150000.00,
+        portfolio_value: 150000.0,
       };
 
       return res.json({
@@ -1220,16 +1236,16 @@ router.get("/attribution", authenticateToken, async (req, res) => {
         data: {
           attribution: {
             sector_attribution: sampleAttributionData,
-            security_selection: sampleAttributionData.map(s => ({
+            security_selection: sampleAttributionData.map((s) => ({
               sector: s.sector,
               selection_effect: s.selection_effect,
-              holdings_count: s.holdings_count
+              holdings_count: s.holdings_count,
             })),
-            asset_allocation: sampleAttributionData.map(s => ({
+            asset_allocation: sampleAttributionData.map((s) => ({
               sector: s.sector,
               allocation_effect: s.allocation_effect,
               portfolio_weight: s.portfolio_weight,
-              benchmark_weight: s.benchmark_weight
+              benchmark_weight: s.benchmark_weight,
             })),
           },
           summary: sampleSummary,
@@ -1305,23 +1321,24 @@ router.get("/attribution", authenticateToken, async (req, res) => {
       data: {
         attribution: {
           sector_attribution: attributionData,
-          security_selection: attributionData.map(s => ({
+          security_selection: attributionData.map((s) => ({
             sector: s.sector,
             selection_effect: s.selection_effect,
-            holdings_count: s.holdings_count
+            holdings_count: s.holdings_count,
           })),
-          asset_allocation: attributionData.map(s => ({
+          asset_allocation: attributionData.map((s) => ({
             sector: s.sector,
             allocation_effect: s.allocation_effect,
             portfolio_weight: s.portfolio_weight,
-            benchmark_weight: s.benchmark_weight
+            benchmark_weight: s.benchmark_weight,
           })),
         },
         summary: summary,
         methodology: {
           framework: "Brinson Attribution Model",
           components: {
-            allocation_effect: "Impact of sector weight differences vs benchmark",
+            allocation_effect:
+              "Impact of sector weight differences vs benchmark",
             selection_effect: "Impact of security selection within sectors",
             interaction_effect:
               "Combined impact of allocation and selection decisions",

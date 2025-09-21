@@ -104,12 +104,10 @@ router.get("/stocks", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching stock positioning data:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: "Failed to fetch stock positioning data",
-      });
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch stock positioning data",
+    });
   }
 });
 
@@ -185,14 +183,13 @@ router.get("/summary", async (req, res) => {
   }
 });
 
-
 // Positioning data
 router.get("/data", async (req, res) => {
   try {
     res.json({
       success: true,
       data: {
-        positioning: []
+        positioning: [],
       },
       timestamp: new Date().toISOString(),
     });

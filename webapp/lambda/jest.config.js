@@ -22,8 +22,8 @@ module.exports = {
   verbose: false, // Reduce noise during testing
   silent: false,
   // Mock console by default to reduce test noise
-  globalSetup: "<rootDir>/tests/globalSetup.js",
-  globalTeardown: "<rootDir>/tests/globalTeardown.js",
+  globalSetup: "<rootDir>/tests/setup/globalSetup.js",
+  globalTeardown: "<rootDir>/tests/setup/globalTeardown.js",
   // Environment variables for testing
   testEnvironmentOptions: {
     NODE_ENV: "test",

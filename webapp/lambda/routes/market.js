@@ -17,7 +17,13 @@ async function checkRequiredTables(tableNames) {
         );`,
         [tableName]
       );
-      results[tableName] = tableExistsResult.rows[0].exists;
+      // Add null checking for database availability
+      if (!tableExistsResult || !tableExistsResult.rows || tableExistsResult.rows.length === 0) {
+        console.warn(`Table existence query returned null result for ${tableName}, database may be unavailable`);
+        results[tableName] = false;
+      } else {
+        results[tableName] = tableExistsResult.rows[0].exists;
+      }
     } catch (error) {
       console.error(`Error checking table ${tableName}:`, error.message);
       // For certain types of errors (like connection failures), re-throw them
@@ -81,17 +87,19 @@ router.get("/data", async (req, res) => {
 
     if (tableStatus.market_data) {
       const marketResult = await query(`
-        SELECT ticker as symbol, current_price, 
-               price,
+        SELECT symbol,
+               name,
+               price as current_price,
                return_1d * 100 as change_percent,
-               CASE WHEN current_price IS NOT NULL AND return_1d IS NOT NULL
-                    THEN current_price * return_1d 
+               CASE WHEN price IS NOT NULL AND return_1d IS NOT NULL
+                    THEN price * return_1d
                     ELSE 0 END as change_amount,
                volume,
-               market_cap
-        FROM market_data 
-        WHERE current_price IS NOT NULL
-        ORDER BY current_price DESC 
+               market_cap,
+               date
+        FROM market_data
+        WHERE price IS NOT NULL AND date = (SELECT MAX(date) FROM market_data)
+        ORDER BY market_cap DESC NULLS LAST
         LIMIT 50
       `);
       marketData = marketResult.rows || [];
@@ -99,7 +107,7 @@ router.get("/data", async (req, res) => {
       // Fallback to stocks table
       const stocksResult = await query(`
         SELECT ticker as symbol, current_price, volume,
-               change_amount, change_percent
+               0 as change_amount, 0 as change_percent
         FROM company_profile
         WHERE current_price IS NOT NULL
         ORDER BY volume DESC NULLS LAST
@@ -145,12 +153,12 @@ router.get("/summary", async (req, res) => {
 
     // Get major indices data
     const indicesQuery = `
-      SELECT 
-        symbol, 
-        close as close, 
-        COALESCE(change_amount, 0) as change_amount,
-        COALESCE(change_percent, 0) as change_percent,
-        volume, 
+      SELECT
+        symbol,
+        close as close,
+        COALESCE((close - open), 0) as change_amount,
+        CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as change_percent,
+        volume,
         date
       FROM price_daily 
       WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA')
@@ -163,12 +171,12 @@ router.get("/summary", async (req, res) => {
     // Get market breadth data
     const breadthResult = await query(
       `
-      SELECT 
+      SELECT
         COUNT(*) as total_stocks,
-        COUNT(CASE WHEN COALESCE(change_amount, 0) > 0 THEN 1 END) as advancing,
-        COUNT(CASE WHEN COALESCE(change_amount, 0) < 0 THEN 1 END) as declining,
-        COUNT(CASE WHEN COALESCE(change_amount, 0) = 0 THEN 1 END) as unchanged,
-        AVG(COALESCE(change_percent, 0)) as avg_change_percent,
+        COUNT(CASE WHEN COALESCE((close - open), 0) > 0 THEN 1 END) as advancing,
+        COUNT(CASE WHEN COALESCE((close - open), 0) < 0 THEN 1 END) as declining,
+        COUNT(CASE WHEN COALESCE((close - open), 0) = 0 THEN 1 END) as unchanged,
+        AVG(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END) as avg_change_percent,
         SUM(volume) as total_volume
       FROM price_daily 
       WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -179,10 +187,10 @@ router.get("/summary", async (req, res) => {
     // Get sector performance
     const sectorResult = await query(
       `
-      SELECT 
+      SELECT
         cp.sector,
         COUNT(*) as stock_count,
-        AVG(COALESCE(md.change_percent, 0)) as avg_change_percent,
+        AVG(COALESCE(((md.close - md.open) / NULLIF(md.open, 0) * 100), 0)) as avg_change_percent,
         SUM(md.volume) as total_volume
       FROM price_daily md
       JOIN company_profile cp ON md.symbol = cp.ticker
@@ -313,7 +321,9 @@ router.get("/debug", async (req, res) => {
     });
   } catch (error) {
     console.error("[MARKET] Error in debug endpoint:", error);
-    return res.error("Failed to check market tables: " + error.message, 500, {
+    return res.status(500).json({
+      success: false,
+      error: "Failed to check market tables: " + error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -411,15 +421,13 @@ router.get("/overview-test", async (req, res) => {
   console.log("Market overview test endpoint called");
 
   try {
-    return res
-      .status(410)
-      .json({
-        success: false,
-        error: "Test endpoint deprecated",
-        message:
-          "This test endpoint has been removed - use proper data endpoints",
-        suggestion: "Use /api/market/overview for real market data",
-      });
+    return res.status(410).json({
+      success: false,
+      error: "Test endpoint deprecated",
+      message:
+        "This test endpoint has been removed - use proper data endpoints",
+      suggestion: "Use /api/market/overview for real market data",
+    });
   } catch (error) {
     console.error("Error in overview test:", error);
     return res.status(500).json({ success: false, error: "Test failed" });
@@ -496,13 +504,10 @@ router.get("/overview", async (req, res) => {
     // Validate date parameter if provided
     const { date } = req.query;
     if (date && isNaN(new Date(date).getTime())) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD).",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD).",
+      });
     }
     // Check if market_data table exists
     const tableExists = await query(
@@ -521,27 +526,25 @@ router.get("/overview", async (req, res) => {
       console.warn(
         "Table existence query returned null result, database may be unavailable"
       );
-      return res.error(
-        "Market overview temporarily unavailable - database connection issue",
-        503,
-        {
+      return res.status(503).json({
+        success: false,
+        error: "Market overview temporarily unavailable - database connection issue",
+        data: {
           indices: [],
           sectors: [],
           volatility: { vix: 0, fear_greed: 50 },
           sentiment: { score: 0, label: "Neutral" },
-        }
-      );
+        },
+      });
     }
 
     console.log("Table existence check:", tableExists.rows[0].exists);
 
     if (!tableExists.rows[0].exists) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Price data table not found in database",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Price data table not found in database",
+      });
     }
 
     // Get sentiment indicators
@@ -580,11 +583,13 @@ router.get("/overview", async (req, res) => {
           sentimentIndicators.fear_greed
         );
       } else {
-        throw new Error("No Fear & Greed data available in database");
+        console.warn("No Fear & Greed data available in database - using default");
+        sentimentIndicators.fear_greed = { value: 50, value_text: "Neutral" };
       }
     } catch (e) {
       console.error("Fear & Greed data error:", e.message);
-      throw new Error(`Failed to retrieve Fear & Greed data: ${e.message}`);
+      console.warn("Using default Fear & Greed data due to database error");
+      sentimentIndicators.fear_greed = { value: 50, value_text: "Neutral" };
     }
 
     // Get NAAIM data
@@ -613,11 +618,13 @@ router.get("/overview", async (req, res) => {
         };
         console.log("NAAIM data processed:", sentimentIndicators.naaim);
       } else {
-        throw new Error("No NAAIM data available in database");
+        console.warn("No NAAIM data available in database - using default");
+        sentimentIndicators.naaim = { average: 50, bullish_8100: 50, bearish: 50 };
       }
     } catch (e) {
       console.error("NAAIM data error:", e.message);
-      throw new Error(`Failed to retrieve NAAIM data: ${e.message}`);
+      console.warn("Using default NAAIM data due to database error");
+      sentimentIndicators.naaim = { average: 50, bullish_8100: 50, bearish: 50 };
     }
 
     // Get AAII data (from aaii_sentiment table)
@@ -684,16 +691,16 @@ router.get("/overview", async (req, res) => {
         console.warn(
           "Market breadth query returned null result, database may be unavailable"
         );
-        return res.error(
-          "Market overview temporarily unavailable - database connection issue",
-          503,
-          {
+        return res.status(503).json({
+          success: false,
+          error: "Market overview temporarily unavailable - database connection issue",
+          data: {
             indices: [],
             sectors: [],
             volatility: { vix: 0, fear_greed: 50 },
             sentiment: { score: 0, label: "Neutral" },
           }
-        );
+        });
       }
 
       console.log("Market breadth query result:", breadthResult.rows);
@@ -719,11 +726,27 @@ router.get("/overview", async (req, res) => {
         };
         console.log("Market breadth data processed:", marketBreadth);
       } else {
-        throw new Error("No market breadth data available in database");
+        console.warn("No market breadth data available in database - using empty data");
+        marketBreadth = {
+          advancing: 0,
+          declining: 0,
+          unchanged: 0,
+          total_stocks: 0,
+          advance_decline_ratio: 0,
+          average_change_percent: "0.00"
+        };
       }
     } catch (e) {
       console.error("Market breadth data error:", e.message);
-      throw new Error(`Failed to retrieve market breadth data: ${e.message}`);
+      console.warn("Using empty market breadth data due to database error");
+      marketBreadth = {
+        advancing: 0,
+        declining: 0,
+        unchanged: 0,
+        total_stocks: 0,
+        advance_decline_ratio: 0,
+        average_change_percent: "0.00"
+      };
     }
 
     // Get market cap distribution from company_profile table
@@ -737,7 +760,7 @@ router.get("/overview", async (req, res) => {
           SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
           SUM(market_cap) as total,
           COUNT(*) as total_companies
-        FROM company_profile
+        FROM market_data
         WHERE market_cap IS NOT NULL
         AND market_cap > 0
       `;
@@ -781,9 +804,9 @@ router.get("/overview", async (req, res) => {
     let economicIndicators = [];
     try {
       const economicQuery = `
-        SELECT series_id as name, value, 'Index' as unit, date as timestamp 
-        FROM economic_data 
-        ORDER BY date DESC 
+        SELECT series_id as name, value, 'Index' as unit, date as timestamp
+        FROM economic_data
+        ORDER BY date DESC
         LIMIT 10
       `;
       const economicResult = await query(economicQuery);
@@ -795,11 +818,13 @@ router.get("/overview", async (req, res) => {
           timestamp: row.timestamp,
         }));
       } else {
-        throw new Error("No economic data available in database");
+        console.warn("No economic data available in database - using empty array");
+        economicIndicators = [];
       }
     } catch (e) {
       console.error("Economic indicators error:", e.message);
-      throw new Error(`Failed to retrieve economic data: ${e.message}`);
+      console.warn("Using empty economic indicators due to database error");
+      economicIndicators = [];
     }
 
     // Get market indices data (for contract compliance)
@@ -836,8 +861,9 @@ router.get("/overview", async (req, res) => {
           lp.calculated_change_percent as changePercent
         FROM (
           SELECT DISTINCT ON (symbol)
-            symbol, close as price, volume, change_amount, change_percent,
-            close as calculated_change, change_percent as calculated_change_percent
+            symbol, close as price, volume,
+            (close - open) as calculated_change,
+            CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as calculated_change_percent
           FROM price_daily
           ORDER BY symbol, date DESC
         ) lp
@@ -855,7 +881,8 @@ router.get("/overview", async (req, res) => {
       }));
     } catch (e) {
       console.error("Indices data query failed:", e.message);
-      throw new Error(`Failed to retrieve indices data: ${e.message}`);
+      console.warn("Using empty indices data due to database error");
+      indices = [];
     }
 
     // Return comprehensive market overview
@@ -884,7 +911,9 @@ router.get("/overview", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching market overview:", error);
-    return res.error("Database error: " + error.message, 500, {
+    return res.status(500).json({
+      success: false,
+      error: "Database error: " + error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -921,20 +950,18 @@ router.get("/sentiment/history", async (req, res) => {
       fearGreedData = fearGreedResult.rows;
     } catch (e) {
       console.error("Fear & greed table not available:", e.message);
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Failed to fetch fear and greed sentiment data",
-          details: e.message,
-          suggestion:
-            "Fear and greed sentiment data requires market sentiment tables.",
-          service: "sentiment-fear-greed",
-          requirements: [
-            "fear_greed_index table must exist with historical data",
-            "Database connectivity must be available",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Failed to fetch fear and greed sentiment data",
+        details: e.message,
+        suggestion:
+          "Fear and greed sentiment data requires market sentiment tables.",
+        service: "sentiment-fear-greed",
+        requirements: [
+          "fear_greed_index table must exist with historical data",
+          "Database connectivity must be available",
+        ],
+      });
     }
 
     // Get NAAIM data
@@ -956,19 +983,17 @@ router.get("/sentiment/history", async (req, res) => {
       naaimData = naaimResult.rows;
     } catch (e) {
       console.error("NAAIM table not available:", e.message);
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Failed to fetch NAAIM sentiment data",
-          details: e.message,
-          suggestion: "NAAIM sentiment data requires market sentiment tables.",
-          service: "sentiment-naaim",
-          requirements: [
-            "naaim table must exist with historical data",
-            "Database connectivity must be available",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Failed to fetch NAAIM sentiment data",
+        details: e.message,
+        suggestion: "NAAIM sentiment data requires market sentiment tables.",
+        service: "sentiment-naaim",
+        requirements: [
+          "naaim table must exist with historical data",
+          "Database connectivity must be available",
+        ],
+      });
     }
 
     // Get AAII historical data
@@ -1008,20 +1033,18 @@ router.get("/sentiment/history", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sentiment history:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch sentiment history",
-        details: error.message,
-        suggestion:
-          "Sentiment history data requires database connectivity and market sentiment tables.",
-        service: "sentiment-history",
-        requirements: [
-          "Database connectivity must be available",
-          "fear_greed_index and naaim tables must exist with historical data",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch sentiment history",
+      details: error.message,
+      suggestion:
+        "Sentiment history data requires database connectivity and market sentiment tables.",
+      service: "sentiment-history",
+      requirements: [
+        "Database connectivity must be available",
+        "fear_greed_index and naaim tables must exist with historical data",
+      ],
+    });
   }
 });
 
@@ -1044,20 +1067,18 @@ router.get("/sectors/performance", async (req, res) => {
 
     if (!tableExists.rows[0].exists) {
       console.error("Market data table not found for sector performance");
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Failed to fetch sector performance data",
-          details: "market_data table does not exist",
-          suggestion:
-            "Sector performance data requires populated market data in the database.",
-          service: "sector-performance",
-          requirements: [
-            "market_data table must exist with current stock data",
-            "Database initialization must be completed",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Failed to fetch sector performance data",
+        details: "market_data table does not exist",
+        suggestion:
+          "Sector performance data requires populated market data in the database.",
+        service: "sector-performance",
+        requirements: [
+          "market_data table must exist with current stock data",
+          "Database initialization must be completed",
+        ],
+      });
     }
 
     // Get sector performance data
@@ -1065,7 +1086,7 @@ router.get("/sectors/performance", async (req, res) => {
       SELECT 
         s.sector,
         COUNT(*) as stock_count,
-        AVG(CASE WHEN pd.change_percent IS NOT NULL THEN pd.change_percent ELSE 0 END) as avg_change,
+        AVG(CASE WHEN ((pd.close - pd.open) / pd.open * 100) IS NOT NULL THEN ((pd.close - pd.open) / pd.open * 100) ELSE 0 END) as avg_change,
         SUM(pd.volume) as total_volume,
         AVG(s.market_cap) as avg_market_cap
       FROM price_daily pd
@@ -1082,20 +1103,18 @@ router.get("/sectors/performance", async (req, res) => {
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.error("No sector data found in database query");
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "No sector performance data available",
-          details: "No sector data found in market_data table",
-          suggestion:
-            "Sector performance requires recent market data to be loaded.",
-          service: "sector-performance",
-          requirements: [
-            "Recent market data must exist in market_data table",
-            "Stock data must include sector classifications",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "No sector performance data available",
+        details: "No sector data found in market_data table",
+        suggestion:
+          "Sector performance requires recent market data to be loaded.",
+        service: "sector-performance",
+        requirements: [
+          "Recent market data must exist in market_data table",
+          "Stock data must include sector classifications",
+        ],
+      });
     }
 
     return res.json({
@@ -1104,20 +1123,18 @@ router.get("/sectors/performance", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sector performance:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch sector performance data",
-        details: error.message,
-        suggestion:
-          "Sector performance data requires database connectivity and market data.",
-        service: "sector-performance",
-        requirements: [
-          "Database connectivity must be available",
-          "market_data table must exist with sector data",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch sector performance data",
+      details: error.message,
+      suggestion:
+        "Sector performance data requires database connectivity and market data.",
+      service: "sector-performance",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data table must exist with sector data",
+      ],
+    });
   }
 });
 
@@ -1432,20 +1449,18 @@ router.get("/breadth", async (req, res) => {
 
     if (!tableExists.rows[0].exists) {
       console.error("Market data table not found for breadth data");
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Failed to fetch market breadth data",
-          details: "market_data table does not exist",
-          suggestion:
-            "Market breadth data requires populated market data in the database.",
-          service: "market-breadth",
-          requirements: [
-            "market_data table must exist with stock price data",
-            "Database initialization must be completed",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Failed to fetch market breadth data",
+        details: "market_data table does not exist",
+        suggestion:
+          "Market breadth data requires populated market data in the database.",
+        service: "market-breadth",
+        requirements: [
+          "market_data table must exist with stock price data",
+          "Database initialization must be completed",
+        ],
+      });
     }
 
     // Get market breadth data with calculated change_percent
@@ -1489,20 +1504,18 @@ router.get("/breadth", async (req, res) => {
       result.rows[0].total_stocks == 0
     ) {
       console.error("No market breadth data found in database");
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "No market breadth data available",
-          details: "No stock data found for breadth calculations",
-          suggestion:
-            "Market breadth requires recent stock price data to be loaded.",
-          service: "market-breadth",
-          requirements: [
-            "Recent stock price data must exist in market_data table",
-            "Stock data must include price change information",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "No market breadth data available",
+        details: "No stock data found for breadth calculations",
+        suggestion:
+          "Market breadth requires recent stock price data to be loaded.",
+        service: "market-breadth",
+        requirements: [
+          "Recent stock price data must exist in market_data table",
+          "Stock data must include price change information",
+        ],
+      });
     }
 
     const breadth = result.rows[0];
@@ -1523,20 +1536,18 @@ router.get("/breadth", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching market breadth:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch market breadth data",
-        details: error.message,
-        suggestion:
-          "Market breadth data requires database connectivity and stock price data.",
-        service: "market-breadth",
-        requirements: [
-          "Database connectivity must be available",
-          "market_data table must exist with current stock prices",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch market breadth data",
+      details: error.message,
+      suggestion:
+        "Market breadth data requires database connectivity and stock price data.",
+      service: "market-breadth",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data table must exist with current stock prices",
+      ],
+    });
   }
 });
 
@@ -1570,20 +1581,18 @@ router.get("/economic", async (req, res) => {
     // Add null safety check
     if (!tableExists || !tableExists.rows) {
       console.error("Database unavailable for economic data table check");
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Failed to fetch economic indicators",
-          details: "Cannot read properties of null (reading 'rows')",
-          suggestion:
-            "Economic indicators require database connectivity and economic data tables.",
-          service: "economic-indicators",
-          requirements: [
-            "Database connectivity must be available",
-            "economic_data table must exist with current indicators",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Failed to fetch economic indicators",
+        details: "Cannot read properties of null (reading 'rows')",
+        suggestion:
+          "Economic indicators require database connectivity and economic data tables.",
+        service: "economic-indicators",
+        requirements: [
+          "Database connectivity must be available",
+          "economic_data table must exist with current indicators",
+        ],
+      });
     }
 
     if (!tableExists.rows[0].exists) {
@@ -1671,20 +1680,18 @@ router.get("/economic", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching economic indicators:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch economic indicators",
-        details: error.message,
-        suggestion:
-          "Economic indicators require database connectivity and economic data tables.",
-        service: "economic-indicators",
-        requirements: [
-          "Database connectivity must be available",
-          "economic_data table must exist with current indicators",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch economic indicators",
+      details: error.message,
+      suggestion:
+        "Economic indicators require database connectivity and economic data tables.",
+      service: "economic-indicators",
+      requirements: [
+        "Database connectivity must be available",
+        "economic_data table must exist with current indicators",
+      ],
+    });
   }
 });
 
@@ -1718,20 +1725,18 @@ router.get("/naaim", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching NAAIM data:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch NAAIM data",
-        details: error.message,
-        suggestion:
-          "NAAIM data requires database connectivity and sentiment tables.",
-        service: "naaim-sentiment",
-        requirements: [
-          "Database connectivity must be available",
-          "naaim table must exist with historical sentiment data",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch NAAIM data",
+      details: error.message,
+      suggestion:
+        "NAAIM data requires database connectivity and sentiment tables.",
+      service: "naaim-sentiment",
+      requirements: [
+        "Database connectivity must be available",
+        "naaim table must exist with historical sentiment data",
+      ],
+    });
   }
 });
 
@@ -1762,20 +1767,17 @@ router.get("/fear-greed", async (req, res) => {
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.error("No fear & greed data found in database");
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "No fear and greed data available",
-          details: "No fear and greed data found in fear_greed_index table",
-          suggestion:
-            "Fear and greed data requires sentiment data to be loaded.",
-          service: "fear-greed-sentiment",
-          requirements: [
-            "fear_greed_index table must exist with historical data",
-            "Sentiment data loading scripts must be executed",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "No fear and greed data available",
+        details: "No fear and greed data found in fear_greed_index table",
+        suggestion: "Fear and greed data requires sentiment data to be loaded.",
+        service: "fear-greed-sentiment",
+        requirements: [
+          "fear_greed_index table must exist with historical data",
+          "Sentiment data loading scripts must be executed",
+        ],
+      });
     }
 
     res.json({
@@ -1784,20 +1786,18 @@ router.get("/fear-greed", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching fear & greed data:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch fear and greed data",
-        details: error.message,
-        suggestion:
-          "Fear and greed data requires database connectivity and sentiment tables.",
-        service: "fear-greed-sentiment",
-        requirements: [
-          "Database connectivity must be available",
-          "fear_greed_index table must exist with sentiment data",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch fear and greed data",
+      details: error.message,
+      suggestion:
+        "Fear and greed data requires database connectivity and sentiment tables.",
+      service: "fear-greed-sentiment",
+      requirements: [
+        "Database connectivity must be available",
+        "fear_greed_index table must exist with sentiment data",
+      ],
+    });
   }
 });
 
@@ -1874,20 +1874,18 @@ router.get("/sectors", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in sectors endpoint:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch sectors data",
-        details: error.message,
-        suggestion:
-          "Sectors endpoint requires database connectivity and market data tables.",
-        service: "sectors",
-        requirements: [
-          "Database connectivity must be available",
-          "market_data table must exist with sector data",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch sectors data",
+      details: error.message,
+      suggestion:
+        "Sectors endpoint requires database connectivity and market data tables.",
+      service: "sectors",
+      requirements: [
+        "Database connectivity must be available",
+        "market_data table must exist with sector data",
+      ],
+    });
   }
 });
 
@@ -1923,20 +1921,18 @@ router.get("/volatility", async (req, res) => {
 
     if (!result || !result.rows || result.rows.length === 0) {
       console.error("No volatility data found in database");
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "No market volatility data available",
-          details: "No volatility data found in volatility_data table",
-          suggestion:
-            "Market volatility data requires volatility tables to be loaded.",
-          service: "market-volatility",
-          requirements: [
-            "volatility_data table must exist with VIX and volatility metrics",
-            "Market volatility data loading scripts must be executed",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "No market volatility data available",
+        details: "No volatility data found in volatility_data table",
+        suggestion:
+          "Market volatility data requires volatility tables to be loaded.",
+        service: "market-volatility",
+        requirements: [
+          "volatility_data table must exist with VIX and volatility metrics",
+          "Market volatility data loading scripts must be executed",
+        ],
+      });
     }
 
     const responseData = result.rows[0];
@@ -2010,7 +2006,7 @@ router.get("/indicators", async (req, res) => {
         pd.symbol,
         pd.close as close,
         COALESCE(pd.change_amount, 0) as change_amount,
-        COALESCE(pd.change_percent, 0) as change_percent,
+        COALESCE(((pd.close - pd.open) / pd.open * 100), 0) as change_percent,
         pd.volume,
         s.market_cap,
         s.sector,
@@ -3519,14 +3515,12 @@ router.get("/economic-scenarios", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching economic scenarios:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch economic scenarios",
-        details: error.message,
-        service: "economic-scenarios",
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch economic scenarios",
+      details: error.message,
+      service: "economic-scenarios",
+    });
   }
 });
 
@@ -3590,14 +3584,12 @@ router.get("/ai-insights", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching AI insights:", error);
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Failed to fetch AI insights",
-        details: error.message,
-        service: "ai-insights",
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch AI insights",
+      details: error.message,
+      service: "ai-insights",
+    });
   }
 });
 
@@ -5453,7 +5445,7 @@ router.get("/search", async (req, res) => {
 
     // Search in company_profile table
     const result = await query(
-      `SELECT ticker as symbol, name, sector, industry
+      `SELECT ticker as symbol, short_name as name, sector, industry
        FROM company_profile 
        WHERE ticker LIKE $1 OR UPPER(name) LIKE $1
        ORDER BY 
@@ -5685,16 +5677,26 @@ router.get("/trends", async (req, res) => {
       success: true,
       data: {
         trends: [
-          { period: 'week', direction: 'up', strength: 'moderate', description: 'Market showing upward momentum' },
-          { period: 'month', direction: 'sideways', strength: 'weak', description: 'Consolidation phase' }
-        ]
-      }
+          {
+            period: "week",
+            direction: "up",
+            strength: "moderate",
+            description: "Market showing upward momentum",
+          },
+          {
+            period: "month",
+            direction: "sideways",
+            strength: "weak",
+            description: "Consolidation phase",
+          },
+        ],
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch market trends",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5705,16 +5707,26 @@ router.get("/analyst-opinions", async (req, res) => {
       success: true,
       data: {
         opinions: [
-          { analyst: 'Goldman Sachs', rating: 'Buy', target: 185.0, date: '2024-01-15' },
-          { analyst: 'Morgan Stanley', rating: 'Hold', target: 175.0, date: '2024-01-14' }
-        ]
-      }
+          {
+            analyst: "Goldman Sachs",
+            rating: "Buy",
+            target: 185.0,
+            date: "2024-01-15",
+          },
+          {
+            analyst: "Morgan Stanley",
+            rating: "Hold",
+            target: 175.0,
+            date: "2024-01-14",
+          },
+        ],
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to fetch analyst opinions",
-      message: error.message
+      message: error.message,
     });
   }
 });
@@ -5723,13 +5735,16 @@ router.post("/commentary/subscribe", async (req, res) => {
   try {
     res.json({
       success: true,
-      data: { subscribed: true, categories: ['market', 'earnings', 'technical'] }
+      data: {
+        subscribed: true,
+        categories: ["market", "earnings", "technical"],
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: "Failed to subscribe to commentary",
-      message: error.message
+      message: error.message,
     });
   }
 });

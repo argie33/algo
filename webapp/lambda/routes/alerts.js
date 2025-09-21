@@ -108,7 +108,7 @@ router.get("/active", async (req, res) => {
         ca.*,
         -- Get latest price for real-time updates
         pd.close as latest_price,
-        pd.change_percent as daily_change,
+        ((pd.close - pd.open) / pd.open * 100) as daily_change,
         pd.date as price_date,
         -- Time since creation
         EXTRACT(EPOCH FROM (NOW() - ca.created_at))/3600 as hours_since_created,
@@ -748,7 +748,8 @@ router.get("/settings", async (req, res) => {
       );
     } catch (error) {
       // If alert_settings table doesn't exist, use default settings
-      if (error.code === '42P01') { // relation does not exist
+      if (error.code === "42P01") {
+        // relation does not exist
         console.log("Alert settings table not found, using default settings");
         settingsResult = { rows: [] };
       } else {
@@ -763,7 +764,8 @@ router.get("/settings", async (req, res) => {
 
     const alertSettings = {
       user_id: userId,
-      notification_preferences: settingsResult.rows[0]?.notification_preferences || {
+      notification_preferences: settingsResult.rows[0]
+        ?.notification_preferences || {
         email_enabled: false,
         sms_enabled: false,
         push_enabled: false,

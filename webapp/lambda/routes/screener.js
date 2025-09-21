@@ -164,16 +164,14 @@ router.get("/screen", async (req, res) => {
       paramIndex++;
     }
 
-    // Dividend filters
+    // Dividend filters (currently not available in financial_ratios table)
     if (filters.dividendYieldMin) {
-      whereConditions.push(`km.dividend_yield >= $${paramIndex}`);
-      params.push(parseFloat(filters.dividendYieldMin) / 100);
-      paramIndex++;
+      // Skip dividend yield filters as data not available in financial_ratios
+      console.log("Dividend yield filter skipped - data not available");
     }
     if (filters.dividendYieldMax) {
-      whereConditions.push(`km.dividend_yield <= $${paramIndex}`);
-      params.push(parseFloat(filters.dividendYieldMax) / 100);
-      paramIndex++;
+      // Skip dividend yield filters as data not available in financial_ratios
+      console.log("Dividend yield filter skipped - data not available");
     }
 
     // Sector filter
@@ -260,9 +258,9 @@ router.get("/screen", async (req, res) => {
 
     // Real database query - no static fallbacks
     const mainQuery = `
-      SELECT 
+      SELECT
         s.ticker,
-        COALESCE(cp.short_name, s.name) as company_name,
+        COALESCE(cp.short_name, cp.long_name) as company_name,
         cp.sector,
         s.exchange,
         pd.close as price,
@@ -272,9 +270,9 @@ router.get("/screen", async (req, res) => {
         km.trailing_pe as pe_ratio,
         km.dividend_yield,
         sc.overall_score as factor_score,
-        CASE 
+        CASE
           WHEN sc.overall_score >= 80 THEN 'A'
-          WHEN sc.overall_score >= 70 THEN 'B'  
+          WHEN sc.overall_score >= 70 THEN 'B'
           WHEN sc.overall_score >= 60 THEN 'C'
           WHEN sc.overall_score >= 50 THEN 'D'
           ELSE 'F'
@@ -282,14 +280,14 @@ router.get("/screen", async (req, res) => {
         td.sma_20,
         td.sma_50,
         td.sma_200,
-        CASE 
-          WHEN pd.close > LAG(pd.close, 63) OVER (PARTITION BY s.ticker ORDER BY pd.date) 
+        CASE
+          WHEN pd.close > LAG(pd.close, 63) OVER (PARTITION BY s.ticker ORDER BY pd.date)
           THEN ((pd.close / LAG(pd.close, 63) OVER (PARTITION BY s.ticker ORDER BY pd.date)) - 1) * 100
           ELSE NULL
         END as price_momentum_3m,
-        CASE 
+        CASE
           WHEN pd.close > LAG(pd.close, 252) OVER (PARTITION BY s.ticker ORDER BY pd.date)
-          THEN ((pd.close / LAG(pd.close, 252) OVER (PARTITION BY s.ticker ORDER BY pd.date)) - 1) * 100  
+          THEN ((pd.close / LAG(pd.close, 252) OVER (PARTITION BY s.ticker ORDER BY pd.date)) - 1) * 100
           ELSE NULL
         END as price_momentum_12m,
         CASE
@@ -303,26 +301,32 @@ router.get("/screen", async (req, res) => {
       FROM company_profile s
       LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
+        SELECT DISTINCT ON (symbol)
           symbol, date, close, volume, open, high, low
-        FROM price_daily 
+        FROM price_daily
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
+        SELECT DISTINCT ON (ticker)
+          ticker, market_cap, volume
+        FROM market_data
+        ORDER BY ticker
+      ) md ON s.ticker = md.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
           symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
       ) td ON s.ticker = td.symbol
       LEFT JOIN (
-        SELECT DISTINCT ON (ticker)
-          ticker, trailing_pe, dividend_yield, peg_ratio, price_to_book
-        FROM key_metrics
-        ORDER BY ticker, created_at DESC
-      ) km ON s.ticker = km.ticker
+        SELECT DISTINCT ON (symbol)
+          symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, price_to_book
+        FROM financial_ratios
+        ORDER BY symbol, fiscal_year DESC
+      ) km ON s.ticker = km.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, overall_score
@@ -343,26 +347,32 @@ router.get("/screen", async (req, res) => {
       FROM company_profile s
       LEFT JOIN company_profile cp ON s.ticker = cp.ticker
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
+        SELECT DISTINCT ON (symbol)
           symbol, date, close, volume, open, high, low
-        FROM price_daily 
+        FROM price_daily
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol) 
+        SELECT DISTINCT ON (ticker)
+          ticker, market_cap, volume
+        FROM market_data
+        ORDER BY ticker
+      ) md ON s.ticker = md.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
           symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
       ) td ON s.ticker = td.symbol
       LEFT JOIN (
-        SELECT DISTINCT ON (ticker)
-          ticker, trailing_pe, dividend_yield, peg_ratio, price_to_book
-        FROM key_metrics
-        ORDER BY ticker, created_at DESC
-      ) km ON s.ticker = km.ticker
+        SELECT DISTINCT ON (symbol)
+          symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, price_to_book
+        FROM financial_ratios
+        ORDER BY symbol, fiscal_year DESC
+      ) km ON s.ticker = km.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, overall_score
@@ -512,14 +522,12 @@ router.get("/filters", async (req, res) => {
       exchanges = (exchangeResult.rows || []).map((row) => row.exchange);
     } catch (error) {
       console.error("Failed to fetch filter options:", error);
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Filter options not available",
-          message: "Unable to retrieve screening filter options",
-          service: "screener-filters",
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Filter options not available",
+        message: "Unable to retrieve screening filter options",
+        service: "screener-filters",
+      });
     }
 
     // Get price ranges from price_daily table (which we know exists and works)
@@ -574,14 +582,12 @@ router.get("/filters", async (req, res) => {
       marketCapStats = (marketCapResult.rows && marketCapResult.rows[0]) || {};
     } catch (error) {
       console.error("Failed to fetch market cap stats:", error);
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Market cap statistics not available",
-          message: "Unable to retrieve market cap statistics",
-          service: "screener-market-cap",
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Market cap statistics not available",
+        message: "Unable to retrieve market cap statistics",
+        service: "screener-market-cap",
+      });
     }
 
     res.json({
@@ -1033,7 +1039,7 @@ router.get("/results", async (req, res) => {
         s.exchange,
         md.close as price,
         pd.volume,
-        pd.change_percent as price_change_percent,
+        ((pd.close - pd.open) / pd.open * 100) as price_change_percent,
         pd.date as price_date,
         s.market_cap,
         s.pe_ratio,
@@ -1425,21 +1431,19 @@ router.get("/watchlists", async (req, res) => {
 
     if (!userId) {
       console.error("❌ No user ID found in watchlists request");
-      return res
-        .status(401)
-        .json({
-          success: false,
-          error: "Authentication required for watchlist access",
-          details: "User authentication is required to access watchlists",
-          suggestion:
-            "Please log in to view and manage your personal watchlists.",
-          service: "watchlists",
-          requirements: [
-            "Valid JWT authentication token required",
-            "User must be logged in to access watchlist functionality",
-          ],
-          authenticated: false,
-        });
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required for watchlist access",
+        details: "User authentication is required to access watchlists",
+        suggestion:
+          "Please log in to view and manage your personal watchlists.",
+        service: "watchlists",
+        requirements: [
+          "Valid JWT authentication token required",
+          "User must be logged in to access watchlist functionality",
+        ],
+        authenticated: false,
+      });
     }
 
     // Try to get saved screens from database
@@ -1482,52 +1486,48 @@ router.get("/watchlists", async (req, res) => {
     } catch (dbError) {
       console.error("Database query failed for watchlists:", dbError.message);
 
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Failed to retrieve watchlists",
-          details: dbError.message,
-          suggestion:
-            "Database connectivity is required to access saved watchlists.",
-          service: "watchlists-database",
-          requirements: [
-            "Database connectivity must be available",
-            "saved_screens table must exist",
-            "Valid user_id mapping required",
-          ],
-          authenticated: true,
-          userId: userId,
-          troubleshooting: [
-            "Check database connection status",
-            "Verify saved_screens table schema",
-            "Ensure user_id exists in database",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Failed to retrieve watchlists",
+        details: dbError.message,
+        suggestion:
+          "Database connectivity is required to access saved watchlists.",
+        service: "watchlists-database",
+        requirements: [
+          "Database connectivity must be available",
+          "saved_screens table must exist",
+          "Valid user_id mapping required",
+        ],
+        authenticated: true,
+        userId: userId,
+        troubleshooting: [
+          "Check database connection status",
+          "Verify saved_screens table schema",
+          "Ensure user_id exists in database",
+        ],
+      });
     }
   } catch (error) {
     console.error("Error in watchlists endpoint:", error);
 
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Watchlists service unavailable",
-        details: error.message,
-        suggestion:
-          "Watchlists functionality requires system resources to be available.",
-        service: "watchlists-general",
-        requirements: [
-          "System must be operational",
-          "Database service must be running",
-          "User authentication must be functional",
-        ],
-        troubleshooting: [
-          "Check overall system health",
-          "Verify authentication service status",
-          "Review application logs for errors",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Watchlists service unavailable",
+      details: error.message,
+      suggestion:
+        "Watchlists functionality requires system resources to be available.",
+      service: "watchlists-general",
+      requirements: [
+        "System must be operational",
+        "Database service must be running",
+        "User authentication must be functional",
+      ],
+      troubleshooting: [
+        "Check overall system health",
+        "Verify authentication service status",
+        "Review application logs for errors",
+      ],
+    });
   }
 });
 
@@ -1571,50 +1571,46 @@ router.post("/watchlists", async (req, res) => {
     } catch (dbError) {
       console.error("Database save failed for watchlist:", dbError.message);
 
-      return res
-        .status(503)
-        .json({
-          success: false,
-          error: "Failed to create watchlist",
-          details: dbError.message,
-          suggestion:
-            "Database connectivity is required to create and save watchlists.",
-          service: "watchlists-create",
-          requirements: [
-            "Database connectivity must be available",
-            "saved_screens table must exist",
-            "Valid user authentication required",
-          ],
-          troubleshooting: [
-            "Check database connection status",
-            "Verify saved_screens table schema",
-            "Ensure user_id is valid",
-          ],
-        });
+      return res.status(503).json({
+        success: false,
+        error: "Failed to create watchlist",
+        details: dbError.message,
+        suggestion:
+          "Database connectivity is required to create and save watchlists.",
+        service: "watchlists-create",
+        requirements: [
+          "Database connectivity must be available",
+          "saved_screens table must exist",
+          "Valid user authentication required",
+        ],
+        troubleshooting: [
+          "Check database connection status",
+          "Verify saved_screens table schema",
+          "Ensure user_id is valid",
+        ],
+      });
     }
   } catch (error) {
     console.error("Error creating watchlist:", error);
 
-    return res
-      .status(503)
-      .json({
-        success: false,
-        error: "Watchlist creation service unavailable",
-        details: error.message,
-        suggestion:
-          "Watchlist creation requires system resources to be available.",
-        service: "watchlists-service",
-        requirements: [
-          "System must be operational",
-          "Database service must be running",
-          "User authentication must be functional",
-        ],
-        troubleshooting: [
-          "Check overall system health",
-          "Verify authentication service status",
-          "Review application logs for errors",
-        ],
-      });
+    return res.status(503).json({
+      success: false,
+      error: "Watchlist creation service unavailable",
+      details: error.message,
+      suggestion:
+        "Watchlist creation requires system resources to be available.",
+      service: "watchlists-service",
+      requirements: [
+        "System must be operational",
+        "Database service must be running",
+        "User authentication must be functional",
+      ],
+      troubleshooting: [
+        "Check overall system health",
+        "Verify authentication service status",
+        "Review application logs for errors",
+      ],
+    });
   }
 });
 

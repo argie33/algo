@@ -188,15 +188,23 @@ async function getTradingModeTable(userId, baseTableName) {
  * @param {string} baseTableName - Base table name for mode-specific table selection (for SQL mode)
  * @returns {Promise<object>} Query result or operation result with trading mode context
  */
-async function executeWithTradingMode(userId, sqlQueryOrOperation, params, baseTableName) {
+async function executeWithTradingMode(
+  userId,
+  sqlQueryOrOperation,
+  params,
+  baseTableName
+) {
   try {
     // Determine if this is SQL mode or operation mode
-    const isSqlMode = typeof sqlQueryOrOperation === 'string';
+    const isSqlMode = typeof sqlQueryOrOperation === "string";
 
     if (isSqlMode) {
       // SQL mode: replace {table} placeholders and execute query
       const { table, mode } = await getTradingModeTable(userId, baseTableName);
-      const modeSpecificQuery = sqlQueryOrOperation.replace(/\{table\}/g, table);
+      const modeSpecificQuery = sqlQueryOrOperation.replace(
+        /\{table\}/g,
+        table
+      );
 
       console.log(`🎯 Executing ${mode} trading query on table: ${table}`);
 
@@ -213,22 +221,27 @@ async function executeWithTradingMode(userId, sqlQueryOrOperation, params, baseT
           console.log(
             `Table ${table} not found, using fallback table: ${baseTableName}`
           );
-          const fallbackQuery = sqlQueryOrOperation.replace(/\{table\}/g, baseTableName);
-        const fallbackResult = await query(fallbackQuery, params);
-        return {
-          ...fallbackResult,
-          trading_mode: mode,
-          table_used: `${baseTableName} (fallback)`,
-          note: `Mode-specific table ${table} not available, using shared table`,
-        };
+          const fallbackQuery = sqlQueryOrOperation.replace(
+            /\{table\}/g,
+            baseTableName
+          );
+          const fallbackResult = await query(fallbackQuery, params);
+          return {
+            ...fallbackResult,
+            trading_mode: mode,
+            table_used: `${baseTableName} (fallback)`,
+            note: `Mode-specific table ${table} not available, using shared table`,
+          };
+        }
+        throw tableError;
       }
-      throw tableError;
-    }
     } else {
       // Operation mode: call operation with trading mode context
       const modeInfo = await getUserTradingMode(userId);
 
-      console.log(`🎯 Executing operation with ${modeInfo.mode} trading context`);
+      console.log(
+        `🎯 Executing operation with ${modeInfo.mode} trading context`
+      );
 
       // Call the operation with trading mode context
       const operationResult = await sqlQueryOrOperation({
@@ -260,7 +273,13 @@ async function formatPortfolioWithMode(portfolioData, userId) {
 
   return {
     ...portfolioData,
-    trading_mode: tradingMode.mode,
+    trading_mode: {
+      mode: tradingMode.mode,
+      isPaper: tradingMode.isPaper,
+      isLive: tradingMode.isLive,
+      source: tradingMode.source,
+    },
+    display_mode: tradingMode.mode,
     paper_trading: tradingMode.isPaper,
     live_trading: tradingMode.isLive,
     performance_disclaimer: tradingMode.isPaper
@@ -538,7 +557,7 @@ async function processPaperOrder(userId, orderData) {
   return {
     orderId: `paper_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     status: "filled",
-    fillPrice: orderData.limitPrice || orderData.marketPrice || 100.00,
+    fillPrice: orderData.limitPrice || orderData.marketPrice || 100.0,
     fillQuantity: orderData.quantity,
     commission: 0, // No commission in paper trading
     commissionCharged: 0, // Expected by tests

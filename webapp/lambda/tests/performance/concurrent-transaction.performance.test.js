@@ -63,7 +63,7 @@ describe("Concurrent Database Transaction Integration", () => {
           );
         }
       } catch (error) {
-        console.log('Table creation/data insertion error:', error.message);
+        console.log("Table creation/data insertion error:", error.message);
       }
 
       // Multiple concurrent reads of the same data
@@ -96,7 +96,7 @@ describe("Concurrent Database Transaction Integration", () => {
       try {
         await pool.query("DROP TABLE IF EXISTS test_concurrent_reads");
       } catch (error) {
-        console.log('Cleanup error:', error.message);
+        console.log("Cleanup error:", error.message);
       }
     });
   });
@@ -455,7 +455,9 @@ describe("Concurrent Database Transaction Integration", () => {
       );
 
       // Most should succeed
-      const successfulResults = results.filter((r) => !r.error && r !== undefined);
+      const successfulResults = results.filter(
+        (r) => !r.error && r !== undefined
+      );
       const errorResults = results.filter((r) => r.error);
 
       // Should handle gracefully - either succeed or give appropriate timeout error

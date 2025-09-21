@@ -1,36 +1,76 @@
-const { query } = require('./utils/database');
+require("dotenv").config();
+const { Pool } = require("pg");
 
 async function checkFundamentalMetrics() {
+  const pool = new Pool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT,
+  });
+
   try {
-    const result = await query(`
+    // Check fundamental_metrics columns
+    const columnsResult = await pool.query(`
       SELECT column_name, data_type
       FROM information_schema.columns
       WHERE table_name = 'fundamental_metrics'
-      ORDER BY ordinal_position
+      ORDER BY column_name
     `);
 
-    console.log('fundamental_metrics table structure:');
-    result.rows.forEach(row => console.log(`- ${row.column_name}: ${row.data_type}`));
+    console.log("📊 fundamental_metrics columns:");
+    columnsResult.rows.forEach((row) =>
+      console.log(`- ${row.column_name} (${row.data_type})`)
+    );
 
     // Check sample data
-    const sampleData = await query(`
-      SELECT * FROM fundamental_metrics LIMIT 3
+    const sampleResult = await pool.query(`
+      SELECT symbol, trailing_pe, price_to_book, dividend_yield, profit_margin
+      FROM fundamental_metrics
+      WHERE trailing_pe IS NOT NULL
+      LIMIT 5
     `);
 
-    console.log('\nSample data:');
-    if (sampleData.rows.length > 0) {
-      console.log('Columns:', Object.keys(sampleData.rows[0]));
-      sampleData.rows.forEach((row, i) => {
-        console.log(`Row ${i + 1}:`, row);
-      });
-    } else {
-      console.log('No data in fundamental_metrics table');
-    }
+    console.log("\n💰 fundamental_metrics sample data:");
+    sampleResult.rows.forEach((row) => {
+      console.log(
+        `- ${row.symbol}: PE=${row.trailing_pe}, PB=${row.price_to_book}, DY=${row.dividend_yield}, PM=${row.profit_margin}`
+      );
+    });
 
-    process.exit(0);
+    // Check market_data columns
+    const marketColumnsResult = await pool.query(`
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_name = 'market_data'
+      ORDER BY column_name
+    `);
+
+    console.log("\n📈 market_data columns:");
+    marketColumnsResult.rows.forEach((row) =>
+      console.log(`- ${row.column_name} (${row.data_type})`)
+    );
+
+    // Check market_data sample
+    const marketSampleResult = await pool.query(`
+      SELECT symbol, current_price, market_cap
+      FROM market_data
+      WHERE current_price IS NOT NULL
+      LIMIT 5
+    `);
+
+    console.log("\n💲 market_data sample data:");
+    marketSampleResult.rows.forEach((row) => {
+      console.log(
+        `- ${row.symbol}: Price=$${row.current_price}, Cap=$${row.market_cap}`
+      );
+    });
+
+    console.log("✅ Fundamental metrics check completed successfully");
   } catch (error) {
-    console.error('Error checking fundamental_metrics:', error);
-    process.exit(1);
+    console.error("❌ Error:", error.message);
+    throw error;
   }
 }
 

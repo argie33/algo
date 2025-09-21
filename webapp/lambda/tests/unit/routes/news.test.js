@@ -790,23 +790,23 @@ describe("News Routes", () => {
               confidence: expect.any(Number),
               change_24h: expect.any(Number),
             }),
-          sentiment_by_sector: expect.any(Array),
-          trending_topics: expect.any(Array),
-          fear_greed_index: expect.objectContaining({
-            value: expect.any(Number),
-            label: expect.any(String),
-            change_24h: expect.any(Number),
+            sentiment_by_sector: expect.any(Array),
+            trending_topics: expect.any(Array),
+            fear_greed_index: expect.objectContaining({
+              value: expect.any(Number),
+              label: expect.any(String),
+              change_24h: expect.any(Number),
+            }),
+            social_sentiment: expect.any(Object),
+            news_sentiment: expect.objectContaining({
+              positive_articles: expect.any(Number),
+              negative_articles: expect.any(Number),
+              neutral_articles: expect.any(Number),
+            }),
           }),
-          social_sentiment: expect.any(Object),
-          news_sentiment: expect.objectContaining({
-            positive_articles: expect.any(Number),
-            negative_articles: expect.any(Number),
-            neutral_articles: expect.any(Number),
-          }),
-        }),
-        timeframe: "24h",
-        last_updated: expect.any(String),
-      });
+          timeframe: "24h",
+          last_updated: expect.any(String),
+        });
       } else if (response.status === 503) {
         expect(response.body).toMatchObject({
           success: false,
@@ -963,18 +963,16 @@ describe("News Routes", () => {
         },
       ];
 
-      query
-        .mockResolvedValueOnce({ rows: mockResults })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              total_matches: 1,
-              positive_count: 1,
-              negative_count: 0,
-              neutral_count: 0,
-            },
-          ],
-        });
+      query.mockResolvedValueOnce({ rows: mockResults }).mockResolvedValueOnce({
+        rows: [
+          {
+            total_matches: 1,
+            positive_count: 1,
+            negative_count: 0,
+            neutral_count: 0,
+          },
+        ],
+      });
 
       const response = await request(app)
         .get(
