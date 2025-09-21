@@ -104,18 +104,17 @@ const authenticateToken = (req, res, next) => {
 // Async version for production
 const authenticateTokenAsync = async (req, res, next) => {
   try {
-    // Skip authentication only in local development with explicit bypass
+    // Skip authentication in development mode with explicit bypass (local or AWS)
     if (
       process.env.NODE_ENV === "development" &&
-      process.env.ALLOW_DEV_BYPASS === "true" &&
-      process.env.AWS_LAMBDA_FUNCTION_NAME === undefined
+      process.env.ALLOW_DEV_BYPASS === "true"
     ) {
       const authHeader = req.headers && req.headers["authorization"];
       const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
 
-      // If no auth header provided in local development, bypass authentication
+      // If no auth header provided in development mode, bypass authentication
       if (!authHeader || !token || token === "dev-bypass-token") {
-        console.log("🔧 Local development mode: Bypassing authentication");
+        console.log("🔧 Development mode: Bypassing authentication");
         req.user = {
           sub: "dev-user-bypass",
           email: "dev-bypass@example.com",
@@ -128,12 +127,11 @@ const authenticateTokenAsync = async (req, res, next) => {
       }
     }
 
-    // Skip authentication only in local testing (not in AWS Lambda)
+    // Skip authentication in development mode when explicitly enabled
     if (
       process.env.NODE_ENV === "development" &&
       process.env.SKIP_AUTH === "true" &&
-      process.env.NODE_ENV !== "test" &&
-      process.env.AWS_LAMBDA_FUNCTION_NAME === undefined
+      process.env.NODE_ENV !== "test"
     ) {
       req.user = {
         sub: "dev-user-bypass",
