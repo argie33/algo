@@ -14,12 +14,17 @@ import dataService, {
 // Mock fetch globally
 global.fetch = vi.fn();
 
-// Mock window object
-Object.defineProperty(window, "__CONFIG__", {
-  value: { API_URL: "https://test-api.example.com" },
-  writable: true,
-  configurable: true,
-});
+// Mock window object - only define if not already present
+if (!window.__CONFIG__) {
+  Object.defineProperty(window, "__CONFIG__", {
+    value: { API_URL: "https://test-api.example.com" },
+    writable: true,
+    configurable: true,
+  });
+} else {
+  // Update existing config
+  window.__CONFIG__.API_URL = "https://test-api.example.com";
+}
 
 // Mock devAuth service - needs to handle both static and dynamic imports
 vi.mock("../../../services/devAuth.js", () => ({

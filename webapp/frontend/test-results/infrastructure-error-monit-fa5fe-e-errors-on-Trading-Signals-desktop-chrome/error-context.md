@@ -1,0 +1,182 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Dashboard
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Dashboard" [ref=e17] [cursor=pointer]:
+            - img [ref=e19] [cursor=pointer]
+            - generic [ref=e22] [cursor=pointer]: Dashboard
+        - listitem [ref=e23]:
+          - button "Collapse Markets section" [ref=e24] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e26] [cursor=pointer]
+            - img [ref=e27] [cursor=pointer]
+        - listitem [ref=e29]:
+          - button "Market Overview" [ref=e30] [cursor=pointer]:
+            - img [ref=e32] [cursor=pointer]
+            - paragraph [ref=e35] [cursor=pointer]: Market Overview
+        - listitem [ref=e36]:
+          - button "Sector Analysis" [ref=e37] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+            - paragraph [ref=e42] [cursor=pointer]: Sector Analysis
+        - listitem [ref=e43]:
+          - button "Economic Indicators" [ref=e44] [cursor=pointer]:
+            - img [ref=e46] [cursor=pointer]
+            - paragraph [ref=e49] [cursor=pointer]: Economic Indicators
+        - listitem [ref=e50]:
+          - button "Collapse Stocks section" [ref=e51] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e53] [cursor=pointer]
+            - img [ref=e54] [cursor=pointer]
+        - listitem [ref=e56]:
+          - button "Stock Screener" [ref=e57] [cursor=pointer]:
+            - img [ref=e59] [cursor=pointer]
+            - paragraph [ref=e62] [cursor=pointer]: Stock Screener
+        - listitem [ref=e63]:
+          - button "Stock Analysis" [ref=e64] [cursor=pointer]:
+            - img [ref=e66] [cursor=pointer]
+            - paragraph [ref=e69] [cursor=pointer]: Stock Analysis
+        - listitem [ref=e70]:
+          - button "Technical Analysis" [ref=e71] [cursor=pointer]:
+            - img [ref=e73] [cursor=pointer]
+            - paragraph [ref=e76] [cursor=pointer]: Technical Analysis
+        - listitem [ref=e77]:
+          - button "Stock Scores" [ref=e78] [cursor=pointer]:
+            - img [ref=e80] [cursor=pointer]
+            - paragraph [ref=e83] [cursor=pointer]: Stock Scores
+        - listitem [ref=e84]:
+          - button "Earnings Calendar" [ref=e85] [cursor=pointer]:
+            - img [ref=e87] [cursor=pointer]
+            - paragraph [ref=e90] [cursor=pointer]: Earnings Calendar
+        - listitem [ref=e91]:
+          - button "Watchlist" [ref=e92] [cursor=pointer]:
+            - img [ref=e94] [cursor=pointer]
+            - paragraph [ref=e97] [cursor=pointer]: Watchlist
+        - listitem [ref=e98]:
+          - button "Financial Data" [ref=e99] [cursor=pointer]:
+            - img [ref=e101] [cursor=pointer]
+            - paragraph [ref=e104] [cursor=pointer]: Financial Data
+        - listitem [ref=e105]:
+          - button "Expand Sentiment Analysis section" [ref=e106] [cursor=pointer]:
+            - heading "Sentiment Analysis" [level=6] [ref=e108] [cursor=pointer]
+            - img [ref=e109] [cursor=pointer]
+        - listitem [ref=e111]:
+          - button "Collapse Portfolio section" [ref=e112] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e114] [cursor=pointer]
+            - img [ref=e115] [cursor=pointer]
+        - listitem [ref=e117]:
+          - button "Portfolio Holdings" [ref=e118] [cursor=pointer]:
+            - img [ref=e120] [cursor=pointer]
+            - paragraph [ref=e123] [cursor=pointer]: Portfolio Holdings
+        - listitem [ref=e124]:
+          - button "Trade History" [ref=e125] [cursor=pointer]:
+            - img [ref=e127] [cursor=pointer]
+            - paragraph [ref=e130] [cursor=pointer]: Trade History
+        - listitem [ref=e131]:
+          - button "Order Management" [ref=e132] [cursor=pointer]:
+            - img [ref=e134] [cursor=pointer]
+            - paragraph [ref=e137] [cursor=pointer]: Order Management
+        - listitem [ref=e138]:
+          - button "Optimization Tools" [ref=e139] [cursor=pointer]:
+            - img [ref=e141] [cursor=pointer]
+            - paragraph [ref=e144] [cursor=pointer]: Optimization Tools
+        - listitem [ref=e145]:
+          - button "Advanced Analytics" [ref=e146] [cursor=pointer]:
+            - img [ref=e148] [cursor=pointer]
+            - paragraph [ref=e151] [cursor=pointer]: Advanced Analytics
+        - listitem [ref=e152]:
+          - button "Expand Tools section" [ref=e153] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e155] [cursor=pointer]
+            - img [ref=e156] [cursor=pointer]
+  - main [ref=e158]:
+    - generic [ref=e161]:
+      - generic [ref=e162]:
+        - heading "🎯 Trading Signals" [level=1] [ref=e163]
+        - heading "AI-powered trading signals with real-time market analysis and institutional-grade insights" [level=6] [ref=e164]
+      - button "Advanced View" [ref=e167] [cursor=pointer]:
+        - img [ref=e169] [cursor=pointer]
+        - text: Advanced View
+      - generic [ref=e171]:
+        - generic [ref=e174]:
+          - heading "Filters" [level=6] [ref=e175]:
+            - img [ref=e176]
+            - text: Filters
+          - separator [ref=e178]
+          - generic [ref=e180]:
+            - img [ref=e182]
+            - textbox "Search symbols..." [ref=e184]
+            - group
+          - button "Search" [ref=e185] [cursor=pointer]: Search
+          - generic [ref=e186]:
+            - generic [ref=e187]: Signal Type
+            - generic [ref=e188]:
+              - combobox [ref=e189] [cursor=pointer]: All Signals
+              - textbox: all
+              - img
+              - group:
+                - generic: Signal Type
+          - generic [ref=e190]:
+            - generic [ref=e191]: Timeframe
+            - generic [ref=e192]:
+              - combobox [ref=e193] [cursor=pointer]: Daily
+              - textbox: daily
+              - img
+              - group:
+                - generic: Timeframe
+          - generic [ref=e194] [cursor=pointer]:
+            - checkbox "Latest Only" [ref=e197] [cursor=pointer]
+            - generic [ref=e200] [cursor=pointer]: Latest Only
+          - generic [ref=e201] [cursor=pointer]:
+            - checkbox "Historical View" [ref=e204] [cursor=pointer]
+            - generic [ref=e207] [cursor=pointer]: Historical View
+        - generic [ref=e208]:
+          - alert [ref=e209]:
+            - img [ref=e211]
+            - generic [ref=e213]:
+              - generic [ref=e214]: Failed to Load Trading Signals
+              - paragraph [ref=e215]: "[object Object]"
+            - generic [ref=e217]:
+              - button "Toggle error details" [ref=e218] [cursor=pointer]:
+                - img [ref=e219] [cursor=pointer]
+              - button "Retry" [ref=e221] [cursor=pointer]:
+                - img [ref=e223] [cursor=pointer]
+                - text: Retry
+          - generic [ref=e226]:
+            - generic [ref=e227]:
+              - table [ref=e228]:
+                - rowgroup [ref=e229]:
+                  - row "Symbol Company Sector Signal Current Price Market Cap P/E Dividend Yield Date" [ref=e230]:
+                    - columnheader "Symbol" [ref=e231]
+                    - columnheader "Company" [ref=e232]
+                    - columnheader "Sector" [ref=e233]
+                    - columnheader "Signal" [ref=e234]
+                    - columnheader "Current Price" [ref=e235]
+                    - columnheader "Market Cap" [ref=e236]
+                    - columnheader "P/E" [ref=e237]
+                    - columnheader "Dividend Yield" [ref=e238]
+                    - columnheader "Date" [ref=e239]
+                - rowgroup
+              - generic [ref=e240]:
+                - heading "No trading signals found" [level=6] [ref=e241]
+                - paragraph [ref=e242]: No signals match your current filters
+            - generic [ref=e244]:
+              - paragraph [ref=e245]: "Rows per page:"
+              - generic [ref=e246]:
+                - 'combobox "Rows per page: 25" [ref=e247] [cursor=pointer]': "25"
+                - textbox: "25"
+                - img
+              - paragraph [ref=e248]: 0–0 of 0
+              - generic [ref=e249]:
+                - button "Go to previous page" [disabled]:
+                  - img
+                - button "Go to next page" [disabled]:
+                  - img
+```

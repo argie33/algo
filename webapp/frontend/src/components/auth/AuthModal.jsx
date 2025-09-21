@@ -24,9 +24,9 @@ const AUTH_MODES = {
   MFA_CHALLENGE: "mfa_challenge",
 };
 
-function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
+function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", onSuccess }) {
   const [mode, setMode] = useState(initialMode);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(email);
   const [successMessage, setSuccessMessage] = useState("");
 
   const handleRegistrationSuccess = (registeredUsername, _nextStep) => {
@@ -53,6 +53,7 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN }) {
       "Password reset successful! You can now sign in with your new password."
     );
     setMode(AUTH_MODES.LOGIN);
+    onSuccess?.();
   };
 
   const handleMFASuccess = (result) => {

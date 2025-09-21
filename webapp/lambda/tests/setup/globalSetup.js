@@ -50,6 +50,75 @@ module.exports = async () => {
       )
     `);
 
+    // Create earnings_history table (from loadearningshistory.py)
+    await query(`
+      CREATE TABLE IF NOT EXISTS earnings_history (
+        symbol VARCHAR(20) NOT NULL,
+        quarter DATE NOT NULL,
+        eps_actual NUMERIC,
+        eps_estimate NUMERIC,
+        eps_difference NUMERIC,
+        surprise_percent NUMERIC,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (symbol, quarter)
+      )
+    `);
+
+    // Create earnings_estimates table (from loadearningsestimate.py)
+    await query(`
+      CREATE TABLE IF NOT EXISTS earnings_estimates (
+        symbol VARCHAR(20) NOT NULL,
+        period VARCHAR(3) NOT NULL,
+        avg_estimate NUMERIC,
+        low_estimate NUMERIC,
+        high_estimate NUMERIC,
+        year_ago_eps NUMERIC,
+        number_of_analysts INTEGER,
+        growth NUMERIC,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (symbol, period)
+      )
+    `);
+
+    // Create earnings_metrics table (from loadearningsmetrics.py)
+    await query(`
+      CREATE TABLE IF NOT EXISTS earnings_metrics (
+        symbol VARCHAR(50),
+        report_date DATE,
+        eps_growth_1q DOUBLE PRECISION,
+        eps_growth_2q DOUBLE PRECISION,
+        eps_growth_4q DOUBLE PRECISION,
+        eps_growth_8q DOUBLE PRECISION,
+        eps_acceleration_qtrs DOUBLE PRECISION,
+        eps_surprise_last_q DOUBLE PRECISION,
+        eps_estimate_revision_1m DOUBLE PRECISION,
+        eps_estimate_revision_3m DOUBLE PRECISION,
+        eps_estimate_revision_6m DOUBLE PRECISION,
+        annual_eps_growth_1y DOUBLE PRECISION,
+        annual_eps_growth_3y DOUBLE PRECISION,
+        annual_eps_growth_5y DOUBLE PRECISION,
+        consecutive_eps_growth_years INTEGER,
+        eps_estimated_change_this_year DOUBLE PRECISION,
+        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (symbol, report_date)
+      )
+    `);
+
+    // Create analyst_upgrade_downgrade table (from loadanalystupgradedowngrade.py)
+    await query(`
+      CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(20) NOT NULL,
+        firm VARCHAR(128),
+        action VARCHAR(32),
+        from_grade VARCHAR(64),
+        to_grade VARCHAR(64),
+        date DATE NOT NULL,
+        details TEXT,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create buy_sell_weekly table
     await query(`
       CREATE TABLE IF NOT EXISTS buy_sell_weekly (
@@ -224,6 +293,50 @@ module.exports = async () => {
       ('NVDA', 2200000000000, 28.9, 25.4, 15.6, 22.1, 0.09),
       ('META', 800000000000, 18.7, 16.2, 6.1, 7.3, 0.00)
       ON CONFLICT (symbol) DO NOTHING
+    `);
+
+    // Add earnings_history test data
+    await query(`
+      INSERT INTO earnings_history (symbol, quarter, eps_actual, eps_estimate, eps_difference, surprise_percent) VALUES
+      ('AAPL', '2024-01-01', 2.18, 2.10, 0.08, 3.8),
+      ('AAPL', '2023-10-01', 1.89, 1.85, 0.04, 2.2),
+      ('MSFT', '2024-01-01', 2.93, 2.85, 0.08, 2.8),
+      ('MSFT', '2023-10-01', 2.69, 2.65, 0.04, 1.5),
+      ('GOOGL', '2024-01-01', 1.64, 1.59, 0.05, 3.1),
+      ('TSLA', '2024-01-01', 0.71, 0.73, -0.02, -2.7)
+      ON CONFLICT (symbol, quarter) DO NOTHING
+    `);
+
+    // Add earnings_estimates test data
+    await query(`
+      INSERT INTO earnings_estimates (symbol, period, avg_estimate, low_estimate, high_estimate, year_ago_eps, number_of_analysts, growth) VALUES
+      ('AAPL', 'Q1', 2.20, 2.15, 2.25, 2.10, 8, 4.8),
+      ('AAPL', 'Q2', 2.10, 2.05, 2.18, 2.02, 9, 4.0),
+      ('MSFT', 'Q1', 2.95, 2.88, 3.02, 2.85, 12, 3.5),
+      ('MSFT', 'Q2', 2.85, 2.78, 2.92, 2.75, 11, 3.6),
+      ('GOOGL', 'Q1', 1.68, 1.60, 1.75, 1.59, 15, 5.7),
+      ('TSLA', 'Q1', 0.75, 0.70, 0.82, 0.73, 6, 2.7)
+      ON CONFLICT (symbol, period) DO NOTHING
+    `);
+
+    // Add earnings_metrics test data
+    await query(`
+      INSERT INTO earnings_metrics (symbol, report_date, eps_growth_1q, eps_growth_2q, eps_surprise_last_q, annual_eps_growth_1y) VALUES
+      ('AAPL', '2024-01-01', 3.8, 5.2, 3.8, 12.5),
+      ('MSFT', '2024-01-01', 2.8, 4.1, 2.8, 8.9),
+      ('GOOGL', '2024-01-01', 3.1, 6.2, 3.1, 15.2),
+      ('TSLA', '2024-01-01', -2.7, 1.5, -2.7, 25.8)
+      ON CONFLICT (symbol, report_date) DO NOTHING
+    `);
+
+    // Add analyst_upgrade_downgrade test data
+    await query(`
+      INSERT INTO analyst_upgrade_downgrade (symbol, firm, action, from_grade, to_grade, date, details) VALUES
+      ('AAPL', 'Goldman Sachs', 'upgrade', 'Hold', 'Buy', '2024-01-15', 'Strong iPhone sales'),
+      ('MSFT', 'Morgan Stanley', 'upgrade', 'Equal Weight', 'Overweight', '2024-01-10', 'Cloud growth acceleration'),
+      ('GOOGL', 'JP Morgan', 'maintain', 'Overweight', 'Overweight', '2024-01-12', 'AI momentum continues'),
+      ('TSLA', 'Barclays', 'downgrade', 'Buy', 'Hold', '2024-01-08', 'Delivery concerns')
+      ON CONFLICT DO NOTHING
     `);
 
     // Add test table for connection pool stress tests

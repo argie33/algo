@@ -68,6 +68,45 @@ describe("DevAuthService", () => {
     };
     devAuthService.users["argeropolos@gmail.com"] =
       devAuthService.users["devuser"];
+
+    // Ensure methods are available after state reset
+    const DevAuthService = service.constructor;
+    if (!devAuthService.generateVerificationCode || typeof devAuthService.generateVerificationCode !== 'function') {
+      devAuthService.generateVerificationCode = (...args) => DevAuthService.prototype.generateVerificationCode.call(devAuthService, ...args);
+    }
+    if (!devAuthService.generateDevTokens || typeof devAuthService.generateDevTokens !== 'function') {
+      devAuthService.generateDevTokens = (...args) => DevAuthService.prototype.generateDevTokens.call(devAuthService, ...args);
+    }
+    if (!devAuthService.loadUsers || typeof devAuthService.loadUsers !== 'function') {
+      devAuthService.loadUsers = (...args) => DevAuthService.prototype.loadUsers.call(devAuthService, ...args);
+    }
+    if (!devAuthService.saveUsers || typeof devAuthService.saveUsers !== 'function') {
+      devAuthService.saveUsers = (...args) => DevAuthService.prototype.saveUsers.call(devAuthService, ...args);
+    }
+    if (!devAuthService.loadSession || typeof devAuthService.loadSession !== 'function') {
+      devAuthService.loadSession = (...args) => DevAuthService.prototype.loadSession.call(devAuthService, ...args);
+    }
+    if (!devAuthService.saveSession || typeof devAuthService.saveSession !== 'function') {
+      devAuthService.saveSession = (...args) => DevAuthService.prototype.saveSession.call(devAuthService, ...args);
+    }
+    if (!devAuthService.confirmSignUp || typeof devAuthService.confirmSignUp !== 'function') {
+      devAuthService.confirmSignUp = (...args) => DevAuthService.prototype.confirmSignUp.call(devAuthService, ...args);
+    }
+    if (!devAuthService.validatePassword || typeof devAuthService.validatePassword !== 'function') {
+      devAuthService.validatePassword = (...args) => DevAuthService.prototype.validatePassword.call(devAuthService, ...args);
+    }
+    if (!devAuthService.validateJwtToken || typeof devAuthService.validateJwtToken !== 'function') {
+      devAuthService.validateJwtToken = (...args) => DevAuthService.prototype.validateJwtToken.call(devAuthService, ...args);
+    }
+    if (!devAuthService.isTokenExpired || typeof devAuthService.isTokenExpired !== 'function') {
+      devAuthService.isTokenExpired = (...args) => DevAuthService.prototype.isTokenExpired.call(devAuthService, ...args);
+    }
+    if (!devAuthService.confirmMFA || typeof devAuthService.confirmMFA !== 'function') {
+      devAuthService.confirmMFA = (...args) => DevAuthService.prototype.confirmMFA.call(devAuthService, ...args);
+    }
+    if (!devAuthService.updateUserAttributes || typeof devAuthService.updateUserAttributes !== 'function') {
+      devAuthService.updateUserAttributes = (...args) => DevAuthService.prototype.updateUserAttributes.call(devAuthService, ...args);
+    }
   });
 
   afterEach(() => {
@@ -112,6 +151,8 @@ describe("DevAuthService", () => {
         lastName: "User",
       });
 
+      console.log("Test result:", JSON.stringify(result, null, 2));
+      expect(result).toBeDefined();
       expect(result.success).toBe(true);
       expect(result.userConfirmed).toBe(false);
       expect(result.isSignUpComplete).toBe(false);

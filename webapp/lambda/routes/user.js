@@ -1,6 +1,19 @@
 const express = require("express");
 const router = express.Router();
 
+// Basic user info endpoint (root)
+router.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "User API - Ready",
+    endpoints: [
+      "POST /change-password - Change user password",
+      // Add other user endpoints as they're implemented
+    ],
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Change password endpoint
 router.post("/change-password", async (req, res) => {
   try {

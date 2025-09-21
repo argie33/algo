@@ -2227,17 +2227,53 @@ router.get("/compare", async (req, res) => {
 
     const symbolList = symbols.split(",").slice(0, 10); // Limit to 10 stocks
 
-    res.json({
+    // Query actual stock comparison data from fundamental_metrics and price_daily tables
+    const placeholders = symbolList.map((_, i) => `$${i + 1}`).join(',');
+
+    // Get fundamental metrics for comparison
+    const fundamentalQuery = `
+      SELECT f.symbol, f.pe_ratio, f.market_cap, f.sector, f.industry,
+             p.close as current_price, p.volume, p.date as price_date
+      FROM fundamental_metrics f
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) symbol, close, volume, date
+        FROM price_daily
+        WHERE symbol IN (${placeholders})
+        ORDER BY symbol, date DESC
+      ) p ON f.symbol = p.symbol
+      WHERE f.symbol IN (${placeholders})
+    `;
+
+    const result = await query(fundamentalQuery, symbolList);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No comparison data found",
+        message: `No fundamental or price data available for symbols: ${symbolList.join(", ")}`,
+        symbols: symbolList
+      });
+    }
+
+    const comparison = result.rows.map(row => ({
+      symbol: row.symbol,
+      price: row.current_price ? parseFloat(row.current_price) : null,
+      volume: row.volume ? parseInt(row.volume) : null,
+      pe_ratio: row.pe_ratio ? parseFloat(row.pe_ratio) : null,
+      market_cap: row.market_cap ? parseInt(row.market_cap) : null,
+      sector: row.sector,
+      industry: row.industry,
+      price_date: row.price_date,
+      source: "yfinance_loaders"
+    }));
+
+    return res.json({
       success: true,
       data: {
-        comparison: symbolList.map((symbol) => ({
-          symbol: symbol.toUpperCase(),
-          price: Math.random() * 200 + 50,
-          volume: Math.floor(Math.random() * 10000000),
-          pe_ratio: Math.random() * 30 + 10,
-        })),
+        comparison: comparison,
         metrics: metrics.split(","),
-        count: symbolList.length,
+        count: comparison.length,
+        source: "fundamental_metrics_and_price_daily_tables"
       },
       timestamp: new Date().toISOString(),
     });
@@ -2350,30 +2386,53 @@ router.get("/price/:symbol", async (req, res) => {
       `Stock price requested for ${symbol}, timeframe: ${timeframe}, historical: ${historical}`
     );
 
-    // Generate realistic price data
-    const basePrice = Math.random() * 200 + 50;
+    // Query actual price data from price_daily table
+    const symbolUpper = symbol.toUpperCase();
+
+    // Get latest price data
+    const priceQuery = `
+      SELECT symbol, date, open, high, low, close, adj_close, volume
+      FROM price_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT ${historical ? parseInt(days) || 30 : 1}
+    `;
+
+    const result = await query(priceQuery, [symbolUpper]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No price data found",
+        message: `No price data available for symbol ${symbolUpper}`,
+        symbol: symbolUpper
+      });
+    }
+
+    const latestPrice = result.rows[0];
     const priceData = {
-      symbol: symbol.toUpperCase(),
-      current_price: basePrice,
-      change: (Math.random() - 0.5) * 10,
-      change_percent: (Math.random() - 0.5) * 5,
-      volume: Math.floor(Math.random() * 10000000) + 1000000,
-      market_cap: Math.floor(
-        basePrice * (Math.random() * 500000000 + 100000000)
-      ),
+      symbol: symbolUpper,
+      current_price: parseFloat(latestPrice.close),
+      open: parseFloat(latestPrice.open),
+      high: parseFloat(latestPrice.high),
+      low: parseFloat(latestPrice.low),
+      volume: parseInt(latestPrice.volume),
+      date: latestPrice.date,
+      source: "price_daily_table"
     };
 
-    if (historical) {
-      priceData.historical = Array.from({ length: parseInt(days) }, (_, i) => ({
-        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
-        price: basePrice * (0.95 + Math.random() * 0.1),
-        volume: Math.floor(Math.random() * 5000000) + 500000,
+    if (historical && result.rows.length > 1) {
+      priceData.historical = result.rows.map(row => ({
+        date: row.date,
+        open: parseFloat(row.open),
+        high: parseFloat(row.high),
+        low: parseFloat(row.low),
+        close: parseFloat(row.close),
+        volume: parseInt(row.volume)
       }));
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: priceData,
       timeframe,
@@ -3317,88 +3376,17 @@ router.post("/init-price-data", authenticateToken, async (req, res) => {
       ? new Date(start_date)
       : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000); // 1 year ago
 
-    // Generate realistic price data for each symbol
-    const initializationResults = [];
-
-    for (const symbol of symbols.slice(0, 50)) {
-      // Limit to 50 symbols for performance
-      const priceData = generateHistoricalPriceData(
-        symbol,
-        startDate,
-        endDate,
-        frequency
-      );
-
-      // In a real implementation, this would save to database
-      // For demo purposes, we'll simulate the process
-      const result = {
-        symbol: symbol,
-        records_generated: priceData.length,
-        date_range: {
-          start: startDate.toISOString().split("T")[0],
-          end: endDate.toISOString().split("T")[0],
-        },
-        frequency: frequency,
-        sample_data: priceData.slice(0, 3), // First 3 records as sample
-        latest_price: priceData[priceData.length - 1],
-        price_stats: {
-          highest: Math.max(...priceData.map((p) => p.high)),
-          lowest: Math.min(...priceData.map((p) => p.low)),
-          avg_volume: Math.round(
-            priceData.reduce((sum, p) => sum + p.volume, 0) / priceData.length
-          ),
-          total_trading_days: priceData.length,
-        },
-      };
-
-      initializationResults.push(result);
-    }
-
-    // Calculate summary statistics
-    const totalRecords = initializationResults.reduce(
-      (sum, r) => sum + r.records_generated,
-      0
-    );
-    const avgPriceChange = initializationResults.map((r) => {
-      const first = r.sample_data[0];
-      const last = r.latest_price;
-      return ((last.close - first.open) / first.open) * 100;
-    });
-
-    res.json({
-      success: true,
-      message: "Price data initialization completed",
-      data: {
-        initialization_results: initializationResults,
-        summary: {
-          symbols_processed: initializationResults.length,
-          total_records_generated: totalRecords,
-          date_range: {
-            start: startDate.toISOString().split("T")[0],
-            end: endDate.toISOString().split("T")[0],
-            days_covered: Math.ceil(
-              (endDate - startDate) / (24 * 60 * 60 * 1000)
-            ),
-          },
-          frequency: frequency,
-          avg_price_change_percent:
-            avgPriceChange.length > 0
-              ? parseFloat(
-                  (
-                    avgPriceChange.reduce((a, b) => a + b, 0) /
-                    avgPriceChange.length
-                  ).toFixed(2)
-                )
-              : 0,
-          force_refresh: force_refresh,
-        },
-        processing_time: `${Math.random() * 2000 + 500}ms`, // Simulated processing time
-        data_source: "simulation", // In real app would be external API
-        next_update_recommendation: new Date(
-          Date.now() + 24 * 60 * 60 * 1000
-        ).toISOString(), // Tomorrow
+    // Should initialize actual price data in database instead of generating mock data
+    return res.status(404).json({
+      success: false,
+      error: "Price data initialization not available",
+      message: "Real price data initialization is not currently implemented",
+      symbols_requested: symbols.slice(0, 50),
+      date_range: {
+        start: startDate.toISOString().split("T")[0],
+        end: endDate.toISOString().split("T")[0]
       },
-      timestamp: new Date().toISOString(),
+      frequency: frequency
     });
   } catch (error) {
     console.error("Price data initialization error:", error);
@@ -3411,69 +3399,8 @@ router.post("/init-price-data", authenticateToken, async (req, res) => {
   }
 });
 
-// Helper function to generate realistic historical price data
-function generateHistoricalPriceData(
-  symbol,
-  startDate,
-  endDate,
-  frequency = "daily"
-) {
-  const priceData = [];
-  const current = new Date(startDate);
-  const end = new Date(endDate);
-
-  // Base price for the symbol (simulate different price ranges)
-  const basePrice = symbol.length * 10 + Math.random() * 100 + 20;
-  let currentPrice = basePrice;
-
-  while (current <= end) {
-    // Skip weekends for daily data
-    if (
-      frequency === "daily" &&
-      (current.getDay() === 0 || current.getDay() === 6)
-    ) {
-      current.setDate(current.getDate() + 1);
-      continue;
-    }
-
-    // Generate realistic price movement (random walk with slight upward bias)
-    const priceChange = (Math.random() - 0.48) * currentPrice * 0.05; // Slight upward bias
-    currentPrice = Math.max(currentPrice + priceChange, 0.01); // Prevent negative prices
-
-    const dailyVolatility = Math.random() * 0.03 + 0.01; // 1-4% daily volatility
-    const high = currentPrice * (1 + dailyVolatility);
-    const low = currentPrice * (1 - dailyVolatility);
-    const open = currentPrice + (Math.random() - 0.5) * currentPrice * 0.02;
-    const close = currentPrice;
-
-    // Generate realistic volume (higher volume on larger price movements)
-    const volumeBase = 1000000 + Math.random() * 5000000;
-    const volumeMultiplier = 1 + Math.abs(priceChange / currentPrice) * 5;
-    const volume = Math.round(volumeBase * volumeMultiplier);
-
-    priceData.push({
-      date: current.toISOString().split("T")[0],
-      open: parseFloat(open.toFixed(2)),
-      high: parseFloat(high.toFixed(2)),
-      low: parseFloat(low.toFixed(2)),
-      close: parseFloat(close.toFixed(2)),
-      volume: volume,
-      symbol: symbol,
-      frequency: frequency,
-    });
-
-    // Move to next period
-    if (frequency === "weekly") {
-      current.setDate(current.getDate() + 7);
-    } else if (frequency === "monthly") {
-      current.setMonth(current.getMonth() + 1);
-    } else {
-      current.setDate(current.getDate() + 1);
-    }
-  }
-
-  return priceData;
-}
+// Removed mock historical price data generation function
+// Should query actual historical price data from database instead
 
 // Alternative route patterns for compatibility
 // Route: GET /stocks/:symbol/quote (alternative to /stocks/quote/:symbol)
@@ -3891,17 +3818,53 @@ router.get("/compare", async (req, res) => {
 
     const symbolList = symbols.split(",").slice(0, 10); // Limit to 10 stocks
 
-    res.json({
+    // Query actual stock comparison data from fundamental_metrics and price_daily tables
+    const placeholders = symbolList.map((_, i) => `$${i + 1}`).join(',');
+
+    // Get fundamental metrics for comparison
+    const fundamentalQuery = `
+      SELECT f.symbol, f.pe_ratio, f.market_cap, f.sector, f.industry,
+             p.close as current_price, p.volume, p.date as price_date
+      FROM fundamental_metrics f
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) symbol, close, volume, date
+        FROM price_daily
+        WHERE symbol IN (${placeholders})
+        ORDER BY symbol, date DESC
+      ) p ON f.symbol = p.symbol
+      WHERE f.symbol IN (${placeholders})
+    `;
+
+    const result = await query(fundamentalQuery, symbolList);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No comparison data found",
+        message: `No fundamental or price data available for symbols: ${symbolList.join(", ")}`,
+        symbols: symbolList
+      });
+    }
+
+    const comparison = result.rows.map(row => ({
+      symbol: row.symbol,
+      price: row.current_price ? parseFloat(row.current_price) : null,
+      volume: row.volume ? parseInt(row.volume) : null,
+      pe_ratio: row.pe_ratio ? parseFloat(row.pe_ratio) : null,
+      market_cap: row.market_cap ? parseInt(row.market_cap) : null,
+      sector: row.sector,
+      industry: row.industry,
+      price_date: row.price_date,
+      source: "yfinance_loaders"
+    }));
+
+    return res.json({
       success: true,
       data: {
-        comparison: symbolList.map((symbol) => ({
-          symbol: symbol.toUpperCase(),
-          price: Math.random() * 200 + 50,
-          volume: Math.floor(Math.random() * 10000000),
-          pe_ratio: Math.random() * 30 + 10,
-        })),
+        comparison: comparison,
         metrics: metrics.split(","),
-        count: symbolList.length,
+        count: comparison.length,
+        source: "fundamental_metrics_and_price_daily_tables"
       },
       timestamp: new Date().toISOString(),
     });
@@ -4014,30 +3977,53 @@ router.get("/price/:symbol", async (req, res) => {
       `Stock price requested for ${symbol}, timeframe: ${timeframe}, historical: ${historical}`
     );
 
-    // Generate realistic price data
-    const basePrice = Math.random() * 200 + 50;
+    // Query actual price data from price_daily table
+    const symbolUpper = symbol.toUpperCase();
+
+    // Get latest price data
+    const priceQuery = `
+      SELECT symbol, date, open, high, low, close, adj_close, volume
+      FROM price_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT ${historical ? parseInt(days) || 30 : 1}
+    `;
+
+    const result = await query(priceQuery, [symbolUpper]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No price data found",
+        message: `No price data available for symbol ${symbolUpper}`,
+        symbol: symbolUpper
+      });
+    }
+
+    const latestPrice = result.rows[0];
     const priceData = {
-      symbol: symbol.toUpperCase(),
-      current_price: basePrice,
-      change: (Math.random() - 0.5) * 10,
-      change_percent: (Math.random() - 0.5) * 5,
-      volume: Math.floor(Math.random() * 10000000) + 1000000,
-      market_cap: Math.floor(
-        basePrice * (Math.random() * 500000000 + 100000000)
-      ),
+      symbol: symbolUpper,
+      current_price: parseFloat(latestPrice.close),
+      open: parseFloat(latestPrice.open),
+      high: parseFloat(latestPrice.high),
+      low: parseFloat(latestPrice.low),
+      volume: parseInt(latestPrice.volume),
+      date: latestPrice.date,
+      source: "price_daily_table"
     };
 
-    if (historical) {
-      priceData.historical = Array.from({ length: parseInt(days) }, (_, i) => ({
-        date: new Date(Date.now() - i * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
-        price: basePrice * (0.95 + Math.random() * 0.1),
-        volume: Math.floor(Math.random() * 5000000) + 500000,
+    if (historical && result.rows.length > 1) {
+      priceData.historical = result.rows.map(row => ({
+        date: row.date,
+        open: parseFloat(row.open),
+        high: parseFloat(row.high),
+        low: parseFloat(row.low),
+        close: parseFloat(row.close),
+        volume: parseInt(row.volume)
       }));
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: priceData,
       timeframe,

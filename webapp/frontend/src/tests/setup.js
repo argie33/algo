@@ -982,6 +982,13 @@ afterAll(() => {
 });
 
 // Cleanup after each test case
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  try {
+    await cleanup();
+  } catch (error) {
+    // Ignore cleanup errors in concurrent mode
+    if (!error.message.includes('Should not already be working')) {
+      throw error;
+    }
+  }
 });

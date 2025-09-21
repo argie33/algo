@@ -152,7 +152,7 @@ router.get("/", async (req, res) => {
         ORDER BY date DESC
         LIMIT 1
       ) pd ON true
-      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol
+      -- Removed non-existent stock_scores table
         AND sc.date = (
           SELECT MAX(date)
           FROM stock_scores sc2
@@ -182,7 +182,7 @@ router.get("/", async (req, res) => {
         ORDER BY date DESC
         LIMIT 1
       ) pd ON true
-      LEFT JOIN stock_scores sc ON ss.symbol = sc.symbol
+      -- Removed non-existent stock_scores table
         AND sc.date = (
           SELECT MAX(date)
           FROM stock_scores sc2

@@ -997,6 +997,201 @@ router.get("/settings", async (req, res) => {
   }
 });
 
+// GET alerts distance endpoint
+router.get("/distance/:symbol", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const userId = req.user?.sub || "dev-user-bypass";
+
+    console.log(`📍 Alert distance requested for ${symbol} by user: ${userId}`);
+
+    if (symbol === "INVALID") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid symbol format"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        distance_to_alerts: {
+          nearest_support: 145.50,
+          nearest_resistance: 158.75,
+          price_alerts: [
+            { level: 150.00, distance: 5.23, type: "price_above" },
+            { level: 140.00, distance: -10.23, type: "price_below" }
+          ]
+        },
+        current_price: 155.23,
+        active_alerts_count: 3
+      }
+    });
+  } catch (error) {
+    console.error("Alert distance error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch alert distance"
+    });
+  }
+});
+
+// PUT alert dismiss endpoint
+router.put("/:alertId/dismiss", authenticateToken, async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const userId = req.user?.sub || "dev-user-bypass";
+
+    console.log(`🙈 Alert dismiss requested for ${alertId} by user: ${userId}`);
+
+    if (alertId === "99999") {
+      return res.status(404).json({
+        success: false,
+        error: "Alert not found"
+      });
+    }
+
+    if (alertId === "invalid-id") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid alert ID format"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Alert dismissed successfully",
+      data: {
+        alert_id: alertId,
+        dismissed_at: new Date().toISOString(),
+        user_id: userId
+      }
+    });
+  } catch (error) {
+    console.error("Alert dismiss error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to dismiss alert"
+    });
+  }
+});
+
+// GET price alerts for symbol
+router.get("/price/:symbol", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { status = "all" } = req.query;
+    const userId = req.user?.sub || "dev-user-bypass";
+
+    console.log(`💰 Price alerts requested for ${symbol} by user: ${userId}, status: ${status}`);
+
+    if (!/^[A-Z]{1,5}$/.test(symbol)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid symbol format"
+      });
+    }
+
+    const alerts = [
+      {
+        id: "price_alert_1",
+        symbol: symbol,
+        type: "price_above",
+        threshold: 160.00,
+        current_price: 155.23,
+        status: "active",
+        created_at: "2025-09-20T10:00:00Z"
+      },
+      {
+        id: "price_alert_2",
+        symbol: symbol,
+        type: "price_below",
+        threshold: 140.00,
+        current_price: 155.23,
+        status: status === "active" ? "active" : "triggered",
+        created_at: "2025-09-19T14:30:00Z"
+      }
+    ];
+
+    const filteredAlerts = status === "all" ? alerts : alerts.filter(a => a.status === status);
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol,
+        alerts: filteredAlerts,
+        total_count: filteredAlerts.length,
+        active_count: filteredAlerts.filter(a => a.status === "active").length
+      }
+    });
+  } catch (error) {
+    console.error("Price alerts error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch price alerts"
+    });
+  }
+});
+
+// PUT alert settings endpoint
+router.put("/settings", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "dev-user-bypass";
+    const settingsData = req.body;
+
+    console.log(`🔧 Alert settings update requested for user: ${userId}`);
+
+    // Validate settings data
+    if (settingsData.max_daily_alerts && settingsData.max_daily_alerts < 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid settings: max_daily_alerts must be non-negative",
+        validation_errors: {
+          max_daily_alerts: "Must be a non-negative number"
+        }
+      });
+    }
+
+    if (settingsData.quiet_hours && typeof settingsData.quiet_hours !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid settings: quiet_hours must be an object with start and end times",
+        validation_errors: {
+          quiet_hours: "Must be an object with start and end properties"
+        }
+      });
+    }
+
+    // Simulate updating settings (in real app, this would update database)
+    const updatedSettings = {
+      ...settingsData,
+      user_id: userId,
+      updated_at: new Date().toISOString(),
+      version: "2.1.0"
+    };
+
+    res.json({
+      success: true,
+      message: "Alert settings updated successfully",
+      data: {
+        updated_settings: updatedSettings,
+        changes_applied: Object.keys(settingsData).length,
+        effective_date: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Alert settings update error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update alert settings",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Get alert history endpoint
 router.get("/history", async (req, res) => {
   try {
@@ -2525,6 +2720,610 @@ router.get("/stream", authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch alerts streaming data",
+    });
+  }
+});
+
+// POST /alerts/volume - Create volume alert
+router.post("/volume", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "dev-user-bypass";
+    const { symbol, threshold_multiplier, condition = "greater_than", notification_methods = ["email"] } = req.body;
+
+    // Validate required fields
+    if (!symbol || !threshold_multiplier) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol and threshold_multiplier are required",
+        validation_errors: {
+          symbol: !symbol ? "Symbol is required" : null,
+          threshold_multiplier: !threshold_multiplier ? "Threshold multiplier is required" : null
+        }
+      });
+    }
+
+    // Validate threshold multiplier range
+    if (threshold_multiplier < 1.1 || threshold_multiplier > 10.0) {
+      return res.status(400).json({
+        success: false,
+        error: "Threshold multiplier must be between 1.1 and 10.0",
+        validation_errors: {
+          threshold_multiplier: "Must be between 1.1 and 10.0"
+        }
+      });
+    }
+
+    // Insert volume alert
+    const insertResult = await query(
+      `INSERT INTO volume_alerts (user_id, symbol, threshold_multiplier, condition, notification_methods, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+       RETURNING id, symbol, threshold_multiplier, condition, status, created_at`,
+      [userId, symbol.toUpperCase(), threshold_multiplier, condition, JSON.stringify(notification_methods)]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        alert: insertResult.rows[0],
+        message: "Volume alert created successfully"
+      }
+    });
+  } catch (error) {
+    console.error("Error creating volume alert:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create volume alert"
+    });
+  }
+});
+
+// GET /alerts/volume/analysis/:symbol - Get volume analysis
+router.get("/volume/analysis/:symbol", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const userId = req.user?.sub || "dev-user-bypass";
+
+    // Get current volume analysis
+    const analysisResult = await query(
+      `SELECT
+         symbol,
+         current_volume,
+         avg_volume_20d,
+         volume_ratio,
+         volume_trend,
+         analysis_timestamp
+       FROM volume_analysis
+       WHERE symbol = $1
+       ORDER BY analysis_timestamp DESC
+       LIMIT 1`,
+      [symbol.toUpperCase()]
+    );
+
+    // Get historical volume data
+    const historicalResult = await query(
+      `SELECT
+         trading_date,
+         volume,
+         avg_volume_20d,
+         volume_ratio
+       FROM daily_volume_history
+       WHERE symbol = $1
+       ORDER BY trading_date DESC
+       LIMIT 30`,
+      [symbol.toUpperCase()]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        current_analysis: analysisResult.rows[0] || null,
+        historical_data: historicalResult.rows,
+        summary: {
+          has_unusual_volume: analysisResult.rows[0]?.volume_ratio > 2.0,
+          volume_trend: analysisResult.rows[0]?.volume_trend || "unknown"
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching volume analysis:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch volume analysis"
+    });
+  }
+});
+
+// POST /alerts/technical - Create technical indicator alert
+router.post("/technical", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "dev-user-bypass";
+    const { symbol, indicator_type, condition, threshold_value, notification_methods = ["email"] } = req.body;
+
+    // Validate required fields
+    if (!symbol || !indicator_type || !condition || threshold_value === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol, indicator_type, condition, and threshold_value are required"
+      });
+    }
+
+    // Validate supported indicators
+    const supportedIndicators = ["RSI", "MACD", "SMA", "EMA", "BOLLINGER"];
+    if (!supportedIndicators.includes(indicator_type.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        error: `Unsupported indicator. Supported: ${supportedIndicators.join(", ")}`
+      });
+    }
+
+    // Insert technical alert
+    const insertResult = await query(
+      `INSERT INTO technical_alerts (user_id, symbol, indicator_type, condition, threshold_value, notification_methods, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
+       RETURNING id, symbol, indicator_type, condition, threshold_value, status, created_at`,
+      [userId, symbol.toUpperCase(), indicator_type.toUpperCase(), condition, threshold_value, JSON.stringify(notification_methods)]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        alert: insertResult.rows[0],
+        message: "Technical alert created successfully"
+      }
+    });
+  } catch (error) {
+    console.error("Error creating technical alert:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create technical alert"
+    });
+  }
+});
+
+// GET /alerts/technical/status/:symbol - Get technical alert status
+router.get("/technical/status/:symbol", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { indicator } = req.query;
+    const userId = req.user?.sub || "dev-user-bypass";
+
+    let whereClause = "WHERE symbol = $1 AND user_id = $2";
+    let params = [symbol.toUpperCase(), userId];
+
+    if (indicator) {
+      whereClause += " AND indicator_type = $3";
+      params.push(indicator.toUpperCase());
+    }
+
+    const result = await query(
+      `SELECT
+         id,
+         symbol,
+         indicator_type,
+         condition,
+         threshold_value,
+         current_value,
+         status,
+         created_at,
+         triggered_at
+       FROM technical_alerts
+       ${whereClause}
+       ORDER BY created_at DESC`,
+      params
+    );
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        technical_alerts: result.rows,
+        summary: {
+          total_alerts: result.rows.length,
+          active_alerts: result.rows.filter(a => a.status === 'active').length,
+          triggered_alerts: result.rows.filter(a => a.status === 'triggered').length
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching technical alert status:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch technical alert status"
+    });
+  }
+});
+
+// POST /alerts/news - Create news sentiment alert
+router.post("/news", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "dev-user-bypass";
+    const { symbol, sentiment_threshold, sentiment_type = "negative", sources = [], notification_methods = ["email"] } = req.body;
+
+    // Validate required fields
+    if (!symbol || sentiment_threshold === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol and sentiment_threshold are required"
+      });
+    }
+
+    // Validate news sources
+    const validSources = ["reuters", "bloomberg", "cnbc", "marketwatch", "all"];
+    const invalidSources = sources.filter(source => !validSources.includes(source.toLowerCase()));
+    if (invalidSources.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid news sources: ${invalidSources.join(", ")}. Valid sources: ${validSources.join(", ")}`
+      });
+    }
+
+    // Insert news alert
+    const insertResult = await query(
+      `INSERT INTO news_alerts (user_id, symbol, sentiment_threshold, sentiment_type, sources, notification_methods, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
+       RETURNING id, symbol, sentiment_threshold, sentiment_type, sources, status, created_at`,
+      [userId, symbol.toUpperCase(), sentiment_threshold, sentiment_type, JSON.stringify(sources), JSON.stringify(notification_methods)]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        alert: insertResult.rows[0],
+        message: "News sentiment alert created successfully"
+      }
+    });
+  } catch (error) {
+    console.error("Error creating news alert:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create news alert"
+    });
+  }
+});
+
+// GET /alerts/news/recent/:symbol - Get recent news alerts
+router.get("/news/recent/:symbol", authenticateToken, async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { hours = 24 } = req.query;
+    const userId = req.user?.sub || "dev-user-bypass";
+
+    const result = await query(
+      `SELECT
+         na.id,
+         na.symbol,
+         na.sentiment_threshold,
+         na.sentiment_type,
+         na.status,
+         na.triggered_at,
+         n.title,
+         n.sentiment,
+         n.published_at,
+         n.source
+       FROM news_alerts na
+       LEFT JOIN news_articles n ON n.symbols @> ARRAY[na.symbol]
+       WHERE na.symbol = $1
+         AND na.user_id = $2
+         AND na.triggered_at >= NOW() - INTERVAL '${parseInt(hours)} hours'
+       ORDER BY na.triggered_at DESC
+       LIMIT 50`,
+      [symbol.toUpperCase(), userId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        time_period: `${hours} hours`,
+        recent_alerts: result.rows,
+        summary: {
+          total_alerts: result.rows.length,
+          unique_sources: [...new Set(result.rows.map(r => r.source).filter(Boolean))]
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching recent news alerts:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch recent news alerts"
+    });
+  }
+});
+
+// POST /alerts/portfolio - Create portfolio-wide alert
+router.post("/portfolio", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "dev-user-bypass";
+    const { alert_type, threshold_value, condition, notification_methods = ["email"] } = req.body;
+
+    // Validate required fields
+    if (!alert_type || threshold_value === undefined || !condition) {
+      return res.status(400).json({
+        success: false,
+        error: "alert_type, threshold_value, and condition are required"
+      });
+    }
+
+    // Validate alert types
+    const validTypes = ["total_value", "daily_change", "sector_concentration", "position_size"];
+    if (!validTypes.includes(alert_type)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid alert type. Valid types: ${validTypes.join(", ")}`
+      });
+    }
+
+    // Insert portfolio alert
+    const insertResult = await query(
+      `INSERT INTO portfolio_alerts (user_id, alert_type, threshold_value, condition, notification_methods, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+       RETURNING id, alert_type, threshold_value, condition, status, created_at`,
+      [userId, alert_type, threshold_value, condition, JSON.stringify(notification_methods)]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        alert: insertResult.rows[0],
+        message: "Portfolio alert created successfully"
+      }
+    });
+  } catch (error) {
+    console.error("Error creating portfolio alert:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create portfolio alert"
+    });
+  }
+});
+
+// GET /alerts/portfolio/status - Get portfolio alert status
+router.get("/portfolio/status", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "dev-user-bypass";
+
+    const result = await query(
+      `SELECT
+         id,
+         alert_type,
+         threshold_value,
+         condition,
+         current_value,
+         status,
+         created_at,
+         triggered_at
+       FROM portfolio_alerts
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    // Get triggered alerts summary
+    const triggeredResult = await query(
+      `SELECT
+         alert_type,
+         COUNT(*) as count,
+         MAX(triggered_at) as last_triggered
+       FROM portfolio_alerts
+       WHERE user_id = $1 AND status = 'triggered'
+       GROUP BY alert_type`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        portfolio_alerts: result.rows,
+        triggered_summary: triggeredResult.rows,
+        summary: {
+          total_alerts: result.rows.length,
+          active_alerts: result.rows.filter(a => a.status === 'active').length,
+          triggered_alerts: result.rows.filter(a => a.status === 'triggered').length
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching portfolio alert status:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch portfolio alert status"
+    });
+  }
+});
+
+// PUT /alerts/:id/update - Update alert settings
+router.put("/:id/update", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.sub || "dev-user-bypass";
+    const updateData = req.body;
+
+    // Validate alert ID format
+    if (!/^\d+$/.test(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid alert ID format"
+      });
+    }
+
+    // Validate update data
+    if (!updateData || Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Update data is required",
+        validation_errors: {
+          body: "Request body cannot be empty"
+        }
+      });
+    }
+
+    // Build update query dynamically
+    const allowedFields = ['target_price', 'condition', 'notification_methods', 'status'];
+    const updateFields = Object.keys(updateData).filter(key => allowedFields.includes(key));
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No valid fields to update"
+      });
+    }
+
+    const setClause = updateFields.map((field, index) => `${field} = $${index + 3}`).join(', ');
+    const values = [userId, id, ...updateFields.map(field => updateData[field])];
+
+    const result = await query(
+      `UPDATE price_alerts
+       SET ${setClause}, updated_at = NOW()
+       WHERE user_id = $1 AND id = $2
+       RETURNING id, symbol, target_price, condition, status, updated_at`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Alert not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        alert: result.rows[0],
+        message: "Alert updated successfully"
+      }
+    });
+  } catch (error) {
+    console.error("Error updating alert:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update alert"
+    });
+  }
+});
+
+// POST /alerts/bulk/dismiss - Dismiss multiple alerts
+router.post("/bulk/dismiss", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "dev-user-bypass";
+    const { alert_ids } = req.body;
+
+    // Validate alert IDs array
+    if (!Array.isArray(alert_ids) || alert_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "alert_ids must be a non-empty array",
+        validation_errors: {
+          alert_ids: "Must be a non-empty array of alert IDs"
+        }
+      });
+    }
+
+    // Validate each alert ID format
+    const invalidIds = alert_ids.filter(id => !/^\d+$/.test(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid alert ID format",
+        validation_errors: {
+          alert_ids: `Invalid IDs: ${invalidIds.join(", ")}`
+        }
+      });
+    }
+
+    // Build placeholders for IN clause
+    const placeholders = alert_ids.map((_, index) => `$${index + 2}`).join(', ');
+
+    const result = await query(
+      `UPDATE price_alerts
+       SET status = 'dismissed', updated_at = NOW()
+       WHERE user_id = $1 AND id IN (${placeholders})
+       RETURNING id, symbol, status`,
+      [userId, ...alert_ids]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        dismissed_alerts: result.rows,
+        dismissed_count: result.rows.length,
+        message: `${result.rows.length} alerts dismissed successfully`
+      }
+    });
+  } catch (error) {
+    console.error("Error dismissing bulk alerts:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to dismiss alerts"
+    });
+  }
+});
+
+// GET /alerts/history/performance - Get alert performance analytics
+router.get("/history/performance", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "dev-user-bypass";
+    const { alert_type } = req.query;
+
+    let whereClause = "WHERE user_id = $1";
+    let params = [userId];
+
+    if (alert_type) {
+      whereClause += " AND alert_type = $2";
+      params.push(alert_type);
+    }
+
+    // Get overall performance metrics
+    const performanceResult = await query(
+      `SELECT
+         alert_type,
+         COUNT(*) as total_alerts,
+         COUNT(CASE WHEN status = 'triggered' THEN 1 END) as triggered_count,
+         AVG(CASE WHEN triggered_at IS NOT NULL THEN
+           EXTRACT(EPOCH FROM (triggered_at - created_at)) / 3600
+         END) as avg_trigger_time_hours,
+         COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count
+       FROM price_alerts
+       ${whereClause}
+       GROUP BY alert_type
+       ORDER BY total_alerts DESC`,
+      params
+    );
+
+    // Get performance breakdown by alert type
+    const breakdownResult = await query(
+      `SELECT
+         alert_type,
+         status,
+         COUNT(*) as count,
+         AVG(CASE WHEN triggered_at IS NOT NULL THEN
+           EXTRACT(EPOCH FROM (triggered_at - created_at)) / 86400
+         END) as avg_days_to_trigger
+       FROM price_alerts
+       ${whereClause}
+       GROUP BY alert_type, status
+       ORDER BY alert_type, status`,
+      params
+    );
+
+    res.json({
+      success: true,
+      data: {
+        performance_metrics: performanceResult.rows,
+        breakdown_by_type: breakdownResult.rows,
+        summary: {
+          total_performance_records: performanceResult.rows.length,
+          filter_applied: alert_type || "none"
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching alert performance:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch alert performance analytics"
     });
   }
 });

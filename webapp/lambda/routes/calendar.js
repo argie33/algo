@@ -105,68 +105,20 @@ router.get("/earnings", async (req, res) => {
     whereClause += ` ORDER BY report_date ASC, symbol ASC LIMIT $${paramIndex}`;
     params.push(parsedLimit);
 
-    // First check what columns actually exist in earnings_reports table
-    let availableColumns;
-    try {
-      const columnCheck = await query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'earnings_reports'
-        ORDER BY ordinal_position
-      `);
-      availableColumns = columnCheck.rows.map((row) => row.column_name);
-      console.log("Available earnings_reports columns:", availableColumns);
-    } catch (error) {
-      console.error(
-        "Could not check earnings_reports table structure:",
-        error.message
-      );
-      throw new Error(
-        `Database table structure check failed: ${error.message}`
-      );
-    }
-
-    // Build dynamic query based on available columns
-    let selectColumns = ["symbol"];
-    const columnMap = {
-      report_date: "report_date",
-      announcement_date: "report_date",
-      date: "report_date",
-      quarter: "quarter",
-      qtr: "quarter",
-      year: "year",
-      fiscal_year: "year",
-      estimated_eps: "estimated_eps",
-      estimate: "estimated_eps",
-      consensus_eps: "estimated_eps",
-      actual_eps: "actual_eps",
-      reported_eps: "actual_eps",
-      surprise_percent: "surprise_percent",
-      surprise: "surprise_percent",
-    };
-
-    // Add available columns to select
-    Object.keys(columnMap).forEach((colVariant) => {
-      if (availableColumns.includes(colVariant)) {
-        const alias = columnMap[colVariant];
-        if (
-          !selectColumns.includes(`${colVariant} as ${alias}`) &&
-          !selectColumns.includes(alias)
-        ) {
-          selectColumns.push(
-            alias !== colVariant ? `${colVariant} as ${alias}` : colVariant
-          );
-        }
-      }
-    });
-
-    console.log("Using select columns:", selectColumns);
-
+    // Use actual earnings_history table from yfinance loaders
     const result = await query(
       `
-      SELECT ${selectColumns.join(", ")}
-      FROM earnings_reports
-      ${whereClause}
+      SELECT
+        eh.symbol,
+        eh.quarter as report_date,
+        eh.eps_actual,
+        eh.eps_estimate,
+        eh.eps_difference,
+        eh.surprise_percent,
+        EXTRACT(QUARTER FROM eh.quarter) as quarter,
+        EXTRACT(YEAR FROM eh.quarter) as year
+      FROM earnings_history eh
+      ${whereClause.replace('report_date', 'eh.quarter')}
       `,
       params
     );
@@ -189,24 +141,24 @@ router.get("/earnings", async (req, res) => {
       });
     }
 
-    // Transform and enrich the data with real database values
+    // Transform and enrich the data with real database values from earnings_history
     const earnings = result.rows.map((row) => ({
       symbol: row.symbol,
-      company_name: null, // Will be populated from stocks table if available
+      company_name: null, // Will be populated from company_profile table if available
       sector: null,
       market_cap: null,
       report_date: row.report_date,
-      quarter: parseInt(row.quarter || 1),
-      year: parseInt(row.year || new Date().getFullYear()),
-      period: `Q${row.quarter || 1} ${row.year || new Date().getFullYear()}`,
-      estimated_eps: row.estimated_eps
-        ? parseFloat(row.estimated_eps).toFixed(2)
+      quarter: parseInt(row.quarter),
+      year: parseInt(row.year),
+      period: `Q${row.quarter} ${row.year}`,
+      estimated_eps: row.eps_estimate
+        ? parseFloat(row.eps_estimate).toFixed(2)
         : null,
-      actual_eps: row.actual_eps ? parseFloat(row.actual_eps).toFixed(2) : null,
+      actual_eps: row.eps_actual ? parseFloat(row.eps_actual).toFixed(2) : null,
       surprise_percent: row.surprise_percent
         ? parseFloat(row.surprise_percent).toFixed(2)
         : null,
-      status: row.actual_eps ? "reported" : "upcoming",
+      status: row.eps_actual ? "reported" : "upcoming",
       days_until: row.report_date
         ? Math.ceil(
             (new Date(row.report_date) - new Date()) / (1000 * 60 * 60 * 24)
@@ -424,27 +376,27 @@ router.get("/events", async (req, res) => {
     console.log("Using whereClause:", whereClause);
 
     const eventsQuery = `
-      SELECT 
-        er.symbol,
+      SELECT
+        eh.symbol,
         'earnings' as event_type,
-        er.report_date as start_date,
-        er.report_date as end_date,
-        CONCAT('Q', er.quarter, ' ', er.year, ' Earnings Report') as title,
+        eh.quarter as start_date,
+        eh.quarter as end_date,
+        CONCAT('Q', EXTRACT(QUARTER FROM eh.quarter), ' ', EXTRACT(YEAR FROM eh.quarter), ' Earnings Report') as title,
         cp.short_name as company_name,
-        er.eps_estimate,
-        er.eps_reported,
-        er.revenue
-      FROM earnings_reports er
-      LEFT JOIN company_profile cp ON er.symbol = cp.ticker
-      ${whereClause}
-      ORDER BY er.report_date ASC
+        eh.eps_estimate,
+        eh.eps_actual as eps_reported,
+        NULL as revenue
+      FROM earnings_history eh
+      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
+      ${whereClause.replace(/er\./g, 'eh.').replace('report_date', 'quarter')}
+      ORDER BY eh.quarter ASC
       LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM earnings_reports er
-      ${whereClause}
+      FROM earnings_history eh
+      ${whereClause.replace(/er\./g, 'eh.').replace('report_date', 'quarter')}
     `;
     console.log("Executing queries with limit:", limit, "offset:", offset);
 
@@ -488,11 +440,25 @@ router.get("/events", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    // Return 404 when no events are found
+    // Return empty data when no events are found (not 404)
     if (!Array.isArray(eventsResult.rows) || eventsResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No data found for this query",
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+        summary: {
+          upcoming_events: 0,
+          this_week: 0,
+          filter: timeFilter,
+        },
+        message: "No calendar events found for the specified criteria"
       });
     }
 
@@ -563,44 +529,36 @@ router.get("/earnings-estimates", async (req, res) => {
     const offset = (page - 1) * limit;
 
     const estimatesQuery = `
-      SELECT 
-        eh.symbol,
+      SELECT
+        ee.symbol,
         cp.short_name as company_name,
-        eh.quarter as period,
-        eh.eps_estimate as avg_estimate,
-        eh.eps_estimate as low_estimate,
-        eh.eps_estimate as high_estimate,
-        1 as number_of_analysts,
-        CASE 
-          WHEN eh.eps_reported IS NOT NULL AND eh.eps_estimate IS NOT NULL 
-          THEN ((eh.eps_reported - eh.eps_estimate) / NULLIF(eh.eps_estimate, 0)) * 100
-          ELSE NULL
-        END as growth
-      FROM earnings_history eh
-      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
-      ORDER BY eh.symbol ASC, eh.quarter DESC
+        ee.period,
+        ee.avg_estimate,
+        ee.low_estimate,
+        ee.high_estimate,
+        ee.number_of_analysts,
+        ee.growth
+      FROM earnings_estimates ee
+      LEFT JOIN company_profile cp ON ee.symbol = cp.ticker
+      ORDER BY ee.symbol ASC, ee.period DESC
       LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM earnings_history
+      FROM earnings_estimates
     `;
 
     // Group and summarize by symbol for insights
     const summaryQuery = `
-      SELECT 
+      SELECT
         symbol,
         COUNT(*) as count,
-        AVG(CASE 
-          WHEN eps_reported IS NOT NULL AND eps_estimate IS NOT NULL 
-          THEN ((eps_reported - eps_estimate) / NULLIF(eps_estimate, 0)) * 100
-          ELSE NULL
-        END) as avg_growth,
-        AVG(eps_estimate) as avg_estimate,
-        MAX(eps_estimate) as max_estimate,
-        MIN(eps_estimate) as min_estimate
-      FROM earnings_history
+        AVG(growth) as avg_growth,
+        AVG(avg_estimate) as avg_estimate,
+        MAX(avg_estimate) as max_estimate,
+        MIN(avg_estimate) as min_estimate
+      FROM earnings_estimates
       GROUP BY symbol
       ORDER BY symbol ASC
     `;

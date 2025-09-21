@@ -103,11 +103,14 @@ const MarketStatusBar = () => {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
+  if (loading || !marketStatus) {
     return null;
   }
 
   const getSessionColor = () => {
+    if (!marketStatus?.session) {
+      return "default";
+    }
     switch (marketStatus.session) {
       case "Open":
         return "success";
@@ -142,12 +145,12 @@ const MarketStatusBar = () => {
         <Box display="flex" alignItems="center" gap={2}>
           <Chip
             icon={<Circle sx={{ fontSize: 12 }} />}
-            label={`Market Status: ${marketStatus.session}`}
+            label={`Market Status: ${marketStatus?.session || "Unknown"}`}
             color={getSessionColor()}
             size="small"
             sx={{ fontWeight: "bold" }}
           />
-          {marketStatus.nextChange && (
+          {marketStatus?.nextChange && (
             <Typography variant="caption" color="text.secondary">
               {marketStatus.nextChange}
             </Typography>
@@ -156,7 +159,7 @@ const MarketStatusBar = () => {
 
         {/* Market Indices */}
         <Box display="flex" alignItems="center" gap={3}>
-          {marketStatus.indices &&
+          {marketStatus?.indices &&
             (marketStatus.indices || []).map((index, i) => (
               <React.Fragment key={index.symbol}>
                 {i > 0 && <Divider orientation="vertical" flexItem />}

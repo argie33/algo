@@ -751,39 +751,38 @@ class DevAuthService {
 // Create service instance
 const devAuthService = new DevAuthService();
 
-// Override methods directly for test compatibility
-devAuthService.signUp = devAuthService.signUpWrapper;
-devAuthService.signIn = devAuthService.signInWrapper;
-devAuthService.getCurrentUser = devAuthService.getCurrentUserWrapper;
-devAuthService.signOut = devAuthService.signOutWrapper;
-devAuthService.forgotPassword = devAuthService.forgotPasswordWrapper;
-devAuthService.forgotPasswordSubmit =
-  devAuthService.confirmResetPasswordWrapper;
-devAuthService.changePassword = devAuthService.confirmResetPasswordWrapper;
+// Override methods directly for test compatibility - use arrow functions to preserve 'this'
+devAuthService.signUp = (...args) => {
+  // Handle both object and individual parameter formats for backward compatibility
+  if (args.length === 1 && typeof args[0] === 'object') {
+    return devAuthService.signUpWrapper(args[0]);
+  } else {
+    // Convert individual parameters to object format
+    const [username, password, email, firstName, lastName] = args;
+    return devAuthService.signUpWrapper({ username, password, email, firstName, lastName });
+  }
+};
+devAuthService.signIn = (...args) => devAuthService.signInWrapper(...args);
+devAuthService.getCurrentUser = (...args) => devAuthService.getCurrentUserWrapper(...args);
+devAuthService.signOut = (...args) => devAuthService.signOutWrapper(...args);
+devAuthService.forgotPassword = (...args) => devAuthService.forgotPasswordWrapper(...args);
+devAuthService.forgotPasswordSubmit = (...args) => devAuthService.confirmResetPasswordWrapper(...args);
+devAuthService.changePassword = (...args) => devAuthService.confirmResetPasswordWrapper(...args);
 
-// Ensure all methods are available on the instance
-devAuthService.generateVerificationCode =
-  devAuthService.generateVerificationCode.bind(devAuthService);
-devAuthService.generateDevTokens =
-  devAuthService.generateDevTokens.bind(devAuthService);
-devAuthService.loadUsers = devAuthService.loadUsers.bind(devAuthService);
-devAuthService.saveUsers = devAuthService.saveUsers.bind(devAuthService);
-devAuthService.loadSession = devAuthService.loadSession.bind(devAuthService);
-devAuthService.saveSession = devAuthService.saveSession.bind(devAuthService);
-devAuthService.loadPendingVerifications =
-  devAuthService.loadPendingVerifications.bind(devAuthService);
-devAuthService.savePendingVerifications =
-  devAuthService.savePendingVerifications.bind(devAuthService);
-devAuthService.confirmSignUp =
-  devAuthService.confirmSignUp.bind(devAuthService);
-devAuthService.validateJwtToken =
-  devAuthService.validateJwtToken.bind(devAuthService);
-devAuthService.isTokenExpired =
-  devAuthService.isTokenExpired.bind(devAuthService);
-devAuthService.confirmMFA = devAuthService.confirmMFA.bind(devAuthService);
-devAuthService.updateUserAttributes =
-  devAuthService.updateUserAttributes.bind(devAuthService);
-devAuthService.validatePassword =
-  devAuthService.validatePassword.bind(devAuthService);
+// Ensure all methods are available on the instance - use arrow functions to preserve 'this'
+devAuthService.generateVerificationCode = (...args) => DevAuthService.prototype.generateVerificationCode.call(devAuthService, ...args);
+devAuthService.generateDevTokens = (...args) => DevAuthService.prototype.generateDevTokens.call(devAuthService, ...args);
+devAuthService.loadUsers = (...args) => DevAuthService.prototype.loadUsers.call(devAuthService, ...args);
+devAuthService.saveUsers = (...args) => DevAuthService.prototype.saveUsers.call(devAuthService, ...args);
+devAuthService.loadSession = (...args) => DevAuthService.prototype.loadSession.call(devAuthService, ...args);
+devAuthService.saveSession = (...args) => DevAuthService.prototype.saveSession.call(devAuthService, ...args);
+devAuthService.loadPendingVerifications = (...args) => DevAuthService.prototype.loadPendingVerifications.call(devAuthService, ...args);
+devAuthService.savePendingVerifications = (...args) => DevAuthService.prototype.savePendingVerifications.call(devAuthService, ...args);
+devAuthService.confirmSignUp = (...args) => DevAuthService.prototype.confirmSignUp.call(devAuthService, ...args);
+devAuthService.validateJwtToken = (...args) => DevAuthService.prototype.validateJwtToken.call(devAuthService, ...args);
+devAuthService.isTokenExpired = (...args) => DevAuthService.prototype.isTokenExpired.call(devAuthService, ...args);
+devAuthService.confirmMFA = (...args) => DevAuthService.prototype.confirmMFA.call(devAuthService, ...args);
+devAuthService.updateUserAttributes = (...args) => DevAuthService.prototype.updateUserAttributes.call(devAuthService, ...args);
+devAuthService.validatePassword = (...args) => DevAuthService.prototype.validatePassword.call(devAuthService, ...args);
 
 export default devAuthService;

@@ -904,14 +904,19 @@ router.get("/summary/:timeframe", async (req, res) => {
     const result = await query(sqlQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query");
+      return res.status(404).json({
+        success: false,
+        error: "No data found for this query"
+      });
     }
 
     res.json({
       success: true,
-      data: result.rows[0],
-      timeframe,
-      period: "last_30_days",
+      data: {
+        summary: result.rows[0],
+        timeframe,
+        period: "last_30_days"
+      }
     });
   } catch (error) {
     console.error("Error fetching signals summary:", error);
@@ -994,19 +999,25 @@ router.get("/swing-signals", async (req, res) => {
       !Array.isArray(swingResult.rows) ||
       swingResult.rows.length === 0
     ) {
-      return res.notFound("No data found for this query");
+      return res.status(404).json({
+        success: false,
+        error: "No data found for this query"
+      });
     }
 
     res.json({
-      data: swingResult.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
+      success: true,
+      data: {
+        signals: swingResult.rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        }
+      }
     });
   } catch (error) {
     console.error("Error fetching swing signals:", error);
@@ -1062,13 +1073,19 @@ router.get("/:ticker/technicals", async (req, res) => {
     const result = await query(techQuery, [ticker.toUpperCase()]);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query");
+      return res.status(404).json({
+        success: false,
+        error: "No data found for this query"
+      });
     }
 
     res.json({
-      ticker: ticker.toUpperCase(),
-      timeframe,
-      data: result.rows[0],
+      success: true,
+      data: {
+        ticker: ticker.toUpperCase(),
+        timeframe,
+        technicals: result.rows[0]
+      }
     });
   } catch (error) {
     console.error("Error fetching technical indicators:", error);
@@ -1118,13 +1135,19 @@ router.get("/performance", async (req, res) => {
     const result = await query(performanceQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query");
+      return res.status(404).json({
+        success: false,
+        error: "No performance data found for this query"
+      });
     }
 
     res.json({
-      period_days: days,
-      performance: result.rows,
-      timestamp: new Date().toISOString(),
+      success: true,
+      data: {
+        period_days: days,
+        performance: result.rows,
+        timestamp: new Date().toISOString()
+      }
     });
   } catch (error) {
     console.error("Error fetching performance data:", error);

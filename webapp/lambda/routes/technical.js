@@ -219,49 +219,16 @@ router.get("/weekly/:symbol", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      console.log(
-        `📊 No weekly data in database for ${symbolUpper}, returning mock data`
+      console.error(
+        `📊 No weekly data in database for ${symbolUpper}`
       );
 
-      // Generate mock weekly technical data
-      const mockData = [
-        {
-          symbol: symbolUpper,
-          date: new Date().toISOString(),
-          rsi: 58.7,
-          macd: 0.23,
-          macd_signal: 0.18,
-          macd_hist: 0.05,
-          mom: 1.8,
-          roc: 1.2,
-          adx: 42.3,
-          atr: 3.45,
-          sma_20: 148.5,
-          sma_50: 145.2,
-          sma_200: 142.8,
-          ema_21: 149.1,
-          bbands_lower: 145.0,
-          bbands_middle: 148.5,
-          bbands_upper: 152.0,
-          volume: 145000000,
-          close: 148.75,
-          open: 147.25,
-          high: 150.0,
-          low: 146.5,
-          fetched_at: new Date().toISOString(),
-        },
-      ];
-
-      return res.json({
-        success: true,
-        data: {
-          symbol: symbolUpper,
-          timeframe: "weekly",
-          indicators: mockData,
-          count: mockData.length,
-          source: "mock_data",
-        },
-        timestamp: new Date().toISOString(),
+      return res.status(404).json({
+        success: false,
+        error: "Weekly technical data not available",
+        message: `No weekly technical data found for symbol ${symbolUpper}`,
+        symbol: symbolUpper,
+        timeframe: "weekly"
       });
     }
 
@@ -306,49 +273,16 @@ router.get("/monthly/:symbol", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      console.log(
-        `📊 No monthly data in database for ${symbolUpper}, returning mock data`
+      console.error(
+        `📊 No monthly data in database for ${symbolUpper}`
       );
 
-      // Generate mock monthly technical data
-      const mockData = [
-        {
-          symbol: symbolUpper,
-          date: new Date().toISOString(),
-          rsi: 62.1,
-          macd: 0.89,
-          macd_signal: 0.72,
-          macd_hist: 0.17,
-          mom: 3.2,
-          roc: 2.8,
-          adx: 48.6,
-          atr: 4.25,
-          sma_20: 146.8,
-          sma_50: 142.5,
-          sma_200: 138.2,
-          ema_21: 147.8,
-          bbands_lower: 142.0,
-          bbands_middle: 146.8,
-          bbands_upper: 151.6,
-          volume: 580000000,
-          close: 147.25,
-          open: 144.75,
-          high: 149.5,
-          low: 143.25,
-          fetched_at: new Date().toISOString(),
-        },
-      ];
-
-      return res.json({
-        success: true,
-        data: {
-          symbol: symbolUpper,
-          timeframe: "monthly",
-          indicators: mockData,
-          count: mockData.length,
-          source: "mock_data",
-        },
-        timestamp: new Date().toISOString(),
+      return res.status(404).json({
+        success: false,
+        error: "Monthly technical data not available",
+        message: `No monthly technical data found for symbol ${symbolUpper}`,
+        symbol: symbolUpper,
+        timeframe: "monthly"
       });
     }
 
@@ -565,206 +499,28 @@ router.get("/chart/:symbol", async (req, res) => {
       !tableCheck.rows[0] ||
       !tableCheck.rows[0].exists
     ) {
-      console.log(
-        "Chart data tables not available or database connection failed - using mock data"
+      console.error(
+        "Chart data tables not available or database connection failed"
       );
+      return res.status(404).json({
+        success: false,
+        error: "Chart data not available",
+        message: "Technical chart data tables do not exist",
+        symbol: symbolUpper,
+        period: period,
+        interval: interval
+      });
     }
 
-    // Generate realistic chart data with OHLCV and technical indicators
-    const generateChartData = (
-      symbol,
-      period,
-      interval,
-      includeVolume,
-      dataPoints
-    ) => {
-      const chartData = [];
-      const currentDate = new Date();
-
-      // Convert period to number of data points
-      const periodMap = {
-        "1D": 1,
-        "5D": 5,
-        "1W": 7,
-        "1M": 30,
-        "3M": 90,
-        "6M": 180,
-        "1Y": 365,
-        "2Y": 730,
-        "5Y": 1825,
-        MAX: 2555,
-      };
-
-      const totalPoints = Math.min(dataPoints, periodMap[period] || 100);
-
-      // Base price for the symbol (simulate different price ranges)
-      const basePrice = symbol.length * 15 + Math.random() * 200 + 50;
-      let currentPrice = basePrice;
-
-      // Generate data points going backwards from current date
-      for (let i = totalPoints - 1; i >= 0; i--) {
-        const date = new Date(currentDate);
-
-        // Adjust date based on interval
-        if (interval === "1d") {
-          date.setDate(date.getDate() - i);
-        } else if (interval === "1h") {
-          date.setHours(date.getHours() - i);
-        } else if (interval === "5m") {
-          date.setMinutes(date.getMinutes() - i * 5);
-        }
-
-        // Skip weekends for daily data
-        if (interval === "1d" && (date.getDay() === 0 || date.getDay() === 6)) {
-          continue;
-        }
-
-        // Generate realistic price movement (random walk with trend)
-        const trend = Math.sin(i * 0.1) * 0.02; // Cyclical trend
-        const priceChange =
-          (Math.random() - 0.48 + trend) * currentPrice * 0.03;
-        currentPrice = Math.max(currentPrice + priceChange, 1);
-
-        const volatility = Math.random() * 0.02 + 0.005;
-        const high = currentPrice * (1 + volatility);
-        const low = currentPrice * (1 - volatility);
-        const open =
-          currentPrice + (Math.random() - 0.5) * currentPrice * 0.015;
-        const close = currentPrice;
-
-        // Generate volume (higher on price volatility)
-        const volumeBase = 1000000 + Math.random() * 5000000;
-        const volumeMultiplier = 1 + Math.abs(priceChange / currentPrice) * 3;
-        const volume = Math.round(volumeBase * volumeMultiplier);
-
-        // Calculate technical indicators
-        const rsi = Math.random() * 40 + 30; // RSI between 30-70
-        const macd = (Math.random() - 0.5) * 2;
-        const macdSignal = macd * 0.8 + (Math.random() - 0.5) * 0.3;
-        const macdHist = macd - macdSignal;
-
-        // Moving averages
-        const sma20 = currentPrice * (0.98 + Math.random() * 0.04);
-        const sma50 = currentPrice * (0.95 + Math.random() * 0.1);
-        const ema12 = currentPrice * (0.99 + Math.random() * 0.02);
-        const ema26 = currentPrice * (0.97 + Math.random() * 0.06);
-
-        // Bollinger Bands
-        const bbMiddle = sma20;
-        const bbUpper = bbMiddle * 1.02;
-        const bbLower = bbMiddle * 0.98;
-
-        const dataPoint = {
-          datetime: date.toISOString(),
-          timestamp: Math.floor(date.getTime() / 1000),
-          open: parseFloat(open.toFixed(2)),
-          high: parseFloat(high.toFixed(2)),
-          low: parseFloat(low.toFixed(2)),
-          close: parseFloat(close.toFixed(2)),
-          adjusted_close: parseFloat(close.toFixed(2)),
-          volume: includeVolume ? volume : undefined,
-          technical_indicators: {
-            sma_20: parseFloat(sma20.toFixed(2)),
-            sma_50: parseFloat(sma50.toFixed(2)),
-            ema_12: parseFloat(ema12.toFixed(2)),
-            ema_26: parseFloat(ema26.toFixed(2)),
-            rsi: parseFloat(rsi.toFixed(2)),
-            macd: parseFloat(macd.toFixed(4)),
-            macd_signal: parseFloat(macdSignal.toFixed(4)),
-            macd_histogram: parseFloat(macdHist.toFixed(4)),
-            bollinger_upper: parseFloat(bbUpper.toFixed(2)),
-            bollinger_middle: parseFloat(bbMiddle.toFixed(2)),
-            bollinger_lower: parseFloat(bbLower.toFixed(2)),
-          },
-        };
-
-        if (!includeVolume) {
-          delete dataPoint.volume;
-        }
-
-        chartData.push(dataPoint);
-      }
-
-      // Return data in chronological order (oldest first)
-      return chartData.reverse();
-    };
-
-    const chartData = generateChartData(
-      symbolUpper,
-      period,
-      interval,
-      include_volume === "true",
-      parseInt(limit)
-    );
-
-    // Calculate summary statistics
-    const prices = chartData.map((d) => d.close);
-    const volumes = include_volume
-      ? chartData.map((d) => d.volume).filter((v) => v !== undefined)
-      : [];
-
-    const summary = {
+    // Should query actual chart data from database instead of generating mock data
+    return res.status(404).json({
+      success: false,
+      error: "Chart data not available",
+      message: `No chart data found for symbol ${symbolUpper} with the specified parameters`,
       symbol: symbolUpper,
       period: period,
       interval: interval,
-      total_points: chartData.length,
-      price_range: {
-        current: chartData[chartData.length - 1]?.close,
-        high: Math.max(...prices),
-        low: Math.min(...prices),
-        change:
-          chartData.length > 1
-            ? (
-                ((chartData[chartData.length - 1].close - chartData[0].open) /
-                  chartData[0].open) *
-                100
-              ).toFixed(2) + "%"
-            : "0%",
-      },
-      volume_stats:
-        include_volume && volumes.length > 0
-          ? {
-              avg_volume: Math.round(
-                volumes.reduce((sum, v) => sum + v, 0) / volumes.length
-              ),
-              max_volume: Math.max(...volumes),
-              min_volume: Math.min(...volumes),
-            }
-          : undefined,
-      technical_summary: {
-        current_rsi: chartData[chartData.length - 1]?.technical_indicators.rsi,
-        trend_direction:
-          chartData.length > 10
-            ? chartData[chartData.length - 1].close >
-              chartData[chartData.length - 10].close
-              ? "bullish"
-              : "bearish"
-            : "neutral",
-        sma_20_position:
-          chartData[chartData.length - 1]?.close >
-          chartData[chartData.length - 1]?.technical_indicators.sma_20
-            ? "above"
-            : "below",
-      },
-    };
-
-    res.json({
-      success: true,
-      data: {
-        chart_data: chartData,
-        summary: summary,
-        metadata: {
-          symbol: symbolUpper,
-          period: period,
-          interval: interval,
-          include_volume: include_volume === "true",
-          data_points: chartData.length,
-          data_source: "simulated_market_data",
-          generated_at: new Date().toISOString(),
-          timezone: "UTC",
-        },
-      },
-      timestamp: new Date().toISOString(),
+      include_volume: include_volume === "true"
     });
   } catch (error) {
     console.error("Chart data error:", error);
@@ -1428,12 +1184,11 @@ router.get("/", async (req, res) => {
       console.error(
         `Technical data table for ${timeframe} timeframe not found`
       );
-      return res.status(503).json({
+      return res.status(404).json({
         success: false,
         error: "Technical data not available",
         message: `Technical data table for ${timeframe} timeframe does not exist`,
-        service: "technical-overview",
-        timeframe: timeframe,
+        timeframe: timeframe
       });
     }
 
@@ -1490,23 +1245,14 @@ router.get("/data/:symbol", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found for symbol ${symbol}`);
+      console.log(`Technical data table not found for symbol ${symbol}, returning empty data`);
 
-      return res.error(
-        `Technical data table not found for symbol ${symbol}`,
-        404,
-        {
-          type: "table_not_found",
-          symbol: symbol.toUpperCase(),
-          error: "No technical data table available",
-          troubleshooting: {
-            "Database Connection": "Verify technical_data_daily table exists",
-            "Data Population":
-              "Check if technical data has been populated for this symbol",
-            "Symbol Validation": "Ensure symbol is valid and active",
-          },
-        }
-      );
+      return res.status(404).json({
+        success: false,
+        error: "Technical data not available",
+        message: "Technical data table does not exist",
+        symbol: symbol.toUpperCase()
+      });
     }
 
     // Get latest technical data for the symbol
@@ -1602,13 +1348,12 @@ router.get("/indicators/:symbol", async (req, res) => {
     );
 
     if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
-      console.error(`Technical data table not found for symbol ${symbol}`);
-      return res.status(503).json({
+      console.warn(`Technical data table not found for symbol ${symbol}, returning empty indicators`);
+      return res.status(404).json({
         success: false,
         error: "Technical indicators not available",
         message: "Technical data table does not exist",
-        symbol: symbol.toUpperCase(),
-        service: "technical-indicators",
+        symbol: symbol.toUpperCase()
       });
     }
 
@@ -1695,13 +1440,12 @@ router.get("/history/:symbol", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.error(`Technical data table not found for symbol ${symbol}`);
-      return res.status(503).json({
+      console.warn(`Technical data table not found for symbol ${symbol}, returning empty history`);
+      return res.status(404).json({
         success: false,
         error: "Technical history not available",
         message: "Technical data table does not exist",
-        symbol: symbol.toUpperCase(),
-        service: "technical-history",
+        symbol: symbol.toUpperCase()
       });
     }
 

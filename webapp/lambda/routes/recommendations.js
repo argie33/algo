@@ -82,7 +82,7 @@ router.get("/", async (req, res) => {
           WHEN LOWER(rating) LIKE '%hold%' THEN 'HOLD'
           ELSE UPPER(rating)
         END as recommendation_type
-      FROM analyst_recommendations 
+      FROM analyst_upgrade_downgrade 
       ${whereClause}
       ORDER BY date_published DESC, target_price DESC
       LIMIT $${paramIndex}
@@ -214,7 +214,7 @@ router.get("/analysts/:symbol", async (req, res) => {
           WHEN LOWER(rating) LIKE '%hold%' THEN 'HOLD'
           ELSE UPPER(rating)
         END as recommendation_type
-      FROM analyst_recommendations 
+      FROM analyst_upgrade_downgrade 
       WHERE symbol = $1
       ORDER BY date_published DESC, target_price DESC
       LIMIT $2

@@ -23,28 +23,8 @@ const mockAxiosInstance = {
   },
 };
 
-// Mock the API service module
-vi.mock("../../../services/api.js", () => ({
-  default: {
-    healthCheck: vi.fn(),
-    getMarketOverview: vi.fn(),
-    getStockPrice: vi.fn(),
-  },
-  getApiConfig: vi.fn(() => ({
-    apiUrl: "http://localhost:3001",
-    baseURL: "http://localhost:3001",
-    environment: "test",
-  })),
-  // Add missing exports for error handling tests
-  fetchPortfolioHoldings: vi.fn(),
-  fetchMarketOverview: vi.fn(),
-  fetchStockData: vi.fn(),
-  fetchTechnicalData: vi.fn(),
-  fetchPortfolioPerformance: vi.fn(),
-  fetchMarketData: vi.fn(),
-  fetchEarningsData: vi.fn(),
-  fetchHistoricalData: vi.fn(),
-}));
+// Don't mock the API module - we want to test the actual error handling logic
+// Just mock axios to control network responses
 
 // Import is needed for module mocking but not used in tests
 
@@ -55,7 +35,15 @@ describe("API Service - Error Handling Tests", () => {
     vi.clearAllMocks();
     vi.clearAllTimers();
     vi.useFakeTimers();
+
+    // Mock axios.create to return our mock instance
     mockedAxios.create.mockReturnValue(mockAxiosInstance);
+
+    // Also mock direct axios calls
+    mockedAxios.get = mockAxiosInstance.get;
+    mockedAxios.post = mockAxiosInstance.post;
+    mockedAxios.put = mockAxiosInstance.put;
+    mockedAxios.delete = mockAxiosInstance.delete;
   });
 
   afterEach(() => {
@@ -459,6 +447,10 @@ describe("API Service - Error Handling Tests", () => {
       const { fetchPortfolioHoldings } = await import(
         "../../../services/api.js"
       );
+
+      // Ensure fetchPortfolioHoldings is properly imported and is a function
+      expect(fetchPortfolioHoldings).toBeDefined();
+      expect(typeof fetchPortfolioHoldings).toBe('function');
 
       // fetchPortfolioHoldings throws on auth error
       await expect(fetchPortfolioHoldings("user123")).rejects.toThrow();

@@ -7,12 +7,15 @@ import {
   Alert,
   Paper,
 } from "@mui/material";
+import { useAuth } from "../../contexts/AuthContext";
 
 const ForgotPasswordForm = ({ onBack }) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  const { forgotPassword } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,9 +24,12 @@ const ForgotPasswordForm = ({ onBack }) => {
     setMessage("");
 
     try {
-      // Mock password reset functionality
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setMessage("Password reset email sent! Check your inbox.");
+      const result = await forgotPassword(email);
+      if (result.success) {
+        setMessage(result.message || "Reset code sent to your email");
+      } else {
+        setError(result.error || "Failed to send password reset email.");
+      }
     } catch (err) {
       setError("Failed to send password reset email. Please try again.");
     } finally {
