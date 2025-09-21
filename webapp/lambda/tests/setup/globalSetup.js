@@ -383,6 +383,91 @@ module.exports = async () => {
       ON CONFLICT DO NOTHING
     `);
 
+    // Create sentiment tables matching loader structures
+
+    // Fear & Greed Index table (from loadfeargreed.py)
+    await query(`
+      CREATE TABLE IF NOT EXISTS fear_greed_index (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL UNIQUE,
+        index_value DOUBLE PRECISION,
+        rating VARCHAR(50),
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // NAAIM table (from loadnaaim.py)
+    await query(`
+      CREATE TABLE IF NOT EXISTS naaim (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL UNIQUE,
+        naaim_number_mean DOUBLE PRECISION,
+        bearish DOUBLE PRECISION,
+        quart1 DOUBLE PRECISION,
+        quart2 DOUBLE PRECISION,
+        quart3 DOUBLE PRECISION,
+        bullish DOUBLE PRECISION,
+        deviation DOUBLE PRECISION,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // AAII Sentiment table (from loadaaiidata.py)
+    await query(`
+      CREATE TABLE IF NOT EXISTS aaii_sentiment (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL UNIQUE,
+        bullish DOUBLE PRECISION,
+        neutral DOUBLE PRECISION,
+        bearish DOUBLE PRECISION,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Economic Data table (from loadecondata.py)
+    await query(`
+      CREATE TABLE IF NOT EXISTS economic_data (
+        id SERIAL PRIMARY KEY,
+        series_id VARCHAR(100) NOT NULL,
+        date DATE NOT NULL,
+        value DOUBLE PRECISION,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(series_id, date)
+      )
+    `);
+
+    // Add test data for sentiment indicators
+    await query(`
+      INSERT INTO fear_greed_index (date, index_value, rating) VALUES
+      ('2024-01-02', 55, 'Greed'),
+      ('2024-01-01', 48, 'Neutral')
+      ON CONFLICT (date) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO naaim (date, naaim_number_mean, bearish, bullish) VALUES
+      ('2024-01-02', 65.5, 15.2, 78.3),
+      ('2024-01-01', 62.1, 18.7, 75.9)
+      ON CONFLICT (date) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO aaii_sentiment (date, bullish, neutral, bearish) VALUES
+      ('2024-01-02', 42.5, 32.1, 25.4),
+      ('2024-01-01', 39.8, 35.2, 25.0)
+      ON CONFLICT (date) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO economic_data (series_id, date, value) VALUES
+      ('GDP', '2024-01-01', 26854.6),
+      ('UNEMPLOYMENT_RATE', '2024-01-01', 3.7),
+      ('INFLATION_RATE', '2024-01-01', 3.2),
+      ('FEDERAL_FUNDS_RATE', '2024-01-01', 5.25),
+      ('VIX', '2024-01-02', 18.5)
+      ON CONFLICT (series_id, date) DO NOTHING
+    `);
+
     console.log('✅ Database tables created matching loader structure');
   } catch (error) {
     console.warn('Could not create test database tables:', error.message);
