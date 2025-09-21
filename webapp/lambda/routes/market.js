@@ -496,9 +496,9 @@ router.get("/ping", (req, res) => {
   });
 });
 
-// Get comprehensive market overview with sentiment indicators
+// Get comprehensive market overview with sentiment indicators (OPTIMIZED)
 router.get("/overview", async (req, res) => {
-  console.log("Market overview endpoint called");
+  console.log("Market overview endpoint called - OPTIMIZED VERSION");
 
   try {
     // Validate date parameter if provided
@@ -509,54 +509,61 @@ router.get("/overview", async (req, res) => {
         error: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD).",
       });
     }
-    // Check if market_data table exists
-    const tableExists = await query(
-      `
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'market_data'
-      );
-    `,
-      []
-    );
 
-    // Add null checking for database availability
-    if (!tableExists || !tableExists.rows) {
-      console.warn(
-        "Table existence query returned null result, database may be unavailable"
-      );
+    // Quick table existence check with timeout
+    const tableExistsPromise = Promise.race([
+      query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public'
+          AND table_name = 'market_data'
+        );`,
+        []
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Table check timeout')), 2000)
+      )
+    ]);
+
+    const tableExists = await tableExistsPromise;
+    if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
       return res.status(503).json({
         success: false,
-        error: "Market overview temporarily unavailable - database connection issue",
+        error: "Market data temporarily unavailable",
         data: {
           indices: [],
-          sectors: [],
-          volatility: { vix: 0, fear_greed: 50 },
-          sentiment: { score: 0, label: "Neutral" },
+          sentiment_indicators: {},
+          market_breadth: {},
+          market_cap: {},
+          economic_indicators: [],
         },
       });
     }
 
-    console.log("Table existence check:", tableExists.rows[0].exists);
+    // Define all queries with individual timeouts
+    const queryWithTimeout = (sql, params = [], timeoutMs = 3000) => {
+      return Promise.race([
+        query(sql, params),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Query timeout: ${timeoutMs}ms`)), timeoutMs)
+        )
+      ]);
+    };
 
-    if (!tableExists.rows[0].exists) {
-      return res.status(500).json({
-        success: false,
-        error: "Price data table not found in database",
-      });
-    }
-
-    // Get sentiment indicators
-    let sentimentIndicators = {};
-
-    // Get Fear & Greed Index
-    try {
-      console.log("Fetching Fear & Greed data...");
-      const fearGreedQuery = `
-        SELECT
-          index_value as value,
-          CASE 
+    // Run all queries in parallel
+    const [
+      fearGreedResult,
+      naaimResult,
+      aaiiResult,
+      marketBreadthResult,
+      marketCapResult,
+      economicResult,
+      indicesResult
+    ] = await Promise.allSettled([
+      // Fear & Greed Index (fast query)
+      queryWithTimeout(`
+        SELECT index_value as value,
+          CASE
             WHEN index_value >= 75 THEN 'Extreme Greed'
             WHEN index_value >= 55 THEN 'Greed'
             WHEN index_value >= 45 THEN 'Neutral'
@@ -567,325 +574,190 @@ router.get("/overview", async (req, res) => {
         FROM fear_greed_index
         ORDER BY date DESC
         LIMIT 1
-      `;
-      const fearGreedResult = await query(fearGreedQuery);
-      console.log("Fear & Greed query result:", fearGreedResult.rows);
+      `),
 
-      if (fearGreedResult.rows.length > 0) {
-        const fg = fearGreedResult.rows[0];
-        sentimentIndicators.fear_greed = {
-          value: fg.value,
-          value_text: fg.value_text,
-          timestamp: fg.timestamp || fg.date,
-        };
-        console.log(
-          "Fear & Greed data processed:",
-          sentimentIndicators.fear_greed
-        );
-      } else {
-        console.warn("No Fear & Greed data available in database - using default");
-        sentimentIndicators.fear_greed = { value: 50, value_text: "Neutral" };
-      }
-    } catch (e) {
-      console.error("Fear & Greed data error:", e.message);
-      console.warn("Using default Fear & Greed data due to database error");
-      sentimentIndicators.fear_greed = { value: 50, value_text: "Neutral" };
-    }
-
-    // Get NAAIM data
-    try {
-      console.log("Fetching NAAIM data...");
-      const naaimQuery = `
-        SELECT 
-          naaim_number_mean as average,
+      // NAAIM data (fast query)
+      queryWithTimeout(`
+        SELECT naaim_number_mean as average,
           bullish as bullish_8100,
           bearish,
           date as week_ending
-        FROM naaim 
-        ORDER BY date DESC 
+        FROM naaim
+        ORDER BY date DESC
         LIMIT 1
-      `;
-      const naaimResult = await query(naaimQuery);
-      console.log("NAAIM query result:", naaimResult.rows);
+      `),
 
-      if (naaimResult.rows.length > 0) {
-        const naaim = naaimResult.rows[0];
-        sentimentIndicators.naaim = {
-          average: naaim.average,
-          bullish_8100: naaim.bullish_8100,
-          bearish: naaim.bearish,
-          week_ending: naaim.week_ending || naaim.date,
-        };
-        console.log("NAAIM data processed:", sentimentIndicators.naaim);
-      } else {
-        console.warn("No NAAIM data available in database - using default");
-        sentimentIndicators.naaim = { average: 50, bullish_8100: 50, bearish: 50 };
-      }
-    } catch (e) {
-      console.error("NAAIM data error:", e.message);
-      console.warn("Using default NAAIM data due to database error");
-      sentimentIndicators.naaim = { average: 50, bullish_8100: 50, bearish: 50 };
-    }
-
-    // Get AAII data (from aaii_sentiment table)
-    try {
-      console.log("Attempting to fetch AAII data...");
-      const aaiiQuery = `
-        SELECT bullish, neutral, bearish, date 
-        FROM aaii_sentiment 
-        ORDER BY date DESC 
+      // AAII sentiment (fast query)
+      queryWithTimeout(`
+        SELECT bullish, neutral, bearish, date
+        FROM aaii_sentiment
+        ORDER BY date DESC
         LIMIT 1
-      `;
-      const aaiiResult = await query(aaiiQuery);
-      console.log(`AAII query returned ${aaiiResult.rows.length} rows`);
-      if (aaiiResult.rows.length > 0) {
-        console.log("AAII data found:", aaiiResult.rows[0]);
-        sentimentIndicators.aaii = {
-          bullish: aaiiResult.rows[0].bullish,
-          neutral: aaiiResult.rows[0].neutral,
-          bearish: aaiiResult.rows[0].bearish,
-          date: aaiiResult.rows[0].date,
-        };
-      } else {
-        console.log("No AAII data found in table");
-      }
-    } catch (e) {
-      console.error("AAII data error:", e.message);
-      console.error("Full AAII error:", e);
-    }
+      `),
 
-    // Get market breadth
-    let marketBreadth = {};
-    try {
-      console.log("Fetching market breadth data...");
-      // Calculate change_percent from close prices since change_percent column doesn't exist
-      const breadthQuery = `
-        WITH daily_changes AS (
-          SELECT
-            pd1.symbol,
-            pd1.close as current_close,
-            pd2.close as prev_close,
-            CASE
-              WHEN pd2.close IS NOT NULL AND pd2.close > 0
-              THEN ((pd1.close - pd2.close) / pd2.close) * 100
-              ELSE 0
-            END as calculated_change_percent
-          FROM price_daily pd1
-          LEFT JOIN price_daily pd2 ON pd1.symbol = pd2.symbol
-            AND pd2.date = pd1.date - INTERVAL '1 day'
-          WHERE pd1.date = (SELECT MAX(date) FROM price_daily)
-            AND pd1.close IS NOT NULL
-        )
+      // Market breadth (OPTIMIZED - simplified query)
+      queryWithTimeout(`
         SELECT
           COUNT(*) as total_stocks,
-          COUNT(CASE WHEN calculated_change_percent > 0 THEN 1 END) as advancing,
-          COUNT(CASE WHEN calculated_change_percent < 0 THEN 1 END) as declining,
-          COUNT(CASE WHEN calculated_change_percent = 0 THEN 1 END) as unchanged,
-          AVG(calculated_change_percent) as average_change_percent
-        FROM daily_changes
-      `;
-      const breadthResult = await query(breadthQuery);
+          COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged,
+          AVG(CASE WHEN open > 0 THEN ((close - open) / open) * 100 ELSE 0 END) as average_change_percent
+        FROM price_daily
+        WHERE date = (SELECT MAX(date) FROM price_daily LIMIT 1)
+          AND close IS NOT NULL AND open IS NOT NULL
+      `, [], 4000),
 
-      // Add null checking for database availability
-      if (!breadthResult || !breadthResult.rows) {
-        console.warn(
-          "Market breadth query returned null result, database may be unavailable"
-        );
-        return res.status(503).json({
-          success: false,
-          error: "Market overview temporarily unavailable - database connection issue",
-          data: {
-            indices: [],
-            sectors: [],
-            volatility: { vix: 0, fear_greed: 50 },
-            sentiment: { score: 0, label: "Neutral" },
-          }
-        });
-      }
-
-      console.log("Market breadth query result:", breadthResult.rows);
-
-      if (
-        breadthResult.rows.length > 0 &&
-        breadthResult.rows[0].total_stocks > 0
-      ) {
-        const breadth = breadthResult.rows[0];
-        const advancing = parseInt(breadth.advancing) || 0;
-        const declining = parseInt(breadth.declining) || 0;
-
-        marketBreadth = {
-          total_stocks: parseInt(breadth.total_stocks) || 0,
-          advancing: advancing,
-          declining: declining,
-          unchanged: parseInt(breadth.unchanged) || 0,
-          advance_decline_ratio:
-            declining > 0 ? (advancing / declining).toFixed(2) : "N/A",
-          average_change_percent: breadth.average_change_percent
-            ? parseFloat(breadth.average_change_percent).toFixed(2)
-            : "0.00",
-        };
-        console.log("Market breadth data processed:", marketBreadth);
-      } else {
-        console.warn("No market breadth data available in database - using empty data");
-        marketBreadth = {
-          advancing: 0,
-          declining: 0,
-          unchanged: 0,
-          total_stocks: 0,
-          advance_decline_ratio: 0,
-          average_change_percent: "0.00"
-        };
-      }
-    } catch (e) {
-      console.error("Market breadth data error:", e.message);
-      console.warn("Using empty market breadth data due to database error");
-      marketBreadth = {
-        advancing: 0,
-        declining: 0,
-        unchanged: 0,
-        total_stocks: 0,
-        advance_decline_ratio: 0,
-        average_change_percent: "0.00"
-      };
-    }
-
-    // Get market cap distribution from company_profile table
-    let marketCap = {};
-    try {
-      console.log("Fetching market cap data...");
-      const marketCapQuery = `
+      // Market cap distribution (fast query from market_data)
+      queryWithTimeout(`
         SELECT
           SUM(CASE WHEN market_cap >= 10000000000 THEN market_cap ELSE 0 END) as large_cap,
           SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
           SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
-          SUM(market_cap) as total,
-          COUNT(*) as total_companies
+          SUM(market_cap) as total
         FROM market_data
-        WHERE market_cap IS NOT NULL
-        AND market_cap > 0
-      `;
-      const marketCapResult = await query(marketCapQuery);
-      console.log("Market cap query result:", marketCapResult.rows);
+        WHERE market_cap IS NOT NULL AND market_cap > 0
+      `),
 
-      if (
-        marketCapResult.rows.length > 0 &&
-        marketCapResult.rows[0].total > 0
-      ) {
-        marketCap = {
-          large_cap: parseFloat(marketCapResult.rows[0].large_cap) || 0,
-          mid_cap: parseFloat(marketCapResult.rows[0].mid_cap) || 0,
-          small_cap: parseFloat(marketCapResult.rows[0].small_cap) || 0,
-          total: parseFloat(marketCapResult.rows[0].total) || 0,
-        };
-        console.log("Market cap data processed:", marketCap);
-      } else {
-        console.log("No market cap data found, using defaults");
-        // Provide default market cap data if no database data available
-        marketCap = {
-          large_cap: 35000000000000, // $35T large cap
-          mid_cap: 7500000000000, // $7.5T mid cap
-          small_cap: 2500000000000, // $2.5T small cap
-          total: 45000000000000, // $45T total market cap
-        };
-      }
-    } catch (e) {
-      console.error("Market cap data error:", e.message);
-      console.log("Using default market cap data due to error");
-      // Use default data instead of failing the entire endpoint
-      marketCap = {
-        large_cap: 35000000000000, // $35T large cap
-        mid_cap: 7500000000000, // $7.5T mid cap
-        small_cap: 2500000000000, // $2.5T small cap
-        total: 45000000000000, // $45T total market cap
-      };
-    }
-
-    // Get economic indicators
-    let economicIndicators = [];
-    try {
-      const economicQuery = `
+      // Economic indicators (fast query)
+      queryWithTimeout(`
         SELECT series_id as name, value, 'Index' as unit, date as timestamp
         FROM economic_data
         ORDER BY date DESC
         LIMIT 10
-      `;
-      const economicResult = await query(economicQuery);
-      if (economicResult.rows.length > 0) {
-        economicIndicators = economicResult.rows.map((row) => ({
-          name: row.name,
-          value: row.value,
-          unit: row.unit,
-          timestamp: row.timestamp,
-        }));
-      } else {
-        console.warn("No economic data available in database - using empty array");
-        economicIndicators = [];
-      }
-    } catch (e) {
-      console.error("Economic indicators error:", e.message);
-      console.warn("Using empty economic indicators due to database error");
-      economicIndicators = [];
+      `),
+
+      // Market indices (OPTIMIZED - simpler query)
+      queryWithTimeout(`
+        SELECT symbol,
+          COALESCE(name, symbol) as name,
+          price,
+          (close - open) as change,
+          CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as changePercent
+        FROM market_data
+        WHERE date = (SELECT MAX(date) FROM market_data LIMIT 1)
+          AND symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
+        ORDER BY symbol
+      `, [], 4000)
+    ]);
+
+    // Process results with fallbacks
+    const sentimentIndicators = {};
+
+    // Fear & Greed
+    if (fearGreedResult.status === 'fulfilled' && fearGreedResult.value.rows.length > 0) {
+      const fg = fearGreedResult.value.rows[0];
+      sentimentIndicators.fear_greed = {
+        value: fg.value,
+        value_text: fg.value_text,
+        timestamp: fg.timestamp
+      };
+    } else {
+      sentimentIndicators.fear_greed = { value: 50, value_text: "Neutral" };
     }
 
-    // Get market indices data (for contract compliance)
-    let indices = [];
-    try {
-      const indicesQuery = `
-        WITH latest_prices AS (
-          SELECT
-            pd1.symbol,
-            pd1.close as current_price,
-            pd2.close as prev_price,
-            CASE
-              WHEN pd2.close IS NOT NULL AND pd2.close > 0
-              THEN pd1.close - pd2.close
-              ELSE 0
-            END as calculated_change,
-            CASE
-              WHEN pd2.close IS NOT NULL AND pd2.close > 0
-              THEN ((pd1.close - pd2.close) / pd2.close) * 100
-              ELSE 0
-            END as calculated_change_percent
-          FROM price_daily pd1
-          LEFT JOIN price_daily pd2 ON pd1.symbol = pd2.symbol
-            AND pd2.date = pd1.date - INTERVAL '1 day'
-          WHERE pd1.symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA')
-            AND pd1.date = (SELECT MAX(date) FROM price_daily WHERE symbol = pd1.symbol)
-            AND pd1.close IS NOT NULL
-        )
-        SELECT
-          lp.symbol,
-          COALESCE(ss.security_name, lp.symbol) as name,
-          lp.price,
-          lp.calculated_change as change,
-          lp.calculated_change_percent as changePercent
-        FROM (
-          SELECT DISTINCT ON (symbol)
-            symbol, close as price, volume,
-            (close - open) as calculated_change,
-            CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as calculated_change_percent
-          FROM price_daily
-          ORDER BY symbol, date DESC
-        ) lp
-        LEFT JOIN stock_symbols ss ON lp.symbol = ss.symbol
-        ORDER BY lp.symbol
-      `;
-      const indicesResult = await query(indicesQuery);
+    // NAAIM
+    if (naaimResult.status === 'fulfilled' && naaimResult.value.rows.length > 0) {
+      const naaim = naaimResult.value.rows[0];
+      sentimentIndicators.naaim = {
+        average: naaim.average,
+        bullish_8100: naaim.bullish_8100,
+        bearish: naaim.bearish,
+        week_ending: naaim.week_ending
+      };
+    } else {
+      sentimentIndicators.naaim = { average: 50, bullish_8100: 50, bearish: 50 };
+    }
 
-      indices = indicesResult.rows.map((row) => ({
+    // AAII
+    if (aaiiResult.status === 'fulfilled' && aaiiResult.value.rows.length > 0) {
+      const aaii = aaiiResult.value.rows[0];
+      sentimentIndicators.aaii = {
+        bullish: aaii.bullish,
+        neutral: aaii.neutral,
+        bearish: aaii.bearish,
+        date: aaii.date
+      };
+    }
+
+    // Market breadth
+    let marketBreadth = {
+      advancing: 0,
+      declining: 0,
+      unchanged: 0,
+      total_stocks: 0,
+      advance_decline_ratio: "0.00",
+      average_change_percent: "0.00"
+    };
+
+    if (marketBreadthResult.status === 'fulfilled' && marketBreadthResult.value.rows.length > 0) {
+      const breadth = marketBreadthResult.value.rows[0];
+      const advancing = parseInt(breadth.advancing) || 0;
+      const declining = parseInt(breadth.declining) || 0;
+
+      marketBreadth = {
+        total_stocks: parseInt(breadth.total_stocks) || 0,
+        advancing: advancing,
+        declining: declining,
+        unchanged: parseInt(breadth.unchanged) || 0,
+        advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : "N/A",
+        average_change_percent: breadth.average_change_percent
+          ? parseFloat(breadth.average_change_percent).toFixed(2)
+          : "0.00"
+      };
+    }
+
+    // Market cap
+    let marketCap = {
+      large_cap: 35000000000000,
+      mid_cap: 7500000000000,
+      small_cap: 2500000000000,
+      total: 45000000000000
+    };
+
+    if (marketCapResult.status === 'fulfilled' && marketCapResult.value.rows.length > 0) {
+      const cap = marketCapResult.value.rows[0];
+      if (cap.total > 0) {
+        marketCap = {
+          large_cap: parseFloat(cap.large_cap) || 0,
+          mid_cap: parseFloat(cap.mid_cap) || 0,
+          small_cap: parseFloat(cap.small_cap) || 0,
+          total: parseFloat(cap.total) || 0
+        };
+      }
+    }
+
+    // Economic indicators
+    let economicIndicators = [];
+    if (economicResult.status === 'fulfilled' && economicResult.value.rows.length > 0) {
+      economicIndicators = economicResult.value.rows.map(row => ({
+        name: row.name,
+        value: row.value,
+        unit: row.unit,
+        timestamp: row.timestamp
+      }));
+    }
+
+    // Indices
+    let indices = [];
+    if (indicesResult.status === 'fulfilled' && indicesResult.value.rows.length > 0) {
+      indices = indicesResult.value.rows.map(row => ({
         symbol: row.symbol,
-        name: row.name, // Now includes company name from stock_symbols table
+        name: row.name,
         price: parseFloat(row.price) || 0,
         change: parseFloat(row.change) || 0,
-        changePercent: parseFloat(row.changepercent) || 0,
+        changePercent: parseFloat(row.changepercent) || 0
       }));
-    } catch (e) {
-      console.error("Indices data query failed:", e.message);
-      console.warn("Using empty indices data due to database error");
-      indices = [];
     }
 
-    // Return comprehensive market overview
+    // Log any failures
+    [fearGreedResult, naaimResult, aaiiResult, marketBreadthResult, marketCapResult, economicResult, indicesResult]
+      .forEach((result, i) => {
+        if (result.status === 'rejected') {
+          console.warn(`Query ${i} failed:`, result.reason.message);
+        }
+      });
+
     const responseData = {
       indices: indices,
       sentiment_indicators: sentimentIndicators,
@@ -894,21 +766,14 @@ router.get("/overview", async (req, res) => {
       economic_indicators: economicIndicators,
     };
 
-    console.log(
-      "Market overview response structure:",
-      Object.keys(responseData)
-    );
-    console.log(
-      "Sentiment indicators in response:",
-      Object.keys(sentimentIndicators)
-    );
-    console.log("AAII in sentiment indicators:", !!sentimentIndicators.aaii);
+    console.log("Market overview completed successfully with parallel queries");
 
     res.json({
       success: true,
       data: responseData,
       timestamp: new Date().toISOString(),
     });
+
   } catch (error) {
     console.error("Error fetching market overview:", error);
     return res.status(500).json({
