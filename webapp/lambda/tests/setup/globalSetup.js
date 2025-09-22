@@ -821,6 +821,20 @@ module.exports = async () => {
       )
     `);
 
+    // Signal history table (for signals routes)
+    await query(`
+      CREATE TABLE IF NOT EXISTS signal_history (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        signal_type VARCHAR(50) NOT NULL,
+        signal_strength DECIMAL(5,2),
+        triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        result VARCHAR(20),
+        profit_loss DECIMAL(15,4)
+      )
+    `);
+
     // News table (for news routes) - matches loadnews.py schema
     await query(`
       CREATE TABLE IF NOT EXISTS stock_news (
