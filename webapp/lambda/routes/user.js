@@ -1,17 +1,182 @@
 const express = require("express");
 const router = express.Router();
 
+// Ping endpoint (no auth required)
+router.get("/ping", (req, res) => {
+  res.json({
+    success: true,
+    status: "ok",
+    endpoint: "user",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Basic user info endpoint (root)
 router.get("/", (req, res) => {
   res.json({
     success: true,
     message: "User API - Ready",
     endpoints: [
+      "GET /profile - Get user profile",
+      "GET /preferences - Get user preferences",
       "POST /change-password - Change user password",
-      // Add other user endpoints as they're implemented
     ],
     timestamp: new Date().toISOString(),
   });
+});
+
+// User profile endpoint
+router.get("/profile", (req, res) => {
+  try {
+    // In development mode, return mock profile data
+    if (process.env.NODE_ENV === "development" || process.env.ALLOW_DEV_BYPASS === "true") {
+      res.json({
+        success: true,
+        data: {
+          id: "dev-user-bypass",
+          email: "developer@example.com",
+          firstName: "Dev",
+          lastName: "User",
+          displayName: "Dev User",
+          avatar: null,
+          createdAt: "2024-01-01T00:00:00.000Z",
+          lastLogin: new Date().toISOString(),
+          preferences: {
+            theme: "dark",
+            notifications: true,
+            timezone: "UTC"
+          }
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      // In production, get user data from authentication token
+      const userId = req.user?.sub;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: "Authentication required",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Return user profile data (would normally come from database)
+      res.json({
+        success: true,
+        data: {
+          id: userId,
+          email: req.user?.email || "user@example.com",
+          firstName: req.user?.given_name || "User",
+          lastName: req.user?.family_name || "Name",
+          displayName: req.user?.name || "User Name",
+          avatar: req.user?.picture || null,
+          createdAt: req.user?.created_at || new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          preferences: {
+            theme: "light",
+            notifications: true,
+            timezone: "UTC"
+          }
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.error("Profile endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch user profile",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// User preferences endpoint
+router.get("/preferences", (req, res) => {
+  try {
+    // In development mode, return mock preferences
+    if (process.env.NODE_ENV === "development" || process.env.ALLOW_DEV_BYPASS === "true") {
+      res.json({
+        success: true,
+        data: {
+          theme: "dark",
+          language: "en",
+          timezone: "UTC",
+          notifications: {
+            email: true,
+            push: false,
+            sms: false,
+            alerts: true,
+            earnings: true,
+            portfolio: true
+          },
+          dashboard: {
+            defaultView: "overview",
+            autoRefresh: true,
+            refreshInterval: 30,
+            showNews: true,
+            showMarketSummary: true
+          },
+          trading: {
+            confirmOrders: true,
+            defaultOrderType: "market",
+            riskLevel: "moderate"
+          }
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      // In production, get user preferences from database
+      const userId = req.user?.sub;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: "Authentication required",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Return user preferences (would normally come from database)
+      res.json({
+        success: true,
+        data: {
+          theme: "light",
+          language: "en",
+          timezone: req.user?.timezone || "UTC",
+          notifications: {
+            email: true,
+            push: true,
+            sms: false,
+            alerts: true,
+            earnings: true,
+            portfolio: true
+          },
+          dashboard: {
+            defaultView: "overview",
+            autoRefresh: true,
+            refreshInterval: 60,
+            showNews: true,
+            showMarketSummary: true
+          },
+          trading: {
+            confirmOrders: true,
+            defaultOrderType: "limit",
+            riskLevel: "conservative"
+          }
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.error("Preferences endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch user preferences",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 // Change password endpoint
@@ -183,6 +348,237 @@ router.post("/change-password", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to change password",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// User settings endpoint (alias to preferences for API consistency)
+router.get("/settings", (req, res) => {
+  try {
+    // In development mode, return mock settings
+    if (process.env.NODE_ENV === "development" || process.env.ALLOW_DEV_BYPASS === "true") {
+      res.json({
+        success: true,
+        data: {
+          profile: {
+            theme: "dark",
+            language: "en",
+            timezone: "UTC"
+          },
+          notifications: {
+            email: true,
+            push: false,
+            sms: false,
+            alerts: true,
+            earnings: true,
+            portfolio: true
+          },
+          dashboard: {
+            defaultView: "overview",
+            autoRefresh: true,
+            refreshInterval: 30,
+            showNews: true,
+            showMarketSummary: true
+          },
+          trading: {
+            confirmOrders: true,
+            defaultOrderType: "market",
+            riskLevel: "moderate"
+          },
+          security: {
+            twoFactorEnabled: false,
+            sessionTimeout: 3600,
+            requirePasswordChange: false
+          },
+          privacy: {
+            shareData: false,
+            analytics: true,
+            cookies: true
+          }
+        },
+        endpoint: "settings",
+        note: "Use /preferences for more detailed preference structure",
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      // In production, get user settings from database
+      const userId = req.user?.sub;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: "Authentication required",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Return user settings (would normally come from database)
+      res.json({
+        success: true,
+        data: {
+          profile: {
+            theme: "light",
+            language: "en",
+            timezone: req.user?.timezone || "UTC"
+          },
+          notifications: {
+            email: true,
+            push: true,
+            sms: false,
+            alerts: true,
+            earnings: true,
+            portfolio: true
+          },
+          dashboard: {
+            defaultView: "overview",
+            autoRefresh: true,
+            refreshInterval: 60,
+            showNews: true,
+            showMarketSummary: true
+          },
+          trading: {
+            confirmOrders: true,
+            defaultOrderType: "limit",
+            riskLevel: "conservative"
+          },
+          security: {
+            twoFactorEnabled: false,
+            sessionTimeout: 7200,
+            requirePasswordChange: false
+          },
+          privacy: {
+            shareData: false,
+            analytics: true,
+            cookies: true
+          }
+        },
+        endpoint: "settings",
+        note: "Use /preferences for more detailed preference structure",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.error("Settings endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch user settings",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// User notifications endpoint
+router.get("/notifications", (req, res) => {
+  try {
+    // In development mode, return mock notifications
+    if (process.env.NODE_ENV === "development" || process.env.ALLOW_DEV_BYPASS === "true") {
+      res.json({
+        success: true,
+        data: {
+          unread: 3,
+          total: 15,
+          notifications: [
+            {
+              id: "notif_001",
+              type: "alert",
+              title: "Price Alert Triggered",
+              message: "AAPL has reached your target price of $150",
+              symbol: "AAPL",
+              timestamp: new Date(Date.now() - 3600000).toISOString(),
+              read: false,
+              priority: "high"
+            },
+            {
+              id: "notif_002",
+              type: "earnings",
+              title: "Earnings Report Available",
+              message: "MSFT Q4 earnings report is now available",
+              symbol: "MSFT",
+              timestamp: new Date(Date.now() - 7200000).toISOString(),
+              read: false,
+              priority: "medium"
+            },
+            {
+              id: "notif_003",
+              type: "portfolio",
+              title: "Portfolio Rebalance Complete",
+              message: "Your portfolio has been successfully rebalanced",
+              timestamp: new Date(Date.now() - 86400000).toISOString(),
+              read: false,
+              priority: "medium"
+            },
+            {
+              id: "notif_004",
+              type: "news",
+              title: "Market Update",
+              message: "Major market movement detected in tech sector",
+              timestamp: new Date(Date.now() - 172800000).toISOString(),
+              read: true,
+              priority: "low"
+            },
+            {
+              id: "notif_005",
+              type: "system",
+              title: "Account Security",
+              message: "Login from new device detected",
+              timestamp: new Date(Date.now() - 259200000).toISOString(),
+              read: true,
+              priority: "high"
+            }
+          ],
+          settings: {
+            emailEnabled: true,
+            pushEnabled: false,
+            smsEnabled: false,
+            alertsEnabled: true,
+            earningsEnabled: true,
+            portfolioEnabled: true,
+            newsEnabled: true,
+            systemEnabled: true
+          }
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      // In production, get user notifications from database
+      const userId = req.user?.sub;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: "Authentication required",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Return user notifications (would normally come from database)
+      res.json({
+        success: true,
+        data: {
+          unread: 0,
+          total: 0,
+          notifications: [],
+          settings: {
+            emailEnabled: true,
+            pushEnabled: true,
+            smsEnabled: false,
+            alertsEnabled: true,
+            earningsEnabled: true,
+            portfolioEnabled: true,
+            newsEnabled: true,
+            systemEnabled: true
+          }
+        },
+        message: "No notifications available",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.error("Notifications endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch user notifications",
       details: error.message,
       timestamp: new Date().toISOString(),
     });

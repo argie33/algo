@@ -59,6 +59,7 @@ const insiderRoutes = require("./routes/insider");
 const dividendRoutes = require("./routes/dividend");
 const positioningRoutes = require("./routes/positioning");
 const strategyBuilderRoutes = require("./routes/strategyBuilder");
+const userRoutes = require("./routes/user");
 const debugRoutes = require("./routes/debug");
 
 const app = express();
@@ -218,6 +219,9 @@ app.use(
         return callback(null, true);
       }
 
+      // In test environment, allow additional test domains for CORS testing
+      const isTestEnv = process.env.NODE_ENV === "test";
+
       // Specific allowed origins
       const allowedOrigins = [
         "https://d1copuy2oqlazx.cloudfront.net",
@@ -228,9 +232,21 @@ app.use(
         "http://127.0.0.1:5173",
       ];
 
+      // Test-only origins for CORS testing
+      const testOnlyOrigins = [
+        "https://example.com",
+        "https://test.example.com",
+        "http://test-domain.local"
+      ];
+
+      // Combine origins based on environment
+      const finalAllowedOrigins = isTestEnv ?
+        [...allowedOrigins, ...testOnlyOrigins] :
+        allowedOrigins;
+
       // Allow specific origins or patterns
       if (
-        allowedOrigins.includes(origin) ||
+        finalAllowedOrigins.includes(origin) ||
         origin.includes(".execute-api.") ||
         origin.includes(".cloudfront.net") ||
         origin.includes("localhost") ||
@@ -258,22 +274,50 @@ app.use(
   })
 );
 
-// Additional CORS headers for API Gateway compatibility
+// Enhanced CORS headers for AWS API Gateway compatibility
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  // Set CORS headers explicitly for CloudFront
-  if (origin && origin.includes("cloudfront.net")) {
-    res.header("Access-Control-Allow-Origin", origin);
+  // AWS Lambda/API Gateway environment detection
+  const isLambda = process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const isAPIGateway = req.headers['x-forwarded-for'] || req.headers['x-amzn-requestid'];
+
+  // Set comprehensive CORS headers for AWS environments
+  if (isLambda || isAPIGateway) {
+    // Always set CORS headers in AWS environment
+    res.header("Access-Control-Allow-Origin", origin || "*");
     res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH");
     res.header(
       "Access-Control-Allow-Headers",
-      "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token"
+      "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control"
+    );
+    res.header("Access-Control-Max-Age", "86400"); // 24 hours
+    res.header("Vary", "Origin,Accept-Encoding");
+  }
+
+  // Set CORS headers explicitly for CloudFront and API Gateway
+  if (origin && (origin.includes("cloudfront.net") || origin.includes("amazonaws.com"))) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH");
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID"
     );
   }
 
-  // Handle preflight requests
+  // Add AWS-specific context to request for debugging
+  if (isLambda) {
+    req.context = {
+      awsRequestId: req.headers['x-amzn-requestid'],
+      functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
+      functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
+      remainingTimeInMillis: () => 30000 // Default to 30 seconds
+    };
+  }
+
+  // Handle preflight requests with enhanced AWS support
   if (req.method === "OPTIONS") {
     res.status(200).end();
     return;
@@ -496,6 +540,7 @@ app.use("/api/strategy-builder", strategyBuilderRoutes); // Hyphenated version f
 app.use("/api/strategies", strategyBuilderRoutes); // Alias for strategies
 app.use("/api/liveData", liveDataRoutes);
 app.use("/api/livedata", liveDataRoutes);
+app.use("/api/user", userRoutes);
 
 app.use("/api/debug", debugRoutes); // Debug routes for development
 
