@@ -50,9 +50,9 @@ router.get("/", async (req, res) => {
             ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
-          bs.buylevel,
-          bs.stoplevel,
-          bs.inposition,
+          bs.support_level as buylevel,
+          bs.resistance_level as stoplevel,
+          CASE WHEN bs.signal_type IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
           bs.timeframe
         FROM buy_sell_daily bs
         WHERE bs.signal_type IS NOT NULL
@@ -81,9 +81,9 @@ router.get("/", async (req, res) => {
             ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
-          bs.buylevel,
-          bs.stoplevel,
-          bs.inposition,
+          bs.support_level as buylevel,
+          bs.resistance_level as stoplevel,
+          CASE WHEN bs.signal_type IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
           bs.timeframe
         FROM buy_sell_weekly bs
         WHERE bs.signal_type IS NOT NULL
@@ -112,9 +112,9 @@ router.get("/", async (req, res) => {
             ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
-          bs.buylevel,
-          bs.stoplevel,
-          bs.inposition,
+          bs.support_level as buylevel,
+          bs.resistance_level as stoplevel,
+          CASE WHEN bs.signal_type IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
           bs.timeframe
         FROM buy_sell_monthly bs
         WHERE bs.signal_type IS NOT NULL
