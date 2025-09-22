@@ -152,7 +152,7 @@ router.get("/debug", async (req, res) => {
       "buy_sell_weekly",
       "buy_sell_monthly",
       "market_data",
-      "company_profile",
+      "fundamental_metrics",
       "swing_trading_signals",
     ];
 
@@ -508,7 +508,7 @@ router.get("/signals/:timeframe", async (req, res) => {
         `SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
-          AND table_name = 'company_profile'
+          AND table_name = 'fundamental_metrics'
         );`
       ),
       query(
@@ -568,7 +568,7 @@ router.get("/signals/:timeframe", async (req, res) => {
       }
     }
 
-    // Check which columns exist in company_profile table
+    // Check which columns exist in fundamental_metrics table
     let companyProfileColumns = {
       ticker: false,
       short_name: false,
@@ -582,20 +582,20 @@ router.get("/signals/:timeframe", async (req, res) => {
           SELECT column_name 
           FROM information_schema.columns 
           WHERE table_schema = 'public' 
-          AND table_name = 'company_profile'
+          AND table_name = 'fundamental_metrics'
           AND column_name IN ('ticker', 'symbol', 'short_name', 'name', 'sector', 'market_cap')
         `);
         columnCheck.rows.forEach((row) => {
           companyProfileColumns[row.column_name] = true;
         });
 
-        // If company_profile exists but has no useful columns, don't use it
+        // If fundamental_metrics exists but has no useful columns, don't use it
         if (!columnCheck.rows || columnCheck.rows.length === 0) {
           companyProfileExists = false;
         }
       } catch (columnError) {
         console.warn(
-          "[TRADING] Could not check company_profile columns:",
+          "[TRADING] Could not check fundamental_metrics columns:",
           columnError.message
         );
         companyProfileExists = false;
@@ -664,7 +664,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             END as performance_percent,
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
-          ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
+          ${companyProfileExists ? "LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol" : ""}
           ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
           ${whereClause}
         )
@@ -696,7 +696,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             ELSE 0
           END as performance_percent
         FROM ${tableName} bs
-        ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
+        ${companyProfileExists ? "LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol" : ""}
         ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
         ${whereClause}
         ORDER BY bs.date DESC, bs.symbol ASC
@@ -1004,7 +1004,7 @@ router.get("/swing-signals", async (req, res) => {
           ELSE 'ACTIVE'
         END as status
       FROM swing_trading_signals st
-      JOIN company_profile cp ON st.symbol = cp.ticker
+      JOIN fundamental_metrics fm ON st.symbol = fm.symbol
       LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON st.symbol = s.symbol
       ORDER BY st.date DESC
       LIMIT $1 OFFSET $2
@@ -2263,7 +2263,7 @@ router.get("/risk/portfolio", async (req, res) => {
         COALESCE(ti.historical_volatility_20d, 0.15) as volatility,
         COALESCE(ti.beta, 1.0) as beta
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON ph.symbol = fm.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) symbol, close, volume 
         FROM price_daily 

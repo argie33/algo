@@ -46,7 +46,7 @@ router.get("/upgrades", async (req, res) => {
         'Analyst Consensus' as firm,
         CONCAT('Recent activity: ', asa.upgrades_last_30d, ' upgrades, ', asa.downgrades_last_30d, ' downgrades') as details
       FROM analyst_sentiment_analysis asa
-      LEFT JOIN company_profile cp ON asa.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON asa.symbol = fm.symbol
       WHERE (asa.upgrades_last_30d > 0 OR asa.downgrades_last_30d > 0)
       ORDER BY asa.date DESC, (asa.upgrades_last_30d + asa.downgrades_last_30d) DESC
       LIMIT $1 OFFSET $2
@@ -734,7 +734,7 @@ router.get("/recent-actions", async (req, res) => {
           ELSE 'neutral'
         END as action_type
       FROM analyst_sentiment_analysis asa
-      LEFT JOIN company_profile cp ON asa.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON asa.symbol = fm.symbol
       WHERE asa.date = $1
         AND (asa.upgrades_last_30d > 0 OR asa.downgrades_last_30d > 0)
       ORDER BY asa.date DESC, asa.symbol ASC

@@ -122,7 +122,7 @@ router.get("/summary", async (req, res) => {
             LIMIT 10
         `;
 
-    // Get sector performance from company_profile table
+    // Get sector performance from fundamental_metrics table
     const sectorQuery = `
             SELECT 
                 cp.sector,
@@ -135,7 +135,7 @@ router.get("/summary", async (req, res) => {
             FROM price_daily pd
             LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
                 AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-            JOIN company_profile cp ON pd.symbol = cp.ticker
+            JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
             WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
                 AND cp.sector IS NOT NULL 
                 AND cp.sector != ''
@@ -727,7 +727,7 @@ router.get("/market-data", async (req, res) => {
                 AVG(pd.volume) as avg_volume,
                 SUM(pd.volume * pd.close) as total_value
             FROM price_daily pd
-            JOIN company_profile cp ON pd.symbol = cp.ticker
+            JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
             WHERE cp.sector IS NOT NULL 
                 AND pd.date >= CURRENT_DATE - INTERVAL '1 day'
                 AND pd.close IS NOT NULL
@@ -909,7 +909,7 @@ router.get("/overview", async (req, res) => {
       FROM price_daily pd
       LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
           AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-      JOIN company_profile cp ON pd.symbol = cp.ticker
+      JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
       WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
         AND cp.sector IS NOT NULL 
         AND pd.close IS NOT NULL
@@ -1045,9 +1045,9 @@ router.get("/debug", async (req, res) => {
       const countsResult = await query(`
                 SELECT 
                     (SELECT COUNT(*) FROM price_daily) as price_count,
-                    (SELECT COUNT(*) FROM company_profile) as profile_count,
+                    (SELECT COUNT(*) FROM fundamental_metrics) as profile_count,
                     (SELECT COUNT(*) FROM stock_symbols) as symbols_count,
-                    (SELECT COUNT(*) FROM company_profile) as stocks_count
+                    (SELECT COUNT(*) FROM fundamental_metrics) as stocks_count
             `);
       debugData.data_counts = countsResult.rows[0];
     } catch (error) {
@@ -1151,7 +1151,7 @@ router.get("/analytics", async (req, res) => {
           SUM(up.market_value) as total_value,
           AVG(up.gain_loss_percent) as avg_performance
         FROM user_portfolio up
-        LEFT JOIN company_profile s ON up.symbol = s.ticker
+        LEFT JOIN fundamental_metrics s ON up.symbol = s.symbol
         WHERE s.sector IS NOT NULL
         GROUP BY s.sector
         ORDER BY total_value DESC
