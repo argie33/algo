@@ -26,7 +26,7 @@ router.get("/", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = (page - 1) * limit;
 
-    // Simple query without complex parameters
+    // Optimized query using window function instead of correlated subquery
     const stocksQuery = `
       SELECT
         td.symbol,
@@ -42,18 +42,18 @@ router.get("/", async (req, res) => {
         50.0 as quality_score,
         td.date as score_date,
         td.date as last_updated
-      FROM technical_data_daily td
+      FROM (
+        SELECT DISTINCT ON (symbol)
+          symbol, rsi, macd, sma_20, date
+        FROM technical_data_daily
+        ORDER BY symbol, date DESC
+      ) td
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON td.symbol = pd.symbol
-      WHERE td.date = (
-        SELECT MAX(date)
-        FROM technical_data_daily
-        WHERE symbol = td.symbol
-      )
       ORDER BY td.symbol ASC
       LIMIT $1 OFFSET $2
     `;
@@ -85,15 +85,13 @@ router.get("/", async (req, res) => {
       lastUpdated: row.last_updated,
     }));
 
-    // Simple count query
+    // Optimized count query using subquery
     const countResult = await query(`
       SELECT COUNT(*) as total
-      FROM technical_data_daily td
-      WHERE td.date = (
-        SELECT MAX(date)
+      FROM (
+        SELECT DISTINCT symbol
         FROM technical_data_daily
-        WHERE symbol = td.symbol
-      )
+      ) symbols
     `, []);
 
     const total = parseInt(countResult.rows[0]?.total) || 0;
