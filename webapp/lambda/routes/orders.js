@@ -17,15 +17,42 @@ router.get("/ping", (req, res) => {
 
 // Public orders info (no auth for health checks - AWS deployment refresh)
 router.get("/", async (req, res) => {
-  // If no auth token, return basic service info
+  // If no auth token, return sample orders from database for health check
   if (!req.headers.authorization) {
-    return res.json({
-      success: true,
-      service: "orders",
-      status: "operational",
-      endpoints: ["/", "/ping"],
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      const sampleOrdersQuery = `
+        SELECT
+          order_id,
+          symbol,
+          transaction_type as side,
+          quantity,
+          price,
+          status,
+          created_at
+        FROM orders
+        WHERE status = 'filled'
+        ORDER BY created_at DESC
+        LIMIT 10
+      `;
+
+      const result = await query(sampleOrdersQuery, []);
+
+      return res.json({
+        success: true,
+        data: result.rows || [],
+        message: "Sample orders data",
+        total: result.rows?.length || 0,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Orders query error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   // If there's an auth token, require authentication
