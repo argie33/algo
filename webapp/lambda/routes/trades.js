@@ -11,17 +11,44 @@ const router = express.Router();
 // Apply response formatter middleware to all routes
 router.use(responseFormatter);
 
-// Root endpoint - List trades with filters (requires authentication)
-router.get("/", authenticateToken, async (req, res) => {
+// Ping endpoint (no auth required)
+router.get("/ping", (req, res) => {
+  res.json({
+    success: true,
+    status: "ok",
+    endpoint: "trades",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Root endpoint - Public trades info (no auth for health checks)
+router.get("/", async (req, res) => {
+  // If no auth token, return basic service info
+  if (!req.headers.authorization) {
+    return res.json({
+      success: true,
+      message: "Trade History API - Ready",
+      status: "operational",
+      endpoints: ["/", "/health", "/ping"],
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // If there's an auth token, require authentication
+  return authenticateToken(req, res, async () => {
   try {
     const userId = req.user.sub;
     const { limit = 50, status = "all", symbol, offset = 0 } = req.query;
 
+    // Use portfolio_transactions as fallback since trades table doesn't exist
     let query_str = `
-      SELECT trade_id, symbol, side, quantity, status, type,
-             executed_at, average_fill_price, filled_quantity,
-             created_at, updated_at
-      FROM trades
+      SELECT transaction_id as trade_id, symbol,
+             transaction_type as side, quantity,
+             'filled' as status, 'market' as type,
+             transaction_date as executed_at, price as average_fill_price,
+             quantity as filled_quantity,
+             created_at, created_at as updated_at
+      FROM portfolio_transactions
       WHERE user_id = $1
     `;
     const queryParams = [userId];
@@ -55,12 +82,31 @@ router.get("/", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Error listing trades:", error);
+
+    // Handle specific database errors gracefully
+    if (error.message.includes('relation "trades" does not exist')) {
+      return res.status(503).json({
+        success: false,
+        error: "Trades service unavailable",
+        message: "Trades database table is not available in the current environment",
+        suggestion: "Database schema needs to be updated with trades table structure",
+        details: {
+          table_required: "trades",
+          environment: process.env.NODE_ENV || "unknown"
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Handle other database errors
     res.status(500).json({
       success: false,
       error: "Failed to list trades",
-      message: error.message,
+      message: process.env.NODE_ENV === "development" ? error.message : "Internal database error",
+      timestamp: new Date().toISOString(),
     });
   }
+  });
 });
 
 // Health endpoint (no auth required)

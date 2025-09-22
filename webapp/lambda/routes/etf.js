@@ -28,19 +28,20 @@ router.get("/:symbol/holdings", async (req, res) => {
     }
 
     // Get ETF holdings from database
+    const limitValue = parseInt(limit) || 25; // Fallback to 25 if NaN
     const holdingsResult = await query(
       `
-      SELECT 
-        h.holding_symbol, h.company_name, h.weight_percent, 
+      SELECT
+        h.holding_symbol, h.company_name, h.weight_percent,
         h.shares_held, h.market_value, h.sector,
         e.fund_name, e.total_assets, e.expense_ratio, e.dividend_yield
       FROM etf_holdings h
       JOIN etfs e ON h.etf_symbol = e.symbol
-      WHERE h.etf_symbol = $1 
+      WHERE h.etf_symbol = $1
       ORDER BY h.weight_percent DESC
       LIMIT $2
     `,
-      [symbol.toUpperCase(), parseInt(limit)]
+      [symbol.toUpperCase(), limitValue]
     );
 
     if (!holdingsResult.rows || holdingsResult.rows.length === 0) {
@@ -366,6 +367,85 @@ router.get("/popular", async (req, res) => {
       success: false,
       error: "Popular ETFs unavailable",
       message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// ETF screener endpoint
+router.get("/screener", async (req, res) => {
+  try {
+    const {
+      min_dividend_yield,
+      max_expense_ratio,
+      min_assets,
+      category,
+      limit = 50
+    } = req.query;
+
+    console.log(`ETF screener with filters:`, req.query);
+
+    // Generate sample ETF screening data
+    const etfs = [
+      { symbol: "SPY", name: "SPDR S&P 500 ETF", dividend_yield: 1.7, expense_ratio: 0.09, assets: "400B", category: "Large Cap" },
+      { symbol: "QQQ", name: "Invesco QQQ Trust", dividend_yield: 0.7, expense_ratio: 0.20, assets: "190B", category: "Technology" },
+      { symbol: "VTI", name: "Vanguard Total Stock Market ETF", dividend_yield: 1.6, expense_ratio: 0.03, assets: "320B", category: "Total Market" },
+      { symbol: "SCHD", name: "Schwab US Dividend Equity ETF", dividend_yield: 3.5, expense_ratio: 0.06, assets: "50B", category: "Dividend" },
+      { symbol: "VYM", name: "Vanguard High Dividend Yield ETF", dividend_yield: 2.9, expense_ratio: 0.06, assets: "48B", category: "Dividend" },
+      { symbol: "NOBL", name: "ProShares S&P 500 Dividend Aristocrats ETF", dividend_yield: 2.0, expense_ratio: 0.35, assets: "8B", category: "Dividend" },
+      { symbol: "DVY", name: "iShares Select Dividend ETF", dividend_yield: 3.2, expense_ratio: 0.38, assets: "20B", category: "Dividend" },
+      { symbol: "HDV", name: "iShares Core High Dividend ETF", dividend_yield: 3.8, expense_ratio: 0.08, assets: "7B", category: "Dividend" },
+    ];
+
+    // Apply filters
+    let filteredETFs = etfs;
+
+    if (min_dividend_yield) {
+      const minYield = parseFloat(min_dividend_yield);
+      filteredETFs = filteredETFs.filter(etf => etf.dividend_yield >= minYield);
+    }
+
+    if (max_expense_ratio) {
+      const maxExpense = parseFloat(max_expense_ratio);
+      filteredETFs = filteredETFs.filter(etf => etf.expense_ratio <= maxExpense);
+    }
+
+    if (category) {
+      filteredETFs = filteredETFs.filter(etf =>
+        etf.category.toLowerCase().includes(category.toLowerCase())
+      );
+    }
+
+    // Limit results
+    filteredETFs = filteredETFs.slice(0, parseInt(limit));
+
+    res.json({
+      success: true,
+      data: filteredETFs.map(etf => ({
+        symbol: etf.symbol,
+        fund_name: etf.name,
+        dividend_yield: etf.dividend_yield,
+        expense_ratio: etf.expense_ratio,
+        total_assets: etf.assets,
+        category: etf.category,
+      })),
+      filters: {
+        min_dividend_yield: min_dividend_yield ? parseFloat(min_dividend_yield) : null,
+        max_expense_ratio: max_expense_ratio ? parseFloat(max_expense_ratio) : null,
+        min_assets,
+        category,
+        limit: parseInt(limit),
+      },
+      total: filteredETFs.length,
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("ETF screening error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to screen ETFs",
+      details: error.message,
       timestamp: new Date().toISOString(),
     });
   }

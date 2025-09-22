@@ -136,9 +136,10 @@ module.exports = async () => {
       )
     `);
 
-    // Create buy_sell_weekly table
+    // Create buy_sell_weekly table (force recreation to ensure proper schema)
+    await query(`DROP TABLE IF EXISTS buy_sell_weekly`);
     await query(`
-      CREATE TABLE IF NOT EXISTS buy_sell_weekly (
+      CREATE TABLE buy_sell_weekly (
         symbol VARCHAR(20) NOT NULL,
         date DATE NOT NULL,
         timeframe VARCHAR(10) NOT NULL DEFAULT 'weekly',
@@ -162,9 +163,10 @@ module.exports = async () => {
       )
     `);
 
-    // Create buy_sell_monthly table
+    // Create buy_sell_monthly table (force recreation to ensure proper schema)
+    await query(`DROP TABLE IF EXISTS buy_sell_monthly`);
     await query(`
-      CREATE TABLE IF NOT EXISTS buy_sell_monthly (
+      CREATE TABLE buy_sell_monthly (
         symbol VARCHAR(20) NOT NULL,
         date DATE NOT NULL,
         timeframe VARCHAR(10) NOT NULL DEFAULT 'monthly',
@@ -215,9 +217,8 @@ module.exports = async () => {
       )
     `);
 
-    await query(`DROP TABLE IF EXISTS price_daily`);
     await query(`
-      CREATE TABLE price_daily (
+      CREATE TABLE IF NOT EXISTS price_daily (
         id           SERIAL PRIMARY KEY,
         symbol       VARCHAR(10) NOT NULL,
         date         DATE         NOT NULL,
@@ -229,6 +230,7 @@ module.exports = async () => {
         volume       BIGINT,
         dividends    DOUBLE PRECISION,
         stock_splits DOUBLE PRECISION,
+        change_percent DOUBLE PRECISION,
         created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(symbol, date)
       )
@@ -395,6 +397,30 @@ module.exports = async () => {
       ON CONFLICT (symbol, date, timeframe, signal_type) DO NOTHING
     `);
 
+    // Add weekly trading signals data
+    await query(`
+      INSERT INTO buy_sell_weekly (symbol, date, timeframe, signal_type, confidence, price, rsi, macd, volume, volume_avg_10d, price_vs_ma20, price_vs_ma50, bollinger_position, support_level, resistance_level, pattern_score, momentum_score, risk_score) VALUES
+      ('AAPL', '2024-01-01', 'weekly', 'BUY', 80.2, 148.75, 42.1, 1.45, 320000000, 290000000, 3.1, 5.2, 72.3, 142.50, 158.25, 75.8, 72.4, 22.5),
+      ('AAPL', '2024-01-08', 'weekly', 'HOLD', 65.7, 152.80, 55.3, 0.75, 340000000, 310000000, 2.5, 4.1, 61.8, 148.25, 159.50, 68.2, 63.9, 28.3),
+      ('MSFT', '2024-01-01', 'weekly', 'SELL', 77.9, 352.25, 68.7, -1.25, 225000000, 210000000, -0.8, -2.1, 78.9, 345.80, 365.75, 74.6, 69.8, 31.2),
+      ('MSFT', '2024-01-08', 'weekly', 'BUY', 72.4, 348.90, 35.2, 1.35, 235000000, 220000000, 1.2, 2.8, 42.1, 340.50, 362.25, 70.3, 74.1, 26.8),
+      ('GOOGL', '2024-01-01', 'weekly', 'BUY', 85.1, 142.50, 38.9, 1.65, 28000000, 25000000, 4.2, 6.8, 68.4, 138.25, 148.75, 82.7, 79.3, 18.6),
+      ('TSLA', '2024-01-01', 'weekly', 'SELL', 73.6, 248.30, 75.4, -0.85, 85000000, 78000000, -2.3, -4.1, 88.2, 240.50, 258.75, 71.9, 68.5, 35.7)
+      ON CONFLICT (symbol, date, timeframe, signal_type) DO NOTHING
+    `);
+
+    // Add monthly trading signals data
+    await query(`
+      INSERT INTO buy_sell_monthly (symbol, date, timeframe, signal_type, confidence, price, rsi, macd, volume, volume_avg_10d, price_vs_ma20, price_vs_ma50, bollinger_position, support_level, resistance_level, pattern_score, momentum_score, risk_score) VALUES
+      ('AAPL', '2024-01-01', 'monthly', 'BUY', 88.7, 145.20, 35.8, 2.15, 1280000000, 1150000000, 5.8, 8.4, 78.9, 138.75, 162.50, 85.2, 82.6, 15.3),
+      ('MSFT', '2024-01-01', 'monthly', 'HOLD', 71.3, 355.40, 48.6, 0.95, 900000000, 840000000, 2.1, 3.7, 55.2, 342.25, 368.80, 72.8, 68.4, 24.7),
+      ('GOOGL', '2024-01-01', 'monthly', 'BUY', 92.4, 138.90, 28.7, 2.85, 112000000, 98000000, 7.2, 12.1, 82.6, 132.50, 152.25, 89.1, 87.3, 12.8),
+      ('TSLA', '2024-01-01', 'monthly', 'SELL', 79.8, 252.75, 82.3, -1.45, 340000000, 315000000, -3.8, -6.2, 91.4, 235.50, 265.25, 76.2, 73.9, 42.1),
+      ('AMZN', '2024-01-01', 'monthly', 'BUY', 84.6, 152.80, 41.2, 1.75, 720000000, 680000000, 4.1, 7.3, 65.7, 146.25, 159.75, 81.4, 78.2, 20.5),
+      ('NVDA', '2024-01-01', 'monthly', 'BUY', 95.2, 485.25, 25.4, 3.25, 450000000, 420000000, 8.7, 15.2, 85.3, 468.50, 512.75, 92.8, 91.5, 8.7)
+      ON CONFLICT (symbol, date, timeframe, signal_type) DO NOTHING
+    `);
+
     await query(`
       INSERT INTO market_data (ticker, market_cap, current_price, previous_close, volume) VALUES
       ('AAPL', 3500000000000, 150.25, 149.50, 65000000),
@@ -499,7 +525,7 @@ module.exports = async () => {
       )
     `);
 
-    // Add position_history table for trades tests
+    // Add position_history table for trades tests (add missing column if needed)
     await query(`
       CREATE TABLE IF NOT EXISTS position_history (
         id SERIAL PRIMARY KEY,
@@ -518,16 +544,43 @@ module.exports = async () => {
       )
     `);
 
+    // Add missing avg_exit_price column if it doesn't exist
+    await query(`
+      ALTER TABLE position_history
+      ADD COLUMN IF NOT EXISTS avg_exit_price DECIMAL(12,4)
+    `);
+
+    await query(`
+      ALTER TABLE position_history
+      ADD COLUMN IF NOT EXISTS gross_pnl DECIMAL(15,4)
+    `);
+
+    await query(`
+      ALTER TABLE position_history
+      ADD COLUMN IF NOT EXISTS holding_period_days INTEGER
+    `);
+
+    // Add missing columns to company_profile table
+    await query(`
+      ALTER TABLE company_profile
+      ADD COLUMN IF NOT EXISTS market_cap BIGINT
+    `);
+
+    await query(`
+      ALTER TABLE company_profile
+      ADD COLUMN IF NOT EXISTS name VARCHAR(200)
+    `);
+
     await query(`
       INSERT INTO test_transaction_stress (value, updated_by) VALUES
       (100, 'initial')
     `);
 
     await query(`
-      INSERT INTO position_history (user_id, symbol, side, quantity, avg_entry_price, current_price, net_pnl, return_percentage, status, opened_at, closed_at) VALUES
+      INSERT INTO position_history (user_id, symbol, side, quantity, avg_entry_price, avg_exit_price, net_pnl, return_percentage, status, opened_at, closed_at) VALUES
       ('dev-user-bypass', 'AAPL', 'long', 100, 150.25, 155.75, 550.00, 3.66, 'closed', '2024-01-01 10:00:00', '2024-01-02 15:30:00'),
       ('dev-user-bypass', 'MSFT', 'long', 50, 348.25, 352.50, 212.50, 1.22, 'closed', '2024-01-01 11:00:00', '2024-01-02 14:00:00'),
-      ('dev-user-bypass', 'GOOGL', 'long', 25, 2850.00, 2865.75, 393.75, 0.55, 'open', '2024-01-02 09:30:00', NULL),
+      ('dev-user-bypass', 'GOOGL', 'long', 25, 2850.00, NULL, 393.75, 0.55, 'open', '2024-01-02 09:30:00', NULL),
       ('dev-user-bypass', 'TSLA', 'short', 75, 247.80, 244.25, 266.25, 1.43, 'closed', '2024-01-01 12:00:00', '2024-01-02 16:00:00')
       ON CONFLICT (id) DO NOTHING
     `);
@@ -560,6 +613,85 @@ module.exports = async () => {
       ('test-trade-2', 'test-user', 'MSFT', 'sell', 50, 'limit', 'pending', NOW() - INTERVAL '2 hours'),
       ('test-trade-3', 'test-user', 'TSLA', 'buy', 25, 'market', 'filled', NOW() - INTERVAL '1 week')
       ON CONFLICT (trade_id) DO NOTHING
+    `);
+
+    // Create ETFs table (from etf.js requirements)
+    await query(`
+      CREATE TABLE IF NOT EXISTS etfs (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL UNIQUE,
+        fund_name VARCHAR(255),
+        total_assets DECIMAL(20,2),
+        expense_ratio DECIMAL(6,4),
+        dividend_yield DECIMAL(8,6),
+        inception_date DATE,
+        category VARCHAR(100),
+        strategy TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create ETF holdings table (from etf.js requirements)
+    await query(`
+      CREATE TABLE IF NOT EXISTS etf_holdings (
+        id SERIAL PRIMARY KEY,
+        etf_symbol VARCHAR(10) NOT NULL,
+        holding_symbol VARCHAR(10) NOT NULL,
+        company_name VARCHAR(255),
+        weight_percent DECIMAL(8,6),
+        shares_held BIGINT,
+        market_value DECIMAL(15,2),
+        sector VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio returns table (from performance.js requirements)
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_returns (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        calculation_type VARCHAR(50) NOT NULL,
+        period VARCHAR(20) NOT NULL,
+        time_weighted_return DECIMAL(10,6),
+        dollar_weighted_return DECIMAL(10,6),
+        annualized_time_weighted DECIMAL(10,6),
+        annualized_dollar_weighted DECIMAL(10,6),
+        excess_return DECIMAL(10,6),
+        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio risk metrics table (from performance.js and risk.js requirements)
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_risk_metrics (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        portfolio_id INTEGER,
+        period VARCHAR(20) NOT NULL,
+        volatility DECIMAL(10,6),
+        var_95 DECIMAL(10,6),
+        var_99 DECIMAL(10,6),
+        expected_shortfall_95 DECIMAL(10,6),
+        expected_shortfall_99 DECIMAL(10,6),
+        maximum_drawdown DECIMAL(10,6),
+        calmar_ratio DECIMAL(10,6),
+        beta DECIMAL(10,6),
+        correlation_to_market DECIMAL(10,6),
+        tracking_error DECIMAL(10,6),
+        active_risk DECIMAL(10,6),
+        systematic_risk DECIMAL(10,6),
+        idiosyncratic_risk DECIMAL(10,6),
+        concentration_risk DECIMAL(10,6),
+        liquidity_risk DECIMAL(10,6),
+        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
 
     // Create sentiment tables matching loader structures
@@ -616,6 +748,37 @@ module.exports = async () => {
       )
     `);
 
+    // Dividend calendar table (for dividend routes) - matches database.js schema
+    await query(`
+      CREATE TABLE IF NOT EXISTS dividend_calendar (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        company_name VARCHAR(255),
+        ex_dividend_date DATE,
+        payment_date DATE,
+        record_date DATE,
+        dividend_amount DECIMAL(10,6),
+        dividend_yield DECIMAL(6,3),
+        dividend_type VARCHAR(50) DEFAULT 'regular',
+        frequency VARCHAR(20),
+        announcement_date DATE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_dividend_entry UNIQUE (symbol, ex_dividend_date)
+      )
+    `);
+
+    // Add sample dividend data for testing using database.js schema
+    await query(`
+      INSERT INTO dividend_calendar (symbol, company_name, ex_dividend_date, payment_date, record_date, dividend_amount, dividend_yield, frequency) VALUES
+      ('AAPL', 'Apple Inc.', CURRENT_DATE + INTERVAL '10 days', CURRENT_DATE + INTERVAL '25 days', CURRENT_DATE + INTERVAL '12 days', 0.25, 0.45, 'Quarterly'),
+      ('MSFT', 'Microsoft Corporation', CURRENT_DATE + INTERVAL '15 days', CURRENT_DATE + INTERVAL '30 days', CURRENT_DATE + INTERVAL '17 days', 0.75, 0.68, 'Quarterly'),
+      ('JNJ', 'Johnson & Johnson', CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE - INTERVAL '15 days', CURRENT_DATE - INTERVAL '28 days', 1.19, 2.94, 'Quarterly'),
+      ('KO', 'The Coca-Cola Company', CURRENT_DATE + INTERVAL '5 days', CURRENT_DATE + INTERVAL '20 days', CURRENT_DATE + INTERVAL '7 days', 0.48, 3.07, 'Quarterly'),
+      ('PFE', 'Pfizer Inc.', CURRENT_DATE - INTERVAL '10 days', CURRENT_DATE + INTERVAL '5 days', CURRENT_DATE - INTERVAL '8 days', 0.42, 5.85, 'Quarterly')
+      ON CONFLICT ON CONSTRAINT unique_dividend_entry DO NOTHING
+    `);
+
     // Economic Data table (from loadecondata.py)
     await query(`
       CREATE TABLE IF NOT EXISTS economic_data (
@@ -623,9 +786,67 @@ module.exports = async () => {
         series_id VARCHAR(100) NOT NULL,
         date DATE NOT NULL,
         value DOUBLE PRECISION,
+        category VARCHAR(100),
         fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(series_id, date)
       )
+    `);
+
+    // Custom signals table (for signals routes)
+    await query(`
+      CREATE TABLE IF NOT EXISTS custom_signals (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        signal_type VARCHAR(50) NOT NULL,
+        signal_strength DECIMAL(5,2),
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT true
+      )
+    `);
+
+    // Signal alerts table (for signals routes)
+    await query(`
+      CREATE TABLE IF NOT EXISTS signal_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        signal_type VARCHAR(50) NOT NULL,
+        symbol VARCHAR(10),
+        conditions JSONB,
+        notification_methods JSONB,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // News table (for news routes) - matches loadnews.py schema
+    await query(`
+      CREATE TABLE IF NOT EXISTS stock_news (
+        id SERIAL PRIMARY KEY,
+        uuid VARCHAR(255) UNIQUE NOT NULL,
+        ticker VARCHAR(10) NOT NULL,
+        title TEXT NOT NULL,
+        publisher VARCHAR(255),
+        link TEXT,
+        publish_time TIMESTAMP,
+        news_type VARCHAR(100),
+        thumbnail TEXT,
+        related_tickers JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Add sample news data for testing
+    await query(`
+      INSERT INTO stock_news (uuid, ticker, title, publisher, link, publish_time, news_type) VALUES
+      ('news-uuid-1', 'AAPL', 'Apple Announces Record Quarterly Earnings', 'Reuters', 'https://example.com/1', CURRENT_TIMESTAMP - INTERVAL '1 hour', 'earnings'),
+      ('news-uuid-2', 'MSFT', 'Microsoft Azure Cloud Growth Continues', 'Bloomberg', 'https://example.com/2', CURRENT_TIMESTAMP - INTERVAL '2 hours', 'technology'),
+      ('news-uuid-3', 'TSLA', 'Tesla Production Numbers Beat Expectations', 'CNBC', 'https://example.com/3', CURRENT_TIMESTAMP - INTERVAL '3 hours', 'automotive'),
+      ('news-uuid-4', 'GLD', 'Gold Prices Surge on Economic Uncertainty', 'WSJ', 'https://example.com/4', CURRENT_TIMESTAMP - INTERVAL '4 hours', 'commodities'),
+      ('news-uuid-5', 'OIL', 'Oil Futures Rise Due to Supply Concerns', 'MarketWatch', 'https://example.com/5', CURRENT_TIMESTAMP - INTERVAL '5 hours', 'energy')
+      ON CONFLICT (uuid) DO NOTHING
     `);
 
     // Create dividend_history table for dividend functionality
@@ -1172,6 +1393,69 @@ module.exports = async () => {
       INSERT INTO orders (user_id, symbol, side, quantity, order_type, limit_price, status, submitted_at, broker) VALUES
       ('test-user-1', 'AAPL', 'buy', 100, 'limit', 150.00, 'filled', '2024-01-01', 'alpaca'),
       ('test-user-2', 'MSFT', 'sell', 50, 'market', NULL, 'pending', '2024-01-02', 'alpaca')
+    `);
+
+    // Create news alerts table for alerts routes
+    await query(`
+      CREATE TABLE IF NOT EXISTS news_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        sentiment_threshold DECIMAL(5,4),
+        sentiment_type VARCHAR(20),
+        sources JSONB,
+        notification_methods JSONB,
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio alerts table for alerts routes
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        alert_type VARCHAR(50) NOT NULL,
+        threshold_value DECIMAL(12,4),
+        condition VARCHAR(20),
+        notification_methods JSONB,
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio transactions table for trade analytics
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_transactions (
+        transaction_id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
+        transaction_type VARCHAR(20) NOT NULL,
+        quantity NUMERIC NOT NULL,
+        price NUMERIC NOT NULL,
+        amount NUMERIC NOT NULL,
+        commission NUMERIC DEFAULT 0,
+        pnl NUMERIC DEFAULT 0,
+        transaction_date DATE NOT NULL,
+        settlement_date DATE,
+        description TEXT,
+        account_id VARCHAR(100),
+        broker VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create order activities table for order execution tracking
+    await query(`
+      CREATE TABLE IF NOT EXISTS order_activities (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        order_id INTEGER NOT NULL,
+        activity_type VARCHAR(50) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
 
     // Create watchlist tables for watchlist routes

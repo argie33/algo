@@ -717,33 +717,29 @@ router.get("/news", async (req, res) => {
     const { category, limit = 50 } = req.query;
     const limitNum = Math.min(parseInt(limit) || 50, 100);
 
-    // Query news from database for commodity-related content
+    // Query news from database for commodity-related content - using loadnews.py schema
     let newsQuery = `
-      SELECT 
+      SELECT
         id,
         title,
-        content,
-        summary,
-        category,
-        source,
-        author,
-        published_at as "publishedAt",
-        url,
-        sentiment,
-        symbol
-      FROM news 
+        publisher as source,
+        link as url,
+        publish_time as "publishedAt",
+        news_type as category,
+        ticker as symbol
+      FROM stock_news
       WHERE 1=1
     `;
 
     const queryParams = [];
 
-    // Filter by commodity-related categories
+    // Filter by commodity-related categories using correct column names
     if (category) {
-      newsQuery += ` AND category ILIKE $${queryParams.length + 1}`;
+      newsQuery += ` AND news_type ILIKE $${queryParams.length + 1}`;
       queryParams.push(`%${category}%`);
     } else {
       // Default to commodity-related categories
-      newsQuery += ` AND (category ILIKE ANY($${queryParams.length + 1}))`;
+      newsQuery += ` AND (news_type ILIKE ANY($${queryParams.length + 1}))`;
       queryParams.push([
         "%energy%",
         "%metals%",
@@ -754,7 +750,7 @@ router.get("/news", async (req, res) => {
       ]);
     }
 
-    newsQuery += ` ORDER BY published_at DESC LIMIT $${queryParams.length + 1}`;
+    newsQuery += ` ORDER BY publish_time DESC LIMIT $${queryParams.length + 1}`;
     queryParams.push(limitNum);
 
     const result = await query(newsQuery, queryParams);
