@@ -23,7 +23,7 @@ import {
   SignalCellular4Bar,
   SignalCellularNodata,
 } from "@mui/icons-material";
-import realTimeNewsService from "../services/realTimeNewsService.js";
+import api from "../services/api.js";
 
 const RealTimeSentimentScore = ({
   symbol,
@@ -38,105 +38,52 @@ const RealTimeSentimentScore = ({
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [realtimeUpdates, setRealtimeUpdates] = useState(0);
 
-  // Subscribe to real-time sentiment updates
-  useEffect(() => {
+  // Fetch sentiment data from API
+  const fetchSentiment = useCallback(async () => {
     if (!symbol) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    let subscriptionId = null;
-
-    const handleSentimentUpdate = (sentimentData) => {
-      setSentiment(sentimentData);
-      setLastUpdate(new Date());
-      setRealtimeUpdates((prev) => prev + 1);
-      setConnectionStatus("connected");
-      setLoading(false);
-    };
-
-    const handleConnectionError = () => {
+    try {
+      // Use the news API to get sentiment
+      const response = await api.get(`/sentiment/news/${symbol}`);
+      if (response.data) {
+        setSentiment(response.data);
+        setLastUpdate(new Date());
+        setConnectionStatus("connected");
+      }
+    } catch (error) {
+      console.error("Failed to fetch sentiment:", error);
       setConnectionStatus("error");
-    };
-
-    // Subscribe to sentiment updates for this symbol
-    subscriptionId = realTimeNewsService.subscribeToSentiment(
-      symbol,
-      handleSentimentUpdate
-    );
-
-    // Initial fetch
-    const fetchInitialSentiment = async () => {
-      try {
-        const existingSentiment =
-          realTimeNewsService.getLatestSentiment(symbol);
-        if (existingSentiment) {
-          handleSentimentUpdate(existingSentiment);
-        } else {
-          // Fetch from API if no cached data
-          const sentimentData =
-            await realTimeNewsService.fetchNewsSentiment(symbol);
-          if (sentimentData) {
-            handleSentimentUpdate(sentimentData);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch initial sentiment:", error);
-        handleConnectionError();
-        setLoading(false);
-      }
-    };
-
-    fetchInitialSentiment();
-
-    return () => {
-      if (subscriptionId) {
-        realTimeNewsService.unsubscribeFromSentiment(symbol, subscriptionId);
-      }
-    };
+      // Fallback to neutral sentiment
+      setSentiment({
+        score: 0.5,
+        label: "neutral",
+        confidence: 0
+      });
+    } finally {
+      setLoading(false);
+    }
   }, [symbol]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchSentiment();
+  }, [fetchSentiment]);
 
   // Auto-refresh functionality
   useEffect(() => {
     if (!autoRefresh || !symbol) return;
 
-    const interval = setInterval(async () => {
-      try {
-        const sentimentData =
-          await realTimeNewsService.fetchNewsSentiment(symbol);
-        if (sentimentData) {
-          setSentiment(sentimentData);
-          setLastUpdate(new Date());
-        }
-      } catch (error) {
-        console.error("Auto-refresh failed:", error);
-        setConnectionStatus("error");
-      }
-    }, refreshInterval);
-
+    const interval = setInterval(fetchSentiment, refreshInterval);
     return () => clearInterval(interval);
-  }, [symbol, autoRefresh, refreshInterval]);
+  }, [fetchSentiment, autoRefresh, refreshInterval]);
 
   const refreshSentiment = useCallback(async () => {
-    if (!symbol) return;
-
-    setLoading(true);
-    try {
-      const sentimentData =
-        await realTimeNewsService.fetchNewsSentiment(symbol);
-      if (sentimentData) {
-        setSentiment(sentimentData);
-        setLastUpdate(new Date());
-        setConnectionStatus("connected");
-      }
-    } catch (error) {
-      console.error("Manual refresh failed:", error);
-      setConnectionStatus("error");
-    } finally {
-      setLoading(false);
-    }
-  }, [symbol]);
+    await fetchSentiment();
+  }, [fetchSentiment]);
 
   // Calculate display values
   const displayValues = useMemo(() => {

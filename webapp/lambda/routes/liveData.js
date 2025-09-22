@@ -1256,6 +1256,7 @@ router.get("/latest/:symbols", async (req, res) => {
       low: parseFloat(row.low),
       volume: parseInt(row.volume),
       date: row.date,
+      timestamp: row.date, // Add timestamp field for test compatibility
       change: row.close - row.open,
       changePercent: (((row.close - row.open) / row.open) * 100).toFixed(2),
     }));

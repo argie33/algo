@@ -515,7 +515,7 @@ router.get("/chart/:symbol", async (req, res) => {
     // Query actual chart data from price_daily table
     const chartQuery = `
       SELECT date, open, high, low, close, adj_close, volume,
-             fetched_at as timestamp
+             created_at as timestamp
       FROM price_daily
       WHERE symbol = $1
       ORDER BY date DESC

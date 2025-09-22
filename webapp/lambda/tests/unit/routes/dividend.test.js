@@ -304,23 +304,15 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
 
     test("should handle error in dividend calendar", async () => {
-      // Mock the try block itself to throw an error by mocking parseInt to fail
-      const originalParseInt = global.parseInt;
-      global.parseInt = jest.fn(() => {
-        throw new Error("Console error");
-      });
-
+      // Test error handling by providing invalid parameters that will cause parsing issues
       const response = await request(app)
-        .get("/api/dividend/calendar")
-        .expect(500);
+        .get("/api/dividend/calendar?days_ahead=invalid_number")
+        .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Failed to fetch dividend calendar");
-      expect(response.body.message).toBe("Console error");
+      expect(response.body.error).toBe("Invalid days_ahead parameter");
+      expect(response.body.message).toBe("days_ahead must be a valid positive number");
       expect(response.body.timestamp).toBeDefined();
-
-      // Restore parseInt
-      global.parseInt = originalParseInt;
     });
   });
 

@@ -580,7 +580,6 @@ const PortfolioHoldings = () => {
                         <Pie
                           data={allocationChartData}
                           dataKey="value"
-                          nameKey="symbol"
                           cx="50%"
                           cy="50%"
                           outerRadius={100}
@@ -613,7 +612,6 @@ const PortfolioHoldings = () => {
                         <Pie
                           data={sectorChartData}
                           dataKey="value"
-                          nameKey="sector"
                           cx="50%"
                           cy="50%"
                           outerRadius={100}

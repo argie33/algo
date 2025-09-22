@@ -59,4 +59,30 @@ router.get("/database", async (req, res) => {
   }
 });
 
+// Database connectivity test (alternative endpoint name)
+router.get("/database-connectivity", async (req, res) => {
+  try {
+    const dbHealth = await healthCheck();
+    const testQuery = await query("SELECT 1 as test");
+
+    res.json({
+      success: true,
+      database: {
+        ...dbHealth,
+        connectivity_test: testQuery.rows[0].test === 1 ? "passed" : "failed",
+        endpoint: "database-connectivity",
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Database connectivity error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Database connectivity test failed",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 module.exports = router;

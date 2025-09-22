@@ -80,21 +80,31 @@ class ApiKeyService {
         });
         console.log("JWT verifier initialized successfully");
       } else if (process.env.NODE_ENV === "test") {
-        // In test environment, use a mock verifier to prevent real Cognito calls
+        // In test environment, use a mock verifier with secure token validation
         this.jwtVerifier = {
           verify: async (token) => {
-            // Mock verification for tests - always pass dev tokens, fail others
-            if (token && token.includes("dev-bypass-token")) {
-              return { sub: "test-user", email: "test@example.com" };
+            // Mock verification for tests - validate specific test tokens only
+            if (token === "test-token") {
+              return { sub: "test-user-123", email: "test@example.com", username: "test-user" };
             }
-            throw new Error("JWT verification not configured");
+            if (token === "dev-bypass-token") {
+              return { sub: "dev-user-bypass", email: "dev-bypass@example.com", username: "dev-user" };
+            }
+            throw new Error("Invalid test token provided");
           },
         };
         console.log("JWT verifier initialized successfully (test mode)");
       } else {
-        console.warn(
-          "Cognito environment variables not set - JWT verification disabled"
-        );
+        // SECURITY FIX: Enable JWT verification with default test configuration
+        // For AWS deployment, set proper COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+        console.log("Setting up default JWT verification for secure operation");
+        this.jwtVerifier = {
+          verify: async (token) => {
+            // For production deployment, this should be replaced with real Cognito verification
+            // Currently requires proper environment variables to be set
+            throw new Error("JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID");
+          },
+        };
       }
     } catch (error) {
       console.error("Failed to initialize JWT verifier:", error.message);
@@ -114,27 +124,8 @@ class ApiKeyService {
       };
     }
 
-    // Development bypass token handling
-    if (
-      token === "dev-bypass-token" &&
-      (process.env.ALLOW_DEV_BYPASS === "true" ||
-        process.env.NODE_ENV === "development" ||
-        process.env.NODE_ENV === "test")
-    ) {
-      console.log(
-        "🔧 Development mode: Accepting dev-bypass-token for API key operations"
-      );
-      return {
-        valid: true,
-        user: {
-          sub: "dev-user-bypass",
-          email: "dev-bypass@example.com",
-          username: "dev-bypass-user",
-          role: "admin",
-          sessionId: "dev-bypass-session",
-        },
-      };
-    }
+    // SECURITY FIX: Removed dangerous development bypass
+    // All tokens must now be properly validated through JWT verification
 
     // In test environment, use the mocked JWT verifier if available
     if (process.env.NODE_ENV === "test") {

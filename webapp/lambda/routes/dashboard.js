@@ -214,27 +214,47 @@ router.get("/summary", async (req, res) => {
                 AND prev.close IS NOT NULL
         `;
 
-    console.log("🔍 Executing comprehensive dashboard queries...");
+    console.log("🔍 Executing comprehensive dashboard queries with timeout protection...");
 
-    const [
-      marketResult,
-      gainersResult,
-      losersResult,
-      sectorResult,
-      earningsResult,
-      sentimentResult,
-      volumeResult,
-      breadthResult,
-    ] = await Promise.all([
-      query(marketQuery),
-      query(gainersQuery),
-      query(losersQuery),
-      query(sectorQuery),
-      query(earningsQuery),
-      query(sentimentQuery),
-      query(volumeQuery),
-      query(breadthQuery),
-    ]);
+    // Add timeout protection for AWS Lambda (3-second timeout)
+    const executeQueryWithTimeout = (queryPromise, name) => {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`${name} query timeout after 3 seconds`)), 3000)
+      );
+      return Promise.race([queryPromise, timeoutPromise]);
+    };
+
+    let marketResult, gainersResult, losersResult, sectorResult, earningsResult, sentimentResult, volumeResult, breadthResult;
+
+    try {
+      [
+        marketResult,
+        gainersResult,
+        losersResult,
+        sectorResult,
+        earningsResult,
+        sentimentResult,
+        volumeResult,
+        breadthResult,
+      ] = await Promise.all([
+        executeQueryWithTimeout(query(marketQuery), "market"),
+        executeQueryWithTimeout(query(gainersQuery), "gainers"),
+        executeQueryWithTimeout(query(losersQuery), "losers"),
+        executeQueryWithTimeout(query(sectorQuery), "sector"),
+        executeQueryWithTimeout(query(earningsQuery), "earnings"),
+        executeQueryWithTimeout(query(sentimentQuery), "sentiment"),
+        executeQueryWithTimeout(query(volumeQuery), "volume"),
+        executeQueryWithTimeout(query(breadthQuery), "breadth"),
+      ]);
+    } catch (error) {
+      console.error("Dashboard queries failed:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch dashboard summary",
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     // Check for database connection issues
     if (
@@ -1445,54 +1465,38 @@ router.get("/watchlists", authenticateToken, async (req, res) => {
     const userId = req.user ? req.user.sub : 'dev-user-bypass';
     console.log(`📋 Dashboard watchlists requested for user: ${userId}`);
 
-    // Get user's watchlists with summary data
-    const watchlistsResult = await query(`
-      SELECT
-        w.id,
-        w.name,
-        w.description,
-        w.is_public,
-        w.created_at,
-        COUNT(wi.symbol) as stock_count,
-        ARRAY_AGG(wi.symbol ORDER BY wi.added_at DESC) FILTER (WHERE wi.symbol IS NOT NULL) as stocks
-      FROM watchlists w
-      LEFT JOIN watchlist_items wi ON w.id = wi.watchlist_id
-      WHERE w.user_id = $1
-      GROUP BY w.id, w.name, w.description, w.is_public, w.created_at
-      ORDER BY w.created_at DESC
-      LIMIT 10
-    `, [userId]);
+    // Get user's watchlists with summary data (defensive query for AWS compatibility)
+    let watchlists = [];
+    try {
+      const watchlistsResult = await query(`
+        SELECT
+          w.id,
+          w.name,
+          w.description,
+          false as is_public,
+          w.created_at,
+          COUNT(wi.symbol) as stock_count,
+          ARRAY_AGG(wi.symbol ORDER BY wi.added_at DESC) FILTER (WHERE wi.symbol IS NOT NULL) as stocks
+        FROM watchlists w
+        LEFT JOIN watchlist_items wi ON w.id = wi.watchlist_id
+        WHERE w.user_id = $1
+        GROUP BY w.id, w.name, w.description, w.created_at
+        ORDER BY w.created_at DESC
+        LIMIT 10
+      `, [userId]);
 
-    const watchlists = watchlistsResult.rows || [];
+      watchlists = watchlistsResult.rows || [];
+    } catch (error) {
+      console.error("Watchlist query error:", error.message);
 
-    // If no watchlists exist, create sample data for testing
-    if (watchlists.length === 0) {
-      const sampleWatchlists = [
-        {
-          id: 1,
-          name: "Tech Favorites",
-          description: "Top technology stocks",
-          is_public: false,
-          stock_count: 5,
-          stocks: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']
-        },
-        {
-          id: 2,
-          name: "Dividend Stocks",
-          description: "High dividend yield stocks",
-          is_public: false,
-          stock_count: 3,
-          stocks: ['JNJ', 'PG', 'KO']
-        }
-      ];
-
-      res.json({
-        success: true,
-        data: sampleWatchlists,
-        total: sampleWatchlists.length,
+      console.error("Watchlist database error:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Watchlist data unavailable",
+        message: "Database error occurred",
+        details: process.env.NODE_ENV === "development" ? error.message : "Internal database error",
         timestamp: new Date().toISOString(),
       });
-      return;
     }
 
     res.json({

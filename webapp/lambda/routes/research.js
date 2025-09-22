@@ -1,6 +1,11 @@
 const express = require("express");
+const { query } = require("../utils/database");
+const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Research endpoint - aggregates research data
 router.get("/", async (req, res) => {
@@ -107,6 +112,153 @@ router.get("/ratings", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch ratings",
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Analyst coverage endpoint
+router.get("/analyst", async (req, res) => {
+  try {
+    const { symbol, period = "current", limit = 50 } = req.query;
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol parameter is required",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get analyst coverage data from earnings reports
+    const analystQuery = `
+      SELECT
+        er.symbol,
+        er.date,
+        er.quarter,
+        er.year,
+        er.analyst_count,
+        er.estimated_eps,
+        er.actual_eps,
+        er.estimated_revenue,
+        er.actual_revenue,
+        cp.company_name,
+        cp.sector,
+        cp.industry,
+        cp.market_cap
+      FROM earnings_reports er
+      LEFT JOIN company_profile cp ON er.symbol = cp.symbol
+      WHERE er.symbol = $1 AND er.analyst_count > 0
+      ORDER BY er.date DESC
+      LIMIT $2
+    `;
+
+    const analystResult = await query(analystQuery, [symbol.toUpperCase(), parseInt(limit)]);
+    const analystData = analystResult.rows || [];
+
+    if (!analystData || analystData.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          analyst_coverage: {
+            symbol: symbol.toUpperCase(),
+            coverage_available: false,
+            total_reports: 0,
+            analyst_coverage: [],
+            summary: {
+              avg_analyst_count: 0,
+              latest_coverage: 0,
+              coverage_trend: "No data",
+            },
+          },
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Calculate analyst coverage metrics
+    const totalAnalystCount = analystData.reduce(
+      (sum, report) => sum + parseInt(report.analyst_count || 0), 0
+    );
+    const avgAnalystCount = Math.round(totalAnalystCount / analystData.length * 100) / 100;
+    const latestCoverage = parseInt(analystData[0]?.analyst_count || 0);
+
+    // Calculate coverage trend (comparing latest quarter to previous)
+    let coverageTrend = "Stable";
+    if (analystData.length >= 2) {
+      const current = parseInt(analystData[0]?.analyst_count || 0);
+      const previous = parseInt(analystData[1]?.analyst_count || 0);
+      if (current > previous) {
+        coverageTrend = "Increasing";
+      } else if (current < previous) {
+        coverageTrend = "Decreasing";
+      }
+    }
+
+    // Format analyst coverage data
+    const coverageData = analystData.map((report) => {
+      const estimated_eps = parseFloat(report.estimated_eps || 0);
+      const actual_eps = parseFloat(report.actual_eps || 0);
+      const estimated_revenue = parseFloat(report.estimated_revenue || 0);
+      const actual_revenue = parseFloat(report.actual_revenue || 0);
+
+      return {
+        date: report.date,
+        quarter: report.quarter,
+        year: report.year,
+        analyst_count: parseInt(report.analyst_count || 0),
+        earnings: {
+          estimated_eps: Math.round(estimated_eps * 100) / 100,
+          actual_eps: Math.round(actual_eps * 100) / 100,
+          eps_surprise: actual_eps && estimated_eps ?
+            Math.round(((actual_eps - estimated_eps) / Math.abs(estimated_eps)) * 10000) / 100 : null,
+        },
+        revenue: {
+          estimated_revenue: Math.round(estimated_revenue / 1000000 * 100) / 100, // Convert to millions
+          actual_revenue: Math.round(actual_revenue / 1000000 * 100) / 100,
+          revenue_surprise: actual_revenue && estimated_revenue ?
+            Math.round(((actual_revenue - estimated_revenue) / Math.abs(estimated_revenue)) * 10000) / 100 : null,
+        },
+      };
+    });
+
+    // Company information
+    const companyInfo = analystData[0] ? {
+      symbol: symbol.toUpperCase(),
+      company_name: analystData[0].company_name || symbol.toUpperCase(),
+      sector: analystData[0].sector || "Unknown",
+      industry: analystData[0].industry || "Unknown",
+      market_cap: parseFloat(analystData[0].market_cap || 0),
+    } : null;
+
+    const analysisData = {
+      symbol: symbol.toUpperCase(),
+      coverage_available: true,
+      total_reports: analystData.length,
+      company_info: companyInfo,
+      analyst_coverage: coverageData,
+      summary: {
+        avg_analyst_count: avgAnalystCount,
+        latest_coverage: latestCoverage,
+        coverage_trend: coverageTrend,
+        reports_analyzed: analystData.length,
+      },
+      analysis_period: period,
+      analysis_date: new Date().toISOString(),
+    };
+
+    res.json({
+      success: true,
+      data: { analyst_coverage: analysisData },
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("Analyst endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch analyst coverage",
+      message: error.message,
       timestamp: new Date().toISOString(),
     });
   }

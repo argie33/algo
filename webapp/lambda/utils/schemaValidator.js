@@ -236,7 +236,7 @@ const tableSchemas = {
       adj_close: { type: "DOUBLE PRECISION" },
       volume: { type: "BIGINT" },
       dividends: { type: "DOUBLE PRECISION" },
-      stock_splits: { type: "DOUBLE PRECISION" },
+      splits: { type: "DOUBLE PRECISION" },
       fetched_at: { type: "TIMESTAMP", default: "CURRENT_TIMESTAMP" },
     },
     indexes: ["symbol", "date"],

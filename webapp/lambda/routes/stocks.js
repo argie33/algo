@@ -410,12 +410,25 @@ router.get("/", async (req, res) => {
 
     // Use validated and sanitized parameters from validation middleware with fallback
     const validated = req.validated || req.query || {};
-    const page = parseInt(validated.page) || 1;
-    const limit = Math.min(parseInt(validated.limit) || 50, 100);
+
+    // Input validation for numeric parameters
+    let page = parseInt(validated.page) || 1;
+    let limit = parseInt(validated.limit) || 50;
+
+    // Ensure positive values to prevent database errors
+    page = Math.max(1, page);
+    limit = Math.max(1, Math.min(limit, 100));
+
     const offset = (page - 1) * limit;
-    const search = validated.search || "";
-    const sector = validated.sector || "";
-    const exchange = validated.exchange || "";
+
+    // Input validation for string parameters to prevent injection
+    let search = validated.search || "";
+    let sector = validated.sector || "";
+    let exchange = validated.exchange || "";
+
+    // Sanitize search input to prevent invalid UTF8 sequences
+    // eslint-disable-next-line no-control-regex
+    search = search.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
     const sortBy = validated.sortBy || "symbol";
     const sortOrder = validated.sortOrder || "asc";
 
@@ -3456,7 +3469,8 @@ router.post("/init-price-data", authenticateToken, async (req, res) => {
         for (const data of priceData) {
           await query(
             `INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (symbol, date) DO NOTHING`,
             [data.symbol, data.date, data.open, data.high, data.low, data.close, data.adj_close, data.volume]
           );
         }
@@ -3749,6 +3763,42 @@ router.get("/:symbol/fundamentals", async (req, res) => {
   } catch (err) {
     console.error("Fundamentals error:", err);
     res.serverError("Failed to retrieve fundamental data", {
+      error: err.message,
+    });
+  }
+});
+
+// Route: GET /stocks/:symbol/news (news data for symbol)
+router.get("/:symbol/news", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { limit = 10, offset = 0 } = req.query;
+    console.log(`News request for ${symbol}`);
+
+    // For now, return a placeholder response indicating the endpoint exists
+    // In a real implementation, this would fetch from a news API or database
+    res.status(200).json({
+      success: true,
+      data: {
+        news: [],
+        metadata: {
+          symbol: symbol.toUpperCase(),
+          message: "News endpoint is available but no news data source configured",
+          suggestion: "Configure news API integration to enable news feeds"
+        },
+        pagination: {
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          total: 0,
+          hasMore: false
+        }
+      },
+      message: "News request processed",
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error("News error:", err);
+    res.serverError("Failed to retrieve news data", {
       error: err.message,
     });
   }

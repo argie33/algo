@@ -108,6 +108,7 @@ async function ensureTestData() {
         volume BIGINT,
         dividends DOUBLE PRECISION,
         stock_splits DOUBLE PRECISION,
+        change_percent DOUBLE PRECISION,
         fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -435,9 +436,89 @@ async function ensureTestData() {
       ON CONFLICT DO NOTHING
     `);
 
-    // Create orders table for orders routes
+    // Create ETFs table (from etf.js requirements)
     await query(`
-      CREATE TABLE IF NOT EXISTS orders (
+      CREATE TABLE IF NOT EXISTS etfs (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL UNIQUE,
+        fund_name VARCHAR(255),
+        total_assets DECIMAL(20,2),
+        expense_ratio DECIMAL(6,4),
+        dividend_yield DECIMAL(8,6),
+        inception_date DATE,
+        category VARCHAR(100),
+        strategy TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create ETF holdings table (from etf.js requirements)
+    await query(`
+      CREATE TABLE IF NOT EXISTS etf_holdings (
+        id SERIAL PRIMARY KEY,
+        etf_symbol VARCHAR(10) NOT NULL,
+        holding_symbol VARCHAR(10) NOT NULL,
+        company_name VARCHAR(255),
+        weight_percent DECIMAL(8,6),
+        shares_held BIGINT,
+        market_value DECIMAL(15,2),
+        sector VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio returns table (from performance.js requirements)
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_returns (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        calculation_type VARCHAR(50) NOT NULL,
+        period VARCHAR(20) NOT NULL,
+        time_weighted_return DECIMAL(10,6),
+        dollar_weighted_return DECIMAL(10,6),
+        annualized_time_weighted DECIMAL(10,6),
+        annualized_dollar_weighted DECIMAL(10,6),
+        excess_return DECIMAL(10,6),
+        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio risk metrics table (from performance.js and risk.js requirements)
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_risk_metrics (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        portfolio_id INTEGER,
+        period VARCHAR(20) NOT NULL,
+        volatility DECIMAL(10,6),
+        var_95 DECIMAL(10,6),
+        var_99 DECIMAL(10,6),
+        expected_shortfall_95 DECIMAL(10,6),
+        expected_shortfall_99 DECIMAL(10,6),
+        maximum_drawdown DECIMAL(10,6),
+        calmar_ratio DECIMAL(10,6),
+        beta DECIMAL(10,6),
+        correlation_to_market DECIMAL(10,6),
+        tracking_error DECIMAL(10,6),
+        active_risk DECIMAL(10,6),
+        systematic_risk DECIMAL(10,6),
+        idiosyncratic_risk DECIMAL(10,6),
+        concentration_risk DECIMAL(10,6),
+        liquidity_risk DECIMAL(10,6),
+        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create orders table for orders routes
+    await query(`DROP TABLE IF EXISTS orders`);
+    await query(`
+      CREATE TABLE orders (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         symbol VARCHAR(10) NOT NULL,
@@ -465,6 +546,127 @@ async function ensureTestData() {
       ('test-user-1', 'AAPL', 'buy', 100, 'limit', 150.00, 'filled', '2024-01-01', 'alpaca'),
       ('test-user-2', 'MSFT', 'sell', 50, 'market', NULL, 'pending', '2024-01-02', 'alpaca')
       ON CONFLICT DO NOTHING
+    `);
+
+    // Create trades table for trading functionality
+    await query(`DROP TABLE IF EXISTS trades`);
+    await query(`
+      CREATE TABLE trades (
+        trade_id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        type VARCHAR(20) NOT NULL DEFAULT 'market',
+        limit_price DECIMAL(10,4),
+        stop_price DECIMAL(10,4),
+        time_in_force VARCHAR(10) DEFAULT 'day',
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        executed_at TIMESTAMP,
+        average_fill_price DECIMAL(10,4),
+        filled_quantity INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO trades (trade_id, user_id, symbol, side, quantity, type, status, executed_at, average_fill_price, filled_quantity) VALUES
+      ('trade-1', 'test-user-1', 'AAPL', 'buy', 100, 'market', 'filled', '2024-01-01', 150.50, 100),
+      ('trade-2', 'test-user-2', 'MSFT', 'sell', 50, 'limit', 'filled', '2024-01-02', 330.25, 50)
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create news alerts table for alerts routes
+    await query(`
+      CREATE TABLE IF NOT EXISTS news_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        sentiment_threshold DECIMAL(5,4),
+        sentiment_type VARCHAR(20),
+        sources JSONB,
+        notification_methods JSONB,
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio alerts table for alerts routes
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        alert_type VARCHAR(50) NOT NULL,
+        threshold_value DECIMAL(12,4),
+        condition VARCHAR(20),
+        notification_methods JSONB,
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio transactions table for trade analytics
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_transactions (
+        transaction_id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
+        transaction_type VARCHAR(20) NOT NULL,
+        quantity NUMERIC NOT NULL,
+        price NUMERIC NOT NULL,
+        amount NUMERIC NOT NULL,
+        commission NUMERIC DEFAULT 0,
+        pnl NUMERIC DEFAULT 0,
+        transaction_date DATE NOT NULL,
+        settlement_date DATE,
+        description TEXT,
+        account_id VARCHAR(100),
+        broker VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create order activities table for order execution tracking
+    await query(`
+      CREATE TABLE IF NOT EXISTS order_activities (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        order_id INTEGER NOT NULL,
+        activity_type VARCHAR(50) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Economic Data table (from loadecondata.py)
+    await query(`DROP TABLE IF EXISTS economic_data`);
+    await query(`
+      CREATE TABLE economic_data (
+        id SERIAL PRIMARY KEY,
+        series_id VARCHAR(100) NOT NULL,
+        date DATE NOT NULL,
+        value DOUBLE PRECISION,
+        category VARCHAR(100),
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(series_id, date)
+      )
+    `);
+
+    // Custom signals table (for signals routes)
+    await query(`
+      CREATE TABLE IF NOT EXISTS custom_signals (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        signal_type VARCHAR(50) NOT NULL,
+        signal_strength DECIMAL(5,2),
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT true
+      )
     `);
 
     // Create watchlist tables for watchlist routes

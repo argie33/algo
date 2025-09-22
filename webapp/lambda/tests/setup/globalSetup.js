@@ -780,8 +780,9 @@ module.exports = async () => {
     `);
 
     // Economic Data table (from loadecondata.py)
+    await query(`DROP TABLE IF EXISTS economic_data`);
     await query(`
-      CREATE TABLE IF NOT EXISTS economic_data (
+      CREATE TABLE economic_data (
         id SERIAL PRIMARY KEY,
         series_id VARCHAR(100) NOT NULL,
         date DATE NOT NULL,

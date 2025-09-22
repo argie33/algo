@@ -708,7 +708,7 @@ async function initializeSchema() {
           adj_close DOUBLE PRECISION,
           volume BIGINT,
           dividends DOUBLE PRECISION,
-          stock_splits DOUBLE PRECISION,
+          splits DOUBLE PRECISION,
           fetched_at TIMESTAMP NOT NULL DEFAULT NOW()
         )`,
       },

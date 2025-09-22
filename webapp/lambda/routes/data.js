@@ -58,7 +58,12 @@ router.get("/bulk", async (req, res) => {
   const { symbols } = req.query;
 
   if (!symbols) {
-    return res.validationError("symbols parameter is required");
+    return res.status(400).json({
+      success: false,
+      error: "Validation error",
+      message: "symbols parameter is required",
+      timestamp: new Date().toISOString()
+    });
   }
 
   const symbolsList = symbols.split(",").map((s) => s.trim().toUpperCase());
@@ -104,10 +109,15 @@ router.get("/bulk", async (req, res) => {
     } catch (e) {
       // Ignore console logging errors
     }
-    res.serverError("Failed to retrieve bulk data", {
-      requested_symbols: symbolsList,
-      error: error.message,
-      service: "data-api",
+    res.status(500).json({
+      success: false,
+      error: "Failed to retrieve bulk data",
+      details: {
+        requested_symbols: symbolsList,
+        error: error.message,
+        service: "data-api",
+      },
+      timestamp: new Date().toISOString()
     });
   }
 });

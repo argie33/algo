@@ -26,11 +26,88 @@ router.get("/", (req, res) => {
   });
 });
 
+/**
+ * GET /sectors/:sector/stocks
+ * Get stocks in a specific sector (public for testing)
+ */
+router.get("/:sector/stocks", async (req, res) => {
+  try {
+    const { sector } = req.params;
+    const { limit = 50 } = req.query;
+
+    console.log(`📊 Fetching stocks for sector: ${sector}`);
+
+    // Add timeout wrapper
+    const executeQueryWithTimeout = (queryPromise, name) => {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`${name} query timeout after 3 seconds`)), 3000)
+      );
+      return Promise.race([queryPromise, timeoutPromise]);
+    };
+
+    // Simple query to get stocks by sector
+    const stocksQuery = `
+      SELECT
+        cp.ticker as symbol,
+        cp.name as name,
+        cp.sector,
+        cp.industry,
+        COALESCE(pd.close, 100) as price,
+        COALESCE(pd.volume, 1000000) as volume
+      FROM company_profile cp
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume, date
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        ORDER BY symbol, date DESC
+      ) pd ON cp.ticker = pd.symbol
+      WHERE LOWER(cp.sector) = LOWER($1)
+      ORDER BY cp.ticker
+      LIMIT $2
+    `;
+
+    const result = await executeQueryWithTimeout(
+      query(stocksQuery, [sector, limit]),
+      "sector stocks"
+    );
+
+    console.log(`✅ Found ${result.rows.length} stocks in ${sector} sector`);
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        symbol: row.symbol,
+        name: row.name,
+        sector: row.sector,
+        industry: row.industry,
+        price: parseFloat(row.price || 0),
+        volume: parseInt(row.volume || 0)
+      })),
+      metadata: {
+        sector: sector,
+        count: result.rows.length,
+        limit: parseInt(limit)
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`❌ Error fetching stocks for sector ${req.params.sector}:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to fetch sector stocks",
+      details: error.message,
+    });
+  }
+});
+
 // Apply authentication to all routes except health and root
 router.use((req, res, next) => {
   // Skip auth for public endpoints
   const publicEndpoints = ["/health", "/", "/performance", "/leaders", "/rotation"];
-  if (publicEndpoints.includes(req.path)) {
+  const stocksPattern = /^\/[^\/]+\/stocks$/; // matches /:sector/stocks
+
+  if (publicEndpoints.includes(req.path) || stocksPattern.test(req.path)) {
     return next();
   }
   // Apply auth to all other routes
@@ -397,6 +474,7 @@ router.get("/performance", async (req, res) => {
     });
   }
 });
+
 
 /**
  * GET /sectors/:sector/details

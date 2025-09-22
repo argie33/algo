@@ -95,25 +95,14 @@ if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
 }
 
 // Create API instance - test-safe
-let api;
-try {
-  api = axios.create({
-    baseURL: currentConfig.baseURL,
-    timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer dev-bypass-token", // Development authentication
-    },
-  });
-} catch (error) {
-  // In test environment, axios might not be properly mocked
-  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
-    console.warn("[API] Axios create failed in test environment, using mock");
-    api = null;
-  } else {
-    throw error;
-  }
-}
+let api = axios.create({
+  baseURL: currentConfig.baseURL,
+  timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: "Bearer dev-bypass-token", // Development authentication
+  },
+});
 
 // Add request interceptor to track ongoing requests - test-safe
 try {
@@ -761,8 +750,8 @@ try {
         response.config.method?.toUpperCase(),
         fullUrl,
         {
-          status: response.status,
-          statusText: response.statusText,
+          status: response?.status,
+          statusText: response?.statusText,
           dataSize: response?.data
             ? Array.isArray(response?.data)
               ? response.data?.length || 0
@@ -1765,7 +1754,7 @@ export const getStocks = async (params = {}) => {
     }
 
     console.log("📊 getStocks: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -1858,7 +1847,7 @@ export const getStock = async (ticker) => {
     const response = await api.get(`/api/stocks/${ticker}`);
 
     console.log("📊 getStock: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -1916,7 +1905,7 @@ export const getStockFinancials = async (ticker, type = "income") => {
     const response = await api.get(`/api/financials/${ticker}/${type}`);
 
     console.log("📊 getStockFinancials: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -2999,7 +2988,7 @@ export const testApiConnection = async (customUrl = null) => {
     return {
       success: true,
       apiUrl: testUrl,
-      status: response.status,
+      status: response?.status,
       data: response?.data,
       message: "API connection successful",
     };
@@ -3223,7 +3212,7 @@ export const getMarketIndices = async () => {
     const response = await api.get("/api/market/indices");
 
     console.log("📊 getMarketIndices: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -3251,7 +3240,7 @@ export const getSectorPerformance = async () => {
     const response = await api.get("/api/market/sectors");
 
     console.log("📊 getSectorPerformance: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -3279,7 +3268,7 @@ export const getMarketVolatility = async () => {
     const response = await api.get("/api/market/volatility");
 
     console.log("📊 getMarketVolatility: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -3307,7 +3296,7 @@ export const getEconomicCalendar = async () => {
     const response = await api.get("/api/market/calendar");
 
     console.log("📊 getEconomicCalendar: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -3335,7 +3324,7 @@ export const getMarketCapCategories = async () => {
     const response = await api.get("/api/stocks/market-cap-categories");
 
     console.log("📊 getMarketCapCategories: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -3369,7 +3358,7 @@ export const getTechnicalIndicators = async (symbol, timeframe, indicators) => {
     });
 
     console.log("📊 getTechnicalIndicators: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -3399,7 +3388,7 @@ export const getVolumeData = async (symbol, timeframe) => {
     });
 
     console.log("📊 getVolumeData: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],
@@ -3431,7 +3420,7 @@ export const getSupportResistanceLevels = async (symbol) => {
     );
 
     console.log("📊 getSupportResistanceLevels: Raw response:", {
-      status: response.status,
+      status: response?.status,
       hasData: !!response?.data,
       dataType: typeof response?.data,
       dataKeys: response?.data ? Object.keys(response?.data) : [],

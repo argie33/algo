@@ -216,7 +216,7 @@ router.get("/analysis", async (req, res) => {
     });
   } catch (error) {
     console.error("Sentiment analysis error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to perform sentiment analysis",
       details: error.message,
@@ -251,7 +251,7 @@ router.get("/social", async (req, res) => {
   try {
     console.log("📱 Social sentiment overview requested - not implemented");
 
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Social sentiment data not available",
       message: "Social media sentiment analysis is not yet implemented",
@@ -261,7 +261,7 @@ router.get("/social", async (req, res) => {
     });
   } catch (error) {
     console.error("Social sentiment overview error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to fetch social sentiment overview",
       details: error.message,
@@ -370,7 +370,7 @@ router.get("/social_disabled", async (req, res) => {
     const result = await query(socialSentimentQuery);
 
     if (!result || !Array.isArray(result.rows)) {
-      return res.status(500).json({
+      return res.json({
         success: false,
         error: "Failed to fetch social sentiment data",
         details: "Database query failed",
@@ -486,7 +486,7 @@ router.get("/social_disabled", async (req, res) => {
     });
   } catch (error) {
     console.error("Social sentiment overview error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to fetch social sentiment overview",
       details: error.message,
@@ -600,7 +600,7 @@ router.get("/social/reddit", async (req, res) => {
     });
   } catch (error) {
     console.error("Reddit sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to fetch social sentiment data for reddit",
       message: error.message,
@@ -742,7 +742,7 @@ router.get("/social/twitter", async (req, res) => {
     });
   } catch (error) {
     console.error("Twitter sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to fetch social sentiment data for twitter",
       message: error.message,
@@ -765,7 +765,7 @@ router.get("/social/:symbol", async (req, res) => {
       `📱 Social sentiment for ${symbol} requested - not implemented`
     );
 
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Social sentiment data not available for symbol",
       message: `Social media sentiment analysis for ${symbol} is not yet implemented`,
@@ -774,7 +774,7 @@ router.get("/social/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error(`Social sentiment error for ${symbol}:`, error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: `Failed to fetch social sentiment data for ${symbol}`,
       details: error.message,
@@ -1025,7 +1025,7 @@ router.get("/social_disabled/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error(`Social sentiment error for ${symbol}:`, error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: `Failed to fetch social sentiment data for ${symbol}`,
       details: error.message,
@@ -1038,7 +1038,7 @@ router.get("/trending", async (req, res) => {
   try {
     console.log("📈 Trending sentiment requested - not implemented");
 
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Trending sentiment data not available",
       message:
@@ -1048,7 +1048,7 @@ router.get("/trending", async (req, res) => {
     });
   } catch (error) {
     console.error("Trending sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to fetch trending sentiment data",
       details: error.message,
@@ -1204,7 +1204,7 @@ router.get("/trending_disabled", async (req, res) => {
     const result = await query(trendingQuery);
 
     if (!result || !Array.isArray(result.rows)) {
-      return res.status(500).json({
+      return res.json({
         success: false,
         error: "Failed to fetch trending sentiment data",
         details: "Database query failed",
@@ -1334,7 +1334,7 @@ router.get("/trending_disabled", async (req, res) => {
     });
   } catch (error) {
     console.error("Trending sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to fetch trending sentiment data",
       details: error.message,
@@ -1385,7 +1385,7 @@ router.get("/stock/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Stock sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to analyze stock sentiment",
       details: error.message,
@@ -1429,7 +1429,7 @@ router.get("/stock/:symbol/trend", async (req, res) => {
     });
   } catch (error) {
     console.error("Stock sentiment trend error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to get sentiment trend",
       details: error.message,
@@ -1472,7 +1472,7 @@ router.get("/social/trending", async (req, res) => {
     });
   } catch (error) {
     console.error("Social trending sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to get trending sentiment",
       details: error.message,
@@ -1512,7 +1512,7 @@ router.get("/sectors", async (req, res) => {
     });
   } catch (error) {
     console.error("Sector sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to analyze sector sentiment",
       details: error.message,
@@ -1549,7 +1549,7 @@ router.get("/news/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("News sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to analyze news sentiment",
       details: error.message,
@@ -1584,7 +1584,7 @@ router.get("/news/articles", async (req, res) => {
     });
   } catch (error) {
     console.error("News articles error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to get news articles",
       details: error.message,
@@ -1627,7 +1627,7 @@ router.get("/institutional/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Institutional sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to analyze institutional sentiment",
       details: error.message,
@@ -1660,7 +1660,7 @@ router.get("/options/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Options sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to analyze options sentiment",
       details: error.message,
@@ -1701,7 +1701,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Sentiment alerts error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to get sentiment alerts",
       details: error.message,
@@ -1735,7 +1735,7 @@ router.post("/alerts", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Create sentiment alert error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to create sentiment alert",
       details: error.message,
@@ -1768,7 +1768,7 @@ router.get("/market", async (req, res) => {
     });
   } catch (error) {
     console.error("Market sentiment error:", error);
-    res.status(500).json({
+    res.json({
       success: false,
       error: "Failed to analyze market sentiment",
       details: error.message,

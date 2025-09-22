@@ -1,0 +1,101 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+Setting up default JWT verification for secure operation
+🚨 Alert System initialized
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+📊 Monitoring started
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+🔌 WebSocket endpoint: ws://localhost:3001/ws
+Processing request: GET /api/health
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [22/Sep/2025:19:12:58 +0000] "GET /api/health HTTP/1.1" 200 346 "-" "curl/8.5.0"
+Processing request: GET /api/sectors/technology/stocks
+Database connection verified for database-dependent endpoint
+📊 Fetching stocks for sector: technology
+Database query error: {
+  error: 'column cp.company_name does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        cp.ticker as symbol,\n' +
+    '        cp.company_name as name,\n' +
+    '        cp.sector,\n' +
+    '     ...',
+  params: '2 parameters',
+  code: '42703'
+}
+❌ Error fetching stocks for sector technology: error: column cp.company_name does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:1351:20)
+    at async /home/stocks/algo/webapp/lambda/routes/sectors.js:70:20 {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '52',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [22/Sep/2025:19:13:05 +0000] "GET /api/sectors/technology/stocks HTTP/1.1" 500 115 "-" "curl/8.5.0"
+Processing request: GET /api/sectors/technology/stocks
+Database connection verified for database-dependent endpoint
+📊 Fetching stocks for sector: technology
+Database query error: {
+  error: 'column cp.company_name does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        cp.ticker as symbol,\n' +
+    '        cp.company_name as name,\n' +
+    '        cp.sector,\n' +
+    '     ...',
+  params: '2 parameters',
+  code: '42703'
+}
+❌ Error fetching stocks for sector technology: error: column cp.company_name does not exist
+    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:1351:20)
+    at async /home/stocks/algo/webapp/lambda/routes/sectors.js:70:20 {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '52',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+::1 - - [22/Sep/2025:19:13:28 +0000] "GET /api/sectors/technology/stocks HTTP/1.1" 500 115 "-" "curl/8.5.0"

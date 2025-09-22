@@ -866,84 +866,13 @@ router.get("/:ticker/cash-flow", async (req, res) => {
         },
       });
     } catch (dbError) {
-      // Handle case where cash flow tables don't exist - return fake data
-      console.log(
-        `Cash flow table ${tableName} does not exist, returning fake test data`
-      );
-
-      const fakeCashFlowData = [
-        {
-          symbol: ticker.toUpperCase(),
-          date: 2024,
-          operatingCashFlow: 110563000000,
-          investingCashFlow: -10959000000,
-          financingCashFlow: -108488000000,
-          freeCashFlow: 99584000000,
-          capitalExpenditures: 10959000000,
-          netIncome: 99803000000,
-          raw: {
-            symbol: ticker.toUpperCase(),
-            date: 2024,
-            operating_cash_flow: "110563000000.00",
-            investing_cash_flow: "-10959000000.00",
-            financing_cash_flow: "-108488000000.00",
-            free_cash_flow: "99584000000.00",
-            capital_expenditures: "10959000000.00",
-            net_income: "99803000000.00",
-          },
-        },
-        {
-          symbol: ticker.toUpperCase(),
-          date: 2023,
-          operatingCashFlow: 110543000000,
-          investingCashFlow: -3705000000,
-          financingCashFlow: -106256000000,
-          freeCashFlow: 99584000000,
-          capitalExpenditures: 10959000000,
-          netIncome: 96995000000,
-          raw: {
-            symbol: ticker.toUpperCase(),
-            date: 2023,
-            operating_cash_flow: "110543000000.00",
-            investing_cash_flow: "-3705000000.00",
-            financing_cash_flow: "-106256000000.00",
-            free_cash_flow: "99584000000.00",
-            capital_expenditures: "10959000000.00",
-            net_income: "96995000000.00",
-          },
-        },
-        {
-          symbol: ticker.toUpperCase(),
-          date: 2022,
-          operatingCashFlow: 122151000000,
-          investingCashFlow: -22354000000,
-          financingCashFlow: -110749000000,
-          freeCashFlow: 111443000000,
-          capitalExpenditures: 10708000000,
-          netIncome: 99803000000,
-          raw: {
-            symbol: ticker.toUpperCase(),
-            date: 2022,
-            operating_cash_flow: "122151000000.00",
-            investing_cash_flow: "-22354000000.00",
-            financing_cash_flow: "-110749000000.00",
-            free_cash_flow: "111443000000.00",
-            capital_expenditures: "10708000000.00",
-            net_income: "99803000000.00",
-          },
-        },
-      ];
-
-      return res.status(200).json({
-        success: true,
-        data: fakeCashFlowData,
-        metadata: {
-          ticker: ticker.toUpperCase(),
-          period: period,
-          count: fakeCashFlowData.length,
-          timestamp: new Date().toISOString(),
-          dataSource: "fake_test_data",
-        },
+      console.error(`Cash flow database error for ${ticker}:`, dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Cash flow data unavailable",
+        message: "Database table missing or inaccessible",
+        details: process.env.NODE_ENV === "development" ? dbError.message : "Internal database error",
+        timestamp: new Date().toISOString(),
       });
     }
   } catch (error) {

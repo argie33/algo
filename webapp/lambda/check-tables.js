@@ -1,47 +1,62 @@
-const { query } = require("./utils/database");
+#!/usr/bin/env node
 
-async function checkTables() {
+require("dotenv").config();
+const { Pool } = require("pg");
+
+async function checkDatabaseSchema() {
+  const pool = new Pool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT,
+  });
+
   try {
-    const result = await query(`
+    console.log("🔍 CHECKING DATABASE SCHEMA");
+    console.log("===========================");
+
+    // Check what tables exist
+    const tablesResult = await pool.query(`
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public'
-      AND table_name LIKE '%metrics%'
+      ORDER BY table_name
     `);
 
-    console.log('Tables with "metrics" in name:');
-    result.rows.forEach((row) => console.log("-", row.table_name));
+    console.log("\n📊 Available Tables:");
+    tablesResult.rows.forEach(row => {
+      console.log(`- ${row.table_name}`);
+    });
 
-    // Also check key_metrics specifically
-    const keyMetricsCheck = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_schema = 'public'
-        AND table_name = 'key_metrics'
-      ) as exists
-    `);
+    // Check columns for key tables used in failing endpoints
+    const keyTables = ['price_daily', 'company_profile', 'earnings_history', 'fundamental_metrics', 'technical_data_daily', 'market_data'];
 
-    console.log("\nkey_metrics table exists:", keyMetricsCheck.rows[0].exists);
+    for (const tableName of keyTables) {
+      const tableExists = tablesResult.rows.some(row => row.table_name === tableName);
+      if (tableExists) {
+        console.log(`\n📋 Columns in ${tableName}:`);
+        const columnsResult = await pool.query(`
+          SELECT column_name, data_type, is_nullable
+          FROM information_schema.columns
+          WHERE table_name = $1
+          ORDER BY column_name
+        `, [tableName]);
 
-    // Check fundamental_metrics specifically
-    const fundamentalMetricsCheck = await query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_schema = 'public'
-        AND table_name = 'fundamental_metrics'
-      ) as exists
-    `);
+        columnsResult.rows.forEach(row => {
+          console.log(`  - ${row.column_name} (${row.data_type}${row.is_nullable === 'YES' ? ', nullable' : ''})`);
+        });
+      } else {
+        console.log(`\n❌ Table ${tableName} does not exist`);
+      }
+    }
 
-    console.log(
-      "fundamental_metrics table exists:",
-      fundamentalMetricsCheck.rows[0].exists
-    );
-
-    console.log("✅ Tables check completed successfully");
+    console.log("\n✅ Schema check completed");
   } catch (error) {
-    console.error("Error checking tables:", error);
-    throw error;
+    console.error("❌ Error:", error.message);
+  } finally {
+    await pool.end();
   }
 }
 
-checkTables();
+checkDatabaseSchema();

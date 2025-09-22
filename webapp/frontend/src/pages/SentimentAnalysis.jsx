@@ -88,7 +88,6 @@ import {
 import { formatPercentage, formatNumber } from "../utils/formatters";
 import api from "../services/api";
 import RealTimeSentimentScore from "../components/RealTimeSentimentScore";
-import realTimeNewsService from "../services/realTimeNewsService";
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -250,25 +249,28 @@ const SentimentAnalysis = () => {
       }
     };
 
-    // Subscribe to real-time news
-    newsSubscriptionId =
-      realTimeNewsService.subscribeToNews(handleRealTimeNews);
-
-    // Handle connection status changes
-    const handleConnectionChange = (status) => {
-      setRealtimeConnectionStatus(status);
-    };
-
-    // Add connection listener (if available)
-    if (typeof realTimeNewsService.addConnectionListener === "function") {
-      realTimeNewsService.addConnectionListener(handleConnectionChange);
-    }
-
-    return () => {
-      if (newsSubscriptionId) {
-        realTimeNewsService.unsubscribeFromNews(newsSubscriptionId);
+    // Simple news refresh instead of real-time subscription
+    const fetchLatestNews = async () => {
+      try {
+        const response = await api.get('/market/news', {
+          params: { limit: 10 }
+        });
+        if (response.data?.data) {
+          // Process news similar to real-time handler but simpler
+          setRealtimeConnectionStatus('connected');
+        }
+      } catch (error) {
+        console.error('Failed to fetch latest news:', error);
+        setRealtimeConnectionStatus('error');
       }
     };
+
+    if (liveUpdatesEnabled) {
+      fetchLatestNews();
+      // Set up periodic refresh instead of real-time
+      const interval = setInterval(fetchLatestNews, 30000); // 30 seconds
+      return () => clearInterval(interval);
+    }
   }, [liveUpdatesEnabled, sentimentData]);
 
   // Helper function to calculate sentiment label from score

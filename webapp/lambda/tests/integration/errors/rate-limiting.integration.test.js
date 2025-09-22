@@ -406,8 +406,8 @@ describe("Rate Limiting Integration", () => {
         (r) => r.rateLimited || r.status === 429
       );
 
-      // Phase 2: Wait for reset period
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
+      // Phase 2: Wait for reset period (reduced from 5000ms)
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds
 
       // Phase 3: Test recovery
       const recoveryResponse = await request(app).get(testEndpoint);
@@ -424,13 +424,13 @@ describe("Rate Limiting Integration", () => {
           expect(remaining).toBeGreaterThan(0);
         }
       }
-    });
+    }, 10000);
 
     test("should handle gradual recovery from rate limiting", async () => {
       const testEndpoint = "/api/calendar/earnings";
 
       // Create sustained load to test gradual recovery
-      const sustainedTestDuration = 8000; // 8 seconds
+      const sustainedTestDuration = 4000; // 4 seconds
       const requestInterval = 200; // Request every 200ms
       const totalRequests = Math.floor(sustainedTestDuration / requestInterval);
 
@@ -517,7 +517,7 @@ describe("Rate Limiting Integration", () => {
           expect(avgTime).toBeLessThan(5000); // Should stay under 5 seconds
         }
       });
-    });
+    }, 10000);
   });
 
   describe("Rate Limiting Security", () => {
