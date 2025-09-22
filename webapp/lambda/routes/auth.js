@@ -13,10 +13,12 @@ const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Initialize Cognito client
+// Initialize Cognito client with timeout settings
 const cognitoClient = new CognitoIdentityProviderClient({
   region:
     process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || "us-east-1",
+  requestTimeout: 10000, // 10 second timeout to prevent hanging
+  maxAttempts: 2, // Limit retry attempts to prevent long waits
 });
 
 // User login
@@ -87,7 +89,15 @@ router.post("/login", async (req, res) => {
       },
     });
 
-    const response = await cognitoClient.send(command);
+    // Add timeout promise to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Authentication timeout")), 8000);
+    });
+
+    const response = await Promise.race([
+      cognitoClient.send(command),
+      timeoutPromise,
+    ]);
 
     if (response.ChallengeName) {
       // Handle auth challenges (MFA, password change, etc.)
@@ -109,12 +119,30 @@ router.post("/login", async (req, res) => {
   } catch (error) {
     console.error("Login error:", error);
 
+    if (error.message === "Authentication timeout") {
+      return res.status(408).json({
+        success: false,
+        error: "Authentication timeout",
+        message: "Login request timed out. Please try again.",
+        timeout: true
+      });
+    }
+
     if (error.name === "NotAuthorizedException") {
       return res.unauthorized("Invalid credentials");
     }
 
     if (error.name === "UserNotConfirmedException") {
       return res.unauthorized("Account not confirmed");
+    }
+
+    if (error.name === "TimeoutError" || error.code === "TimeoutError") {
+      return res.status(408).json({
+        success: false,
+        error: "Request timeout",
+        message: "Authentication service is taking too long to respond. Please try again.",
+        timeout: true
+      });
     }
 
     return res
