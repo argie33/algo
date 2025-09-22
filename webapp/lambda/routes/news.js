@@ -1283,22 +1283,11 @@ router.get("/sentiment-dashboard", async (req, res) => {
   } catch (error) {
     console.error("Sentiment dashboard error:", error);
 
-    // Return 200 with fallback data instead of 500 to prevent production failures
-    return res.json({
-      success: true,
-      data: {
-        market_sentiment: {
-          overall_score: 0.1,
-          sentiment_label: "neutral",
-          distribution: { positive: 0, neutral: 0, negative: 0 },
-          total_articles: 0,
-        },
-        symbol_sentiment: [],
-        sector_sentiment: [],
-        timeframe: "24h",
-        message: "Sentiment data temporarily unavailable - showing neutral baseline",
-        updated_at: new Date().toISOString(),
-      },
+    return res.status(500).json({
+      success: false,
+      error: "Sentiment dashboard query failed",
+      details: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });

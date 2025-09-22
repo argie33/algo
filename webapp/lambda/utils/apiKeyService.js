@@ -83,6 +83,10 @@ class ApiKeyService {
         // In test environment, use a mock verifier with secure token validation
         this.jwtVerifier = {
           verify: async (token) => {
+            // Accept any token when ALLOW_DEV_BYPASS is enabled for testing
+            if (process.env.ALLOW_DEV_BYPASS === "true") {
+              return { sub: "dev-user-bypass", email: "dev-bypass@example.com", username: "dev-user" };
+            }
             // Mock verification for tests - validate specific test tokens only
             if (token === "test-token") {
               return { sub: "test-user-123", email: "test@example.com", username: "test-user" };

@@ -640,6 +640,111 @@ async function ensureTestData() {
       )
     `);
 
+    // Create position_history table for trades route
+    await query(`DROP TABLE IF EXISTS position_history`);
+    await query(`
+      CREATE TABLE position_history (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        side VARCHAR(10) NOT NULL,
+        quantity DECIMAL(15,4) NOT NULL,
+        avg_entry_price DECIMAL(12,4),
+        avg_exit_price DECIMAL(12,4),
+        net_pnl DECIMAL(15,4),
+        gross_pnl DECIMAL(15,4),
+        return_percentage DECIMAL(8,4),
+        holding_period_days INTEGER,
+        opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        closed_at TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'open',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO position_history (user_id, symbol, side, quantity, avg_entry_price, avg_exit_price, net_pnl, return_percentage, status, opened_at, closed_at) VALUES
+      ('test-user-1', 'AAPL', 'long', 100, 150.25, 155.75, 550.00, 3.66, 'closed', '2024-01-01 10:00:00', '2024-01-02 15:30:00'),
+      ('test-user-2', 'MSFT', 'long', 50, 348.25, 352.50, 212.50, 1.22, 'closed', '2024-01-01 11:00:00', '2024-01-02 14:00:00'),
+      ('test-user-1', 'GOOGL', 'long', 25, 2850.00, NULL, 393.75, 0.55, 'open', '2024-01-02 09:30:00', NULL),
+      ('test-user-2', 'TSLA', 'short', 75, 247.80, 244.25, 266.25, 1.43, 'closed', '2024-01-01 12:00:00', '2024-01-02 16:00:00')
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create broker_api_configs table (from trades.js requirements)
+    await query(`DROP TABLE IF EXISTS broker_api_configs`);
+    await query(`
+      CREATE TABLE broker_api_configs (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        broker VARCHAR(50) NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        last_sync_status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO broker_api_configs (user_id, broker, is_active, last_sync_status) VALUES
+      ('test-user-123', 'alpaca', true, 'connected'),
+      ('test-user-1', 'alpaca', true, 'connected'),
+      ('test-user-2', 'td_ameritrade', false, 'pending')
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create user_api_keys table (from trades.js requirements)
+    await query(`DROP TABLE IF EXISTS user_api_keys`);
+    await query(`
+      CREATE TABLE user_api_keys (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        broker_name VARCHAR(50) NOT NULL,
+        encrypted_api_key TEXT,
+        key_iv TEXT,
+        key_auth_tag TEXT,
+        encrypted_api_secret TEXT,
+        secret_iv TEXT,
+        secret_auth_tag TEXT,
+        is_sandbox BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO user_api_keys (user_id, broker_name, encrypted_api_key, encrypted_api_secret, is_sandbox) VALUES
+      ('test-user-123', 'alpaca', 'encrypted_key_123', 'encrypted_secret_123', true),
+      ('test-user-1', 'alpaca', 'encrypted_key_456', 'encrypted_secret_456', true),
+      ('test-user-2', 'td_ameritrade', 'encrypted_key_789', 'encrypted_secret_789', true)
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create earnings_reports table (from calendar.js requirements)
+    await query(`DROP TABLE IF EXISTS earnings_reports`);
+    await query(`
+      CREATE TABLE earnings_reports (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        report_date DATE,
+        quarter INTEGER,
+        year INTEGER,
+        eps_estimate DECIMAL(10,4),
+        eps_actual DECIMAL(10,4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO earnings_reports (symbol, report_date, quarter, year, eps_estimate, eps_actual) VALUES
+      ('AAPL', '2024-01-15', 1, 2024, 1.85, 1.92),
+      ('MSFT', '2024-01-20', 1, 2024, 2.45, 2.51),
+      ('GOOGL', '2024-01-25', 1, 2024, 3.25, 3.18),
+      ('TSLA', '2024-01-30', 1, 2024, 0.85, 0.91)
+      ON CONFLICT DO NOTHING
+    `);
+
     // Economic Data table (from loadecondata.py)
     await query(`DROP TABLE IF EXISTS economic_data`);
     await query(`

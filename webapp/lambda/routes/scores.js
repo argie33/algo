@@ -26,53 +26,41 @@ router.get("/", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = (page - 1) * limit;
 
-    // Ultra-defensive query with timeout prevention and fallback data
+    // Real database query using technical data and price data
     const stocksQuery = `
       SELECT
-        'AAPL' as symbol,
-        150.0 as current_price,
-        1000000 as volume,
-        50.0 as rsi_score,
-        0.0 as macd_score,
-        148.0 as sma_20,
-        50.0 as composite_score,
-        50.0 as momentum_score,
-        50.0 as trend_score,
-        50.0 as value_score,
-        50.0 as quality_score,
-        CURRENT_DATE as score_date,
-        CURRENT_DATE as last_updated
-      UNION ALL
-      SELECT
-        'TSLA' as symbol,
-        250.0 as current_price,
-        2000000 as volume,
-        55.0 as rsi_score,
-        1.2 as macd_score,
-        248.0 as sma_20,
-        55.0 as composite_score,
-        55.0 as momentum_score,
-        55.0 as trend_score,
-        50.0 as value_score,
-        50.0 as quality_score,
-        CURRENT_DATE as score_date,
-        CURRENT_DATE as last_updated
-      UNION ALL
-      SELECT
-        'MSFT' as symbol,
-        420.0 as current_price,
-        800000 as volume,
-        45.0 as rsi_score,
-        -0.5 as macd_score,
-        425.0 as sma_20,
-        45.0 as composite_score,
-        45.0 as momentum_score,
-        45.0 as trend_score,
-        50.0 as value_score,
-        50.0 as quality_score,
-        CURRENT_DATE as score_date,
-        CURRENT_DATE as last_updated
-      ORDER BY symbol ASC
+        td.symbol,
+        COALESCE(pd.close, 0) as current_price,
+        COALESCE(pd.volume, 0) as volume,
+        COALESCE(td.rsi, 50) as rsi_score,
+        COALESCE(td.macd, 0) as macd_score,
+        COALESCE(td.sma_20, 0) as sma_20,
+        COALESCE(
+          (COALESCE(td.rsi, 50) +
+           CASE WHEN COALESCE(td.macd, 0) > 0 THEN 60 ELSE 40 END) / 2,
+          50
+        ) as composite_score,
+        COALESCE(td.rsi, 50) as momentum_score,
+        CASE
+          WHEN COALESCE(td.sma_20, 0) > 0 AND COALESCE(pd.close, 0) > td.sma_20 THEN 60
+          WHEN COALESCE(td.sma_20, 0) > 0 AND COALESCE(pd.close, 0) < td.sma_20 THEN 40
+          ELSE 50
+        END as trend_score,
+        50 as value_score,
+        50 as quality_score,
+        td.date as score_date,
+        td.date as last_updated
+      FROM technical_data_daily td
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON td.symbol = pd.symbol AND td.date = pd.date
+      WHERE td.date = (
+        SELECT MAX(date) FROM technical_data_daily WHERE symbol = td.symbol
+      )
+      ORDER BY td.symbol ASC
       LIMIT $1 OFFSET $2
     `;
 
@@ -91,89 +79,19 @@ router.get("/", async (req, res) => {
       console.log("Scores query result:", stocksResult?.rows?.length || 0, "rows");
     } catch (error) {
       console.error("Scores database query error:", error.message);
-
-      // Return fallback success response for any database errors
-      return res.json({
-        success: true,
-        data: [
-          {
-            symbol: "AAPL",
-            currentPrice: 150.0,
-            volume: 1000000,
-            compositeScore: 50.0,
-            momentumScore: 50.0,
-            trendScore: 50.0,
-            valueScore: 50.0,
-            qualityScore: 50.0,
-            rsi: 50.0,
-            macd: 0.0,
-            sma20: 148.0,
-            scoreDate: new Date().toISOString().split('T')[0],
-            lastUpdated: new Date().toISOString().split('T')[0],
-          },
-          {
-            symbol: "TSLA",
-            currentPrice: 250.0,
-            volume: 2000000,
-            compositeScore: 55.0,
-            momentumScore: 55.0,
-            trendScore: 55.0,
-            valueScore: 50.0,
-            qualityScore: 50.0,
-            rsi: 55.0,
-            macd: 1.2,
-            sma20: 248.0,
-            scoreDate: new Date().toISOString().split('T')[0],
-            lastUpdated: new Date().toISOString().split('T')[0],
-          },
-          {
-            symbol: "MSFT",
-            currentPrice: 420.0,
-            volume: 800000,
-            compositeScore: 45.0,
-            momentumScore: 45.0,
-            trendScore: 45.0,
-            valueScore: 50.0,
-            qualityScore: 50.0,
-            rsi: 45.0,
-            macd: -0.5,
-            sma20: 425.0,
-            scoreDate: new Date().toISOString().split('T')[0],
-            lastUpdated: new Date().toISOString().split('T')[0],
-          }
-        ],
-        pagination: {
-          page,
-          limit,
-          total: 3,
-          totalPages: 1,
-          hasMore: false,
-        },
-        summary: {
-          totalStocks: 3,
-          averageScore: 50.0,
-        },
-        message: "Fallback data provided due to database unavailability",
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        details: error.message,
         timestamp: new Date().toISOString(),
       });
     }
 
     if (!stocksResult || !stocksResult.rows) {
-      console.warn("Scores query returned null result, providing fallback data");
-      return res.json({
-        success: true,
-        data: [],
-        pagination: {
-          page,
-          limit,
-          total: 0,
-          totalPages: 0,
-          hasMore: false,
-        },
-        summary: {
-          totalStocks: 0,
-          averageScore: 0,
-        },
+      console.error("Scores query returned null result");
+      return res.status(500).json({
+        success: false,
+        error: "Database query returned null result",
         timestamp: new Date().toISOString(),
       });
     }
@@ -194,17 +112,29 @@ router.get("/", async (req, res) => {
       lastUpdated: row.last_updated,
     }));
 
-    // Simple count query with timeout protection
+    // Real count query for total technical data records
     let countResult;
     try {
-      const countPromise = query(`SELECT 3 as total`, []);
+      const countQuery = `
+        SELECT COUNT(DISTINCT td.symbol) as total
+        FROM technical_data_daily td
+        WHERE td.date = (
+          SELECT MAX(date) FROM technical_data_daily WHERE symbol = td.symbol
+        )
+      `;
+      const countPromise = query(countQuery, []);
       const countTimeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Count query timeout')), 1000)
+        setTimeout(() => reject(new Error('Count query timeout')), 3000)
       );
       countResult = await Promise.race([countPromise, countTimeoutPromise]);
     } catch (error) {
-      console.warn("Count query failed, using fallback:", error.message);
-      countResult = { rows: [{ total: 3 }] };
+      console.error("Count query failed:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to count records",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     const total = parseInt(countResult.rows[0]?.total) || 0;

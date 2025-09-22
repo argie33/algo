@@ -230,12 +230,12 @@ router.get("/:symbol/performance", async (req, res) => {
         performance_metrics: {
           current_price: etfInfo.current_price ? `$${parseFloat(etfInfo.current_price).toFixed(2)}` : "N/A",
           daily_change: etfInfo.daily_change ? `${parseFloat(etfInfo.daily_change).toFixed(2)}%` : "0.00%",
-          ytd_return: "8.5%", // Mock data for tests
-          one_year_return: "12.3%", // Mock data for tests
-          three_year_return: "9.8%", // Mock data for tests
-          five_year_return: "10.2%", // Mock data for tests
-          volatility: "15.2%", // Mock data for tests
-          sharpe_ratio: "1.25", // Mock data for tests
+          ytd_return: "N/A",
+          one_year_return: "N/A",
+          three_year_return: "N/A",
+          five_year_return: "N/A",
+          volatility: "N/A",
+          sharpe_ratio: "N/A"
         },
         benchmark_comparison: {
           vs_sp500: "+1.2%",

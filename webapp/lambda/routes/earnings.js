@@ -37,37 +37,13 @@ router.get("/", async (req, res) => {
 
       result = await query(earningsQuery, [limit, offset]);
     } catch (error) {
-      // If columns don't exist, try a simpler query or generate sample data
-      console.log("Earnings table schema mismatch, using fallback data");
-
-      try {
-        // Try to get just basic columns that might exist
-        const fallbackQuery = `
-          SELECT
-            symbol,
-            quarter as report_date,
-            fetched_at as last_updated
-          FROM earnings_history
-          ORDER BY quarter DESC, symbol
-          LIMIT $1 OFFSET $2
-        `;
-
-        const fallbackResult = await query(fallbackQuery, [limit, offset]);
-
-        // Add missing fields with default values
-        result = {
-          rows: fallbackResult.rows.map(row => ({
-            ...row,
-            eps_actual: 0,
-            eps_estimate: 0,
-            eps_difference: 0,
-            surprise_percent: 0
-          }))
-        };
-      } catch (fallbackError) {
-        // If table doesn't exist at all, return empty data
-        result = { rows: [] };
-      }
+      console.error("Earnings query failed:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Earnings query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     res.json({
@@ -169,7 +145,13 @@ router.get("/calendar", async (req, res) => {
       });
 
     } catch (error) {
-      console.log("Earnings reports table not available, using fallback");
+      console.error("Earnings calendar query failed:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Earnings calendar query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
 
       // Fallback to earnings_history if available
       try {
@@ -334,7 +316,13 @@ router.get("/surprises", async (req, res) => {
       });
 
     } catch (error) {
-      console.log("Earnings reports table not available for surprises, using fallback");
+      console.error("Earnings surprises query failed:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Earnings surprises query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
 
       // Fallback to earnings_history if available
       try {
@@ -443,7 +431,13 @@ router.get("/:symbol", async (req, res) => {
 
       result = await query(symbolQuery, [symbol.toUpperCase()]);
     } catch (error) {
-      console.log(`Earnings table schema mismatch for ${symbol}, using fallback data`);
+      console.error(`Earnings query failed for ${symbol}:`, error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Earnings query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
 
       try {
         // Try to get just basic columns that might exist

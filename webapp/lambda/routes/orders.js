@@ -164,28 +164,12 @@ router.get("/", async (req, res) => {
           ? parseInt(countResult.rows[0].count)
           : 0;
     } catch (error) {
-      console.error(`Orders query error (using fallback):`, error.message);
+      console.error(`Orders query error:`, error.message);
 
-      // Return graceful fallback instead of 503
-      return res.json({
-        success: true,
-        data: {
-          orders: [],
-          pagination: {
-            page: Math.floor(offset / limit) + 1,
-            limit: limit,
-            total: 0,
-            totalPages: 0,
-            hasMore: false,
-          },
-          summary: {
-            totalOrders: 0,
-            pendingOrders: 0,
-            filledOrders: 0,
-            cancelledOrders: 0,
-          },
-        },
-        message: "Orders service temporarily unavailable",
+      return res.status(500).json({
+        success: false,
+        error: "Orders query failed",
+        details: error.message,
         timestamp: new Date().toISOString(),
       });
     }
@@ -216,25 +200,11 @@ router.get("/", async (req, res) => {
   } catch (error) {
     console.error("Error fetching orders:", error);
 
-    return res.json({
-      success: true,
-      data: {
-        orders: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0, hasMore: false },
-        summary: { totalOrders: 0, pendingOrders: 0, filledOrders: 0, cancelledOrders: 0 }
-      },
-      message: "Orders service temporarily unavailable - using fallback data",
-      service: "orders-list",
-      requirements: [
-        "Database connectivity must be available",
-        "orders table must exist with user order data",
-        "Valid user authentication required",
-      ],
-      troubleshooting: [
-        "Check database connection status",
-        "Verify orders table schema and data",
-        "Ensure user_id is valid and has orders",
-      ],
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch orders",
+      details: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
   });
@@ -1224,7 +1194,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
         status: req.query.status || "all",
         user_id: req.user?.sub || "unknown",
       },
-      message: "Recent orders temporarily unavailable",
+      error: "Recent orders query failed",
       timestamp: new Date().toISOString(),
     });
   }
@@ -2042,30 +2012,10 @@ router.get("/:orderId", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Order details error:", error);
 
-    // Check if orders table doesn't exist - return graceful fallback
-    if (error.message.includes('relation "orders" does not exist') ||
-        error.message.includes('table') && error.message.includes('does not exist')) {
-      return res.json({
-        success: true,
-        data: {
-          id: null,
-          symbol: null,
-          side: null,
-          quantity: 0,
-          status: "unavailable",
-          message: "Orders service not available in current environment"
-        },
-        message: "Orders database table not configured in AWS environment",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      error: "Failed to fetch order details",
-      message: "An error occurred while retrieving the order",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      error: "Order details query failed",
+      details: error.message,
       timestamp: new Date().toISOString(),
     });
   }

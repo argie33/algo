@@ -16,15 +16,38 @@ router.get("/ping", (req, res) => {
 
 // Get user's watchlists - public endpoint for health checks (AWS deployment refresh)
 router.get("/", async (req, res) => {
-  // If no auth token, return basic service info
+  // If no auth token, return sample watchlist data from database
   if (!req.headers.authorization) {
-    return res.json({
-      success: true,
-      service: "watchlist",
-      status: "operational",
-      endpoints: ["/", "/ping"],
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      const sampleWatchlistQuery = `
+        SELECT
+          watchlist_id,
+          name,
+          symbol,
+          created_at
+        FROM watchlist
+        ORDER BY created_at DESC
+        LIMIT 20
+      `;
+
+      const result = await query(sampleWatchlistQuery, []);
+
+      return res.json({
+        success: true,
+        data: result.rows || [],
+        message: "Sample watchlist data",
+        total: result.rows?.length || 0,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Watchlist query error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   // If there's an auth token, require authentication
@@ -32,21 +55,27 @@ router.get("/", async (req, res) => {
   try {
     const userId = req.user.sub;
 
-    // watchlists table doesn't exist, return empty result for now
-    const watchlists = {
-      rows: []
-    };
+    // Real database query for user's watchlists
+    const watchlistQuery = `
+      SELECT
+        watchlist_id,
+        name,
+        symbol,
+        notes,
+        created_at,
+        updated_at
+      FROM watchlist
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+    `;
 
-    // Add null checking for database availability
+    const watchlists = await query(watchlistQuery, [userId]);
+
     if (!watchlists || !watchlists.rows) {
-      console.warn(
-        "Watchlist query returned null result, database may be unavailable"
-      );
-      return res.json({
-        success: true,
-        data: [],
-        message: "Watchlist service temporarily unavailable",
-        total: 0,
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -54,25 +83,12 @@ router.get("/", async (req, res) => {
       success: true,
       data: watchlists.rows,
       total: watchlists.rows.length,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching watchlists:", error);
 
-    // Handle specific database errors gracefully
-    if (error.message.includes('relation "watchlists" does not exist') ||
-        error.message.includes('relation "watchlist_items" does not exist')) {
-      return res.status(503).json({
-        success: false,
-        error: "Watchlist service unavailable",
-        message: "Watchlist database tables are not available in the current environment",
-        suggestion: "Database schema needs to be updated with watchlists and watchlist_items table structures",
-        details: {
-          tables_required: ["watchlists", "watchlist_items"],
-          environment: process.env.NODE_ENV || "unknown"
-        },
-        timestamp: new Date().toISOString(),
-      });
-    }
+    // All database errors should return 500 status
 
     // Handle other database errors
     res.status(500).json({

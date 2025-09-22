@@ -3184,6 +3184,21 @@ router.put("/:id/update", authenticateToken, async (req, res) => {
       });
     }
 
+    // Validate field values before building query
+    if (updateData.target_price !== undefined) {
+      const price = parseFloat(updateData.target_price);
+      if (isNaN(price) || price < 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid target price - must be a positive number",
+          validation_errors: {
+            target_price: "Must be a valid positive number"
+          }
+        });
+      }
+      updateData.target_price = price; // Ensure it's a number
+    }
+
     // Build update query dynamically
     const allowedFields = ['target_price', 'condition', 'notification_methods', 'status'];
     const updateFields = Object.keys(updateData).filter(key => allowedFields.includes(key));

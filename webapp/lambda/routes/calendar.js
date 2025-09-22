@@ -130,29 +130,13 @@ router.get("/earnings", async (req, res) => {
 
       result = await Promise.race([queryPromise, timeoutPromise]);
     } catch (error) {
-      console.log("Calendar earnings schema mismatch, using fallback");
-
-      try {
-        // Fallback: try minimal column query
-        const fallbackQuery = `
-          SELECT
-            eh.symbol,
-            eh.quarter as report_date,
-            0 as eps_actual,
-            0 as eps_estimate,
-            0 as eps_difference,
-            0 as surprise_percent,
-            eh.quarter,
-            2024 as year
-          FROM earnings_history eh
-          ${whereClause}
-        `;
-
-        result = await query(fallbackQuery, params);
-      } catch (fallbackError) {
-        // If table doesn't exist at all, return empty data
-        result = { rows: [] };
-      }
+      console.error("Calendar earnings query failed:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Earnings calendar query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     if (result.rows.length === 0) {
@@ -332,11 +316,10 @@ router.get("/debug", async (req, res) => {
     }
   } catch (error) {
     console.error("Error in calendar debug:", error);
-    // Return 200 with fallback debug info instead of 500
-    return res.json({
-      tableExists: false,
-      message: "Debug check failed - database unavailable",
-      error: error.message,
+    return res.status(500).json({
+      success: false,
+      error: "Debug check failed - database unavailable",
+      details: error.message,
       timestamp: new Date().toISOString(),
     });
   }

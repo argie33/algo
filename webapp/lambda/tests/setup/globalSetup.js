@@ -615,6 +615,79 @@ module.exports = async () => {
       ON CONFLICT (trade_id) DO NOTHING
     `);
 
+    // Create broker_api_configs table (from trades.js requirements)
+    await query(`DROP TABLE IF EXISTS broker_api_configs`);
+    await query(`
+      CREATE TABLE broker_api_configs (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        broker VARCHAR(50) NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        last_sync_status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO broker_api_configs (user_id, broker, is_active, last_sync_status) VALUES
+      ('test-user-123', 'alpaca', true, 'connected'),
+      ('test-user-1', 'alpaca', true, 'connected'),
+      ('test-user-2', 'td_ameritrade', false, 'pending')
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create user_api_keys table (from trades.js requirements)
+    await query(`DROP TABLE IF EXISTS user_api_keys`);
+    await query(`
+      CREATE TABLE user_api_keys (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        broker_name VARCHAR(50) NOT NULL,
+        encrypted_api_key TEXT,
+        key_iv TEXT,
+        key_auth_tag TEXT,
+        encrypted_api_secret TEXT,
+        secret_iv TEXT,
+        secret_auth_tag TEXT,
+        is_sandbox BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO user_api_keys (user_id, broker_name, encrypted_api_key, encrypted_api_secret, is_sandbox) VALUES
+      ('test-user-123', 'alpaca', 'encrypted_key_123', 'encrypted_secret_123', true),
+      ('test-user-1', 'alpaca', 'encrypted_key_456', 'encrypted_secret_456', true),
+      ('test-user-2', 'td_ameritrade', 'encrypted_key_789', 'encrypted_secret_789', true)
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create earnings_reports table (from calendar.js requirements)
+    await query(`DROP TABLE IF EXISTS earnings_reports`);
+    await query(`
+      CREATE TABLE earnings_reports (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        report_date DATE,
+        quarter INTEGER,
+        year INTEGER,
+        eps_estimate DECIMAL(10,4),
+        eps_actual DECIMAL(10,4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO earnings_reports (symbol, report_date, quarter, year, eps_estimate, eps_actual) VALUES
+      ('AAPL', '2024-01-15', 1, 2024, 1.85, 1.92),
+      ('MSFT', '2024-01-20', 1, 2024, 2.45, 2.51),
+      ('GOOGL', '2024-01-25', 1, 2024, 3.25, 3.18),
+      ('TSLA', '2024-01-30', 1, 2024, 0.85, 0.91)
+      ON CONFLICT DO NOTHING
+    `);
+
     // Create ETFs table (from etf.js requirements)
     await query(`
       CREATE TABLE IF NOT EXISTS etfs (

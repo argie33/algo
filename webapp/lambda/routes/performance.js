@@ -812,31 +812,12 @@ router.get("/returns", authenticateToken, async (req, res) => {
         timestamp: new Date().toISOString(),
       });
     } catch (dbError) {
-      // Database schema issue with portfolio_returns table, return sample data
-      console.log(
-        "Database schema error with returns table, using fallback data:",
-        dbError.message
-      );
-      return res.json({
-        success: true,
-        data: {
-          return_type: type,
-          period: period,
-          total_return: 8.54,
-          annualized_return: 8.54,
-          total_return_pct: "8.54%",
-          volatility: 12.3,
-          sharpe_ratio: 0.69,
-          max_drawdown: -5.2,
-          calculation_method: "sample_data",
-          data_source: "Database schema error, showing sample data",
-          note: "Portfolio database tables may need to be created/updated",
-        },
-        metadata: {
-          user_id: userId,
-          calculation_date: new Date().toISOString(),
-          transaction_count: transactionCount,
-        },
+      console.error("Portfolio returns query failed:", dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Portfolio returns query failed",
+        details: dbError.message,
+        timestamp: new Date().toISOString(),
       });
     }
   } catch (error) {
@@ -903,16 +884,16 @@ router.get("/risk", authenticateToken, async (req, res) => {
 
       riskResult = await query(riskQuery, [userId, period]);
     } catch (dbError) {
-      // Database schema issue, return sample data
-      console.log(
-        "Database schema error with risk table, using fallback data:",
-        dbError.message
-      );
-      riskResult = { rows: [] };
+      console.error("Risk metrics query failed:", dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Risk metrics query failed",
+        details: dbError.message,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     if (riskResult.rows.length === 0) {
-      // Return sample risk data instead of 404
       const sampleRiskData = {
         portfolio_risk: {
           volatility: 18.45,
@@ -1178,16 +1159,17 @@ router.get("/attribution", authenticateToken, async (req, res) => {
     try {
       result = await query(attributionQuery, [userId]);
     } catch (dbError) {
-      // Database schema issue, return sample data
-      console.log(
-        "Database schema error with attribution tables, using fallback data:",
-        dbError.message
-      );
-      result = { rows: [] };
+      console.error("Attribution analysis query failed:", dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Attribution analysis query failed",
+        details: dbError.message,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      // Return sample attribution data instead of 404
+      // Return sample data when no real data is available
       const sampleAttributionData = [
         {
           sector: "Technology",
@@ -1260,104 +1242,6 @@ router.get("/attribution", authenticateToken, async (req, res) => {
         timestamp: new Date().toISOString(),
       });
     }
-
-    // Process attribution results
-    const attributionData = result.rows.map((row) => ({
-      sector: row.sector,
-      portfolio_weight: parseFloat(row.portfolio_weight_pct),
-      benchmark_weight: parseFloat(row.benchmark_weight_pct),
-      portfolio_return: parseFloat(row.portfolio_return_pct),
-      benchmark_return: parseFloat(row.benchmark_return_pct),
-      allocation_effect: parseFloat(row.allocation_effect_bps),
-      selection_effect: parseFloat(row.selection_effect_bps),
-      interaction_effect: parseFloat(row.interaction_effect_bps),
-      total_effect: parseFloat(row.total_effect_bps),
-      contribution: parseFloat(row.total_effect_bps),
-      holdings_count: parseInt(row.holdings_count),
-      sector_value: parseFloat(row.sector_value),
-    }));
-
-    // Calculate summary metrics
-    const summary = {
-      total_allocation_effect: attributionData.reduce(
-        (sum, s) => sum + s.allocation_effect,
-        0
-      ),
-      total_selection_effect: attributionData.reduce(
-        (sum, s) => sum + s.selection_effect,
-        0
-      ),
-      total_interaction_effect: attributionData.reduce(
-        (sum, s) => sum + s.interaction_effect,
-        0
-      ),
-      total_active_return: attributionData.reduce(
-        (sum, s) => sum + s.total_effect,
-        0
-      ),
-      best_sector:
-        attributionData.length > 0 ? attributionData[0].sector : null,
-      worst_sector:
-        attributionData.length > 0
-          ? attributionData[attributionData.length - 1].sector
-          : null,
-      total_sectors: attributionData.length,
-      total_holdings: attributionData.reduce(
-        (sum, s) => sum + s.holdings_count,
-        0
-      ),
-      portfolio_value: attributionData.reduce(
-        (sum, s) => sum + s.sector_value,
-        0
-      ),
-    };
-
-    console.log(
-      `📊 Performance attribution calculated: ${attributionData.length} sectors, ${summary.total_active_return.toFixed(2)}bps active return`
-    );
-
-    res.json({
-      success: true,
-      data: {
-        attribution: {
-          sector_attribution: attributionData,
-          security_selection: attributionData.map((s) => ({
-            sector: s.sector,
-            selection_effect: s.selection_effect,
-            holdings_count: s.holdings_count,
-          })),
-          asset_allocation: attributionData.map((s) => ({
-            sector: s.sector,
-            allocation_effect: s.allocation_effect,
-            portfolio_weight: s.portfolio_weight,
-            benchmark_weight: s.benchmark_weight,
-          })),
-        },
-        summary: summary,
-        methodology: {
-          framework: "Brinson Attribution Model",
-          components: {
-            allocation_effect:
-              "Impact of sector weight differences vs benchmark",
-            selection_effect: "Impact of security selection within sectors",
-            interaction_effect:
-              "Combined impact of allocation and selection decisions",
-          },
-          calculation:
-            "Active Return = Allocation Effect + Selection Effect + Interaction Effect",
-          period: period,
-          level: level,
-          method: attribution_method,
-        },
-        filters: {
-          user_id: userId,
-          period: period,
-          level: level,
-          attribution_method: attribution_method,
-        },
-      },
-      timestamp: new Date().toISOString(),
-    });
   } catch (error) {
     console.error("Performance attribution endpoint error:", error);
     res.status(500).json({

@@ -650,7 +650,7 @@ router.get("/overview", async (req, res) => {
           changePercent: parseFloat(row.changepercent) || 0
         }));
       } catch (e2) {
-        console.error("Price daily fallback failed:", e2.message);
+        console.error("Price daily query failed:", e2.message);
       }
     }
 
@@ -1009,47 +1009,20 @@ router.get("/sectors/performance", async (req, res) => {
       try {
         result = await query(fallbackQuery);
       } catch (fallbackError) {
-        console.error("Fallback sector query also failed:", fallbackError.message);
-        // Return mock data for AWS compatibility
-        return res.status(200).json({
-          success: true,
-          data: {
-            sectors: [
-              { sector: "Technology", stock_count: 150, avg_change: 2.5, total_volume: 50000000, avg_market_cap: 25000000000 },
-              { sector: "Healthcare", stock_count: 120, avg_change: 1.8, total_volume: 30000000, avg_market_cap: 15000000000 },
-              { sector: "Financial Services", stock_count: 100, avg_change: 1.2, total_volume: 45000000, avg_market_cap: 20000000000 },
-              { sector: "Consumer Cyclical", stock_count: 90, avg_change: 0.8, total_volume: 25000000, avg_market_cap: 12000000000 },
-              { sector: "Communication Services", stock_count: 75, avg_change: 0.5, total_volume: 20000000, avg_market_cap: 18000000000 }
-            ],
-            summary: {
-              total_sectors: 5,
-              best_performer: "Technology",
-              worst_performer: "Communication Services"
-            }
-          },
-          message: "Using fallback sector data - database tables not fully available",
+        console.error("Sector performance query failed:", fallbackError.message);
+        return res.status(500).json({
+          success: false,
+          error: "Sector performance query failed",
+          details: fallbackError.message,
           timestamp: new Date().toISOString(),
         });
       }
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.log("No sector data found, using sample data for AWS compatibility");
-      return res.status(200).json({
-        success: true,
-        data: {
-          sectors: [
-            { sector: "Technology", stock_count: 150, avg_change: 2.5, total_volume: 50000000, avg_market_cap: 25000000000 },
-            { sector: "Healthcare", stock_count: 120, avg_change: 1.8, total_volume: 30000000, avg_market_cap: 15000000000 },
-            { sector: "Financial Services", stock_count: 100, avg_change: 1.2, total_volume: 45000000, avg_market_cap: 20000000000 }
-          ],
-          summary: {
-            total_sectors: 3,
-            best_performer: "Technology",
-            worst_performer: "Financial Services"
-          }
-        },
-        message: "No sector data available in database, using sample data",
+      return res.status(404).json({
+        success: false,
+        error: "No sector data found",
         timestamp: new Date().toISOString(),
       });
     }

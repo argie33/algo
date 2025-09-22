@@ -521,13 +521,11 @@ router.get("/available-symbols", authenticateToken, async (req, res) => {
 
     // Handle cases where query returns null or empty results (database unavailable/empty)
     if (!result || !result.rows) {
-      // Return a basic set of common stock symbols for testing/fallback
-      const fallbackSymbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "NVDA", "META", "NFLX", "SPY", "QQQ"];
-      return res.json({
-        success: true,
-        symbols: fallbackSymbols,
-        count: fallbackSymbols.length,
-        message: "Using fallback symbols - database unavailable",
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        message: "Unable to retrieve symbols from database",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -544,13 +542,11 @@ router.get("/available-symbols", authenticateToken, async (req, res) => {
       error: err.message,
     });
 
-    // Return fallback symbols instead of 500 error to prevent production failures
-    const fallbackSymbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "NVDA", "META", "NFLX", "SPY", "QQQ"];
-    return res.json({
-      success: true,
-      symbols: fallbackSymbols,
-      count: fallbackSymbols.length,
-      message: "Using fallback symbols - service temporarily unavailable",
+    return res.status(500).json({
+      success: false,
+      error: "Available symbols query failed",
+      details: err.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });
