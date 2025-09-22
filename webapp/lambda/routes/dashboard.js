@@ -125,7 +125,7 @@ router.get("/summary", async (req, res) => {
     // Get sector performance from fundamental_metrics table
     const sectorQuery = `
             SELECT 
-                cp.sector,
+                fm.sector,
                 COUNT(*) as stock_count,
                 AVG(CASE 
                     WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
@@ -137,12 +137,12 @@ router.get("/summary", async (req, res) => {
                 AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
             JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
             WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
-                AND cp.sector IS NOT NULL 
-                AND cp.sector != ''
+                AND fm.sector IS NOT NULL 
+                AND fm.sector != ''
                 AND pd.close IS NOT NULL
                 AND prev.close IS NOT NULL
                 AND prev.close > 0
-            GROUP BY cp.sector
+            GROUP BY fm.sector
             ORDER BY avg_change DESC
             LIMIT 10
         `;
@@ -721,18 +721,18 @@ router.get("/market-data", async (req, res) => {
     // Get sector rotation using price_daily table with yfinance structure
     const sectorRotationQuery = `
             SELECT 
-                cp.sector,
+                fm.sector,
                 AVG(((pd.close - pd.open) / pd.open * 100)) as avg_change,
                 COUNT(DISTINCT pd.symbol) as stock_count,
                 AVG(pd.volume) as avg_volume,
                 SUM(pd.volume * pd.close) as total_value
             FROM price_daily pd
             JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
-            WHERE cp.sector IS NOT NULL 
+            WHERE fm.sector IS NOT NULL 
                 AND pd.date >= CURRENT_DATE - INTERVAL '1 day'
                 AND pd.close IS NOT NULL
                 AND ((pd.close - pd.open) / pd.open * 100) IS NOT NULL
-            GROUP BY cp.sector
+            GROUP BY fm.sector
             ORDER BY avg_change DESC
             LIMIT 20
         `;
@@ -900,7 +900,7 @@ router.get("/overview", async (req, res) => {
     // Get sector performance
     const sectorQuery = `
       SELECT 
-        cp.sector,
+        fm.sector,
         COUNT(*) as stock_count,
         AVG(CASE 
           WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
@@ -911,10 +911,10 @@ router.get("/overview", async (req, res) => {
           AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
       JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
       WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
-        AND cp.sector IS NOT NULL 
+        AND fm.sector IS NOT NULL 
         AND pd.close IS NOT NULL
         AND prev.close IS NOT NULL
-      GROUP BY cp.sector
+      GROUP BY fm.sector
       ORDER BY change_percent DESC
       LIMIT 5
     `;

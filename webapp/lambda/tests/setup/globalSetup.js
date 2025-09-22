@@ -1586,6 +1586,27 @@ module.exports = async () => {
       (2, 'GOOGL', 'Google/Alphabet')
     `);
 
+    // Add test tables for performance stress testing
+    await query(`DROP TABLE IF EXISTS test_transaction_stress`);
+    await query(`
+      CREATE TABLE test_transaction_stress (
+        id SERIAL PRIMARY KEY,
+        value INTEGER NOT NULL,
+        updated_by VARCHAR(50),
+        transaction_id VARCHAR(50),
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`DROP TABLE IF EXISTS test_isolation_stress`);
+    await query(`
+      CREATE TABLE test_isolation_stress (
+        id INTEGER PRIMARY KEY,
+        counter INTEGER DEFAULT 0,
+        last_updated_by INTEGER
+      )
+    `);
+
     console.log('✅ Database tables created matching loader structure');
   } catch (error) {
     console.warn('Could not create test database tables:', error.message);

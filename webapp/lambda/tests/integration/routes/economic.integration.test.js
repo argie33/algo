@@ -51,10 +51,10 @@ describe("Economic Routes Integration Tests", () => {
     test("should filter by economic series", async () => {
       const economicSeries = [
         "GDP",
-        "CPI",
-        "UNEMPLOYMENT",
-        "FEDERAL_FUNDS",
-        "INFLATION",
+        "UNEMPLOYMENT_RATE",
+        "VIX",
+        "FEDERAL_FUNDS_RATE",
+        "INFLATION_RATE",
       ];
 
       for (const series of economicSeries) {
@@ -215,7 +215,7 @@ describe("Economic Routes Integration Tests", () => {
 
   describe("GET /api/economic/series/:seriesId", () => {
     test("should return specific economic series data", async () => {
-      const seriesIds = ["GDP", "CPI", "UNEMPLOYMENT", "FEDERAL_FUNDS"];
+      const seriesIds = ["GDP", "UNEMPLOYMENT_RATE", "VIX", "FEDERAL_FUNDS_RATE"];
 
       for (const seriesId of seriesIds) {
         const response = await request(app).get(
@@ -251,7 +251,7 @@ describe("Economic Routes Integration Tests", () => {
 
       for (const frequency of frequencies) {
         const response = await request(app).get(
-          `/api/economic/series/CPI?frequency=${frequency}`
+          `/api/economic/series/UNEMPLOYMENT_RATE?frequency=${frequency}`
         );
 
         expect([200, 400].includes(response.status)).toBe(true);
@@ -270,7 +270,7 @@ describe("Economic Routes Integration Tests", () => {
   describe("GET /api/economic/compare", () => {
     test("should compare multiple economic series", async () => {
       const response = await request(app).get(
-        "/api/economic/compare?series=GDP,CPI,UNEMPLOYMENT"
+        "/api/economic/compare?series=GDP,UNEMPLOYMENT_RATE,VIX"
       );
 
       expect([200, 400, 500, 503].includes(response.status)).toBe(true);
@@ -286,7 +286,7 @@ describe("Economic Routes Integration Tests", () => {
 
     test("should handle normalization parameter", async () => {
       const response = await request(app).get(
-        "/api/economic/compare?series=GDP,CPI&normalize=true"
+        "/api/economic/compare?series=GDP,UNEMPLOYMENT_RATE&normalize=true"
       );
 
       expect([200, 400, 500, 503].includes(response.status)).toBe(true);
@@ -298,7 +298,7 @@ describe("Economic Routes Integration Tests", () => {
 
     test("should handle period alignment", async () => {
       const response = await request(app).get(
-        "/api/economic/compare?series=GDP,CPI&align_period=quarterly"
+        "/api/economic/compare?series=GDP,UNEMPLOYMENT_RATE&align_period=quarterly"
       );
 
       expect([200, 400, 500, 503].includes(response.status)).toBe(true);
@@ -327,7 +327,7 @@ describe("Economic Routes Integration Tests", () => {
 
       for (const horizon of horizons) {
         const response = await request(app).get(
-          `/api/economic/forecast?series=CPI&horizon=${horizon}`
+          `/api/economic/forecast?series=UNEMPLOYMENT_RATE&horizon=${horizon}`
         );
 
         expect([200, 400].includes(response.status)).toBe(true);
@@ -336,7 +336,7 @@ describe("Economic Routes Integration Tests", () => {
 
     test("should handle confidence level parameter", async () => {
       const response = await request(app).get(
-        "/api/economic/forecast?series=UNEMPLOYMENT&confidence=0.95"
+        "/api/economic/forecast?series=UNEMPLOYMENT_RATE&confidence=0.95"
       );
 
       expect([200, 400].includes(response.status)).toBe(true);
@@ -346,7 +346,7 @@ describe("Economic Routes Integration Tests", () => {
   describe("GET /api/economic/correlations", () => {
     test("should return correlations with market indices", async () => {
       const response = await request(app).get(
-        "/api/economic/correlations?series=FEDERAL_FUNDS"
+        "/api/economic/correlations?series=FEDERAL_FUNDS_RATE"
       );
 
       expect(response.status).toBe(200);
@@ -364,7 +364,7 @@ describe("Economic Routes Integration Tests", () => {
 
     test("should handle timeframe for correlations", async () => {
       const response = await request(app).get(
-        "/api/economic/correlations?series=CPI&timeframe=5Y"
+        "/api/economic/correlations?series=UNEMPLOYMENT_RATE&timeframe=5Y"
       );
 
       expect([200, 400].includes(response.status)).toBe(true);
@@ -380,7 +380,7 @@ describe("Economic Routes Integration Tests", () => {
         request(app).get("/api/economic/indicators"),
         request(app).get("/api/economic/calendar"),
         request(app).get("/api/economic/series/GDP"),
-        request(app).get("/api/economic/forecast?series=CPI"),
+        request(app).get("/api/economic/forecast?series=UNEMPLOYMENT_RATE"),
       ];
 
       const responses = await Promise.all(requests);
@@ -424,7 +424,7 @@ describe("Economic Routes Integration Tests", () => {
 
     test("should validate economic data value ranges", async () => {
       const response = await request(app).get(
-        "/api/economic/series/CPI?limit=10"
+        "/api/economic/series/UNEMPLOYMENT_RATE?limit=10"
       );
 
       if (response.status === 200 && response.body.data.values.length > 0) {
@@ -457,7 +457,7 @@ describe("Economic Routes Integration Tests", () => {
 
     test("should handle memory pressure with large datasets", async () => {
       const response = await request(app).get(
-        "/api/economic/compare?series=GDP,CPI,UNEMPLOYMENT,FEDERAL_FUNDS,INFLATION,HOUSING_STARTS,RETAIL_SALES&timeframe=max"
+        "/api/economic/compare?series=GDP,UNEMPLOYMENT_RATE,FEDERAL_FUNDS_RATE,INFLATION_RATE&timeframe=max"
       );
 
       expect([200, 400, 413, 500, 503].includes(response.status)).toBe(true);

@@ -1240,18 +1240,19 @@ router.get("/search", async (req, res) => {
 
     console.log(`🔍 Stock search requested for: ${search}`);
 
-    // Search stocks in database using fundamental_metrics and market_data
+    // Search stocks in database using fundamental_metrics, market_data, and company_profile
     const searchQuery = `
       SELECT
         fm.symbol as symbol,
-        fm.symbol as company_name,
+        COALESCE(cp.short_name, fm.symbol) as company_name,
         fm.symbol,
-        fm.exchange,
+        cp.exchange,
         fm.sector,
         md.market_cap,
         md.current_price as price
       FROM fundamental_metrics fm
       LEFT JOIN market_data md ON fm.symbol = md.ticker
+      LEFT JOIN company_profile cp ON fm.symbol = cp.ticker
       WHERE
         UPPER(fm.symbol) LIKE UPPER($1) OR
         UPPER(fm.symbol) LIKE UPPER($2) OR

@@ -214,29 +214,29 @@ router.get("/screener", async (req, res) => {
     // Get companies with basic financial data for screening
     const screeningQuery = `
       SELECT
-        cp.ticker as symbol,
-        cp.name as company_name,
-        cp.sector,
-        cp.market_cap,
+        fm.symbol as symbol,
+        fm.symbol as company_name,
+        fm.sector,
+        fm.market_cap,
         -- Simulated financial metrics for AWS compatibility
         CASE
-          WHEN cp.ticker = 'AAPL' THEN 385000000000
-          WHEN cp.ticker = 'MSFT' THEN 198000000000
+          WHEN fm.symbol = 'AAPL' THEN 385000000000
+          WHEN fm.symbol = 'MSFT' THEN 198000000000
           ELSE (RANDOM() * 100000000000 + 10000000000)
         END as revenue,
         CASE
-          WHEN cp.ticker = 'AAPL' THEN 28.5
-          WHEN cp.ticker = 'MSFT' THEN 32.1
+          WHEN fm.symbol = 'AAPL' THEN 28.5
+          WHEN fm.symbol = 'MSFT' THEN 32.1
           ELSE (RANDOM() * 40 + 10)
         END as pe_ratio,
         CASE
-          WHEN cp.ticker = 'AAPL' THEN 0.26
-          WHEN cp.ticker = 'MSFT' THEN 0.31
+          WHEN fm.symbol = 'AAPL' THEN 0.26
+          WHEN fm.symbol = 'MSFT' THEN 0.31
           ELSE (RANDOM() * 0.3 + 0.05)
         END as net_margin
-      FROM company_profile cp
-      WHERE cp.ticker IS NOT NULL
-      ORDER BY cp.market_cap DESC
+      FROM fundamental_metrics fm
+      WHERE fm.symbol IS NOT NULL
+      ORDER BY fm.market_cap DESC
       LIMIT $1
     `;
 
@@ -1476,11 +1476,10 @@ router.get("/ratios/:symbol", async (req, res) => {
         fr.profit_margin as profit_margin_pct,
         NULL as gross_margin_pct,
         fm.enterprise_to_ebitda as ev_to_ebitda,
-        cp.sector,
-        cp.industry
+        fm.sector,
+        fm.industry
       FROM financial_ratios fr
       LEFT JOIN fundamental_metrics fm ON fr.symbol = fm.symbol
-      LEFT JOIN company_profile cp ON fr.symbol = cp.ticker
       WHERE fr.symbol ILIKE $1
       ORDER BY fr.fiscal_year DESC
       LIMIT 1

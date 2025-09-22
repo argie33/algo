@@ -168,10 +168,10 @@ describe("Performance Routes Unit Tests", () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("portfolio_metrics");
-      expect(response.body.data).toHaveProperty("benchmark_metrics");
-      expect(response.body.data).toHaveProperty("relative_performance");
-      expect(response.body.data.relative_performance).toHaveProperty("alpha");
+      expect(response.body.data).toHaveProperty("portfolio");
+      expect(response.body.data).toHaveProperty("benchmark");
+      expect(response.body.data).toHaveProperty("comparison");
+      expect(response.body.data.comparison).toHaveProperty("alpha");
       expect(mockQuery).toHaveBeenCalledTimes(2);
       expect(
         mockPerformanceMonitor.calculateBenchmarkComparison
@@ -283,7 +283,7 @@ describe("Performance Routes Unit Tests", () => {
 
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body.error).toContain("Performance calculation failed");
+      expect(response.body.error).toContain("Failed to fetch performance benchmark data");
     });
   });
 
@@ -324,7 +324,7 @@ describe("Performance Routes Unit Tests", () => {
 
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body.error).toContain("Analytics failed");
+      expect(response.body.error).toContain("Failed to fetch performance analytics");
     });
   });
 
@@ -362,7 +362,7 @@ describe("Performance Routes Unit Tests", () => {
 
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body.error).toContain("Metrics collection failed");
+      expect(response.body.error).toContain("Failed to retrieve performance metrics");
     });
   });
 

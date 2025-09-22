@@ -929,20 +929,20 @@ router.get("/sectors", async (req, res) => {
       `
       SELECT
         cp.sector,
-        COUNT(DISTINCT cp.ticker) as stock_count,
+        COUNT(DISTINCT cp.symbol) as stock_count,
         AVG(COALESCE(pd.close, 100)) as avg_price,
         SUM(COALESCE(pd.volume, 1000000)) as total_volume
-      FROM company_profile cp
+      FROM fundamental_metrics cp
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC
-      ) pd ON cp.ticker = pd.symbol
+      ) pd ON cp.symbol = pd.symbol
       WHERE cp.sector IS NOT NULL AND cp.sector != ''
       GROUP BY cp.sector
-      HAVING COUNT(DISTINCT cp.ticker) >= 1
+      HAVING COUNT(DISTINCT cp.symbol) >= 1
       ORDER BY stock_count DESC
       LIMIT 10
       `,
@@ -1263,9 +1263,9 @@ router.post("/custom", async (req, res) => {
                 // If no portfolio holding, get stock info
                 const stockResult = await query(
                   `
-                SELECT ticker as symbol, price as current_price
-                FROM company_profile
-                WHERE ticker = $1
+                SELECT symbol as symbol, close as current_price
+                FROM fundamental_metrics
+                WHERE symbol = $1
                 LIMIT 1
               `,
                   [symbol]
@@ -1677,7 +1677,7 @@ router.get("/attribution", async (req, res) => {
         c.sector,
         c.industry
       FROM portfolio_holdings h
-      LEFT JOIN company_profile c ON h.symbol = c.symbol
+      LEFT JOIN fundamental_metrics c ON h.symbol = c.symbol
       WHERE h.user_id = $1
       ORDER BY h.weight DESC
     `;

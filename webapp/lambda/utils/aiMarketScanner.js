@@ -86,7 +86,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.close as prev_price,
@@ -94,7 +94,7 @@ class AIMarketScanner {
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         md.market_cap,
-        cp.sector,
+        s.sector,
         td.rsi,
         td.sma_20,
         td.sma_50,
@@ -106,8 +106,7 @@ class AIMarketScanner {
           ELSE 50
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -169,7 +168,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.close as prev_price,
@@ -177,7 +176,7 @@ class AIMarketScanner {
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         md.market_cap,
-        cp.sector,
+        s.sector,
         td.rsi,
         td.sma_20,
         td.sma_50,
@@ -189,8 +188,7 @@ class AIMarketScanner {
           ELSE 50
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -253,7 +251,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.high,
         pd.low,
@@ -263,7 +261,7 @@ class AIMarketScanner {
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         md.market_cap,
-        cp.sector,
+        s.sector,
         td.sma_20,
         td.sma_50,
         CASE 
@@ -273,8 +271,7 @@ class AIMarketScanner {
           ELSE 60
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -339,7 +336,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.volume as prev_volume,
@@ -348,7 +345,7 @@ class AIMarketScanner {
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         (pd.volume / NULLIF(pd_avg.avg_volume, 1)) as volume_vs_avg,
         md.market_cap,
-        cp.sector,
+        s.sector,
         CASE 
           WHEN pd.volume > pd_avg.avg_volume * 10 THEN 95
           WHEN pd.volume > pd_avg.avg_volume * 5 THEN 88
@@ -359,8 +356,7 @@ class AIMarketScanner {
           ELSE 50
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -426,7 +422,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
@@ -436,7 +432,7 @@ class AIMarketScanner {
         er.eps_surprise,
         er.surprise_percent,
         md.market_cap,
-        cp.sector,
+        s.sector,
         CASE 
           WHEN er.surprise_percent > 20 AND ABS(EXTRACT(DAYS FROM (CURRENT_DATE - er.report_date))) <= 2 THEN 90
           WHEN er.surprise_percent > 10 AND ABS(EXTRACT(DAYS FROM (CURRENT_DATE - er.report_date))) <= 3 THEN 80
@@ -445,8 +441,7 @@ class AIMarketScanner {
           ELSE 55
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -510,7 +505,7 @@ class AIMarketScanner {
     const baseQuery = `
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         n.sentiment,
@@ -518,7 +513,7 @@ class AIMarketScanner {
         n.headline,
         n.published_at,
         md.market_cap,
-        cp.sector,
+        s.sector,
         CASE 
           WHEN n.sentiment > 0.8 AND n.sentiment_confidence > 0.7 THEN 85
           WHEN n.sentiment > 0.6 AND n.sentiment_confidence > 0.6 THEN 75
@@ -526,8 +521,7 @@ class AIMarketScanner {
           ELSE 55
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)

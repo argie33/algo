@@ -13,7 +13,7 @@ Health check: http://localhost:3001/health
 Stocks: http://localhost:3001/stocks
 Technical: http://localhost:3001/technical/daily
 🔌 WebSocket endpoint: ws://localhost:3001/ws
-Processing request: GET /api/health
+Processing request: GET /api/stocks/sectors
 Initializing database connection...
 Initializing database connection pool...
 Using database config from environment variables
@@ -21,33 +21,57 @@ Database config loaded from environment: localhost:5432/stocks
 ✅ Database connection pool initialized successfully
 Database connection established successfully
 Database connection verified for database-dependent endpoint
-Starting health check with database...
-::1 - - [22/Sep/2025:19:12:58 +0000] "GET /api/health HTTP/1.1" 200 346 "-" "curl/8.5.0"
-Processing request: GET /api/sectors/technology/stocks
-Database connection verified for database-dependent endpoint
-📊 Fetching stocks for sector: technology
+Sectors endpoint called (public)
 Database query error: {
-  error: 'column cp.company_name does not exist',
+  error: 'missing FROM-clause entry for table "fm"',
   query: '\n' +
     '      SELECT\n' +
-    '        cp.ticker as symbol,\n' +
-    '        cp.company_name as name,\n' +
-    '        cp.sector,\n' +
-    '     ...',
-  params: '2 parameters',
-  code: '42703'
+    "        COALESCE(fm.sector, 'Unknown') as sector,\n" +
+    '        COUNT(*) as count,\n' +
+    '        A...',
+  params: 'no parameters',
+  code: '42P01'
 }
-❌ Error fetching stocks for sector technology: error: column cp.company_name does not exist
+❌ Sectors query failed - comprehensive diagnosis needed {
+  query_type: 'sectors_aggregation',
+  error_message: 'missing FROM-clause entry for table "fm"',
+  detailed_diagnostics: {
+    attempted_operations: [ 'stock_symbols_query', 'sector_aggregation' ],
+    potential_causes: [
+      'stock_symbols table missing',
+      'Database connection failure',
+      'Schema validation error',
+      'Data type mismatch',
+      'Insufficient database permissions',
+      'Query timeout'
+    ],
+    troubleshooting_steps: [
+      'Check if stock_symbols table exists',
+      'Verify database connection health',
+      'Validate table schema structure',
+      'Check database permissions',
+      'Review query syntax and data types',
+      'Monitor database performance'
+    ],
+    system_checks: [
+      'Database health status',
+      'Table existence validation',
+      'Schema integrity check',
+      'Connection pool availability'
+    ]
+  }
+}
+❌ Error fetching sectors: error: missing FROM-clause entry for table "fm"
     at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
     at async query (/home/stocks/algo/webapp/lambda/utils/database.js:1351:20)
-    at async /home/stocks/algo/webapp/lambda/routes/sectors.js:70:20 {
-  length: 113,
+    at async /home/stocks/algo/webapp/lambda/routes/stocks.js:55:16 {
+  length: 114,
   severity: 'ERROR',
-  code: '42703',
+  code: '42P01',
   detail: undefined,
   hint: undefined,
-  position: '52',
+  position: '294',
   internalPosition: undefined,
   internalQuery: undefined,
   where: undefined,
@@ -57,35 +81,371 @@ Database query error: {
   dataType: undefined,
   constraint: undefined,
   file: 'parse_relation.c',
-  line: '3722',
-  routine: 'errorMissingColumn'
+  line: '3657',
+  routine: 'errorMissingRTE'
 }
-::1 - - [22/Sep/2025:19:13:05 +0000] "GET /api/sectors/technology/stocks HTTP/1.1" 500 115 "-" "curl/8.5.0"
-Processing request: GET /api/sectors/technology/stocks
+::1 - - [22/Sep/2025:22:10:56 +0000] "GET /api/stocks/sectors HTTP/1.1" 503 586 "-" "curl/8.5.0"
+Processing request: GET /api/portfolio
 Database connection verified for database-dependent endpoint
-📊 Fetching stocks for sector: technology
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/value HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/allocation HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/allocations HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/returns HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/risk HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/optimization HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 401 588 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/health HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 162 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 401 588 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/data
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:57 +0000] "GET /api/portfolio/data HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/value HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/allocation HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/allocations HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/returns HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/risk HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/optimization HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 401 588 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/health HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 162 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 401 588 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/data
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:10:59 +0000] "GET /api/portfolio/data HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/value HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/allocation HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/allocations HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/returns HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/risk HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/optimization HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 401 588 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/health HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 162 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 401 588 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/portfolio/data
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification not configured - set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
+::ffff:127.0.0.1 - - [22/Sep/2025:22:11:29 +0000] "GET /api/portfolio/data HTTP/1.1" 401 588 "-" "-"
+Processing request: GET /api/stocks/sectors
+Database connection verified for database-dependent endpoint
+Sectors endpoint called (public)
 Database query error: {
-  error: 'column cp.company_name does not exist',
+  error: 'missing FROM-clause entry for table "fm"',
   query: '\n' +
     '      SELECT\n' +
-    '        cp.ticker as symbol,\n' +
-    '        cp.company_name as name,\n' +
-    '        cp.sector,\n' +
-    '     ...',
-  params: '2 parameters',
-  code: '42703'
+    "        COALESCE(fm.sector, 'Unknown') as sector,\n" +
+    '        COUNT(*) as count,\n' +
+    '        A...',
+  params: 'no parameters',
+  code: '42P01'
 }
-❌ Error fetching stocks for sector technology: error: column cp.company_name does not exist
+❌ Sectors query failed - comprehensive diagnosis needed {
+  query_type: 'sectors_aggregation',
+  error_message: 'missing FROM-clause entry for table "fm"',
+  detailed_diagnostics: {
+    attempted_operations: [ 'stock_symbols_query', 'sector_aggregation' ],
+    potential_causes: [
+      'stock_symbols table missing',
+      'Database connection failure',
+      'Schema validation error',
+      'Data type mismatch',
+      'Insufficient database permissions',
+      'Query timeout'
+    ],
+    troubleshooting_steps: [
+      'Check if stock_symbols table exists',
+      'Verify database connection health',
+      'Validate table schema structure',
+      'Check database permissions',
+      'Review query syntax and data types',
+      'Monitor database performance'
+    ],
+    system_checks: [
+      'Database health status',
+      'Table existence validation',
+      'Schema integrity check',
+      'Connection pool availability'
+    ]
+  }
+}
+❌ Error fetching sectors: error: missing FROM-clause entry for table "fm"
     at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
     at async query (/home/stocks/algo/webapp/lambda/utils/database.js:1351:20)
-    at async /home/stocks/algo/webapp/lambda/routes/sectors.js:70:20 {
-  length: 113,
+    at async /home/stocks/algo/webapp/lambda/routes/stocks.js:55:16 {
+  length: 114,
   severity: 'ERROR',
-  code: '42703',
+  code: '42P01',
   detail: undefined,
   hint: undefined,
-  position: '52',
+  position: '294',
   internalPosition: undefined,
   internalQuery: undefined,
   where: undefined,
@@ -95,7 +455,7 @@ Database query error: {
   dataType: undefined,
   constraint: undefined,
   file: 'parse_relation.c',
-  line: '3722',
-  routine: 'errorMissingColumn'
+  line: '3657',
+  routine: 'errorMissingRTE'
 }
-::1 - - [22/Sep/2025:19:13:28 +0000] "GET /api/sectors/technology/stocks HTTP/1.1" 500 115 "-" "curl/8.5.0"
+::1 - - [22/Sep/2025:22:11:32 +0000] "GET /api/stocks/sectors HTTP/1.1" 503 586 "-" "curl/8.5.0"
