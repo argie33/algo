@@ -14,8 +14,8 @@ router.get("/sectors", async (req, res) => {
   try {
     console.log("Sectors endpoint called (public)");
 
-    // First check if company_profile table has any data
-    const countQuery = `SELECT COUNT(*) as count FROM company_profile LIMIT 1`;
+    // First check if fundamental_metrics table has any data
+    const countQuery = `SELECT COUNT(*) as count FROM fundamental_metrics LIMIT 1`;
     const countResult = await query(countQuery);
 
     if (
@@ -24,7 +24,7 @@ router.get("/sectors", async (req, res) => {
       !countResult.rows[0] ||
       parseInt(countResult.rows[0].count) === 0
     ) {
-      console.log("📊 No data in company_profile table");
+      console.log("📊 No data in fundamental_metrics table");
       return res.status(503).json({
         success: false,
         error: "Sector data unavailable",
@@ -36,14 +36,14 @@ router.get("/sectors", async (req, res) => {
     // Use efficient query with proper error handling (using loader schema)
     const sectorsQuery = `
       SELECT
-        COALESCE(cp.sector, 'Unknown') as sector,
+        COALESCE(fm.sector, 'Unknown') as sector,
         COUNT(*) as count,
         AVG(CASE WHEN md.market_cap > 0 THEN md.market_cap END) as avg_market_cap,
-        COUNT(DISTINCT cp.ticker) as company_count
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      WHERE cp.sector IS NOT NULL AND cp.sector != 'Unknown' AND cp.sector != ''
-      GROUP BY cp.sector
+        COUNT(DISTINCT fm.symbol) as company_count
+      FROM fundamental_metrics fm
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
+      WHERE fm.sector IS NOT NULL AND fm.sector != 'Unknown' AND fm.sector != ''
+      GROUP BY fm.sector
       ORDER BY count DESC
       LIMIT 20
     `;
@@ -179,7 +179,7 @@ router.get("/public/sample", async (req, res) => {
         price,
         change_percent,
         volume
-      FROM company_profile
+      FROM fundamental_metrics
       WHERE ticker IS NOT NULL
         AND name IS NOT NULL
         AND price > 0
@@ -439,37 +439,37 @@ router.get("/", async (req, res) => {
     // Add search filter
     if (search) {
       paramCount++;
-      whereClause += ` AND (cp.ticker ILIKE $${paramCount} OR cp.short_name ILIKE $${paramCount} OR cp.long_name ILIKE $${paramCount})`;
+      whereClause += ` AND (fm.symbol ILIKE $${paramCount} OR fm.symbol ILIKE $${paramCount} OR fm.symbol ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
     // Add sector filter
     if (sector && sector.trim() !== "") {
       paramCount++;
-      whereClause += ` AND cp.sector = $${paramCount}`;
+      whereClause += ` AND fm.sector = $${paramCount}`;
       params.push(sector);
     }
 
-    // Add exchange filter (on cp.market)
+    // Add exchange filter (on fm.market)
     if (exchange && exchange.trim() !== "") {
       paramCount++;
-      whereClause += ` AND cp.market = $${paramCount}`;
+      whereClause += ` AND fm.market = $${paramCount}`;
       params.push(exchange);
     }
 
     // FAST sort columns - using loadinfo.py schema
     const validSortColumns = {
-      ticker: "cp.ticker",
-      symbol: "cp.ticker",
-      name: "cp.short_name",
-      exchange: "cp.market",
-      type: "cp.quote_type",
-      sector: "cp.sector",
-      industry: "cp.industry",
+      ticker: "fm.symbol",
+      symbol: "fm.symbol",
+      name: "fm.symbol",
+      exchange: "fm.market",
+      type: "fm.quote_type",
+      sector: "fm.sector",
+      industry: "fm.industry",
       market_cap: "md.market_cap",
     };
 
-    const sortColumn = validSortColumns[sortBy] || "cp.ticker";
+    const sortColumn = validSortColumns[sortBy] || "fm.symbol";
     const sortDirection = sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
 
     console.log("Query params:", {
@@ -479,31 +479,31 @@ router.get("/", async (req, res) => {
       offset,
     });
 
-    // SIMPLE FULL QUERY: Use company_profile as primary table
+    // SIMPLE FULL QUERY: Use fundamental_metrics as primary table
     const stocksQuery = `
       SELECT
-        cp.ticker as symbol,
-        COALESCE(cp.short_name, cp.long_name, cp.ticker) as company_name,
-        cp.short_name,
-        cp.long_name,
-        cp.display_name,
-        cp.market,
-        cp.quote_type,
-        cp.sector,
-        cp.sector_disp,
-        cp.industry,
-        cp.industry_disp,
-        cp.currency,
-        cp.country,
-        cp.business_summary,
-        cp.employee_count,
-        cp.website_url,
-        cp.ir_website_url,
-        cp.address1,
-        cp.city,
-        cp.state,
-        cp.postal_code,
-        cp.phone_number,
+        fm.symbol as symbol,
+        fm.symbol as company_name,
+        fm.symbol,
+        fm.symbol,
+        fm.display_name,
+        fm.market,
+        fm.quote_type,
+        fm.sector,
+        fm.sector_disp,
+        fm.industry,
+        fm.industry_disp,
+        fm.currency,
+        fm.country,
+        fm.business_summary,
+        fm.employee_count,
+        fm.website_url,
+        fm.ir_website_url,
+        fm.address1,
+        fm.city,
+        fm.state,
+        fm.postal_code,
+        fm.phone_number,
         md.market_cap,
         md.current_price,
         md.previous_close,
@@ -519,10 +519,10 @@ router.get("/", async (req, res) => {
         md.market_state,
         md.volume,
         md.average_volume,
-        (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker) as price_date
+        (SELECT MAX(date) FROM price_daily WHERE symbol = fm.symbol) as price_date
 
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      FROM fundamental_metrics fm
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -533,8 +533,8 @@ router.get("/", async (req, res) => {
     // Count query - must match main query tables for WHERE clause compatibility
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      FROM fundamental_metrics fm
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
       ${whereClause}
     `;
 
@@ -615,7 +615,7 @@ router.get("/", async (req, res) => {
       financialStatus: stock.financial_status,
       isEtf: stock.etf === "Y",
 
-      // Business information (from company_profile when available)
+      // Business information (from fundamental_metrics when available)
       sector: stock.sector,
       sectorDisplay: stock.sector_disp || stock.sector,
       industry: stock.industry,
@@ -1079,7 +1079,7 @@ router.get("/screen", async (req, res) => {
     // Get total count for pagination
     const countQuery = `
       SELECT COUNT(*) as total 
-      FROM company_profile 
+      FROM fundamental_metrics 
       WHERE ${whereClause}
     `;
 
@@ -1109,7 +1109,7 @@ router.get("/screen", async (req, res) => {
         pe_ratio,
         dividend_yield,
         beta
-      FROM company_profile 
+      FROM fundamental_metrics 
       WHERE ${whereClause}
       ORDER BY ${safeSortBy} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -1240,26 +1240,26 @@ router.get("/search", async (req, res) => {
 
     console.log(`🔍 Stock search requested for: ${search}`);
 
-    // Search stocks in database using company_profile and market_data
+    // Search stocks in database using fundamental_metrics and market_data
     const searchQuery = `
       SELECT
-        cp.ticker as symbol,
-        cp.short_name as company_name,
-        cp.long_name,
-        cp.exchange,
-        cp.sector,
+        fm.symbol as symbol,
+        fm.symbol as company_name,
+        fm.symbol,
+        fm.exchange,
+        fm.sector,
         md.market_cap,
         md.current_price as price
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      FROM fundamental_metrics fm
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
       WHERE
-        UPPER(cp.ticker) LIKE UPPER($1) OR
-        UPPER(cp.short_name) LIKE UPPER($2) OR
-        UPPER(cp.long_name) LIKE UPPER($3)
+        UPPER(fm.symbol) LIKE UPPER($1) OR
+        UPPER(fm.symbol) LIKE UPPER($2) OR
+        UPPER(fm.symbol) LIKE UPPER($3)
       ORDER BY
         CASE
-          WHEN UPPER(cp.ticker) = UPPER($4) THEN 1
-          WHEN UPPER(cp.ticker) LIKE UPPER($5) THEN 2
+          WHEN UPPER(fm.symbol) = UPPER($4) THEN 1
+          WHEN UPPER(fm.symbol) LIKE UPPER($5) THEN 2
           ELSE 3
         END,
         md.market_cap DESC NULLS LAST
@@ -1288,12 +1288,12 @@ router.get("/search", async (req, res) => {
 
     // Get total count for pagination
     const countQuery = `
-      SELECT COUNT(DISTINCT cp.ticker) as total
-      FROM company_profile cp
+      SELECT COUNT(DISTINCT fm.symbol) as total
+      FROM fundamental_metrics fm
       WHERE
-        UPPER(cp.ticker) LIKE UPPER($1) OR
-        UPPER(cp.short_name) LIKE UPPER($2) OR
-        UPPER(cp.long_name) LIKE UPPER($3)
+        UPPER(fm.symbol) LIKE UPPER($1) OR
+        UPPER(fm.symbol) LIKE UPPER($2) OR
+        UPPER(fm.symbol) LIKE UPPER($3)
     `;
 
     const countResult = await query(countQuery, [searchPattern, searchPattern, searchPattern]);
@@ -1360,7 +1360,7 @@ router.get("/analysis", async (req, res) => {
         sp.volume,
         (sp.close - sp.open) / sp.open * 100 as daily_change_percent
       FROM stock_symbols ss
-      LEFT JOIN company_profile s ON ss.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON ss.symbol = s.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, volume, date
@@ -1618,7 +1618,7 @@ router.get("/recommendations", async (req, res) => {
         'BUY' as recommendation,
         'Strong fundamentals and market position' as reason
       FROM stock_symbols ss
-      LEFT JOIN company_profile s ON ss.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON ss.symbol = s.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, volume, date
@@ -1675,17 +1675,17 @@ router.get("/list", async (req, res) => {
     console.log("📋 Stock list endpoint called");
     const limit = parseInt(req.query.limit) || 50;
 
-    // Get stock list from company_profile table (using loader schema)
+    // Get stock list from fundamental_metrics table (using loader schema)
     const listQuery = `
       SELECT
-        cp.ticker as symbol,
-        COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
-        cp.sector,
+        fm.symbol as symbol,
+        fm.symbol as name,
+        fm.sector,
         md.market_cap
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      WHERE cp.ticker IS NOT NULL
-      ORDER BY md.market_cap DESC NULLS LAST, cp.ticker
+      FROM fundamental_metrics fm
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
+      WHERE fm.symbol IS NOT NULL
+      ORDER BY md.market_cap DESC NULLS LAST, fm.symbol
       LIMIT $1
     `;
 
@@ -1697,8 +1697,8 @@ router.get("/list", async (req, res) => {
         error: "Stock list not available",
         message: "Stock list requires database tables to be populated",
         troubleshooting: {
-          suggestion: "Ensure company_profile table is populated with data",
-          required_tables: ["company_profile", "stocks"],
+          suggestion: "Ensure fundamental_metrics table is populated with data",
+          required_tables: ["fundamental_metrics", "stocks"],
         },
       });
     }
@@ -1813,7 +1813,7 @@ router.get("/screener", authenticateToken, async (req, res) => {
         pd.volume,
         md.market_cap
       FROM stock_symbols ss
-      LEFT JOIN company_profile s ON ss.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON ss.symbol = s.ticker
       LEFT JOIN market_data md ON ss.symbol = md.ticker
       JOIN (
         SELECT DISTINCT ON (symbol)
@@ -2273,13 +2273,13 @@ router.get("/compare", async (req, res) => {
     // Query actual stock comparison data from fundamental_metrics and price_daily tables
     const placeholders = symbolList.map((_, i) => `$${i + 1}`).join(',');
 
-    // Get stock comparison data from price_daily and company_profile tables
+    // Get stock comparison data from price_daily and fundamental_metrics tables
     const fundamentalQuery = `
       SELECT p.symbol,
              NULL as pe_ratio,
              NULL as market_cap,
-             cp.sector,
-             cp.industry,
+             fm.sector,
+             fm.industry,
              p.close as current_price,
              p.volume,
              p.date as price_date
@@ -2289,7 +2289,7 @@ router.get("/compare", async (req, res) => {
         WHERE symbol IN (${placeholders})
         ORDER BY symbol, date DESC
       ) p
-      LEFT JOIN company_profile cp ON p.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON p.symbol = fm.symbol
     `;
 
     const result = await query(fundamentalQuery, symbolList);
@@ -2528,14 +2528,14 @@ router.get("/:ticker", async (req, res) => {
 
     console.log(`FIXED stock endpoint called for: ${tickerUpper}`);
 
-    // FIXED QUERY - Use company_profile and price_daily (populated by loader scripts)
+    // FIXED QUERY - Use fundamental_metrics and price_daily (populated by loader scripts)
     const stockQuery = `
       SELECT
-        cp.ticker as symbol,
-        cp.short_name as company_name,
-        cp.sector,
-        cp.market as exchange,
-        cp.quote_type as market_category,
+        fm.symbol as symbol,
+        fm.symbol as company_name,
+        fm.sector,
+        fm.market as exchange,
+        fm.quote_type as market_category,
         md.market_cap,
         sp.close as current_price,
         sp.open,
@@ -2543,15 +2543,15 @@ router.get("/:ticker", async (req, res) => {
         sp.low,
         sp.volume,
         sp.date as price_date
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      FROM fundamental_metrics fm
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, high, low, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) sp ON cp.ticker = sp.symbol
-      WHERE cp.ticker = $1
+      ) sp ON fm.symbol = sp.symbol
+      WHERE fm.symbol = $1
       LIMIT 1
     `;
 
@@ -3724,7 +3724,7 @@ router.get("/:symbol/fundamentals", async (req, res) => {
 
     // Get company profile data
     const result = await query(
-      `SELECT * FROM company_profile WHERE ticker = $1`,
+      `SELECT * FROM fundamental_metrics WHERE ticker = $1`,
       [symbol.toUpperCase()]
     );
 
@@ -3988,13 +3988,13 @@ router.get("/compare", async (req, res) => {
     // Query actual stock comparison data from fundamental_metrics and price_daily tables
     const placeholders = symbolList.map((_, i) => `$${i + 1}`).join(',');
 
-    // Get stock comparison data from price_daily and company_profile tables
+    // Get stock comparison data from price_daily and fundamental_metrics tables
     const fundamentalQuery = `
       SELECT p.symbol,
              NULL as pe_ratio,
              NULL as market_cap,
-             cp.sector,
-             cp.industry,
+             fm.sector,
+             fm.industry,
              p.close as current_price,
              p.volume,
              p.date as price_date
@@ -4004,7 +4004,7 @@ router.get("/compare", async (req, res) => {
         WHERE symbol IN (${placeholders})
         ORDER BY symbol, date DESC
       ) p
-      LEFT JOIN company_profile cp ON p.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON p.symbol = fm.symbol
     `;
 
     const result = await query(fundamentalQuery, symbolList);

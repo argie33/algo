@@ -123,7 +123,7 @@ router.get("/items", authenticateToken, async (req, res) => {
         sp.close as current_price,
         0 as change_amount,
         0 as change_percent,
-        s.short_name as company_name,
+        s.symbol as company_name,
         s.sector,
         s.market_cap
       FROM watchlist_items wi
@@ -134,7 +134,7 @@ router.get("/items", authenticateToken, async (req, res) => {
         FROM price_daily 
         ORDER BY symbol, date DESC
       ) sp ON wi.symbol = sp.symbol
-      LEFT JOIN company_profile s ON wi.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON wi.symbol = s.symbol
       WHERE w.user_id = $1
     `;
 
@@ -271,14 +271,14 @@ router.get("/items/recent", async (req, res) => {
         ((pd.close - pd.open) / pd.open * 100),
         pd.change_amount,
         pd.volume,
-        s.short_name as company_name,
+        s.symbol as company_name,
         s.sector,
         s.market_cap
       FROM watchlist_items wi
       LEFT JOIN watchlists w ON wi.watchlist_id = w.id
-      LEFT JOIN price_daily pd ON wi.symbol = pd.symbol 
+      LEFT JOIN price_daily pd ON wi.symbol = pd.symbol
         AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = wi.symbol)
-      LEFT JOIN company_profile s ON wi.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON wi.symbol = s.symbol
       WHERE wi.added_at >= NOW() - INTERVAL $2 || ' days'
       ORDER BY wi.added_at DESC
       LIMIT $1

@@ -616,10 +616,10 @@ router.get("/symbols", async (req, res) => {
     const { search = "", limit = 100 } = req.query;
 
     const sqlQuery = `
-      SELECT DISTINCT ticker as symbol, short_name
-      FROM company_profile
-      WHERE ticker ILIKE $1
-      ORDER BY ticker
+      SELECT DISTINCT symbol, symbol as short_name
+      FROM fundamental_metrics
+      WHERE symbol ILIKE $1
+      ORDER BY symbol
       LIMIT $2
     `;
 

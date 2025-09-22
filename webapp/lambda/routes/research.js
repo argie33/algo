@@ -142,12 +142,12 @@ router.get("/analyst", async (req, res) => {
         er.actual_eps,
         er.estimated_revenue,
         er.actual_revenue,
-        cp.company_name,
-        cp.sector,
-        cp.industry,
-        cp.market_cap
+        fm.name as company_name,
+        fm.sector,
+        fm.industry,
+        fm.market_cap
       FROM earnings_reports er
-      LEFT JOIN company_profile cp ON er.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics fm ON er.symbol = fm.symbol
       WHERE er.symbol = $1 AND er.analyst_count > 0
       ORDER BY er.date DESC
       LIMIT $2
