@@ -894,35 +894,10 @@ router.get("/risk", authenticateToken, async (req, res) => {
     }
 
     if (riskResult.rows.length === 0) {
-      const sampleRiskData = {
-        portfolio_risk: {
-          volatility: 18.45,
-          var_95: -2.87,
-          var_99: -4.23,
-          expected_shortfall_95: -3.45,
-          expected_shortfall_99: -5.12,
-          maximum_drawdown: -12.34,
-          calmar_ratio: 1.24,
-        },
-        risk_attribution: {
-          systematic_risk: 14.23,
-          idiosyncratic_risk: 4.22,
-          concentration_risk: 8.76,
-          liquidity_risk: 2.34,
-        },
-        risk_measures: {
-          beta: 1.15,
-          correlation_to_market: 0.78,
-          tracking_error: 5.67,
-          active_risk: 3.45,
-        },
-        calculation_date: new Date().toISOString(),
-      };
-
-      return res.json({
-        success: true,
-        data: sampleRiskData,
-        message: "Sample risk data - no portfolio metrics found",
+      return res.status(404).json({
+        success: false,
+        error: "No risk metrics found",
+        details: "No portfolio risk metrics calculated for the specified period",
         timestamp: new Date().toISOString(),
       });
     }
