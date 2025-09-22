@@ -261,9 +261,9 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
     res.json({
       success: true,
       data: {
-        portfolio_metrics: portfolioMetrics,
-        benchmark_metrics: benchmarkMetrics,
-        relative_performance: {
+        portfolio: portfolioMetrics,
+        benchmark: benchmarkMetrics,
+        comparison: {
           outperformance:
             portfolioMetrics.total_return - benchmarkMetrics.total_return,
           correlation:
@@ -1142,76 +1142,15 @@ router.get("/attribution", authenticateToken, async (req, res) => {
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      // Return sample data when no real data is available
-      const sampleAttributionData = [
-        {
-          sector: "Technology",
-          portfolio_weight: 35.2,
-          benchmark_weight: 28.0,
-          portfolio_return: 15.8,
-          benchmark_return: 12.4,
-          allocation_effect: 89.3,
-          selection_effect: 95.2,
-          interaction_effect: 24.7,
-          total_effect: 209.2,
-          contribution: 209.2,
-          holdings_count: 5,
-          sector_value: 52800.0,
+      return res.status(404).json({
+        success: false,
+        error: "No attribution data found",
+        message: "No portfolio holdings data available for the specified parameters",
+        parameters: {
+          attribution_method,
+          period,
+          level,
         },
-        {
-          sector: "Healthcare",
-          portfolio_weight: 18.5,
-          benchmark_weight: 15.2,
-          portfolio_return: 8.9,
-          benchmark_return: 9.1,
-          allocation_effect: 29.9,
-          selection_effect: -3.0,
-          interaction_effect: -0.7,
-          total_effect: 26.2,
-          contribution: 26.2,
-          holdings_count: 3,
-          sector_value: 27750.0,
-        },
-      ];
-
-      const sampleSummary = {
-        total_allocation_effect: 119.2,
-        total_selection_effect: 92.2,
-        total_interaction_effect: 24.0,
-        total_active_return: 235.4,
-        best_sector: "Technology",
-        worst_sector: "Healthcare",
-        total_sectors: 2,
-        total_holdings: 8,
-        portfolio_value: 150000.0,
-      };
-
-      return res.json({
-        success: true,
-        data: {
-          attribution: {
-            sector_attribution: sampleAttributionData,
-            security_selection: sampleAttributionData.map((s) => ({
-              sector: s.sector,
-              selection_effect: s.selection_effect,
-              holdings_count: s.holdings_count,
-            })),
-            asset_allocation: sampleAttributionData.map((s) => ({
-              sector: s.sector,
-              allocation_effect: s.allocation_effect,
-              portfolio_weight: s.portfolio_weight,
-              benchmark_weight: s.benchmark_weight,
-            })),
-          },
-          summary: sampleSummary,
-          methodology: {
-            method: attribution_method,
-            period: period,
-            attribution_level: level,
-            attribution_method: attribution_method,
-          },
-        },
-        message: "Sample attribution data - no portfolio holdings found",
         timestamp: new Date().toISOString(),
       });
     }

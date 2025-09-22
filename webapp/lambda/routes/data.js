@@ -568,40 +568,47 @@ router.get("/stocks/search", async (req, res) => {
     const searchTerm = q.trim().toUpperCase();
     console.log(`🔍 Stock search requested for: "${searchTerm}"`);
 
-    // Mock search results based on the query
-    const mockResults = [
-      {
-        symbol: searchTerm.startsWith("A") ? "AAPL" : "MSFT",
-        name: searchTerm.startsWith("A")
-          ? "Apple Inc."
-          : "Microsoft Corporation",
-        exchange: "NASDAQ",
-        type: "Common Stock",
-        match_score: 0.95,
-        description: searchTerm.startsWith("A")
-          ? "Technology company that designs and manufactures consumer electronics"
-          : "Technology corporation that develops and licenses software and services",
-      },
-      {
-        symbol: searchTerm.length > 2 ? "GOOGL" : "TSLA",
-        name: searchTerm.length > 2 ? "Alphabet Inc." : "Tesla Inc.",
-        exchange: "NASDAQ",
-        type: "Common Stock",
-        match_score: 0.78,
-        description:
-          searchTerm.length > 2
-            ? "Technology conglomerate and parent company of Google"
-            : "Electric vehicle and clean energy company",
-      },
-    ];
+    // Search for stocks in the database
+    const searchQuery = `
+      SELECT DISTINCT
+        symbol,
+        company_name as name,
+        exchange,
+        'Common Stock' as type,
+        CASE
+          WHEN UPPER(symbol) = $1 THEN 1.0
+          WHEN UPPER(symbol) LIKE $1 || '%' THEN 0.9
+          WHEN UPPER(company_name) LIKE '%' || $1 || '%' THEN 0.8
+          ELSE 0.7
+        END as match_score,
+        sector as description
+      FROM company_profile
+      WHERE
+        UPPER(symbol) LIKE '%' || $1 || '%'
+        OR UPPER(company_name) LIKE '%' || $1 || '%'
+      ORDER BY match_score DESC, symbol
+      LIMIT 20
+    `;
+
+    const result = await query(searchQuery, [searchTerm]);
+
+    if (!result || !Array.isArray(result.rows)) {
+      return res.status(404).json({
+        success: false,
+        error: "No search results found",
+        message: "No stocks found matching the search criteria",
+        query: searchTerm,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     res.json({
       success: true,
       data: {
         query: searchTerm,
-        results: mockResults,
-        count: mockResults.length,
-        total_matches: mockResults.length,
+        results: result.rows,
+        count: result.rows.length,
+        total_matches: result.rows.length,
       },
       timestamp: new Date().toISOString(),
     });

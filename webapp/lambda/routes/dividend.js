@@ -55,35 +55,13 @@ router.get("/calendar", async (req, res) => {
     const result = await query(calendarQuery, [parseInt(limit)]);
     const dividends = result.rows || [];
 
-    // If no data, return sample calendar data for testing
+    // If no data, return 404
     if (dividends.length === 0) {
-      const sampleCalendar = [
-        {
-          symbol: "AAPL",
-          ex_dividend_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          payment_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-          dividend_amount: 0.25,
-          dividend_yield: 0.52,
-          frequency: "quarterly"
-        },
-        {
-          symbol: "MSFT",
-          ex_dividend_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
-          payment_date: new Date(Date.now() + 17 * 24 * 60 * 60 * 1000),
-          dividend_amount: 0.75,
-          dividend_yield: 0.73,
-          frequency: "quarterly"
-        }
-      ];
-
-      return res.json({
-        success: true,
-        data: {
-          upcoming_dividends: sampleCalendar,
-          count: sampleCalendar.length,
-          days_ahead: parseInt(days_ahead),
-          filters: { min_yield, sector }
-        },
+      return res.status(404).json({
+        success: false,
+        error: "No dividend calendar data found",
+        message: "No upcoming dividend data available for the specified criteria",
+        filters: { min_yield, sector, days_ahead: parseInt(days_ahead) },
         timestamp: new Date().toISOString(),
       });
     }
@@ -130,36 +108,50 @@ router.get("/aristocrats", async (req, res) => {
 
     console.log(`💰 Dividend aristocrats requested - min_years: ${min_years}`);
 
-    // Return sample aristocrats data for testing
-    const sampleAristocrats = [
-      {
-        symbol: "KO",
-        company_name: "The Coca-Cola Company",
-        consecutive_years: 60,
-        current_yield: 3.2,
-        annual_dividend: 1.76,
-        five_year_growth: 4.5,
-        sector: "Consumer Staples"
-      },
-      {
-        symbol: "JNJ",
-        company_name: "Johnson & Johnson",
-        consecutive_years: 59,
-        current_yield: 2.7,
-        annual_dividend: 4.52,
-        five_year_growth: 6.1,
-        sector: "Healthcare"
-      }
-    ];
+    // Query dividend aristocrats from database
+    const aristocratsQuery = `
+      SELECT DISTINCT
+        cp.symbol,
+        cp.company_name,
+        COALESCE(da.consecutive_years, 0) as consecutive_years,
+        COALESCE(da.current_yield, 0) as current_yield,
+        COALESCE(da.annual_dividend, 0) as annual_dividend,
+        COALESCE(da.five_year_growth, 0) as five_year_growth,
+        cp.sector
+      FROM company_profile cp
+      LEFT JOIN dividend_aristocrats da ON cp.symbol = da.symbol
+      WHERE da.consecutive_years >= $1
+        AND da.current_yield >= $2
+        AND da.current_yield <= $3
+      ORDER BY da.consecutive_years DESC, da.current_yield DESC
+      LIMIT $4
+    `;
+
+    const result = await query(aristocratsQuery, [
+      parseInt(min_years),
+      parseFloat(min_yield),
+      parseFloat(max_yield),
+      parseInt(limit)
+    ]);
+
+    if (!result || !Array.isArray(result.rows)) {
+      return res.status(404).json({
+        success: false,
+        error: "No dividend aristocrats found",
+        message: "No dividend aristocrats data available for the specified criteria",
+        criteria: {
+          min_years: parseInt(min_years),
+          min_yield: parseFloat(min_yield),
+          max_yield: parseFloat(max_yield)
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     res.json({
       success: true,
       data: {
-        aristocrats: sampleAristocrats.filter(stock =>
-          stock.consecutive_years >= parseInt(min_years) &&
-          stock.current_yield >= parseFloat(min_yield) &&
-          stock.current_yield <= parseFloat(max_yield)
-        ),
+        aristocrats: result.rows,
         criteria: {
           min_years: parseInt(min_years),
           min_yield: parseFloat(min_yield),

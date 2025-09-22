@@ -1545,39 +1545,14 @@ router.get("/watchlists/performance", authenticateToken, async (req, res) => {
 
     const performance = performanceResult.rows || [];
 
-    // If no performance data, create sample data
+    // If no performance data, return 404
     if (performance.length === 0) {
-      const samplePerformance = [
-        {
-          watchlist_id: 1,
-          watchlist_name: "Tech Favorites",
-          stock_count: 5,
-          avg_daily_return: 2.35,
-          gainers: 4,
-          losers: 1
-        },
-        {
-          watchlist_id: 2,
-          watchlist_name: "Dividend Stocks",
-          stock_count: 3,
-          avg_daily_return: 0.85,
-          gainers: 2,
-          losers: 1
-        }
-      ];
-
-      res.json({
-        success: true,
-        data: samplePerformance,
-        summary: {
-          total_watchlists: samplePerformance.length,
-          avg_return: 1.6,
-          best_performer: "Tech Favorites",
-          worst_performer: "Dividend Stocks"
-        },
+      return res.status(404).json({
+        success: false,
+        error: "No performance data found",
+        message: "No watchlist performance data available",
         timestamp: new Date().toISOString(),
       });
-      return;
     }
 
     res.json({

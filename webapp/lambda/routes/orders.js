@@ -1073,7 +1073,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
       paramCounter++;
     }
 
-    whereConditions.push(`created_at >= $${paramCounter}`);
+    whereConditions.push(`o.created_at >= $${paramCounter}`);
     params.push(
       new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000).toISOString()
     );

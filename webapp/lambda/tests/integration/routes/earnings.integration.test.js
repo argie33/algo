@@ -97,12 +97,10 @@ describe("Earnings Data Integration", () => {
     test("should handle delegation errors gracefully", async () => {
       const response = await request(app).get("/api/earnings/INVALID_SYMBOL");
 
-      expect(response.status).toBe(200);
-
-      if (response.status >= 400) {
-        expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error");
-      }
+      // Should return 404 for invalid symbols (no mock fallback)
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
     });
   });
 });
