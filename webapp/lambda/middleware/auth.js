@@ -104,48 +104,28 @@ const authenticateToken = (req, res, next) => {
 // Async version for production
 const authenticateTokenAsync = async (req, res, next) => {
   try {
-    // Skip authentication in development mode with explicit bypass (local or AWS)
-    if (
-      process.env.NODE_ENV === "development" &&
-      process.env.ALLOW_DEV_BYPASS === "true"
-    ) {
-      const authHeader = req.headers && req.headers["authorization"];
-      const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
-
-      // If no auth header provided in development mode, bypass authentication
-      if (!authHeader || !token || token === "dev-bypass-token") {
-        console.log("🔧 Development mode: Bypassing authentication");
-        req.user = {
-          sub: "dev-user-bypass",
-          email: "dev-bypass@example.com",
-          username: "dev-bypass-user",
-          role: "admin",
-          sessionId: "dev-bypass-session",
-        };
-        req.token = token || "dev-bypass-token";
-        return next();
-      }
-    }
-
-    // Skip authentication in development mode when explicitly enabled
-    if (
-      process.env.NODE_ENV === "development" &&
-      process.env.SKIP_AUTH === "true" &&
-      process.env.NODE_ENV !== "test"
-    ) {
-      req.user = {
-        sub: "dev-user-bypass",
-        email: "dev-bypass@example.com",
-        username: "dev-bypass-user",
-        role: "admin",
-        sessionId: "dev-bypass-session",
-      };
-      req.token = "dev-bypass-token"; // Set token for API key service compatibility
-      return next();
-    }
-
+    // SECURITY FIX: Require explicit token for ALL environments
+    // This prevents authentication bypass vulnerabilities in production deployments
     const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+
+    if (!authHeader) {
+      console.log("🚨 Authentication required: No authorization header provided");
+      return res.status(401).json({
+        success: false,
+        error: "Authorization header required",
+        message: "Access token must be provided in Authorization header",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // SECURITY FIX: Removed AWS Lambda development bypass
+    // Authentication is now required in ALL environments including AWS Lambda
+
+    // SECURITY FIX: Removed SKIP_AUTH bypass vulnerability
+    // All requests must now provide valid authentication tokens
+
+    // Extract token from authorization header
+    const token = authHeader.split(" ")[1]; // Bearer TOKEN
 
     if (!token) {
       return res.unauthorized("Authorization missing from request headers", {

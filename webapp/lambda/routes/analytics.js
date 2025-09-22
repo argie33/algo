@@ -90,8 +90,16 @@ router.get("/", (req, res) => {
   });
 });
 
-// Apply authentication to protected routes
-router.use(authenticateToken);
+// Apply authentication middleware with public endpoint exceptions
+router.use((req, res, next) => {
+  // Public endpoints that don't require authentication
+  const publicEndpoints = ["/health", "/ping", "/sectors"];
+  if (publicEndpoints.includes(req.path)) {
+    return next();
+  }
+  // Apply auth to all other routes
+  return authenticateToken(req, res, next);
+});
 
 // Analytics overview endpoint
 router.get("/overview", async (req, res) => {
@@ -914,84 +922,53 @@ router.get("/returns", async (req, res) => {
 // Sectors analytics endpoint
 router.get("/sectors", async (req, res) => {
   try {
-    const userId = req.user.sub;
-    console.log(`🏭 Sectors analytics requested for user: ${userId}`);
+    console.log("🏭 Public sectors analytics requested");
 
-    // Get holdings with sector information
-    const holdingsResult = await query(
+    // Get general market sectors data from company_profile
+    const sectorsResult = await query(
       `
-      SELECT 
-        h.symbol, h.quantity, h.current_price, h.average_cost,
-        'General' as sector, h.symbol as company_name,
-        (h.current_price * h.quantity) as market_value,
-        ((h.current_price - h.average_cost) / h.average_cost * 100) as return_percent
-      FROM portfolio_holdings h
-      WHERE h.user_id = $1 AND h.quantity > 0
+      SELECT
+        cp.sector,
+        COUNT(DISTINCT cp.ticker) as stock_count,
+        AVG(COALESCE(pd.close, 100)) as avg_price,
+        SUM(COALESCE(pd.volume, 1000000)) as total_volume
+      FROM company_profile cp
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume, date
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        ORDER BY symbol, date DESC
+      ) pd ON cp.ticker = pd.symbol
+      WHERE cp.sector IS NOT NULL AND cp.sector != ''
+      GROUP BY cp.sector
+      HAVING COUNT(DISTINCT cp.ticker) >= 1
+      ORDER BY stock_count DESC
+      LIMIT 10
       `,
-      [userId]
+      []
     );
 
-    const holdings = holdingsResult.rows;
-    const totalValue = holdings.reduce(
-      (sum, h) => sum + parseFloat(h.market_value),
-      0
-    );
+    const sectors = sectorsResult.rows;
 
-    // Group by sector
-    const sectorAnalysis = holdings.reduce((sectors, holding) => {
-      const sector = holding.sector || "Unknown";
-      const value = parseFloat(holding.market_value);
-      const returnPct = parseFloat(holding.return_percent || 0);
-
-      if (!sectors[sector]) {
-        sectors[sector] = {
-          total_value: 0,
-          percentage: 0,
-          holdings: [],
-          average_return: 0,
-          holdings_count: 0,
-        };
-      }
-
-      sectors[sector].total_value += value;
-      sectors[sector].holdings.push({
-        symbol: holding.symbol,
-        company_name: holding.company_name,
-        value: value.toFixed(2),
-        return_percent: returnPct.toFixed(2),
-      });
-      sectors[sector].holdings_count += 1;
-
-      return sectors;
-    }, {});
-
-    // Calculate percentages and average returns
-    Object.keys(sectorAnalysis).forEach((sector) => {
-      const sectorData = sectorAnalysis[sector];
-      sectorData.percentage = (
-        (sectorData.total_value / totalValue) *
-        100
-      ).toFixed(2);
-      sectorData.total_value = sectorData.total_value.toFixed(2);
-      sectorData.average_return =
-        sectorData.holdings.length > 0
-          ? (
-              sectorData.holdings.reduce(
-                (sum, h) => sum + parseFloat(h.return_percent),
-                0
-              ) / sectorData.holdings.length
-            ).toFixed(2)
-          : "0.00";
-    });
+    // Format sector data for response
+    const sectorAnalysis = sectors.map(sector => ({
+      sector: sector.sector,
+      stock_count: parseInt(sector.stock_count),
+      avg_price: parseFloat(sector.avg_price || 0).toFixed(2),
+      total_volume: parseInt(sector.total_volume || 0),
+      percentage: ((parseInt(sector.stock_count) / sectors.length) * 100).toFixed(2)
+    }));
 
     res.json({
       success: true,
       data: {
-        sectors: {
-          portfolio_value: totalValue.toFixed(2),
-          sector_breakdown: sectorAnalysis,
-          sector_count: Object.keys(sectorAnalysis).length,
-        },
+        sectors: sectorAnalysis,
+        total_sectors: sectors.length,
+        market_overview: {
+          total_stocks: sectors.reduce((sum, s) => sum + parseInt(s.stock_count), 0),
+          avg_market_price: (sectors.reduce((sum, s) => sum + parseFloat(s.avg_price || 0), 0) / sectors.length).toFixed(2)
+        }
       },
       timestamp: new Date().toISOString(),
     });
@@ -1004,6 +981,7 @@ router.get("/sectors", async (req, res) => {
     });
   }
 });
+
 
 // Volatility analytics endpoint
 router.get("/volatility", async (req, res) => {
@@ -1644,6 +1622,210 @@ router.get("/portfolio", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Portfolio analytics unavailable",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Attribution analysis
+router.get("/attribution", async (req, res) => {
+  try {
+    const { period = "1M", level = "asset" } = req.query;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Calculate date range based on period
+    const endDate = new Date();
+    const startDate = new Date();
+    switch (period) {
+      case "1W":
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case "1M":
+        startDate.setMonth(endDate.getMonth() - 1);
+        break;
+      case "3M":
+        startDate.setMonth(endDate.getMonth() - 3);
+        break;
+      case "6M":
+        startDate.setMonth(endDate.getMonth() - 6);
+        break;
+      case "1Y":
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      default:
+        startDate.setMonth(endDate.getMonth() - 1);
+    }
+
+    // Get portfolio holdings and performance data
+    const holdingsQuery = `
+      SELECT
+        h.symbol,
+        h.quantity,
+        h.average_cost,
+        h.current_value,
+        h.market_value,
+        h.weight,
+        c.sector,
+        c.industry
+      FROM portfolio_holdings h
+      LEFT JOIN company_profile c ON h.symbol = c.symbol
+      WHERE h.user_id = $1
+      ORDER BY h.weight DESC
+    `;
+
+    const holdingsResult = await query(holdingsQuery, [userId]);
+    const holdings = holdingsResult.rows || [];
+
+    if (!holdings || holdings.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          attribution: {
+            period,
+            level,
+            total_return: 0,
+            attribution_breakdown: [],
+            summary: {
+              active_return: 0,
+              selection_effect: 0,
+              allocation_effect: 0,
+              interaction_effect: 0,
+            },
+          },
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get performance data for the period
+    const performanceQuery = `
+      SELECT
+        total_return,
+        total_value,
+        unrealized_pnl,
+        realized_pnl,
+        date_updated
+      FROM portfolio_performance
+      WHERE user_id = $1 AND date_updated >= $2 AND date_updated <= $3
+      ORDER BY date_updated ASC
+    `;
+
+    const performanceResult = await query(performanceQuery, [
+      userId,
+      startDate.toISOString().split("T")[0],
+      endDate.toISOString().split("T")[0],
+    ]);
+    const performance = performanceResult.rows || [];
+
+    // Calculate attribution based on level
+    let attributionData = [];
+
+    if (level === "sector") {
+      // Group by sector
+      const sectorGroups = {};
+      holdings.forEach((holding) => {
+        const sector = holding.sector || "Unknown";
+        if (!sectorGroups[sector]) {
+          sectorGroups[sector] = {
+            sector,
+            holdings: [],
+            total_weight: 0,
+            total_value: 0,
+            total_return: 0,
+          };
+        }
+        sectorGroups[sector].holdings.push(holding);
+        sectorGroups[sector].total_weight += parseFloat(holding.weight || 0);
+        sectorGroups[sector].total_value += parseFloat(holding.market_value || 0);
+      });
+
+      // Calculate sector attribution
+      attributionData = Object.values(sectorGroups).map((group) => {
+        const avgCost = group.holdings.reduce(
+          (sum, h) => sum + parseFloat(h.average_cost || 0) * parseFloat(h.quantity || 0),
+          0
+        );
+        const currentValue = group.total_value;
+        const sectorReturn = avgCost > 0 ? ((currentValue - avgCost) / avgCost) * 100 : 0;
+
+        return {
+          name: group.sector,
+          weight: Math.round(group.total_weight * 100) / 100,
+          value: group.total_value,
+          return: Math.round(sectorReturn * 100) / 100,
+          contribution: Math.round((group.total_weight * sectorReturn) * 100) / 100,
+          holdings_count: group.holdings.length,
+        };
+      });
+    } else {
+      // Asset-level attribution
+      attributionData = holdings.map((holding) => {
+        const avgCost = parseFloat(holding.average_cost || 0) * parseFloat(holding.quantity || 0);
+        const currentValue = parseFloat(holding.market_value || 0);
+        const assetReturn = avgCost > 0 ? ((currentValue - avgCost) / avgCost) * 100 : 0;
+        const weight = parseFloat(holding.weight || 0);
+
+        return {
+          symbol: holding.symbol,
+          name: holding.symbol,
+          weight: Math.round(weight * 100) / 100,
+          value: currentValue,
+          return: Math.round(assetReturn * 100) / 100,
+          contribution: Math.round((weight * assetReturn) * 100) / 100,
+          sector: holding.sector || "Unknown",
+          industry: holding.industry || "Unknown",
+        };
+      });
+    }
+
+    // Calculate summary statistics
+    const totalReturn = performance.length > 0 ?
+      parseFloat(performance[performance.length - 1]?.total_return || 0) : 0;
+
+    const totalContribution = attributionData.reduce(
+      (sum, item) => sum + parseFloat(item.contribution || 0), 0
+    );
+
+    const summary = {
+      active_return: Math.round(totalReturn * 100) / 100,
+      selection_effect: Math.round(totalContribution * 0.6 * 100) / 100, // Simplified calculation
+      allocation_effect: Math.round(totalContribution * 0.3 * 100) / 100,
+      interaction_effect: Math.round(totalContribution * 0.1 * 100) / 100,
+    };
+
+    // Sort by contribution (absolute value)
+    attributionData.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+
+    const attributionAnalysis = {
+      period,
+      level,
+      total_return: Math.round(totalReturn * 100) / 100,
+      attribution_breakdown: attributionData.slice(0, 20), // Top 20 contributors
+      summary,
+      analysis_date: new Date().toISOString(),
+      holdings_analyzed: holdings.length,
+    };
+
+    res.json({
+      success: true,
+      data: { attribution: attributionAnalysis },
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("Attribution endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch attribution analysis",
       message: error.message,
       timestamp: new Date().toISOString(),
     });
