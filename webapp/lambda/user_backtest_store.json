@@ -56,5 +56,99 @@
     "code": "buy('AAPL', 100, data['AAPL'].close);",
     "language": "javascript",
     "id": "1758581710173"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick(data) { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick(data) { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-22T22:56:37.864Z",
+    "status": "completed",
+    "id": "1758581797864"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "function onTick() { return 'HOLD'; }",
+    "config": {
+      "initialCapital": 50000,
+      "commission": 0.002,
+      "slippage": 0.001,
+      "startDate": "2023-01-01",
+      "endDate": "2023-06-30",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "function onTick() { return 'HOLD'; }",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "type": "ai_strategy",
+    "created": "2025-09-22T22:56:37.879Z",
+    "status": "completed",
+    "id": "1758581797879"
+  },
+  {
+    "name": "AI Strategy - Test Strategy",
+    "description": "AI generated trading strategy",
+    "code": "strategy code",
+    "config": {
+      "initialCapital": 100000,
+      "commission": 0.001,
+      "slippage": 0.0005,
+      "startDate": "2023-01-01",
+      "endDate": "2023-12-31",
+      "symbols": [
+        "AAPL",
+        "MSFT"
+      ],
+      "strategy": {
+        "name": "Test Strategy",
+        "code": "strategy code",
+        "symbols": [
+          "AAPL"
+        ]
+      },
+      "strategyType": "ai_generated"
+    },
+    "userId": "test-user-123",
+    "type": "ai_strategy",
+    "created": "2025-09-22T22:57:02.448Z",
+    "status": "completed",
+    "id": "1758581822448"
+  },
+  "test-backtest-1758581861146",
+  "test-backtest-1758581861148",
+  "test-backtest-1758581861156",
+  "test-backtest-1758581861163",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1758581861194"
   }
 ]
