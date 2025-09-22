@@ -33,27 +33,28 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Get signals data from buy_sell table (using actual loader table structure)
+    // Get signals data from buy_sell table (using defensive querying for AWS compatibility)
     let signalsQuery, countQuery;
 
     if (timeframe === 'daily') {
+      // Try defensive query that works with both old and new table structures
       signalsQuery = `
         SELECT
           bs.symbol,
           bs.signal_type,
           bs.date,
-          bs.price as current_price,
-          bs.volume,
+          COALESCE(bs.price, 0) as current_price,
+          COALESCE(bs.volume, 0) as volume,
           CASE
             WHEN bs.signal_type = 'BUY' THEN 'BUY'
             WHEN bs.signal_type = 'SELL' THEN 'SELL'
             ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
-          bs.support_level as buylevel,
-          bs.resistance_level as stoplevel,
+          COALESCE(bs.support_level, bs.buylevel, 0) as buylevel,
+          COALESCE(bs.resistance_level, bs.stoplevel, 0) as stoplevel,
           CASE WHEN bs.signal_type IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
-          bs.timeframe
+          COALESCE(bs.timeframe, 'daily') as timeframe
         FROM buy_sell_daily bs
         WHERE bs.signal_type IS NOT NULL
           AND bs.signal_type != ''
@@ -73,18 +74,18 @@ router.get("/", async (req, res) => {
           bs.symbol,
           bs.signal_type,
           bs.date,
-          bs.price as current_price,
-          bs.volume,
+          COALESCE(bs.price, 0) as current_price,
+          COALESCE(bs.volume, 0) as volume,
           CASE
             WHEN bs.signal_type = 'BUY' THEN 'BUY'
             WHEN bs.signal_type = 'SELL' THEN 'SELL'
             ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
-          bs.support_level as buylevel,
-          bs.resistance_level as stoplevel,
+          COALESCE(bs.support_level, bs.buylevel, 0) as buylevel,
+          COALESCE(bs.resistance_level, bs.stoplevel, 0) as stoplevel,
           CASE WHEN bs.signal_type IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
-          bs.timeframe
+          COALESCE(bs.timeframe, 'weekly') as timeframe
         FROM buy_sell_weekly bs
         WHERE bs.signal_type IS NOT NULL
           AND bs.signal_type != ''
@@ -104,18 +105,18 @@ router.get("/", async (req, res) => {
           bs.symbol,
           bs.signal_type,
           bs.date,
-          bs.price as current_price,
-          bs.volume,
+          COALESCE(bs.price, 0) as current_price,
+          COALESCE(bs.volume, 0) as volume,
           CASE
             WHEN bs.signal_type = 'BUY' THEN 'BUY'
             WHEN bs.signal_type = 'SELL' THEN 'SELL'
             ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
-          bs.support_level as buylevel,
-          bs.resistance_level as stoplevel,
+          COALESCE(bs.support_level, bs.buylevel, 0) as buylevel,
+          COALESCE(bs.resistance_level, bs.stoplevel, 0) as stoplevel,
           CASE WHEN bs.signal_type IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
-          bs.timeframe
+          COALESCE(bs.timeframe, 'monthly') as timeframe
         FROM buy_sell_monthly bs
         WHERE bs.signal_type IS NOT NULL
           AND bs.signal_type != ''
