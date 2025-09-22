@@ -528,15 +528,15 @@ router.get("/correlations", async (req, res) => {
       `
       WITH target_series AS (
         SELECT date, value as target_value
-        FROM economic_data 
-        WHERE series_id = $1 
-          AND date >= CURRENT_DATE - INTERVAL '${timeframeDays} days'
+        FROM economic_data
+        WHERE series_id = $1
+          AND date >= CURRENT_DATE - INTERVAL '1 day' * $2
       ),
       other_series AS (
         SELECT series_id, date, value
-        FROM economic_data 
-        WHERE series_id != $1 
-          AND date >= CURRENT_DATE - INTERVAL '${timeframeDays} days'
+        FROM economic_data
+        WHERE series_id != $1
+          AND date >= CURRENT_DATE - INTERVAL '1 day' * $2
       )
       SELECT 
         o.series_id,
@@ -549,7 +549,7 @@ router.get("/correlations", async (req, res) => {
       ORDER BY ABS(CORR(t.target_value, o.value)) DESC
       LIMIT 20
     `,
-      [series.toUpperCase()]
+      [series.toUpperCase(), timeframeDays]
     );
 
     // Map series to market categories for test compatibility

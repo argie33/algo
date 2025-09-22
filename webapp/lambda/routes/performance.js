@@ -25,11 +25,9 @@ router.get("/", (req, res) => {
   res.json({
     success: true,
     message: "Performance Analytics API - Ready",
-    data: {
-      status: "operational",
-      service: "performance-analytics",
-      endpoints: ["api", "health", "system", "database"],
-    },
+    status: "operational",
+    service: "performance-analytics",
+    endpoints: ["api", "health", "system", "database"],
     timestamp: new Date().toISOString(),
   });
 });
@@ -263,9 +261,9 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
     res.json({
       success: true,
       data: {
-        portfolio: portfolioMetrics,
-        benchmark: benchmarkMetrics,
-        comparison: {
+        portfolio_metrics: portfolioMetrics,
+        benchmark_metrics: benchmarkMetrics,
+        relative_performance: {
           outperformance:
             portfolioMetrics.total_return - benchmarkMetrics.total_return,
           correlation:

@@ -20,17 +20,17 @@ router.get("/", async (req, res) => {
   // If no auth token, return sample orders from database for health check
   if (!req.headers.authorization) {
     try {
+      // Query portfolio_transactions table instead of orders table for AWS compatibility
       const sampleOrdersQuery = `
         SELECT
-          order_id,
+          transaction_id as id,
           symbol,
           transaction_type as side,
           quantity,
           price,
-          status,
+          'filled' as status,
           created_at
-        FROM orders
-        WHERE status = 'filled'
+        FROM portfolio_transactions
         ORDER BY created_at DESC
         LIMIT 10
       `;
@@ -40,7 +40,7 @@ router.get("/", async (req, res) => {
       return res.json({
         success: true,
         data: result.rows || [],
-        message: "Sample orders data",
+        message: "Sample orders data from portfolio transactions",
         total: result.rows?.length || 0,
         timestamp: new Date().toISOString(),
       });

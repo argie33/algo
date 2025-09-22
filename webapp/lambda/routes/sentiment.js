@@ -73,7 +73,7 @@ router.get("/analysis", async (req, res) => {
       FROM news_articles
       WHERE sentiment IS NOT NULL
         AND (symbols @> ARRAY[$1] OR $1 = ANY(symbols))
-        AND published_at >= NOW() - INTERVAL '$2 days'
+        AND published_at >= NOW() - INTERVAL '1 day' * $2
       ORDER BY published_at DESC
       LIMIT 100
       `,

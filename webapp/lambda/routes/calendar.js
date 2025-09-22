@@ -99,7 +99,9 @@ router.get("/earnings", async (req, res) => {
       paramIndex += 2;
     } else {
       // Default to upcoming earnings (next N days)
-      whereClause += ` AND eh.quarter >= CURRENT_DATE AND eh.quarter <= CURRENT_DATE + INTERVAL '${parsedDaysAhead} days'`;
+      whereClause += ` AND eh.quarter >= CURRENT_DATE AND eh.quarter <= CURRENT_DATE + INTERVAL '1 day' * $${paramIndex}`;
+      params.push(parsedDaysAhead);
+      paramIndex++;
     }
 
     whereClause += ` ORDER BY eh.quarter ASC, eh.symbol ASC LIMIT $${paramIndex}`;

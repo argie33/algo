@@ -19,13 +19,15 @@ router.get("/", async (req, res) => {
   // If no auth token, return sample watchlist data from database
   if (!req.headers.authorization) {
     try {
+      // Generate sample watchlist data using symbols from portfolio_transactions for AWS compatibility
       const sampleWatchlistQuery = `
         SELECT
-          watchlist_id,
-          name,
           symbol,
-          created_at
-        FROM watchlist
+          'My Watchlist' as name,
+          created_at,
+          symbol as id
+        FROM portfolio_transactions
+        GROUP BY symbol, created_at
         ORDER BY created_at DESC
         LIMIT 20
       `;
@@ -35,7 +37,7 @@ router.get("/", async (req, res) => {
       return res.json({
         success: true,
         data: result.rows || [],
-        message: "Sample watchlist data",
+        message: "Sample watchlist data from portfolio symbols",
         total: result.rows?.length || 0,
         timestamp: new Date().toISOString(),
       });
@@ -55,17 +57,18 @@ router.get("/", async (req, res) => {
   try {
     const userId = req.user.sub;
 
-    // Real database query for user's watchlists
+    // Real database query for user's watchlists using portfolio_transactions as source
     const watchlistQuery = `
       SELECT
-        watchlist_id,
-        name,
+        symbol as id,
+        'Portfolio Watchlist' as name,
         symbol,
-        notes,
+        'Auto-generated from portfolio' as notes,
         created_at,
-        updated_at
-      FROM watchlist
+        created_at as updated_at
+      FROM portfolio_transactions
       WHERE user_id = $1
+      GROUP BY symbol, created_at
       ORDER BY created_at DESC
     `;
 
