@@ -623,12 +623,12 @@ router.get("/signals/:timeframe", async (req, res) => {
     }
 
     // Use dynamic column detection for signal field
-    const signalColumn = tradingTableColumns.signal_type ? 'signal_type' : 'signal';
+    const signalColumn = tradingTableColumns.signal_type ? 'signal_type' : 'signal_type';
 
     if (signal_type === "buy") {
-      conditions.push(`bs.${signalColumn} = 'buy'`);
+      conditions.push(`bs.${signalColumn} = 'BUY'`);
     } else if (signal_type === "sell") {
-      conditions.push(`bs.${signalColumn} = 'sell'`);
+      conditions.push(`bs.${signalColumn} = 'SELL'`);
     }
 
     if (conditions.length > 0) {
@@ -654,9 +654,9 @@ router.get("/signals/:timeframe", async (req, res) => {
             NULL as trailing_pe,
             ${priceDailyExists ? "pd.dividends" : "NULL"} as dividend_yield,
             CASE 
-              WHEN bs.signal_type = 'buy' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
+              WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
               THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
-              WHEN bs.signal_type = 'sell' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
+              WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
               THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
               ELSE 0
             END as performance_percent,
@@ -687,9 +687,9 @@ router.get("/signals/:timeframe", async (req, res) => {
           NULL as trailing_pe,
           ${priceDailyExists ? "pd.dividends" : "NULL"} as dividend_yield,
           CASE 
-            WHEN bs.${signalColumn} = 'buy' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
+            WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
             THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
-            WHEN bs.${signalColumn} = 'sell' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
+            WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
             THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
             ELSE 0
           END as performance_percent
@@ -890,14 +890,30 @@ router.get("/summary/:timeframe", async (req, res) => {
     // All timeframes are supported through respective tables
 
     const tableName = `buy_sell_${timeframe}`;
+
+    // Check which columns exist in the table
+    let tradingTableColumns = {};
+    try {
+      const columnResult = await query(
+        `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name IN ('signal', 'signal_type')`,
+        [tableName]
+      );
+      tradingTableColumns.signal_type = columnResult.rows.some(row => row.column_name === 'signal_type');
+      tradingTableColumns.signal = columnResult.rows.some(row => row.column_name === 'signal');
+    } catch (error) {
+      tradingTableColumns = { signal_type: false, signal: true };
+    }
+
+    const signalColumn = tradingTableColumns.signal_type ? 'signal_type' : 'signal';
+
     const sqlQuery = `
-      SELECT 
+      SELECT
         COUNT(*) as total_signals,
-        COUNT(CASE WHEN signal_type = 'buy' THEN 1 END) as buy_signals,
-        COUNT(CASE WHEN signal_type = 'sell' THEN 1 END) as sell_signals,
-        COUNT(CASE WHEN signal_type = 'buy' THEN 1 END) as strong_buy,
-        COUNT(CASE WHEN signal_type = 'sell' THEN 1 END) as strong_sell,
-        COUNT(CASE WHEN signal_type != 'hold' AND signal_type IS NOT NULL THEN 1 END) as active_signals
+        COUNT(CASE WHEN ${signalColumn} = 'BUY' THEN 1 END) as buy_signals,
+        COUNT(CASE WHEN ${signalColumn} = 'SELL' THEN 1 END) as sell_signals,
+        COUNT(CASE WHEN ${signalColumn} = 'BUY' THEN 1 END) as strong_buy,
+        COUNT(CASE WHEN ${signalColumn} = 'SELL' THEN 1 END) as strong_sell,
+        COUNT(CASE WHEN ${signalColumn} != 'hold' AND ${signalColumn} IS NOT NULL THEN 1 END) as active_signals
       FROM ${tableName}
       WHERE date >= CURRENT_DATE - INTERVAL '30 days'
     `;
@@ -1102,35 +1118,50 @@ router.get("/performance", async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
 
+    // Detect correct signal column for buy_sell_daily table
+    let tradingTableColumns = { signal_type: false, signal: true };
+    try {
+      const columnResult = await query(
+        `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name IN ('signal', 'signal_type')`,
+        ["buy_sell_daily"]
+      );
+      tradingTableColumns.signal_type = columnResult.rows.some(row => row.column_name === 'signal_type');
+    } catch (error) {
+      // Fallback to default signal column
+      tradingTableColumns = { signal_type: false, signal: true };
+    }
+
+    const signalColumn = tradingTableColumns.signal_type ? 'signal_type' : 'signal';
+
     const performanceQuery = `
       SELECT
-        signal_type as signal,
+        ${signalColumn} as signal,
         COUNT(*) as total_signals,
         AVG(
           CASE
-            WHEN signal_type = 'buy' AND s.close > bs.price
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price
             THEN ((s.close - bs.price) / bs.price * 100)
-            WHEN signal_type = 'sell' AND s.close < bs.price
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price
             THEN ((bs.price - s.close) / bs.price * 100)
             ELSE 0
           END
         ) as avg_performance,
         COUNT(
           CASE
-            WHEN signal_type = 'buy' AND s.close > bs.price THEN 1
-            WHEN signal_type = 'sell' AND s.close < bs.price THEN 1
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price THEN 1
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price THEN 1
           END
         ) as winning_trades,
         (COUNT(
           CASE
-            WHEN signal_type = 'buy' AND s.close > bs.price THEN 1
-            WHEN signal_type = 'sell' AND s.close < bs.price THEN 1
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price THEN 1
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price THEN 1
           END
         ) * 100.0 / COUNT(*)) as win_rate
       FROM buy_sell_daily bs
       LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON bs.symbol = s.symbol
       WHERE bs.date >= NOW() - INTERVAL '${days} days'
-      GROUP BY signal_type
+      GROUP BY ${signalColumn}
     `;
 
     const result = await query(performanceQuery);
@@ -1613,16 +1644,16 @@ router.get("/simulator", async (req, res) => {
         price as entry_price,
         ${tradingTableColumns.stoplevel ? "stoplevel" : "NULL"} as exit_price,
         CASE
-          WHEN ${signalColumn} = 'buy' AND ${tradingTableColumns.stoplevel ? "stoplevel IS NOT NULL" : "FALSE"}
+          WHEN ${signalColumn} = 'BUY' AND ${tradingTableColumns.stoplevel ? "stoplevel IS NOT NULL" : "FALSE"}
           THEN ${tradingTableColumns.stoplevel ? "((stoplevel - price) / price * 100)" : "0"}
-          WHEN ${signalColumn} = 'sell' AND ${tradingTableColumns.stoplevel ? "stoplevel IS NOT NULL" : "FALSE"}
+          WHEN ${signalColumn} = 'SELL' AND ${tradingTableColumns.stoplevel ? "stoplevel IS NOT NULL" : "FALSE"}
           THEN ${tradingTableColumns.stoplevel ? "((price - stoplevel) / price * 100)" : "0"}
           ELSE 0
         END as trade_return
       FROM ${tableName}
       WHERE symbol = ANY($1)
         AND date >= NOW() - INTERVAL '1 year'
-        AND ${signalColumn} IN ('buy', 'sell')
+        AND ${signalColumn} IN ('BUY', 'SELL')
         ${tradingTableColumns.stoplevel ? "AND stoplevel IS NOT NULL" : ""}
       ORDER BY date ASC
     `;

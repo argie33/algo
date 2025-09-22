@@ -40,14 +40,14 @@ router.get("/", async (req, res) => {
       signalsQuery = `
         SELECT
           bs.symbol,
-          bs.signal,
+          bs.signal_type,
           bs.date,
-          bs.close as current_price,
+          bs.price as current_price,
           bs.volume,
           CASE
-            WHEN bs.signal = 'buy' THEN 'BUY'
-            WHEN bs.signal = 'sell' THEN 'SELL'
-            ELSE UPPER(bs.signal)
+            WHEN bs.signal_type = 'BUY' THEN 'BUY'
+            WHEN bs.signal_type = 'SELL' THEN 'SELL'
+            ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
           bs.buylevel,
@@ -55,8 +55,8 @@ router.get("/", async (req, res) => {
           bs.inposition,
           bs.timeframe
         FROM buy_sell_daily bs
-        WHERE bs.signal IS NOT NULL
-          AND bs.signal != ''
+        WHERE bs.signal_type IS NOT NULL
+          AND bs.signal_type != ''
         ORDER BY bs.date DESC, bs.symbol
         LIMIT $1 OFFSET $2
       `;
@@ -64,21 +64,21 @@ router.get("/", async (req, res) => {
       countQuery = `
         SELECT COUNT(*) as total
         FROM buy_sell_daily bs
-        WHERE bs.signal IS NOT NULL
-          AND bs.signal != ''
+        WHERE bs.signal_type IS NOT NULL
+          AND bs.signal_type != ''
       `;
     } else if (timeframe === 'weekly') {
       signalsQuery = `
         SELECT
           bs.symbol,
-          bs.signal,
+          bs.signal_type,
           bs.date,
-          bs.close as current_price,
+          bs.price as current_price,
           bs.volume,
           CASE
-            WHEN bs.signal = 'buy' THEN 'BUY'
-            WHEN bs.signal = 'sell' THEN 'SELL'
-            ELSE UPPER(bs.signal)
+            WHEN bs.signal_type = 'BUY' THEN 'BUY'
+            WHEN bs.signal_type = 'SELL' THEN 'SELL'
+            ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
           bs.buylevel,
@@ -86,8 +86,8 @@ router.get("/", async (req, res) => {
           bs.inposition,
           bs.timeframe
         FROM buy_sell_weekly bs
-        WHERE bs.signal IS NOT NULL
-          AND bs.signal != ''
+        WHERE bs.signal_type IS NOT NULL
+          AND bs.signal_type != ''
         ORDER BY bs.date DESC, bs.symbol
         LIMIT $1 OFFSET $2
       `;
@@ -95,21 +95,21 @@ router.get("/", async (req, res) => {
       countQuery = `
         SELECT COUNT(*) as total
         FROM buy_sell_weekly bs
-        WHERE bs.signal IS NOT NULL
-          AND bs.signal != ''
+        WHERE bs.signal_type IS NOT NULL
+          AND bs.signal_type != ''
       `;
     } else {
       signalsQuery = `
         SELECT
           bs.symbol,
-          bs.signal,
+          bs.signal_type,
           bs.date,
-          bs.close as current_price,
+          bs.price as current_price,
           bs.volume,
           CASE
-            WHEN bs.signal = 'buy' THEN 'BUY'
-            WHEN bs.signal = 'sell' THEN 'SELL'
-            ELSE UPPER(bs.signal)
+            WHEN bs.signal_type = 'BUY' THEN 'BUY'
+            WHEN bs.signal_type = 'SELL' THEN 'SELL'
+            ELSE UPPER(bs.signal_type)
           END as signal_type,
           0.75 as confidence,
           bs.buylevel,
@@ -117,8 +117,8 @@ router.get("/", async (req, res) => {
           bs.inposition,
           bs.timeframe
         FROM buy_sell_monthly bs
-        WHERE bs.signal IS NOT NULL
-          AND bs.signal != ''
+        WHERE bs.signal_type IS NOT NULL
+          AND bs.signal_type != ''
         ORDER BY bs.date DESC, bs.symbol
         LIMIT $1 OFFSET $2
       `;
@@ -126,8 +126,8 @@ router.get("/", async (req, res) => {
       countQuery = `
         SELECT COUNT(*) as total
         FROM buy_sell_monthly bs
-        WHERE bs.signal IS NOT NULL
-          AND bs.signal != ''
+        WHERE bs.signal_type IS NOT NULL
+          AND bs.signal_type != ''
       `;
     }
 
@@ -219,17 +219,17 @@ router.get("/buy", async (req, res) => {
     const buySignalsQuery = `
       SELECT
         bs.symbol,
-        bs.signal,
+        bs.signal_type,
         bs.date,
-        bs.close as current_price,
+        bs.price as current_price,
         bs.volume,
         bs.buylevel,
         bs.stoplevel,
         bs.inposition,
         'BUY' as signal_type
       FROM ${tableName} bs
-      WHERE bs.signal = 'buy'
-        AND bs.signal IS NOT NULL
+      WHERE bs.signal_type = 'BUY'
+        AND bs.signal_type IS NOT NULL
       ORDER BY bs.date DESC, bs.symbol
       LIMIT $1 OFFSET $2
     `;
@@ -272,17 +272,17 @@ router.get("/sell", async (req, res) => {
     const sellSignalsQuery = `
       SELECT
         bs.symbol,
-        bs.signal,
+        bs.signal_type,
         bs.date,
-        bs.close as current_price,
+        bs.price as current_price,
         bs.volume,
         bs.buylevel,
         bs.stoplevel,
         bs.inposition,
         'SELL' as signal_type
       FROM ${tableName} bs
-      WHERE bs.signal = 'sell'
-        AND bs.signal IS NOT NULL
+      WHERE bs.signal_type = 'SELL'
+        AND bs.signal_type IS NOT NULL
       ORDER BY bs.date DESC, bs.symbol
       LIMIT $1 OFFSET $2
     `;
@@ -324,18 +324,18 @@ router.get("/:symbol", async (req, res) => {
     const symbolSignalsQuery = `
       SELECT
         bs.symbol,
-        bs.signal,
+        bs.signal_type,
         bs.date,
-        bs.close as current_price,
+        bs.price as current_price,
         bs.volume,
         bs.buylevel,
         bs.stoplevel,
         bs.inposition,
-        UPPER(bs.signal) as signal_type
+        UPPER(bs.signal_type) as signal_type
       FROM ${tableName} bs
       WHERE bs.symbol = $1
-        AND bs.signal IS NOT NULL
-        AND bs.signal != ''
+        AND bs.signal_type IS NOT NULL
+        AND bs.signal_type != ''
       ORDER BY bs.date DESC
       LIMIT $2
     `;

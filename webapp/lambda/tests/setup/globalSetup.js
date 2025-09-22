@@ -39,7 +39,7 @@ module.exports = async () => {
         symbol VARCHAR(20) NOT NULL,
         date DATE NOT NULL,
         timeframe VARCHAR(10) NOT NULL DEFAULT 'daily',
-        signal VARCHAR(10) NOT NULL,
+        signal_type VARCHAR(10) NOT NULL,
         confidence DECIMAL(5,2) NOT NULL DEFAULT 0.0,
         price DECIMAL(12,4),
         rsi DECIMAL(5,2),
@@ -62,7 +62,7 @@ module.exports = async () => {
         high REAL,
         low REAL,
         close REAL,
-        PRIMARY KEY (symbol, date, timeframe, signal)
+        PRIMARY KEY (symbol, date, timeframe, signal_type)
       )
     `);
 
@@ -387,12 +387,12 @@ module.exports = async () => {
     `);
 
     await query(`
-      INSERT INTO buy_sell_daily (symbol, date, timeframe, signal, buylevel, stoplevel, volume, open, high, low, close) VALUES
-      ('AAPL', '2024-01-01', 'daily', 'BUY', 150.25, 145.50, 65000000, 149.50, 151.25, 148.75, 150.25),
-      ('AAPL', '2024-01-02', 'daily', 'HOLD', 152.75, 147.25, 68000000, 150.25, 152.80, 149.85, 151.50),
-      ('MSFT', '2024-01-01', 'daily', 'SELL', 350.50, 340.25, 45000000, 348.25, 352.50, 347.00, 350.75),
-      ('MSFT', '2024-01-02', 'daily', 'BUY', 348.25, 342.50, 47000000, 347.25, 350.50, 346.80, 349.95)
-      ON CONFLICT (symbol, date, timeframe, signal) DO NOTHING
+      INSERT INTO buy_sell_daily (symbol, date, timeframe, signal_type, confidence, price, rsi, macd, volume, volume_avg_10d, price_vs_ma20, price_vs_ma50, bollinger_position, support_level, resistance_level, pattern_score, momentum_score, risk_score) VALUES
+      ('AAPL', '2024-01-01', 'daily', 'BUY', 75.5, 150.25, 45.2, 1.25, 65000000, 58000000, 2.3, 4.8, 65.5, 145.50, 155.75, 72.5, 68.3, 25.8),
+      ('AAPL', '2024-01-02', 'daily', 'HOLD', 55.2, 151.50, 52.8, 0.85, 68000000, 61000000, 1.8, 3.2, 58.2, 147.25, 157.80, 62.1, 55.7, 35.2),
+      ('MSFT', '2024-01-01', 'daily', 'SELL', 82.3, 350.75, 72.5, -0.95, 45000000, 42000000, -1.2, -2.8, 85.3, 340.25, 362.50, 78.9, 75.6, 28.5),
+      ('MSFT', '2024-01-02', 'daily', 'BUY', 67.8, 349.95, 38.7, 1.15, 47000000, 44000000, 0.8, 2.1, 45.2, 342.50, 359.80, 65.4, 71.2, 32.1)
+      ON CONFLICT (symbol, date, timeframe, signal_type) DO NOTHING
     `);
 
     await query(`
@@ -628,6 +628,21 @@ module.exports = async () => {
       )
     `);
 
+    // Create dividend_history table for dividend functionality
+    await query(`
+      CREATE TABLE IF NOT EXISTS dividend_history (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        ex_dividend_date DATE,
+        record_date DATE,
+        payment_date DATE,
+        dividend_amount DECIMAL(10,4),
+        currency VARCHAR(10) DEFAULT 'USD',
+        frequency VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Add test data for sentiment indicators
     await query(`
       INSERT INTO fear_greed_index (date, value, rating) VALUES
@@ -658,6 +673,16 @@ module.exports = async () => {
       ('FEDERAL_FUNDS_RATE', '2024-01-01', 5.25),
       ('VIX', '2024-01-02', 18.5)
       ON CONFLICT (series_id, date) DO NOTHING
+    `);
+
+    // Add test data for dividend_history
+    await query(`
+      INSERT INTO dividend_history (symbol, ex_dividend_date, record_date, payment_date, dividend_amount, frequency) VALUES
+      ('AAPL', '2024-02-08', '2024-02-12', '2024-02-15', 0.24, 'quarterly'),
+      ('AAPL', '2023-11-09', '2023-11-13', '2023-11-16', 0.24, 'quarterly'),
+      ('MSFT', '2024-02-13', '2024-02-15', '2024-03-14', 0.75, 'quarterly'),
+      ('MSFT', '2023-11-14', '2023-11-16', '2023-12-14', 0.75, 'quarterly'),
+      ('GOOGL', '2024-02-26', '2024-02-27', '2024-03-15', 0.20, 'quarterly')
     `);
 
     // Create technical_data_daily table matching loadtechnicalsdaily.py
@@ -979,6 +1004,214 @@ module.exports = async () => {
       ('GOOGL', 2023, 18.5, 4.2, 0.18, 3.5, 3.2, 0.185, 0.15, 0.09),
       ('TSLA', 2023, 45.8, 12.8, 0.42, 1.8, 1.6, 0.082, 0.28, 0.15)
       ON CONFLICT (symbol, fiscal_year) DO NOTHING
+    `);
+
+    // Create volume_alerts table for alerts routes
+    await query(`
+      CREATE TABLE IF NOT EXISTS volume_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        threshold_multiplier DECIMAL(5,2) NOT NULL,
+        condition VARCHAR(20) NOT NULL,
+        notification_methods JSONB DEFAULT '["email"]',
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO volume_alerts (user_id, symbol, threshold_multiplier, condition, notification_methods) VALUES
+      ('test-user-1', 'AAPL', 2.0, 'above', '["email"]'),
+      ('test-user-2', 'MSFT', 1.5, 'above', '["sms"]')
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create volume_analysis table for alerts routes
+    await query(`
+      CREATE TABLE IF NOT EXISTS volume_analysis (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        current_volume BIGINT,
+        avg_volume_20d BIGINT,
+        volume_ratio DECIMAL(8,6),
+        volume_trend VARCHAR(20),
+        analysis_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO volume_analysis (symbol, current_volume, avg_volume_20d, volume_ratio, volume_trend) VALUES
+      ('AAPL', 65000000, 58000000, 1.12, 'increasing'),
+      ('MSFT', 45000000, 42000000, 1.07, 'stable')
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create portfolio_metadata table for portfolio routes
+    await query(`DROP TABLE IF EXISTS portfolio_metadata`);
+    await query(`
+      CREATE TABLE portfolio_metadata (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        broker VARCHAR(50) NOT NULL,
+        last_rebalance_date TIMESTAMP WITH TIME ZONE,
+        rebalance_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_user_broker_metadata UNIQUE (user_id, broker)
+      )
+    `);
+
+    await query(`
+      INSERT INTO portfolio_metadata (user_id, broker, last_rebalance_date, rebalance_count) VALUES
+      ('test-user-1', 'alpaca', '2024-01-01', 1),
+      ('test-user-2', 'alpaca', '2024-01-02', 2)
+      ON CONFLICT (user_id, broker) DO NOTHING
+    `);
+
+    // Create alert_settings table for alerts routes
+    await query(`
+      CREATE TABLE IF NOT EXISTS alert_settings (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL UNIQUE,
+        notification_preferences JSONB DEFAULT '{}',
+        delivery_settings JSONB DEFAULT '{}',
+        alert_categories JSONB DEFAULT '{}',
+        watchlist_settings JSONB DEFAULT '{}',
+        advanced_settings JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO alert_settings (user_id, notification_preferences, delivery_settings) VALUES
+      ('test-user-1', '{"email": true, "sms": false}', '{"frequency": "immediate"}'),
+      ('test-user-2', '{"email": false, "sms": true}', '{"frequency": "daily"}')
+      ON CONFLICT (user_id) DO NOTHING
+    `);
+
+    // Create daily_volume_history table for alerts routes
+    await query(`
+      CREATE TABLE IF NOT EXISTS daily_volume_history (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        trading_date DATE NOT NULL,
+        volume BIGINT,
+        avg_volume_20d BIGINT,
+        volume_ratio DECIMAL(8,6),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, trading_date)
+      )
+    `);
+
+    await query(`
+      INSERT INTO daily_volume_history (symbol, trading_date, volume, avg_volume_20d, volume_ratio) VALUES
+      ('AAPL', '2024-01-02', 65000000, 58000000, 1.12),
+      ('AAPL', '2024-01-01', 58000000, 55000000, 1.05),
+      ('MSFT', '2024-01-02', 45000000, 42000000, 1.07),
+      ('MSFT', '2024-01-01', 42000000, 40000000, 1.05)
+      ON CONFLICT (symbol, trading_date) DO NOTHING
+    `);
+
+    // Create technical_alerts table for alerts routes
+    await query(`DROP TABLE IF EXISTS technical_alerts`);
+    await query(`
+      CREATE TABLE technical_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        indicator_type VARCHAR(50) NOT NULL,
+        condition VARCHAR(20) NOT NULL,
+        threshold_value DECIMAL(10,4),
+        current_value DECIMAL(10,4),
+        notification_methods JSONB DEFAULT '["email"]',
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        triggered_at TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO technical_alerts (user_id, symbol, indicator_type, condition, threshold_value, notification_methods) VALUES
+      ('test-user-1', 'AAPL', 'RSI', 'below', 30.0, '["email"]'),
+      ('test-user-2', 'MSFT', 'MACD', 'crosses_above', 0.0, '["sms"]')
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Create orders table for orders routes
+    await query(`DROP TABLE IF EXISTS orders`);
+    await query(`
+      CREATE TABLE orders (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        order_type VARCHAR(20) NOT NULL DEFAULT 'market',
+        limit_price DECIMAL(10,2),
+        stop_price DECIMAL(10,2),
+        time_in_force VARCHAR(10) DEFAULT 'day',
+        status VARCHAR(20) DEFAULT 'pending',
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        filled_at TIMESTAMP,
+        filled_quantity INTEGER DEFAULT 0,
+        average_price DECIMAL(10,2),
+        broker VARCHAR(50) DEFAULT 'alpaca',
+        notes TEXT,
+        extended_hours BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO orders (user_id, symbol, side, quantity, order_type, limit_price, status, submitted_at, broker) VALUES
+      ('test-user-1', 'AAPL', 'buy', 100, 'limit', 150.00, 'filled', '2024-01-01', 'alpaca'),
+      ('test-user-2', 'MSFT', 'sell', 50, 'market', NULL, 'pending', '2024-01-02', 'alpaca')
+    `);
+
+    // Create watchlist tables for watchlist routes
+    await query(`DROP TABLE IF EXISTS watchlist_items`);
+    await query(`DROP TABLE IF EXISTS watchlists`);
+    await query(`
+      CREATE TABLE watchlists (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        is_default BOOLEAN DEFAULT FALSE,
+        is_public BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      CREATE TABLE watchlist_items (
+        id SERIAL PRIMARY KEY,
+        watchlist_id INTEGER REFERENCES watchlists(id) ON DELETE CASCADE,
+        symbol VARCHAR(10) NOT NULL,
+        notes TEXT,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(watchlist_id, symbol)
+      )
+    `);
+
+    await query(`
+      INSERT INTO watchlists (user_id, name, description, is_default, is_public) VALUES
+      ('test-user-1', 'My Portfolio', 'Main investment portfolio', true, false),
+      ('test-user-2', 'Tech Stocks', 'Technology sector stocks', false, true)
+    `);
+
+    await query(`
+      INSERT INTO watchlist_items (watchlist_id, symbol, notes) VALUES
+      (1, 'AAPL', 'Apple Inc'),
+      (1, 'MSFT', 'Microsoft'),
+      (2, 'GOOGL', 'Google/Alphabet')
     `);
 
     console.log('✅ Database tables created matching loader structure');
