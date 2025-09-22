@@ -49,7 +49,7 @@ router.get("/:sector/stocks", async (req, res) => {
     const stocksQuery = `
       SELECT
         cp.ticker as symbol,
-        cp.name as name,
+        COALESCE(cp.display_name, cp.name, cp.ticker) as name,
         cp.sector,
         cp.industry,
         COALESCE(pd.close, 100) as price,
