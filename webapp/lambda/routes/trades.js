@@ -40,6 +40,39 @@ router.get("/", async (req, res) => {
     const userId = req.user.sub;
     const { limit = 50, status = "all", symbol, offset = 0 } = req.query;
 
+    // Add timeout wrapper
+    const executeQueryWithTimeout = (queryPromise, name) => {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`${name} query timeout after 3 seconds`)), 3000)
+      );
+      return Promise.race([queryPromise, timeoutPromise]);
+    };
+
+    // Check if portfolio_transactions table exists first
+    const tableCheckQuery = `
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'portfolio_transactions'
+    `;
+
+    const tableCheck = await executeQueryWithTimeout(
+      query(tableCheckQuery),
+      "table check"
+    );
+
+    if (tableCheck.rows.length === 0) {
+      // Return empty trades if table doesn't exist
+      return res.json({
+        success: true,
+        data: [],
+        meta: {
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          count: 0,
+        },
+        message: "Trades data loading - database table being initialized",
+      });
+    }
+
     // Use portfolio_transactions as fallback since trades table doesn't exist
     let query_str = `
       SELECT transaction_id as trade_id, symbol,
@@ -69,7 +102,10 @@ router.get("/", async (req, res) => {
     query_str += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(parseInt(limit), parseInt(offset));
 
-    const result = await query(query_str, queryParams);
+    const result = await executeQueryWithTimeout(
+      query(query_str, queryParams),
+      "trades query"
+    );
 
     res.json({
       success: true,

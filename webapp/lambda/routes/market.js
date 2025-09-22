@@ -150,56 +150,76 @@ router.get("/summary", async (req, res) => {
   try {
     console.log("📊 Market summary requested");
 
-    // Get major indices data
-    const indicesQuery = `
-      SELECT
-        symbol,
-        close as close,
-        COALESCE((close - open), 0) as change_amount,
-        CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as change_percent,
-        volume,
-        date
-      FROM price_daily 
-      WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA')
-        AND date = (SELECT MAX(date) FROM price_daily WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'))
-        AND close IS NOT NULL
-      ORDER BY symbol
-    `;
-    const indicesResult = await query(indicesQuery);
+    // Add timeout protection for AWS Lambda (3-second timeout)
+    const executeQueryWithTimeout = (queryPromise, name) => {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`${name} query timeout after 3 seconds`)), 3000)
+      );
+      return Promise.race([queryPromise, timeoutPromise]);
+    };
 
-    // Get market breadth data
-    const breadthResult = await query(
-      `
-      SELECT
-        COUNT(*) as total_stocks,
-        COUNT(CASE WHEN COALESCE((close - open), 0) > 0 THEN 1 END) as advancing,
-        COUNT(CASE WHEN COALESCE((close - open), 0) < 0 THEN 1 END) as declining,
-        COUNT(CASE WHEN COALESCE((close - open), 0) = 0 THEN 1 END) as unchanged,
-        AVG(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END) as avg_change_percent,
-        SUM(volume) as total_volume
-      FROM price_daily 
-      WHERE date = (SELECT MAX(date) FROM price_daily)
-        AND close IS NOT NULL AND volume > 0
-      `
-    );
+    let indicesResult, breadthResult, sectorResult;
 
-    // Get sector performance
-    const sectorResult = await query(
-      `
-      SELECT
-        cp.sector,
-        COUNT(*) as stock_count,
-        AVG(COALESCE(((md.close - md.open) / NULLIF(md.open, 0) * 100), 0)) as avg_change_percent,
-        SUM(md.volume) as total_volume
-      FROM price_daily md
-      JOIN company_profile cp ON md.symbol = cp.ticker
-      WHERE cp.sector IS NOT NULL
-        AND md.volume > 0
-        AND md.date = (SELECT MAX(date) FROM price_daily)
-      GROUP BY cp.sector
-      ORDER BY avg_change_percent DESC
-      `
-    );
+    try {
+      // Get major indices data
+      const indicesQuery = `
+        SELECT
+          symbol,
+          close as close,
+          COALESCE((close - open), 0) as change_amount,
+          CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as change_percent,
+          volume,
+          date
+        FROM price_daily
+        WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA')
+          AND date = (SELECT MAX(date) FROM price_daily WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'))
+          AND close IS NOT NULL
+        ORDER BY symbol
+      `;
+      indicesResult = await executeQueryWithTimeout(query(indicesQuery), "indices");
+
+      // Get market breadth data
+      const breadthQuery = `
+        SELECT
+          COUNT(*) as total_stocks,
+          COUNT(CASE WHEN COALESCE((close - open), 0) > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN COALESCE((close - open), 0) < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN COALESCE((close - open), 0) = 0 THEN 1 END) as unchanged,
+          AVG(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END) as avg_change_percent,
+          SUM(volume) as total_volume
+        FROM price_daily
+        WHERE date = (SELECT MAX(date) FROM price_daily)
+          AND close IS NOT NULL AND volume > 0
+      `;
+      breadthResult = await executeQueryWithTimeout(query(breadthQuery), "breadth");
+
+      // Get sector performance
+      const sectorQuery = `
+        SELECT
+          cp.sector,
+          COUNT(*) as stock_count,
+          AVG(COALESCE(((md.close - md.open) / NULLIF(md.open, 0) * 100), 0)) as avg_change_percent,
+          SUM(md.volume) as total_volume
+        FROM price_daily md
+        JOIN company_profile cp ON md.symbol = cp.ticker
+        WHERE cp.sector IS NOT NULL
+          AND md.volume > 0
+          AND md.date = (SELECT MAX(date) FROM price_daily)
+        GROUP BY cp.sector
+        ORDER BY avg_change_percent DESC
+        LIMIT 15
+      `;
+      sectorResult = await executeQueryWithTimeout(query(sectorQuery), "sector");
+
+    } catch (error) {
+      console.error("Market summary queries failed:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch market summary",
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     const indices = indicesResult.rows.map((row) => ({
       symbol: row.symbol,
