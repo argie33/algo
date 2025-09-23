@@ -41,6 +41,11 @@ const errorHandler = (err, req, res, _next) => {
     message = "Dependency Error";
     details = "Missing required dependencies";
     code = 'DEPENDENCY_ERROR';
+  } else if (err.code === 'ECONNREFUSED' && err.address) {
+    status = 503;
+    message = "Database Connection Error";
+    details = `Cannot connect to database at ${err.address}:${err.port}`;
+    code = 'DB_CONNECTION_ERROR';
   } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
     status = 503;
     message = "Service Unavailable";
@@ -56,11 +61,6 @@ const errorHandler = (err, req, res, _next) => {
     message = "Configuration Service Error";
     details = "Failed to retrieve configuration";
     code = 'SECRETS_MANAGER_ERROR';
-  } else if (err.code === 'ECONNREFUSED' && err.address) {
-    status = 503;
-    message = "Database Connection Error";
-    details = `Cannot connect to database at ${err.address}:${err.port}`;
-    code = 'DB_CONNECTION_ERROR';
   } else if (err.code === "23505") {
     // PostgreSQL unique violation - always use PostgreSQL status, ignore custom status
     status = 409;

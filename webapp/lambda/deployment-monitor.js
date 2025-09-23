@@ -1,7 +1,7 @@
-#!/usr/bin/env node
+
+const { spawn } = require('child_process');
 
 const axios = require('axios');
-const { spawn } = require('child_process');
 
 const BASE_URL = 'https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev';
 

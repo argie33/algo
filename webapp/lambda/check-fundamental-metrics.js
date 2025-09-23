@@ -26,16 +26,16 @@ async function checkFundamentalMetrics() {
 
     // Check sample data
     const sampleResult = await pool.query(`
-      SELECT symbol, trailing_pe, price_to_book, dividend_yield, profit_margin
+      SELECT symbol, pe_ratio, price_to_book, dividend_yield, sector
       FROM fundamental_metrics
-      WHERE trailing_pe IS NOT NULL
+      WHERE pe_ratio IS NOT NULL
       LIMIT 5
     `);
 
     console.log("\n💰 fundamental_metrics sample data:");
     sampleResult.rows.forEach((row) => {
       console.log(
-        `- ${row.symbol}: PE=${row.trailing_pe}, PB=${row.price_to_book}, DY=${row.dividend_yield}, PM=${row.profit_margin}`
+        `- ${row.symbol}: PE=${row.pe_ratio}, PB=${row.price_to_book}, DY=${row.dividend_yield}, Sector=${row.sector}`
       );
     });
 
@@ -54,7 +54,7 @@ async function checkFundamentalMetrics() {
 
     // Check market_data sample
     const marketSampleResult = await pool.query(`
-      SELECT symbol, current_price, market_cap
+      SELECT ticker, current_price, market_cap
       FROM market_data
       WHERE current_price IS NOT NULL
       LIMIT 5
@@ -63,7 +63,7 @@ async function checkFundamentalMetrics() {
     console.log("\n💲 market_data sample data:");
     marketSampleResult.rows.forEach((row) => {
       console.log(
-        `- ${row.symbol}: Price=$${row.current_price}, Cap=$${row.market_cap}`
+        `- ${row.ticker}: Price=$${row.current_price}, Cap=$${row.market_cap}`
       );
     });
 

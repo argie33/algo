@@ -165,7 +165,7 @@ router.get("/", async (req, res) => {
 
     // Add search condition if provided
     if (search) {
-      whereConditions.push(`td.symbol ILIKE $${paramIndex}`);
+      whereConditions.push(`fm.symbol ILIKE $${paramIndex}`);
       queryParams.push(`%${search.toUpperCase()}%`);
       paramIndex++;
     }
@@ -278,7 +278,7 @@ router.get("/", async (req, res) => {
         ) / 5 as overall_score,
         fm.updated_at as last_updated
       FROM fundamental_metrics fm
-      ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ').replace('td.symbol', 'fm.symbol') : ''}
+      ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''}
       ORDER BY fm.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
@@ -360,7 +360,7 @@ router.get("/", async (req, res) => {
     let countWhereCondition = '';
 
     if (search) {
-      countWhereCondition = `AND td.symbol ILIKE $${countParamIndex}`;
+      countWhereCondition = `WHERE fm.symbol ILIKE $${countParamIndex}`;
       countParams.push(`%${search.toUpperCase()}%`);
     }
 
@@ -369,7 +369,7 @@ router.get("/", async (req, res) => {
       countResult = await query(`
         SELECT COUNT(*) as total
         FROM fundamental_metrics fm
-        ${countWhereCondition.replace('td.symbol', 'fm.symbol')}
+        ${countWhereCondition}
       `, countParams);
     } catch (error) {
       console.error("Metrics count query error:", error.message);

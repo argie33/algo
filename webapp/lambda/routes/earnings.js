@@ -152,9 +152,30 @@ router.get("/calendar", async (req, res) => {
         details: error.message,
         timestamp: new Date().toISOString(),
       });
+    }
+  } catch (error) {
+    console.error("Error in earnings calendar endpoint:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
 
-      // Fallback to earnings_history if available
-      try {
+router.get("/calendar/fallback", async (req, res) => {
+  try {
+    if (!await initializeDatabase()) {
+      return res.status(503).json({
+        success: false,
+        error: "Database not available",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Fallback to earnings_history if available
+    try {
         const fallbackQuery = `
           SELECT
             symbol,

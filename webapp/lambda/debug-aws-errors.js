@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 // Quick diagnostic to test AWS endpoint errors
 
