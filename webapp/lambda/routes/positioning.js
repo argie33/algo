@@ -128,7 +128,6 @@ router.get("/summary", async (req, res) => {
         COUNT(*) as total_positions
       FROM fundamental_metrics fm
       WHERE fm.market_cap > 0
-      WHERE filing_date >= CURRENT_DATE - INTERVAL '90 days'
     `);
 
     // Get retail sentiment summary

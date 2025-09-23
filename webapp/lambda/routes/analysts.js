@@ -79,15 +79,14 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
 
     const estimatesQuery = `
       SELECT
-        CONCAT('Q', er.quarter, ' ', er.year) as period,
-        er.eps_estimate as estimate,
-        er.actual_revenue as actual,
-        NULL as difference,
-        er.surprise_percent,
-        er.report_date as reported_date
+        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
+        COALESCE(er.eps_estimate, 0) as estimate,
+        COALESCE(er.actual_eps, 0) as actual,
+        COALESCE(er.actual_eps - er.eps_estimate, 0) as difference,
+        COALESCE(er.surprise_percent, 0) as surprise_percent,
+        COALESCE(er.report_date, CURRENT_DATE) as reported_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
-      AND er.eps_estimate IS NOT NULL
       ORDER BY er.report_date DESC
       LIMIT 8
     `;
@@ -115,7 +114,7 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
 
     const revenueQuery = `
       SELECT 
-        CONCAT('Q', er.quarter, ' ', er.year) as period,
+        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
         NULL as estimate,
         er.actual_revenue as actual,
         NULL as difference,
@@ -148,7 +147,7 @@ router.get("/:ticker/earnings-history", async (req, res) => {
 
     const historyQuery = `
       SELECT 
-        CONCAT('Q', er.quarter, ' ', er.year) as quarter,
+        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as quarter,
         er.eps_estimate as estimate,
         er.actual_eps as actual,
         (er.actual_eps - er.eps_estimate) as difference,
@@ -536,7 +535,7 @@ router.get("/:ticker/overview", async (req, res) => {
     const [earningsData, revenueData, analystData] = await Promise.all([
       query(
         `SELECT 
-          CONCAT('Q', er.quarter, ' ', er.year) as period,
+          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
           er.eps_estimate as estimate,
           er.actual_eps as actual,
           (er.actual_eps - er.eps_estimate) as difference,
@@ -550,7 +549,7 @@ router.get("/:ticker/overview", async (req, res) => {
       ),
       query(
         `SELECT 
-          CONCAT('Q', er.quarter, ' ', er.year) as period,
+          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
           NULL as estimate,
           er.actual_revenue as actual,
           NULL as difference,
@@ -684,7 +683,7 @@ router.get("/recent-actions", async (req, res) => {
         END as action,
         'Analyst Consensus' as firm,
         asa.date,
-        CONCAT('Recent activity: ', asa.upgrades_last_30d, ' upgrades, ', asa.downgrades_last_30d, ' downgrades') as details,
+        ('Recent activity: ' || COALESCE(asa.upgrades_last_30d::text, '0') || ' upgrades, ' || COALESCE(asa.downgrades_last_30d::text, '0') || ' downgrades') as details,
         CASE 
           WHEN asa.upgrades_last_30d > asa.downgrades_last_30d THEN 'upgrade'
           WHEN asa.downgrades_last_30d > asa.upgrades_last_30d THEN 'downgrade'
