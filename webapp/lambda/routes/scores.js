@@ -142,7 +142,9 @@ router.get("/", async (req, res) => {
 
     res.json({
       success: true,
-      data: stocks,
+      data: {
+        scores: stocks
+      },
       pagination: {
         page,
         limit,

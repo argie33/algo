@@ -162,7 +162,7 @@ router.get("/earnings", async (req, res) => {
     // Transform and enrich the data with real database values from earnings_history
     const earnings = result.rows.map((row) => ({
       symbol: row.symbol,
-      company_name: null, // Will be populated from company_profile table if available
+      company_name: null, // Will be populated from fundamental_metrics table if available
       sector: null,
       market_cap: null,
       report_date: row.report_date,
@@ -189,10 +189,10 @@ router.get("/earnings", async (req, res) => {
       const symbols = [...new Set(earnings.map((e) => e.symbol))];
       if (symbols.length > 0) {
         const companyData = await query(
-          `SELECT cp.ticker as symbol, cp.short_name as name, cp.sector, md.market_cap
-           FROM company_profile cp
-           LEFT JOIN market_data md ON cp.ticker = md.ticker
-           WHERE cp.ticker = ANY($1)`,
+          `SELECT cp.symbol as symbol, cp.short_name as name, cp.sector, md.market_cap
+           FROM fundamental_metrics cp
+           LEFT JOIN market_data md ON cp.symbol = md.ticker
+           WHERE cp.symbol = ANY($1)`,
           [symbols]
         );
 
@@ -565,7 +565,7 @@ router.get("/earnings-estimates", async (req, res) => {
         ee.number_of_analysts,
         ee.growth
       FROM earnings_estimates ee
-      LEFT JOIN company_profile cp ON ee.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ee.symbol = cp.symbol
       ORDER BY ee.symbol ASC, ee.period DESC
       LIMIT $1 OFFSET $2
     `;
@@ -698,7 +698,7 @@ router.get("/earnings-history", async (req, res) => {
         END as eps_difference,
         eh.surprise_percent
       FROM earnings_history eh
-      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON eh.symbol = cp.symbol
       ORDER BY eh.symbol ASC, eh.quarter DESC
       LIMIT $1 OFFSET $2
     `;

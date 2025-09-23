@@ -665,6 +665,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
           ${companyProfileExists ? "LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol" : ""}
+          ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
           ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
           ${whereClause}
         )
@@ -697,6 +698,7 @@ router.get("/signals/:timeframe", async (req, res) => {
           END as performance_percent
         FROM ${tableName} bs
         ${companyProfileExists ? "LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol" : ""}
+        ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
         ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
         ${whereClause}
         ORDER BY bs.date DESC, bs.symbol ASC
@@ -982,7 +984,7 @@ router.get("/swing-signals", async (req, res) => {
     const offset = (page - 1) * limit;
 
     const swingQuery = `
-      SELECT 
+      SELECT
         st.symbol,
         cp.short_name as company_name,
         st.signal,
@@ -992,19 +994,20 @@ router.get("/swing-signals", async (req, res) => {
         st.risk_reward_ratio,
         st.date,
         s.close as current_price,
-        CASE 
-          WHEN st.signal = 'BUY' AND s.close >= st.target_price 
+        CASE
+          WHEN st.signal = 'BUY' AND s.close >= st.target_price
           THEN 'TARGET_HIT'
-          WHEN st.signal = 'BUY' AND s.close <= st.stop_loss 
+          WHEN st.signal = 'BUY' AND s.close <= st.stop_loss
           THEN 'STOP_LOSS_HIT'
-          WHEN st.signal = 'SELL' AND s.close <= st.target_price 
+          WHEN st.signal = 'SELL' AND s.close <= st.target_price
           THEN 'TARGET_HIT'
-          WHEN st.signal = 'SELL' AND s.close >= st.stop_loss 
+          WHEN st.signal = 'SELL' AND s.close >= st.stop_loss
           THEN 'STOP_LOSS_HIT'
           ELSE 'ACTIVE'
         END as status
       FROM swing_trading_signals st
       JOIN fundamental_metrics fm ON st.symbol = fm.symbol
+      LEFT JOIN company_profile cp ON st.symbol = cp.ticker
       LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON st.symbol = s.symbol
       ORDER BY st.date DESC
       LIMIT $1 OFFSET $2
@@ -2264,9 +2267,10 @@ router.get("/risk/portfolio", async (req, res) => {
         COALESCE(ti.beta, 1.0) as beta
       FROM portfolio_holdings ph
       LEFT JOIN fundamental_metrics fm ON ph.symbol = fm.symbol
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol) symbol, close, volume 
-        FROM price_daily 
+        SELECT DISTINCT ON (symbol) symbol, close, volume
+        FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON ph.symbol = pd.symbol
       LEFT JOIN (

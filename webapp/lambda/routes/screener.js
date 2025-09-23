@@ -296,8 +296,8 @@ router.get("/screen", async (req, res) => {
 
       // Map frontend sort fields to database fields
       const fieldMap = {
-        symbol: "s.ticker",
-        companyName: "s.ticker",
+        symbol: "s.symbol",
+        companyName: "s.symbol",
         price: "pd.close",
         marketCap: "md.market_cap",
         peRatio: "25.0",
@@ -316,7 +316,7 @@ router.get("/screen", async (req, res) => {
     // Real database query - no static fallbacks
     const mainQuery = `
       SELECT
-        s.ticker,
+        s.symbol,
         COALESCE(cp.short_name, cp.long_name) as company_name,
         cp.sector,
         s.exchange,
@@ -338,25 +338,25 @@ router.get("/screen", async (req, res) => {
         td.sma_50,
         td.sma_200,
         CASE
-          WHEN pd.close > LAG(pd.close, 63) OVER (PARTITION BY s.ticker ORDER BY pd.date)
-          THEN ((pd.close / LAG(pd.close, 63) OVER (PARTITION BY s.ticker ORDER BY pd.date)) - 1) * 100
+          WHEN pd.close > LAG(pd.close, 63) OVER (PARTITION BY s.symbol ORDER BY pd.date)
+          THEN ((pd.close / LAG(pd.close, 63) OVER (PARTITION BY s.symbol ORDER BY pd.date)) - 1) * 100
           ELSE NULL
         END as price_momentum_3m,
         CASE
-          WHEN pd.close > LAG(pd.close, 252) OVER (PARTITION BY s.ticker ORDER BY pd.date)
-          THEN ((pd.close / LAG(pd.close, 252) OVER (PARTITION BY s.ticker ORDER BY pd.date)) - 1) * 100
+          WHEN pd.close > LAG(pd.close, 252) OVER (PARTITION BY s.symbol ORDER BY pd.date)
+          THEN ((pd.close / LAG(pd.close, 252) OVER (PARTITION BY s.symbol ORDER BY pd.date)) - 1) * 100
           ELSE NULL
         END as price_momentum_12m,
         CASE
-          WHEN pd.close IS NOT NULL AND pd.close > 0 AND LAG(pd.close) OVER (PARTITION BY s.ticker ORDER BY pd.date) > 0
-          THEN ((pd.close - LAG(pd.close) OVER (PARTITION BY s.ticker ORDER BY pd.date)) / LAG(pd.close) OVER (PARTITION BY s.ticker ORDER BY pd.date)) * 100
+          WHEN pd.close IS NOT NULL AND pd.close > 0 AND LAG(pd.close) OVER (PARTITION BY s.symbol ORDER BY pd.date) > 0
+          THEN ((pd.close - LAG(pd.close) OVER (PARTITION BY s.symbol ORDER BY pd.date)) / LAG(pd.close) OVER (PARTITION BY s.symbol ORDER BY pd.date)) * 100
           ELSE 0
         END as price_change_percent,
         td.rsi,
         td.macd,
         td.macd_signal
-      FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
+      FROM fundamental_metrics s
+      LEFT JOIN fundamental_metrics cp ON s.symbol = cp.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, date, close, volume, open, high, low
@@ -364,32 +364,32 @@ router.get("/screen", async (req, res) => {
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
-      ) pd ON s.ticker = pd.symbol
+      ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (ticker)
           ticker, market_cap, volume
         FROM market_data
         ORDER BY ticker
-      ) md ON s.ticker = md.ticker
+      ) md ON s.symbol = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
-      ) td ON s.ticker = td.symbol
+      ) td ON s.symbol = td.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, price_to_book
         FROM financial_ratios
         ORDER BY symbol, fiscal_year DESC
-      ) km ON s.ticker = km.symbol
+      ) km ON s.symbol = km.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, overall_score
         FROM stock_scores
         ORDER BY symbol, date DESC
-      ) sc ON s.ticker = sc.symbol
+      ) sc ON s.symbol = sc.symbol
       WHERE pd.close IS NOT NULL AND pd.close > 0
       ${whereConditions.length > 0 ? "AND " + whereConditions.join(" AND ") : ""}
       ${orderBy}
@@ -401,8 +401,8 @@ router.get("/screen", async (req, res) => {
     // Count query matching main query structure - real data only
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
+      FROM fundamental_metrics s
+      LEFT JOIN fundamental_metrics cp ON s.symbol = cp.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, date, close, volume, open, high, low
@@ -410,32 +410,32 @@ router.get("/screen", async (req, res) => {
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
-      ) pd ON s.ticker = pd.symbol
+      ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (ticker)
           ticker, market_cap, volume
         FROM market_data
         ORDER BY ticker
-      ) md ON s.ticker = md.ticker
+      ) md ON s.symbol = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
         FROM technical_data_daily
         WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
         ORDER BY symbol, date DESC
-      ) td ON s.ticker = td.symbol
+      ) td ON s.symbol = td.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, price_to_book
         FROM financial_ratios
         ORDER BY symbol, fiscal_year DESC
-      ) km ON s.ticker = km.symbol
+      ) km ON s.symbol = km.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, overall_score
         FROM stock_scores
         ORDER BY symbol, date DESC
-      ) sc ON s.ticker = sc.symbol
+      ) sc ON s.symbol = sc.symbol
       WHERE pd.close IS NOT NULL AND pd.close > 0
       ${whereConditions.length > 0 ? "AND " + whereConditions.join(" AND ") : ""}
     `;
@@ -564,7 +564,7 @@ router.get("/filters", async (req, res) => {
     try {
       const sectorResult = await query(`
         SELECT DISTINCT sector 
-        FROM company_profile 
+        FROM fundamental_metrics 
         WHERE sector IS NOT NULL 
         ORDER BY sector
       `);
@@ -633,7 +633,7 @@ router.get("/filters", async (req, res) => {
           PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY market_cap) as q1_market_cap,
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY market_cap) as median_market_cap,
           PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY market_cap) as q3_market_cap
-        FROM company_profile 
+        FROM fundamental_metrics 
         WHERE market_cap IS NOT NULL AND market_cap > 0
       `);
       marketCapStats = (marketCapResult.rows && marketCapResult.rows[0]) || {};
@@ -1074,7 +1074,7 @@ router.get("/results", async (req, res) => {
 
     // Build ORDER BY clause
     const sortFields = {
-      symbol: "s.ticker",
+      symbol: "s.symbol",
       companyName: "s.security_name",
       price: "md.close",
       marketCap: "s.market_cap",
@@ -1090,7 +1090,7 @@ router.get("/results", async (req, res) => {
     // Main query
     const mainQuery = `
       SELECT 
-        s.ticker,
+        s.symbol,
         s.security_name as company_name,
         cp.sector as sector,
         s.exchange,
@@ -1120,12 +1120,12 @@ router.get("/results", async (req, res) => {
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON s.ticker = pd.symbol
+      ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM technical_data_daily  
         ORDER BY symbol, date DESC
-      ) ti ON s.ticker = ti.symbol
+      ) ti ON s.symbol = ti.symbol
       ${whereClause}
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -1141,12 +1141,12 @@ router.get("/results", async (req, res) => {
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON s.ticker = pd.symbol
+      ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM technical_data_daily
         ORDER BY symbol, date DESC
-      ) ti ON s.ticker = ti.symbol
+      ) ti ON s.symbol = ti.symbol
       ${whereClause}
     `;
 
@@ -1389,8 +1389,8 @@ router.post("/export", async (req, res) => {
     const symbolsStr = symbols.map((s) => `'${s}'`).join(",");
     const result = await query(`
       SELECT 
-        ss.ticker,
-        COALESCE(cp.short_name, ss.name, ss.ticker || ' Inc.') as company_name,
+        ss.symbol,
+        COALESCE(cp.short_name, ss.name, ss.symbol || ' Inc.') as company_name,
         cp.sector as sector,
         md.close as price,
         md.market_cap,
@@ -1399,21 +1399,21 @@ router.post("/export", async (req, res) => {
         0,
         COALESCE(sc.overall_score, 50) as factor_score
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.ticker = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ss.symbol = cp.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (pd.symbol) 
           pd.symbol, pd.date, pd.close, pd.volume, pd.open, pd.high, pd.low
         FROM price_daily pd 
         WHERE pd.date = (SELECT MAX(date) FROM price_daily pd2 WHERE pd2.symbol = pd.symbol)
         ORDER BY pd.symbol, pd.date DESC
-      ) md ON ss.ticker = md.symbol
-      LEFT JOIN key_metrics km ON ss.ticker = km.ticker
+      ) md ON ss.symbol = md.symbol
+      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM stock_scores
         ORDER BY symbol, date DESC
-      ) sc ON ss.ticker = sc.symbol
-      WHERE ss.ticker IN (${symbolsStr})
+      ) sc ON ss.symbol = sc.symbol
+      WHERE ss.symbol IN (${symbolsStr})
       ORDER BY md.market_cap DESC NULLS LAST
     `);
 
@@ -1760,7 +1760,7 @@ router.get("/stocks", async (req, res) => {
         WHERE ${whereConditions.join(" AND ")}
         ORDER BY symbol, date DESC
       ) pd
-      LEFT JOIN stock_scores ss ON pd.symbol = ss.ticker
+      LEFT JOIN stock_scores ss ON pd.symbol = ss.symbol
       ORDER BY ${orderByClause}
       LIMIT $${paramIndex}
     `;
@@ -1940,7 +1940,7 @@ router.get("/stocks", async (req, res) => {
         km.return_on_assets as roa,
         sp.last_updated
       FROM price_daily sp
-      LEFT JOIN company_profile cp ON sp.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON sp.symbol = cp.symbol
       LEFT JOIN key_metrics km ON sp.symbol = km.ticker
       WHERE ${whereConditions.join(' AND ')}
       ORDER BY sp.symbol, sp.last_updated DESC, ${orderBy}
@@ -2327,7 +2327,7 @@ router.post("/custom", authenticateToken, async (req, res) => {
 
     const customQuery = `
       SELECT 
-        s.ticker,
+        s.symbol,
         s.company_name,
         s.sector,
         s.industry,

@@ -924,7 +924,7 @@ router.get("/sectors", async (req, res) => {
   try {
     console.log("🏭 Public sectors analytics requested");
 
-    // Get general market sectors data from company_profile
+    // Get general market sectors data from fundamental_metrics
     const sectorsResult = await query(
       `
       SELECT

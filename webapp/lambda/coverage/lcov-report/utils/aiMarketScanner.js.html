@@ -722,13 +722,7 @@
 <a name='L657'></a><a href='#L657'>657</a>
 <a name='L658'></a><a href='#L658'>658</a>
 <a name='L659'></a><a href='#L659'>659</a>
-<a name='L660'></a><a href='#L660'>660</a>
-<a name='L661'></a><a href='#L661'>661</a>
-<a name='L662'></a><a href='#L662'>662</a>
-<a name='L663'></a><a href='#L663'>663</a>
-<a name='L664'></a><a href='#L664'>664</a>
-<a name='L665'></a><a href='#L665'>665</a>
-<a name='L666'></a><a href='#L666'>666</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L660'></a><a href='#L660'>660</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">60x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -737,11 +731,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">60x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">60x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -871,7 +865,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -954,7 +947,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -981,7 +973,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1130,7 +1121,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1208,7 +1198,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1238,7 +1227,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1392,7 +1380,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">60x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const { query } = require("./database");
 &nbsp;
 /**
@@ -1481,7 +1469,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.close as prev_price,
@@ -1489,7 +1477,7 @@ class AIMarketScanner {
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         md.market_cap,
-        cp.sector,
+        s.sector,
         td.rsi,
         td.sma_20,
         td.sma_50,
@@ -1501,8 +1489,7 @@ class AIMarketScanner {
           ELSE 50
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -1564,7 +1551,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.close as prev_price,
@@ -1572,7 +1559,7 @@ class AIMarketScanner {
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         md.market_cap,
-        cp.sector,
+        s.sector,
         td.rsi,
         td.sma_20,
         td.sma_50,
@@ -1584,8 +1571,7 @@ class AIMarketScanner {
           ELSE 50
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -1648,7 +1634,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.high,
         pd.low,
@@ -1658,7 +1644,7 @@ class AIMarketScanner {
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         md.market_cap,
-        cp.sector,
+        s.sector,
         td.sma_20,
         td.sma_50,
         CASE 
@@ -1668,8 +1654,7 @@ class AIMarketScanner {
           ELSE 60
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -1734,7 +1719,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.volume,
         pd_prev.volume as prev_volume,
@@ -1743,7 +1728,7 @@ class AIMarketScanner {
         (pd.volume / NULLIF(pd_prev.volume, 1)) as volume_ratio,
         (pd.volume / NULLIF(pd_avg.avg_volume, 1)) as volume_vs_avg,
         md.market_cap,
-        cp.sector,
+        s.sector,
         CASE 
           WHEN pd.volume &gt; pd_avg.avg_volume * 10 THEN 95
           WHEN pd.volume &gt; pd_avg.avg_volume * 5 THEN 88
@@ -1754,8 +1739,7 @@ class AIMarketScanner {
           ELSE 50
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -1821,7 +1805,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         pd.volume,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
@@ -1831,7 +1815,7 @@ class AIMarketScanner {
         er.eps_surprise,
         er.surprise_percent,
         md.market_cap,
-        cp.sector,
+        s.sector,
         CASE 
           WHEN er.surprise_percent &gt; 20 AND ABS(EXTRACT(DAYS FROM (CURRENT_DATE - er.report_date))) &lt;= 2 THEN 90
           WHEN er.surprise_percent &gt; 10 AND ABS(EXTRACT(DAYS FROM (CURRENT_DATE - er.report_date))) &lt;= 3 THEN 80
@@ -1840,8 +1824,7 @@ class AIMarketScanner {
           ELSE 55
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -1905,7 +1888,7 @@ class AIMarketScanner {
     const baseQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT DISTINCT
         s.ticker,
-        COALESCE(cp.long_name, s.name) as company_name,
+        COALESCE(s.long_name, s.short_name) as company_name,
         pd.close as price,
         ((pd.close - pd_prev.close) / NULLIF(pd_prev.close, 0) * 100) as price_change,
         n.sentiment,
@@ -1913,7 +1896,7 @@ class AIMarketScanner {
         n.headline,
         n.published_at,
         md.market_cap,
-        cp.sector,
+        s.sector,
         CASE 
           WHEN n.sentiment &gt; 0.8 AND n.sentiment_confidence &gt; 0.7 THEN 85
           WHEN n.sentiment &gt; 0.6 AND n.sentiment_confidence &gt; 0.6 THEN 75
@@ -1921,8 +1904,7 @@ class AIMarketScanner {
           ELSE 55
         END as ai_score
       FROM company_profile s
-      LEFT JOIN company_profile cp ON s.ticker = cp.ticker
-      LEFT JOIN (
+            LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily 
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -2065,7 +2047,7 @@ module.exports = { AIMarketScanner };
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-22T22:33:07.852Z
+                at 2025-09-23T01:32:46.063Z
             </div>
         <script src="../prettify.js"></script>
         <script>

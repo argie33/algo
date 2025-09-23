@@ -135,7 +135,7 @@ router.get("/etf-list", async (req, res) => {
     // Start with simple query to avoid column mismatch issues
     const etfQuery = `
       SELECT ticker as symbol, short_name as name, sector
-      FROM company_profile
+      FROM fundamental_metrics
       WHERE sector = 'ETF' OR ticker IN ('SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'ARKK', 'XLF', 'XLK', 'XLE', 'XLV')
       ORDER BY ticker ASC
       LIMIT 100
@@ -208,7 +208,7 @@ router.get("/status", async (req, res) => {
         last_update: new Date().toISOString(),
         tables: {
           price_daily: "active",
-          company_profile: "active",
+          fundamental_metrics: "active",
         },
       },
       timestamp: new Date().toISOString(),
@@ -582,7 +582,7 @@ router.get("/stocks/search", async (req, res) => {
           ELSE 0.7
         END as match_score,
         sector as description
-      FROM company_profile
+      FROM fundamental_metrics
       WHERE
         UPPER(symbol) LIKE '%' || $1 || '%'
         OR UPPER(company_name) LIKE '%' || $1 || '%'

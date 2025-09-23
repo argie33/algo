@@ -1068,3 +1068,312 @@ Processing request: GET /api/portfolio/data
 Database connection verified for database-dependent endpoint
 JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
 ::ffff:127.0.0.1 - - [22/Sep/2025:22:56:59 +0000] "GET /api/portfolio/data HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/value HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/allocation HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/allocations HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/returns HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/risk HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/optimization HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 401 546 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/health HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 162 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 401 546 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/data
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:29:36 +0000] "GET /api/portfolio/data HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/value HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/allocation HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/allocations HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/returns HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/risk HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/optimization HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 401 546 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/health HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 162 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 401 546 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/data
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:30:13 +0000] "GET /api/portfolio/data HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/value HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/allocation
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/allocation HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/allocations
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/allocations HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/returns
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/returns HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/benchmark
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/benchmark HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/risk HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk-analysis
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/risk-analysis HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/analysis
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/risk/analysis HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/var
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/risk/var HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/stress-test
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/risk/stress-test HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/risk/concentration
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/risk/concentration HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/rebalance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/rebalance HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/optimization
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/optimization HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/watchlist HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/api-keys HTTP/1.1" 401 546 "-" "-"
+Processing request: POST /api/portfolio/api-keys
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "POST /api/portfolio/api-keys HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/health
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/health HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 162 "-" "-"
+Processing request: GET /api/portfolio/invalid-endpoint
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/invalid-endpoint HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/invalid-user-id/holdings
+Database connection verified for database-dependent endpoint
+🔧 Development mode: Resetting JWT circuit breaker to CLOSED state
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/invalid-user-id/holdings HTTP/1.1" 401 546 "-" "-"
+Processing request: DELETE /api/portfolio/api-keys/test-broker
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "DELETE /api/portfolio/api-keys/test-broker HTTP/1.1" 401 546 "-" "-"
+Processing request: GET /api/portfolio/data
+Database connection verified for database-dependent endpoint
+JWT circuit breaker OPENED after 3 failures: JWT verification failed: jwt malformed
+::ffff:127.0.0.1 - - [23/Sep/2025:01:31:59 +0000] "GET /api/portfolio/data HTTP/1.1" 401 546 "-" "-"

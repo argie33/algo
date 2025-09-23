@@ -268,7 +268,7 @@ router.get("/positions", async (req, res) => {
         h.current_price * h.quantity as market_value,
         h.average_cost * h.quantity as cost_basis
       FROM portfolio_holdings h
-      LEFT JOIN company_profile s ON h.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON h.symbol = s.symbol
       WHERE h.user_id = $1 AND h.quantity > 0
       ORDER BY h.current_price * h.quantity DESC
       LIMIT $2
@@ -331,7 +331,7 @@ router.get("/analytics", async (req, res) => {
         COALESCE(cp.industry, 'Unknown') as industry,
         COALESCE(cp.short_name, ph.symbol) as short_name
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
       ORDER BY ph.symbol
@@ -732,7 +732,7 @@ router.get("/analysis", async (req, res) => {
         period: period,
         holdings_count: holdings.length,
         analysis_date: new Date().toISOString(),
-        data_sources: ["portfolio_holdings", "company_profile", "market_data"],
+        data_sources: ["portfolio_holdings", "fundamental_metrics", "market_data"],
       },
       timestamp: new Date().toISOString(),
     });
@@ -829,7 +829,7 @@ router.get("/risk-metrics", async (req, res) => {
         COALESCE(cp.sector, 'Technology') as sector,
         ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
       ORDER BY ph.symbol
@@ -995,7 +995,7 @@ router.get("/:id/holdings", async (req, res) => {
         COALESCE(cp.sector, 'Unknown') as sector
       FROM portfolio_holdings ph
       LEFT JOIN stock_symbols ss ON ph.symbol = ss.symbol
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker 
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol 
       WHERE ph.user_id = $1
       ORDER BY ph.market_value DESC
       `,
@@ -1248,7 +1248,7 @@ router.get("/performance/analysis", async (req, res) => {
         ROUND((ph.unrealized_pnl / NULLIF(ph.cost_basis, 0)) * 100, 2) as pnl_percent,
         COALESCE(cp.sector, 'Technology') as sector, ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1
       ORDER BY ph.market_value DESC
     `;
@@ -5748,7 +5748,7 @@ router.get("/watchlist", async (req, res) => {
         0 as change,
         0 as change_percent
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1
       ORDER BY ph.symbol
       LIMIT 10
@@ -5794,7 +5794,7 @@ router.get("/allocation", async (req, res) => {
           ELSE 'Equity'
         END as asset_class
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 
@@ -6075,7 +6075,7 @@ router.get("/value", async (req, res) => {
         (ph.market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
         ph.quantity as shares
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
       ORDER BY ph.market_value DESC
       LIMIT 5
@@ -6221,7 +6221,7 @@ router.get("/factors", async (req, res) => {
         COALESCE(s.beta, 1.0) as beta,
         COALESCE(s.pe_ratio, 15.0) as pe_ratio
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile s ON ph.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON ph.symbol = s.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 

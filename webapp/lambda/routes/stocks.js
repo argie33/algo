@@ -1240,7 +1240,7 @@ router.get("/search", async (req, res) => {
 
     console.log(`🔍 Stock search requested for: ${search}`);
 
-    // Search stocks in database using fundamental_metrics, market_data, and company_profile
+    // Search stocks in database using fundamental_metrics, market_data, and fundamental_metrics
     const searchQuery = `
       SELECT
         fm.symbol as symbol,
@@ -1252,7 +1252,7 @@ router.get("/search", async (req, res) => {
         md.current_price as price
       FROM fundamental_metrics fm
       LEFT JOIN market_data md ON fm.symbol = md.ticker
-      LEFT JOIN company_profile cp ON fm.symbol = cp.ticker
+      -- removed fundamental_metrics join
       WHERE
         UPPER(fm.symbol) LIKE UPPER($1) OR
         UPPER(fm.symbol) LIKE UPPER($2) OR
@@ -1361,7 +1361,7 @@ router.get("/analysis", async (req, res) => {
         sp.volume,
         (sp.close - sp.open) / sp.open * 100 as daily_change_percent
       FROM stock_symbols ss
-      LEFT JOIN fundamental_metrics s ON ss.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON ss.symbol = s.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, volume, date
@@ -1619,7 +1619,7 @@ router.get("/recommendations", async (req, res) => {
         'BUY' as recommendation,
         'Strong fundamentals and market position' as reason
       FROM stock_symbols ss
-      LEFT JOIN fundamental_metrics s ON ss.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON ss.symbol = s.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, volume, date
@@ -1814,7 +1814,7 @@ router.get("/screener", authenticateToken, async (req, res) => {
         pd.volume,
         md.market_cap
       FROM stock_symbols ss
-      LEFT JOIN fundamental_metrics s ON ss.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON ss.symbol = s.symbol
       LEFT JOIN market_data md ON ss.symbol = md.ticker
       JOIN (
         SELECT DISTINCT ON (symbol)
@@ -2930,7 +2930,7 @@ router.get("/:symbol/prices", async (req, res) => {
         error: "Price data unavailable",
         message: "No price data found",
         data: [],
-        ticker: req.params.ticker,
+        ticker: req.params.symbol,
       });
     }
 
@@ -3164,7 +3164,7 @@ router.get("/:symbol/prices/recent", async (req, res) => {
       error: "Failed to fetch recent stock prices",
       details: error.message,
       data: [], // Always return data as an array for frontend safety
-      ticker: req.params.ticker,
+      ticker: req.params.symbol,
       timestamp: new Date().toISOString(),
     });
   }

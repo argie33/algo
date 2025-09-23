@@ -108,7 +108,7 @@ router.get("/calendar", async (req, res) => {
           cp.sector,
           cp.market_cap
         FROM earnings_reports er
-        LEFT JOIN company_profile cp ON er.symbol = cp.symbol
+        LEFT JOIN fundamental_metrics cp ON er.symbol = cp.symbol
         ${dateFilter}
         ORDER BY er.date ASC, er.symbol
         LIMIT $1
@@ -271,7 +271,7 @@ router.get("/surprises", async (req, res) => {
             ELSE 0
           END as revenue_surprise_percent
         FROM earnings_reports er
-        LEFT JOIN company_profile cp ON er.symbol = cp.symbol
+        LEFT JOIN fundamental_metrics cp ON er.symbol = cp.symbol
         WHERE er.actual_eps IS NOT NULL
         ${symbolFilter}
         ${surpriseFilter}

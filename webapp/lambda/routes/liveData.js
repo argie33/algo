@@ -1030,14 +1030,14 @@ router.get("/stream", authenticateToken, async (req, res) => {
       try {
         // Get latest prices from database for streaming symbols
         const streamQuery = `
-          SELECT DISTINCT ON (s.ticker)
-            s.ticker as symbol,
+          SELECT DISTINCT ON (s.symbol)
+            s.symbol as symbol,
             s.price as close,
             0 as volume,
             CURRENT_TIMESTAMP as date
-          FROM company_profile s
-          WHERE s.ticker = ANY($1)
-          ORDER BY s.ticker
+          FROM fundamental_metrics s
+          WHERE s.symbol = ANY($1)
+          ORDER BY s.symbol
         `;
 
         const result = await query(streamQuery, [symbolList]);

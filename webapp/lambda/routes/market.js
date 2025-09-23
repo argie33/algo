@@ -96,7 +96,7 @@ router.get("/data", async (req, res) => {
                md.volume,
                md.market_cap
         FROM market_data md
-        LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+        LEFT JOIN fundamental_metrics cp ON md.ticker = cp.symbol
         WHERE md.current_price IS NOT NULL
         ORDER BY md.market_cap DESC NULLS LAST
         LIMIT 50
@@ -107,7 +107,7 @@ router.get("/data", async (req, res) => {
       const stocksResult = await query(`
         SELECT ticker as symbol, current_price, volume,
                0 as change_amount, 0 as change_percent
-        FROM company_profile
+        FROM fundamental_metrics
         WHERE current_price IS NOT NULL
         ORDER BY volume DESC NULLS LAST
         LIMIT 50
@@ -201,7 +201,7 @@ router.get("/summary", async (req, res) => {
           AVG(COALESCE(((md.close - md.open) / NULLIF(md.open, 0) * 100), 0)) as avg_change_percent,
           SUM(md.volume) as total_volume
         FROM price_daily md
-        JOIN company_profile cp ON md.symbol = cp.ticker
+        JOIN fundamental_metrics cp ON md.symbol = cp.symbol
         WHERE cp.sector IS NOT NULL
           AND md.volume > 0
           AND md.date = (SELECT MAX(date) FROM price_daily)
@@ -308,7 +308,7 @@ router.get("/debug", async (req, res) => {
       "economic_data",
       "fear_greed_index",
       "naaim",
-      "company_profile",
+      "fundamental_metrics",
       "aaii_sentiment",
     ];
 
@@ -615,7 +615,7 @@ router.get("/overview", async (req, res) => {
             ELSE 0
           END as changePercent
         FROM market_data md
-        LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+        LEFT JOIN fundamental_metrics cp ON md.ticker = cp.symbol
         WHERE md.ticker IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
         ORDER BY md.ticker
       `);
@@ -761,12 +761,12 @@ router.get("/sectors", async (req, res) => {
   try {
     console.log("Market sectors endpoint called");
 
-    // Get sector performance data from company_profile table
+    // Get sector performance data from fundamental_metrics table
     const sectorsQuery = `
       SELECT
         sector,
         COUNT(*) as company_count
-      FROM company_profile
+      FROM fundamental_metrics
       WHERE sector IS NOT NULL
         AND sector != ''
       GROUP BY sector
@@ -976,7 +976,7 @@ router.get("/sectors/performance", async (req, res) => {
         SUM(pd.volume) as total_volume,
         AVG(s.market_cap) as avg_market_cap
       FROM price_daily pd
-      JOIN company_profile s ON pd.symbol = s.ticker
+      JOIN fundamental_metrics s ON pd.symbol = s.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily)
         AND s.sector IS NOT NULL
         AND s.sector != ''
@@ -991,7 +991,7 @@ router.get("/sectors/performance", async (req, res) => {
     } catch (error) {
       console.error("Sector performance query error:", error.message);
 
-      // Fallback to simple sector data from company_profile only
+      // Fallback to simple sector data from fundamental_metrics only
       const fallbackQuery = `
         SELECT
           COALESCE(s.sector, 'Other') as sector,
@@ -999,7 +999,7 @@ router.get("/sectors/performance", async (req, res) => {
           0 as avg_change,
           0 as total_volume,
           AVG(COALESCE(s.market_cap, 1000000000)) as avg_market_cap
-        FROM company_profile s
+        FROM fundamental_metrics s
         WHERE s.sector IS NOT NULL AND s.sector != ''
         GROUP BY s.sector
         ORDER BY COUNT(*) DESC
@@ -1845,7 +1845,7 @@ router.get("/indicators", async (req, res) => {
         s.sector,
         pd.date
       FROM price_daily pd
-      JOIN company_profile s ON pd.symbol = s.ticker
+      JOIN fundamental_metrics s ON pd.symbol = s.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily)
       ORDER BY pd.symbol
     `;
@@ -5172,7 +5172,7 @@ router.get("/trending", async (req, res) => {
           p.change_percent,
           p.volume,
           p.date
-        FROM company_profile s
+        FROM fundamental_metrics s
         JOIN price_daily p ON s.ticker = p.symbol
         WHERE p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.ticker)
         AND p.volume > 1000000  -- High volume threshold
@@ -5388,10 +5388,10 @@ router.get("/search", async (req, res) => {
     const maxLimit = Math.min(parseInt(limit) || 10, 50);
     const searchOffset = Math.max(parseInt(offset) || 0, 0);
 
-    // Search in company_profile table
+    // Search in fundamental_metrics table
     const result = await query(
       `SELECT ticker as symbol, short_name as name, sector, industry
-       FROM company_profile 
+       FROM fundamental_metrics 
        WHERE ticker LIKE $1 OR UPPER(name) LIKE $1
        ORDER BY 
          CASE WHEN ticker = $2 THEN 1
@@ -5673,7 +5673,7 @@ router.get("/live", async (req, res) => {
         md.volume,
         COALESCE(cp.short_name, md.ticker) as name
       FROM market_data md
-      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON md.ticker = cp.symbol
       WHERE md.ticker = ANY($1)
     `, [symbolList]);
 
