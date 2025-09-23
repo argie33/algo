@@ -54,25 +54,14 @@ router.get("/:symbol", async (req, res) => {
     );
 
     if (!result || !result.rows || result.rows.length === 0) {
-      // Check if symbol exists in common symbols list for validation
-      const commonSymbols = [
-        "AAPL",
-        "GOOGL",
-        "MSFT",
-        "AMZN",
-        "TSLA",
-        "META",
-        "NVDA",
-        "NFLX",
-        "SPY",
-        "QQQ",
-      ];
+      // Check if symbol exists in common symbols list for validation - be more permissive
+      const validSymbolPattern = /^[A-Z]{1,5}$/; // 1-5 letters only
 
-      if (!commonSymbols.includes(symbolUpper) && symbolUpper.length > 5) {
-        console.log(`❌ Invalid symbol requested: ${symbolUpper}`);
+      if (!validSymbolPattern.test(symbolUpper)) {
+        console.log(`❌ Invalid symbol format: ${symbolUpper}`);
         return res.status(404).json({
           success: false,
-          error: `Symbol ${symbolUpper} not found`,
+          error: `Invalid symbol format: ${symbolUpper}. Use 1-5 letter symbols like AAPL`,
           timestamp: new Date().toISOString(),
         });
       }
