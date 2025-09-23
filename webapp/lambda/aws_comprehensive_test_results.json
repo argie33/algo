@@ -1,0 +1,933 @@
+{
+  "timestamp": "2025-09-23T18:35:56.820Z",
+  "baseUrl": "https://qda42av7je.execute-api.us-east-1.amazonaws.com/Prod",
+  "summary": {
+    "total": 20,
+    "passed": 11,
+    "failed": 9,
+    "serverErrors": 3,
+    "clientErrors": 4
+  },
+  "results": [
+    {
+      "name": "Health Check",
+      "path": "/health",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "status": "healthy",
+        "healthy": true,
+        "timestamp": "2025-09-23T18:35:27.132Z",
+        "version": "1.0.0",
+        "database": {
+          "status": "connected",
+          "tables": {
+            "naaim": 0
+          }
+        },
+        "api": {
+          "version": "1.0.0",
+          "environment": "development"
+        },
+        "memory": {
+          "rss": 88846336,
+          "heapTotal": 30892032,
+          "heapUsed": 27994272,
+          "external": 3066432,
+          "arrayBuffers": 124017
+        },
+        "uptime": 99.74815892
+      },
+      "error": null
+    },
+    {
+      "name": "Signals API",
+      "path": "/api/signals",
+      "status": 0,
+      "success": false,
+      "error": "Request timeout",
+      "data": null
+    },
+    {
+      "name": "Signals API (Limited)",
+      "path": "/api/signals?limit=5",
+      "status": 0,
+      "success": false,
+      "error": "Request timeout",
+      "data": null
+    },
+    {
+      "name": "Watchlist API",
+      "path": "/api/watchlist",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "data": [],
+        "message": "Sample watchlist data from portfolio symbols",
+        "total": 0,
+        "timestamp": "2025-09-23T18:35:47.740Z"
+      },
+      "error": null
+    },
+    {
+      "name": "Single Stock (AAPL)",
+      "path": "/api/stocks/AAPL",
+      "status": 500,
+      "success": false,
+      "data": {
+        "success": false,
+        "error": "Database query failed",
+        "symbol": "AAPL",
+        "details": "relation \"fundamental_metrics\" does not exist",
+        "timestamp": "2025-09-23T18:35:47.932Z"
+      },
+      "error": "Database query failed"
+    },
+    {
+      "name": "Stocks List",
+      "path": "/api/stocks",
+      "status": 502,
+      "success": true,
+      "data": {
+        "message": "Internal server error"
+      },
+      "error": null
+    },
+    {
+      "name": "Stocks List (Limited)",
+      "path": "/api/stocks?limit=5",
+      "status": 502,
+      "success": true,
+      "data": {
+        "message": "Internal server error"
+      },
+      "error": null
+    },
+    {
+      "name": "Market Overview",
+      "path": "/api/market/overview",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "data": {
+          "indices": [],
+          "sentiment_indicators": {
+            "fear_greed": {
+              "value": 75.2857142857143,
+              "value_text": "Extreme Greed",
+              "timestamp": "2025-07-14T00:00:00.000Z"
+            },
+            "naaim": {
+              "average": 86.28,
+              "bullish_8100": 200,
+              "bearish": -200,
+              "week_ending": "2025-07-09T00:00:00.000Z"
+            },
+            "aaii": {
+              "bullish": 0.367781,
+              "neutral": 0.291793,
+              "bearish": 0.340426,
+              "date": "2025-07-24T00:00:00.000Z"
+            }
+          },
+          "market_breadth": {
+            "total_stocks": 5295,
+            "advancing": 2383,
+            "declining": 2672,
+            "unchanged": 240,
+            "advance_decline_ratio": "0.89",
+            "average_change_percent": "0.00"
+          },
+          "market_cap": {},
+          "economic_indicators": [
+            {
+              "name": "IORB",
+              "value": 4.4,
+              "unit": "Index",
+              "timestamp": "2025-07-28T00:00:00.000Z"
+            },
+            {
+              "name": "IORB",
+              "value": 4.4,
+              "unit": "Index",
+              "timestamp": "2025-07-27T00:00:00.000Z"
+            },
+            {
+              "name": "IORB",
+              "value": 4.4,
+              "unit": "Index",
+              "timestamp": "2025-07-26T00:00:00.000Z"
+            },
+            {
+              "name": "T10Y2Y",
+              "value": 0.49,
+              "unit": "Index",
+              "timestamp": "2025-07-25T00:00:00.000Z"
+            },
+            {
+              "name": "IORB",
+              "value": 4.4,
+              "unit": "Index",
+              "timestamp": "2025-07-25T00:00:00.000Z"
+            },
+            {
+              "name": "SP500",
+              "value": 6388.64,
+              "unit": "Index",
+              "timestamp": "2025-07-25T00:00:00.000Z"
+            },
+            {
+              "name": "T5YIFR",
+              "value": 2.41,
+              "unit": "Index",
+              "timestamp": "2025-07-25T00:00:00.000Z"
+            },
+            {
+              "name": "DGS2",
+              "value": 3.91,
+              "unit": "Index",
+              "timestamp": "2025-07-24T00:00:00.000Z"
+            },
+            {
+              "name": "SP500",
+              "value": 6363.35,
+              "unit": "Index",
+              "timestamp": "2025-07-24T00:00:00.000Z"
+            },
+            {
+              "name": "T5YIFR",
+              "value": 2.4,
+              "unit": "Index",
+              "timestamp": "2025-07-24T00:00:00.000Z"
+            }
+          ]
+        },
+        "timestamp": "2025-09-23T18:35:52.288Z"
+      },
+      "error": null
+    },
+    {
+      "name": "Earnings Data",
+      "path": "/api/earnings",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "data": [
+          {
+            "symbol": "AA",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.39",
+            "eps_estimate": "0.38574",
+            "eps_difference": "0.0",
+            "surprise_percent": "0.011",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:57:45.250Z"
+          },
+          {
+            "symbol": "AAL",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.95",
+            "eps_estimate": "0.77248",
+            "eps_difference": "0.18",
+            "surprise_percent": "0.2298",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:36:31.164Z"
+          },
+          {
+            "symbol": "ABT",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.26",
+            "eps_estimate": "1.25652",
+            "eps_difference": "0.0",
+            "surprise_percent": "0.0028",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:57:48.466Z"
+          },
+          {
+            "symbol": "ACNB",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.2535",
+            "eps_estimate": "1.1525",
+            "eps_difference": "0.1",
+            "surprise_percent": "0.0876",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:36:50.859Z"
+          },
+          {
+            "symbol": "ACU",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.16",
+            "eps_estimate": "0.5",
+            "eps_difference": "0.66",
+            "surprise_percent": "1.32",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:57:51.364Z"
+          },
+          {
+            "symbol": "ADT",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.23",
+            "eps_estimate": "0.20003",
+            "eps_difference": "0.03",
+            "surprise_percent": "0.1498",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:57:52.677Z"
+          },
+          {
+            "symbol": "AGNC",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.38",
+            "eps_estimate": "0.41052",
+            "eps_difference": "-0.03",
+            "surprise_percent": "-0.0743",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:37:20.071Z"
+          },
+          {
+            "symbol": "AGYS",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.33",
+            "eps_estimate": "0.36167",
+            "eps_difference": "-0.03",
+            "surprise_percent": "-0.0876",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:37:20.567Z"
+          },
+          {
+            "symbol": "ALEX",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.35",
+            "eps_estimate": "0.32",
+            "eps_difference": "0.03",
+            "surprise_percent": "0.0937",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:05.725Z"
+          },
+          {
+            "symbol": "ALK",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.78",
+            "eps_estimate": "1.53865",
+            "eps_difference": "0.24",
+            "surprise_percent": "0.15689999",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:06.374Z"
+          },
+          {
+            "symbol": "ALLE",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "2.04",
+            "eps_estimate": "1.98687",
+            "eps_difference": "0.05",
+            "surprise_percent": "0.026700001",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:06.863Z"
+          },
+          {
+            "symbol": "ALLY",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.99",
+            "eps_estimate": "0.81045",
+            "eps_difference": "0.18",
+            "surprise_percent": "0.2215",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:07.067Z"
+          },
+          {
+            "symbol": "ALV",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "2.21",
+            "eps_estimate": "2.09142",
+            "eps_difference": "0.12",
+            "surprise_percent": "0.056700002",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:07.963Z"
+          },
+          {
+            "symbol": "AMAL",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.88",
+            "eps_estimate": "0.87",
+            "eps_difference": "0.01",
+            "surprise_percent": "0.0115",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:38:11.657Z"
+          },
+          {
+            "symbol": "AMBP",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.08",
+            "eps_estimate": "0.06736",
+            "eps_difference": "0.01",
+            "surprise_percent": "0.1876",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:10.361Z"
+          },
+          {
+            "symbol": "AMP",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "9.11",
+            "eps_estimate": "9.00455",
+            "eps_difference": "0.11",
+            "surprise_percent": "0.0117",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:11.956Z"
+          },
+          {
+            "symbol": "AMSF",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.53",
+            "eps_estimate": "0.53667",
+            "eps_difference": "-0.01",
+            "surprise_percent": "-0.0124",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:38:17.288Z"
+          },
+          {
+            "symbol": "AMTB",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.57",
+            "eps_estimate": "0.394",
+            "eps_difference": "0.18",
+            "surprise_percent": "0.44669998",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:14.672Z"
+          },
+          {
+            "symbol": "AN",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "5.46",
+            "eps_estimate": "4.704",
+            "eps_difference": "0.76",
+            "surprise_percent": "0.1607",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:16.703Z"
+          },
+          {
+            "symbol": "AON",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "3.49",
+            "eps_estimate": "3.40572",
+            "eps_difference": "0.08",
+            "surprise_percent": "0.0247",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:18.171Z"
+          },
+          {
+            "symbol": "AOS",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.07",
+            "eps_estimate": "0.99228",
+            "eps_difference": "0.08",
+            "surprise_percent": "0.0783",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:18.858Z"
+          },
+          {
+            "symbol": "APH",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.81",
+            "eps_estimate": "0.6658",
+            "eps_difference": "0.14",
+            "surprise_percent": "0.2166",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:20.176Z"
+          },
+          {
+            "symbol": "ARE",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.48",
+            "eps_estimate": "0.63175",
+            "eps_difference": "-0.15",
+            "surprise_percent": "-0.2402",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:22.965Z"
+          },
+          {
+            "symbol": "AROW",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.7",
+            "eps_estimate": "0.6",
+            "eps_difference": "0.1",
+            "surprise_percent": "0.1667",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:38:40.166Z"
+          },
+          {
+            "symbol": "ARR",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.77",
+            "eps_estimate": "0.82532",
+            "eps_difference": "-0.06",
+            "surprise_percent": "-0.067",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:27.147Z"
+          },
+          {
+            "symbol": "ASB",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.65",
+            "eps_estimate": "0.61575",
+            "eps_difference": "0.03",
+            "surprise_percent": "0.0556",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:28.868Z"
+          },
+          {
+            "symbol": "ASGN",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.17",
+            "eps_estimate": "1.08229",
+            "eps_difference": "0.09",
+            "surprise_percent": "0.081",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:29.371Z"
+          },
+          {
+            "symbol": "ASML",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "5.9",
+            "eps_estimate": "5.22634",
+            "eps_difference": "0.67",
+            "surprise_percent": "0.1289",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:38:44.969Z"
+          },
+          {
+            "symbol": "ASR",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "3.7962",
+            "eps_estimate": "5.824",
+            "eps_difference": "-2.03",
+            "surprise_percent": "-0.3482",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:31.262Z"
+          },
+          {
+            "symbol": "AUB",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.95",
+            "eps_estimate": "0.79667",
+            "eps_difference": "0.15",
+            "surprise_percent": "0.1925",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:36.567Z"
+          },
+          {
+            "symbol": "AVY",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "2.42",
+            "eps_estimate": "2.43177",
+            "eps_difference": "-0.01",
+            "surprise_percent": "-0.0047999998",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:39.500Z"
+          },
+          {
+            "symbol": "AXP",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "4.08",
+            "eps_estimate": "3.88235",
+            "eps_difference": "0.2",
+            "surprise_percent": "0.0509",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:42.568Z"
+          },
+          {
+            "symbol": "BAC",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.89",
+            "eps_estimate": "0.858",
+            "eps_difference": "0.03",
+            "surprise_percent": "0.0373",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:45.864Z"
+          },
+          {
+            "symbol": "BAH",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.48",
+            "eps_estimate": "1.44973",
+            "eps_difference": "0.03",
+            "surprise_percent": "0.0209",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:46.069Z"
+          },
+          {
+            "symbol": "BANC",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.31",
+            "eps_estimate": "0.26238",
+            "eps_difference": "0.05",
+            "surprise_percent": "0.1815",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:47.360Z"
+          },
+          {
+            "symbol": "BANF",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.85",
+            "eps_estimate": "1.64667",
+            "eps_difference": "0.2",
+            "surprise_percent": "0.123500004",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:39:12.758Z"
+          },
+          {
+            "symbol": "BANR",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.35",
+            "eps_estimate": "1.31",
+            "eps_difference": "0.04",
+            "surprise_percent": "0.0305",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:39:13.569Z"
+          },
+          {
+            "symbol": "BC",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.16",
+            "eps_estimate": "0.95238",
+            "eps_difference": "0.21",
+            "surprise_percent": "0.218",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:51.655Z"
+          },
+          {
+            "symbol": "BCH",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "NaN",
+            "eps_estimate": "0.64667",
+            "eps_difference": "NaN",
+            "surprise_percent": "NaN",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:52.308Z"
+          },
+          {
+            "symbol": "BCML",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.58",
+            "eps_estimate": "0.55333",
+            "eps_difference": "0.03",
+            "surprise_percent": "0.0482",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:39:19.273Z"
+          },
+          {
+            "symbol": "BDN",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "-0.1472",
+            "eps_estimate": "-0.09865",
+            "eps_difference": "-0.05",
+            "surprise_percent": "-0.4921",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:54.956Z"
+          },
+          {
+            "symbol": "BELFA",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.58",
+            "eps_estimate": "1.19",
+            "eps_difference": "0.39",
+            "surprise_percent": "0.32770002",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:39:23.658Z"
+          },
+          {
+            "symbol": "BELFB",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.67",
+            "eps_estimate": "1.264",
+            "eps_difference": "0.41",
+            "surprise_percent": "0.32119998",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:39:23.966Z"
+          },
+          {
+            "symbol": "BFC",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.66",
+            "eps_estimate": "1.81",
+            "eps_difference": "-0.15",
+            "surprise_percent": "-0.0829",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:39:25.162Z"
+          },
+          {
+            "symbol": "BFH",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "3.14",
+            "eps_estimate": "1.9421",
+            "eps_difference": "1.2",
+            "surprise_percent": "0.6168",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:58:58.051Z"
+          },
+          {
+            "symbol": "BHB",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.7",
+            "eps_estimate": "0.69",
+            "eps_difference": "0.01",
+            "surprise_percent": "0.0145000005",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:59:00.965Z"
+          },
+          {
+            "symbol": "BHLB",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.69",
+            "eps_estimate": "0.592",
+            "eps_difference": "0.1",
+            "surprise_percent": "0.16549999",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:59:01.682Z"
+          },
+          {
+            "symbol": "BHRB",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.97",
+            "eps_estimate": "1.82",
+            "eps_difference": "0.15",
+            "surprise_percent": "0.082399994",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:39:30.288Z"
+          },
+          {
+            "symbol": "BK",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "1.94",
+            "eps_estimate": "1.76226",
+            "eps_difference": "0.18",
+            "surprise_percent": "0.1009",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:59:05.569Z"
+          },
+          {
+            "symbol": "BKR",
+            "report_date": "2025-06-30T00:00:00.000Z",
+            "eps_actual": "0.63",
+            "eps_estimate": "0.55453",
+            "eps_difference": "0.08",
+            "surprise_percent": "0.1361",
+            "quarter": "2025-06-30T00:00:00.000Z",
+            "last_updated": "2025-07-28T11:39:36.644Z"
+          }
+        ],
+        "pagination": {
+          "page": 1,
+          "limit": 50,
+          "total": 50,
+          "hasMore": true
+        },
+        "timestamp": "2025-09-23T18:35:52.452Z"
+      },
+      "error": null
+    },
+    {
+      "name": "Price Data (AAPL)",
+      "path": "/api/price/AAPL",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "symbol": "AAPL",
+        "data": {
+          "symbol": "AAPL",
+          "price": 213.8800048828125,
+          "current_price": 213.8800048828125,
+          "open": 214.6999969482422,
+          "high": 215.24000549316406,
+          "low": 213.39999389648438,
+          "close": 213.8800048828125,
+          "adj_close": 213.8800048828125,
+          "volume": "40219700",
+          "date": "2025-07-25T00:00:00.000Z"
+        },
+        "timestamp": "2025-09-23T18:35:52.671Z"
+      },
+      "error": null
+    },
+    {
+      "name": "Technical Data (AAPL)",
+      "path": "/api/technical/AAPL",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "data": {
+          "symbol": "AAPL",
+          "timeframe": "daily",
+          "indicators": [],
+          "total": 0
+        },
+        "timestamp": "2025-09-23T18:35:52.791Z"
+      },
+      "error": null
+    },
+    {
+      "name": "Financials (AAPL)",
+      "path": "/api/financials/AAPL",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "data": {
+          "symbol": "AAPL",
+          "financials": [
+            {
+              "symbol": "AAPL",
+              "date": "2024-09-30T00:00:00.000Z",
+              "item_name": "Tax Effect Of Unusual Items",
+              "value": 0
+            },
+            {
+              "symbol": "AAPL",
+              "date": "2024-09-30T00:00:00.000Z",
+              "item_name": "Tax Rate For Calcs",
+              "value": 0.241
+            },
+            {
+              "symbol": "AAPL",
+              "date": "2024-09-30T00:00:00.000Z",
+              "item_name": "Normalized EBITDA",
+              "value": 134661000000
+            },
+            {
+              "symbol": "AAPL",
+              "date": "2024-09-30T00:00:00.000Z",
+              "item_name": "Net Income From Continuing Operation Net Minority Interest",
+              "value": 93736000000
+            },
+            {
+              "symbol": "AAPL",
+              "date": "2024-09-30T00:00:00.000Z",
+              "item_name": "Reconciled Depreciation",
+              "value": 11445000000
+            }
+          ],
+          "count": 5
+        },
+        "timestamp": "2025-09-23T18:35:55.451Z"
+      },
+      "error": null
+    },
+    {
+      "name": "News API",
+      "path": "/api/news",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "data": []
+      },
+      "error": null
+    },
+    {
+      "name": "Sectors API",
+      "path": "/api/sectors",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "message": "Sectors API - Ready",
+        "status": "operational",
+        "data": [],
+        "timestamp": "2025-09-23T18:35:55.904Z"
+      },
+      "error": null
+    },
+    {
+      "name": "Portfolio API",
+      "path": "/api/portfolio",
+      "status": 401,
+      "success": false,
+      "data": {
+        "success": false,
+        "error": "Authorization header required",
+        "message": "Access token must be provided in Authorization header",
+        "timestamp": "2025-09-23T18:35:56.162Z"
+      },
+      "error": "Authorization header required"
+    },
+    {
+      "name": "Analytics Performance",
+      "path": "/api/analytics/performance",
+      "status": 401,
+      "success": false,
+      "data": {
+        "success": false,
+        "error": "Authorization header required",
+        "message": "Access token must be provided in Authorization header",
+        "timestamp": "2025-09-23T18:35:56.238Z"
+      },
+      "error": "Authorization header required"
+    },
+    {
+      "name": "Risk Analysis",
+      "path": "/api/risk/portfolio",
+      "status": 401,
+      "success": false,
+      "data": {
+        "success": false,
+        "error": "Authorization header required",
+        "message": "Access token must be provided in Authorization header",
+        "timestamp": "2025-09-23T18:35:56.403Z"
+      },
+      "error": "Authorization header required"
+    },
+    {
+      "name": "Stock Screener",
+      "path": "/api/screener",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "data": {
+          "system": "Stock Screener API",
+          "version": "1.0.0",
+          "status": "operational",
+          "available_endpoints": [
+            "GET /screener/screen - Main stock screening with filters",
+            "GET /screener/ai-scan - AI-powered market scanner",
+            "GET /screener/ai-strategies - Available AI scanning strategies",
+            "GET /screener/templates - Pre-built screening templates",
+            "GET /screener/factors - Available screening factors"
+          ],
+          "timestamp": "2025-09-23T18:35:56.545Z"
+        }
+      },
+      "error": null
+    },
+    {
+      "name": "Recommendations",
+      "path": "/api/recommendations",
+      "status": 401,
+      "success": false,
+      "data": {
+        "success": false,
+        "error": "Authorization header required",
+        "message": "Access token must be provided in Authorization header",
+        "timestamp": "2025-09-23T18:35:56.666Z"
+      },
+      "error": "Authorization header required"
+    },
+    {
+      "name": "Calendar Events",
+      "path": "/api/calendar",
+      "status": 200,
+      "success": true,
+      "data": {
+        "success": true,
+        "message": "Economic Calendar API - Ready",
+        "timestamp": "2025-09-23T18:35:56.793Z",
+        "status": "operational"
+      },
+      "error": null
+    }
+  ]
+}
