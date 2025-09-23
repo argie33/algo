@@ -58,6 +58,40 @@ describe("Stocks Routes Unit Tests", () => {
         expect(stock).toHaveProperty("marketCap"); // from market_data.market_cap
         expect(stock).toHaveProperty("price"); // object containing current_price from market_data
         expect(stock).toHaveProperty("volume"); // from market_data table
+
+        // Verify key metrics from key_metrics table
+        expect(stock).toHaveProperty("displayData");
+        if (stock.displayData && stock.displayData.keyMetrics) {
+          const keyMetrics = stock.displayData.keyMetrics;
+          // Core financial highlights that should be in keyMetrics
+          expect(keyMetrics).toHaveProperty("marketCap");
+          expect(keyMetrics).toHaveProperty("pe"); // trailing_pe
+          expect(keyMetrics).toHaveProperty("revenue"); // total_revenue
+          expect(keyMetrics).toHaveProperty("profitMargin"); // profit_margin_pct
+          expect(keyMetrics).toHaveProperty("dividendYield"); // dividend_yield
+          expect(keyMetrics).toHaveProperty("analystRating"); // recommendation_key
+          expect(keyMetrics).toHaveProperty("targetPrice"); // target_mean_price
+
+          // Additional key metrics that should be included
+          expect(keyMetrics).toHaveProperty("priceToBook"); // price_to_book
+          expect(keyMetrics).toHaveProperty("priceToSales"); // price_to_sales_ttm
+          expect(keyMetrics).toHaveProperty("pegRatio"); // peg_ratio
+          expect(keyMetrics).toHaveProperty("eps"); // eps_trailing
+          expect(keyMetrics).toHaveProperty("enterpriseValue"); // enterprise_value
+          expect(keyMetrics).toHaveProperty("ebitda"); // ebitda
+          expect(keyMetrics).toHaveProperty("totalCash"); // total_cash
+          expect(keyMetrics).toHaveProperty("totalDebt"); // total_debt
+          expect(keyMetrics).toHaveProperty("debtToEquity"); // debt_to_equity
+          expect(keyMetrics).toHaveProperty("returnOnEquity"); // return_on_equity_pct
+          expect(keyMetrics).toHaveProperty("returnOnAssets"); // return_on_assets_pct
+          expect(keyMetrics).toHaveProperty("operatingMargin"); // operating_margin_pct
+          expect(keyMetrics).toHaveProperty("grossMargin"); // gross_margin_pct
+          expect(keyMetrics).toHaveProperty("currentRatio"); // current_ratio
+          expect(keyMetrics).toHaveProperty("quickRatio"); // quick_ratio
+          expect(keyMetrics).toHaveProperty("earningsGrowth"); // earnings_growth_pct
+          expect(keyMetrics).toHaveProperty("revenueGrowth"); // revenue_growth_pct
+        }
+
         if (stock.price) {
           expect(stock.price).toHaveProperty("current"); // current_price from market_data
         }

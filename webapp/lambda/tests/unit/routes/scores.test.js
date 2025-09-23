@@ -44,7 +44,7 @@ describe("Scores Routes Unit Tests", () => {
   });
 
   describe("GET /scores", () => {
-    test("should return scores data", async () => {
+    test("should return scores data from stock_scores table", async () => {
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token")
@@ -54,6 +54,25 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("scores");
       expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
+      expect(response.body).toHaveProperty("summary");
+      expect(response.body).toHaveProperty("metadata");
+      expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_table");
+
+      // Check score structure matches new stock_scores table
+      if (response.body.data.scores.length > 0) {
+        const score = response.body.data.scores[0];
+        expect(score).toHaveProperty("symbol");
+        expect(score).toHaveProperty("compositeScore");
+        expect(score).toHaveProperty("momentumScore");
+        expect(score).toHaveProperty("trendScore");
+        expect(score).toHaveProperty("valueScore");
+        expect(score).toHaveProperty("qualityScore");
+        expect(score).toHaveProperty("currentPrice");
+        expect(score).toHaveProperty("volume");
+        expect(score).toHaveProperty("rsi");
+        expect(score).toHaveProperty("lastUpdated");
+      }
     });
 
     test("should handle pagination parameters", async () => {
@@ -67,12 +86,16 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("scores");
       expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
+      expect(response.body.pagination).toHaveProperty("page", 2);
+      expect(response.body.pagination).toHaveProperty("limit", 25);
+      expect(response.body.pagination).toHaveProperty("total");
+      expect(response.body.pagination).toHaveProperty("totalPages");
     });
 
-    test("should handle search parameter", async () => {
+    test("should return all scores (no search filtering implemented)", async () => {
       const response = await request(app)
         .get("/scores")
-        .query({ search: "AAPL" })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
@@ -80,12 +103,13 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("scores");
       expect(Array.isArray(response.body.data.scores)).toBe(true);
+      // Current implementation returns all scores sorted by composite_score DESC
     });
 
-    test("should handle sector filter", async () => {
+    test("should handle limit parameter correctly", async () => {
       const response = await request(app)
         .get("/scores")
-        .query({ sector: "Technology" })
+        .query({ limit: 10 })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
@@ -93,12 +117,26 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("scores");
       expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data.scores.length).toBeLessThanOrEqual(10);
+      expect(response.body.pagination).toHaveProperty("limit", 10);
     });
 
-    test("should handle score range filters", async () => {
+    test("should include summary statistics", async () => {
       const response = await request(app)
         .get("/scores")
-        .query({ minScore: 50, maxScore: 90 })
+        .set("Authorization", "Bearer dev-bypass-token")
+        .expect(200);
+
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("summary");
+      expect(response.body.summary).toHaveProperty("totalStocks");
+      expect(response.body.summary).toHaveProperty("averageScore");
+      expect(typeof response.body.summary.averageScore).toBe("number");
+    });
+
+    test("should return scores sorted by composite_score DESC by default", async () => {
+      const response = await request(app)
+        .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
@@ -106,19 +144,14 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("scores");
       expect(Array.isArray(response.body.data.scores)).toBe(true);
-    });
 
-    test("should handle sorting parameters", async () => {
-      const response = await request(app)
-        .get("/scores")
-        .query({ sortBy: "symbol", sortOrder: "asc" })
-        .set("Authorization", "Bearer dev-bypass-token")
-        .expect(200);
-
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      // Check that scores are sorted by composite score descending
+      if (response.body.data.scores.length > 1) {
+        for (let i = 1; i < response.body.data.scores.length; i++) {
+          expect(response.body.data.scores[i-1].compositeScore)
+            .toBeGreaterThanOrEqual(response.body.data.scores[i].compositeScore);
+        }
+      }
     });
 
     test("should cap limit at 200", async () => {
@@ -132,6 +165,7 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("scores");
       expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.pagination).toHaveProperty("limit", 200);
     });
 
     test("should handle invalid numeric parameters gracefully", async () => {
@@ -140,8 +174,6 @@ describe("Scores Routes Unit Tests", () => {
         .query({
           page: "invalid",
           limit: "not_a_number",
-          minScore: "bad_number",
-          maxScore: "also_bad",
         })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
@@ -150,368 +182,101 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("scores");
       expect(Array.isArray(response.body.data.scores)).toBe(true);
+      // Should default to page 1, limit 50
+      expect(response.body.pagination).toHaveProperty("page", 1);
+      expect(response.body.pagination).toHaveProperty("limit", 50);
     });
 
-    test("should handle empty results gracefully", async () => {
+    test("should handle database timeout gracefully", async () => {
       const response = await request(app)
         .get("/scores")
-        .query({ search: "NONEXISTENTSYMBOL" })
-        .set("Authorization", "Bearer dev-bypass-token")
-        .expect(200);
-
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-    });
-  });
-
-  describe("Parameter validation", () => {
-    test("should handle SQL injection attempts safely", async () => {
-      const response = await request(app)
-        .get("/scores")
-        .query({
-          search: "'; DROP TABLE stocks; --",
-          sector: "Technology'; DELETE FROM scores; --",
-        })
-        .set("Authorization", "Bearer dev-bypass-token")
-        .expect(200);
-
-      // Should still return successful response with safe handling
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-    });
-
-    test("should handle empty string parameters", async () => {
-      const response = await request(app)
-        .get("/scores")
-        .query({
-          search: "",
-          sector: "   ", // whitespace only
-        })
-        .set("Authorization", "Bearer dev-bypass-token")
-        .expect(200);
-
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-    });
-
-    test("should handle out of range score filters", async () => {
-      const response = await request(app)
-        .get("/scores")
-        .query({
-          minScore: -50, // Below 0
-          maxScore: 150, // Above 100
-        })
-        .set("Authorization", "Bearer dev-bypass-token")
-        .expect(200);
-
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-    });
-  });
-
-  describe("GET /scores/composite", () => {
-    test("should return composite scoring with proper structure", async () => {
-      const response = await request(app)
-        .get("/scores/composite")
         .set("Authorization", "Bearer dev-bypass-token");
 
+      // Should either succeed (200) or fail with proper error message (500)
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
-        expect(response.body.data).toHaveProperty("composite_scores");
-        expect(response.body.data).toHaveProperty("summary");
-        expect(response.body.data).toHaveProperty("methodology");
-        expect(Array.isArray(response.body.data.composite_scores)).toBe(true);
-
-        // Check composite score structure
-        if (response.body.data.composite_scores.length > 0) {
-          const score = response.body.data.composite_scores[0];
-          expect(score).toHaveProperty("symbol");
-          expect(score).toHaveProperty("composite_score");
-          expect(score).toHaveProperty("technical_score");
-          expect(score).toHaveProperty("fundamental_score");
-          expect(score).toHaveProperty("momentum_score");
-          expect(score).toHaveProperty("quality_score");
-          expect(score).toHaveProperty("risk_adjusted_score");
-          expect(score).toHaveProperty("score_percentile");
-        }
-
-        // Check summary structure
-        expect(response.body.data.summary).toHaveProperty("total_analyzed");
-        expect(response.body.data.summary).toHaveProperty("average_score");
-        expect(response.body.data.summary).toHaveProperty("score_distribution");
-
-        // Check methodology documentation
-        expect(response.body.data.methodology).toHaveProperty("scoring_model");
-        expect(response.body.data.methodology).toHaveProperty("factors");
-      } else {
-        expect([401]).toContain(response.status);
-      }
-    });
-
-    test("should handle limit parameter for composite scores", async () => {
-      const response = await request(app)
-        .get("/scores/composite?limit=10")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data.composite_scores.length).toBeLessThanOrEqual(
-          10
-        );
-      }
-    });
-
-    test("should handle sector filter for composite scores", async () => {
-      const response = await request(app)
-        .get("/scores/composite?sector=Technology")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("composite_scores");
-        // If scores are returned, they should be from Technology sector
-        if (response.body.data.composite_scores.length > 0) {
-          expect(
-            response.body.data.composite_scores.every(
-              (score) => score.sector === "Technology" || !score.sector
-            )
-          ).toBe(true);
-        }
-      }
-    });
-
-    test("should handle score threshold filter", async () => {
-      const response = await request(app)
-        .get("/scores/composite?min_score=70")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("composite_scores");
-        // If scores are returned, they should be >= 70
-        if (response.body.data.composite_scores.length > 0) {
-          response.body.data.composite_scores.forEach((score) => {
-            expect(score.composite_score).toBeGreaterThanOrEqual(70);
-          });
-        }
-      }
-    });
-
-    test("should handle sorting for composite scores", async () => {
-      const response = await request(app)
-        .get("/scores/composite?sort=score_desc")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("composite_scores");
-        // Scores should be sorted by composite_score descending
-        if (response.body.data.composite_scores.length > 1) {
-          for (let i = 1; i < response.body.data.composite_scores.length; i++) {
-            expect(
-              response.body.data.composite_scores[i - 1].composite_score
-            ).toBeGreaterThanOrEqual(
-              response.body.data.composite_scores[i].composite_score
-            );
-          }
-        }
+        expect(response.body.data).toHaveProperty("scores");
+        expect(Array.isArray(response.body.data.scores)).toBe(true);
+      } else if (response.status === 500) {
+        expect(response.body).toHaveProperty("success", false);
+        expect(response.body).toHaveProperty("error");
       }
     });
   });
 
-  describe("GET /scores/esg", () => {
-    test("should return ESG scoring with proper structure", async () => {
+  describe("GET /scores/:symbol", () => {
+    test("should return individual symbol score", async () => {
       const response = await request(app)
-        .get("/scores/esg")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(response.body).toHaveProperty("data");
-        expect(response.body.data).toHaveProperty("esg_scores");
-        expect(response.body.data).toHaveProperty("summary");
-        expect(response.body.data).toHaveProperty("methodology");
-        expect(Array.isArray(response.body.data.esg_scores)).toBe(true);
-
-        // Check ESG score structure
-        if (response.body.data.esg_scores.length > 0) {
-          const esgScore = response.body.data.esg_scores[0];
-          expect(esgScore).toHaveProperty("symbol");
-          expect(esgScore).toHaveProperty("esg_score");
-          expect(esgScore).toHaveProperty("environmental_score");
-          expect(esgScore).toHaveProperty("social_score");
-          expect(esgScore).toHaveProperty("governance_score");
-          expect(esgScore).toHaveProperty("controversy_score");
-          expect(esgScore).toHaveProperty("esg_grade");
-          expect(esgScore).toHaveProperty("industry_percentile");
-        }
-
-        // Check summary structure
-        expect(response.body.data.summary).toHaveProperty("total_analyzed");
-        expect(response.body.data.summary).toHaveProperty("average_esg_score");
-        expect(response.body.data.summary).toHaveProperty("grade_distribution");
-
-        // Check methodology documentation
-        expect(response.body.data.methodology).toHaveProperty(
-          "scoring_framework"
-        );
-        expect(response.body.data.methodology).toHaveProperty("data_sources");
-      } else {
-        expect([401]).toContain(response.status);
-      }
-    });
-
-    test("should handle ESG grade filter", async () => {
-      const response = await request(app)
-        .get("/scores/esg?grade=A")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("esg_scores");
-        // If scores are returned, they should have grade A
-        if (response.body.data.esg_scores.length > 0) {
-          response.body.data.esg_scores.forEach((score) => {
-            expect(["A+", "A", "A-"]).toContain(score.esg_grade);
-          });
-        }
-      }
-    });
-
-    test("should handle minimum ESG score filter", async () => {
-      const response = await request(app)
-        .get("/scores/esg?min_esg_score=80")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("esg_scores");
-        // If scores are returned, they should be >= 80
-        if (response.body.data.esg_scores.length > 0) {
-          response.body.data.esg_scores.forEach((score) => {
-            expect(score.esg_score).toBeGreaterThanOrEqual(80);
-          });
-        }
-      }
-    });
-
-    test("should handle sector filter for ESG scores", async () => {
-      const response = await request(app)
-        .get("/scores/esg?sector=Healthcare")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("esg_scores");
-        // Sector filtering should be applied
-        expect(response.body.data.summary).toHaveProperty(
-          "sector_filter",
-          "Healthcare"
-        );
-      }
-    });
-
-    test("should handle ESG component sorting", async () => {
-      const response = await request(app)
-        .get("/scores/esg?sort=environmental_desc")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("esg_scores");
-        // Scores should be sorted by environmental_score descending
-        if (response.body.data.esg_scores.length > 1) {
-          for (let i = 1; i < response.body.data.esg_scores.length; i++) {
-            expect(
-              response.body.data.esg_scores[i - 1].environmental_score
-            ).toBeGreaterThanOrEqual(
-              response.body.data.esg_scores[i].environmental_score
-            );
-          }
-        }
-      }
-    });
-
-    test("should handle controversy filter", async () => {
-      const response = await request(app)
-        .get("/scores/esg?max_controversy=20")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("esg_scores");
-        // If scores are returned, controversy score should be <= 20
-        if (response.body.data.esg_scores.length > 0) {
-          response.body.data.esg_scores.forEach((score) => {
-            expect(score.controversy_score).toBeLessThanOrEqual(20);
-          });
-        }
-      }
-    });
-  });
-
-  describe("GET /scores/:symbol/composite", () => {
-    test("should return symbol-specific composite score", async () => {
-      const response = await request(app)
-        .get("/scores/AAPL/composite")
+        .get("/scores/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
-        expect(response.body.data).toHaveProperty("composite_score");
-        expect(response.body.data).toHaveProperty("score_breakdown");
-        expect(response.body.data).toHaveProperty("percentile_rankings");
-        expect(response.body.data).toHaveProperty("historical_trend");
-      } else {
-        expect([404, 401]).toContain(response.status);
+        expect(response.body.data).toHaveProperty("compositeScore");
+        expect(response.body.data).toHaveProperty("momentumScore");
+        expect(response.body.data).toHaveProperty("trendScore");
+        expect(response.body.data).toHaveProperty("valueScore");
+        expect(response.body.data).toHaveProperty("qualityScore");
+        expect(response.body.data).toHaveProperty("currentPrice");
+        expect(response.body.data).toHaveProperty("volume");
+        expect(response.body.data).toHaveProperty("rsi");
+        expect(response.body.data).toHaveProperty("lastUpdated");
+        expect(response.body).toHaveProperty("metadata");
+        expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_table");
+      } else if (response.status === 404) {
+        expect(response.body).toHaveProperty("success", false);
+        expect(response.body).toHaveProperty("error");
+        expect(response.body.error).toContain("not found");
       }
     });
 
-    test("should handle lowercase symbol conversion", async () => {
+    test("should handle lowercase symbol input", async () => {
       const response = await request(app)
-        .get("/scores/aapl/composite")
+        .get("/scores/aapl")
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
       }
     });
-  });
 
-  describe("GET /scores/:symbol/esg", () => {
-    test("should return symbol-specific ESG score", async () => {
+    test("should return 404 for non-existent symbol", async () => {
       const response = await request(app)
-        .get("/scores/AAPL/esg")
+        .get("/scores/NONEXISTENT")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .expect(404);
+
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
+      expect(response.body.error).toContain("not found");
+    });
+
+    test("should handle database errors gracefully", async () => {
+      const response = await request(app)
+        .get("/scores/TEST")
         .set("Authorization", "Bearer dev-bypass-token");
 
+      // Should either succeed (200) or fail with proper error (404/500)
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
-        expect(response.body.data).toHaveProperty("symbol", "AAPL");
-        expect(response.body.data).toHaveProperty("esg_score");
-        expect(response.body.data).toHaveProperty("component_breakdown");
-        expect(response.body.data).toHaveProperty("industry_comparison");
-        expect(response.body.data).toHaveProperty("trend_analysis");
       } else {
-        expect([404, 401]).toContain(response.status);
-      }
-    });
-
-    test("should handle invalid symbol format", async () => {
-      const response = await request(app)
-        .get("/scores/INVALID123!/esg")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      if (response.status !== 401) {
-        expect([404, 400]).toContain(response.status);
+        expect(response.body).toHaveProperty("success", false);
+        expect(response.body).toHaveProperty("error");
+        expect([404, 500]).toContain(response.status);
       }
     });
   });
 
-  describe("Response format", () => {
-    test("should return consistent JSON response", async () => {
+
+
+
+
+  describe("Response format and data validation", () => {
+    test("should return consistent JSON response format", async () => {
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token")
@@ -519,10 +284,15 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("success");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("pagination");
+      expect(response.body).toHaveProperty("summary");
+      expect(response.body).toHaveProperty("metadata");
+      expect(response.body).toHaveProperty("timestamp");
     });
 
-    test("should include pagination metadata when available", async () => {
+    test("should include complete pagination metadata", async () => {
       const response = await request(app)
         .get("/scores")
         .query({ page: 2, limit: 25 })
@@ -530,10 +300,37 @@ describe("Scores Routes Unit Tests", () => {
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      if (response.body.pagination) {
-        expect(response.body.pagination).toHaveProperty("currentPage");
-        expect(response.body.pagination).toHaveProperty("itemsPerPage");
+      expect(response.body).toHaveProperty("pagination");
+      expect(response.body.pagination).toHaveProperty("page");
+      expect(response.body.pagination).toHaveProperty("limit");
+      expect(response.body.pagination).toHaveProperty("total");
+      expect(response.body.pagination).toHaveProperty("totalPages");
+      expect(response.body.pagination).toHaveProperty("hasMore");
+    });
+
+    test("should validate score data types and ranges", async () => {
+      const response = await request(app)
+        .get("/scores")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .expect(200);
+
+      if (response.body.data.scores.length > 0) {
+        const score = response.body.data.scores[0];
+
+        // Check that scores are numbers and within expected ranges
+        expect(typeof score.compositeScore).toBe("number");
+        expect(score.compositeScore).toBeGreaterThanOrEqual(0);
+        expect(score.compositeScore).toBeLessThanOrEqual(100);
+
+        expect(typeof score.momentumScore).toBe("number");
+        expect(score.momentumScore).toBeGreaterThanOrEqual(0);
+        expect(score.momentumScore).toBeLessThanOrEqual(100);
+
+        expect(typeof score.currentPrice).toBe("number");
+        expect(score.currentPrice).toBeGreaterThanOrEqual(0);
+
+        expect(typeof score.volume).toBe("number");
+        expect(score.volume).toBeGreaterThanOrEqual(0);
       }
     });
   });

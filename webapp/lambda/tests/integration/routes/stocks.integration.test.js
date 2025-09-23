@@ -16,6 +16,69 @@ describe("Stocks Routes Integration Tests", () => {
     await closeDatabase();
   });
 
+  describe("GET /api/stocks/", () => {
+    test("should return stocks data with comprehensive key metrics", async () => {
+      const response = await request(app)
+        .get("/api/stocks/?page=1&limit=5")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
+
+      // Verify comprehensive key metrics are included
+      if (response.body.data.length > 0) {
+        const stock = response.body.data[0];
+        expect(stock).toHaveProperty("displayData");
+
+        if (stock.displayData && stock.displayData.keyMetrics) {
+          const keyMetrics = stock.displayData.keyMetrics;
+          // Verify all required key metrics fields are present
+          expect(keyMetrics).toHaveProperty("marketCap");
+          expect(keyMetrics).toHaveProperty("pe");
+          expect(keyMetrics).toHaveProperty("revenue");
+          expect(keyMetrics).toHaveProperty("profitMargin");
+          expect(keyMetrics).toHaveProperty("dividendYield");
+          expect(keyMetrics).toHaveProperty("priceToBook");
+          expect(keyMetrics).toHaveProperty("priceToSales");
+          expect(keyMetrics).toHaveProperty("pegRatio");
+          expect(keyMetrics).toHaveProperty("eps");
+          expect(keyMetrics).toHaveProperty("enterpriseValue");
+          expect(keyMetrics).toHaveProperty("ebitda");
+          expect(keyMetrics).toHaveProperty("totalCash");
+          expect(keyMetrics).toHaveProperty("totalDebt");
+          expect(keyMetrics).toHaveProperty("debtToEquity");
+          expect(keyMetrics).toHaveProperty("returnOnEquity");
+          expect(keyMetrics).toHaveProperty("returnOnAssets");
+          expect(keyMetrics).toHaveProperty("operatingMargin");
+          expect(keyMetrics).toHaveProperty("grossMargin");
+          expect(keyMetrics).toHaveProperty("currentRatio");
+          expect(keyMetrics).toHaveProperty("quickRatio");
+          expect(keyMetrics).toHaveProperty("earningsGrowth");
+          expect(keyMetrics).toHaveProperty("revenueGrowth");
+        }
+      }
+    });
+
+    test("should handle pagination properly", async () => {
+      const response = await request(app)
+        .get("/api/stocks/?page=1&limit=2")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("pagination");
+
+      if (response.body.data.length > 0) {
+        expect(response.body.pagination).toHaveProperty("page", 1);
+        expect(response.body.pagination).toHaveProperty("limit", 2);
+        expect(response.body.pagination).toHaveProperty("total");
+        expect(response.body.pagination).toHaveProperty("totalPages");
+      }
+    });
+  });
+
   describe("GET /api/stocks/sectors", () => {
     test("should return sectors data", async () => {
       const response = await request(app).get("/api/stocks/sectors");

@@ -453,73 +453,101 @@ router.get("/", async (req, res) => {
       offset,
     });
 
-    // SIMPLE QUERY: Use price_daily table (which exists in AWS)
+    // COMPREHENSIVE QUERY: Join price_daily with key_metrics table for complete data
     const stocksQuery = `
-      SELECT DISTINCT ON (symbol)
-        symbol,
-        symbol as company_name,
-        close as current_price,
-        open,
-        high,
-        low,
-        volume,
-        date
-      FROM price_daily
-      ${whereClause}
-      ORDER BY symbol, date DESC
+      SELECT DISTINCT ON (pd.symbol)
+        pd.symbol,
+        pd.symbol as company_name,
+        pd.close as current_price,
+        pd.open,
+        pd.high,
+        pd.low,
+        pd.volume,
+        pd.date,
+
+        -- Key metrics from key_metrics table
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_sales_ttm,
+        km.price_to_book,
+        km.peg_ratio,
+        km.book_value,
+        km.enterprise_value,
+        km.ev_to_revenue,
+        km.ev_to_ebitda,
+        km.total_revenue,
+        km.net_income,
+        km.ebitda,
+        km.gross_profit,
+        km.eps_trailing,
+        km.eps_forward,
+        km.eps_current_year,
+        km.price_eps_current_year,
+        km.earnings_q_growth_pct,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        km.total_debt,
+        km.debt_to_equity,
+        km.quick_ratio,
+        km.current_ratio,
+        km.profit_margin_pct,
+        km.gross_margin_pct,
+        km.ebitda_margin_pct,
+        km.operating_margin_pct,
+        km.return_on_assets_pct,
+        km.return_on_equity_pct,
+        km.dividend_rate,
+        km.dividend_yield,
+        km.five_year_avg_dividend_yield,
+        km.payout_ratio,
+        km.target_mean_price,
+        km.recommendation_key,
+        km.market_cap
+
+      FROM price_daily pd
+      LEFT JOIN key_metrics km ON pd.symbol = km.symbol
+      ${whereClause.replace(/symbol/g, 'pd.symbol')}
+      ORDER BY pd.symbol, pd.date DESC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
     params.push(limit, offset);
 
-    // Count query - use price_daily table
+    // Count query - use optimized subquery for better performance in AWS
     const countQuery = `
-      SELECT COUNT(DISTINCT symbol) as total
-      FROM price_daily
-      ${whereClause.replace(/fm\./g, '')}
+      SELECT COUNT(*) as total
+      FROM (
+        SELECT DISTINCT pd.symbol
+        FROM price_daily pd
+        ${whereClause.replace(/symbol/g, 'pd.symbol')}
+        LIMIT 1000
+      ) as distinct_symbols
     `;
 
     console.log("Executing FAST queries with schema validation...");
 
-    // Execute queries with timeout protection
+    // Execute queries with timeout protection (AWS Lambda optimized)
     console.log(
       "Executing comprehensive stocks query with timeout protection..."
     );
-    const queryTimeout = 10000; // 10 second timeout
+    const queryTimeout = 3000; // 3 second timeout for AWS Lambda
 
-    const [stocksResult, countResult] = await Promise.all([
-      Promise.race([
-        query(stocksQuery, params),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Stocks query timeout")),
-            queryTimeout
-          )
-        ),
-      ]),
-      Promise.race([
-        query(countQuery, params.slice(0, -2)),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Count query timeout")),
-            queryTimeout
-          )
-        ),
-      ]),
+    // Execute only the stocks query to avoid count timeout issues in AWS
+    const stocksResult = await Promise.race([
+      query(stocksQuery, params),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Stocks query timeout")),
+          queryTimeout
+        )
+      ),
     ]);
 
     // Check for valid results
-    if (!countResult || !countResult.rows || countResult.rows.length === 0) {
-      return res.status(200).json({
-        success: true,
-        data: [],
-        count: 0,
-        total: 0,
-        totalPages: 0,
-        message: "No stock count data available",
-      });
-    }
-
     if (!stocksResult || !stocksResult.rows) {
       return res.status(200).json({
         success: true,
@@ -531,11 +559,13 @@ router.get("/", async (req, res) => {
       });
     }
 
-    const total = parseInt(countResult.rows[0]?.total || 0);
-    const totalPages = Math.ceil(total / limit);
+    // Use estimated total based on returned data (simplified pagination)
+    const returnedCount = stocksResult.rows.length;
+    const estimatedTotal = returnedCount === limit ? (page * limit) + 1 : (page - 1) * limit + returnedCount;
+    const totalPages = Math.ceil(estimatedTotal / limit);
 
     console.log(
-      `FAST query results: ${stocksResult.rows.length} stocks, ${total} total`
+      `FAST query results: ${stocksResult.rows.length} stocks, ${estimatedTotal} estimated total`
     );
 
     // Comprehensive data formatting - safely handle all available fields
@@ -723,8 +753,9 @@ router.get("/", async (req, res) => {
         sector: stock.sector_disp || stock.sector || "Unknown",
         industry: stock.industry_disp || stock.industry || "Unknown",
 
-        // Key financial highlights for quick view
+        // Comprehensive key financial metrics from key_metrics table
         keyMetrics: {
+          // Core valuation metrics
           pe: stock.trailing_pe,
           marketCap: stock.market_cap,
           revenue: stock.total_revenue,
@@ -732,6 +763,59 @@ router.get("/", async (req, res) => {
           dividendYield: stock.dividend_yield,
           analystRating: stock.recommendation_key,
           targetPrice: stock.target_mean_price,
+
+          // Additional comprehensive metrics
+          priceToBook: stock.price_to_book,
+          priceToSales: stock.price_to_sales_ttm,
+          pegRatio: stock.peg_ratio,
+          eps: stock.eps_trailing,
+          epsForward: stock.eps_forward,
+          epsCurrent: stock.eps_current_year,
+
+          // Enterprise metrics
+          enterpriseValue: stock.enterprise_value,
+          evToRevenue: stock.ev_to_revenue,
+          evToEbitda: stock.ev_to_ebitda,
+
+          // Financial performance
+          ebitda: stock.ebitda,
+          netIncome: stock.net_income,
+          grossProfit: stock.gross_profit,
+
+          // Cash and debt metrics
+          totalCash: stock.total_cash,
+          cashPerShare: stock.cash_per_share,
+          operatingCashflow: stock.operating_cashflow,
+          freeCashflow: stock.free_cashflow,
+          totalDebt: stock.total_debt,
+          debtToEquity: stock.debt_to_equity,
+
+          // Liquidity ratios
+          currentRatio: stock.current_ratio,
+          quickRatio: stock.quick_ratio,
+
+          // Profitability margins
+          grossMargin: stock.gross_margin_pct,
+          operatingMargin: stock.operating_margin_pct,
+          ebitdaMargin: stock.ebitda_margin_pct,
+
+          // Return metrics
+          returnOnEquity: stock.return_on_equity_pct,
+          returnOnAssets: stock.return_on_assets_pct,
+
+          // Growth metrics
+          earningsGrowth: stock.earnings_growth_pct,
+          revenueGrowth: stock.revenue_growth_pct,
+          earningsGrowthQuarterly: stock.earnings_q_growth_pct,
+
+          // Dividend metrics
+          dividendRate: stock.dividend_rate,
+          fiveYearAvgDividendYield: stock.five_year_avg_dividend_yield,
+          payoutRatio: stock.payout_ratio,
+
+          // Additional financial metrics
+          bookValue: stock.book_value,
+          priceEpsCurrent: stock.price_eps_current_year,
         },
 
         // Risk summary
@@ -755,7 +839,7 @@ router.get("/", async (req, res) => {
       pagination: {
         page,
         limit,
-        total,
+        total: estimatedTotal,
         totalPages,
         hasNext: page < totalPages,
         hasPrev: page > 1,

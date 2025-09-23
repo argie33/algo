@@ -1,96 +1,21 @@
 [
   {
-    "name": "Test A 1758652447439",
+    "name": "Test A 1758663617463",
     "value": 123,
-    "id": "1758652447439"
+    "id": "1758663617463"
   },
   {
-    "name": "Test B 1758652447439",
+    "name": "Test B 1758663617463",
     "value": "string",
-    "id": "1758652447441"
+    "id": "1758663617465"
   },
   {
-    "name": "Test C 1758652447439",
+    "name": "Test C 1758663617463",
     "value": [
       1,
       2,
       3
     ],
-    "id": "1758652447443"
-  },
-  {
-    "name": "AI Strategy - Test Strategy",
-    "description": "AI generated trading strategy",
-    "code": "function onTick(data) { return 'HOLD'; }",
-    "config": {
-      "initialCapital": 100000,
-      "commission": 0.001,
-      "slippage": 0.0005,
-      "startDate": "2023-01-01",
-      "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
-      "strategy": {
-        "name": "Test Strategy",
-        "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
-      },
-      "strategyType": "ai_generated"
-    },
-    "type": "ai_strategy",
-    "created": "2025-09-23T18:34:17.525Z",
-    "status": "completed",
-    "id": "1758652457525"
-  },
-  {
-    "name": "AI Strategy - Test Strategy",
-    "description": "AI generated trading strategy",
-    "code": "function onTick() { return 'HOLD'; }",
-    "config": {
-      "initialCapital": 50000,
-      "commission": 0.002,
-      "slippage": 0.001,
-      "startDate": "2023-01-01",
-      "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
-      "strategy": {
-        "name": "Test Strategy",
-        "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
-      },
-      "strategyType": "ai_generated"
-    },
-    "type": "ai_strategy",
-    "created": "2025-09-23T18:34:17.541Z",
-    "status": "completed",
-    "id": "1758652457541"
-  },
-  "test-backtest-1758652472010",
-  "test-backtest-1758652472012",
-  "test-backtest-1758652472014",
-  "test-backtest-1758652472025",
-  {
-    "name": "Test Strategy",
-    "code": "buy('AAPL', 100, data['AAPL'].close);",
-    "language": "javascript",
-    "id": "1758652472059"
-  },
-  "test-backtest-1758652490256",
-  "test-backtest-1758652490260",
-  "test-backtest-1758652490262",
-  "test-backtest-1758652490272",
-  {
-    "name": "Test Strategy",
-    "code": "buy('AAPL', 100, data['AAPL'].close);",
-    "language": "javascript",
-    "id": "1758652490310"
+    "id": "1758663617467"
   }
 ]
