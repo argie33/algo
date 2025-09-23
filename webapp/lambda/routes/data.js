@@ -411,7 +411,6 @@ router.get("/historical/:symbol", async (req, res) => {
  */
 router.get("/realtime/:symbol", async (req, res) => {
   const { symbol } = req.params;
-  const { mock_live = "false" } = req.query;
   const symbolUpper = symbol.toUpperCase();
 
   try {
@@ -445,93 +444,27 @@ router.get("/realtime/:symbol", async (req, res) => {
 
     const baseData = result.rows[0];
 
-    // Generate simulated real-time data based on historical prices
-    if (mock_live === "true") {
-      const now = new Date();
-      const marketOpen = new Date(now);
-      marketOpen.setUTCHours(14, 30, 0, 0); // 9:30 AM EST
-      const marketClose = new Date(now);
-      marketClose.setUTCHours(21, 0, 0, 0); // 4:00 PM EST
+    // Return latest historical data with proper formatting
+    const data = {
+      ...baseData,
+      current_price:
+        parseFloat(baseData.close) || parseFloat(baseData.adj_close),
+      real_time: false,
+      data_source: "historical",
+      last_updated: new Date().toISOString(),
+    };
 
-      const isMarketHours = now >= marketOpen && now <= marketClose;
-      const lastPrice =
-        parseFloat(baseData.close) || parseFloat(baseData.adj_close) || 100;
-
-      // Generate realistic price movements (±0.5% typical intraday movement)
-      const volatility = 0.005;
-      const randomChange = (Math.random() - 0.5) * 2 * volatility;
-      const currentPrice = lastPrice * (1 + randomChange);
-
-      // Calculate day's change
-      const dayChange = currentPrice - lastPrice;
-      const dayChangePercent = ((currentPrice - lastPrice) / lastPrice) * 100;
-
-      // Generate bid/ask spread (typically 0.01-0.05% for liquid stocks)
-      const spread = currentPrice * 0.0001;
-      const bid = currentPrice - spread / 2;
-      const ask = currentPrice + spread / 2;
-
-      // Simulate volume (random between 80-120% of daily average)
-      const baseVolume = parseInt(baseData.volume) || 1000000;
-      const currentVolume = Math.floor(
-        baseVolume * (0.1 + Math.random() * 0.3)
-      ); // Partial day volume
-
-      const realtimeData = {
-        symbol: symbolUpper,
-        current_price: parseFloat(currentPrice.toFixed(2)),
-        bid: parseFloat(bid.toFixed(2)),
-        ask: parseFloat(ask.toFixed(2)),
-        day_change: parseFloat(dayChange.toFixed(2)),
-        day_change_percent: parseFloat(dayChangePercent.toFixed(2)),
-        volume: currentVolume,
-        last_trade_time: now.toISOString(),
-        market_status: isMarketHours ? "open" : "closed",
-        previous_close: lastPrice,
-        day_high: Math.max(lastPrice, currentPrice * 1.002),
-        day_low: Math.min(lastPrice, currentPrice * 0.998),
-        real_time: true,
-        data_source: "simulated_live",
-        last_updated: now.toISOString(),
-      };
-
-      try {
-        console.log(
-          `✅ [DATA] Generated simulated real-time data for ${symbolUpper}`
-        );
-      } catch (e) {
-        // Ignore console logging errors
-      }
-      res.json({
-        symbol: symbolUpper,
-        data: realtimeData,
-        market_status: isMarketHours ? "open" : "closed",
-        disclaimer:
-          "Simulated real-time data for development - not actual market data",
-      });
-    } else {
-      // Return latest historical data with proper formatting
-      const data = {
-        ...baseData,
-        current_price:
-          parseFloat(baseData.close) || parseFloat(baseData.adj_close),
-        real_time: false,
-        data_source: "historical",
-        last_updated: new Date().toISOString(),
-      };
-
-      try {
-        console.log(`✅ [DATA] Retrieved historical data for ${symbolUpper}`);
-      } catch (e) {
-        // Ignore console logging errors
-      }
-      res.json({
-        symbol: symbolUpper,
-        data: data,
-        disclaimer:
-          "Real-time data feed not implemented - showing latest historical data",
-      });
+    try {
+      console.log(`✅ [DATA] Retrieved historical data for ${symbolUpper}`);
+    } catch (e) {
+      // Ignore console logging errors
     }
+    res.json({
+      symbol: symbolUpper,
+      data: data,
+      disclaimer:
+        "Real-time data feed not implemented - showing latest historical data",
+    });
   } catch (error) {
     try {
       console.error(

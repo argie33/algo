@@ -1672,7 +1672,7 @@ router.get("/holdings", async (req, res) => {
         0 as day_change, 0 as day_change_percent,
         'Unknown' as sector, 
         'Unknown' as asset_class,
-        ph.broker, ph.last_updated
+        'Unknown' as broker, ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol 
         AND md.date = (SELECT MAX(date) FROM price_daily WHERE price_daily.symbol = ph.symbol)
@@ -2798,10 +2798,10 @@ router.get("/metrics", async (req, res) => {
     // Get portfolio holdings
     const holdingsQuery = `
       SELECT symbol, quantity, market_value, average_cost, current_price,
-             cost_basis, (market_value - cost_basis) as unrealized_pnl,
+             (average_cost * quantity) as cost_basis, (market_value - (average_cost * quantity)) as unrealized_pnl,
              CASE
-               WHEN cost_basis = 0 OR cost_basis IS NULL THEN 0
-               ELSE ((market_value - cost_basis) / cost_basis * 100)
+               WHEN (average_cost * quantity) = 0 OR (average_cost * quantity) IS NULL THEN 0
+               ELSE ((market_value - (average_cost * quantity)) / (average_cost * quantity) * 100)
              END as unrealized_pnl_percent
       FROM portfolio_holdings
       WHERE user_id = $1 AND quantity > 0
@@ -2954,7 +2954,7 @@ router.get("/holdings/detailed", async (req, res) => {
     // Build the ORDER BY clause
     let orderClause = "ORDER BY ";
     if (sort_by === "unrealized_pnl") {
-      orderClause += "(market_value - cost_basis)";
+      orderClause += "(market_value - (average_cost * quantity))";
     } else if (sort_by === "symbol") {
       orderClause += "symbol";
     } else {
@@ -2963,15 +2963,15 @@ router.get("/holdings/detailed", async (req, res) => {
     orderClause += order === "asc" ? " ASC" : " DESC";
 
     const holdingsQuery = `
-      SELECT 
-        symbol, 
-        quantity, 
-        market_value, 
-        average_cost, 
+      SELECT
+        symbol,
+        quantity,
+        market_value,
+        average_cost,
         current_price,
-        cost_basis,
-        (market_value - cost_basis) as unrealized_pnl,
-        ((market_value - cost_basis) / NULLIF(cost_basis, 0) * 100) as unrealized_pnl_percent,
+        (average_cost * quantity) as cost_basis,
+        (market_value - (average_cost * quantity)) as unrealized_pnl,
+        ((market_value - (average_cost * quantity)) / NULLIF((average_cost * quantity), 0) * 100) as unrealized_pnl_percent,
         (market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1 AND quantity > 0), 0) * 100) as portfolio_percentage,
         'Equity' as asset_type,
         'Technology' as sector
@@ -3080,9 +3080,9 @@ router.post("/holdings/add", async (req, res) => {
 
     // Insert new holding
     const insertQuery = `
-      INSERT INTO portfolio_holdings 
-      (user_id, symbol, quantity, average_cost, current_price, market_value, cost_basis, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      INSERT INTO portfolio_holdings
+      (user_id, symbol, quantity, average_cost, current_price, market_value, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
       RETURNING *
     `;
 
@@ -3093,7 +3093,6 @@ router.post("/holdings/add", async (req, res) => {
       cost,
       currentPrice,
       marketValue,
-      costBasis,
     ]);
 
     res.status(201).json({

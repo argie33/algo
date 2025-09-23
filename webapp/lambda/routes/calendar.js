@@ -365,7 +365,7 @@ router.get("/test", async (req, res) => {
 });
 
 // Get calendar events (earnings, dividends, splits, etc.)
-// Note: Using earnings_history table since calendar_events doesn't exist
+// Generate realistic calendar events from earnings_history and dividend data
 router.get("/events", async (req, res) => {
   try {
     console.log("Calendar events endpoint called with params:", req.query);
@@ -375,26 +375,71 @@ router.get("/events", async (req, res) => {
     const offset = (page - 1) * limit;
     const timeFilter = req.query.type || "upcoming";
 
-    // Return empty data for calendar events since tables are not configured
-    console.log("Calendar events: returning empty data - tables not configured in database");
+    // Generate calendar events from available data sources
+    const events = [];
+
+    try {
+      // Get upcoming earnings events from earnings_history table
+      const earningsQuery = `
+        SELECT
+          symbol,
+          quarter as event_date,
+          'earnings' as event_type,
+          CONCAT(symbol, ' Q', EXTRACT(QUARTER FROM quarter), ' ', EXTRACT(YEAR FROM quarter), ' Earnings Report') as title,
+          quarter as start_date,
+          quarter as end_date
+        FROM earnings_history
+        WHERE quarter >= CURRENT_DATE
+        AND quarter <= CURRENT_DATE + INTERVAL '30 days'
+        ORDER BY quarter ASC
+        LIMIT $1 OFFSET $2
+      `;
+
+      const earningsResult = await query(earningsQuery, [limit, offset]);
+
+      if (earningsResult && earningsResult.rows) {
+        events.push(...earningsResult.rows.map(row => ({
+          symbol: row.symbol,
+          event_type: row.event_type,
+          title: row.title,
+          start_date: row.start_date,
+          end_date: row.end_date,
+          description: `${row.symbol} earnings report`,
+        })));
+      }
+    } catch (dbError) {
+      console.error("Database query failed for calendar events:", dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch calendar events",
+        message: "Database calendar data is not available",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const total = events.length;
+    const totalPages = Math.ceil(total / limit);
 
     return res.json({
       success: true,
-      data: [],
+      data: events,
       pagination: {
         page,
         limit,
-        total: 0,
-        totalPages: 0,
-        hasNext: false,
-        hasPrev: false,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
       summary: {
-        upcoming_events: 0,
-        this_week: 0,
+        upcoming_events: events.length,
+        this_week: events.filter(e => {
+          const eventDate = new Date(e.start_date);
+          const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+          return eventDate <= weekFromNow;
+        }).length,
         filter: timeFilter,
       },
-      message: "Calendar events data not available - tables not configured in database",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

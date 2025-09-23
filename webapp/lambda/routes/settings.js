@@ -1444,23 +1444,12 @@ router.put("/", async (req, res) => {
   } catch (error) {
     console.error("Error updating settings:", error);
 
-    // Handle database table/column missing error gracefully
+    // Handle database table/column missing error
     if (error.message.includes("does not exist")) {
-      return res.json({
-        success: true,
-        data: {
-          userId,
-          theme: settings.theme || preferences.theme || "light",
-          dashboardLayout:
-            settings.dashboardLayout || preferences.dashboardLayout || {},
-          widgets: settings.widgets || preferences.widgets || [],
-          notifications:
-            settings.notifications || preferences.notifications || {},
-          tradingPreferences:
-            settings.tradingPreferences || preferences.tradingPreferences || {},
-          note: "Using mock data - database table not available",
-        },
-        message: "Settings updated successfully (mock mode)",
+      return res.status(500).json({
+        success: false,
+        error: "Settings database table not configured",
+        message: "User settings functionality requires database schema updates",
         timestamp: new Date().toISOString(),
       });
     }

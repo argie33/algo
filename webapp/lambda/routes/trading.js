@@ -3183,8 +3183,8 @@ router.get("/market/status", async (req, res) => {
       marketOpen: isOpen,
       market_session: isOpen ? "regular" : "closed",
       current_time: currentTime.toISOString(),
-      nextOpen: "2025-09-20T09:30:00-04:00", // Mock next open time
-      nextClose: "2025-09-20T16:00:00-04:00", // Mock next close time
+      nextOpen: null, // Real market schedules would require external API
+      nextClose: null, // Real market schedules would require external API
       timezone: "America/New_York",
     };
 
