@@ -616,7 +616,7 @@ router.get("/quotes", async (req, res) => {
           lp.date as last_updated
         FROM (
           SELECT DISTINCT ON (symbol)
-            symbol, close as current_price, volume, change_amount, change_percent, date
+            symbol, close as current_price, volume, change_percent, date
           FROM price_daily
           ORDER BY symbol, date DESC
         ) lp

@@ -2295,7 +2295,6 @@ router.get("/compare", async (req, res) => {
         WHERE symbol IN (${placeholders})
         ORDER BY symbol, date DESC
       ) p
-      LEFT JOIN company_profile cp ON p.symbol = cp.ticker
     `;
 
     const result = await query(fundamentalQuery, symbolList);
@@ -4009,7 +4008,6 @@ router.get("/compare", async (req, res) => {
         WHERE symbol IN (${placeholders})
         ORDER BY symbol, date DESC
       ) p
-      LEFT JOIN company_profile cp ON p.symbol = cp.ticker
     `;
 
     const result = await query(fundamentalQuery, symbolList);

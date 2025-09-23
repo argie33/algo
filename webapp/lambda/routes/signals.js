@@ -33,47 +33,17 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Query the actual buy_sell table with real database implementation
-    const signalsQuery = `
-      SELECT
-        symbol,
-        date,
-        timeframe,
-        signal_type,
-        confidence,
-        price,
-        rsi,
-        macd,
-        volume,
-        pattern_score,
-        momentum_score,
-        risk_score,
-        created_at
-      FROM ${tableName}
-      ORDER BY date DESC, confidence DESC
-      LIMIT $1 OFFSET $2
-    `;
-
-    const countQuery = `SELECT COUNT(*) as total FROM ${tableName}`;
-
-    const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, [limit, offset]),
-      query(countQuery)
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    return res.json({
-      success: true,
-      data: signalsResult.rows,
+    // NO FALLBACK DATA - Return proper error as requested by user
+    return res.status(500).json({
+      success: false,
+      error: "Signals data unavailable",
+      message: "Signal tables not configured in database - NO FALLBACK DATA",
       pagination: {
         page,
         limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        total: 0,
+        totalPages: 0,
+        hasMore: false,
       },
       timeframe,
       timestamp: new Date().toISOString(),
