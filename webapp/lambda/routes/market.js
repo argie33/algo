@@ -609,7 +609,7 @@ router.get("/overview", async (req, res) => {
             ELSE 0
           END as changePercent
         FROM market_data md
-        LEFT JOIN fundamental_metrics cp ON md.ticker = cp.symbol
+        LEFT JOIN company_profile cp ON md.ticker = cp.ticker
         WHERE md.ticker IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
         ORDER BY md.ticker
       `);
@@ -5667,7 +5667,7 @@ router.get("/live", async (req, res) => {
         md.volume,
         COALESCE(cp.short_name, md.ticker) as name
       FROM market_data md
-      LEFT JOIN fundamental_metrics cp ON md.ticker = cp.symbol
+      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
       WHERE md.ticker = ANY($1)
     `, [symbolList]);
 

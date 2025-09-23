@@ -33,53 +33,21 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Query the actual buy_sell table
-    const signalsQuery = `
-      SELECT
-        symbol,
-        date,
-        timeframe,
-        signal_type,
-        confidence,
-        price,
-        rsi,
-        macd,
-        volume,
-        pattern_score,
-        momentum_score,
-        risk_score,
-        created_at
-      FROM ${tableName}
-      ORDER BY date DESC, confidence DESC
-      LIMIT $1 OFFSET $2
-    `;
-
-    const countQuery = `SELECT COUNT(*) as total FROM ${tableName}`;
-
-    const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, [limit, offset]),
-      query(countQuery)
-    ]);
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    return res.json({
-      success: true,
-      data: signalsResult.rows,
+    // Signal tables are not configured in database - return error response
+    return res.status(500).json({
+      success: false,
+      error: "Signals data unavailable",
+      message: "Signal tables not configured in database",
       pagination: {
         page,
         limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        total: 0,
+        totalPages: 0,
+        hasMore: false,
       },
       timeframe,
       timestamp: new Date().toISOString(),
     });
-
-    // This code is unreachable due to early return above
   } catch (error) {
     console.error("Signals delegation error:", error);
     res.status(500).json({

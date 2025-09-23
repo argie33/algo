@@ -35,41 +35,31 @@ router.get("/", (req, res) => {
 // API performance metrics endpoint
 router.get("/api", async (req, res) => {
   try {
+    const metrics = performanceMonitor.getMetrics();
+
     const apiMetrics = {
       response_times: {
-        average: Math.floor(Math.random() * 100) + 50,
-        median: Math.floor(Math.random() * 80) + 40,
-        p95: Math.floor(Math.random() * 200) + 100,
-        p99: Math.floor(Math.random() * 500) + 200,
+        average: metrics.api.avgResponseTime || 0,
+        median: metrics.api.medianResponseTime || 0,
+        p95: metrics.api.p95ResponseTime || 0,
+        p99: metrics.api.p99ResponseTime || 0,
       },
       throughput: {
-        requests_per_second: Math.floor(Math.random() * 100) + 50,
-        requests_per_minute: Math.floor(Math.random() * 5000) + 2000,
-        peak_rps: Math.floor(Math.random() * 200) + 150,
+        requests_per_second: metrics.api.requestsPerSecond || 0,
+        requests_per_minute: metrics.api.requestsPerMinute || 0,
+        peak_rps: metrics.api.peakRequestsPerSecond || 0,
       },
       error_rates: {
-        total_error_rate: (Math.random() * 2).toFixed(2) + "%",
-        client_errors_4xx: (Math.random() * 1).toFixed(2) + "%",
-        server_errors_5xx: (Math.random() * 0.5).toFixed(2) + "%",
+        total_error_rate: (metrics.system.errorRate * 100).toFixed(2) + "%",
+        client_errors_4xx: (metrics.api.clientErrorRate * 100).toFixed(2) + "%",
+        server_errors_5xx: (metrics.api.serverErrorRate * 100).toFixed(2) + "%",
       },
-      endpoint_performance: [
-        {
-          endpoint: "/api/stocks/*",
-          avg_response_time: Math.floor(Math.random() * 50) + 30,
-        },
-        {
-          endpoint: "/api/market/*",
-          avg_response_time: Math.floor(Math.random() * 40) + 25,
-        },
-        {
-          endpoint: "/api/portfolio/*",
-          avg_response_time: Math.floor(Math.random() * 80) + 60,
-        },
-        {
-          endpoint: "/api/technical/*",
-          avg_response_time: Math.floor(Math.random() * 60) + 40,
-        },
-      ],
+      endpoint_performance: Object.entries(metrics.api.requests).map(([endpoint, stats]) => ({
+        endpoint,
+        avg_response_time: stats.avgResponseTime,
+        request_count: stats.count,
+        error_count: stats.errors,
+      })),
       uptime: Math.floor(process.uptime()),
     };
 

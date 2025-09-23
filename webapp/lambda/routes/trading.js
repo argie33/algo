@@ -151,7 +151,7 @@ router.get("/debug", async (req, res) => {
       "buy_sell_daily",
       "buy_sell_weekly",
       "buy_sell_monthly",
-      "market_data",
+      "price_daily",
       "fundamental_metrics",
       "swing_trading_signals",
     ];
@@ -3055,22 +3055,14 @@ router.get("/quotes/:symbol", async (req, res) => {
       [symbol.toUpperCase()]
     );
 
-    // If no data in price_daily, try market_data table
-    if (!result || !result.rows || result.rows.length === 0) {
-      result = await query(
-        `SELECT ticker as symbol, current_price, open_price, day_high, day_low, volume
-         FROM market_data
-         WHERE ticker = $1`,
-        [symbol.toUpperCase()]
-      );
-    }
+    // No fallback needed - price_daily is the only source
 
     // If no real data found, return 404
     if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: `No quote data found for symbol ${symbol}`,
-        message: "No data available in price_daily or market_data tables",
+        message: "No data available in price_daily table",
         symbol: symbol.toUpperCase(),
       });
     }
@@ -3086,7 +3078,7 @@ router.get("/quotes/:symbol", async (req, res) => {
       volume: parseInt(row.volume) || 0,
       date: row.date || new Date().toISOString().split('T')[0],
       timestamp: new Date().toISOString(),
-      source: row.date ? "price_daily_table" : "market_data_table"
+      source: "price_daily_table"
     };
 
     res.json({

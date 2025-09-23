@@ -107,7 +107,7 @@ describe("Scores Routes Integration", () => {
       expect(response.body.data).toHaveProperty("scores");
       expect(Array.isArray(response.body.data.scores)).toBe(true);
       if (response.body.data.scores.length > 0) {
-        expect(response.body.data.scores[0]).toHaveProperty("composite_score");
+        expect(response.body.data.scores[0]).toHaveProperty("compositeScore");
       }
     });
 

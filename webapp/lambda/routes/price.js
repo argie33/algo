@@ -77,51 +77,12 @@ router.get("/:symbol", async (req, res) => {
         });
       }
 
-      // Try market_data table for current price data
-      const marketResult = await query(
-        `SELECT
-          ticker as symbol, current_price, open_price as open,
-          day_high as high, day_low as low, previous_close as close,
-          regular_market_price as adj_close, volume
-         FROM market_data
-         WHERE ticker = $1`,
-        [symbolUpper]
-      );
+      // No fallback needed - price_daily is the only source
 
-      if (marketResult && marketResult.rows && marketResult.rows.length > 0) {
-        const marketData = marketResult.rows[0];
-        const today = new Date().toISOString().split("T")[0];
-
-        console.log(
-          `📊 Returning real market data for ${symbolUpper} from market_data table`
-        );
-
-        return res.json({
-          success: true,
-          data: {
-            symbol: symbolUpper,
-            date: today,
-            price: marketData.current_price,
-            open: marketData.open,
-            high: marketData.high,
-            low: marketData.low,
-            close: marketData.close,
-            adj_close: marketData.adj_close,
-            volume: marketData.volume,
-          },
-          meta: {
-            symbol: symbolUpper,
-            source: "market_data_table",
-            disclaimer: "Real market data from loader script",
-            last_updated: new Date().toISOString(),
-          },
-          timestamp: new Date().toISOString(),
-        });
-      }
 
       // If no data found in either table, return 404
       console.log(
-        `❌ No data found for ${symbolUpper} in price_daily or market_data tables`
+        `❌ No data found for ${symbolUpper} in price_daily table`
       );
       return res.status(404).json({
         success: false,

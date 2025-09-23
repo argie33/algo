@@ -238,10 +238,10 @@ router.post("/preview", authenticateToken, async (req, res) => {
 
     // Get current market data for symbol
     const marketDataQuery = `
-      SELECT close, volume, bid_price, ask_price, last_updated
-      FROM market_data_realtime
+      SELECT close, volume, close as bid_price, close as ask_price, date as last_updated
+      FROM price_daily
       WHERE symbol = $1
-      ORDER BY last_updated DESC
+      ORDER BY date DESC
       LIMIT 1
     `;
 
@@ -366,7 +366,7 @@ router.post("/preview", authenticateToken, async (req, res) => {
       service: "order-preview",
       requirements: [
         "Database connectivity must be available",
-        "market_data_realtime table must exist with current prices",
+        "price_daily table must exist with current prices",
         "account table must exist with user buying power data",
         "Real-time market data service must be operational",
       ],

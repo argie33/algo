@@ -732,7 +732,7 @@ router.get("/analysis", async (req, res) => {
         period: period,
         holdings_count: holdings.length,
         analysis_date: new Date().toISOString(),
-        data_sources: ["portfolio_holdings", "fundamental_metrics", "market_data"],
+        data_sources: ["portfolio_holdings", "fundamental_metrics", "price_daily"],
       },
       timestamp: new Date().toISOString(),
     });
@@ -1448,7 +1448,7 @@ router.get("/benchmark", async (req, res) => {
       "2y": "730 days",
     };
 
-    // Get benchmark data from market_data table
+    // Get benchmark data from price_daily table
     const benchmarkQuery = `
       SELECT 
         date,

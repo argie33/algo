@@ -31,84 +31,19 @@ router.get("/upgrades", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 25));
     const offset = Math.max(0, (page - 1) * limit);
-    const upgradesQuery = `
-      SELECT 
-        asa.symbol,
-        cp.short_name as company_name,
-        asa.upgrades_last_30d,
-        asa.downgrades_last_30d,
-        asa.date,
-        CASE 
-          WHEN asa.upgrades_last_30d > asa.downgrades_last_30d THEN 'Upgrade'
-          WHEN asa.downgrades_last_30d > asa.upgrades_last_30d THEN 'Downgrade' 
-          ELSE 'Neutral'
-        END as action,
-        'Analyst Consensus' as firm,
-        CONCAT('Recent activity: ', asa.upgrades_last_30d, ' upgrades, ', asa.downgrades_last_30d, ' downgrades') as details
-      FROM analyst_sentiment_analysis asa
-      LEFT JOIN fundamental_metrics fm ON asa.symbol = fm.symbol
-      WHERE (asa.upgrades_last_30d > 0 OR asa.downgrades_last_30d > 0)
-      ORDER BY asa.date DESC, (asa.upgrades_last_30d + asa.downgrades_last_30d) DESC
-      LIMIT $1 OFFSET $2
-    `;
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM analyst_sentiment_analysis
-      WHERE (upgrades_last_30d > 0 OR downgrades_last_30d > 0)
-    `;
-
-    const [upgradesResult, countResult] = await Promise.all([
-      query(upgradesQuery, [limit, offset]),
-      query(countQuery),
-    ]);
-
-    // Add null checking for database availability - return graceful degradation instead of throwing
-    if (
-      !upgradesResult ||
-      !upgradesResult.rows ||
-      !countResult ||
-      !countResult.rows
-    ) {
-      console.warn(
-        "Analyst upgrades query returned null result, database may be unavailable"
-      );
-      return res.status(503).json({
-        success: false,
-        error: "Database temporarily unavailable",
-        message:
-          "Analyst upgrades temporarily unavailable - database connection issue",
-        data: [],
-        pagination: {
-          page,
-          limit,
-          total: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false,
-        },
-      });
-    }
-
-    // Map company_name to company for frontend compatibility
-    const mappedRows = upgradesResult.rows.map((row) => ({
-      ...row,
-      company: row.company_name,
-    }));
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    res.json({
-      data: mappedRows,
+    return res.status(500).json({
+      success: false,
+      error: "Analyst upgrades data unavailable",
+      message: "Analyst tables not configured in database",
       pagination: {
         page,
         limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false,
       },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching analyst upgrades:", error);
@@ -123,25 +58,12 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
 
-    const estimatesQuery = `
-      SELECT 
-        CONCAT('Q', er.quarter, ' ', er.year) as period,
-        er.eps_estimate as estimate,
-        er.eps_reported as actual,
-        (er.eps_reported - er.eps_estimate) as difference,
-        er.surprise_percent,
-        er.report_date as reported_date
-      FROM earnings_reports er
-      WHERE UPPER(er.symbol) = UPPER($1)
-      ORDER BY er.report_date DESC
-      LIMIT 8
-    `;
-
-    const result = await query(estimatesQuery, [ticker.toUpperCase()]);
-
-    res.json({
+    return res.status(500).json({
+      success: false,
+      error: "Earnings estimates data unavailable",
+      message: "Earnings tables not configured in database",
       ticker: ticker.toUpperCase(),
-      estimates: result.rows,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching earnings estimates:", error);
