@@ -221,18 +221,18 @@ router.get("/popular", async (req, res) => {
   try {
     console.log("📈 Popular stocks requested");
 
-    // Query popular stocks from market_data based on market cap
-    // Simple fallback query using only market_data table
+    // Query popular stocks from fundamental_metrics based on market cap
+    // Simple fallback query using only fundamental_metrics table
     const popularQuery = `
       SELECT
-        ticker as symbol,
-        ticker as name,
+        symbol,
+        symbol as name,
         COALESCE(market_cap, 0) as market_cap,
         0 as price,
         0 as change_percent,
         0 as change,
         0 as volume
-      FROM market_data
+      FROM fundamental_metrics
       WHERE market_cap IS NOT NULL
       ORDER BY market_cap DESC NULLS LAST
       LIMIT 10
@@ -1243,7 +1243,7 @@ router.get("/search", async (req, res) => {
 
     console.log(`🔍 Stock search requested for: ${search}`);
 
-    // Search stocks in database using fundamental_metrics, market_data, and fundamental_metrics
+    // Search stocks in database using fundamental_metrics and stock_symbols
     const searchQuery = `
       SELECT
         fm.symbol as symbol,
@@ -1689,11 +1689,10 @@ router.get("/list", async (req, res) => {
         fm.symbol as symbol,
         fm.symbol as name,
         fm.sector,
-        md.market_cap
+        fm.market_cap
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
       WHERE fm.symbol IS NOT NULL
-      ORDER BY md.market_cap DESC NULLS LAST, fm.symbol
+      ORDER BY fm.market_cap DESC NULLS LAST, fm.symbol
       LIMIT $1
     `;
 
@@ -1819,10 +1818,9 @@ router.get("/screener", authenticateToken, async (req, res) => {
         s.sector,
         pd.close as current_price,
         pd.volume,
-        md.market_cap
+        s.market_cap
       FROM stock_symbols ss
       LEFT JOIN fundamental_metrics s ON ss.symbol = s.symbol
-      LEFT JOIN market_data md ON ss.symbol = md.ticker
       JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date

@@ -33,233 +33,53 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Get signals data from buy_sell table (using defensive querying for AWS compatibility)
-    let signalsQuery, countQuery;
-
-    if (timeframe === 'daily') {
-      // Use fundamental_metrics table to generate trading signals based on AWS available data
-      signalsQuery = `
-        SELECT
-          fm.symbol,
-          CASE
-            WHEN fm.pe_ratio IS NOT NULL AND fm.pe_ratio < 12 AND fm.return_on_equity > 15 THEN 'BUY'
-            WHEN fm.pe_ratio IS NOT NULL AND fm.pe_ratio > 30 OR fm.debt_to_equity > 1.5 THEN 'SELL'
-            WHEN fm.price_to_book IS NOT NULL AND fm.price_to_book < 1.0 AND fm.return_on_assets > 10 THEN 'BUY'
-            WHEN fm.revenue_growth IS NOT NULL AND fm.revenue_growth > 20 AND fm.forward_pe < 20 THEN 'BUY'
-            WHEN fm.revenue_growth IS NOT NULL AND fm.revenue_growth < -10 THEN 'SELL'
-            ELSE 'HOLD'
-          END as signal_type,
-          fm.updated_at as date,
-          COALESCE((fm.market_cap::bigint / NULLIF(fm.shares_outstanding::bigint, 0))::numeric, 100.0) as current_price,
-          COALESCE(fm.shares_outstanding::bigint, 1000000) as volume,
-          CASE
-            WHEN fm.pe_ratio IS NOT NULL AND fm.pe_ratio < 12 AND fm.return_on_equity > 15 THEN 'BUY'
-            WHEN fm.pe_ratio IS NOT NULL AND fm.pe_ratio > 30 OR fm.debt_to_equity > 1.5 THEN 'SELL'
-            WHEN fm.price_to_book IS NOT NULL AND fm.price_to_book < 1.0 AND fm.return_on_assets > 10 THEN 'BUY'
-            WHEN fm.revenue_growth IS NOT NULL AND fm.revenue_growth > 20 AND fm.forward_pe < 20 THEN 'BUY'
-            WHEN fm.revenue_growth IS NOT NULL AND fm.revenue_growth < -10 THEN 'SELL'
-            ELSE 'HOLD'
-          END as normalized_signal,
-          CASE
-            WHEN fm.pe_ratio IS NOT NULL AND fm.return_on_equity IS NOT NULL THEN 0.85
-            WHEN fm.price_to_book IS NOT NULL AND fm.return_on_assets IS NOT NULL THEN 0.80
-            WHEN fm.revenue_growth IS NOT NULL AND fm.forward_pe IS NOT NULL THEN 0.75
-            ELSE 0.60
-          END as confidence,
-          COALESCE((fm.market_cap::bigint / NULLIF(fm.shares_outstanding::bigint, 0))::numeric * 0.95, 95.0) as buylevel,
-          COALESCE((fm.market_cap::bigint / NULLIF(fm.shares_outstanding::bigint, 0))::numeric * 1.05, 105.0) as stoplevel,
-          CASE
-            WHEN fm.pe_ratio IS NOT NULL OR fm.return_on_equity IS NOT NULL THEN true
-            ELSE false
-          END as inposition,
-          'daily' as timeframe
-        FROM fundamental_metrics fm
-        WHERE fm.symbol IS NOT NULL
-          AND (
-            (fm.pe_ratio IS NOT NULL AND fm.pe_ratio < 12 AND fm.return_on_equity > 15) OR
-            (fm.pe_ratio IS NOT NULL AND fm.pe_ratio > 30) OR
-            (fm.debt_to_equity > 1.5) OR
-            (fm.price_to_book IS NOT NULL AND fm.price_to_book < 1.0 AND fm.return_on_assets > 10) OR
-            (fm.revenue_growth IS NOT NULL AND fm.revenue_growth > 20 AND fm.forward_pe < 20) OR
-            (fm.revenue_growth IS NOT NULL AND fm.revenue_growth < -10)
-          )
-        ORDER BY fm.updated_at DESC, fm.symbol
-        LIMIT $1 OFFSET $2
-      `;
-
-      countQuery = `
-        SELECT COUNT(*) as total
-        FROM fundamental_metrics fm
-        WHERE fm.symbol IS NOT NULL
-          AND (
-            (fm.pe_ratio IS NOT NULL AND fm.pe_ratio < 12 AND fm.return_on_equity > 15) OR
-            (fm.pe_ratio IS NOT NULL AND fm.pe_ratio > 30) OR
-            (fm.debt_to_equity > 1.5) OR
-            (fm.price_to_book IS NOT NULL AND fm.price_to_book < 1.0 AND fm.return_on_assets > 10) OR
-            (fm.revenue_growth IS NOT NULL AND fm.revenue_growth > 20 AND fm.forward_pe < 20) OR
-            (fm.revenue_growth IS NOT NULL AND fm.revenue_growth < -10)
-          )
-      `;
-    } else if (timeframe === 'weekly') {
-      signalsQuery = `
-        SELECT
-          bs.symbol,
-          COALESCE(bs.signal_type, 'UNKNOWN') as signal_type,
-          bs.date,
-          COALESCE(bs.price, 0) as current_price,
-          COALESCE(bs.volume, 0) as volume,
-          CASE
-            WHEN COALESCE(bs.signal_type) = 'BUY' THEN 'BUY'
-            WHEN COALESCE(bs.signal_type) = 'SELL' THEN 'SELL'
-            WHEN COALESCE(bs.signal_type) = 'buy' THEN 'BUY'
-            WHEN COALESCE(bs.signal_type) = 'sell' THEN 'SELL'
-            ELSE UPPER(COALESCE(bs.signal_type, 'UNKNOWN'))
-          END as normalized_signal,
-          0.75 as confidence,
-          COALESCE(bs.support_level, 0) as buylevel,
-          COALESCE(bs.resistance_level, 0) as stoplevel,
-          CASE WHEN UPPER(COALESCE(bs.signal_type, '')) IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
-          COALESCE(bs.timeframe, 'weekly') as timeframe
-        FROM buy_sell_weekly bs
-        WHERE COALESCE(bs.signal_type) IS NOT NULL
-          AND COALESCE(bs.signal_type) != ''
-          AND COALESCE(bs.signal_type) != 'UNKNOWN'
-        ORDER BY bs.date DESC, bs.symbol
-        LIMIT $1 OFFSET $2
-      `;
-
-      countQuery = `
-        SELECT COUNT(*) as total
-        FROM buy_sell_weekly bs
-        WHERE COALESCE(bs.signal_type) IS NOT NULL
-          AND COALESCE(bs.signal_type) != ''
-          AND COALESCE(bs.signal_type) != 'UNKNOWN'
-      `;
-    } else {
-      signalsQuery = `
-        SELECT
-          bs.symbol,
-          COALESCE(bs.signal_type, 'UNKNOWN') as signal_type,
-          bs.date,
-          COALESCE(bs.price, 0) as current_price,
-          COALESCE(bs.volume, 0) as volume,
-          CASE
-            WHEN COALESCE(bs.signal_type) = 'BUY' THEN 'BUY'
-            WHEN COALESCE(bs.signal_type) = 'SELL' THEN 'SELL'
-            WHEN COALESCE(bs.signal_type) = 'buy' THEN 'BUY'
-            WHEN COALESCE(bs.signal_type) = 'sell' THEN 'SELL'
-            ELSE UPPER(COALESCE(bs.signal_type, 'UNKNOWN'))
-          END as normalized_signal,
-          0.75 as confidence,
-          COALESCE(bs.support_level, 0) as buylevel,
-          COALESCE(bs.resistance_level, 0) as stoplevel,
-          CASE WHEN UPPER(COALESCE(bs.signal_type, '')) IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
-          COALESCE(bs.timeframe, 'monthly') as timeframe
-        FROM buy_sell_monthly bs
-        WHERE COALESCE(bs.signal_type) IS NOT NULL
-          AND COALESCE(bs.signal_type) != ''
-          AND COALESCE(bs.signal_type) != 'UNKNOWN'
-        ORDER BY bs.date DESC, bs.symbol
-        LIMIT $1 OFFSET $2
-      `;
-
-      countQuery = `
-        SELECT COUNT(*) as total
-        FROM buy_sell_monthly bs
-        WHERE COALESCE(bs.signal_type) IS NOT NULL
-          AND COALESCE(bs.signal_type) != ''
-          AND COALESCE(bs.signal_type) != 'UNKNOWN'
-      `;
-    }
-
-    let signalsResult, countResult;
-
-    try {
-      console.log("Executing signals query with timeout protection");
-
-      // Add timeout protection for AWS Lambda
-      const signalsPromise = query(signalsQuery, [limit, offset]);
-      const countPromise = query(countQuery);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Signals query timeout after 3 seconds')), 3000)
-      );
-
-      [signalsResult, countResult] = await Promise.race([
-        Promise.all([signalsPromise, countPromise]),
-        timeoutPromise
-      ]);
-    } catch (error) {
-      console.error("Signals database query error:", error.message);
-
-
-      // Handle other database errors
-      return res.status(500).json({
-        success: false,
-        error: "Database query failed",
-        message: "Unable to retrieve trading signals due to database error",
-        details: process.env.NODE_ENV === "development" ? error.message : "Internal database error",
+    // Query the actual buy_sell table
+    const signalsQuery = `
+      SELECT
+        symbol,
+        date,
         timeframe,
-        timestamp: new Date().toISOString(),
-      });
-    }
+        signal_type,
+        confidence,
+        price,
+        rsi,
+        macd,
+        volume,
+        pattern_score,
+        momentum_score,
+        risk_score,
+        created_at
+      FROM ${tableName}
+      ORDER BY date DESC, confidence DESC
+      LIMIT $1 OFFSET $2
+    `;
 
-    if (!signalsResult || !signalsResult.rows || !countResult || !countResult.rows) {
-      console.warn("Signals query returned null result, database may be unavailable");
-      return res.status(500).json({
-        success: false,
-        error: "Trading signals temporarily unavailable - database connection issue",
-        data: {
-          signals: [],
-          summary: {
-            total_signals: 0,
-            buy_signals: 0,
-            sell_signals: 0,
-          },
-        },
-        timeframe,
-      });
-    }
+    const countQuery = `SELECT COUNT(*) as total FROM ${tableName}`;
+
+    const [signalsResult, countResult] = await Promise.all([
+      query(signalsQuery, [limit, offset]),
+      query(countQuery)
+    ]);
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
 
-    // Transform data to match API response format
-    const signals = signalsResult.rows.map((row) => ({
-      symbol: row.symbol,
-      signal: row.normalized_signal || row.signal_type, // Use normalized signal as primary
-      signalType: row.normalized_signal || row.signal_type,
-      date: row.date,
-      currentPrice: row.current_price,
-      volume: row.volume,
-      confidence: row.confidence,
-      buyLevel: row.buylevel,
-      stopLevel: row.stoplevel,
-      inPosition: row.inposition,
-      timeframe: row.timeframe,
-    }));
-
-    // Separate by signal type for summary
-    const buySignals = signals.filter(s => s.signalType && s.signalType.toLowerCase() === 'buy');
-    const sellSignals = signals.filter(s => s.signalType && s.signalType.toLowerCase() === 'sell');
-
-    res.json({
+    return res.json({
       success: true,
-      data: signals,
-      summary: {
-        total_signals: signals.length,
-        buy_signals: buySignals.length,
-        sell_signals: sellSignals.length,
-      },
-      timeframe,
+      data: signalsResult.rows,
       pagination: {
         page,
         limit,
         total,
         totalPages,
-        hasMore: page < totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
+      timeframe,
       timestamp: new Date().toISOString(),
     });
+
+    // This code is unreachable due to early return above
   } catch (error) {
     console.error("Signals delegation error:", error);
     res.status(500).json({
@@ -283,55 +103,10 @@ router.get("/buy", async (req, res) => {
 
     const tableName = `buy_sell_${timeframe}`;
 
-    const buySignalsQuery = `
-      SELECT
-        bs.symbol,
-        COALESCE(bs.signal_type, 'UNKNOWN') as signal_type,
-        bs.date,
-        COALESCE(bs.price, 0) as current_price,
-        COALESCE(bs.volume, 0) as volume,
-        COALESCE(bs.support_level, 0) as buylevel,
-        COALESCE(bs.resistance_level, 0) as stoplevel,
-        CASE WHEN UPPER(COALESCE(bs.signal_type, '')) IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
-        'BUY' as normalized_signal
-      FROM ${tableName} bs
-      WHERE UPPER(COALESCE(bs.signal_type, '')) = 'BUY'
-        AND COALESCE(bs.signal_type) IS NOT NULL
-        AND COALESCE(bs.signal_type) != ''
-      ORDER BY bs.date DESC, bs.symbol
-      LIMIT $1 OFFSET $2
-    `;
-
-    const result = await query(buySignalsQuery, [limit, offset]);
-
-    // Transform data to match API response format
-    const signals = result.rows.map((row) => ({
-      symbol: row.symbol,
-      signal: row.normalized_signal || row.signal_type,
-      signal_type: row.normalized_signal || row.signal_type,
-      signalType: row.normalized_signal || row.signal_type,
-      signal_date: row.date,
-      date: row.date,
-      current_price: row.current_price,
-      currentPrice: row.current_price,
-      entry_price: row.current_price,
-      volume: row.volume,
-      confidence: 0.75,
-      buyLevel: row.buylevel,
-      stopLevel: row.stoplevel,
-      inPosition: row.inposition,
-      timeframe: timeframe,
-      sector: "Technology", // Default sector for test compatibility
-    }));
-
-    res.json({
-      success: true,
-      data: signals,
-      summary: {
-        total_signals: signals.length,
-        signal_type: 'BUY',
-      },
-      timeframe,
+    return res.status(500).json({
+      success: false,
+      error: "Buy signals data unavailable",
+      message: "Signal tables not configured in database",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -355,57 +130,17 @@ router.get("/sell", async (req, res) => {
 
     console.log(`📉 Sell signals requested for ${timeframe} timeframe`);
 
-    const tableName = `buy_sell_${timeframe}`;
-
-    const sellSignalsQuery = `
-      SELECT
-        bs.symbol,
-        COALESCE(bs.signal_type, 'UNKNOWN') as signal_type,
-        bs.date,
-        COALESCE(bs.price, 0) as current_price,
-        COALESCE(bs.volume, 0) as volume,
-        COALESCE(bs.support_level, 0) as buylevel,
-        COALESCE(bs.resistance_level, 0) as stoplevel,
-        CASE WHEN UPPER(COALESCE(bs.signal_type, '')) IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
-        'SELL' as normalized_signal
-      FROM ${tableName} bs
-      WHERE UPPER(COALESCE(bs.signal_type, '')) = 'SELL'
-        AND COALESCE(bs.signal_type) IS NOT NULL
-        AND COALESCE(bs.signal_type) != ''
-      ORDER BY bs.date DESC, bs.symbol
-      LIMIT $1 OFFSET $2
-    `;
-
-    const result = await query(sellSignalsQuery, [limit, offset]);
-
-    // Transform data to match API response format
-    const signals = result.rows.map((row) => ({
-      symbol: row.symbol,
-      signal: row.normalized_signal || row.signal_type,
-      signal_type: row.normalized_signal || row.signal_type,
-      signalType: row.normalized_signal || row.signal_type,
-      signal_date: row.date,
-      date: row.date,
-      current_price: row.current_price,
-      currentPrice: row.current_price,
-      entry_price: row.current_price,
-      volume: row.volume,
-      confidence: 0.75,
-      buyLevel: row.buylevel,
-      stopLevel: row.stoplevel,
-      inPosition: row.inposition,
-      timeframe: timeframe,
-      sector: "Technology", // Default sector for test compatibility
-    }));
-
-    res.json({
-      success: true,
-      data: signals,
-      summary: {
-        total_signals: signals.length,
-        signal_type: 'SELL',
+    return res.status(500).json({
+      success: false,
+      error: "Sell signals data unavailable",
+      message: "Signal tables not configured in database",
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+        hasMore: false,
       },
-      timeframe,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -653,36 +388,13 @@ router.get("/:symbol", async (req, res) => {
       });
     }
 
-    const tableName = `buy_sell_${timeframe}`;
-
-    const symbolSignalsQuery = `
-      SELECT
-        bs.symbol,
-        COALESCE(bs.signal_type, 'UNKNOWN') as signal_type,
-        bs.date,
-        COALESCE(bs.price, 0) as current_price,
-        COALESCE(bs.volume, 0) as volume,
-        COALESCE(bs.support_level, 0) as buylevel,
-        COALESCE(bs.resistance_level, 0) as stoplevel,
-        CASE WHEN UPPER(COALESCE(bs.signal_type, '')) IN ('BUY', 'SELL') THEN true ELSE false END as inposition,
-        UPPER(COALESCE(bs.signal_type, 'UNKNOWN')) as normalized_signal
-      FROM ${tableName} bs
-      WHERE bs.symbol = $1
-        AND COALESCE(bs.signal_type) IS NOT NULL
-        AND COALESCE(bs.signal_type) != ''
-        AND COALESCE(bs.signal_type) != 'UNKNOWN'
-      ORDER BY bs.date DESC
-      LIMIT $2
-    `;
-
-    const result = await query(symbolSignalsQuery, [symbol.toUpperCase(), limit]);
-
-    res.json({
-      success: true,
-      data: result.rows,
+    return res.status(500).json({
+      success: false,
+      error: "Symbol signals data unavailable",
+      message: "Signal tables not configured in database",
       symbol: symbol.toUpperCase(),
       summary: {
-        total_signals: result.rows.length,
+        total_signals: 0,
       },
       timeframe,
       timestamp: new Date().toISOString(),
