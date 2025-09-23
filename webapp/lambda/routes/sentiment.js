@@ -735,7 +735,6 @@ router.get("/social/twitter", async (req, res) => {
       },
       metadata: {
         note: "Twitter sentiment data not fully implemented",
-        data_source: "Generated sample data for demo purposes",
         implementation_status: "requires Twitter API v2 integration",
       },
       timestamp: new Date().toISOString(),

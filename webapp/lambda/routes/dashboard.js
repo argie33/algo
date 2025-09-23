@@ -1042,22 +1042,8 @@ router.get("/debug", async (req, res) => {
       debugData.data_counts = `error: ${error.message}`;
     }
 
-    // Add sample data for test compatibility
-    debugData.sample_data = {
-      latest_prices: await query(`
-        SELECT symbol, close, date
-        FROM price_daily
-        ORDER BY date DESC
-        LIMIT 3
-      `).then(result => result.rows).catch(() => []),
-      sample_alerts: await query(`
-        SELECT symbol, message, alert_type
-        FROM trading_alerts
-        ORDER BY created_at DESC
-        LIMIT 2
-      `).then(result => result.rows).catch(() => []),
-      database_connectivity: "operational"
-    };
+    // Database connectivity check
+    debugData.database_connectivity = "operational";
 
     console.log("🔧 Debug data collected:", debugData);
 

@@ -592,56 +592,38 @@ router.get("/screener", async (req, res) => {
 
     console.log(`ETF screener with filters:`, req.query);
 
-    // Generate sample ETF screening data
-    const etfs = [
-      { symbol: "SPY", name: "SPDR S&P 500 ETF", dividend_yield: 1.7, expense_ratio: 0.09, assets: "400B", category: "Large Cap" },
-      { symbol: "QQQ", name: "Invesco QQQ Trust", dividend_yield: 0.7, expense_ratio: 0.20, assets: "190B", category: "Technology" },
-      { symbol: "VTI", name: "Vanguard Total Stock Market ETF", dividend_yield: 1.6, expense_ratio: 0.03, assets: "320B", category: "Total Market" },
-      { symbol: "SCHD", name: "Schwab US Dividend Equity ETF", dividend_yield: 3.5, expense_ratio: 0.06, assets: "50B", category: "Dividend" },
-      { symbol: "VYM", name: "Vanguard High Dividend Yield ETF", dividend_yield: 2.9, expense_ratio: 0.06, assets: "48B", category: "Dividend" },
-      { symbol: "NOBL", name: "ProShares S&P 500 Dividend Aristocrats ETF", dividend_yield: 2.0, expense_ratio: 0.35, assets: "8B", category: "Dividend" },
-      { symbol: "DVY", name: "iShares Select Dividend ETF", dividend_yield: 3.2, expense_ratio: 0.38, assets: "20B", category: "Dividend" },
-      { symbol: "HDV", name: "iShares Core High Dividend ETF", dividend_yield: 3.8, expense_ratio: 0.08, assets: "7B", category: "Dividend" },
-    ];
+    // Query ETF data from database
+    let etfQuery = `
+      SELECT
+        symbol,
+        security_name as name,
+        market_category as category
+      FROM etf_symbols
+      WHERE etf = 'Y'
+      ORDER BY symbol
+      LIMIT ${parseInt(limit)}
+    `;
 
-    // Apply filters
-    let filteredETFs = etfs;
+    try {
+      const result = await query(etfQuery);
+      const etfs = result.rows || [];
 
-    if (min_dividend_yield) {
-      const minYield = parseFloat(min_dividend_yield);
-      filteredETFs = filteredETFs.filter(etf => etf.dividend_yield >= minYield);
-    }
-
-    if (max_expense_ratio) {
-      const maxExpense = parseFloat(max_expense_ratio);
-      filteredETFs = filteredETFs.filter(etf => etf.expense_ratio <= maxExpense);
-    }
-
-    if (category) {
-      filteredETFs = filteredETFs.filter(etf =>
-        etf.category.toLowerCase().includes(category.toLowerCase())
-      );
-    }
-
-    // Limit results
-    filteredETFs = filteredETFs.slice(0, parseInt(limit));
-
-    res.json({
-      success: true,
-      data: filteredETFs.map(etf => ({
-        symbol: etf.symbol,
-        fund_name: etf.name,
-        dividend_yield: etf.dividend_yield,
-        expense_ratio: etf.expense_ratio,
-        total_assets: etf.assets,
-        category: etf.category,
-      })),
-      count: filteredETFs.length,
-      total: filteredETFs.length,
+      res.json({
+        success: true,
+        data: etfs.map(etf => ({
+          symbol: etf.symbol,
+          fund_name: etf.name,
+          category: etf.category,
+          dividend_yield: null, // Not available in current schema
+          expense_ratio: null,  // Not available in current schema
+          total_assets: null,   // Not available in current schema
+        })),
+        count: etfs.length,
+        total: etfs.length,
       pagination: {
         page: 1,
         limit: parseInt(limit),
-        total_pages: Math.ceil(filteredETFs.length / parseInt(limit)),
+        total_pages: Math.ceil(etfs.length / parseInt(limit)),
       },
       filters_applied: {
         min_dividend_yield: min_dividend_yield ? parseFloat(min_dividend_yield) : null,
@@ -659,6 +641,15 @@ router.get("/screener", async (req, res) => {
       },
       timestamp: new Date().toISOString(),
     });
+    } catch (error) {
+      console.error("ETF screener error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch ETF data",
+        message: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
   } catch (error) {
     console.error("ETF screening error:", error);
