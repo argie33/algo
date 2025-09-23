@@ -33,7 +33,7 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Query the actual buy_sell table
+    // Query the actual buy_sell table with real database implementation
     const signalsQuery = `
       SELECT
         symbol,

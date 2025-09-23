@@ -1,39 +1,39 @@
 {
   "totalTests": 77,
-  "successful": 50,
-  "failed": 27,
-  "successRate": "64.9%",
-  "timestamp": "2025-09-23T02:17:58.235Z",
+  "successful": 46,
+  "failed": 31,
+  "successRate": "59.7%",
+  "timestamp": "2025-09-23T02:21:43.951Z",
   "results": [
     {
       "name": "Health",
       "endpoint": "/health",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "62ms",
-      "dataSize": 347,
+      "responseTime": "42ms",
+      "dataSize": 346,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"status\":\"healthy\",\"healthy\":true,\"timestamp\":\"2025-09-23T02:17:50.106Z\",\"version\":\"1.0.0\",\"database\":{\"status\":\"connected\",\"tables\":{\"naaim\":2}},\"api\":{\"version\":\"1.0.0\",\"environment\"..."
+      "preview": "{\"success\":true,\"status\":\"healthy\",\"healthy\":true,\"timestamp\":\"2025-09-23T02:21:35.795Z\",\"version\":\"1.0.0\",\"database\":{\"status\":\"connected\",\"tables\":{\"naaim\":2}},\"api\":{\"version\":\"1.0.0\",\"environment\"..."
     },
     {
       "name": "Auth Status",
       "endpoint": "/auth/status",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
+      "responseTime": "3ms",
       "dataSize": 180,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"authenticated\":false,\"user\":null,\"cognito\":{\"userPoolId\":\"not_configured\",\"clientId\":\"not_configured\",\"region\":\"us-east-1\"},\"timestamp\":\"2025-09-23T02:17:50.211Z\"}..."
+      "preview": "{\"success\":true,\"authenticated\":false,\"user\":null,\"cognito\":{\"userPoolId\":\"not_configured\",\"clientId\":\"not_configured\",\"region\":\"us-east-1\"},\"timestamp\":\"2025-09-23T02:21:35.900Z\"}..."
     },
     {
       "name": "Market Overview",
       "endpoint": "/market/overview",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "9ms",
-      "dataSize": 1112,
+      "responseTime": "11ms",
+      "dataSize": 1114,
       "hasData": true,
       "dataStructure": "object",
       "preview": "{\"success\":true,\"data\":{\"indices\":[],\"sentiment_indicators\":{\"fear_greed\":{\"value\":null,\"value_text\":\"Extreme Fear\",\"timestamp\":\"2025-09-13T05:00:00.000Z\"},\"naaim\":{\"average\":\"75.20\",\"bullish_8100\":\"6..."
@@ -47,7 +47,7 @@
       "dataSize": 198,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"sectors\":[],\"summary\":{\"totalSectors\":0,\"totalCompanies\":0,\"note\":\"Market cap calculations not available with current data sources\"}},\"timestamp\":\"2025-09-23T02:17:50.424Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"sectors\":[],\"summary\":{\"totalSectors\":0,\"totalCompanies\":0,\"note\":\"Market cap calculations not available with current data sources\"}},\"timestamp\":\"2025-09-23T02:21:36.115Z\"}..."
     },
     {
       "name": "Market Indices",
@@ -65,7 +65,7 @@
       "endpoint": "/market/movers",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "6ms",
+      "responseTime": "5ms",
       "dataSize": 1595,
       "hasData": true,
       "dataStructure": "object",
@@ -76,11 +76,11 @@
       "endpoint": "/dashboard/summary",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "162ms",
-      "dataSize": 5152,
+      "responseTime": "168ms",
+      "dataSize": 5892,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"market_overview\":[{\"symbol\":\"AMZN\",\"current_price\":3168.9,\"volume\":12000000,\"change_percent\":0.5234107346783403,\"change_amount\":16.5,\"high\":3175.25,\"low\":3145.5,\"created_at\":\"..."
+      "preview": "{\"success\":true,\"data\":{\"market_overview\":[{\"symbol\":\"AAPL\",\"current_price\":150.25,\"volume\":65000000,\"change_percent\":0.5016722408026756,\"change_amount\":0.75,\"high\":151.25,\"low\":148.75,\"created_at\":\"2..."
     },
     {
       "name": "Dashboard Metrics",
@@ -88,7 +88,7 @@
       "status": "SUCCESS",
       "statusCode": 200,
       "responseTime": "4ms",
-      "dataSize": 438,
+      "dataSize": 437,
       "hasData": true,
       "dataStructure": "object",
       "preview": "{\"success\":true,\"data\":{\"market\":{\"total_symbols\":49,\"total_volume\":300403163,\"avg_price\":175.87938775510202,\"max_price\":362.51,\"min_price\":54.42},\"portfolio\":{\"total_holdings\":0,\"total_value\":0,\"avg_..."
@@ -125,8 +125,8 @@
       "endpoint": "/stocks",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "18ms",
-      "dataSize": 11673,
+      "responseTime": "17ms",
+      "dataSize": 11782,
       "hasData": true,
       "dataStructure": "object",
       "preview": "{\"success\":true,\"performance\":\"COMPREHENSIVE DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores\",\"data\":[{\"ticker\":\"AAPL\",\"symbol\":\"AAPL\",\"name\":\"AAP..."
@@ -136,33 +136,33 @@
       "endpoint": "/stocks/popular",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "3ms",
-      "dataSize": 770,
+      "responseTime": "2ms",
+      "dataSize": 887,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"AAPL\",\"name\":\"AAPL\",\"price\":0,\"change\":0,\"change_percent\":0,\"market_cap\":\"2500000000000\",\"volume\":0},{\"symbol\":\"MSFT\",\"name\":\"MSFT\",\"price\":0,\"change\":0,\"change_perc..."
+      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"AAPL\",\"name\":\"AAPL\",\"price\":0,\"change\":0,\"change_percent\":0,\"market_cap\":\"3500000000000\",\"volume\":0},{\"symbol\":\"MSFT\",\"name\":\"MSFT\",\"price\":0,\"change\":0,\"change_perc..."
     },
     {
       "name": "Stock Detail AAPL",
       "endpoint": "/stocks/AAPL",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
-      "dataSize": 378,
+      "responseTime": "4ms",
+      "dataSize": 483,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"symbol\":\"AAPL\",\"ticker\":\"AAPL\",\"companyInfo\":{\"name\":\"AAPL\",\"exchange\":null,\"marketCategory\":\"Standard\",\"sector\":null,\"isETF\":false},\"currentPrice\":null,\"priceData\":null,\"metadata\":{\"requestedSymbol..."
+      "preview": "{\"symbol\":\"AAPL\",\"ticker\":\"AAPL\",\"companyInfo\":{\"name\":\"AAPL\",\"exchange\":null,\"marketCategory\":\"Standard\",\"sector\":null,\"isETF\":false},\"currentPrice\":150.25,\"priceData\":{\"date\":\"2024-01-02T06:00:00.00..."
     },
     {
       "name": "Stock Detail MSFT",
       "endpoint": "/stocks/MSFT",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "3ms",
-      "dataSize": 378,
+      "responseTime": "4ms",
+      "dataSize": 480,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"symbol\":\"MSFT\",\"ticker\":\"MSFT\",\"companyInfo\":{\"name\":\"MSFT\",\"exchange\":null,\"marketCategory\":\"Standard\",\"sector\":null,\"isETF\":false},\"currentPrice\":null,\"priceData\":null,\"metadata\":{\"requestedSymbol..."
+      "preview": "{\"symbol\":\"MSFT\",\"ticker\":\"MSFT\",\"companyInfo\":{\"name\":\"MSFT\",\"exchange\":null,\"marketCategory\":\"Standard\",\"sector\":null,\"isETF\":false},\"currentPrice\":350.75,\"priceData\":{\"date\":\"2024-01-02T06:00:00.00..."
     },
     {
       "name": "Stock Price AAPL",
@@ -170,17 +170,17 @@
       "status": "SUCCESS",
       "statusCode": 200,
       "responseTime": "3ms",
-      "dataSize": 194,
+      "dataSize": 251,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"price\":null,\"metadata\":{\"symbol\":\"AAPL\",\"message\":\"No price data available for this symbol\"}},\"timestamp\":\"2025-09-23T02:17:51.837Z\",\"message\":\"Price request processed\"}..."
+      "preview": "{\"success\":true,\"data\":{\"price\":{\"symbol\":\"AAPL\",\"current_price\":150.25,\"date\":\"2024-01-02T06:00:00.000Z\",\"volume\":65000000,\"high\":151.25,\"low\":148.75,\"open\":149.5}},\"timestamp\":\"2025-09-23T02:21:37.5..."
     },
     {
       "name": "Stock Financials AAPL",
       "endpoint": "/stocks/AAPL/financials",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "5ms",
+      "responseTime": "3ms",
       "dataSize": 709,
       "hasData": true,
       "dataStructure": "object",
@@ -191,18 +191,18 @@
       "endpoint": "/stocks/AAPL/technical",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
-      "dataSize": 300,
+      "responseTime": "3ms",
+      "dataSize": 257,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"indicators\":{\"rsi\":45.2,\"macd\":{\"macd\":1.23,\"signal\":1.15,\"histogram\":0.08},\"bollinger\":{\"upper\":178.5,\"middle\":175.2,\"lower\":171.9},\"sma_20\":174.8,\"sma_50\":172.1,\"ema_12\":175..."
+      "preview": "{\"success\":true,\"data\":{\"technical\":{\"symbol\":\"AAPL\",\"sma_20\":null,\"sma_50\":null,\"current_price\":150.25,\"avg_volume_10d\":61500000,\"price_trend\":\"bearish\",\"data_points\":2}},\"timestamp\":\"2025-09-23T02:2..."
     },
     {
       "name": "Screener Default",
       "endpoint": "/screener",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "1ms",
+      "responseTime": "2ms",
       "dataSize": 447,
       "hasData": true,
       "dataStructure": "object",
@@ -255,7 +255,7 @@
       "dataSize": 920,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"timeframe\":\"daily\",\"analysis_date\":\"2025-09-23T02:17:52.659Z\",\"indicators\":{\"symbol\":\"AAPL\",\"date\":\"2025-09-12T05:00:00.000Z\",\"rsi\":65.2,\"macd\":0.45,\"macd_sign..."
+      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"timeframe\":\"daily\",\"analysis_date\":\"2025-09-23T02:21:38.363Z\",\"indicators\":{\"symbol\":\"AAPL\",\"date\":\"2025-09-12T05:00:00.000Z\",\"rsi\":65.2,\"macd\":0.45,\"macd_sign..."
     },
     {
       "name": "Sentiment Analysis",
@@ -271,18 +271,18 @@
       "endpoint": "/sentiment/summary",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
-      "dataSize": 693,
+      "responseTime": "3ms",
+      "dataSize": 706,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"sentiment\":{\"symbol\":\"SUMMARY\",\"period\":\"7d\",\"overall_sentiment\":0.9,\"sentiment_label\":\"Bullish\",\"confidence\":22,\"metrics\":{\"positive_mentions\":204,\"negative_mentions\":22,\"neu..."
+      "preview": "{\"success\":true,\"data\":{\"sentiment\":{\"symbol\":\"SUMMARY\",\"period\":\"7d\",\"overall_sentiment\":0.66,\"sentiment_label\":\"Slightly Bullish\",\"confidence\":52,\"metrics\":{\"positive_mentions\":351,\"negative_mention..."
     },
     {
       "name": "News Latest",
       "endpoint": "/news/latest",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
+      "responseTime": "3ms",
       "dataSize": 311,
       "hasData": true,
       "dataStructure": "object",
@@ -293,7 +293,7 @@
       "endpoint": "/news/AAPL",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
+      "responseTime": "3ms",
       "dataSize": 753,
       "hasData": true,
       "dataStructure": "object",
@@ -304,7 +304,7 @@
       "endpoint": "/calendar/earnings",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
+      "responseTime": "3ms",
       "dataSize": 259,
       "hasData": true,
       "dataStructure": "object",
@@ -324,7 +324,7 @@
       "endpoint": "/scores",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "19ms",
+      "responseTime": "17ms",
       "dataSize": 1742,
       "hasData": true,
       "dataStructure": "object",
@@ -335,22 +335,22 @@
       "endpoint": "/scores/AAPL",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
-      "dataSize": 206,
+      "responseTime": "3ms",
+      "dataSize": 218,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"currentPrice\":0,\"volume\":0,\"compositeScore\":62.6,\"rsi\":65.2,\"macd\":0.45,\"sma20\":185.2,\"scoreDate\":\"2025-09-12T05:00:00.000Z\"},\"timestamp\":\"2025-09-23T02:17:53...."
+      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"currentPrice\":150.25,\"volume\":65000000,\"compositeScore\":62.6,\"rsi\":65.2,\"macd\":0.45,\"sma20\":185.2,\"scoreDate\":\"2025-09-12T05:00:00.000Z\"},\"timestamp\":\"2025-09-..."
     },
     {
       "name": "Metrics Market",
       "endpoint": "/metrics/market",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "15ms",
-      "dataSize": 259,
+      "responseTime": "22ms",
+      "dataSize": 260,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"market_cap\":7850000000000,\"volume\":247847600,\"volatility\":18.5,\"fear_greed_index\":52,\"active_stocks\":6,\"gainers\":0,\"decliners\":0,\"market_status\":\"open\",\"last_updated\":\"2025-09..."
+      "preview": "{\"success\":true,\"data\":{\"market_cap\":14000000000000,\"volume\":188500000,\"volatility\":18.5,\"fear_greed_index\":52,\"active_stocks\":7,\"gainers\":0,\"decliners\":0,\"market_status\":\"open\",\"last_updated\":\"2025-0..."
     },
     {
       "name": "Metrics Performance",
@@ -406,51 +406,45 @@
       "dataSize": 120,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"message\":\"Sectors API - Ready\",\"status\":\"operational\",\"data\":[],\"timestamp\":\"2025-09-23T02:17:54.228Z\"}..."
+      "preview": "{\"success\":true,\"message\":\"Sectors API - Ready\",\"status\":\"operational\",\"data\":[],\"timestamp\":\"2025-09-23T02:21:39.938Z\"}..."
     },
     {
       "name": "Sectors Performance",
       "endpoint": "/sectors/performance",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "4ms",
+      "responseTime": "5ms",
       "dataSize": 180,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"message\":\"Sector performance data loading\",\"data\":[],\"metadata\":{\"period\":\"1m\",\"limit\":10,\"note\":\"Data is being populated\"},\"timestamp\":\"2025-09-23T02:17:54.332Z\"}..."
+      "preview": "{\"success\":true,\"message\":\"Sector performance data loading\",\"data\":[],\"metadata\":{\"period\":\"1m\",\"limit\":10,\"note\":\"Data is being populated\"},\"timestamp\":\"2025-09-23T02:21:40.043Z\"}..."
     },
     {
       "name": "Signals Trading",
       "endpoint": "/signals/trading",
-      "status": "SUCCESS",
-      "statusCode": 200,
-      "responseTime": "2ms",
-      "dataSize": 134,
-      "hasData": true,
-      "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":[],\"symbol\":\"TRADING\",\"summary\":{\"total_signals\":0},\"timeframe\":\"daily\",\"timestamp\":\"2025-09-23T02:17:54.435Z\"}..."
+      "status": "ERROR",
+      "statusCode": 500,
+      "responseTime": "N/A",
+      "error": "Signal tables not configured in database",
+      "errorType": "ERR_BAD_RESPONSE"
     },
     {
       "name": "Signals Buy",
       "endpoint": "/signals/buy",
-      "status": "SUCCESS",
-      "statusCode": 200,
-      "responseTime": "2ms",
-      "dataSize": 870,
-      "hasData": true,
-      "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"MSFT\",\"signal\":\"BUY\",\"signal_type\":\"BUY\",\"signalType\":\"BUY\",\"signal_date\":\"2024-01-02T06:00:00.000Z\",\"date\":\"2024-01-02T06:00:00.000Z\",\"current_price\":\"349.9500\",\"cu..."
+      "status": "ERROR",
+      "statusCode": 500,
+      "responseTime": "N/A",
+      "error": "Signal tables not configured in database",
+      "errorType": "ERR_BAD_RESPONSE"
     },
     {
       "name": "Signals Sell",
       "endpoint": "/signals/sell",
-      "status": "SUCCESS",
-      "statusCode": 200,
-      "responseTime": "3ms",
-      "dataSize": 506,
-      "hasData": true,
-      "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"MSFT\",\"signal\":\"SELL\",\"signal_type\":\"SELL\",\"signalType\":\"SELL\",\"signal_date\":\"2024-01-01T06:00:00.000Z\",\"date\":\"2024-01-01T06:00:00.000Z\",\"current_price\":\"350.7500\",..."
+      "status": "ERROR",
+      "statusCode": 500,
+      "responseTime": "N/A",
+      "error": "Signal tables not configured in database",
+      "errorType": "ERR_BAD_RESPONSE"
     },
     {
       "name": "Backtest Results",
@@ -458,10 +452,10 @@
       "status": "SUCCESS",
       "statusCode": 200,
       "responseTime": "2ms",
-      "dataSize": 27635,
+      "dataSize": 6365,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":[{\"name\":\"Test A 1758591355973\",\"value\":123,\"id\":\"1758591355973\",\"summary\":{\"total_return\":0,\"sharpe_ratio\":0,\"max_drawdown\":0,\"win_rate\":0,\"total_trades\":0,\"final_value\":100000..."
+      "preview": "{\"success\":true,\"data\":[{\"name\":\"Test A 1758593922871\",\"value\":123,\"id\":\"1758593922871\",\"summary\":{\"total_return\":0,\"sharpe_ratio\":0,\"max_drawdown\":0,\"win_rate\":0,\"total_trades\":0,\"final_value\":100000..."
     },
     {
       "name": "Financial Statements",
@@ -486,11 +480,11 @@
       "endpoint": "/trading/positions",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "2ms",
+      "responseTime": "1ms",
       "dataSize": 75,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":[],\"count\":0,\"timestamp\":\"2025-09-23T02:17:55.049Z\"}..."
+      "preview": "{\"success\":true,\"data\":[],\"count\":0,\"timestamp\":\"2025-09-23T02:21:40.761Z\"}..."
     },
     {
       "name": "Trading History",
@@ -501,29 +495,29 @@
       "dataSize": 110,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"trades\":[],\"total_trades\":0,\"realized_pnl\":0},\"timestamp\":\"2025-09-23T02:17:55.151Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"trades\":[],\"total_trades\":0,\"realized_pnl\":0},\"timestamp\":\"2025-09-23T02:21:40.863Z\"}..."
     },
     {
       "name": "Price Data AAPL",
       "endpoint": "/price/AAPL",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "11ms",
-      "dataSize": 349,
+      "responseTime": "12ms",
+      "dataSize": 260,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"date\":\"2025-09-23\",\"price\":\"150.25\",\"open\":null,\"high\":null,\"low\":null,\"close\":null,\"adj_close\":null,\"volume\":\"50000000\"},\"meta\":{\"symbol\":\"AAPL\",\"source\":\"mar..."
+      "preview": "{\"success\":true,\"symbol\":\"AAPL\",\"data\":{\"symbol\":\"AAPL\",\"price\":150.25,\"current_price\":150.25,\"open\":149.5,\"high\":151.25,\"low\":148.75,\"close\":150.25,\"adj_close\":null,\"volume\":\"65000000\",\"date\":\"2024-0..."
     },
     {
       "name": "Price Historical AAPL",
       "endpoint": "/price/AAPL/historical",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "1ms",
+      "responseTime": "2ms",
       "dataSize": 122,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"period\":\"1y\",\"interval\":\"1d\",\"prices\":[]},\"timestamp\":\"2025-09-23T02:17:55.364Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"period\":\"1y\",\"interval\":\"1d\",\"prices\":[]},\"timestamp\":\"2025-09-23T02:21:41.077Z\"}..."
     },
     {
       "name": "Performance Metrics",
@@ -552,7 +546,7 @@
       "dataSize": 1972,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"AAPL\",\"name\":\"My Watchlist\",\"created_at\":\"2025-09-23T02:12:17.451Z\",\"id\":\"AAPL\"},{\"symbol\":\"TSLA\",\"name\":\"My Watchlist\",\"created_at\":\"2025-09-23T02:12:17.429Z\",\"id\":..."
+      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"AAPL\",\"name\":\"My Watchlist\",\"created_at\":\"2025-09-23T02:19:19.813Z\",\"id\":\"AAPL\"},{\"symbol\":\"AAPL\",\"name\":\"My Watchlist\",\"created_at\":\"2025-09-23T02:18:41.723Z\",\"id\":..."
     },
     {
       "name": "Data Sources",
@@ -563,7 +557,7 @@
       "dataSize": 205,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"sources\":[{\"name\":\"Alpha Vantage\",\"status\":\"active\"},{\"name\":\"Yahoo Finance\",\"status\":\"active\"},{\"name\":\"PostgreSQL\",\"status\":\"connected\"}]},\"timestamp\":\"2025-09-23T02:17:55.7..."
+      "preview": "{\"success\":true,\"data\":{\"sources\":[{\"name\":\"Alpha Vantage\",\"status\":\"active\"},{\"name\":\"Yahoo Finance\",\"status\":\"active\"},{\"name\":\"PostgreSQL\",\"status\":\"connected\"}]},\"timestamp\":\"2025-09-23T02:21:41.4..."
     },
     {
       "name": "Data Status",
@@ -574,14 +568,14 @@
       "dataSize": 193,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"status\":\"operational\",\"last_update\":\"2025-09-23T02:17:55.876Z\",\"tables\":{\"price_daily\":\"active\",\"fundamental_metrics\":\"active\"}},\"timestamp\":\"2025-09-23T02:17:55.876Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"status\":\"operational\",\"last_update\":\"2025-09-23T02:21:41.588Z\",\"tables\":{\"price_daily\":\"active\",\"fundamental_metrics\":\"active\"}},\"timestamp\":\"2025-09-23T02:21:41.588Z\"}..."
     },
     {
       "name": "Economic Indicators",
       "endpoint": "/economic/indicators",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "3ms",
+      "responseTime": "2ms",
       "dataSize": 1956,
       "hasData": true,
       "dataStructure": "object",
@@ -603,7 +597,7 @@
       "endpoint": "/commodities/prices",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "1ms",
+      "responseTime": "2ms",
       "dataSize": 1372,
       "hasData": true,
       "dataStructure": "object",
@@ -636,22 +630,22 @@
       "endpoint": "/etf/popular",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "1ms",
+      "responseTime": "2ms",
       "dataSize": 196,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"etfs\":[{\"symbol\":\"SPY\",\"name\":\"SPDR S&P 500 ETF\",\"volume\":50000000},{\"symbol\":\"QQQ\",\"name\":\"Invesco QQQ Trust\",\"volume\":30000000}]},\"timestamp\":\"2025-09-23T02:17:56.490Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"etfs\":[{\"symbol\":\"SPY\",\"name\":\"SPDR S&P 500 ETF\",\"volume\":50000000},{\"symbol\":\"QQQ\",\"name\":\"Invesco QQQ Trust\",\"volume\":30000000}]},\"timestamp\":\"2025-09-23T02:21:42.201Z\"}..."
     },
     {
       "name": "Insider Trading",
       "endpoint": "/insider/trading",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "1ms",
+      "responseTime": "2ms",
       "dataSize": 76,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"trades\":[]},\"timestamp\":\"2025-09-23T02:17:56.592Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"trades\":[]},\"timestamp\":\"2025-09-23T02:21:42.303Z\"}..."
     },
     {
       "name": "Insider Activity",
@@ -662,14 +656,14 @@
       "dataSize": 78,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"activity\":[]},\"timestamp\":\"2025-09-23T02:17:56.694Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"activity\":[]},\"timestamp\":\"2025-09-23T02:21:42.405Z\"}..."
     },
     {
       "name": "Dividend Calendar",
       "endpoint": "/dividend/calendar",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "3ms",
+      "responseTime": "4ms",
       "dataSize": 10390,
       "hasData": true,
       "dataStructure": "object",
@@ -725,11 +719,11 @@
       "endpoint": "/analysts/recommendations",
       "status": "SUCCESS",
       "statusCode": 200,
-      "responseTime": "1ms",
+      "responseTime": "2ms",
       "dataSize": 85,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"recommendations\":[]},\"timestamp\":\"2025-09-23T02:17:57.411Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"recommendations\":[]},\"timestamp\":\"2025-09-23T02:21:43.124Z\"}..."
     },
     {
       "name": "Analysts Upgrades",
@@ -737,7 +731,7 @@
       "status": "ERROR",
       "statusCode": 500,
       "responseTime": "N/A",
-      "error": "Request failed with status code 500",
+      "error": "Analyst tables not configured in database",
       "errorType": "ERR_BAD_RESPONSE"
     },
     {
@@ -767,18 +761,16 @@
       "dataSize": 81,
       "hasData": true,
       "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"positioning\":[]},\"timestamp\":\"2025-09-23T02:17:57.828Z\"}..."
+      "preview": "{\"success\":true,\"data\":{\"positioning\":[]},\"timestamp\":\"2025-09-23T02:21:43.543Z\"}..."
     },
     {
       "name": "Strategy Builder",
       "endpoint": "/strategyBuilder/strategies",
-      "status": "SUCCESS",
-      "statusCode": 200,
-      "responseTime": "2ms",
-      "dataSize": 80,
-      "hasData": true,
-      "dataStructure": "object",
-      "preview": "{\"success\":true,\"data\":{\"strategies\":[]},\"timestamp\":\"2025-09-23T02:17:57.930Z\"}..."
+      "status": "ERROR",
+      "statusCode": 404,
+      "responseTime": "N/A",
+      "error": "Route /api/strategyBuilder/strategies not found",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Diagnostics System",
@@ -786,7 +778,7 @@
       "status": "ERROR",
       "statusCode": 404,
       "responseTime": "N/A",
-      "error": "Request failed with status code 404",
+      "error": "Route /api/diagnostics/system not found",
       "errorType": "ERR_BAD_REQUEST"
     },
     {
@@ -795,7 +787,7 @@
       "status": "ERROR",
       "statusCode": 404,
       "responseTime": "N/A",
-      "error": "Request failed with status code 404",
+      "error": "Route /api/diagnostics/performance not found",
       "errorType": "ERR_BAD_REQUEST"
     }
   ]

@@ -5662,18 +5662,18 @@ router.get("/live", async (req, res) => {
 
     const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
 
-    // Get current price data from market_data table
+    // Get current price data from price_daily table
     const result = await query(`
-      SELECT
-        md.ticker as symbol,
-        md.current_price as price,
-        md.post_market_change as change,
-        md.post_market_change_pct as change_percent,
-        md.volume,
-        COALESCE(cp.short_name, md.ticker) as name
-      FROM market_data md
-      LEFT JOIN company_profile cp ON md.ticker = cp.ticker
-      WHERE md.ticker = ANY($1)
+      SELECT DISTINCT ON (symbol)
+        symbol,
+        close as price,
+        0 as change,
+        0 as change_percent,
+        volume,
+        symbol as name
+      FROM price_daily
+      WHERE symbol = ANY($1)
+      ORDER BY symbol, date DESC
     `, [symbolList]);
 
     res.json({
