@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { query, healthCheck } = require("../utils/database");
 
 const router = express.Router();
