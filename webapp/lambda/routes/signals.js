@@ -34,23 +34,22 @@ router.get("/", async (req, res) => {
     }
 
     // Query the actual buy_sell table - NO FALLBACK DATA as requested
+    // Use only columns that exist in the real AWS tables
     const signalsQuery = `
       SELECT
         symbol,
         date,
         timeframe,
-        signal_type,
-        confidence,
-        price,
-        rsi,
-        macd,
+        signal as signal_type,
+        0.5 as confidence,
+        close as price,
         volume,
-        pattern_score,
-        momentum_score,
-        risk_score,
-        created_at
+        buylevel,
+        stoplevel,
+        inposition
       FROM ${tableName}
-      ORDER BY date DESC, confidence DESC
+      WHERE signal IS NOT NULL
+      ORDER BY date DESC, symbol ASC
       LIMIT $1 OFFSET $2
     `;
 

@@ -331,7 +331,7 @@ router.get("/analytics", async (req, res) => {
         ph.last_updated,
         COALESCE(cp.sector, 'Unknown') as sector,
         COALESCE(cp.industry, 'Unknown') as industry,
-        COALESCE(cp.short_name, ph.symbol) as short_name
+        ph.symbol as short_name
       FROM portfolio_holdings ph
       LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 
@@ -2671,12 +2671,12 @@ router.get("/optimization", async (req, res) => {
   try {
     // Query portfolio_holdings table for user's optimization data (using actual schema)
     const holdingsQuery = `
-      SELECT 
+      SELECT
         symbol, quantity, market_value, 'Technology' as sector,
         average_cost, current_price, 0 as unrealized_pnl_percent,
-        cost_basis, 'Equity' as asset_class, 'long' as position_type
-      FROM portfolio_holdings 
-      WHERE user_id = $1 AND quantity > 0 
+        (average_cost * quantity) as cost_basis, 'Equity' as asset_class, 'long' as position_type
+      FROM portfolio_holdings
+      WHERE user_id = $1 AND quantity > 0
       ORDER BY market_value DESC
     `;
 
@@ -3206,11 +3206,11 @@ router.get("/performance/attribution", async (req, res) => {
 
   try {
     const holdingsQuery = `
-      SELECT symbol, quantity, market_value, cost_basis,
-             (market_value - cost_basis) as contribution,
+      SELECT symbol, quantity, market_value, (average_cost * quantity) as cost_basis,
+             (market_value - (average_cost * quantity)) as contribution,
              'Technology' as sector
-      FROM portfolio_holdings 
-      WHERE user_id = $1 AND quantity > 0 
+      FROM portfolio_holdings
+      WHERE user_id = $1 AND quantity > 0
       ORDER BY market_value DESC
     `;
 
@@ -3369,9 +3369,9 @@ router.get("/export", async (req, res) => {
 
     if (includeFields.includes("holdings")) {
       const holdingsQuery = `
-        SELECT symbol, quantity, market_value, average_cost, current_price, cost_basis
-        FROM portfolio_holdings 
-        WHERE user_id = $1 AND quantity > 0 
+        SELECT symbol, quantity, market_value, average_cost, current_price, (average_cost * quantity) as cost_basis
+        FROM portfolio_holdings
+        WHERE user_id = $1 AND quantity > 0
         ORDER BY market_value DESC
       `;
       const holdingsResult = await query(holdingsQuery, [userId]);
@@ -5742,9 +5742,9 @@ router.get("/watchlist", async (req, res) => {
     // Get user's watchlist from database (if watchlist table exists)
     // For now, use their current holdings as watchlist
     const watchlistQuery = `
-      SELECT 
+      SELECT
         ph.symbol,
-        COALESCE(cp.short_name, ph.symbol) as name,
+        ph.symbol as name,
         ph.current_price as price,
         0 as change,
         0 as change_percent
@@ -6069,9 +6069,9 @@ router.get("/value", async (req, res) => {
 
     // Get top holdings from database
     const topHoldingsQuery = `
-      SELECT 
+      SELECT
         ph.symbol,
-        COALESCE(cp.short_name, ph.symbol) as name,
+        ph.symbol as name,
         ph.market_value as value,
         (ph.market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
         ph.quantity as shares
