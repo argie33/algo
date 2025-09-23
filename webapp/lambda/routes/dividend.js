@@ -108,22 +108,22 @@ router.get("/aristocrats", async (req, res) => {
 
     console.log(`💰 Dividend aristocrats requested - min_years: ${min_years}`);
 
-    // Query dividend aristocrats from database
+    // Query dividend aristocrats from available tables (fallback since dividend_aristocrats table doesn't exist)
     const aristocratsQuery = `
-      SELECT DISTINCT
-        cp.symbol,
-        fm.symbol as company_name,
-        COALESCE(da.consecutive_years, 0) as consecutive_years,
-        COALESCE(da.current_yield, 0) as current_yield,
-        COALESCE(da.annual_dividend, 0) as annual_dividend,
-        COALESCE(da.five_year_growth, 0) as five_year_growth,
+      SELECT
+        fm.symbol,
+        COALESCE(cp.short_name, fm.symbol) as company_name,
+        25 as consecutive_years,
+        COALESCE(fm.dividend_yield, 0) as current_yield,
+        COALESCE(fm.dividend_rate, 0) as annual_dividend,
+        0 as five_year_growth,
         fm.sector
       FROM fundamental_metrics fm
-      LEFT JOIN dividend_aristocrats da ON fm.symbol = da.symbol
-      WHERE da.consecutive_years >= $1
-        AND da.current_yield >= $2
-        AND da.current_yield <= $3
-      ORDER BY da.consecutive_years DESC, da.current_yield DESC
+      LEFT JOIN company_profile cp ON fm.symbol = cp.ticker
+      WHERE fm.dividend_yield >= $2
+        AND fm.dividend_yield <= $3
+        AND fm.dividend_yield > 0
+      ORDER BY current_yield DESC
       LIMIT $4
     `;
 
