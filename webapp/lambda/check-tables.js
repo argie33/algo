@@ -29,7 +29,7 @@ async function checkDatabaseSchema() {
     });
 
     // Check columns for key tables used in failing endpoints
-    const keyTables = ['price_daily', 'company_profile', 'earnings_history', 'fundamental_metrics', 'technical_data_daily', 'market_data'];
+    const keyTables = ['price_daily', 'company_profile', 'earnings_history', 'fundamental_metrics', 'technical_data_daily', 'market_data', 'buy_sell_daily'];
 
     for (const tableName of keyTables) {
       const tableExists = tablesResult.rows.some(row => row.table_name === tableName);

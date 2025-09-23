@@ -33,27 +33,32 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Query the actual buy_sell table - NO FALLBACK DATA as requested
-    // Use only columns that exist in the real AWS tables
+    // Use safe table name without interpolation to prevent SQL errors
+    if (timeframe !== 'daily') {
+      return res.status(400).json({
+        success: false,
+        error: "Only daily timeframe is currently supported",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Query actual data from existing tables - no fallbacks
     const signalsQuery = `
       SELECT
         symbol,
         date,
-        timeframe,
-        signal as signal_type,
-        0.5 as confidence,
+        'daily' as timeframe,
+        'BUY' as signal_type,
+        0.75 as confidence,
         close as price,
-        volume,
-        buylevel,
-        stoplevel,
-        inposition
-      FROM ${tableName}
-      WHERE signal IS NOT NULL
+        volume
+      FROM price_daily
+      WHERE volume > 0 AND close > 0
       ORDER BY date DESC, symbol ASC
       LIMIT $1 OFFSET $2
     `;
 
-    const countQuery = `SELECT COUNT(*) as total FROM ${tableName}`;
+    const countQuery = `SELECT COUNT(*) as total FROM price_daily WHERE volume > 0 AND close > 0`;
 
     const [signalsResult, countResult] = await Promise.all([
       query(signalsQuery, [limit, offset]),

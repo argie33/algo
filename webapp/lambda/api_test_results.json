@@ -1,11 +1,11 @@
 {
-  "timestamp": "2025-09-23T13:47:09.589Z",
+  "timestamp": "2025-09-23T13:50:30.697Z",
   "totalEndpoints": 20,
-  "passed": 15,
-  "serverErrors": 1,
-  "clientErrors": 4,
+  "passed": 17,
+  "serverErrors": 0,
+  "clientErrors": 3,
   "fatalErrors": 0,
-  "passRate": 75,
+  "passRate": 85,
   "duration": "0.14",
   "results": [
     {
@@ -25,9 +25,8 @@
     },
     {
       "api": "/api/signals",
-      "status": "SERVER_ERROR",
-      "code": 500,
-      "error": "Failed to fetch signals data"
+      "status": "PASS",
+      "code": 200
     },
     {
       "api": "/api/scores",
@@ -104,9 +103,8 @@
     },
     {
       "api": "/api/watchlist",
-      "status": "CLIENT_ERROR",
-      "code": 401,
-      "error": "Authorization header required"
+      "status": "PASS",
+      "code": 200
     },
     {
       "api": "/api/trades",
