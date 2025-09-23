@@ -3518,6 +3518,7 @@ router.post("/init-price-data", authenticateToken, async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
+  */
 });
 
 // Removed mock historical price data generation function
