@@ -38,10 +38,9 @@ router.get("/sectors", async (req, res) => {
       SELECT
         COALESCE(fm.sector, 'Unknown') as sector,
         COUNT(*) as count,
-        AVG(CASE WHEN md.market_cap > 0 THEN md.market_cap END) as avg_market_cap,
+        AVG(CASE WHEN fm.market_cap > 0 THEN fm.market_cap END) as avg_market_cap,
         COUNT(DISTINCT fm.symbol) as company_count
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.symbol
       WHERE fm.sector IS NOT NULL AND fm.sector != 'Unknown' AND fm.sector != ''
       GROUP BY fm.sector
       ORDER BY count DESC
@@ -522,7 +521,7 @@ router.get("/", async (req, res) => {
         (SELECT MAX(date) FROM price_daily WHERE symbol = fm.symbol) as price_date
 
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.symbol
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -534,7 +533,7 @@ router.get("/", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.symbol
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
       ${whereClause}
     `;
 
@@ -1688,7 +1687,7 @@ router.get("/list", async (req, res) => {
         fm.sector,
         md.market_cap
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.symbol
+      LEFT JOIN market_data md ON fm.symbol = md.ticker
       WHERE fm.symbol IS NOT NULL
       ORDER BY md.market_cap DESC NULLS LAST, fm.symbol
       LIMIT $1

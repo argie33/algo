@@ -395,23 +395,13 @@ describe("Connection Pool Stress Integration", () => {
     beforeEach(async () => {
       // Clean up any previous test data before each test
       await transaction(async (client) => {
-        await client.query("DROP TABLE IF EXISTS test_transaction_stress CASCADE");
-        await client.query("DROP TABLE IF EXISTS test_isolation_stress CASCADE");
+        await client.query("DELETE FROM test_transaction_stress");
+        await client.query("DELETE FROM test_isolation_stress");
       });
     });
 
     test("should handle many concurrent transactions", async () => {
-      // Create test table for transaction stress testing
-      await transaction(async (client) => {
-        await client.query(`
-          CREATE TEMPORARY TABLE test_transaction_stress (
-            id SERIAL PRIMARY KEY,
-            transaction_id INTEGER,
-            operation_count INTEGER,
-            completed_at TIMESTAMP DEFAULT NOW()
-          )
-        `);
-      });
+      // Test table already exists in database setup - no need to create
 
       const concurrentTransactions = 4; // Realistic for connection pool size
       const operationsPerTransaction = 5;
@@ -425,8 +415,8 @@ describe("Connection Pool Stress Integration", () => {
             for (let opId = 0; opId < operationsPerTransaction; opId++) {
               operations.push(
                 client.query(
-                  "INSERT INTO test_transaction_stress (transaction_id, operation_count) VALUES ($1, $2)",
-                  [transactionId, opId]
+                  "INSERT INTO test_transaction_stress (value, updated_by, transaction_id) VALUES ($1, $2, $3)",
+                  [opId, `test-${transactionId}`, transactionId.toString()]
                 )
               );
             }
@@ -436,7 +426,7 @@ describe("Connection Pool Stress Integration", () => {
             // Verify our operations
             const result = await client.query(
               "SELECT COUNT(*) as count FROM test_transaction_stress WHERE transaction_id = $1",
-              [transactionId]
+              [transactionId.toString()]
             );
 
             return {
@@ -481,18 +471,10 @@ describe("Connection Pool Stress Integration", () => {
     });
 
     test("should maintain transaction isolation under stress", async () => {
-      // Create shared resource for isolation testing
+      // Initialize shared resource for isolation testing using persistent table
       await transaction(async (client) => {
-        await client.query(`
-          CREATE TEMPORARY TABLE test_isolation_stress (
-            id INTEGER PRIMARY KEY,
-            counter INTEGER DEFAULT 0,
-            last_updated_by INTEGER
-          )
-        `);
-
         await client.query(
-          "INSERT INTO test_isolation_stress (id, counter) VALUES (1, 0)"
+          "INSERT INTO test_isolation_stress (id, counter) VALUES (1, 0) ON CONFLICT (id) DO UPDATE SET counter = 0"
         );
       });
 
