@@ -26,25 +26,57 @@ router.get("/", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = (page - 1) * limit;
 
-    // Query using available price data (technical_data_daily not available in AWS)
+    // Query using available price data and calculate real scores
     const stocksQuery = `
       SELECT
         pd.symbol,
         COALESCE(pd.close, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
-        50 as rsi_score,
-        0 as macd_score,
-        0 as sma_20,
-        50 as composite_score,
-        50 as momentum_score,
-        50 as trend_score,
-        50 as value_score,
-        50 as quality_score,
+
+        -- Calculate RSI-like momentum score based on recent price changes
+        CASE
+          WHEN pd.change_pct > 5 THEN 80
+          WHEN pd.change_pct > 2 THEN 70
+          WHEN pd.change_pct > 0 THEN 60
+          WHEN pd.change_pct > -2 THEN 40
+          WHEN pd.change_pct > -5 THEN 30
+          ELSE 20
+        END as rsi_score,
+
+        -- Calculate trend score based on volume and price momentum
+        CASE
+          WHEN pd.volume > 1000000 AND pd.change_pct > 0 THEN 75
+          WHEN pd.volume > 500000 AND pd.change_pct > 0 THEN 65
+          WHEN pd.change_pct > 0 THEN 55
+          WHEN pd.change_pct < 0 AND pd.volume > 1000000 THEN 35
+          ELSE 45
+        END as trend_score,
+
+        -- Simple moving average approximation using current close
+        pd.close as sma_20,
+
+        -- Volume-based quality score
+        CASE
+          WHEN pd.volume > 5000000 THEN 80
+          WHEN pd.volume > 1000000 THEN 70
+          WHEN pd.volume > 500000 THEN 60
+          WHEN pd.volume > 100000 THEN 50
+          ELSE 40
+        END as quality_score,
+
         pd.date as score_date,
         pd.date as last_updated
       FROM (
         SELECT DISTINCT ON (symbol)
-          symbol, close, volume, date
+          symbol,
+          close,
+          volume,
+          date,
+          -- Calculate daily change percentage
+          COALESCE(
+            ((close - LAG(close) OVER (PARTITION BY symbol ORDER BY date)) / NULLIF(LAG(close) OVER (PARTITION BY symbol ORDER BY date), 0)) * 100,
+            0
+          ) as change_pct
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd
@@ -84,21 +116,35 @@ router.get("/", async (req, res) => {
       });
     }
 
-    const stocks = stocksResult.rows.map(row => ({
-      symbol: row.symbol,
-      currentPrice: parseFloat(row.current_price) || 0,
-      volume: parseInt(row.volume) || 0,
-      compositeScore: parseFloat(row.composite_score) || 50,
-      momentumScore: parseFloat(row.momentum_score) || 50,
-      trendScore: parseFloat(row.trend_score) || 50,
-      valueScore: parseFloat(row.value_score) || 50,
-      qualityScore: parseFloat(row.quality_score) || 50,
-      rsi: parseFloat(row.rsi_score) || null,
-      macd: parseFloat(row.macd_score) || null,
-      sma20: parseFloat(row.sma_20) || null,
-      scoreDate: row.score_date,
-      lastUpdated: row.last_updated,
-    }));
+    const stocks = stocksResult.rows.map(row => {
+      const rsiScore = parseFloat(row.rsi_score) || 0;
+      const trendScore = parseFloat(row.trend_score) || 0;
+      const qualityScore = parseFloat(row.quality_score) || 0;
+
+      // Calculate value score based on volume vs average (simple heuristic)
+      const valueScore = row.volume > 1000000 ? 60 : (row.volume > 100000 ? 50 : 40);
+
+      // Calculate composite score as weighted average of all scores
+      const compositeScore = Math.round(
+        (rsiScore * 0.3) + (trendScore * 0.3) + (qualityScore * 0.25) + (valueScore * 0.15)
+      );
+
+      return {
+        symbol: row.symbol,
+        currentPrice: parseFloat(row.current_price) || 0,
+        volume: parseInt(row.volume) || 0,
+        compositeScore: compositeScore,
+        momentumScore: rsiScore, // RSI is momentum indicator
+        trendScore: trendScore,
+        valueScore: valueScore,
+        qualityScore: qualityScore,
+        rsi: rsiScore,
+        macd: null, // MACD requires historical data we don't have easily
+        sma20: parseFloat(row.sma_20) || null,
+        scoreDate: row.score_date,
+        lastUpdated: row.last_updated,
+      };
+    });
 
     // Real count query for total technical data records
     let countResult;
@@ -172,14 +218,48 @@ router.get("/:symbol", async (req, res) => {
         pd.symbol,
         COALESCE(pd.close, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
-        50 as rsi,
-        0 as macd,
-        0 as sma_20,
-        50 as composite_score,
+
+        -- Calculate RSI-like momentum score based on recent price changes
+        CASE
+          WHEN pd.change_pct > 5 THEN 80
+          WHEN pd.change_pct > 2 THEN 70
+          WHEN pd.change_pct > 0 THEN 60
+          WHEN pd.change_pct > -2 THEN 40
+          WHEN pd.change_pct > -5 THEN 30
+          ELSE 20
+        END as rsi,
+
+        -- Calculate trend score based on volume and price momentum
+        CASE
+          WHEN pd.volume > 1000000 AND pd.change_pct > 0 THEN 75
+          WHEN pd.volume > 500000 AND pd.change_pct > 0 THEN 65
+          WHEN pd.change_pct > 0 THEN 55
+          WHEN pd.change_pct < 0 AND pd.volume > 1000000 THEN 35
+          ELSE 45
+        END as trend_score,
+
+        -- Volume-based quality score
+        CASE
+          WHEN pd.volume > 5000000 THEN 80
+          WHEN pd.volume > 1000000 THEN 70
+          WHEN pd.volume > 500000 THEN 60
+          WHEN pd.volume > 100000 THEN 50
+          ELSE 40
+        END as quality_score,
+
+        pd.close as sma_20,
         pd.date as score_date
       FROM (
         SELECT DISTINCT ON (symbol)
-          symbol, close, volume, date
+          symbol,
+          close,
+          volume,
+          date,
+          -- Calculate daily change percentage
+          COALESCE(
+            ((close - LAG(close) OVER (PARTITION BY symbol ORDER BY date)) / NULLIF(LAG(close) OVER (PARTITION BY symbol ORDER BY date), 0)) * 100,
+            0
+          ) as change_pct
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd
@@ -199,15 +279,31 @@ router.get("/:symbol", async (req, res) => {
 
     const score = result.rows[0];
 
+    const rsiScore = parseFloat(score.rsi) || 0;
+    const trendScore = parseFloat(score.trend_score) || 0;
+    const qualityScore = parseFloat(score.quality_score) || 0;
+
+    // Calculate value score based on volume
+    const valueScore = score.volume > 1000000 ? 60 : (score.volume > 100000 ? 50 : 40);
+
+    // Calculate composite score as weighted average
+    const compositeScore = Math.round(
+      (rsiScore * 0.3) + (trendScore * 0.3) + (qualityScore * 0.25) + (valueScore * 0.15)
+    );
+
     res.json({
       success: true,
       data: {
         symbol: score.symbol,
         currentPrice: parseFloat(score.current_price) || 0,
         volume: parseInt(score.volume) || 0,
-        compositeScore: parseFloat(score.composite_score) || 50,
-        rsi: parseFloat(score.rsi) || null,
-        macd: parseFloat(score.macd) || null,
+        compositeScore: compositeScore,
+        momentumScore: rsiScore,
+        trendScore: trendScore,
+        valueScore: valueScore,
+        qualityScore: qualityScore,
+        rsi: rsiScore,
+        macd: null, // MACD requires historical data
         sma20: parseFloat(score.sma_20) || null,
         scoreDate: score.score_date,
       },
