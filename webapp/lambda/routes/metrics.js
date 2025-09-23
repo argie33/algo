@@ -418,44 +418,22 @@ router.get("/:symbol", async (req, res) => {
 
     const symbolQuery = `
       SELECT
-        td.symbol,
+        pd.symbol,
         COALESCE(pd.close, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
-        td.rsi,
-        td.macd,
-        td.sma_20,
-        CASE
-          WHEN td.rsi IS NOT NULL THEN
-            CASE
-              WHEN td.rsi > 70 THEN 0.8
-              WHEN td.rsi < 30 THEN 0.2
-              ELSE 0.5 + ((td.rsi - 50) * 0.006)
-            END
-          ELSE 0.5
-        END as momentum_metric,
-        CASE
-          WHEN td.macd IS NOT NULL THEN
-            CASE
-              WHEN td.macd > 0 THEN 0.6
-              WHEN td.macd < 0 THEN 0.4
-              ELSE 0.5
-            END
-          ELSE 0.5
-        END as trend_metric,
-        td.date as last_updated
-      FROM technical_data_daily td
-      LEFT JOIN (
+        NULL as rsi,
+        NULL as macd,
+        NULL as sma_20,
+        0.5 as momentum_metric,
+        0.5 as trend_metric,
+        pd.date as last_updated
+      FROM (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
-        FROM stock_prices
+        FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON td.symbol = pd.symbol
-      WHERE td.symbol = $1
-        AND td.date = (
-          SELECT MAX(date)
-          FROM technical_data_daily
-          WHERE symbol = $1
-        )
+      ) pd
+      WHERE pd.symbol = $1
     `;
 
     const result = await query(symbolQuery, [symbol.toUpperCase()]);
