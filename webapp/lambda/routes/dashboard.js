@@ -505,14 +505,14 @@ router.get("/performance", authenticateToken, async (req, res) => {
     }
 
     const performanceQuery = `
-            SELECT 
+            SELECT
                 date,
                 total_value,
                 daily_pnl_percent as daily_return,
                 total_pnl_percent as cumulative_return,
-                benchmark_return,
+                0 as benchmark_return,
                 0 as excess_return
-            FROM portfolio_performance 
+            FROM portfolio_performance
             WHERE user_id = $1 AND date >= CURRENT_DATE - INTERVAL '90 days'
             ORDER BY date ASC
         `;

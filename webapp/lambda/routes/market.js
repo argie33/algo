@@ -616,6 +616,7 @@ router.get("/overview", async (req, res) => {
           WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
           ORDER BY symbol, date DESC
         ) md
+        LEFT JOIN company_profile cp ON md.ticker = cp.ticker
         ORDER BY md.ticker
       `);
 

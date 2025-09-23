@@ -461,7 +461,7 @@ router.get("/earnings-estimates", async (req, res) => {
         ee.number_of_analysts,
         ee.growth
       FROM earnings_estimates ee
-      LEFT JOIN fundamental_metrics cp ON ee.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ee.symbol = cp.ticker
       ORDER BY ee.symbol ASC, ee.period DESC
       LIMIT $1 OFFSET $2
     `;
@@ -581,20 +581,20 @@ router.get("/earnings-history", async (req, res) => {
     const offset = (page - 1) * limit;
 
     const historyQuery = `
-      SELECT 
+      SELECT
         eh.symbol,
         cp.short_name as company_name,
         eh.quarter,
         eh.eps_actual as eps_actual,
         eh.eps_estimate,
-        CASE 
-          WHEN eh.eps_actual IS NOT NULL AND eh.eps_estimate IS NOT NULL 
+        CASE
+          WHEN eh.eps_actual IS NOT NULL AND eh.eps_estimate IS NOT NULL
           THEN (eh.eps_actual - eh.eps_estimate)
           ELSE NULL
         END as eps_difference,
         eh.surprise_percent
       FROM earnings_history eh
-      LEFT JOIN fundamental_metrics cp ON eh.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
       ORDER BY eh.symbol ASC, eh.quarter DESC
       LIMIT $1 OFFSET $2
     `;

@@ -2283,7 +2283,7 @@ router.get("/compare", async (req, res) => {
     const fundamentalQuery = `
       SELECT p.symbol,
              NULL as pe_ratio,
-             NULL as market_cap,
+             fm.market_cap,
              fm.sector,
              fm.industry,
              p.close as current_price,
@@ -2295,6 +2295,7 @@ router.get("/compare", async (req, res) => {
         WHERE symbol IN (${placeholders})
         ORDER BY symbol, date DESC
       ) p
+      LEFT JOIN fundamental_metrics fm ON p.symbol = fm.symbol
     `;
 
     const result = await query(fundamentalQuery, symbolList);
@@ -3996,7 +3997,7 @@ router.get("/compare", async (req, res) => {
     const fundamentalQuery = `
       SELECT p.symbol,
              NULL as pe_ratio,
-             NULL as market_cap,
+             fm.market_cap,
              fm.sector,
              fm.industry,
              p.close as current_price,
@@ -4008,6 +4009,7 @@ router.get("/compare", async (req, res) => {
         WHERE symbol IN (${placeholders})
         ORDER BY symbol, date DESC
       ) p
+      LEFT JOIN fundamental_metrics fm ON p.symbol = fm.symbol
     `;
 
     const result = await query(fundamentalQuery, symbolList);

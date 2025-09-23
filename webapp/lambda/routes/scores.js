@@ -26,41 +26,29 @@ router.get("/", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = (page - 1) * limit;
 
-    // Real database query using technical data and price data
+    // Query using available price data (technical_data_daily not available in AWS)
     const stocksQuery = `
       SELECT
-        td.symbol,
+        pd.symbol,
         COALESCE(pd.close, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
-        COALESCE(td.rsi, 50) as rsi_score,
-        COALESCE(td.macd, 0) as macd_score,
-        COALESCE(td.sma_20, 0) as sma_20,
-        COALESCE(
-          (COALESCE(td.rsi, 50) +
-           CASE WHEN COALESCE(td.macd, 0) > 0 THEN 60 ELSE 40 END) / 2,
-          50
-        ) as composite_score,
-        COALESCE(td.rsi, 50) as momentum_score,
-        CASE
-          WHEN COALESCE(td.sma_20, 0) > 0 AND COALESCE(pd.close, 0) > td.sma_20 THEN 60
-          WHEN COALESCE(td.sma_20, 0) > 0 AND COALESCE(pd.close, 0) < td.sma_20 THEN 40
-          ELSE 50
-        END as trend_score,
+        50 as rsi_score,
+        0 as macd_score,
+        0 as sma_20,
+        50 as composite_score,
+        50 as momentum_score,
+        50 as trend_score,
         50 as value_score,
         50 as quality_score,
-        td.date as score_date,
-        td.date as last_updated
-      FROM technical_data_daily td
-      LEFT JOIN (
+        pd.date as score_date,
+        pd.date as last_updated
+      FROM (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON td.symbol = pd.symbol AND td.date = pd.date
-      WHERE td.date = (
-        SELECT MAX(date) FROM technical_data_daily WHERE symbol = td.symbol
-      )
-      ORDER BY td.symbol ASC
+      ) pd
+      ORDER BY pd.symbol ASC
       LIMIT $1 OFFSET $2
     `;
 
@@ -116,11 +104,12 @@ router.get("/", async (req, res) => {
     let countResult;
     try {
       const countQuery = `
-        SELECT COUNT(DISTINCT td.symbol) as total
-        FROM technical_data_daily td
-        WHERE td.date = (
-          SELECT MAX(date) FROM technical_data_daily WHERE symbol = td.symbol
-        )
+        SELECT COUNT(DISTINCT symbol) as total
+        FROM (
+          SELECT DISTINCT ON (symbol) symbol
+          FROM price_daily
+          ORDER BY symbol, date DESC
+        ) pd
       `;
       const countPromise = query(countQuery, []);
       const countTimeoutPromise = new Promise((_, reject) =>
@@ -180,27 +169,21 @@ router.get("/:symbol", async (req, res) => {
 
     const symbolQuery = `
       SELECT
-        td.symbol,
+        pd.symbol,
         COALESCE(pd.close, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
-        td.rsi,
-        td.macd,
-        td.sma_20,
-        (td.rsi + CASE WHEN td.macd > 0 THEN 60 ELSE 40 END) / 2 as composite_score,
-        td.date as score_date
-      FROM technical_data_daily td
-      LEFT JOIN (
+        50 as rsi,
+        0 as macd,
+        0 as sma_20,
+        50 as composite_score,
+        pd.date as score_date
+      FROM (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON td.symbol = pd.symbol
-      WHERE td.symbol = $1
-        AND td.date = (
-          SELECT MAX(date)
-          FROM technical_data_daily
-          WHERE symbol = $1
-        )
+      ) pd
+      WHERE pd.symbol = $1
     `;
 
     const result = await query(symbolQuery, [symbol.toUpperCase()]);

@@ -234,48 +234,16 @@ router.get("/screener", async (req, res) => {
 
     console.log(`💰 Dividend screener requested with filters`);
 
-    // Return sample screener results
-    const sampleResults = [
-      {
-        symbol: "T",
-        company_name: "AT&T Inc.",
-        current_yield: 5.8,
-        payout_ratio: 85.2,
-        market_cap: 150000000000,
-        sector: "Telecommunications",
-        dividend_score: 75
-      },
-      {
-        symbol: "VZ",
-        company_name: "Verizon Communications Inc.",
-        current_yield: 4.9,
-        payout_ratio: 78.5,
-        market_cap: 175000000000,
-        sector: "Telecommunications",
-        dividend_score: 82
-      }
-    ];
-
-    const filteredResults = sampleResults.filter(stock =>
-      stock.current_yield >= parseFloat(min_yield) &&
-      stock.current_yield <= parseFloat(max_yield) &&
-      stock.payout_ratio >= parseFloat(min_payout_ratio) &&
-      stock.payout_ratio <= parseFloat(max_payout_ratio) &&
-      stock.market_cap >= parseFloat(min_market_cap) &&
-      (!sector || stock.sector === sector)
-    );
-
-    res.json({
-      success: true,
-      data: {
-        stocks: filteredResults,
-        count: filteredResults.length,
-        filters: {
-          yield_range: [parseFloat(min_yield), parseFloat(max_yield)],
-          payout_ratio_range: [parseFloat(min_payout_ratio), parseFloat(max_payout_ratio)],
-          min_market_cap: parseFloat(min_market_cap),
-          sector: sector || "all"
-        }
+    // NO FALLBACK DATA - Return proper error as requested by user
+    return res.status(500).json({
+      success: false,
+      error: "Dividend screener data unavailable",
+      message: "Dividend screener tables not configured in database - NO FALLBACK DATA",
+      filters: {
+        yield_range: [parseFloat(min_yield), parseFloat(max_yield)],
+        payout_ratio_range: [parseFloat(min_payout_ratio), parseFloat(max_payout_ratio)],
+        min_market_cap: parseFloat(min_market_cap),
+        sector: sector || "all"
       },
       timestamp: new Date().toISOString(),
     });

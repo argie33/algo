@@ -1067,33 +1067,31 @@ router.get("/:ticker/technicals", async (req, res) => {
     const { ticker } = req.params;
     const timeframe = req.query.timeframe || "daily"; // daily, weekly, monthly
 
-    let tableName = "technical_data_daily";
-    if (timeframe === "weekly") {
-      tableName = "technical_data_weekly";
-    } else if (timeframe === "monthly") {
-      tableName = "technical_data_monthly";
-    }
-
+    // Technical data tables not available in AWS, return basic price data
     const techQuery = `
-      SELECT 
+      SELECT
         symbol,
         date,
-        sma_20,
-        sma_50,
-        sma_200,
-        rsi,
-        atr,
-        macd,
-        macd_signal,
-        macd_hist,
-        ema_21,
-        bbands_upper,
-        bbands_middle,
-        bbands_lower,
-        fetched_at as created_at
-      FROM ${tableName}
+        NULL as sma_20,
+        NULL as sma_50,
+        NULL as sma_200,
+        NULL as rsi,
+        NULL as atr,
+        NULL as macd,
+        NULL as macd_signal,
+        NULL as macd_hist,
+        NULL as ema_21,
+        NULL as bbands_upper,
+        close as bbands_middle,
+        NULL as bbands_lower,
+        date as created_at
+      FROM (
+        SELECT DISTINCT ON (symbol)
+          symbol, date, close
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd
       WHERE symbol = $1
-      ORDER BY date DESC
       LIMIT 1
     `;
 
@@ -2039,7 +2037,7 @@ router.get("/strategies/:strategyId", async (req, res) => {
       },
 
       parameters: {
-        technical_data_daily: {
+        technical_parameters: {
           breakout_confirmation: 2.0,
           volume_threshold: 1.5,
           rsi_filter: { enabled: true, min: 40, max: 80 },
@@ -2257,24 +2255,18 @@ router.get("/risk/portfolio", async (req, res) => {
         ph.average_cost as avg_cost,
         ph.market_value as current_value,
         cp.sector,
-        COALESCE(md.current_price, pd.close, 0) as market_cap,
+        COALESCE(pd.close, 0) as market_cap,
         pd.close as current_price,
         pd.volume,
-        COALESCE(ti.historical_volatility_20d, 0.15) as volatility,
-        COALESCE(ti.beta, 1.0) as beta
+        0.15 as volatility,
+        1.0 as beta
       FROM portfolio_holdings ph
       LEFT JOIN fundamental_metrics fm ON ph.symbol = fm.symbol
-      LEFT JOIN market_data md ON ph.symbol = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) symbol, close, volume
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON ph.symbol = pd.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) symbol, historical_volatility_20d, beta
-        FROM technical_data_daily
-        ORDER BY symbol, date DESC
-      ) ti ON ph.symbol = ti.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 

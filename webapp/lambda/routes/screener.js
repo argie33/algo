@@ -305,7 +305,7 @@ router.get("/screen", async (req, res) => {
         beta: "1.0",
         factorScore: "50",
         volume: "pd.volume",
-        rsi: "td.rsi",
+        rsi: "NULL",
         sector: "COALESCE(cp.sector, 'Technology')",
       };
 
@@ -334,9 +334,9 @@ router.get("/screen", async (req, res) => {
           WHEN sc.overall_score >= 50 THEN 'D'
           ELSE 'F'
         END as factor_grade,
-        td.sma_20,
-        td.sma_50,
-        td.sma_200,
+        NULL as sma_20,
+        NULL as sma_50,
+        NULL as sma_200,
         CASE
           WHEN pd.close > LAG(pd.close, 63) OVER (PARTITION BY s.symbol ORDER BY pd.date)
           THEN ((pd.close / LAG(pd.close, 63) OVER (PARTITION BY s.symbol ORDER BY pd.date)) - 1) * 100
@@ -352,9 +352,9 @@ router.get("/screen", async (req, res) => {
           THEN ((pd.close - LAG(pd.close) OVER (PARTITION BY s.symbol ORDER BY pd.date)) / LAG(pd.close) OVER (PARTITION BY s.symbol ORDER BY pd.date)) * 100
           ELSE 0
         END as price_change_percent,
-        td.rsi,
-        td.macd,
-        td.macd_signal
+        NULL as rsi,
+        NULL as macd,
+        NULL as macd_signal
       FROM fundamental_metrics s
       LEFT JOIN fundamental_metrics cp ON s.symbol = cp.symbol
       LEFT JOIN (
@@ -365,13 +365,6 @@ router.get("/screen", async (req, res) => {
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
-        FROM technical_data_daily
-        WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
-        ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, price_to_book
@@ -405,13 +398,6 @@ router.get("/screen", async (req, res) => {
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
-        FROM technical_data_daily
-        WHERE date = (SELECT MAX(date) FROM technical_data_daily WHERE symbol = technical_data_daily.symbol)
-        ORDER BY symbol, date DESC
-      ) td ON s.symbol = td.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, price_to_book
@@ -1109,11 +1095,6 @@ router.get("/results", async (req, res) => {
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) *
-        FROM technical_data_daily  
-        ORDER BY symbol, date DESC
-      ) ti ON s.symbol = ti.symbol
       ${whereClause}
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -1130,11 +1111,6 @@ router.get("/results", async (req, res) => {
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) *
-        FROM technical_data_daily
-        ORDER BY symbol, date DESC
-      ) ti ON s.symbol = ti.symbol
       ${whereClause}
     `;
 

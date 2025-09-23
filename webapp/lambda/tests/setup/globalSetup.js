@@ -1615,6 +1615,70 @@ module.exports = async () => {
       )
     `);
 
+    // Create trade_history table
+    await query(`DROP TABLE IF EXISTS trade_history`);
+    await query(`
+      CREATE TABLE trade_history (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        action VARCHAR(10) NOT NULL,
+        quantity DECIMAL(15,4) NOT NULL,
+        price DECIMAL(12,4) NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        order_id VARCHAR(50),
+        commission DECIMAL(10,4) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create attribution_analysis table
+    await query(`DROP TABLE IF EXISTS attribution_analysis`);
+    await query(`
+      CREATE TABLE attribution_analysis (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        period VARCHAR(20) NOT NULL,
+        total_return DECIMAL(8,4),
+        benchmark_return DECIMAL(8,4),
+        active_return DECIMAL(8,4),
+        allocation_effect DECIMAL(8,4),
+        selection_effect DECIMAL(8,4),
+        interaction_effect DECIMAL(8,4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create brinson_attribution table
+    await query(`DROP TABLE IF EXISTS brinson_attribution`);
+    await query(`
+      CREATE TABLE brinson_attribution (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        sector VARCHAR(50) NOT NULL,
+        allocation_effect DECIMAL(8,4),
+        selection_effect DECIMAL(8,4),
+        interaction_effect DECIMAL(8,4),
+        total_effect DECIMAL(8,4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create attribution_components table
+    await query(`DROP TABLE IF EXISTS attribution_components`);
+    await query(`
+      CREATE TABLE attribution_components (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        component_type VARCHAR(50) NOT NULL,
+        component_name VARCHAR(100) NOT NULL,
+        weight DECIMAL(8,4),
+        return_value DECIMAL(8,4),
+        contribution DECIMAL(8,4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create analyst_sentiment_analysis table
     await query(`DROP TABLE IF EXISTS analyst_sentiment_analysis`);
     await query(`

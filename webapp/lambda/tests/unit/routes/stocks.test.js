@@ -4,6 +4,9 @@ const request = require("supertest");
 // Real database for integration
 const { query } = require("../../../utils/database");
 
+// Import Jest functions
+const { fail } = require("@jest/globals");
+
 describe("Stocks Routes Unit Tests", () => {
   let app;
 

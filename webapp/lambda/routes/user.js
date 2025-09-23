@@ -35,24 +35,11 @@ router.get("/profile", (req, res) => {
     const hasValidAuth = req.user && (req.user.sub || req.user.id);
 
     if (isDevelopment || !hasValidAuth) {
-      // Return development/fallback data
-      res.json({
-        success: true,
-        data: {
-          id: req.user?.sub || req.user?.id || "dev-user-bypass",
-          email: req.user?.email || "developer@example.com",
-          firstName: req.user?.given_name || "Dev",
-          lastName: req.user?.family_name || "User",
-          displayName: req.user?.name || "Dev User",
-          avatar: req.user?.picture || null,
-          createdAt: req.user?.created_at || "2024-01-01T00:00:00.000Z",
-          lastLogin: new Date().toISOString(),
-          preferences: {
-            theme: "dark",
-            notifications: true,
-            timezone: "UTC"
-          }
-        },
+      // In development mode or without valid auth, return error
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+        message: "User must be authenticated to access profile",
         timestamp: new Date().toISOString(),
       });
     } else {
@@ -82,25 +69,10 @@ router.get("/profile", (req, res) => {
     }
   } catch (error) {
     console.error("Profile endpoint error:", error);
-    // Always return a valid response instead of 500 error
-    res.json({
-      success: true,
-      data: {
-        id: "fallback-user",
-        email: "user@example.com",
-        firstName: "User",
-        lastName: "Name",
-        displayName: "User Name",
-        avatar: null,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-        preferences: {
-          theme: "light",
-          notifications: true,
-          timezone: "UTC"
-        }
-      },
-      message: "Profile loaded with default data",
+    res.status(500).json({
+      success: false,
+      error: "Failed to load user profile",
+      message: "User authentication or profile data not available",
       timestamp: new Date().toISOString(),
     });
   }
