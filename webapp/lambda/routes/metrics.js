@@ -175,108 +175,22 @@ router.get("/", async (req, res) => {
     const safeSort = validSortColumns.includes(sortBy) ? sortBy : "symbol";
     const safeOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
 
-    // Ultra-fast query using fundamental_metrics table that's actually available in AWS
+    // Ultra-simple query for AWS debugging
     const stocksQuery = `
       SELECT
         fm.symbol,
-        COALESCE((fm.market_cap::bigint / NULLIF(fm.shares_outstanding::bigint, 0))::numeric, 100.0) as current_price,
-        COALESCE(fm.shares_outstanding::bigint, 1000000) as volume,
-        COALESCE(fm.pe_ratio, 15) as rsi,
-        COALESCE(fm.return_on_equity, 0) as macd,
-        COALESCE(fm.price_to_book, 1.5) as sma_20,
-        CASE
-          WHEN fm.pe_ratio IS NOT NULL THEN
-            CASE
-              WHEN fm.pe_ratio > 25 THEN 0.3
-              WHEN fm.pe_ratio < 10 THEN 0.8
-              ELSE 0.5 + ((15 - fm.pe_ratio) * 0.02)
-            END
-          ELSE 0.5
-        END as momentum_metric,
-        CASE
-          WHEN fm.return_on_equity IS NOT NULL THEN
-            CASE
-              WHEN fm.return_on_equity > 20 THEN 0.8
-              WHEN fm.return_on_equity < 5 THEN 0.3
-              ELSE 0.3 + (fm.return_on_equity * 0.025)
-            END
-          ELSE 0.5
-        END as trend_metric,
-        CASE
-          WHEN fm.debt_to_equity IS NOT NULL THEN
-            CASE
-              WHEN fm.debt_to_equity < 0.3 THEN 0.8
-              WHEN fm.debt_to_equity > 1.0 THEN 0.3
-              ELSE 0.8 - (fm.debt_to_equity * 0.5)
-            END
-          ELSE 0.5
-        END as quality_metric,
-        CASE
-          WHEN fm.price_to_book IS NOT NULL THEN
-            CASE
-              WHEN fm.price_to_book < 1.0 THEN 0.8
-              WHEN fm.price_to_book > 3.0 THEN 0.3
-              ELSE 0.8 - ((fm.price_to_book - 1.0) * 0.25)
-            END
-          ELSE 0.5
-        END as value_metric,
-        CASE
-          WHEN fm.revenue_growth IS NOT NULL THEN
-            CASE
-              WHEN fm.revenue_growth > 20 THEN 0.8
-              WHEN fm.revenue_growth < -5 THEN 0.2
-              ELSE 0.5 + (fm.revenue_growth * 0.01)
-            END
-          ELSE 0.5
-        END as growth_metric,
-        (
-          CASE
-            WHEN fm.pe_ratio IS NOT NULL THEN
-              CASE
-                WHEN fm.pe_ratio > 25 THEN 0.3
-                WHEN fm.pe_ratio < 10 THEN 0.8
-                ELSE 0.5 + ((15 - fm.pe_ratio) * 0.02)
-              END
-            ELSE 0.5
-          END +
-          CASE
-            WHEN fm.return_on_equity IS NOT NULL THEN
-              CASE
-                WHEN fm.return_on_equity > 20 THEN 0.8
-                WHEN fm.return_on_equity < 5 THEN 0.3
-                ELSE 0.3 + (fm.return_on_equity * 0.025)
-              END
-            ELSE 0.5
-          END +
-          CASE
-            WHEN fm.debt_to_equity IS NOT NULL THEN
-              CASE
-                WHEN fm.debt_to_equity < 0.3 THEN 0.8
-                WHEN fm.debt_to_equity > 1.0 THEN 0.3
-                ELSE 0.8 - (fm.debt_to_equity * 0.5)
-              END
-            ELSE 0.5
-          END +
-          CASE
-            WHEN fm.price_to_book IS NOT NULL THEN
-              CASE
-                WHEN fm.price_to_book < 1.0 THEN 0.8
-                WHEN fm.price_to_book > 3.0 THEN 0.3
-                ELSE 0.8 - ((fm.price_to_book - 1.0) * 0.25)
-              END
-            ELSE 0.5
-          END +
-          CASE
-            WHEN fm.revenue_growth IS NOT NULL THEN
-              CASE
-                WHEN fm.revenue_growth > 20 THEN 0.8
-                WHEN fm.revenue_growth < -5 THEN 0.2
-                ELSE 0.5 + (fm.revenue_growth * 0.01)
-              END
-            ELSE 0.5
-          END
-        ) / 5 as overall_score,
-        fm.updated_at as last_updated
+        100.0 as current_price,
+        1000000 as volume,
+        15 as rsi,
+        0 as macd,
+        1.5 as sma_20,
+        0.5 as momentum_metric,
+        0.5 as trend_metric,
+        0.5 as quality_metric,
+        0.5 as value_metric,
+        0.5 as growth_metric,
+        0.5 as overall_score,
+        NOW() as last_updated
       FROM fundamental_metrics fm
       ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''}
       ORDER BY fm.symbol ASC
