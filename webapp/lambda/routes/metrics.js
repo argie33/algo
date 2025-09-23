@@ -348,8 +348,7 @@ router.get("/", async (req, res) => {
       `, countParams);
     } catch (error) {
       console.error("Metrics count query error:", error.message);
-      // Use fallback count if count query fails
-      countResult = { rows: [{ total: stocks.length }] };
+      throw error; // Don't use fallback, let error propagate
     }
     const total = parseInt(countResult.rows[0]?.total) || 0;
     const totalPages = Math.ceil(total / limit);
