@@ -996,7 +996,6 @@ router.get("/:id/holdings", async (req, res) => {
         ph.unrealized_pnl, ph.unrealized_pnl_percent, ph.last_updated,
         COALESCE(cp.sector, 'Unknown') as sector
       FROM portfolio_holdings ph
-      LEFT JOIN stock_symbols ss ON ph.symbol = ss.symbol
       LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol 
       WHERE ph.user_id = $1
       ORDER BY ph.market_value DESC

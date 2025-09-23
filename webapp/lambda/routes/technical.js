@@ -1240,7 +1240,7 @@ router.get("/", async (req, res) => {
         FROM ${tableName}
         GROUP BY symbol
       ) t2 ON t1.symbol = t2.symbol AND t1.date = t2.max_date
-      LEFT JOIN stock_symbols ss ON t1.symbol = ss.symbol
+      LEFT JOIN fundamental_metrics fm ON t1.symbol = fm.symbol
       ORDER BY t1.symbol ASC
       LIMIT 500
     `;

@@ -1,0 +1,131 @@
+{
+  "timestamp": "2025-09-23T13:43:00.250Z",
+  "baseUrl": "https://algo-n2k5puvbra-uc.a.run.app",
+  "totalEndpoints": 17,
+  "passed": 0,
+  "serverErrors": 0,
+  "clientErrors": 17,
+  "networkErrors": 0,
+  "passRate": 0,
+  "results": [
+    {
+      "endpoint": "/api/health",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/metrics",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/stocks?limit=5",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/signals",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/scores",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/market",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/news",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/earnings",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/sectors",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/analytics",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/calendar",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/technical",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/performance",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/risk",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/screener",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/watchlist",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    },
+    {
+      "endpoint": "/api/trades",
+      "status": 404,
+      "success": false,
+      "error": "Client Error",
+      "dataLength": 272
+    }
+  ]
+}

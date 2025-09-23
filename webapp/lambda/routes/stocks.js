@@ -3197,22 +3197,22 @@ router.get("/screen/stats", async (req, res) => {
 
     // Use robust query with proper error handling instead of fallback chains
     const statsQuery = `
-      SELECT 
+      SELECT
         COUNT(*) as total_stocks,
-        MIN(s.market_cap) as min_market_cap,
-        MAX(s.market_cap) as max_market_cap,
-        MIN(s.trailing_pe) as min_pe_ratio,
-        MAX(s.trailing_pe) as max_pe_ratio,
-        MIN(s.price_to_book) as min_pb_ratio,
-        MAX(s.price_to_book) as max_pb_ratio,
-        MIN(s.return_on_equity) as min_roe,
-        MAX(s.return_on_equity) as max_roe,
-        MIN(s.revenue_growth) as min_revenue_growth,
-        MAX(s.revenue_growth) as max_revenue_growth,
-        MIN(s.analyst_rating) as min_analyst_rating,
-        MAX(s.analyst_rating) as max_analyst_rating
-      FROM stock_symbols s
-      WHERE s.is_active = TRUE
+        MIN(fm.market_cap) as min_market_cap,
+        MAX(fm.market_cap) as max_market_cap,
+        MIN(fm.pe_ratio) as min_pe_ratio,
+        MAX(fm.pe_ratio) as max_pe_ratio,
+        MIN(fm.price_to_book) as min_pb_ratio,
+        MAX(fm.price_to_book) as max_pb_ratio,
+        MIN(fm.return_on_equity) as min_roe,
+        MAX(fm.return_on_equity) as max_roe,
+        MIN(fm.revenue_growth) as min_revenue_growth,
+        MAX(fm.revenue_growth) as max_revenue_growth,
+        10 as min_analyst_rating,
+        90 as max_analyst_rating
+      FROM fundamental_metrics fm
+      WHERE fm.market_cap > 0
     `;
 
     let result;

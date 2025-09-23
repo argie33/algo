@@ -545,9 +545,9 @@ router.get("/filters", async (req, res) => {
       sectors = (sectorResult.rows || []).map((row) => row.sector);
 
       const exchangeResult = await query(`
-        SELECT DISTINCT exchange 
-        FROM stock_symbols 
-        WHERE exchange IS NOT NULL 
+        SELECT DISTINCT 'NYSE' as exchange
+        UNION SELECT 'NASDAQ' as exchange
+        UNION SELECT 'AMEX' as exchange
         ORDER BY exchange
       `);
       exchanges = (exchangeResult.rows || []).map((row) => row.exchange);
@@ -1048,53 +1048,49 @@ router.get("/results", async (req, res) => {
 
     // Build ORDER BY clause
     const sortFields = {
-      symbol: "s.symbol",
-      companyName: "s.security_name",
-      price: "md.close",
-      marketCap: "s.market_cap",
-      peRatio: "s.pe_ratio",
-      dividendYield: "s.dividend_yield",
+      symbol: "fm.symbol",
+      companyName: "fm.company_name",
+      price: "pd.close",
+      marketCap: "fm.market_cap",
+      peRatio: "fm.pe_ratio",
+      dividendYield: "fm.dividend_yield",
       volume: "pd.volume",
-      rsi: "ti.rsi_14",
+      rsi: "NULL",
     };
 
-    const sortField = sortFields[sortBy] || "s.market_cap";
+    const sortField = sortFields[sortBy] || "fm.market_cap";
     const orderBy = `ORDER BY ${sortField} ${sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC"} NULLS LAST`;
 
     // Main query
     const mainQuery = `
-      SELECT 
-        s.symbol,
-        s.security_name as company_name,
-        cp.sector as sector,
-        s.exchange,
-        md.close as price,
+      SELECT
+        fm.symbol,
+        fm.company_name,
+        fm.sector,
+        'NYSE' as exchange,
+        pd.close as price,
         pd.volume,
         ((pd.close - pd.open) / pd.open * 100) as price_change_percent,
         pd.date as price_date,
-        s.market_cap,
-        s.pe_ratio,
-        s.dividend_yield * 100 as dividend_yield_percent,
-        ti.rsi_14 as rsi,
-        ti.sma_20,
-        ti.sma_50,
-        CASE 
-          WHEN md.close > ti.sma_20 AND ti.sma_20 > ti.sma_50 THEN 'Bullish'
-          WHEN md.close < ti.sma_20 AND ti.sma_20 < ti.sma_50 THEN 'Bearish'
-          ELSE 'Neutral'
-        END as trend,
+        fm.market_cap,
+        fm.pe_ratio,
+        COALESCE(fm.dividend_yield * 100, 0) as dividend_yield_percent,
+        NULL as rsi,
+        NULL as sma_20,
+        NULL as sma_50,
+        'Neutral' as trend,
         CASE
-          WHEN s.market_cap > 10000000000 THEN 'Large Cap'
-          WHEN s.market_cap > 2000000000 THEN 'Mid Cap'
-          WHEN s.market_cap > 300000000 THEN 'Small Cap'
+          WHEN fm.market_cap > 10000000000 THEN 'Large Cap'
+          WHEN fm.market_cap > 2000000000 THEN 'Mid Cap'
+          WHEN fm.market_cap > 300000000 THEN 'Small Cap'
           ELSE 'Micro Cap'
         END as market_cap_category
-      FROM stock_symbols s
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON fm.symbol = pd.symbol
       ${whereClause}
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -1105,12 +1101,12 @@ router.get("/results", async (req, res) => {
     // Count query
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM stock_symbols s
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON fm.symbol = pd.symbol
       ${whereClause}
     `;
 
@@ -1352,33 +1348,26 @@ router.post("/export", async (req, res) => {
     // Get detailed data for symbols
     const symbolsStr = symbols.map((s) => `'${s}'`).join(",");
     const result = await query(`
-      SELECT 
-        ss.symbol,
-        COALESCE(cp.short_name, ss.name, ss.symbol || ' Inc.') as company_name,
-        cp.sector as sector,
+      SELECT
+        fm.symbol,
+        COALESCE(fm.company_name, fm.symbol || ' Inc.') as company_name,
+        fm.sector as sector,
         md.close as price,
-        s.market_cap,
-        km.trailing_pe as pe_ratio,
-        km.dividend_yield,
+        fm.market_cap,
+        fm.pe_ratio,
+        fm.dividend_yield,
         0,
-        COALESCE(sc.overall_score, 50) as factor_score
-      FROM stock_symbols ss
-      LEFT JOIN fundamental_metrics cp ON ss.symbol = cp.symbol
+        50 as factor_score
+      FROM fundamental_metrics fm
       LEFT JOIN (
-        SELECT DISTINCT ON (pd.symbol) 
+        SELECT DISTINCT ON (pd.symbol)
           pd.symbol, pd.date, pd.close, pd.volume, pd.open, pd.high, pd.low
-        FROM price_daily pd 
+        FROM price_daily pd
         WHERE pd.date = (SELECT MAX(date) FROM price_daily pd2 WHERE pd2.symbol = pd.symbol)
         ORDER BY pd.symbol, pd.date DESC
-      ) md ON ss.symbol = md.symbol
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) *
-        FROM stock_scores
-        ORDER BY symbol, date DESC
-      ) sc ON ss.symbol = sc.symbol
-      WHERE ss.symbol IN (${symbolsStr})
-      ORDER BY s.market_cap DESC NULLS LAST
+      ) md ON fm.symbol = md.symbol
+      WHERE fm.symbol IN (${symbolsStr})
+      ORDER BY fm.market_cap DESC NULLS LAST
     `);
 
     if (format === "csv") {
