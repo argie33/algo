@@ -1615,6 +1615,79 @@ module.exports = async () => {
       )
     `);
 
+    // Create analyst_sentiment_analysis table
+    await query(`DROP TABLE IF EXISTS analyst_sentiment_analysis`);
+    await query(`
+      CREATE TABLE analyst_sentiment_analysis (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        sentiment_score DECIMAL(5,2) DEFAULT 0,
+        sentiment_label VARCHAR(20) DEFAULT 'neutral',
+        confidence DECIMAL(5,2) DEFAULT 0,
+        analysis_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create analyst_recommendations table
+    await query(`DROP TABLE IF EXISTS analyst_recommendations`);
+    await query(`
+      CREATE TABLE analyst_recommendations (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        analyst_firm VARCHAR(100),
+        recommendation VARCHAR(20) NOT NULL,
+        previous_recommendation VARCHAR(20),
+        target_price DECIMAL(12,4),
+        previous_target_price DECIMAL(12,4),
+        date_published DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create analyst_coverage table
+    await query(`DROP TABLE IF EXISTS analyst_coverage`);
+    await query(`
+      CREATE TABLE analyst_coverage (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        analyst_firm VARCHAR(100) NOT NULL,
+        analyst_name VARCHAR(100),
+        coverage_started DATE,
+        coverage_status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create analyst_price_targets table
+    await query(`DROP TABLE IF EXISTS analyst_price_targets`);
+    await query(`
+      CREATE TABLE analyst_price_targets (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        analyst_firm VARCHAR(100),
+        target_price DECIMAL(12,4) NOT NULL,
+        previous_target_price DECIMAL(12,4),
+        target_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create research_reports table
+    await query(`DROP TABLE IF EXISTS research_reports`);
+    await query(`
+      CREATE TABLE research_reports (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        analyst_firm VARCHAR(100),
+        report_title VARCHAR(200),
+        report_summary TEXT,
+        report_url VARCHAR(500),
+        report_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create order activities table for order execution tracking
     await query(`
       CREATE TABLE IF NOT EXISTS order_activities (
