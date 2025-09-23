@@ -175,34 +175,12 @@ router.get("/", async (req, res) => {
     const safeSort = validSortColumns.includes(sortBy) ? sortBy : "symbol";
     const safeOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
 
-    // Ultra-simple query for AWS debugging
-    const stocksQuery = `
-      SELECT
-        fm.symbol,
-        100.0 as current_price,
-        1000000 as volume,
-        15 as rsi,
-        0 as macd,
-        1.5 as sma_20,
-        0.5 as momentum_metric,
-        0.5 as trend_metric,
-        0.5 as quality_metric,
-        0.5 as value_metric,
-        0.5 as growth_metric,
-        0.5 as overall_score,
-        NOW() as last_updated
-      FROM fundamental_metrics fm
-      ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''}
-      ORDER BY fm.symbol ASC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `;
-
-    // Add limit and offset to params
-    queryParams.push(limit, offset);
+    // Test basic database connection
+    const stocksQuery = `SELECT 1 as test`;
 
     let stocksResult;
     try {
-      stocksResult = await query(stocksQuery, queryParams);
+      stocksResult = await query(stocksQuery);
     } catch (error) {
       console.error("Metrics database query error:", error.message);
 
@@ -252,21 +230,22 @@ router.get("/", async (req, res) => {
       });
     }
 
-    const stocks = stocksResult.rows.map(row => ({
-      symbol: row.symbol,
-      currentPrice: parseFloat(row.current_price) || 0,
-      volume: parseInt(row.volume) || 0,
-      momentumMetric: parseFloat(row.momentum_metric) || 0.5,
-      trendMetric: parseFloat(row.trend_metric) || 0.5,
-      qualityMetric: parseFloat(row.quality_metric) || 0.5,
-      valueMetric: parseFloat(row.value_metric) || 0.5,
-      growthMetric: parseFloat(row.growth_metric) || 0.5,
-      overallScore: parseFloat(row.overall_score) || 0.5,
-      rsi: parseFloat(row.rsi) || null,
-      macd: parseFloat(row.macd) || null,
-      sma20: parseFloat(row.sma_20) || null,
-      lastUpdated: row.last_updated,
-    }));
+    // Test response for debugging
+    const stocks = [{
+      symbol: "TEST",
+      currentPrice: 100.0,
+      volume: 1000000,
+      momentumMetric: 0.5,
+      trendMetric: 0.5,
+      qualityMetric: 0.5,
+      valueMetric: 0.5,
+      growthMetric: 0.5,
+      overallScore: 0.5,
+      rsi: 50,
+      macd: 0,
+      sma20: 100,
+      lastUpdated: new Date().toISOString(),
+    }];
 
     // Simple count query with proper parameter handling
     const countParams = [];
@@ -278,18 +257,8 @@ router.get("/", async (req, res) => {
       countParams.push(`%${search.toUpperCase()}%`);
     }
 
-    let countResult;
-    try {
-      countResult = await query(`
-        SELECT COUNT(*) as total
-        FROM fundamental_metrics fm
-        ${countWhereCondition}
-      `, countParams);
-    } catch (error) {
-      console.error("Metrics count query error:", error.message);
-      throw error; // Don't use fallback, let error propagate
-    }
-    const total = parseInt(countResult.rows[0]?.total) || 0;
+    // Simple test count
+    const total = 1;
     const totalPages = Math.ceil(total / limit);
 
     res.json({

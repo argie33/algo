@@ -1856,38 +1856,15 @@ router.get("/screener", authenticateToken, async (req, res) => {
  * @route GET /api/stocks/watchlist
  * @desc Get user's watchlist
  */
-router.get("/watchlist", async (req, res) => {
+router.get("/watchlist", authenticateToken, async (req, res) => {
   try {
-    // Return sample watchlist data for demonstration
-    res.json({
-      success: true,
-      data: [
-        {
-          id: 1,
-          symbol: "AAPL",
-          name: "Apple Inc.",
-          price: 175.43,
-          change: 2.15,
-          changePercent: 1.24,
-        },
-        {
-          id: 2,
-          symbol: "GOOGL",
-          name: "Alphabet Inc.",
-          price: 142.56,
-          change: -1.2,
-          changePercent: -0.83,
-        },
-        {
-          id: 3,
-          symbol: "MSFT",
-          name: "Microsoft Corporation",
-          price: 338.11,
-          change: 5.67,
-          changePercent: 1.7,
-        },
-      ],
-      total: 3,
+    // Watchlist functionality should be accessed via /api/watchlist endpoint
+    return res.status(301).json({
+      success: false,
+      error: "Endpoint moved",
+      message: "Please use /api/watchlist endpoint instead",
+      redirect: "/api/watchlist",
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Watchlist error:", error.message);

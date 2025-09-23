@@ -16,40 +16,14 @@ router.get("/ping", (req, res) => {
 
 // Get user's watchlists - public endpoint for health checks (AWS deployment refresh)
 router.get("/", async (req, res) => {
-  // If no auth token, return sample watchlist data from database
+  // Require authentication for watchlist access
   if (!req.headers.authorization) {
-    try {
-      // Generate sample watchlist data using symbols from portfolio_transactions for AWS compatibility
-      const sampleWatchlistQuery = `
-        SELECT
-          symbol,
-          'My Watchlist' as name,
-          created_at,
-          symbol as id
-        FROM portfolio_transactions
-        GROUP BY symbol, created_at
-        ORDER BY created_at DESC
-        LIMIT 20
-      `;
-
-      const result = await query(sampleWatchlistQuery, []);
-
-      return res.json({
-        success: true,
-        data: result.rows || [],
-        message: "Sample watchlist data from portfolio symbols",
-        total: result.rows?.length || 0,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("Watchlist query error:", error);
-      return res.status(500).json({
-        success: false,
-        error: "Database query failed",
-        details: error.message,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    return res.status(401).json({
+      success: false,
+      error: "Authentication required",
+      message: "Authorization header required to access watchlist",
+      timestamp: new Date().toISOString(),
+    });
   }
 
   // If there's an auth token, require authentication
@@ -537,21 +511,11 @@ router.post("/import", authenticateToken, async (req, res) => {
       });
     }
 
-    // For now, return a mock success response
-    const watchlistId = `import_${Date.now()}`;
-
-    res.status(201).json({
-      success: true,
-      data: {
-        watchlist_id: watchlistId,
-        name: name.trim(),
-        imported_symbols: symbols.length,
-        skipped_symbols: 0,
-        format,
-        created_at: new Date().toISOString(),
-        status: "imported"
-      },
-      message: "Watchlist imported successfully",
+    // Import not yet implemented - return 501 Not Implemented
+    return res.status(501).json({
+      success: false,
+      error: "Import functionality not implemented",
+      message: "Watchlist import feature is not yet available",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
