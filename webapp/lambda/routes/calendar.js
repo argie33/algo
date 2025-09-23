@@ -376,21 +376,20 @@ router.get("/events", async (req, res) => {
     const timeFilter = req.query.type || "upcoming";
 
     let whereClause = "WHERE 1=1";
-    const _params = []; // Apply time filters using report_date from earnings_reports
+    const _params = []; // Apply time filters using date from earnings_history
     switch (timeFilter) {
       case "this_week":
-        whereClause += ` AND er.report_date >= CURRENT_DATE AND er.report_date < (CURRENT_DATE + INTERVAL '7 days')`;
+        whereClause += ` AND eh.date >= CURRENT_DATE AND eh.date < (CURRENT_DATE + INTERVAL '7 days')`;
         break;
       case "next_week":
-        whereClause += ` AND er.report_date >= (CURRENT_DATE + INTERVAL '7 days') AND er.report_date < (CURRENT_DATE + INTERVAL '14 days')`;
+        whereClause += ` AND eh.date >= (CURRENT_DATE + INTERVAL '7 days') AND eh.date < (CURRENT_DATE + INTERVAL '14 days')`;
         break;
       case "this_month":
-        whereClause += ` AND er.report_date >= CURRENT_DATE AND er.report_date < (CURRENT_DATE + INTERVAL '30 days')`;
+        whereClause += ` AND eh.date >= CURRENT_DATE AND eh.date < (CURRENT_DATE + INTERVAL '30 days')`;
         break;
       case "upcoming":
       default:
-        // For earnings, we can't filter by future dates since quarter is just a number
-        // Instead, we'll show all earnings and let the frontend handle filtering
+        // Show all earnings data
         whereClause += ` AND eh.quarter IS NOT NULL`;
         break;
     }
@@ -401,8 +400,8 @@ router.get("/events", async (req, res) => {
       SELECT
         eh.symbol,
         'earnings' as event_type,
-        eh.quarter as start_date,
-        eh.quarter as end_date,
+        eh.date as start_date,
+        eh.date as end_date,
         CONCAT('Q', eh.quarter, ' Earnings Report') as title,
         cp.short_name as company_name,
         eh.eps_estimate,
@@ -410,15 +409,15 @@ router.get("/events", async (req, res) => {
         NULL as revenue
       FROM earnings_history eh
       LEFT JOIN fundamental_metrics cp ON eh.symbol = cp.symbol
-      ${whereClause.replace(/er\./g, 'eh.')}
-      ORDER BY eh.quarter ASC
+      ${whereClause}
+      ORDER BY eh.date ASC
       LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
       FROM earnings_history eh
-      ${whereClause.replace(/er\./g, 'eh.')}
+      ${whereClause}
     `;
     console.log("Executing queries with limit:", limit, "offset:", offset);
 
