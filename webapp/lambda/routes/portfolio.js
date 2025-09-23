@@ -569,15 +569,15 @@ router.get("/analysis", async (req, res) => {
 
     // Try to get real portfolio data from database
     const holdingsQuery = `
-      SELECT 
+      SELECT
         ph.symbol,
         ph.quantity,
         ph.market_value,
-        ph.cost_basis,
+        (ph.average_cost * ph.quantity) as cost_basis,
         ph.symbol as company_name,
         'Technology' as sector
       FROM portfolio_holdings ph
-      WHERE ph.user_id = $1 
+      WHERE ph.user_id = $1
       AND ph.quantity > 0
       ORDER BY ph.market_value DESC
     `;
@@ -1121,10 +1121,10 @@ router.get("/performance", async (req, res) => {
 
     // Query portfolio_performance table for historical performance data
     const performanceQuery = `
-      SELECT 
+      SELECT
         date, total_value, daily_pnl, daily_pnl_percent,
         total_pnl, total_pnl_percent,
-        benchmark_return, alpha, beta, sharpe_ratio, max_drawdown, volatility
+        0 as benchmark_return, 0 as alpha, 1 as beta, 0 as sharpe_ratio, 0 as max_drawdown, 0 as volatility
       FROM portfolio_performance 
       WHERE user_id = $1 
       ORDER BY date
@@ -1246,7 +1246,7 @@ router.get("/performance/analysis", async (req, res) => {
       SELECT 
         ph.symbol, ph.quantity, ph.average_cost, ph.current_price, ph.market_value, 
         ph.unrealized_pnl as pnl, 
-        ROUND((ph.unrealized_pnl / NULLIF(ph.cost_basis, 0)) * 100, 2) as pnl_percent,
+        ROUND((ph.unrealized_pnl / NULLIF((ph.average_cost * ph.quantity), 0)) * 100, 2) as pnl_percent,
         COALESCE(cp.sector, 'Technology') as sector, ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
@@ -1667,8 +1667,8 @@ router.get("/holdings", async (req, res) => {
     const holdingsQuery = `
       SELECT 
         ph.user_id, ph.symbol, ph.quantity, ph.average_cost, ph.current_price, 
-        ph.market_value, ph.cost_basis, ph.unrealized_pnl as pnl, 
-        ROUND((ph.unrealized_pnl / NULLIF(ph.cost_basis, 0)) * 100, 2) as pnl_percent,
+        ph.market_value, (ph.average_cost * ph.quantity) as cost_basis, ph.unrealized_pnl as pnl, 
+        ROUND((ph.unrealized_pnl / NULLIF((ph.average_cost * ph.quantity), 0)) * 100, 2) as pnl_percent,
         0 as day_change, 0 as day_change_percent,
         'Unknown' as sector, 
         'Unknown' as asset_class,
@@ -5786,7 +5786,7 @@ router.get("/allocation", async (req, res) => {
     // Query actual portfolio holdings with proper sector mapping from database
     const holdingsQuery = `
       SELECT 
-        ph.symbol, ph.quantity, ph.market_value, ph.cost_basis,
+        ph.symbol, ph.quantity, ph.market_value, (ph.average_cost * ph.quantity) as cost_basis,
         COALESCE(cp.sector, 'Unknown') as sector,
         COALESCE(cp.industry, 'Unknown') as industry,
         CASE

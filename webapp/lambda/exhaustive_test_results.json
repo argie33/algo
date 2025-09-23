@@ -1,0 +1,107 @@
+{
+  "timestamp": "2025-09-23T16:06:54.888Z",
+  "totalEndpoints": 53,
+  "passed": 42,
+  "failed": 11,
+  "serverErrors": 3,
+  "emptyData": 6,
+  "passRate": 79,
+  "issues": [
+    {
+      "type": "EMPTY_DATA",
+      "endpoint": "/api/news",
+      "description": "News"
+    },
+    {
+      "type": "EMPTY_DATA",
+      "endpoint": "/api/sectors",
+      "description": "Sectors"
+    },
+    {
+      "type": "EMPTY_DATA",
+      "endpoint": "/api/signals/TSLA",
+      "description": "Signals TSLA"
+    },
+    {
+      "type": "CLIENT_ERROR",
+      "endpoint": "/api/price/AAPL",
+      "status": 404,
+      "error": "{\"success\":false,\"error\":\"No price data found for symbol AAPL\",\"timestamp\":\"2025-09-23T16:06:54.837Z\"}"
+    },
+    {
+      "type": "CLIENT_ERROR",
+      "endpoint": "/api/price/TSLA",
+      "status": 404,
+      "error": "{\"success\":false,\"error\":\"No price data found for symbol TSLA\",\"timestamp\":\"2025-09-23T16:06:54.838Z\"}"
+    },
+    {
+      "type": "CLIENT_ERROR",
+      "endpoint": "/api/technical/daily",
+      "status": 400,
+      "error": "{\"error\":\"Invalid route. Use /api/technical/timeframe or /api/technical/symbol?timeframe=daily\"}"
+    },
+    {
+      "type": "CLIENT_ERROR",
+      "endpoint": "/api/technical/weekly",
+      "status": 400,
+      "error": "{\"error\":\"Invalid route. Use /api/technical/timeframe or /api/technical/symbol?timeframe=daily\"}"
+    },
+    {
+      "type": "CLIENT_ERROR",
+      "endpoint": "/api/technical/monthly",
+      "status": 400,
+      "error": "{\"error\":\"Invalid route. Use /api/technical/timeframe or /api/technical/symbol?timeframe=daily\"}"
+    },
+    {
+      "type": "CLIENT_ERROR",
+      "endpoint": "/api/price/daily",
+      "status": 404,
+      "error": "{\"success\":false,\"error\":\"No price data found for symbol DAILY\",\"timestamp\":\"2025-09-23T16:06:54.845Z\"}"
+    },
+    {
+      "type": "EMPTY_DATA",
+      "endpoint": "/api/news?limit=5",
+      "description": "News with limit"
+    },
+    {
+      "type": "CLIENT_ERROR",
+      "endpoint": "/api/market/hours",
+      "status": 404,
+      "error": "{\"success\":false,\"error\":\"Endpoint /api/market/hours not found\",\"timestamp\":\"2025-09-23T16:06:54.872Z\",\"service\":\"financial-platform\",\"type\":\"not_found_error\",\"troubleshooting\":{\"suggestion\":\"The requested endpoint /api/market/hours could not be located\",\"requirements\":\"Endpoint /api/market/hours must exist in the system and be accessible to your account\",\"steps\":[\"1. Verify the resource identifier (ID, symbol, etc.) is correct\",\"2. Check that you have permission to access this resource\",\"3. Ensure the resource hasn't been moved or deleted\",\"4. Try refreshing the page or searching for the resource again\"]}}"
+    },
+    {
+      "type": "CLIENT_ERROR",
+      "endpoint": "/api/fundamentals",
+      "status": 404,
+      "error": "{\"success\":false,\"error\":\"Endpoint /api/fundamentals not found\",\"timestamp\":\"2025-09-23T16:06:54.873Z\",\"service\":\"financial-platform\",\"type\":\"not_found_error\",\"troubleshooting\":{\"suggestion\":\"The requested endpoint /api/fundamentals could not be located\",\"requirements\":\"Endpoint /api/fundamentals must exist in the system and be accessible to your account\",\"steps\":[\"1. Verify the resource identifier (ID, symbol, etc.) is correct\",\"2. Check that you have permission to access this resource\",\"3. Ensure the resource hasn't been moved or deleted\",\"4. Try refreshing the page or searching for the resource again\"]}}"
+    },
+    {
+      "type": "EMPTY_DATA",
+      "endpoint": "/api/etf",
+      "description": "ETF data"
+    },
+    {
+      "type": "SERVER_ERROR",
+      "endpoint": "/api/signals/buy",
+      "status": 500,
+      "error": "{\"success\":false,\"error\":\"Buy signals data unavailable\",\"message\":\"Signal tables not configured in database\",\"timestamp\":\"2025-09-23T16:06:54.878Z\"}"
+    },
+    {
+      "type": "SERVER_ERROR",
+      "endpoint": "/api/signals/sell",
+      "status": 500,
+      "error": "{\"success\":false,\"error\":\"Sell signals data unavailable\",\"message\":\"Signal tables not configured in database\",\"pagination\":{\"page\":1,\"limit\":25,\"total\":0,\"totalPages\":0,\"hasMore\":false},\"timestamp\":\"2025-09-23T16:06:54.879Z\"}"
+    },
+    {
+      "type": "EMPTY_DATA",
+      "endpoint": "/api/signals/trending",
+      "description": "Trending signals"
+    },
+    {
+      "type": "SERVER_ERROR",
+      "endpoint": "/api/signals/alerts",
+      "status": 500,
+      "error": "{\"success\":false,\"error\":\"Failed to fetch signal alerts\",\"details\":\"column \\\"alert_id\\\" does not exist\",\"timestamp\":\"2025-09-23T16:06:54.881Z\"}"
+    }
+  ]
+}
