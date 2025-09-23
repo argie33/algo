@@ -601,7 +601,7 @@ router.get("/overview", async (req, res) => {
       const indicesResult = await query(`
         SELECT
           md.ticker as symbol,
-          COALESCE(cp.short_name, md.ticker) as name,
+          md.ticker as name,
           md.current_price as price,
           (md.current_price - md.previous_close) as change,
           CASE

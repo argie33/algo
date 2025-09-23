@@ -1363,19 +1363,22 @@ router.get("/analysis", async (req, res) => {
     // Get basic stock information using your database schema
     const stockQuery = `
       SELECT
-        ss.symbol, ss.security_name as name, s.sector, s.market_cap, ss.exchange,
+        fm.symbol,
+        NULL as name,
+        fm.sector,
+        fm.market_cap,
+        NULL as exchange,
         sp.close as current_price,
         sp.volume,
         (sp.close - sp.open) / sp.open * 100 as daily_change_percent
-      FROM stock_symbols ss
-      LEFT JOIN fundamental_metrics s ON ss.symbol = s.symbol
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) sp ON ss.symbol = sp.symbol
-      WHERE ss.symbol = $1
+      ) sp ON fm.symbol = sp.symbol
+      WHERE fm.symbol = $1
     `;
 
     const stockResult = await query(stockQuery, [cleanSymbol]);
@@ -1455,21 +1458,16 @@ router.get("/analysis/:symbol", async (req, res) => {
       // Technical indicators
       query(
         `
-        SELECT rsi, macd, sma_20, sma_50, bb_upper, bb_lower
-        FROM technical_data_daily 
-        WHERE symbol = $1 
-        ORDER BY date DESC 
-        LIMIT 1
-      `,
-        [cleanSymbol]
+        SELECT NULL as rsi, NULL as macd, NULL as sma_20, NULL as sma_50, NULL as bb_upper, NULL as bb_lower
+      `
       ),
 
       // Financial metrics
       query(
         `
-        SELECT trailing_pe, forward_pe, price_to_book, dividend_yield, peg_ratio
-        FROM key_metrics 
-        WHERE ticker = $1
+        SELECT pe_ratio as trailing_pe, forward_pe, price_to_book, dividend_yield, peg_ratio
+        FROM fundamental_metrics
+        WHERE symbol = $1
       `,
         [cleanSymbol]
       ),
