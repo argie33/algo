@@ -188,10 +188,28 @@ router.get("/alerts", async (req, res) => {
 
     console.log(`🔔 Signal alerts requested`);
 
+    // Query signal alerts from database
+    const alertsQuery = `
+      SELECT
+        alert_id,
+        symbol,
+        signal_type,
+        min_strength,
+        notification_method,
+        created_at,
+        status
+      FROM signal_alerts
+      WHERE status = 'active'
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+
+    const result = await query(alertsQuery);
+
     res.json({
       success: true,
-      data: [],
-      message: "No signal alerts available",
+      data: result.rows,
+      total: result.rows.length,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -223,20 +241,26 @@ router.post("/alerts", async (req, res) => {
     // Create alert with real database implementation
     const alertId = `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // For now, store in a simple structure until we have alerts table
-    const alertData = {
-      alert_id: alertId,
-      symbol: symbol.toUpperCase(),
-      signal_type: signal_type || 'BUY',
-      min_strength: min_strength || 0.7,
-      notification_method: notification_method || 'email',
-      created_at: new Date().toISOString(),
-      status: 'active'
-    };
+    // Insert into signal_alerts table
+    const insertQuery = `
+      INSERT INTO signal_alerts (
+        alert_id, symbol, signal_type, min_strength,
+        notification_method, created_at, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `;
 
-    // TODO: Insert into alerts table when it's created
-    // const insertQuery = `INSERT INTO alerts (id, symbol, signal_type, min_strength, notification_method, created_at) VALUES ($1, $2, $3, $4, $5, $6)`;
-    // await query(insertQuery, [alertId, symbol.toUpperCase(), signal_type, min_strength, notification_method, new Date()]);
+    const result = await query(insertQuery, [
+      alertId,
+      symbol.toUpperCase(),
+      signal_type || 'BUY',
+      min_strength || 0.7,
+      notification_method || 'email',
+      new Date(),
+      'active'
+    ]);
+
+    const alertData = result.rows[0];
 
     res.status(201).json({
       success: true,
@@ -271,11 +295,18 @@ router.delete("/alerts/:id", async (req, res) => {
       });
     }
 
-    // TODO: Delete from alerts table when it's created
-    // const deleteQuery = `DELETE FROM alerts WHERE id = $1`;
-    // const result = await query(deleteQuery, [id]);
+    // Delete from signal_alerts table
+    const deleteQuery = `DELETE FROM signal_alerts WHERE alert_id = $1 RETURNING *`;
+    const result = await query(deleteQuery, [id]);
 
-    // For now, simulate successful deletion
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Alert not found",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     res.json({
       success: true,
       message: `Signal alert ${id} deleted successfully`,
@@ -390,15 +421,64 @@ router.get("/:symbol", async (req, res) => {
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      error: "Symbol signals data unavailable",
-      message: "Signal tables not configured in database",
+    // Map timeframe to table suffix
+    const tableMap = {
+      daily: "buy_sell_daily",
+      weekly: "buy_sell_weekly",
+      monthly: "buy_sell_monthly"
+    };
+
+    const tableName = tableMap[timeframe];
+
+    // Query signals data from the appropriate table
+    const signalsQuery = `
+      SELECT
+        symbol,
+        date,
+        signal_type,
+        buylevel,
+        stoplevel,
+        inposition,
+        close,
+        volume,
+        confidence,
+        risk_score
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT $2
+    `;
+
+    const signalsResult = await query(signalsQuery, [symbol.toUpperCase(), limit]);
+
+    // Get summary statistics
+    const summaryQuery = `
+      SELECT
+        COUNT(*) as total_signals,
+        COUNT(CASE WHEN signal_type = 'BUY' THEN 1 END) as buy_signals,
+        COUNT(CASE WHEN signal_type = 'SELL' THEN 1 END) as sell_signals,
+        AVG(confidence) as avg_confidence,
+        AVG(risk_score) as avg_risk
+      FROM ${tableName}
+      WHERE symbol = $1
+    `;
+
+    const summaryResult = await query(summaryQuery, [symbol.toUpperCase()]);
+    const summary = summaryResult.rows[0] || {};
+
+    // Format the response
+    return res.json({
+      success: true,
       symbol: symbol.toUpperCase(),
-      summary: {
-        total_signals: 0,
-      },
       timeframe,
+      data: signalsResult.rows,
+      summary: {
+        total_signals: parseInt(summary.total_signals) || 0,
+        buy_signals: parseInt(summary.buy_signals) || 0,
+        sell_signals: parseInt(summary.sell_signals) || 0,
+        avg_confidence: summary.avg_confidence ? parseFloat(summary.avg_confidence).toFixed(2) : null,
+        avg_risk: summary.avg_risk ? parseFloat(summary.avg_risk).toFixed(2) : null,
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
