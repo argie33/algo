@@ -262,13 +262,15 @@ router.get("/positions", async (req, res) => {
       SELECT
         h.symbol, h.quantity, h.average_cost, h.current_price,
         h.last_updated as created_at, h.last_updated as updated_at,
-        s.short_name as company_name, COALESCE(s.sector, 'Unknown') as sector,
+        COALESCE(cp.short_name, h.symbol) as company_name,
+        COALESCE(fm.sector, 'Unknown') as sector,
         (h.current_price - h.average_cost) * h.quantity as unrealized_pnl,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as unrealized_pnl_percent,
         h.current_price * h.quantity as market_value,
         h.average_cost * h.quantity as cost_basis
       FROM portfolio_holdings h
-      LEFT JOIN fundamental_metrics s ON h.symbol = s.symbol
+      LEFT JOIN company_profile cp ON h.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics fm ON h.symbol = fm.symbol
       WHERE h.user_id = $1 AND h.quantity > 0
       ORDER BY h.current_price * h.quantity DESC
       LIMIT $2

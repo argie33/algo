@@ -3372,6 +3372,15 @@ router.get("/screen/stats", async (req, res) => {
 
 // POST /stocks/init-price-data - Initialize price data for testing
 router.post("/init-price-data", authenticateToken, async (req, res) => {
+  // Endpoint disabled in production
+  return res.status(501).json({
+    success: false,
+    error: "Endpoint disabled",
+    message: "Price data initialization is disabled in production",
+    timestamp: new Date().toISOString(),
+  });
+
+  /* Development-only code disabled:
   try {
     console.log("Price data initialization endpoint called");
 
