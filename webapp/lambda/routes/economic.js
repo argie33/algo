@@ -409,9 +409,10 @@ router.get("/series/:seriesId", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "Economic series not found",
-        message: `No data found for economic series: ${seriesId}. Please verify the series ID is correct.`,
+        message: `No data found for economic series: ${seriesId} (resolved to ${resolvedSeriesId}). Please verify the series ID is correct.`,
         details: {
           requested_series: seriesId,
+          resolved_series: resolvedSeriesId,
           available_series_sample: [
             "GDP",
             "CPI",
@@ -437,7 +438,7 @@ router.get("/series/:seriesId", async (req, res) => {
     res.json({
       success: true,
       data: {
-        series_id: seriesId.toUpperCase(),
+        series_id: seriesId,
         values: seriesResult.rows,
         statistics: {
           latest_value: latestValue,

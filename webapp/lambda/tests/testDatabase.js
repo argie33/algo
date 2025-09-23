@@ -587,11 +587,11 @@ const createTestDatabase = () => {
     ('MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'EQUITY', 'Technology', 'us_market', 'USD', 'NMS', 'Microsoft Corporation develops, licenses, and supports software, services, devices, and solutions worldwide.'),
     ('TSLA', 'Tesla, Inc.', 'Tesla, Inc.', 'EQUITY', 'Consumer Cyclical', 'us_market', 'USD', 'NMS', 'Tesla, Inc. designs, develops, manufactures, leases, and sells electric vehicles.');
 
-    INSERT INTO market_data (ticker, current_price, market_cap, regular_market_volume, fifty_two_week_low, fifty_two_week_high, previous_close) VALUES
-    ('AAPL', 152.0, 2400000000000, 50000000, 124.17, 199.62, 150.0),
-    ('GOOGL', 2820.0, 1800000000000, 25000000, 2193.62, 3030.93, 2800.0),
-    ('MSFT', 382.0, 2800000000000, 30000000, 309.45, 468.35, 380.0),
-    ('TSLA', 240.0, 780000000000, 80000000, 138.80, 414.50, 238.0);
+    INSERT INTO market_data (symbol, name, date, price, volume, market_cap, high_52w, low_52w) VALUES
+    ('AAPL', 'Apple Inc.', '2024-01-02', 152.0, 50000000, 2400000000000, 199.62, 124.17),
+    ('GOOGL', 'Alphabet Inc.', '2024-01-02', 2820.0, 25000000, 1800000000000, 3030.93, 2193.62),
+    ('MSFT', 'Microsoft Corporation', '2024-01-02', 382.0, 30000000, 2800000000000, 468.35, 309.45),
+    ('TSLA', 'Tesla Inc.', '2024-01-02', 240.0, 80000000, 780000000000, 414.50, 138.80);
 
     INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, price_to_sales_ttm, price_to_book, debt_to_equity, current_ratio, quick_ratio, dividend_yield, peg_ratio, total_revenue, net_income) VALUES
     ('AAPL', 28.5, 26.2, 7.8, 45.2, 1.73, 0.98, 0.81, 0.0044, 2.1, 394328000000, 96995000000),

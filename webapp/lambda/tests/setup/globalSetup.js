@@ -15,21 +15,295 @@ module.exports = async () => {
 
     console.log('🔧 Setting up database tables to match loader structure...');
 
-    // Create company_profile table (from loadinfo.py)
+    // Drop and recreate company_profile table exactly matching loadinfo.py
+    await query(`DROP TABLE IF EXISTS company_profile CASCADE`);
     await query(`
-      CREATE TABLE IF NOT EXISTS company_profile (
+      CREATE TABLE company_profile (
         ticker VARCHAR(10) PRIMARY KEY,
         short_name VARCHAR(100),
         long_name VARCHAR(200),
-        sector VARCHAR(100),
-        industry VARCHAR(100),
+        display_name VARCHAR(200),
+        quote_type VARCHAR(50),
+        symbol_type VARCHAR(50),
+        triggerable BOOLEAN,
+        has_pre_post_market_data BOOLEAN,
+        price_hint INT,
+        max_age_sec INT,
+        language VARCHAR(20),
+        region VARCHAR(20),
+        financial_currency VARCHAR(10),
         currency VARCHAR(10),
-        exchange VARCHAR(50),
-        website VARCHAR(255),
+        market VARCHAR(50),
+        quote_source_name VARCHAR(100),
+        custom_price_alert_confidence VARCHAR(20),
+        address1 VARCHAR(200),
+        city VARCHAR(100),
+        state VARCHAR(50),
+        postal_code VARCHAR(20),
+        country VARCHAR(100),
+        phone_number VARCHAR(50),
+        website_url VARCHAR(200),
+        ir_website_url VARCHAR(200),
+        message_board_id VARCHAR(100),
+        corporate_actions JSONB,
+        sector VARCHAR(100),
+        sector_key VARCHAR(100),
+        sector_disp VARCHAR(100),
+        industry VARCHAR(100),
+        industry_key VARCHAR(100),
+        industry_disp VARCHAR(100),
         business_summary TEXT,
-        full_time_employees INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        employee_count INT,
+        first_trade_date_ms BIGINT,
+        gmt_offset_ms BIGINT,
+        exchange VARCHAR(20),
+        full_exchange_name VARCHAR(100),
+        exchange_timezone_name VARCHAR(100),
+        exchange_timezone_short_name VARCHAR(20),
+        exchange_data_delayed_by_sec INT,
+        post_market_time_ms BIGINT,
+        regular_market_time_ms BIGINT
       )
+    `);
+
+    // Drop and recreate key_metrics table matching loadinfo.py
+    await query(`DROP TABLE IF EXISTS key_metrics`);
+    await query(`
+      CREATE TABLE key_metrics (
+        ticker VARCHAR(10) PRIMARY KEY,
+        trailing_pe NUMERIC,
+        forward_pe NUMERIC,
+        price_to_sales_ttm NUMERIC,
+        price_to_book NUMERIC,
+        book_value NUMERIC,
+        peg_ratio NUMERIC,
+        enterprise_value BIGINT,
+        ev_to_revenue NUMERIC,
+        ev_to_ebitda NUMERIC,
+        total_revenue BIGINT,
+        net_income BIGINT,
+        ebitda BIGINT,
+        gross_profit BIGINT,
+        eps_trailing NUMERIC,
+        eps_forward NUMERIC,
+        eps_current_year NUMERIC,
+        price_eps_current_year NUMERIC,
+        earnings_q_growth_pct NUMERIC,
+        revenue_growth_pct NUMERIC,
+        earnings_growth_pct NUMERIC,
+        total_cash BIGINT,
+        cash_per_share NUMERIC,
+        operating_cashflow BIGINT,
+        free_cashflow BIGINT,
+        total_debt BIGINT,
+        debt_to_equity NUMERIC,
+        quick_ratio NUMERIC,
+        current_ratio NUMERIC,
+        profit_margin_pct NUMERIC,
+        gross_margin_pct NUMERIC,
+        ebitda_margin_pct NUMERIC,
+        operating_margin_pct NUMERIC,
+        return_on_assets_pct NUMERIC,
+        return_on_equity_pct NUMERIC,
+        dividend_rate NUMERIC,
+        dividend_yield NUMERIC,
+        five_year_avg_dividend_yield NUMERIC,
+        last_annual_dividend_amt NUMERIC,
+        last_annual_dividend_yield NUMERIC
+      )
+    `);
+
+    // Drop and recreate market_data table exactly matching loadmarket.py loader schema
+    await query(`DROP TABLE IF EXISTS market_data CASCADE`);
+    await query(`
+      CREATE TABLE market_data (
+        symbol VARCHAR(20),
+        name VARCHAR(255),
+        date DATE,
+        price DECIMAL(12,4),
+        volume BIGINT,
+        market_cap BIGINT,
+
+        -- Returns
+        return_1d DECIMAL(8,6),
+        return_5d DECIMAL(8,6),
+        return_1m DECIMAL(8,6),
+        return_3m DECIMAL(8,6),
+        return_6m DECIMAL(8,6),
+        return_1y DECIMAL(8,6),
+
+        -- Volatility
+        volatility_30d DECIMAL(8,6),
+        volatility_90d DECIMAL(8,6),
+        volatility_1y DECIMAL(8,6),
+
+        -- Moving Averages
+        sma_20 DECIMAL(12,4),
+        sma_50 DECIMAL(12,4),
+        sma_200 DECIMAL(12,4),
+        price_vs_sma_20 DECIMAL(8,6),
+        price_vs_sma_50 DECIMAL(8,6),
+        price_vs_sma_200 DECIMAL(8,6),
+
+        -- High/Low Metrics
+        high_52w DECIMAL(12,4),
+        low_52w DECIMAL(12,4),
+        distance_from_high DECIMAL(8,6),
+        distance_from_low DECIMAL(8,6),
+
+        -- Volume and Risk
+        avg_volume_30d BIGINT,
+        volume_ratio DECIMAL(8,4),
+        beta DECIMAL(8,4),
+
+        -- Classification
+        asset_class VARCHAR(50),
+        region VARCHAR(50),
+
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (symbol, date)
+      )
+    `);
+
+    // Insert test data for company_profile
+    await query(`
+      INSERT INTO company_profile (
+        ticker, short_name, long_name, sector, industry, currency, exchange, business_summary
+      ) VALUES
+      ('AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics', 'USD', 'NASDAQ', 'Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide.'),
+      ('MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'Technology', 'Software Infrastructure', 'USD', 'NASDAQ', 'Microsoft Corporation develops, licenses, and supports software, services, devices, and solutions worldwide.'),
+      ('GOOGL', 'Alphabet Inc.', 'Alphabet Inc. (Class A)', 'Communication Services', 'Internet Content & Information', 'USD', 'NASDAQ', 'Alphabet Inc. provides search and advertising services.')
+      ON CONFLICT (ticker) DO NOTHING
+    `);
+
+    // Insert comprehensive test data for key_metrics
+    await query(`
+      INSERT INTO key_metrics (
+        ticker, trailing_pe, forward_pe, price_to_sales_ttm, price_to_book,
+        peg_ratio, enterprise_value, total_revenue, net_income, ebitda,
+        eps_trailing, eps_forward, dividend_yield, debt_to_equity,
+        current_ratio, profit_margin_pct, gross_margin_pct,
+        return_on_equity_pct, return_on_assets_pct
+      ) VALUES
+      ('AAPL', 28.5, 26.2, 7.8, 45.2, 2.1, 3500000000000, 365000000000, 94000000000, 120000000000, 5.89, 6.25, 0.52, 1.73, 1.07, 25.7, 43.0, 175.0, 27.1),
+      ('MSFT', 32.1, 29.8, 12.4, 13.5, 2.5, 2800000000000, 211000000000, 72000000000, 88000000000, 10.95, 12.10, 0.68, 0.47, 2.54, 34.2, 68.4, 47.1, 18.3),
+      ('GOOGL', 24.7, 22.3, 5.2, 5.8, 1.8, 1700000000000, 283000000000, 76000000000, 92000000000, 5.02, 5.85, 0.0, 0.10, 3.77, 26.9, 57.0, 29.8, 16.2)
+      ON CONFLICT (ticker) DO NOTHING
+    `);
+
+    // Insert test data for market_data with production schema
+    await query(`
+      INSERT INTO market_data (
+        ticker, current_price, regular_market_price, previous_close,
+        regular_market_previous_close, open_price, regular_market_open,
+        day_low, regular_market_day_low, day_high, regular_market_day_high,
+        volume, regular_market_volume, market_cap, average_volume,
+        fifty_two_week_low, fifty_two_week_high
+      ) VALUES
+      ('AAPL', 180.50, 180.50, 179.25, 179.25, 179.80, 179.80,
+       178.90, 178.90, 181.20, 181.20, 65000000, 65000000,
+       3400000000000, 55000000, 125.02, 199.62),
+      ('MSFT', 415.25, 415.25, 412.80, 412.80, 413.50, 413.50,
+       410.15, 410.15, 417.85, 417.85, 32000000, 32000000,
+       2800000000000, 28000000, 324.73, 468.35),
+      ('GOOGL', 142.80, 142.80, 141.95, 141.95, 142.10, 142.10,
+       140.85, 140.85, 143.75, 143.75, 28000000, 28000000,
+       1680000000000, 24000000, 83.34, 191.18)
+      ON CONFLICT (ticker) DO NOTHING
+    `);
+
+    // Create missing tables from fix_missing_columns.sql
+
+    // Create trade_history table
+    await query(`DROP TABLE IF EXISTS trade_history CASCADE`);
+    await query(`
+      CREATE TABLE trade_history (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        symbol VARCHAR(20) NOT NULL,
+        side VARCHAR(10) CHECK (side IN ('buy', 'sell')) DEFAULT 'buy',
+        quantity INTEGER NOT NULL,
+        price DECIMAL(12,4) NOT NULL,
+        total_amount DECIMAL(15,4) NOT NULL,
+        fees DECIMAL(10,4) DEFAULT 0,
+        trade_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'executed',
+        order_type VARCHAR(20) DEFAULT 'market',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create position_history table
+    await query(`DROP TABLE IF EXISTS position_history CASCADE`);
+    await query(`
+      CREATE TABLE position_history (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        symbol VARCHAR(20) NOT NULL,
+        side VARCHAR(10) CHECK (side IN ('long', 'short')) DEFAULT 'long',
+        quantity INTEGER NOT NULL,
+        avg_entry_price DECIMAL(12,4) NOT NULL,
+        avg_exit_price DECIMAL(12,4),
+        net_pnl DECIMAL(15,4),
+        return_percentage DECIMAL(8,4),
+        opened_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        closed_at TIMESTAMP WITH TIME ZONE,
+        status VARCHAR(20) DEFAULT 'open',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create trading_strategies table
+    await query(`DROP TABLE IF EXISTS trading_strategies CASCADE`);
+    await query(`
+      CREATE TABLE trading_strategies (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL,
+        strategy_name VARCHAR(200) NOT NULL,
+        strategy_description TEXT,
+        strategy_code TEXT,
+        backtest_id VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'draft',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, strategy_name)
+      )
+    `);
+
+    // Insert test data for missing tables
+    await query(`
+      INSERT INTO trade_history (user_id, symbol, side, quantity, price, total_amount, fees, trade_date, status)
+      VALUES
+      ('dev-user-bypass', 'AAPL', 'buy', 100, 180.50, 18050.00, 5.00, NOW() - INTERVAL '5 days', 'executed'),
+      ('dev-user-bypass', 'MSFT', 'buy', 50, 415.25, 20762.50, 7.50, NOW() - INTERVAL '3 days', 'executed'),
+      ('dev-user-bypass', 'GOOGL', 'sell', 25, 142.80, 3570.00, 3.50, NOW() - INTERVAL '1 day', 'executed')
+      ON CONFLICT DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO position_history (user_id, symbol, side, quantity, avg_entry_price, avg_exit_price, net_pnl, return_percentage, opened_at, closed_at, status)
+      VALUES
+      ('dev-user-bypass', 'AAPL', 'long', 100, 175.50, 185.25, 975.00, 5.56, NOW() - INTERVAL '10 days', NOW() - INTERVAL '2 days', 'closed'),
+      ('dev-user-bypass', 'MSFT', 'long', 50, 410.00, NULL, NULL, NULL, NOW() - INTERVAL '5 days', NULL, 'open'),
+      ('dev-user-bypass', 'NVDA', 'long', 25, 480.75, 495.30, 363.75, 3.03, NOW() - INTERVAL '15 days', NOW() - INTERVAL '3 days', 'closed')
+      ON CONFLICT DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO trading_strategies (user_id, strategy_name, strategy_description, strategy_code, backtest_id, status)
+      VALUES
+      ('dev-user-bypass', 'Mean Reversion Strategy', 'A strategy that identifies overbought and oversold conditions using RSI and moving averages', 'def strategy(): pass', 'bt_001', 'active'),
+      ('dev-user-bypass', 'Momentum Breakout', 'Identifies stocks breaking out of consolidation patterns with high volume confirmation', 'def momentum_strategy(): pass', 'bt_002', 'testing'),
+      ('dev-user-bypass', 'Value Investing', 'Long-term strategy focusing on undervalued stocks with strong fundamentals', 'def value_strategy(): pass', 'bt_003', 'draft')
+      ON CONFLICT (user_id, strategy_name) DO UPDATE SET
+      strategy_description = EXCLUDED.strategy_description,
+      strategy_code = EXCLUDED.strategy_code,
+      backtest_id = EXCLUDED.backtest_id,
+      status = EXCLUDED.status,
+      updated_at = CURRENT_TIMESTAMP
     `);
 
     // Recreate buy_sell_daily table with correct schema
@@ -206,16 +480,6 @@ module.exports = async () => {
       )
     `);
 
-    await query(`
-      CREATE TABLE IF NOT EXISTS market_data (
-        ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-        market_cap BIGINT,
-        current_price DECIMAL(12,4),
-        previous_close DECIMAL(12,4),
-        volume BIGINT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
 
     await query(`
       CREATE TABLE IF NOT EXISTS price_daily (
@@ -329,46 +593,6 @@ module.exports = async () => {
       )
     `);
 
-    // Create market_data table (from loadinfo.py)
-    await query(`
-      CREATE TABLE IF NOT EXISTS market_data (
-        ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
-        previous_close NUMERIC,
-        regular_market_previous_close NUMERIC,
-        open_price NUMERIC,
-        regular_market_open NUMERIC,
-        day_low NUMERIC,
-        regular_market_day_low NUMERIC,
-        day_high NUMERIC,
-        regular_market_day_high NUMERIC,
-        regular_market_price NUMERIC,
-        current_price NUMERIC,
-        post_market_price NUMERIC,
-        post_market_change NUMERIC,
-        post_market_change_pct NUMERIC,
-        volume BIGINT,
-        regular_market_volume BIGINT,
-        avg_volume BIGINT,
-        avg_volume_10days BIGINT,
-        bid NUMERIC,
-        ask NUMERIC,
-        bid_size INT,
-        ask_size INT,
-        market_cap BIGINT,
-        fifty_two_week_low NUMERIC,
-        fifty_two_week_high NUMERIC,
-        fifty_day_average NUMERIC,
-        two_hundred_day_average NUMERIC,
-        dividend_rate NUMERIC,
-        dividend_yield NUMERIC,
-        ex_dividend_date DATE,
-        payout_ratio NUMERIC,
-        five_year_avg_dividend_yield NUMERIC,
-        trailing_annual_dividend_rate NUMERIC,
-        trailing_annual_dividend_yield NUMERIC,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
 
     // Add minimal test data for tests to work
     await query(`
@@ -380,15 +604,6 @@ module.exports = async () => {
       ON CONFLICT (ticker) DO NOTHING
     `);
 
-    // Add test data for market_data (to support metrics route)
-    await query(`
-      INSERT INTO market_data (ticker, current_price, market_cap, volume, fifty_two_week_high, fifty_two_week_low) VALUES
-      ('AAPL', 151.50, 3500000000000, 25847600, 198.23, 124.17),
-      ('MSFT', 350.85, 2800000000000, 18562300, 384.30, 212.21),
-      ('GOOGL', 2855.75, 1750000000000, 1285400, 3030.93, 2193.62),
-      ('TSLA', 247.25, 850000000000, 35847600, 414.50, 101.81)
-      ON CONFLICT (ticker) DO NOTHING
-    `);
 
     await query(`
       INSERT INTO buy_sell_daily (symbol, date, timeframe, signal_type, confidence, price, rsi, macd, volume, volume_avg_10d, price_vs_ma20, price_vs_ma50, bollinger_position, support_level, resistance_level, pattern_score, momentum_score, risk_score) VALUES
@@ -423,12 +638,6 @@ module.exports = async () => {
       ON CONFLICT (symbol, date, timeframe, signal_type) DO NOTHING
     `);
 
-    await query(`
-      INSERT INTO market_data (ticker, market_cap, current_price, previous_close, volume) VALUES
-      ('AAPL', 3500000000000, 150.25, 149.50, 65000000),
-      ('MSFT', 2800000000000, 350.75, 348.25, 45000000)
-      ON CONFLICT (ticker) DO NOTHING
-    `);
 
     await query(`
       INSERT INTO stock_symbols (symbol, exchange, security_name, market_category, etf) VALUES

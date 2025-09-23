@@ -453,7 +453,7 @@ router.get("/", async (req, res) => {
       offset,
     });
 
-    // COMPREHENSIVE QUERY: Join price_daily with key_metrics table for complete data
+    // COMPREHENSIVE QUERY: Join price_daily with available financial tables
     const stocksQuery = `
       SELECT DISTINCT ON (pd.symbol)
         pd.symbol,
@@ -465,13 +465,13 @@ router.get("/", async (req, res) => {
         pd.volume,
         pd.date,
 
-        -- Key metrics from key_metrics table
+        -- Comprehensive key metrics from key_metrics table (loadinfo.py)
         km.trailing_pe,
         km.forward_pe,
         km.price_to_sales_ttm,
         km.price_to_book,
-        km.peg_ratio,
         km.book_value,
+        km.peg_ratio,
         km.enterprise_value,
         km.ev_to_revenue,
         km.ev_to_ebitda,
@@ -503,13 +503,15 @@ router.get("/", async (req, res) => {
         km.dividend_rate,
         km.dividend_yield,
         km.five_year_avg_dividend_yield,
-        km.payout_ratio,
-        km.target_mean_price,
-        km.recommendation_key,
-        km.market_cap
+        km.last_annual_dividend_amt,
+        km.last_annual_dividend_yield,
+
+        -- Market cap from market_data table (loadinfo.py)
+        md.market_cap
 
       FROM price_daily pd
-      LEFT JOIN key_metrics km ON pd.symbol = km.symbol
+      LEFT JOIN key_metrics km ON pd.symbol = km.ticker
+      LEFT JOIN market_data md ON pd.symbol = md.ticker
       ${whereClause.replace(/symbol/g, 'pd.symbol')}
       ORDER BY pd.symbol, pd.date DESC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -755,14 +757,15 @@ router.get("/", async (req, res) => {
 
         // Comprehensive key financial metrics from key_metrics table
         keyMetrics: {
+          // Market metrics
+          marketCap: stock.market_cap,
+
           // Core valuation metrics
           pe: stock.trailing_pe,
-          marketCap: stock.market_cap,
+          peForward: stock.forward_pe,
           revenue: stock.total_revenue,
           profitMargin: stock.profit_margin_pct,
           dividendYield: stock.dividend_yield,
-          analystRating: stock.recommendation_key,
-          targetPrice: stock.target_mean_price,
 
           // Additional comprehensive metrics
           priceToBook: stock.price_to_book,
@@ -811,7 +814,6 @@ router.get("/", async (req, res) => {
           // Dividend metrics
           dividendRate: stock.dividend_rate,
           fiveYearAvgDividendYield: stock.five_year_avg_dividend_yield,
-          payoutRatio: stock.payout_ratio,
 
           // Additional financial metrics
           bookValue: stock.book_value,
@@ -851,7 +853,7 @@ router.get("/", async (req, res) => {
         sortOrder,
       },
       metadata: {
-        totalStocks: total,
+        totalStocks: estimatedTotal,
         currentPage: page,
         showingRecords: stocksResult.rows.length,
         dataFields: [

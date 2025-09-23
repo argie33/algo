@@ -356,7 +356,7 @@ router.get("/screen", async (req, res) => {
         NULL as macd,
         NULL as macd_signal
       FROM fundamental_metrics s
-      LEFT JOIN fundamental_metrics cp ON s.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, date, close, volume, open, high, low
@@ -389,7 +389,7 @@ router.get("/screen", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM fundamental_metrics s
-      LEFT JOIN fundamental_metrics cp ON s.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, date, close, volume, open, high, low

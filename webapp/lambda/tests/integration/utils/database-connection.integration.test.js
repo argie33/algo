@@ -346,14 +346,14 @@ describe("Database Comprehensive Integration Tests", () => {
         [testSymbol, "Healthcare"]
       );
 
-      // Insert market data with market_cap
+      // Insert market data with market_cap using loader schema
       await query(
         `
-        INSERT INTO market_data (ticker, market_cap, current_price)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (ticker) DO UPDATE SET
+        INSERT INTO market_data (symbol, name, date, market_cap, price)
+        VALUES ($1, $1, CURRENT_DATE, $2, $3)
+        ON CONFLICT (symbol, date) DO UPDATE SET
           market_cap = EXCLUDED.market_cap,
-          current_price = EXCLUDED.current_price
+          price = EXCLUDED.price
       `,
         [testSymbol, 2000000, 150.5]
       );

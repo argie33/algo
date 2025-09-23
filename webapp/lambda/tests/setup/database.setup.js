@@ -86,8 +86,8 @@ async function ensureTestData() {
         distance_from_high DECIMAL(8,6),
         distance_from_low DECIMAL(8,6),
         avg_volume_30d BIGINT,
-        volume_ratio DECIMAL(8,6),
-        beta DECIMAL(8,6),
+        volume_ratio DECIMAL(8,4),
+        beta DECIMAL(8,4),
         asset_class VARCHAR(50),
         region VARCHAR(50),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -96,7 +96,66 @@ async function ensureTestData() {
       )
     `);
 
-    // fundamental_metrics table removed - using actual loader tables instead
+    // Create comprehensive key_metrics table matching reset-database-to-loaders.sql
+    await query(`
+      CREATE TABLE IF NOT EXISTS key_metrics (
+        ticker VARCHAR(10) PRIMARY KEY,
+        trailing_pe NUMERIC,
+        forward_pe NUMERIC,
+        price_to_sales_ttm NUMERIC,
+        price_to_book NUMERIC,
+        book_value NUMERIC,
+        peg_ratio NUMERIC,
+        enterprise_value BIGINT,
+        ev_to_revenue NUMERIC,
+        ev_to_ebitda NUMERIC,
+        total_revenue BIGINT,
+        net_income BIGINT,
+        ebitda BIGINT,
+        gross_profit BIGINT,
+        eps_trailing NUMERIC,
+        eps_forward NUMERIC,
+        eps_current_year NUMERIC,
+        price_eps_current_year NUMERIC,
+        earnings_q_growth_pct NUMERIC,
+        revenue_growth_pct NUMERIC,
+        earnings_growth_pct NUMERIC,
+        total_cash BIGINT,
+        cash_per_share NUMERIC,
+        operating_cashflow BIGINT,
+        free_cashflow BIGINT,
+        total_debt BIGINT,
+        debt_to_equity NUMERIC,
+        quick_ratio NUMERIC,
+        current_ratio NUMERIC,
+        profit_margin_pct NUMERIC,
+        gross_margin_pct NUMERIC,
+        ebitda_margin_pct NUMERIC,
+        operating_margin_pct NUMERIC,
+        return_on_assets_pct NUMERIC,
+        return_on_equity_pct NUMERIC,
+        dividend_rate NUMERIC,
+        dividend_yield NUMERIC,
+        five_year_avg_dividend_yield NUMERIC,
+        last_annual_dividend_amt NUMERIC,
+        last_annual_dividend_yield NUMERIC
+      )
+    `);
+
+    // Insert comprehensive test data for key_metrics
+    await query(`
+      INSERT INTO key_metrics (
+        ticker, trailing_pe, forward_pe, price_to_sales_ttm, price_to_book,
+        peg_ratio, enterprise_value, total_revenue, net_income, ebitda,
+        eps_trailing, eps_forward, dividend_yield, debt_to_equity,
+        current_ratio, profit_margin_pct, gross_margin_pct,
+        return_on_equity_pct, return_on_assets_pct
+      ) VALUES
+      ('AAPL', 28.5, 26.2, 7.8, 45.2, 2.1, 3500000000000, 365000000000, 94000000000, 120000000000, 5.89, 6.25, 0.52, 1.73, 1.07, 25.7, 43.0, 175.0, 27.1),
+      ('MSFT', 32.1, 29.8, 12.4, 13.5, 2.5, 2800000000000, 211000000000, 72000000000, 88000000000, 10.95, 12.10, 0.68, 0.47, 2.54, 34.2, 68.4, 47.1, 18.3),
+      ('GOOGL', 24.7, 22.3, 5.2, 5.8, 1.8, 1700000000000, 283000000000, 76000000000, 92000000000, 5.02, 5.85, 0.0, 0.10, 3.77, 26.9, 57.0, 29.8, 16.2)
+      ON CONFLICT (ticker) DO NOTHING
+    `);
 
     await query(`
       CREATE TABLE IF NOT EXISTS price_daily (
@@ -270,12 +329,12 @@ async function ensureTestData() {
     `);
 
     await query(`
-      INSERT INTO market_data (ticker, market_cap, current_price, volume) VALUES
-      ('AAPL', 3500000000000, 150.25, 65000000),
-      ('MSFT', 2800000000000, 350.75, 45000000),
-      ('SPY', 400000000000, 446.95, 65000000),
-      ('QQQ', 200000000000, 387.30, 42000000)
-      ON CONFLICT (ticker) DO NOTHING
+      INSERT INTO market_data (symbol, name, date, price, volume, market_cap) VALUES
+      ('AAPL', 'Apple Inc.', '2024-01-02', 150.25, 65000000, 3500000000000),
+      ('MSFT', 'Microsoft Corporation', '2024-01-02', 350.75, 45000000, 2800000000000),
+      ('SPY', 'SPDR S&P 500 ETF Trust', '2024-01-02', 446.95, 65000000, 400000000000),
+      ('QQQ', 'Invesco QQQ Trust', '2024-01-02', 387.30, 42000000, 200000000000)
+      ON CONFLICT (symbol, date) DO NOTHING
     `);
 
     // fundamental_metrics data insertion removed - using actual loader tables instead

@@ -352,6 +352,8 @@ router.get("/analytics", async (req, res) => {
         SELECT symbol, close as current_price
         FROM price_daily
         WHERE symbol = ANY($1::text[])
+        ORDER BY date DESC
+        LIMIT 100
       `;
 
       const priceResult = await query(priceQuery, [symbols]);
@@ -2429,7 +2431,7 @@ router.post("/sync/:brokerName", async (req, res) => {
 
     // Update last used timestamp
     await query(
-      "UPDATE user_api_keys SET last_used = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2",
+      "UPDATE user_api_keys SET updated_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2",
       [userId, brokerName]
     );
 
@@ -3823,8 +3825,8 @@ router.post("/api-keys", async (req, res) => {
       INSERT INTO user_api_keys (
         user_id, broker_name, encrypted_api_key, encrypted_api_secret, 
         key_iv, key_auth_tag, secret_iv, secret_auth_tag,
-        is_sandbox, created_at, last_used
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, NULL)
+        is_sandbox, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT (user_id, broker_name) 
       DO UPDATE SET
         encrypted_api_key = EXCLUDED.encrypted_api_key,
@@ -3875,8 +3877,8 @@ router.get("/api-keys", async (req, res) => {
     const userId = req.user.sub;
 
     const selectQuery = `
-      SELECT broker_name, is_sandbox, created_at, last_used, updated_at
-      FROM user_api_keys 
+      SELECT broker_name, is_sandbox, created_at, updated_at
+      FROM user_api_keys
       WHERE user_id = $1
       ORDER BY updated_at DESC
     `;
@@ -3900,7 +3902,7 @@ router.get("/api-keys", async (req, res) => {
         brokerName: row.broker_name,
         sandbox: row.is_sandbox,
         connected: true,
-        lastUsed: row.last_used,
+        lastUsed: row.updated_at,
         createdAt: row.created_at,
         status: "active",
       })),
@@ -4103,7 +4105,7 @@ router.post("/test-connection/:brokerName", async (req, res) => {
     // Update last used timestamp if connection successful
     if (connectionResult.valid) {
       await query(
-        "UPDATE user_api_keys SET last_used = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2",
+        "UPDATE user_api_keys SET updated_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2",
         [userId, brokerName]
       );
     }
@@ -4223,7 +4225,7 @@ router.post("/import/:brokerName", async (req, res) => {
 
     // Update last used timestamp
     await query(
-      "UPDATE user_api_keys SET last_used = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2",
+      "UPDATE user_api_keys SET updated_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND broker_name = $2",
       [userId, brokerName]
     );
 
