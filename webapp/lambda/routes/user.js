@@ -81,79 +81,25 @@ router.get("/profile", (req, res) => {
 // User preferences endpoint
 router.get("/preferences", (req, res) => {
   try {
-    // In development mode, return mock preferences
-    if (process.env.NODE_ENV === "development" || process.env.ALLOW_DEV_BYPASS === "true") {
-      res.json({
-        success: true,
-        data: {
-          theme: "dark",
-          language: "en",
-          timezone: "UTC",
-          notifications: {
-            email: true,
-            push: false,
-            sms: false,
-            alerts: true,
-            earnings: true,
-            portfolio: true
-          },
-          dashboard: {
-            defaultView: "overview",
-            autoRefresh: true,
-            refreshInterval: 30,
-            showNews: true,
-            showMarketSummary: true
-          },
-          trading: {
-            confirmOrders: true,
-            defaultOrderType: "market",
-            riskLevel: "moderate"
-          }
-        },
-        timestamp: new Date().toISOString(),
-      });
-    } else {
-      // In production, get user preferences from database
-      const userId = req.user?.sub;
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          error: "Authentication required",
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // Return user preferences (would normally come from database)
-      res.json({
-        success: true,
-        data: {
-          theme: "light",
-          language: "en",
-          timezone: req.user?.timezone || "UTC",
-          notifications: {
-            email: true,
-            push: true,
-            sms: false,
-            alerts: true,
-            earnings: true,
-            portfolio: true
-          },
-          dashboard: {
-            defaultView: "overview",
-            autoRefresh: true,
-            refreshInterval: 60,
-            showNews: true,
-            showMarketSummary: true
-          },
-          trading: {
-            confirmOrders: true,
-            defaultOrderType: "limit",
-            riskLevel: "conservative"
-          }
-        },
+    // Always require authentication for preferences
+    const userId = req.user?.sub;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+        message: "User must be authenticated to access preferences",
         timestamp: new Date().toISOString(),
       });
     }
+
+    // TODO: Query user preferences from database
+    // For now, return service unavailable since user preferences table needs to be implemented
+    return res.status(503).json({
+      success: false,
+      error: "User preferences service unavailable",
+      message: "User preferences feature is not yet implemented with real database integration",
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("Preferences endpoint error:", error);
     res.status(500).json({
