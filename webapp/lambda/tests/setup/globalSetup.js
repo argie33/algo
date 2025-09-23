@@ -277,6 +277,7 @@ module.exports = async () => {
         enterprise_to_ebitda DECIMAL(10,2),
         sector VARCHAR(100),
         industry VARCHAR(200),
+        market VARCHAR(50),
         full_time_employees INTEGER,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(symbol)
@@ -1200,11 +1201,11 @@ module.exports = async () => {
 
     // Add test data for fundamental_metrics (to support metrics route)
     await query(`
-      INSERT INTO fundamental_metrics (symbol, market_cap, pe_ratio, forward_pe, price_to_book, price_to_sales, dividend_yield, revenue_growth, quarterly_earnings_growth, return_on_equity, return_on_assets, debt_to_equity, sector, industry) VALUES
-      ('AAPL', 3500000000000, 25.5, 22.8, 8.2, 6.8, 0.0045, 0.08, 0.12, 0.18, 0.08, 0.35, 'Technology', 'Consumer Electronics'),
-      ('MSFT', 2800000000000, 28.2, 24.5, 12.5, 9.2, 0.0028, 0.15, 0.18, 0.22, 0.12, 0.28, 'Technology', 'Software'),
-      ('GOOGL', 1750000000000, 18.5, 16.8, 4.2, 5.1, 0.0000, 0.12, 0.08, 0.15, 0.09, 0.18, 'Technology', 'Internet Services'),
-      ('TSLA', 850000000000, 45.8, 38.2, 12.8, 8.5, 0.0000, 0.25, 0.35, 0.28, 0.15, 0.42, 'Consumer Cyclical', 'Auto Manufacturers')
+      INSERT INTO fundamental_metrics (symbol, market_cap, pe_ratio, forward_pe, price_to_book, price_to_sales, dividend_yield, revenue_growth, quarterly_earnings_growth, return_on_equity, return_on_assets, debt_to_equity, sector, industry, market) VALUES
+      ('AAPL', 3500000000000, 25.5, 22.8, 8.2, 6.8, 0.0045, 0.08, 0.12, 0.18, 0.08, 0.35, 'Technology', 'Consumer Electronics', 'NASDAQ'),
+      ('MSFT', 2800000000000, 28.2, 24.5, 12.5, 9.2, 0.0028, 0.15, 0.18, 0.22, 0.12, 0.28, 'Technology', 'Software', 'NASDAQ'),
+      ('GOOGL', 1750000000000, 18.5, 16.8, 4.2, 5.1, 0.0000, 0.12, 0.08, 0.15, 0.09, 0.18, 'Technology', 'Internet Services', 'NASDAQ'),
+      ('TSLA', 850000000000, 45.8, 38.2, 12.8, 8.5, 0.0000, 0.25, 0.35, 0.28, 0.15, 0.42, 'Consumer Cyclical', 'Auto Manufacturers', 'NASDAQ')
       ON CONFLICT (symbol) DO NOTHING
     `);
 

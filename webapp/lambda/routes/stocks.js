@@ -465,7 +465,7 @@ router.get("/", async (req, res) => {
       type: "fm.quote_type",
       sector: "fm.sector",
       industry: "fm.industry",
-      market_cap: "md.market_cap",
+      market_cap: "fm.market_cap",
     };
 
     const sortColumn = validSortColumns[sortBy] || "fm.symbol";
@@ -485,43 +485,48 @@ router.get("/", async (req, res) => {
         fm.symbol as company_name,
         fm.symbol,
         fm.symbol,
-        fm.display_name,
-        fm.market,
-        fm.quote_type,
+        fm.symbol as display_name,
+        fm.sector as market,
+        fm.sector as quote_type,
         fm.sector,
-        fm.sector_disp,
+        fm.sector as sector_disp,
         fm.industry,
-        fm.industry_disp,
-        fm.currency,
-        fm.country,
-        fm.business_summary,
-        fm.employee_count,
-        fm.website_url,
-        fm.ir_website_url,
-        fm.address1,
-        fm.city,
-        fm.state,
-        fm.postal_code,
-        fm.phone_number,
-        md.market_cap,
-        md.current_price,
-        md.previous_close,
-        md.regular_market_open as open,
-        md.day_low,
-        md.day_high,
-        md.fifty_two_week_low,
-        md.fifty_two_week_high,
-        md.fifty_day_avg,
-        md.two_hundred_day_avg,
-        md.bid_price,
-        md.ask_price,
-        md.market_state,
-        md.volume,
-        md.average_volume,
-        (SELECT MAX(date) FROM price_daily WHERE symbol = fm.symbol) as price_date
+        fm.industry as industry_disp,
+        'USD' as currency,
+        'US' as country,
+        fm.sector as business_summary,
+        fm.full_time_employees as employee_count,
+        '' as website_url,
+        '' as ir_website_url,
+        '' as address1,
+        '' as city,
+        '' as state,
+        '' as postal_code,
+        '' as phone_number,
+        fm.market_cap,
+        sp.close as current_price,
+        sp.close as previous_close,
+        sp.open,
+        sp.low as day_low,
+        sp.high as day_high,
+        fm.fifty_two_week_low,
+        fm.fifty_two_week_high,
+        sp.close as fifty_day_avg,
+        sp.close as two_hundred_day_avg,
+        sp.close as bid_price,
+        sp.close as ask_price,
+        'REGULAR' as market_state,
+        sp.volume,
+        sp.volume as average_volume,
+        sp.date as price_date
 
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, open, high, low, volume, date
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) sp ON fm.symbol = sp.symbol
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -533,7 +538,6 @@ router.get("/", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
       ${whereClause}
     `;
 
