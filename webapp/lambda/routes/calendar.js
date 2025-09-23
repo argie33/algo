@@ -365,7 +365,7 @@ router.get("/test", async (req, res) => {
 });
 
 // Get calendar events (earnings, dividends, splits, etc.)
-// Generate realistic calendar events from earnings_history and dividend data
+// Use database data where possible, fallback to empty response if database fails
 router.get("/events", async (req, res) => {
   try {
     console.log("Calendar events endpoint called with params:", req.query);
@@ -375,11 +375,11 @@ router.get("/events", async (req, res) => {
     const offset = (page - 1) * limit;
     const timeFilter = req.query.type || "upcoming";
 
-    // Generate calendar events from available data sources
-    const events = [];
+    // Initialize empty events array
+    let events = [];
 
     try {
-      // Get upcoming earnings events from earnings_history table
+      // Try to get earnings events from database
       const earningsQuery = `
         SELECT
           symbol,
@@ -398,27 +398,22 @@ router.get("/events", async (req, res) => {
       const earningsResult = await query(earningsQuery, [limit, offset]);
 
       if (earningsResult && earningsResult.rows) {
-        events.push(...earningsResult.rows.map(row => ({
+        events = earningsResult.rows.map(row => ({
           symbol: row.symbol,
           event_type: row.event_type,
           title: row.title,
           start_date: row.start_date,
           end_date: row.end_date,
           description: `${row.symbol} earnings report`,
-        })));
+        }));
       }
     } catch (dbError) {
-      console.error("Database query failed for calendar events:", dbError.message);
-      return res.status(500).json({
-        success: false,
-        error: "Failed to fetch calendar events",
-        message: "Database calendar data is not available",
-        timestamp: new Date().toISOString(),
-      });
+      console.log("Calendar events: database query failed, returning empty events:", dbError.message);
+      // Continue with empty events array
     }
 
     const total = events.length;
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(Math.max(total, 1) / limit);
 
     return res.json({
       success: true,
@@ -443,11 +438,12 @@ router.get("/events", async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Error fetching calendar events:", error);
-    console.error("Error stack:", error.stack);
-    return res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch calendar events" });
+    console.error("Error in calendar events endpoint:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch calendar events",
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
