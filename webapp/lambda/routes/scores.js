@@ -67,7 +67,7 @@ router.get("/", async (req, res) => {
     let stocksResult;
 
     try {
-      console.log("Executing scores query with timeout protection and fallback data");
+      console.log("Executing scores query with timeout protection");
 
       // Add timeout protection for AWS Lambda (2-second timeout)
       const queryPromise = query(stocksQuery, [limit, offset]);

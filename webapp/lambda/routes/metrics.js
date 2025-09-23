@@ -31,22 +31,42 @@ router.get("/ping", (req, res) => {
 // Market metrics endpoint
 router.get("/market", async (req, res) => {
   try {
+    // Get real market data from database
+    const marketCapQuery = `
+      SELECT
+        SUM(COALESCE(md.market_cap, 0)) as total_market_cap,
+        SUM(COALESCE(md.volume, 0)) as total_volume,
+        COUNT(*) as active_stocks,
+        COUNT(CASE WHEN pd.change_percent > 0 THEN 1 END) as gainers,
+        COUNT(CASE WHEN pd.change_percent < 0 THEN 1 END) as decliners
+      FROM market_data md
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) symbol, change_percent
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) pd ON md.ticker = pd.symbol
+      WHERE md.market_cap > 0`;
+
+    const result = await query(marketCapQuery);
+    const marketData = result.rows[0] || {};
+
     res.json({
       success: true,
       data: {
-        market_cap: 45800000000000,
-        volume: 85600000000,
-        volatility: 18.5,
-        fear_greed_index: 52,
-        active_stocks: 4500,
-        gainers: 2850,
-        decliners: 1650,
-        market_status: "open",
+        market_cap: parseFloat(marketData.total_market_cap) || 0,
+        volume: parseFloat(marketData.total_volume) || 0,
+        volatility: 18.5, // Could be calculated from price data
+        fear_greed_index: 52, // External API integration needed
+        active_stocks: parseInt(marketData.active_stocks) || 0,
+        gainers: parseInt(marketData.gainers) || 0,
+        decliners: parseInt(marketData.decliners) || 0,
+        market_status: "open", // Could check trading hours
         last_updated: new Date().toISOString(),
       },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    console.error("Market metrics error:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch market metrics",

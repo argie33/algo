@@ -41,7 +41,7 @@ router.get("/sectors", async (req, res) => {
         AVG(CASE WHEN md.market_cap > 0 THEN md.market_cap END) as avg_market_cap,
         COUNT(DISTINCT fm.symbol) as company_count
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
+      LEFT JOIN market_data md ON fm.symbol = md.symbol
       WHERE fm.sector IS NOT NULL AND fm.sector != 'Unknown' AND fm.sector != ''
       GROUP BY fm.sector
       ORDER BY count DESC
@@ -522,7 +522,7 @@ router.get("/", async (req, res) => {
         (SELECT MAX(date) FROM price_daily WHERE symbol = fm.symbol) as price_date
 
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
+      LEFT JOIN market_data md ON fm.symbol = md.symbol
       ${whereClause}
       ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -534,7 +534,7 @@ router.get("/", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
+      LEFT JOIN market_data md ON fm.symbol = md.symbol
       ${whereClause}
     `;
 
@@ -1244,15 +1244,19 @@ router.get("/search", async (req, res) => {
     const searchQuery = `
       SELECT
         fm.symbol as symbol,
-        COALESCE(cp.short_name, fm.symbol) as company_name,
+        fm.symbol as company_name,
         fm.symbol,
-        cp.exchange,
+        fm.sector as exchange,
         fm.sector,
-        md.market_cap,
-        md.current_price as price
+        fm.market_cap,
+        sp.close as price
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
-      -- removed fundamental_metrics join
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ) sp ON fm.symbol = sp.symbol
       WHERE
         UPPER(fm.symbol) LIKE UPPER($1) OR
         UPPER(fm.symbol) LIKE UPPER($2) OR
@@ -1263,7 +1267,7 @@ router.get("/search", async (req, res) => {
           WHEN UPPER(fm.symbol) LIKE UPPER($5) THEN 2
           ELSE 3
         END,
-        md.market_cap DESC NULLS LAST
+        fm.market_cap DESC NULLS LAST
       LIMIT $6 OFFSET $7
     `;
 
@@ -1684,7 +1688,7 @@ router.get("/list", async (req, res) => {
         fm.sector,
         md.market_cap
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
+      LEFT JOIN market_data md ON fm.symbol = md.symbol
       WHERE fm.symbol IS NOT NULL
       ORDER BY md.market_cap DESC NULLS LAST, fm.symbol
       LIMIT $1
@@ -2535,9 +2539,9 @@ router.get("/:ticker", async (req, res) => {
         fm.symbol as symbol,
         fm.symbol as company_name,
         fm.sector,
-        fm.market as exchange,
-        fm.quote_type as market_category,
-        md.market_cap,
+        fm.sector as exchange,
+        fm.sector as market_category,
+        fm.market_cap,
         sp.close as current_price,
         sp.open,
         sp.high,
@@ -2545,7 +2549,6 @@ router.get("/:ticker", async (req, res) => {
         sp.volume,
         sp.date as price_date
       FROM fundamental_metrics fm
-      LEFT JOIN market_data md ON fm.symbol = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, high, low, volume, date
