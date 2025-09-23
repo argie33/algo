@@ -3380,7 +3380,8 @@ router.post("/init-price-data", authenticateToken, async (req, res) => {
     timestamp: new Date().toISOString(),
   });
 
-  /* Development-only code disabled:
+  /*
+  Development-only code disabled:
   try {
     console.log("Price data initialization endpoint called");
 

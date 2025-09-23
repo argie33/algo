@@ -184,20 +184,7 @@ router.get("/", async (req, res) => {
     } catch (error) {
       console.error("Metrics database query error:", error.message);
 
-      // Handle specific database errors gracefully
-      if (error.message.includes('relation "fundamental_metrics" does not exist')) {
-        return res.status(503).json({
-          success: false,
-          error: "Metrics service unavailable",
-          message: "Required database table is not available in the current environment",
-          suggestion: "Database schema needs fundamental_metrics table",
-          details: {
-            tables_required: ["fundamental_metrics"],
-            environment: process.env.NODE_ENV || "unknown"
-          },
-          timestamp: new Date().toISOString(),
-        });
-      }
+      // Show actual error for debugging - bypass specific handlers
 
       // Handle other database errors - show actual error for debugging
       return res.status(500).json({
