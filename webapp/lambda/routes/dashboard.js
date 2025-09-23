@@ -452,25 +452,20 @@ router.get("/holdings", authenticateToken, async (req, res) => {
         }
       : null;
 
-    if (
-      !holdingsResult ||
-      !Array.isArray(holdingsResult.rows) ||
-      holdingsResult.rows.length === 0
-    ) {
-      return res.status(404).json({
+    // Handle cases where database query succeeded but returned no data
+    if (!holdingsResult || !Array.isArray(holdingsResult.rows)) {
+      return res.status(500).json({
         success: false,
-        error: "No data found for holdings",
-        message: "No portfolio holdings found for this user",
+        error: "Database query failed for holdings",
+        message: "Failed to retrieve portfolio holdings data",
       });
     }
-    if (
-      !summaryResult ||
-      !Array.isArray(summaryResult.rows) ||
-      summaryResult.rows.length === 0
-    ) {
-      return res
-        .status(404)
-        .json({ error: "No data found for portfolio summary" });
+    if (!summaryResult || !Array.isArray(summaryResult.rows)) {
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed for summary",
+        message: "Failed to retrieve portfolio summary data",
+      });
     }
     res.json({
       success: true,
@@ -539,27 +534,20 @@ router.get("/performance", authenticateToken, async (req, res) => {
       `✅ Performance queries completed: ${performanceResult.rowCount} data points`
     );
 
-    if (
-      !performanceResult ||
-      !performanceResult.rows ||
-      performanceResult.rows.length === 0
-    ) {
-      return res.status(404).json({
+    // Handle cases where database query succeeded but returned no data
+    if (!performanceResult || !performanceResult.rows) {
+      return res.status(500).json({
         success: false,
-        error: "No performance data found",
-        message: "No performance data available for this user",
+        error: "Database query failed for performance data",
+        message: "Failed to retrieve performance data",
       });
     }
 
-    if (
-      !metricsResult ||
-      !metricsResult.rows ||
-      metricsResult.rows.length === 0
-    ) {
-      return res.status(404).json({
+    if (!metricsResult || !metricsResult.rows) {
+      return res.status(500).json({
         success: false,
-        error: "No performance metrics found",
-        message: "No performance metrics available for this user",
+        error: "Database query failed for performance metrics",
+        message: "Failed to retrieve performance metrics",
       });
     }
 
