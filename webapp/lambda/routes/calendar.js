@@ -410,7 +410,7 @@ router.get("/events", async (req, res) => {
         eh.eps_actual as eps_actual,
         NULL as revenue
       FROM earnings_history eh
-      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON eh.symbol = cp.ticker
       ${whereClause.replace(/er\./g, 'eh.')}
       ORDER BY eh.quarter ASC
       LIMIT $1 OFFSET $2
@@ -698,7 +698,7 @@ router.get("/earnings-history", async (req, res) => {
         END as eps_difference,
         eh.surprise_percent
       FROM earnings_history eh
-      LEFT JOIN fundamental_metrics cp ON eh.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics cp ON eh.symbol = cp.ticker
       ORDER BY eh.symbol ASC, eh.quarter DESC
       LIMIT $1 OFFSET $2
     `;
