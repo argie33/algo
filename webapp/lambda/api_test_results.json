@@ -1,12 +1,12 @@
 {
-  "timestamp": "2025-09-23T12:04:16.696Z",
+  "timestamp": "2025-09-23T12:09:05.927Z",
   "totalEndpoints": 20,
-  "passed": 17,
+  "passed": 16,
   "serverErrors": 0,
-  "clientErrors": 3,
+  "clientErrors": 4,
   "fatalErrors": 0,
-  "passRate": 85,
-  "duration": "0.16",
+  "passRate": 80,
+  "duration": "0.15",
   "results": [
     {
       "api": "/api/health",
@@ -103,8 +103,9 @@
     },
     {
       "api": "/api/watchlist",
-      "status": "PASS",
-      "code": 200
+      "status": "CLIENT_ERROR",
+      "code": 401,
+      "error": "Authentication required"
     },
     {
       "api": "/api/trades",
