@@ -32,8 +32,10 @@ router.post("/login", async (req, res) => {
         .json({ success: false, error: "Missing credentials" });
     }
 
-    // Check if AWS Cognito is configured
-    if (!process.env.COGNITO_CLIENT_ID) {
+    // Check if running in local development mode or AWS Cognito is not configured
+    const useLocalMode = process.env.LOCAL_DEV_MODE === "true" || !process.env.COGNITO_CLIENT_ID;
+
+    if (useLocalMode) {
       console.log("🔧 DEV: Using development auth for login");
 
       // Development fallback - generate proper JWT tokens for dev/test
