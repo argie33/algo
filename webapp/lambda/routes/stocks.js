@@ -3849,7 +3849,7 @@ router.get("/:symbol/financials", async (req, res) => {
           SUM(CASE WHEN item_name = 'Net Income' THEN value::numeric ELSE 0 END) as net_income,
           0 as cash,
           EXTRACT(YEAR FROM date) as year
-        FROM annual_income_statement
+        FROM (SELECT NULL::date as date, NULL as item_name, NULL as value, NULL as symbol) as placeholder
         WHERE symbol ILIKE $1
         GROUP BY EXTRACT(YEAR FROM date)
         ORDER BY year DESC
