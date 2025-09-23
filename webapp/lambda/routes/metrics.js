@@ -307,12 +307,12 @@ router.get("/", async (req, res) => {
         });
       }
 
-      // Handle other database errors
+      // Handle other database errors - show actual error for debugging
       return res.status(500).json({
         success: false,
         error: "Database query failed",
         message: "Unable to retrieve metrics due to database error",
-        details: process.env.NODE_ENV === "development" ? error.message : "Internal database error",
+        details: error.message, // Show actual error for AWS debugging
         timestamp: new Date().toISOString(),
       });
     }
