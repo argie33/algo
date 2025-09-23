@@ -430,7 +430,7 @@ router.get("/:symbol", async (req, res) => {
 
     const tableName = tableMap[timeframe];
 
-    // Query signals data from the appropriate table
+    // Query signals data from the appropriate table with defensive column selection
     const signalsQuery = `
       SELECT
         symbol,
@@ -441,8 +441,8 @@ router.get("/:symbol", async (req, res) => {
         inposition,
         close,
         volume,
-        confidence,
-        risk_score
+        COALESCE(confidence, 0.5) as confidence,
+        COALESCE(risk_score, 0.5) as risk_score
       FROM ${tableName}
       WHERE symbol = $1
       ORDER BY date DESC
@@ -457,8 +457,8 @@ router.get("/:symbol", async (req, res) => {
         COUNT(*) as total_signals,
         COUNT(CASE WHEN signal_type = 'BUY' THEN 1 END) as buy_signals,
         COUNT(CASE WHEN signal_type = 'SELL' THEN 1 END) as sell_signals,
-        AVG(confidence) as avg_confidence,
-        AVG(risk_score) as avg_risk
+        AVG(COALESCE(confidence, 0.5)) as avg_confidence,
+        AVG(COALESCE(risk_score, 0.5)) as avg_risk
       FROM ${tableName}
       WHERE symbol = $1
     `;

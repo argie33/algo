@@ -2813,6 +2813,65 @@ router.get("/overview", async (req, res) => {
   }
 });
 
+// Symbol-specific technical data (defaults to daily timeframe)
+router.get("/:symbol", async (req, res) => {
+  const { symbol } = req.params;
+  const { timeframe = "daily" } = req.query;
+
+  // Check if this looks like a stock symbol (not a timeframe)
+  const validTimeframes = ["daily", "weekly", "monthly"];
+  if (validTimeframes.includes(symbol.toLowerCase())) {
+    // This is actually a timeframe, not a symbol - pass to next route
+    return res.status(400).json({
+      error: "Invalid route. Use /api/technical/timeframe or /api/technical/symbol?timeframe=daily"
+    });
+  }
+
+  // Validate symbol format (basic check)
+  if (!/^[A-Z]{1,5}$/i.test(symbol)) {
+    return res.status(400).json({
+      success: false,
+      error: "Invalid symbol format. Use 1-5 letter stock symbols like AAPL",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  try {
+    console.log(`📊 Technical data requested for ${symbol.toUpperCase()}, timeframe: ${timeframe}`);
+
+    // Redirect to daily endpoint with the symbol
+    const tableName = `technical_data_${timeframe}`;
+
+    const result = await query(
+      `SELECT * FROM ${tableName}
+       WHERE symbol = $1
+       ORDER BY date DESC
+       LIMIT 50`,
+      [symbol.toUpperCase()]
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        symbol: symbol.toUpperCase(),
+        timeframe,
+        indicators: result.rows,
+        total: result.rows.length,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`Technical data error for ${symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch technical data",
+      details: error.message,
+      symbol: symbol.toUpperCase(),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 router.get("/:timeframe", async (req, res) => {
   const { timeframe } = req.params;
   const {
