@@ -1,11 +1,11 @@
 {
-  "timestamp": "2025-09-23T10:17:22.811Z",
+  "timestamp": "2025-09-23T10:24:43.751Z",
   "totalEndpoints": 20,
-  "passed": 17,
+  "passed": 16,
   "serverErrors": 0,
-  "clientErrors": 3,
+  "clientErrors": 4,
   "fatalErrors": 0,
-  "passRate": 85,
+  "passRate": 80,
   "duration": "0.16",
   "results": [
     {
@@ -51,8 +51,9 @@
     },
     {
       "api": "/api/earnings",
-      "status": "PASS",
-      "code": 200
+      "status": "CLIENT_ERROR",
+      "code": 404,
+      "error": "Endpoint /api/earnings not found"
     },
     {
       "api": "/api/sectors",
