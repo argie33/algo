@@ -31,17 +31,36 @@ router.get("/upgrades", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 25));
     const offset = Math.max(0, (page - 1) * limit);
-    return res.status(500).json({
-      success: false,
-      error: "Analyst upgrades data unavailable",
-      message: "Analyst tables not configured in database",
+    // Query database for upgrades
+    const upgradesQuery = `
+      SELECT
+        aud.symbol,
+        cp.short_name as company_name,
+        aud.action,
+        aud.firm,
+        aud.date,
+        aud.from_grade,
+        aud.to_grade,
+        aud.details
+      FROM analyst_upgrade_downgrade aud
+      LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
+      WHERE UPPER(aud.action) LIKE '%UPGRADE%'
+      ORDER BY aud.date DESC
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await query(upgradesQuery, [limit, offset]);
+
+    res.json({
+      success: true,
+      data: result.rows,
       pagination: {
         page,
         limit,
-        total: 0,
-        totalPages: 0,
-        hasNext: false,
-        hasPrev: false,
+        total: result.rows.length,
+        totalPages: Math.ceil(result.rows.length / limit),
+        hasNext: result.rows.length === limit,
+        hasPrev: page > 1,
       },
       timestamp: new Date().toISOString(),
     });
@@ -58,11 +77,27 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
 
-    return res.status(500).json({
-      success: false,
-      error: "Earnings estimates data unavailable",
-      message: "Earnings tables not configured in database",
+    const estimatesQuery = `
+      SELECT
+        CONCAT('Q', er.quarter, ' ', er.year) as period,
+        er.eps_estimate as estimate,
+        NULL as actual,
+        NULL as difference,
+        NULL as surprise_percent,
+        er.report_date as reported_date
+      FROM earnings_reports er
+      WHERE UPPER(er.symbol) = UPPER($1)
+      AND er.eps_estimate IS NOT NULL
+      ORDER BY er.report_date DESC
+      LIMIT 8
+    `;
+
+    const result = await query(estimatesQuery, [ticker.toUpperCase()]);
+
+    res.json({
+      success: true,
       ticker: ticker.toUpperCase(),
+      estimates: result.rows,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -82,7 +117,7 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
       SELECT 
         CONCAT('Q', er.quarter, ' ', er.year) as period,
         NULL as estimate,
-        er.revenue as actual,
+        NULL as actual,
         NULL as difference,
         NULL as surprise_percent,
         er.report_date as reported_date
@@ -115,9 +150,9 @@ router.get("/:ticker/earnings-history", async (req, res) => {
       SELECT 
         CONCAT('Q', er.quarter, ' ', er.year) as quarter,
         er.eps_estimate as estimate,
-        er.eps_reported as actual,
-        (er.eps_reported - er.eps_estimate) as difference,
-        er.surprise_percent,
+        er.eps_actual as actual,
+        (er.eps_actual - er.eps_estimate) as difference,
+        NULL as surprise_percent,
         er.report_date as earnings_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
@@ -190,7 +225,7 @@ router.get("/:ticker/eps-trend", async (req, res) => {
       SELECT 
         er.symbol,
         '0q' as period,
-        er.eps_reported as current,
+        er.eps_actual as current,
         NULL as days7ago,
         NULL as days30ago,
         NULL as days60ago,
@@ -237,12 +272,12 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
       SELECT 
         er.symbol,
         er.year as fiscal_year,
-        er.eps_reported as earnings_per_share,
+        er.eps_actual as earnings_per_share,
         er.report_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
       AND er.year IS NOT NULL
-      AND er.eps_reported IS NOT NULL
+      AND er.eps_actual IS NOT NULL
       ORDER BY er.year DESC, er.quarter DESC
       LIMIT 20
     `;
@@ -251,14 +286,14 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     const earningsQuery = `
       SELECT 
         er.symbol,
-        er.eps_reported,
+        er.eps_actual,
         er.eps_estimate,
         er.year,
         er.quarter,
         er.report_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
-      AND er.eps_reported IS NOT NULL
+      AND er.eps_actual IS NOT NULL
       ORDER BY er.report_date DESC
       LIMIT 12
     `;
@@ -337,7 +372,7 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
       earningsData.forEach((earnings) => {
         const year = earnings.year;
         if (!annualEPS[year]) annualEPS[year] = [];
-        annualEPS[year].push(parseFloat(earnings.eps_reported) || 0);
+        annualEPS[year].push(parseFloat(earnings.eps_actual) || 0);
       });
 
       // Calculate annual EPS totals and growth
@@ -503,9 +538,9 @@ router.get("/:ticker/overview", async (req, res) => {
         `SELECT 
           CONCAT('Q', er.quarter, ' ', er.year) as period,
           er.eps_estimate as estimate,
-          er.eps_reported as actual,
-          (er.eps_reported - er.eps_estimate) as difference,
-          er.surprise_percent,
+          er.eps_actual as actual,
+          (er.eps_actual - er.eps_estimate) as difference,
+          NULL as surprise_percent,
           er.report_date as reported_date
         FROM earnings_reports er
         WHERE UPPER(er.symbol) = UPPER($1)
@@ -517,7 +552,7 @@ router.get("/:ticker/overview", async (req, res) => {
         `SELECT 
           CONCAT('Q', er.quarter, ' ', er.year) as period,
           NULL as estimate,
-          er.revenue as actual,
+          NULL as actual,
           NULL as difference,
           NULL as surprise_percent,
           er.report_date as reported_date
@@ -656,7 +691,7 @@ router.get("/recent-actions", async (req, res) => {
           ELSE 'neutral'
         END as action_type
       FROM analyst_sentiment_analysis asa
-      LEFT JOIN fundamental_metrics fm ON asa.symbol = fm.symbol
+      LEFT JOIN company_profile cp ON asa.symbol = cp.ticker
       WHERE asa.date = $1
         AND (asa.upgrades_last_30d > 0 OR asa.downgrades_last_30d > 0)
       ORDER BY asa.date DESC, asa.symbol ASC
