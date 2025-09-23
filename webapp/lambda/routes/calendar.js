@@ -365,7 +365,7 @@ router.get("/test", async (req, res) => {
 });
 
 // Get calendar events (earnings, dividends, splits, etc.)
-// Note: Using earnings_reports table since calendar_events doesn't exist
+// Note: Using earnings_history table since calendar_events doesn't exist
 router.get("/events", async (req, res) => {
   try {
     console.log("Calendar events endpoint called with params:", req.query);
@@ -375,129 +375,27 @@ router.get("/events", async (req, res) => {
     const offset = (page - 1) * limit;
     const timeFilter = req.query.type || "upcoming";
 
-    let whereClause = "WHERE 1=1";
-    const _params = []; // Apply time filters using date from earnings_history
-    switch (timeFilter) {
-      case "this_week":
-        whereClause += ` AND eh.date >= CURRENT_DATE AND eh.date < (CURRENT_DATE + INTERVAL '7 days')`;
-        break;
-      case "next_week":
-        whereClause += ` AND eh.date >= (CURRENT_DATE + INTERVAL '7 days') AND eh.date < (CURRENT_DATE + INTERVAL '14 days')`;
-        break;
-      case "this_month":
-        whereClause += ` AND eh.date >= CURRENT_DATE AND eh.date < (CURRENT_DATE + INTERVAL '30 days')`;
-        break;
-      case "upcoming":
-      default:
-        // Show all earnings data
-        whereClause += ` AND eh.quarter IS NOT NULL`;
-        break;
-    }
+    // Return empty data for calendar events since tables are not configured
+    console.log("Calendar events: returning empty data - tables not configured in database");
 
-    console.log("Using whereClause:", whereClause);
-
-    const eventsQuery = `
-      SELECT
-        eh.symbol,
-        'earnings' as event_type,
-        eh.date as start_date,
-        eh.date as end_date,
-        CONCAT('Q', eh.quarter, ' Earnings Report') as title,
-        cp.short_name as company_name,
-        eh.eps_estimate,
-        eh.eps_actual as eps_actual,
-        NULL as revenue
-      FROM earnings_history eh
-      LEFT JOIN fundamental_metrics cp ON eh.symbol = cp.symbol
-      ${whereClause}
-      ORDER BY eh.date ASC
-      LIMIT $1 OFFSET $2
-    `;
-
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM earnings_history eh
-      ${whereClause}
-    `;
-    console.log("Executing queries with limit:", limit, "offset:", offset);
-
-    const [eventsResult, countResult] = await Promise.all([
-      query(eventsQuery, [limit, offset]),
-      query(countQuery, []),
-    ]);
-
-    // Add null safety check BEFORE accessing .rows
-    if (
-      !eventsResult ||
-      !eventsResult.rows ||
-      !countResult ||
-      !countResult.rows
-    ) {
-      console.warn(
-        "Calendar events query returned null result, database may be unavailable"
-      );
-      return res.error("Database temporarily unavailable", 503, {
-        message:
-          "Calendar events temporarily unavailable - database connection issue",
-        data: [],
-        pagination: {
-          page: page,
-          limit: limit,
-          total: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false,
-        },
-      });
-    }
-
-    console.log(
-      "Query results - events:",
-      eventsResult.rows.length,
-      "total:",
-      countResult.rows[0].total
-    );
-
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / limit);
-
-    // Return empty data when no events are found (not 404)
-    if (!Array.isArray(eventsResult.rows) || eventsResult.rows.length === 0) {
-      return res.json({
-        success: true,
-        data: [],
-        pagination: {
-          page,
-          limit,
-          total: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false,
-        },
-        summary: {
-          upcoming_events: 0,
-          this_week: 0,
-          filter: timeFilter,
-        },
-        message: "No calendar events found for the specified criteria"
-      });
-    }
-
-    res.json({
-      data: eventsResult.rows,
+    return res.json({
+      success: true,
+      data: [],
       pagination: {
         page,
         limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false,
       },
       summary: {
-        upcoming_events: total,
-        this_week: 0, // Would need separate query
+        upcoming_events: 0,
+        this_week: 0,
         filter: timeFilter,
       },
+      message: "Calendar events data not available - tables not configured in database",
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching calendar events:", error);
