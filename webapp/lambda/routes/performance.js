@@ -7,40 +7,23 @@ const router = express.Router();
 // Apply response formatter middleware to all routes
 router.use(responseFormatter);
 
-// Performance endpoint with real database data
+// Performance API root endpoint - API information
 router.get("/", async (req, res) => {
   try {
-    // Query real portfolio performance data
-    const performanceQuery = `
-      SELECT
-        COALESCE(SUM(total_return), 0) as total_return,
-        COALESCE(AVG(CASE WHEN sharpe_ratio > 0 THEN sharpe_ratio END), 0) as sharpe_ratio,
-        COALESCE(MAX(max_drawdown), 0) as max_drawdown,
-        COALESCE(AVG(volatility), 0) as volatility,
-        COALESCE(COUNT(CASE WHEN total_return > 0 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 0) as win_rate
-      FROM portfolio_transactions
-      WHERE total_return IS NOT NULL
-    `;
-
-    const result = await query(performanceQuery);
-    const performance = result?.rows?.[0] || {
-      total_return: 0,
-      sharpe_ratio: 0,
-      max_drawdown: 0,
-      volatility: 0,
-      win_rate: 0
-    };
-
     res.json({
-      success: true,
-      data: {
-        total_return: parseFloat(performance.total_return) || 0,
-        sharpe_ratio: parseFloat(performance.sharpe_ratio) || 0,
-        max_drawdown: parseFloat(performance.max_drawdown) || 0,
-        volatility: parseFloat(performance.volatility) || 0,
-        win_rate: parseFloat(performance.win_rate) || 0
-      },
+      status: "operational",
+      message: "Performance Analytics API",
       timestamp: new Date().toISOString(),
+      endpoints: {
+        health: "/api/performance/health",
+        analytics: "/api/performance/analytics",
+        benchmark: "/api/performance/benchmark",
+        portfolio: "/api/performance/portfolio",
+        returns: "/api/performance/returns",
+        attribution: "/api/performance/attribution",
+        metrics: "/api/performance/metrics",
+        risk: "/api/performance/risk"
+      }
     });
   } catch (error) {
     console.error("Performance endpoint error:", error);
@@ -56,16 +39,16 @@ router.get("/", async (req, res) => {
 // Performance analytics endpoint with real data
 router.get("/analytics", async (req, res) => {
   try {
-    // Query analytics data from portfolio transactions
+    // Query analytics data from portfolio performance
     const analyticsQuery = `
       SELECT
-        COALESCE(AVG(total_return), 0) as avg_return,
-        COALESCE(STDDEV(total_return), 0) as volatility,
-        COALESCE(MAX(total_return), 0) as max_return,
-        COALESCE(MIN(total_return), 0) as min_return,
+        COALESCE(AVG(total_pnl), 0) as avg_return,
+        COALESCE(STDDEV(total_pnl), 0) as volatility,
+        COALESCE(MAX(total_pnl), 0) as max_return,
+        COALESCE(MIN(total_pnl), 0) as min_return,
         COUNT(*) as total_transactions
-      FROM portfolio_transactions
-      WHERE total_return IS NOT NULL
+      FROM portfolio_performance
+      WHERE total_pnl IS NOT NULL
     `;
 
     const result = await query(analyticsQuery);
@@ -78,7 +61,7 @@ router.get("/analytics", async (req, res) => {
     res.json({
       success: true,
       data: {
-        total_return: avgReturn,
+        total_pnl: avgReturn,
         sharpe_ratio: sharpeRatio,
         max_drawdown: Math.abs(parseFloat(analytics.min_return) || 0),
         volatility: volatility,
@@ -128,11 +111,11 @@ router.get("/benchmark", async (req, res) => {
     // Query portfolio performance vs benchmark
     const benchmarkQuery = `
       SELECT
-        COALESCE(AVG(total_return), 0) as portfolio_return,
-        COALESCE(STDDEV(total_return), 0) as portfolio_volatility,
+        COALESCE(AVG(total_pnl), 0) as portfolio_return,
+        COALESCE(STDDEV(total_pnl), 0) as portfolio_volatility,
         COUNT(*) as data_points
-      FROM portfolio_transactions
-      WHERE total_return IS NOT NULL
+      FROM portfolio_performance
+      WHERE total_pnl IS NOT NULL
     `;
 
     const result = await query(benchmarkQuery);
@@ -186,14 +169,14 @@ router.get("/portfolio", async (req, res) => {
 
     const portfolioQuery = `
       SELECT
-        COALESCE(SUM(total_return), 0) as total_return,
-        COALESCE(AVG(total_return), 0) as avg_return,
-        COALESCE(STDDEV(total_return), 0) as volatility,
-        COALESCE(MAX(total_return), 0) as max_return,
-        COALESCE(MIN(total_return), 0) as min_return,
+        COALESCE(SUM(total_pnl), 0) as total_pnl,
+        COALESCE(AVG(total_pnl), 0) as avg_return,
+        COALESCE(STDDEV(total_pnl), 0) as volatility,
+        COALESCE(MAX(total_pnl), 0) as max_return,
+        COALESCE(MIN(total_pnl), 0) as min_return,
         COUNT(*) as total_positions
-      FROM portfolio_transactions
-      WHERE total_return IS NOT NULL
+      FROM portfolio_performance
+      WHERE total_pnl IS NOT NULL
     `;
 
     const result = await query(portfolioQuery);
@@ -203,7 +186,7 @@ router.get("/portfolio", async (req, res) => {
       success: true,
       data: {
         period: period,
-        total_return: parseFloat(data.total_return) || 0,
+        total_pnl: parseFloat(data.total_pnl) || 0,
         average_return: parseFloat(data.avg_return) || 0,
         volatility: parseFloat(data.volatility) || 0,
         max_return: parseFloat(data.max_return) || 0,
@@ -230,18 +213,18 @@ router.get("/returns", async (req, res) => {
 
     const returnsQuery = `
       SELECT
-        COALESCE(SUM(total_return), 0) as total_return,
-        COALESCE(AVG(total_return), 0) as average_return,
-        COUNT(CASE WHEN total_return > 0 THEN 1 END) as positive_periods,
+        COALESCE(SUM(total_pnl), 0) as total_pnl,
+        COALESCE(AVG(total_pnl), 0) as average_return,
+        COUNT(CASE WHEN total_pnl > 0 THEN 1 END) as positive_periods,
         COUNT(*) as total_periods
-      FROM portfolio_transactions
-      WHERE total_return IS NOT NULL
+      FROM portfolio_performance
+      WHERE total_pnl IS NOT NULL
     `;
 
     const result = await query(returnsQuery);
     const data = result?.rows?.[0] || {};
 
-    const totalReturn = parseFloat(data.total_return) || 0;
+    const totalReturn = parseFloat(data.total_pnl) || 0;
     const avgReturn = parseFloat(data.average_return) || 0;
     const positivePeriods = parseInt(data.positive_periods) || 0;
     const totalPeriods = parseInt(data.total_periods) || 1;
@@ -250,7 +233,7 @@ router.get("/returns", async (req, res) => {
       success: true,
       data: {
         calculation_type: type,
-        total_return: totalReturn,
+        total_pnl: totalReturn,
         annualized_return: avgReturn * 12, // Assume monthly data
         win_rate: (positivePeriods / totalPeriods) * 100,
         total_periods: totalPeriods,
@@ -276,23 +259,23 @@ router.get("/attribution", async (req, res) => {
     // Simple attribution analysis from portfolio data
     const attributionQuery = `
       SELECT
-        COALESCE(SUM(total_return), 0) as total_return,
+        COALESCE(SUM(total_pnl), 0) as total_pnl,
         COUNT(*) as total_positions
-      FROM portfolio_transactions
-      WHERE total_return IS NOT NULL
+      FROM portfolio_performance
+      WHERE total_pnl IS NOT NULL
     `;
 
     const result = await query(attributionQuery);
     const data = result?.rows?.[0] || {};
 
-    const totalReturn = parseFloat(data.total_return) || 0;
+    const totalReturn = parseFloat(data.total_pnl) || 0;
     const totalPositions = parseInt(data.total_positions) || 1;
 
     res.json({
       success: true,
       data: {
         attribution_type: type,
-        total_return: totalReturn,
+        total_pnl: totalReturn,
         asset_allocation: totalReturn * 0.6,
         security_selection: totalReturn * 0.3,
         interaction_effect: totalReturn * 0.1,
@@ -317,13 +300,13 @@ router.get("/metrics", async (req, res) => {
 
     const metricsQuery = `
       SELECT
-        COALESCE(AVG(total_return), 0) as avg_return,
-        COALESCE(STDDEV(total_return), 0) as volatility,
-        COALESCE(MAX(total_return), 0) as max_return,
-        COALESCE(MIN(total_return), 0) as min_return,
+        COALESCE(AVG(total_pnl), 0) as avg_return,
+        COALESCE(STDDEV(total_pnl), 0) as volatility,
+        COALESCE(MAX(total_pnl), 0) as max_return,
+        COALESCE(MIN(total_pnl), 0) as min_return,
         COUNT(*) as data_points
-      FROM portfolio_transactions
-      WHERE total_return IS NOT NULL
+      FROM portfolio_performance
+      WHERE total_pnl IS NOT NULL
     `;
 
     const result = await query(metricsQuery);
@@ -363,13 +346,13 @@ router.get("/risk", async (req, res) => {
   try {
     const riskQuery = `
       SELECT
-        COALESCE(STDDEV(total_return), 0) as volatility,
-        COALESCE(MIN(total_return), 0) as worst_return,
-        COALESCE(AVG(total_return), 0) as avg_return,
-        COUNT(CASE WHEN total_return < 0 THEN 1 END) as negative_periods,
+        COALESCE(STDDEV(total_pnl), 0) as volatility,
+        COALESCE(MIN(total_pnl), 0) as worst_return,
+        COALESCE(AVG(total_pnl), 0) as avg_return,
+        COUNT(CASE WHEN total_pnl < 0 THEN 1 END) as negative_periods,
         COUNT(*) as total_periods
-      FROM portfolio_transactions
-      WHERE total_return IS NOT NULL
+      FROM portfolio_performance
+      WHERE total_pnl IS NOT NULL
     `;
 
     const result = await query(riskQuery);
