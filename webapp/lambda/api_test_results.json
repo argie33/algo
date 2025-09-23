@@ -1,12 +1,12 @@
 {
-  "timestamp": "2025-09-23T13:38:07.115Z",
+  "timestamp": "2025-09-23T13:44:30.526Z",
   "totalEndpoints": 20,
   "passed": 16,
   "serverErrors": 0,
   "clientErrors": 4,
   "fatalErrors": 0,
   "passRate": 80,
-  "duration": "0.16",
+  "duration": "0.14",
   "results": [
     {
       "api": "/api/health",
@@ -105,7 +105,7 @@
       "api": "/api/watchlist",
       "status": "CLIENT_ERROR",
       "code": 401,
-      "error": "Authentication required"
+      "error": "Authorization header required"
     },
     {
       "api": "/api/trades",

@@ -1316,22 +1316,18 @@ async function query(text, params = []) {
       }
       const result = await initializeDatabase();
       if (!result || !pool) {
-        // Database is not available, return null for graceful degradation
-        if (process.env.NODE_ENV !== "test") {
-          console.warn(
-            "Database not available - operation will return null for graceful fallback"
-          );
-        }
-        return null;
+        // Database is not available - throw error instead of fallback
+        const error = new Error("Database connection failed - no fallback available");
+        error.code = "DB_CONNECTION_FAILED";
+        throw error;
       }
     }
 
     // Check if pool is still valid
     if (!pool) {
-      console.warn(
-        "Database connection pool not available - returning null for graceful fallback"
-      );
-      return null;
+      const error = new Error("Database connection pool not available - no fallback");
+      error.code = "DB_POOL_NOT_AVAILABLE";
+      throw error;
     }
 
     const start = Date.now();
@@ -1385,6 +1381,7 @@ async function query(text, params = []) {
     });
 
     // Enhanced error classification for better debugging
+    // Enhanced error classification for better debugging
     if (
       error.message.includes("connect") ||
       error.message.includes("ENOTFOUND") ||
@@ -1394,10 +1391,9 @@ async function query(text, params = []) {
       error.code === "ECONNRESET" ||
       error.code === "ECONNABORTED"
     ) {
-      console.warn(
-        "Database connection error - returning null for graceful fallback"
-      );
-      return null;
+      console.error("Database connection error - no fallback available");
+      error.message = `Database connection failed: ${error.message}`;
+      throw error;
     }
 
     // For other errors, still throw to maintain error handling for genuine issues

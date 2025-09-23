@@ -14,39 +14,27 @@ router.get("/ping", (req, res) => {
   });
 });
 
-// Get user's watchlists - public endpoint for health checks (AWS deployment refresh)
-router.get("/", async (req, res) => {
-  // Require authentication for watchlist access
-  if (!req.headers.authorization) {
-    return res.status(401).json({
-      success: false,
-      error: "Authentication required",
-      message: "Authorization header required to access watchlist",
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  // If there's an auth token, require authentication
-  return authenticateToken(req, res, async () => {
+// Get user's watchlists - requires authentication (no fallbacks)
+router.get("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
 
     // Real database query for user's watchlists using portfolio_transactions as source
     const watchlistQuery = `
-      SELECT
-        symbol as id,
-        'Portfolio Watchlist' as name,
-        symbol,
-        'Auto-generated from portfolio' as notes,
-        created_at,
-        created_at as updated_at
-      FROM portfolio_transactions
-      WHERE user_id = $1
-      GROUP BY symbol, created_at
-      ORDER BY created_at DESC
-    `;
+        SELECT
+          symbol as id,
+          'Portfolio Watchlist' as name,
+          symbol,
+          'Auto-generated from portfolio' as notes,
+          created_at,
+          created_at as updated_at
+        FROM portfolio_transactions
+        WHERE user_id = $1
+        GROUP BY symbol, created_at
+        ORDER BY created_at DESC
+      `;
 
-    const watchlists = await query(watchlistQuery, [userId]);
+      const watchlists = await query(watchlistQuery, [userId]);
 
     if (!watchlists || !watchlists.rows) {
       return res.status(500).json({
@@ -64,10 +52,6 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching watchlists:", error);
-
-    // All database errors should return 500 status
-
-    // Handle other database errors
     res.status(500).json({
       success: false,
       error: "Failed to fetch watchlists",
@@ -75,7 +59,6 @@ router.get("/", async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-  });
 });
 
 // Get all watchlist items (across all user's watchlists)
