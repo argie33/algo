@@ -120,12 +120,12 @@ router.get("/screen", async (req, res) => {
 
     // Market cap filters
     if (filters.marketCapMin) {
-      whereConditions.push(`md.market_cap >= $${paramIndex}`);
+      whereConditions.push(`s.market_cap >= $${paramIndex}`);
       params.push(parseFloat(filters.marketCapMin));
       paramIndex++;
     }
     if (filters.marketCapMax) {
-      whereConditions.push(`md.market_cap <= $${paramIndex}`);
+      whereConditions.push(`s.market_cap <= $${paramIndex}`);
       params.push(parseFloat(filters.marketCapMax));
       paramIndex++;
     }
@@ -258,7 +258,7 @@ router.get("/screen", async (req, res) => {
     }
 
     if (filters.volumeMin) {
-      whereConditions.push(`COALESCE(md.volume, pd.volume) >= $${paramIndex}`);
+      whereConditions.push(`pd.volume >= $${paramIndex}`);
       params.push(parseFloat(filters.volumeMin));
       paramIndex++;
     }
@@ -289,7 +289,7 @@ router.get("/screen", async (req, res) => {
     }
 
     // Build ORDER BY clause
-    let orderBy = "ORDER BY md.market_cap DESC NULLS LAST";
+    let orderBy = "ORDER BY s.market_cap DESC NULLS LAST";
     if (filters.sortBy) {
       const sortField = filters.sortBy;
       const sortOrder = filters.sortOrder === "desc" ? "DESC" : "ASC";
@@ -299,7 +299,7 @@ router.get("/screen", async (req, res) => {
         symbol: "s.symbol",
         companyName: "s.symbol",
         price: "pd.close",
-        marketCap: "md.market_cap",
+        marketCap: "s.market_cap",
         peRatio: "25.0",
         dividendYield: "0.02",
         beta: "1.0",
@@ -309,7 +309,7 @@ router.get("/screen", async (req, res) => {
         sector: "COALESCE(cp.sector, 'Technology')",
       };
 
-      const dbField = fieldMap[sortField] || "md.market_cap";
+      const dbField = fieldMap[sortField] || "s.market_cap";
       orderBy = `ORDER BY ${dbField} ${sortOrder}`;
     }
 
@@ -323,7 +323,7 @@ router.get("/screen", async (req, res) => {
         pd.close as price,
         pd.volume,
         pd.date as price_date,
-        md.market_cap,
+        s.market_cap,
         km.trailing_pe as pe_ratio,
         km.dividend_yield,
         sc.overall_score as factor_score,
@@ -366,12 +366,6 @@ router.get("/screen", async (req, res) => {
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
-        SELECT DISTINCT ON (ticker)
-          ticker, market_cap, volume
-        FROM market_data
-        ORDER BY ticker
-      ) md ON s.symbol = md.ticker
-      LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
         FROM technical_data_daily
@@ -411,12 +405,6 @@ router.get("/screen", async (req, res) => {
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (ticker)
-          ticker, market_cap, volume
-        FROM market_data
-        ORDER BY ticker
-      ) md ON s.symbol = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, rsi, macd, macd_signal, sma_20, sma_50, sma_200
@@ -1393,7 +1381,7 @@ router.post("/export", async (req, res) => {
         COALESCE(cp.short_name, ss.name, ss.symbol || ' Inc.') as company_name,
         cp.sector as sector,
         md.close as price,
-        md.market_cap,
+        s.market_cap,
         km.trailing_pe as pe_ratio,
         km.dividend_yield,
         0,
@@ -1414,7 +1402,7 @@ router.post("/export", async (req, res) => {
         ORDER BY symbol, date DESC
       ) sc ON ss.symbol = sc.symbol
       WHERE ss.symbol IN (${symbolsStr})
-      ORDER BY md.market_cap DESC NULLS LAST
+      ORDER BY s.market_cap DESC NULLS LAST
     `);
 
     if (format === "csv") {
@@ -1852,13 +1840,13 @@ router.get("/stocks", async (req, res) => {
     // Market cap filter
     if (market_cap !== "all") {
       if (market_cap === "large") {
-        whereConditions.push(`md.market_cap >= 10000000000`);
+        whereConditions.push(`s.market_cap >= 10000000000`);
       } else if (market_cap === "mid") {
-        whereConditions.push(`md.market_cap >= 2000000000 AND md.market_cap < 10000000000`);
+        whereConditions.push(`s.market_cap >= 2000000000 AND s.market_cap < 10000000000`);
       } else if (market_cap === "small") {
-        whereConditions.push(`md.market_cap >= 300000000 AND md.market_cap < 2000000000`);
+        whereConditions.push(`s.market_cap >= 300000000 AND s.market_cap < 2000000000`);
       } else if (market_cap === "micro") {
-        whereConditions.push(`md.market_cap < 300000000`);
+        whereConditions.push(`s.market_cap < 300000000`);
       }
     }
 
@@ -1904,7 +1892,7 @@ router.get("/stocks", async (req, res) => {
     }
 
     // Build ORDER BY clause
-    let orderBy = "md.market_cap DESC";
+    let orderBy = "s.market_cap DESC";
     if (sort_by === "price") {
       orderBy = `sp.price ${sort_order.toUpperCase()}`;
     } else if (sort_by === "volume") {
@@ -1914,7 +1902,7 @@ router.get("/stocks", async (req, res) => {
     } else if (sort_by === "dividend_yield") {
       orderBy = `sp.symbol ${sort_order.toUpperCase()}`; // dividend_yield not available, fallback to symbol
     } else {
-      orderBy = `md.market_cap ${sort_order.toUpperCase()} NULLS LAST`;
+      orderBy = `s.market_cap ${sort_order.toUpperCase()} NULLS LAST`;
     }
 
     // Add limit parameter
@@ -1929,7 +1917,7 @@ router.get("/stocks", async (req, res) => {
         sp.price,
         sp.change_percent,
         sp.volume,
-        md.market_cap,
+        s.market_cap,
         cp.sector,
         cp.industry,
         km.pe_ratio,

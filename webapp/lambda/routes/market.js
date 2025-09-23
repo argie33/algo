@@ -70,10 +70,10 @@ router.get("/data", async (req, res) => {
     console.log("📊 Market data endpoint called");
 
     // Check required tables
-    const requiredTables = ["market_data", "stocks"];
+    const requiredTables = ["fundamental_metrics", "price_daily"];
     const tableStatus = await checkRequiredTables(requiredTables);
 
-    if (!tableStatus.market_data && !tableStatus.stocks) {
+    if (!tableStatus.fundamental_metrics && !tableStatus.price_daily) {
       return res.status(503).json({
         success: false,
         error: "Market data tables not available",
@@ -85,34 +85,28 @@ router.get("/data", async (req, res) => {
     // Get basic market data from available tables
     let marketData = [];
 
-    if (tableStatus.market_data) {
+    if (tableStatus.fundamental_metrics) {
       const marketResult = await query(`
         SELECT
-               md.ticker as symbol,
-               COALESCE(cp.short_name, md.ticker) as name,
-               md.current_price,
-               COALESCE(md.post_market_change_pct, 0) as change_percent,
-               COALESCE(md.post_market_change, 0) as change_amount,
-               md.volume,
-               md.market_cap
-        FROM market_data md
-        LEFT JOIN fundamental_metrics cp ON md.ticker = cp.symbol
-        WHERE md.current_price IS NOT NULL
-        ORDER BY md.market_cap DESC NULLS LAST
+               fm.symbol,
+               fm.symbol as name,
+               sp.close as current_price,
+               0 as change_percent,
+               0 as change_amount,
+               sp.volume,
+               fm.market_cap
+        FROM fundamental_metrics fm
+        LEFT JOIN (
+          SELECT DISTINCT ON (symbol)
+            symbol, close, volume
+          FROM price_daily
+          ORDER BY symbol, date DESC
+        ) sp ON fm.symbol = sp.symbol
+        WHERE fm.market_cap IS NOT NULL
+        ORDER BY fm.market_cap DESC NULLS LAST
         LIMIT 50
       `);
       marketData = marketResult.rows || [];
-    } else if (tableStatus.stocks) {
-      // Fallback to stocks table
-      const stocksResult = await query(`
-        SELECT ticker as symbol, current_price, volume,
-               0 as change_amount, 0 as change_percent
-        FROM fundamental_metrics
-        WHERE current_price IS NOT NULL
-        ORDER BY volume DESC NULLS LAST
-        LIMIT 50
-      `);
-      marketData = stocksResult.rows || [];
     }
 
     // Transform data to ensure proper types and field names
