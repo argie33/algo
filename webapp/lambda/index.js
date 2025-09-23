@@ -210,6 +210,29 @@ app.use((req, res, next) => {
 
 // Note: Rate limiting removed - API Gateway handles this
 
+// Global OPTIONS handler for CORS preflight requests (MUST be before CORS middleware)
+app.options('*', (req, res) => {
+  console.log(`🔄 Global OPTIONS handler for: ${req.path} from origin: ${req.headers.origin}`);
+
+  // Ensure CORS headers are explicitly set for AWS API Gateway compatibility
+  const origin = req.headers.origin;
+  const allowedOrigin = origin && origin.includes("d1copuy2oqlazx.cloudfront.net") ? origin :
+                       origin && origin.includes("localhost") ? origin :
+                       "https://d1copuy2oqlazx.cloudfront.net";
+
+  res.header("Access-Control-Allow-Origin", allowedOrigin);
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin"
+  );
+  res.header("Access-Control-Max-Age", "86400");
+  res.header("Vary", "Origin,Access-Control-Request-Method,Access-Control-Request-Headers");
+
+  res.status(200).end();
+});
+
 // CORS configuration (allow specific origins including CloudFront)
 app.use(
   cors({
@@ -260,7 +283,7 @@ app.use(
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
@@ -268,6 +291,11 @@ app.use(
       "X-Api-Key",
       "X-Amz-Date",
       "X-Amz-Security-Token",
+      "X-Request-ID",
+      "Accept",
+      "Accept-Language",
+      "Cache-Control",
+      "Origin",
     ],
     preflightContinue: false,
     optionsSuccessStatus: 200,
@@ -282,30 +310,27 @@ app.use((req, res, next) => {
   const isLambda = process.env.AWS_LAMBDA_FUNCTION_NAME;
   const isAPIGateway = req.headers['x-forwarded-for'] || req.headers['x-amzn-requestid'];
 
-  // Set comprehensive CORS headers for AWS environments
+  // Always set CORS headers for all requests (crucial for AWS API Gateway)
+  const allowedOrigin = origin && origin.includes("d1copuy2oqlazx.cloudfront.net") ? origin :
+                       origin && origin.includes("localhost") ? origin :
+                       "https://d1copuy2oqlazx.cloudfront.net";
+
+  res.header("Access-Control-Allow-Origin", allowedOrigin);
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin"
+  );
+  res.header("Access-Control-Max-Age", "86400"); // Cache preflight for 24 hours
+
+  // Additional headers for AWS environments
   if (isLambda || isAPIGateway) {
-    // Always set CORS headers in AWS environment
-    res.header("Access-Control-Allow-Origin", origin || "*");
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH");
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control"
-    );
-    res.header("Access-Control-Max-Age", "86400"); // 24 hours
-    res.header("Vary", "Origin,Accept-Encoding");
+    res.header("Access-Control-Expose-Headers", "X-Request-ID,X-Amzn-RequestId");
+    res.header("Vary", "Origin,Access-Control-Request-Method,Access-Control-Request-Headers");
   }
 
-  // Set CORS headers explicitly for CloudFront and API Gateway
-  if (origin && (origin.includes("cloudfront.net") || origin.includes("amazonaws.com"))) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH");
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID"
-    );
-  }
+  // CORS headers are now set above for all requests
 
   // Add AWS-specific context to request for debugging
   if (isLambda) {
@@ -319,6 +344,7 @@ app.use((req, res, next) => {
 
   // Handle preflight requests with enhanced AWS support
   if (req.method === "OPTIONS") {
+    console.log(`🔄 CORS preflight request for: ${req.path}`);
     res.status(200).end();
     return;
   }
@@ -489,6 +515,7 @@ app.use("/watchlist", watchlistRoutes);
 app.use("/etf", etfRoutes);
 app.use("/insider", insiderRoutes);
 app.use("/dividend", dividendRoutes);
+
 
 // Also mount routes with /api prefix for frontend compatibility
 app.use("/api/alerts", alertsRoutes);
