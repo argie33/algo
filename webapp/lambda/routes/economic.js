@@ -4,6 +4,59 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Mapping of common economic indicator names to FRED series IDs
+const SERIES_MAPPING = {
+  'GDP': 'GDPC1',           // Real Gross Domestic Product
+  'CPI': 'CPIAUCSL',        // Consumer Price Index
+  'UNEMPLOYMENT': 'UNRATE', // Unemployment Rate
+  'FEDERAL_FUNDS': 'FEDFUNDS', // Federal Funds Rate
+  'INFLATION': 'CPIAUCSL',  // Use CPI for inflation
+  'PAYROLL': 'PAYEMS',      // Nonfarm Payrolls
+  'VIX': 'VIXCLS',          // VIX Volatility Index
+  'SP500': 'SP500',         // S&P 500 Index
+  'HOUSING_STARTS': 'HOUST', // Housing Starts
+  'PERMITS': 'PERMIT',      // Building Permits
+  'MORTGAGE_RATES': 'MORTGAGE30US', // 30-Year Fixed Mortgage Rate
+  'YIELD_10Y': 'DGS10',     // 10-Year Treasury Yield
+  'YIELD_2Y': 'DGS2',       // 2-Year Treasury Yield
+  'YIELD_CURVE': 'T10Y2Y',  // 10Y-2Y Treasury Spread
+  'MONEY_SUPPLY': 'M2SL',   // M2 Money Supply
+  'FED_BALANCE': 'WALCL',   // Federal Reserve Balance Sheet
+  'CORE_CPI': 'CPILFESL',   // Core CPI (excluding food and energy)
+  'PCE': 'PCEPI',           // Personal Consumption Expenditures Price Index
+  'CORE_PCE': 'PCEPILFE',   // Core PCE Price Index
+  'PPI': 'PPIACO',          // Producer Price Index
+  'LABOR_FORCE': 'CIVPART', // Labor Force Participation Rate
+  'HOURLY_EARNINGS': 'CES0500000003', // Average Hourly Earnings
+  'WEEKLY_HOURS': 'AWHAE',  // Average Weekly Hours
+  'JOB_OPENINGS': 'JTSJOL', // Job Openings
+  'INITIAL_CLAIMS': 'ICSA', // Initial Unemployment Claims
+  'PRODUCTIVITY': 'OPHNFB', // Nonfarm Business Sector: Labor Productivity
+  'U6_UNEMPLOYMENT': 'U6RATE', // U-6 Unemployment Rate
+  'CONSUMER_EXPECTATIONS': 'MICH', // University of Michigan Consumer Sentiment
+  'INFLATION_EXPECTATIONS': 'T5YIFR', // 5-Year Forward Inflation Expectation Rate
+  'AAA_BONDS': 'AAA',       // Moody's Seasoned Aaa Corporate Bond Yield
+  'BAA_BONDS': 'BAA',       // Moody's Seasoned Baa Corporate Bond Yield
+  'IOER': 'IOER',           // Interest on Excess Reserves
+  'IORB': 'IORB',           // Interest on Reserve Balances
+  'HOME_PRICES': 'CSUSHPISA', // Case-Shiller Home Price Index
+  'RENT_VACANCY': 'RRVRUSQ156N', // Rental Vacancy Rate
+  'HOME_VACANCY': 'RHORUSQ156N', // Homeowner Vacancy Rate
+  'HOUSING_VACANCIES': 'USHVAC', // Housing Vacancies
+  'PERSONAL_CONSUMPTION': 'PCECC96', // Real Personal Consumption Expenditures
+  'INVESTMENT': 'GPDI',     // Gross Private Domestic Investment
+  'GOVERNMENT_CONSUMPTION': 'GCEC1', // Real Government Consumption
+  'EXPORTS': 'EXPGSC1',     // Real Exports of Goods and Services
+  'IMPORTS': 'IMPGSC1'      // Real Imports of Goods and Services
+};
+
+// Helper function to resolve series ID from common name or pass through if already a series ID
+function resolveSeriesId(input) {
+  if (!input) return input;
+  const upperInput = input.toUpperCase();
+  return SERIES_MAPPING[upperInput] || input;
+}
+
 // Get economic data
 router.get("/", async (req, res) => {
   try {
@@ -41,7 +94,7 @@ router.get("/", async (req, res) => {
     if (series) {
       paramCount++;
       whereClause = `WHERE series_id = $${paramCount}`;
-      queryParams.push(series);
+      queryParams.push(resolveSeriesId(series));
     }
 
     const economicQuery = `
@@ -334,19 +387,22 @@ router.get("/series/:seriesId", async (req, res) => {
       `📈 Economic series requested - series: ${seriesId}, timeframe: ${timeframe}`
     );
 
+    // Resolve the series ID using the mapping (e.g., GDP -> GDPC1)
+    const resolvedSeriesId = resolveSeriesId(seriesId);
+
     const seriesResult = await query(
       `
-      SELECT 
+      SELECT
         series_id,
         date,
         value,
         LAG(value) OVER (ORDER BY date) as previous_value
-      FROM economic_data 
+      FROM economic_data
       WHERE series_id = $1
       ORDER BY date DESC
       LIMIT $2
     `,
-      [seriesId.toUpperCase(), parseInt(limit)]
+      [resolvedSeriesId, parseInt(limit)]
     );
 
     if (!seriesResult.rows || seriesResult.rows.length === 0) {
@@ -429,22 +485,23 @@ router.get("/forecast", async (req, res) => {
     }
 
     // Get recent historical data for the series
+    const resolvedSeriesId = resolveSeriesId(series);
     const historicalResult = await query(
       `
       SELECT date, value
-      FROM economic_data 
+      FROM economic_data
       WHERE series_id = $1
       ORDER BY date DESC
       LIMIT 12
     `,
-      [series.toUpperCase()]
+      [resolvedSeriesId]
     );
 
     if (!historicalResult.rows || historicalResult.rows.length < 3) {
       return res.status(404).json({
         success: false,
         error: "Insufficient historical data",
-        message: `Not enough historical data for series: ${series} to generate forecasts`,
+        message: `Not enough historical data for series: ${series} (${resolvedSeriesId}) to generate forecasts`,
         details: {
           data_points_found: historicalResult.rows
             ? historicalResult.rows.length
@@ -472,7 +529,7 @@ router.get("/forecast", async (req, res) => {
     res.json({
       success: true,
       data: {
-        series_id: series.toUpperCase(),
+        series_id: resolvedSeriesId,
         forecast_values: [{
           date: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0], // 30 days from now
           value: forecastValue.toFixed(2)
@@ -523,6 +580,7 @@ router.get("/correlations", async (req, res) => {
     const timeframeDays =
       timeframe === "5Y" ? 1825 : timeframe === "1Y" ? 365 : 730;
 
+    const resolvedSeriesId = resolveSeriesId(series);
     const correlationData = await query(
       `
       WITH target_series AS (
@@ -537,7 +595,7 @@ router.get("/correlations", async (req, res) => {
         WHERE series_id != $1
           AND date >= CURRENT_DATE - INTERVAL '1 day' * $2
       )
-      SELECT 
+      SELECT
         o.series_id,
         COUNT(*) as data_points,
         CORR(t.target_value, o.value) as correlation
@@ -548,7 +606,7 @@ router.get("/correlations", async (req, res) => {
       ORDER BY ABS(CORR(t.target_value, o.value)) DESC
       LIMIT 20
     `,
-      [series.toUpperCase(), timeframeDays]
+      [resolvedSeriesId, timeframeDays]
     );
 
     // Map series to market categories for test compatibility
@@ -592,7 +650,7 @@ router.get("/correlations", async (req, res) => {
     res.json({
       success: true,
       data: {
-        target_series: series.toUpperCase(),
+        target_series: resolvedSeriesId,
         timeframe: timeframe || "2Y",
         correlations: correlationsByMarket,
         analysis_period: {
@@ -626,7 +684,7 @@ router.get("/compare", async (req, res) => {
       });
     }
 
-    const seriesList = series.split(",").map((s) => s.trim().toUpperCase());
+    const seriesList = series.split(",").map((s) => resolveSeriesId(s.trim()));
 
     if (seriesList.length < 2) {
       return res.status(400).json({
