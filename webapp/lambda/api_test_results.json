@@ -1,12 +1,12 @@
 {
-  "timestamp": "2025-09-23T04:09:48.619Z",
+  "timestamp": "2025-09-23T10:14:50.866Z",
   "totalEndpoints": 20,
   "passed": 17,
   "serverErrors": 0,
   "clientErrors": 3,
   "fatalErrors": 0,
   "passRate": 85,
-  "duration": "0.20",
+  "duration": "0.15",
   "results": [
     {
       "api": "/api/health",

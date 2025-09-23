@@ -1,4 +1,5 @@
 const request = require('supertest');
+
 const { app } = require('./index.js');
 
 // Comprehensive list of all critical API endpoints to test
