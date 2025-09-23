@@ -123,7 +123,7 @@ router.get("/data", async (req, res) => {
       success: true,
       data: transformedData,
       metadata: {
-        source: tableStatus.market_data ? "market_data" : "stocks",
+        source: tableStatus.price_daily ? "price_daily" : "stocks",
         count: transformedData.length,
         tables_available: tableStatus,
       },
@@ -298,7 +298,7 @@ router.get("/debug", async (req, res) => {
   try {
     // Check all market-related tables
     const requiredTables = [
-      "market_data",
+      "price_daily",
       "economic_data",
       "fear_greed_index",
       "naaim",
@@ -488,7 +488,7 @@ router.get("/test", async (req, res) => {
     }
 
     return res.json({
-      market_data: marketData,
+      price_data: marketData,
       economic_data: economicData,
       timestamp: new Date().toISOString(),
     });
@@ -608,9 +608,14 @@ router.get("/overview", async (req, res) => {
             WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
             ELSE 0
           END as changePercent
-        FROM market_data md
-        LEFT JOIN company_profile cp ON md.ticker = cp.ticker
-        WHERE md.ticker IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
+        FROM (
+          SELECT DISTINCT ON (symbol)
+            symbol as ticker, close as current_price,
+            0 as previous_close, volume, date
+          FROM price_daily
+          WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
+          ORDER BY symbol, date DESC
+        ) md
         ORDER BY md.ticker
       `);
 
@@ -687,7 +692,7 @@ router.get("/overview", async (req, res) => {
           SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
           SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
           SUM(market_cap) as total
-        FROM market_data
+        FROM fundamental_metrics
         WHERE market_cap IS NOT NULL AND market_cap > 0
       `);
 
