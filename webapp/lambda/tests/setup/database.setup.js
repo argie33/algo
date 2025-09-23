@@ -117,18 +117,24 @@ async function ensureTestData() {
     `);
 
     // Add unique constraint separately to handle existing tables
-    try {
-      await query(`
-        ALTER TABLE price_daily
-        ADD CONSTRAINT unique_symbol_date
-        UNIQUE (symbol, date)
-      `);
-    } catch (error) {
-      // Ignore error if constraint already exists
-      if (!error.message.includes('already exists') &&
-          !error.message.includes('relation "unique_symbol_date" already exists') &&
-          !error.message.includes('constraint "unique_symbol_date" already exists')) {
-        console.warn('Could not add unique constraint to price_daily:', error.message);
+    // Check if constraint already exists before trying to add it
+    const constraintExists = await query(`
+      SELECT COUNT(*) FROM pg_constraint
+      WHERE conname = 'unique_symbol_date'
+    `);
+
+    if (constraintExists.rows[0].count === '0') {
+      try {
+        await query(`
+          ALTER TABLE price_daily
+          ADD CONSTRAINT unique_symbol_date
+          UNIQUE (symbol, date)
+        `);
+      } catch (error) {
+        // Only log if it's an unexpected error
+        if (!error.message.includes('already exists') && error.code !== '42P07') {
+          console.warn('Could not add unique constraint to price_daily:', error.message);
+        }
       }
     }
 
@@ -651,6 +657,85 @@ async function ensureTestData() {
         order_id INTEGER NOT NULL,
         activity_type VARCHAR(50) NOT NULL,
         description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio_performance table
+    await query(`DROP TABLE IF EXISTS portfolio_performance`);
+    await query(`
+      CREATE TABLE portfolio_performance (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        total_value DECIMAL(15,4) NOT NULL,
+        daily_pnl DECIMAL(15,4) DEFAULT 0,
+        daily_pnl_percent DECIMAL(8,4) DEFAULT 0,
+        total_pnl DECIMAL(15,4) DEFAULT 0,
+        total_pnl_percent DECIMAL(8,4) DEFAULT 0,
+        date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio_holdings table
+    await query(`DROP TABLE IF EXISTS portfolio_holdings`);
+    await query(`
+      CREATE TABLE portfolio_holdings (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        quantity DECIMAL(15,4) NOT NULL,
+        average_cost DECIMAL(12,4) NOT NULL,
+        current_price DECIMAL(12,4) DEFAULT 0,
+        market_value DECIMAL(15,4) DEFAULT 0,
+        unrealized_pnl DECIMAL(15,4) DEFAULT 0,
+        unrealized_pnl_percent DECIMAL(8,4) DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio_symbol_performance table
+    await query(`DROP TABLE IF EXISTS portfolio_symbol_performance`);
+    await query(`
+      CREATE TABLE portfolio_symbol_performance (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        realized_pnl DECIMAL(15,4) DEFAULT 0,
+        unrealized_pnl DECIMAL(15,4) DEFAULT 0,
+        win_rate DECIMAL(8,4) DEFAULT 0,
+        avg_hold_time_days INTEGER DEFAULT 0,
+        period VARCHAR(10) NOT NULL,
+        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create portfolio_analytics table
+    await query(`DROP TABLE IF EXISTS portfolio_analytics`);
+    await query(`
+      CREATE TABLE portfolio_analytics (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        period VARCHAR(10) NOT NULL,
+        total_return DECIMAL(8,4) DEFAULT 0,
+        sharpe_ratio DECIMAL(8,4) DEFAULT 0,
+        max_drawdown DECIMAL(8,4) DEFAULT 0,
+        volatility DECIMAL(8,4) DEFAULT 0,
+        beta DECIMAL(8,4) DEFAULT 1.0,
+        alpha DECIMAL(8,4) DEFAULT 0,
+        tracking_error DECIMAL(8,4) DEFAULT 0,
+        information_ratio DECIMAL(8,4) DEFAULT 0,
+        sortino_ratio DECIMAL(8,4) DEFAULT 0,
+        calmar_ratio DECIMAL(8,4) DEFAULT 0,
+        win_rate DECIMAL(8,4) DEFAULT 0,
+        average_win DECIMAL(8,4) DEFAULT 0,
+        average_loss DECIMAL(8,4) DEFAULT 0,
+        profit_factor DECIMAL(8,4) DEFAULT 0,
+        recovery_factor DECIMAL(8,4) DEFAULT 0,
+        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);

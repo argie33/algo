@@ -569,12 +569,12 @@ router.get("/quotes", async (req, res) => {
         SELECT DISTINCT ON (p.symbol)
           p.symbol,
           p.close,
-          p.high_price,
-          p.low_price,
-          p.open_price,
+          p.high,
+          p.low,
+          p.open,
           p.volume,
           p.change_percent,
-          p.change_amount,
+          COALESCE(p.close - LAG(p.close) OVER (PARTITION BY p.symbol ORDER BY p.date), 0) as change_amount,
           p.date,
           p.adj_close
         FROM price_daily p
@@ -582,14 +582,14 @@ router.get("/quotes", async (req, res) => {
         ORDER BY p.symbol, p.date DESC
       ),
       enhanced_quotes AS (
-        SELECT 
+        SELECT
           lp.symbol,
           -- Simulate real-time price with small random variations
           lp.close + (RANDOM() - 0.5) * lp.close * 0.002 as current_price,
           lp.close as previous_close,
-          lp.high_price + (RANDOM() - 0.5) * lp.high_price * 0.001 as day_high,
-          lp.low_price + (RANDOM() - 0.5) * lp.low_price * 0.001 as day_low,
-          lp.open_price as open_price,
+          lp.high + (RANDOM() - 0.5) * lp.high * 0.001 as day_high,
+          lp.low + (RANDOM() - 0.5) * lp.low * 0.001 as day_low,
+          lp.open as open_price,
           lp.volume + FLOOR(RANDOM() * 100000) as volume,
           lp.change_percent + (RANDOM() - 0.5) * 0.1 as change_percent,
           lp.adj_close as adjusted_close,
