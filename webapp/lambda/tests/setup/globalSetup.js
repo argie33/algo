@@ -237,8 +237,9 @@ module.exports = async () => {
     `);
 
     // Create fundamental_metrics table (from loadfundamentalmetrics.py)
+    await query(`DROP TABLE IF EXISTS fundamental_metrics`);
     await query(`
-      CREATE TABLE IF NOT EXISTS fundamental_metrics (
+      CREATE TABLE fundamental_metrics (
         id SERIAL PRIMARY KEY,
         symbol VARCHAR(10) NOT NULL,
         market_cap BIGINT,

@@ -1,3 +1,6 @@
+// Load environment variables first
+require('dotenv').config();
+
 // Database setup for individual test files
 const { query, initializeDatabase } = require('../../utils/database');
 
@@ -122,7 +125,9 @@ async function ensureTestData() {
       `);
     } catch (error) {
       // Ignore error if constraint already exists
-      if (!error.message.includes('already exists') && !error.message.includes('relation "unique_symbol_date" already exists')) {
+      if (!error.message.includes('already exists') &&
+          !error.message.includes('relation "unique_symbol_date" already exists') &&
+          !error.message.includes('constraint "unique_symbol_date" already exists')) {
         console.warn('Could not add unique constraint to price_daily:', error.message);
       }
     }
@@ -247,6 +252,16 @@ async function ensureTestData() {
         SELECT 'MSFT', 'Microsoft Corporation' WHERE NOT EXISTS (SELECT 1 FROM stock_symbols WHERE symbol = 'MSFT')
       `);
     }
+
+    // Ensure company_profile records exist before inserting market_data
+    await query(`
+      INSERT INTO company_profile (ticker, short_name, long_name, sector, industry) VALUES
+      ('AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
+      ('MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'Technology', 'Software'),
+      ('SPY', 'SPDR S&P 500 ETF Trust', 'SPDR S&P 500 ETF Trust', 'ETF', 'ETF'),
+      ('QQQ', 'Invesco QQQ Trust', 'Invesco QQQ Trust', 'ETF', 'ETF')
+      ON CONFLICT (ticker) DO NOTHING
+    `);
 
     await query(`
       INSERT INTO market_data (ticker, market_cap, current_price, volume) VALUES

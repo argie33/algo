@@ -1,3 +1,6 @@
+// Load environment variables before any tests run
+require('dotenv').config();
+
 module.exports = {
   testEnvironment: "node",
   collectCoverage: false,
