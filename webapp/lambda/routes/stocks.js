@@ -3520,7 +3520,6 @@ router.post("/init-price-data", authenticateToken, async (req, res) => {
     });
   }
   */
-});
 
 // Removed mock historical price data generation function
 // Should query actual historical price data from database instead
