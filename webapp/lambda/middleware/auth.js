@@ -13,7 +13,10 @@ const authenticateToken = (req, res, next) => {
     const authHeader = req.headers["authorization"];
 
     if (!authHeader) {
-      return res.unauthorized("Access token required");
+      return res.status(401).json({
+        success: false,
+        error: "Access token required"
+      });
     }
 
     // Handle malformed authorization header first
@@ -21,7 +24,10 @@ const authenticateToken = (req, res, next) => {
       !authHeader.startsWith("Bearer ") &&
       !authHeader.startsWith("bearer ")
     ) {
-      return res.unauthorized("Invalid token format");
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token format"
+      });
     }
 
     // Handle multiple spaces by filtering out empty parts
@@ -29,14 +35,20 @@ const authenticateToken = (req, res, next) => {
     let token = tokenParts[1]; // Bearer TOKEN
 
     if (!token) {
-      return res.unauthorized("Access token required");
+      return res.status(401).json({
+        success: false,
+        error: "Access token required"
+      });
     }
 
     // Trim whitespace from token (in case of trailing spaces)
     token = token.trim();
 
     if (token === "") {
-      return res.unauthorized("Access token required");
+      return res.status(401).json({
+        success: false,
+        error: "Access token required"
+      });
     }
 
     // Check for special bypass tokens in test environment
@@ -90,15 +102,27 @@ const authenticateToken = (req, res, next) => {
         return next();
       } catch (error) {
         if (error.name === "TokenExpiredError") {
-          return res.unauthorized("Token expired");
+          return res.status(401).json({
+            success: false,
+            error: "Token expired"
+          });
         }
         if (error.name === "JsonWebTokenError") {
-          return res.unauthorized("Invalid token");
+          return res.status(401).json({
+            success: false,
+            error: "Invalid token"
+          });
         }
-        return res.unauthorized("Authentication failed");
+        return res.status(401).json({
+          success: false,
+          error: "Authentication failed"
+        });
       }
     } catch (error) {
-      return res.unauthorized("Authentication failed");
+      return res.status(401).json({
+        success: false,
+        error: "Authentication failed"
+      });
     }
   }
 
