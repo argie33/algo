@@ -665,7 +665,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
           ${companyProfileExists ? "LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol" : ""}
-          ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
+          ${companyProfileExists ? "LEFT JOIN fundamental_metrics cp ON bs.symbol = cp.symbol" : ""}
           ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
           ${whereClause}
         )
@@ -698,7 +698,7 @@ router.get("/signals/:timeframe", async (req, res) => {
           END as performance_percent
         FROM ${tableName} bs
         ${companyProfileExists ? "LEFT JOIN fundamental_metrics fm ON bs.symbol = fm.symbol" : ""}
-        ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
+        ${companyProfileExists ? "LEFT JOIN fundamental_metrics cp ON bs.symbol = cp.symbol" : ""}
         ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close, pd_inner.dividends FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
         ${whereClause}
         ORDER BY bs.date DESC, bs.symbol ASC
@@ -1007,7 +1007,7 @@ router.get("/swing-signals", async (req, res) => {
         END as status
       FROM swing_trading_signals st
       JOIN fundamental_metrics fm ON st.symbol = fm.symbol
-      LEFT JOIN company_profile cp ON st.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON st.symbol = cp.symbol
       LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON st.symbol = s.symbol
       ORDER BY st.date DESC
       LIMIT $1 OFFSET $2
@@ -2235,7 +2235,7 @@ router.get("/:ticker/technicals", async (req, res) => {
     });
   } catch (error) {
     console.error(
-      `Technical indicators error for ${req.params.ticker}:`,
+      `Technical indicators error for ${req.params.symbol}:`,
       error
     );
     return res.status(500).json({
@@ -2267,7 +2267,7 @@ router.get("/risk/portfolio", async (req, res) => {
         COALESCE(ti.beta, 1.0) as beta
       FROM portfolio_holdings ph
       LEFT JOIN fundamental_metrics fm ON ph.symbol = fm.symbol
-      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) symbol, close, volume
         FROM price_daily

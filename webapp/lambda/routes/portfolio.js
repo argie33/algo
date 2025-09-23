@@ -268,7 +268,7 @@ router.get("/positions", async (req, res) => {
         h.current_price * h.quantity as market_value,
         h.average_cost * h.quantity as cost_basis
       FROM portfolio_holdings h
-      LEFT JOIN company_profile s ON h.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON h.symbol = s.symbol
       WHERE h.user_id = $1 AND h.quantity > 0
       ORDER BY h.current_price * h.quantity DESC
       LIMIT $2

@@ -61,7 +61,7 @@ router.get("/analysis", async (req, res) => {
         (h.current_price * h.quantity) as market_value,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as return_percent
       FROM portfolio_holdings h
-      LEFT JOIN company_profile s ON h.symbol = s.ticker
+      LEFT JOIN fundamental_metrics s ON h.symbol = s.symbol
       WHERE h.user_id = $1 AND h.quantity > 0
       `,
       [userId]
