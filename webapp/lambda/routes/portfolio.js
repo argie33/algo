@@ -259,7 +259,7 @@ router.get("/positions", async (req, res) => {
 
     const result = await query(
       `
-      SELECT 
+      SELECT
         h.symbol, h.quantity, h.average_cost, h.current_price,
         h.last_updated as created_at, h.last_updated as updated_at,
         s.short_name as company_name, COALESCE(s.sector, 'Unknown') as sector,
@@ -268,7 +268,7 @@ router.get("/positions", async (req, res) => {
         h.current_price * h.quantity as market_value,
         h.average_cost * h.quantity as cost_basis
       FROM portfolio_holdings h
-      LEFT JOIN fundamental_metrics s ON h.symbol = s.symbol
+      LEFT JOIN company_profile s ON h.symbol = s.ticker
       WHERE h.user_id = $1 AND h.quantity > 0
       ORDER BY h.current_price * h.quantity DESC
       LIMIT $2

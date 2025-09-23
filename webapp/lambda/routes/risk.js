@@ -55,13 +55,13 @@ router.get("/analysis", async (req, res) => {
     // Get current portfolio holdings
     const holdingsResult = await query(
       `
-      SELECT 
+      SELECT
         h.symbol, h.quantity, h.average_cost, h.current_price,
         s.sector, s.short_name as company_name,
         (h.current_price * h.quantity) as market_value,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as return_percent
       FROM portfolio_holdings h
-      LEFT JOIN fundamental_metrics s ON h.symbol = s.symbol
+      LEFT JOIN company_profile s ON h.symbol = s.ticker
       WHERE h.user_id = $1 AND h.quantity > 0
       `,
       [userId]
