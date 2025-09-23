@@ -1031,7 +1031,7 @@ router.get("/debug", async (req, res) => {
     // Get data counts only (no sample generation)
     try {
       const countsResult = await query(`
-                SELECT 
+                SELECT
                     (SELECT COUNT(*) FROM price_daily) as price_count,
                     (SELECT COUNT(*) FROM fundamental_metrics) as profile_count,
                     (SELECT COUNT(*) FROM stock_symbols) as symbols_count,
@@ -1040,6 +1040,28 @@ router.get("/debug", async (req, res) => {
       debugData.data_counts = countsResult.rows[0];
     } catch (error) {
       debugData.data_counts = `error: ${error.message}`;
+    }
+
+    // Get sample data for debug validation
+    try {
+      const samplePriceResult = await query(`
+        SELECT symbol, close, volume, date
+        FROM price_daily
+        ORDER BY date DESC
+        LIMIT 1
+      `);
+
+      debugData.sample_data = {
+        price_daily_sample: samplePriceResult.rows[0] || null,
+        has_market_data: samplePriceResult.rows.length > 0,
+        sample_timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      debugData.sample_data = {
+        error: error.message,
+        has_market_data: false,
+        sample_timestamp: new Date().toISOString()
+      };
     }
 
     // Database connectivity check

@@ -1,702 +1,802 @@
 {
   "totalTests": 77,
-  "successful": 0,
-  "failed": 77,
-  "successRate": "0.0%",
-  "timestamp": "2025-09-20T03:03:21.238Z",
+  "successful": 50,
+  "failed": 27,
+  "successRate": "64.9%",
+  "timestamp": "2025-09-23T18:25:00.764Z",
   "results": [
     {
       "name": "Health",
       "endpoint": "/health",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "36ms",
+      "dataSize": 348,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"status\":\"healthy\",\"healthy\":true,\"timestamp\":\"2025-09-23T18:24:52.595Z\",\"version\":\"1.0.0\",\"database\":{\"status\":\"connected\",\"tables\":{\"naaim\":2}},\"api\":{\"version\":\"1.0.0\",\"environment\"..."
     },
     {
       "name": "Auth Status",
       "endpoint": "/auth/status",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 172,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"authenticated\":false,\"user\":null,\"cognito\":{\"userPoolId\":\"configured\",\"clientId\":\"configured\",\"region\":\"us-east-1\"},\"timestamp\":\"2025-09-23T18:24:52.702Z\"}..."
     },
     {
       "name": "Market Overview",
       "endpoint": "/market/overview",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "11ms",
+      "dataSize": 1114,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"indices\":[],\"sentiment_indicators\":{\"fear_greed\":{\"value\":null,\"value_text\":\"Extreme Fear\",\"timestamp\":\"2025-09-13T05:00:00.000Z\"},\"naaim\":{\"average\":\"75.20\",\"bullish_8100\":\"6..."
     },
     {
       "name": "Market Sectors",
       "endpoint": "/market/sectors",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 198,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"sectors\":[],\"summary\":{\"totalSectors\":0,\"totalCompanies\":0,\"note\":\"Market cap calculations not available with current data sources\"}},\"timestamp\":\"2025-09-23T18:24:52.916Z\"}..."
     },
     {
       "name": "Market Indices",
       "endpoint": "/market/indices",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 6537,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"ticker\":\"AAPL\",\"previous_close\":null,\"regular_market_previous_close\":null,\"open_price\":null,\"regular_market_open\":null,\"day_low\":null,\"regular_market_day_low\":null,\"day_high\"..."
     },
     {
       "name": "Market Movers",
       "endpoint": "/market/movers",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "5ms",
+      "dataSize": 1594,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"movers\":[{\"symbol\":\"STOCK41\",\"price\":140.54,\"change_percent\":4.97,\"price_change\":6.65,\"volume\":4284737,\"date\":\"2025-09-23T05:00:00.000Z\"},{\"symbol\":\"STOCK23\",\"price\":170.27,\"c..."
     },
     {
       "name": "Dashboard Summary",
       "endpoint": "/dashboard/summary",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "178ms",
+      "dataSize": 5893,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"market_overview\":[{\"symbol\":\"AAPL\",\"current_price\":150.25,\"volume\":65000000,\"change_percent\":0.5016722408026756,\"change_amount\":0.75,\"high\":151.25,\"low\":148.75,\"created_at\":\"2..."
     },
     {
       "name": "Dashboard Metrics",
       "endpoint": "/dashboard/metrics",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "7ms",
+      "dataSize": 438,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"market\":{\"total_symbols\":50,\"total_volume\":293901073,\"avg_price\":201.63740000000004,\"max_price\":587.93,\"min_price\":39.4},\"portfolio\":{\"total_holdings\":0,\"total_value\":0,\"avg_r..."
     },
     {
       "name": "Portfolio Summary",
       "endpoint": "/portfolio",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Portfolio Holdings",
       "endpoint": "/portfolio/holdings",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Portfolio Performance",
       "endpoint": "/portfolio/performance",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Stocks List",
       "endpoint": "/stocks",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "18ms",
+      "dataSize": 11782,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"performance\":\"COMPREHENSIVE DATA - All company profiles, market data, financial metrics, analyst estimates, and governance scores\",\"data\":[{\"ticker\":\"AAPL\",\"symbol\":\"AAPL\",\"name\":\"AAP..."
     },
     {
       "name": "Stocks Popular",
       "endpoint": "/stocks/popular",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 887,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"AAPL\",\"name\":\"AAPL\",\"price\":0,\"change\":0,\"change_percent\":0,\"market_cap\":\"3500000000000\",\"volume\":0},{\"symbol\":\"MSFT\",\"name\":\"MSFT\",\"price\":0,\"change\":0,\"change_perc..."
     },
     {
       "name": "Stock Detail AAPL",
       "endpoint": "/stocks/AAPL",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "5ms",
+      "dataSize": 483,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"symbol\":\"AAPL\",\"ticker\":\"AAPL\",\"companyInfo\":{\"name\":\"AAPL\",\"exchange\":null,\"marketCategory\":\"Standard\",\"sector\":null,\"isETF\":false},\"currentPrice\":150.25,\"priceData\":{\"date\":\"2024-01-02T06:00:00.00..."
     },
     {
       "name": "Stock Detail MSFT",
       "endpoint": "/stocks/MSFT",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 480,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"symbol\":\"MSFT\",\"ticker\":\"MSFT\",\"companyInfo\":{\"name\":\"MSFT\",\"exchange\":null,\"marketCategory\":\"Standard\",\"sector\":null,\"isETF\":false},\"currentPrice\":350.75,\"priceData\":{\"date\":\"2024-01-02T06:00:00.00..."
     },
     {
       "name": "Stock Price AAPL",
       "endpoint": "/stocks/AAPL/price",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 251,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"price\":{\"symbol\":\"AAPL\",\"current_price\":150.25,\"date\":\"2024-01-02T06:00:00.000Z\",\"volume\":65000000,\"high\":151.25,\"low\":148.75,\"open\":149.5}},\"timestamp\":\"2025-09-23T18:24:54.3..."
     },
     {
       "name": "Stock Financials AAPL",
       "endpoint": "/stocks/AAPL/financials",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Financial data not available in database. Ensure financial data has been loaded from data providers.",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Stock Technical AAPL",
       "endpoint": "/stocks/AAPL/technical",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "5ms",
+      "dataSize": 257,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"technical\":{\"symbol\":\"AAPL\",\"sma_20\":null,\"sma_50\":null,\"current_price\":150.25,\"avg_volume_10d\":61500000,\"price_trend\":\"bearish\",\"data_points\":2}},\"timestamp\":\"2025-09-23T18:2..."
     },
     {
       "name": "Screener Default",
       "endpoint": "/screener",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 447,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"system\":\"Stock Screener API\",\"version\":\"1.0.0\",\"status\":\"operational\",\"available_endpoints\":[\"GET /screener/screen - Main stock screening with filters\",\"GET /screener/ai-scan ..."
     },
     {
       "name": "Screener Results",
       "endpoint": "/screener/results",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Analytics Portfolio",
       "endpoint": "/analytics/portfolio",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Analytics Performance",
       "endpoint": "/analytics/performance",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Technical Indicators",
       "endpoint": "/technical/indicators",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 1193,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"data\":[{\"symbol\":\"AAPL\",\"date\":\"2025-09-12T05:00:00.000Z\",\"rsi\":65.2,\"macd\":0.45,\"sma_20\":185.2,\"sma_50\":182.5,\"sma_200\":175.8,\"bbands_upper\":190.5,\"bbands_lower\":183},{\"symbo..."
     },
     {
       "name": "Technical Analysis",
       "endpoint": "/technical/analysis",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 920,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"timeframe\":\"daily\",\"analysis_date\":\"2025-09-23T18:24:55.176Z\",\"indicators\":{\"symbol\":\"AAPL\",\"date\":\"2025-09-12T05:00:00.000Z\",\"rsi\":65.2,\"macd\":0.45,\"macd_sign..."
     },
     {
       "name": "Sentiment Analysis",
       "endpoint": "/sentiment/analysis",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 422,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Please provide a symbol parameter (e.g. ?symbol=AAPL)",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Sentiment Summary",
       "endpoint": "/sentiment/summary",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 704,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"sentiment\":{\"symbol\":\"SUMMARY\",\"period\":\"7d\",\"overall_sentiment\":0.66,\"sentiment_label\":\"Slightly Bullish\",\"confidence\":40,\"metrics\":{\"positive_mentions\":266,\"negative_mention..."
     },
     {
       "name": "News Latest",
       "endpoint": "/news/latest",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "4ms",
+      "dataSize": 311,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"articles\":[],\"summary\":{\"total_articles\":0,\"time_range\":\"12 hours\",\"sentiment_distribution\":{\"positive\":0,\"negative\":0,\"neutral\":0}},\"message\":\"No news articles found in the last 12 h..."
     },
     {
       "name": "News Stock AAPL",
       "endpoint": "/news/AAPL",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 753,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"data\":{\"articles\":[{\"title\":\"Apple Announces Record Quarterly Earnings\",\"url\":\"https://example.com/1\",\"publisher\":\"Reuters\",\"publishTime\":\"2025-09-22T07:00:05.183Z\",\"newsType\":\"earnings\",\"thumbnail\"..."
     },
     {
       "name": "Calendar Earnings",
       "endpoint": "/calendar/earnings",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 259,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"earnings\":[],\"grouped_by_date\":{},\"summary\":{\"total_earnings\":0,\"upcoming_reports\":0,\"completed_reports\":0,\"sectors_represented\":0,\"message\":\"No earnings data found for the sp..."
     },
     {
       "name": "Calendar Events",
       "endpoint": "/calendar/events",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 223,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[],\"pagination\":{\"page\":1,\"limit\":25,\"total\":0,\"totalPages\":1,\"hasNext\":false,\"hasPrev\":false},\"summary\":{\"upcoming_events\":0,\"this_week\":0,\"filter\":\"upcoming\"},\"timestamp\":\"202..."
     },
     {
       "name": "Scores Overview",
       "endpoint": "/scores",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "21ms",
+      "dataSize": 13322,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"scores\":[{\"symbol\":\"AAPL\",\"currentPrice\":150.25,\"volume\":65000000,\"compositeScore\":50,\"momentumScore\":50,\"trendScore\":50,\"valueScore\":50,\"qualityScore\":50,\"rsi\":50,\"macd\":null..."
     },
     {
       "name": "Scores Stock AAPL",
       "endpoint": "/scores/AAPL",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 213,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"currentPrice\":150.25,\"volume\":65000000,\"compositeScore\":50,\"rsi\":50,\"macd\":null,\"sma20\":null,\"scoreDate\":\"2024-01-02T06:00:00.000Z\"},\"timestamp\":\"2025-09-23T18..."
     },
     {
       "name": "Metrics Market",
       "endpoint": "/metrics/market",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "23ms",
+      "dataSize": 260,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"market_cap\":14000000000000,\"volume\":188500000,\"volatility\":18.5,\"fear_greed_index\":52,\"active_stocks\":7,\"gainers\":0,\"decliners\":0,\"market_status\":\"open\",\"last_updated\":\"2025-0..."
     },
     {
       "name": "Metrics Performance",
       "endpoint": "/metrics/performance",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Request failed with status code 404",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Risk Analysis",
       "endpoint": "/risk/analysis",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Risk Portfolio",
       "endpoint": "/risk/portfolio",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Settings User",
       "endpoint": "/settings",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Settings Preferences",
       "endpoint": "/settings/preferences",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Sectors Overview",
       "endpoint": "/sectors",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 120,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"message\":\"Sectors API - Ready\",\"status\":\"operational\",\"data\":[],\"timestamp\":\"2025-09-23T18:24:56.754Z\"}..."
     },
     {
       "name": "Sectors Performance",
       "endpoint": "/sectors/performance",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "4ms",
+      "dataSize": 180,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"message\":\"Sector performance data loading\",\"data\":[],\"metadata\":{\"period\":\"1m\",\"limit\":10,\"note\":\"Data is being populated\"},\"timestamp\":\"2025-09-23T18:24:56.858Z\"}..."
     },
     {
       "name": "Signals Trading",
       "endpoint": "/signals/trading",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "6ms",
+      "dataSize": 205,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"symbol\":\"TRADING\",\"timeframe\":\"daily\",\"data\":[],\"summary\":{\"total_signals\":0,\"buy_signals\":0,\"sell_signals\":0,\"avg_confidence\":null,\"avg_risk\":null},\"timestamp\":\"2025-09-23T18:24:56.9..."
     },
     {
       "name": "Signals Buy",
       "endpoint": "/signals/buy",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "6ms",
+      "dataSize": 3917,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"STOCK0\",\"date\":\"2025-09-22T05:00:00.000Z\",\"timeframe\":\"daily\",\"signal_type\":\"BUY\",\"confidence\":\"0.80\",\"price\":89.53,\"volume\":\"10899765\"},{\"symbol\":\"STOCK1\",\"date\":\"2..."
     },
     {
       "name": "Signals Sell",
       "endpoint": "/signals/sell",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "6ms",
+      "dataSize": 3942,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"STOCK0\",\"date\":\"2025-09-23T05:00:00.000Z\",\"timeframe\":\"daily\",\"signal_type\":\"SELL\",\"confidence\":\"0.70\",\"price\":88.38,\"volume\":\"2921732\"},{\"symbol\":\"STOCK1\",\"date\":\"2..."
     },
     {
       "name": "Backtest Results",
       "endpoint": "/backtest/results",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 2961,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"name\":\"Test A 1758647098637\",\"value\":123,\"id\":\"1758647098637\",\"summary\":{\"total_return\":0,\"sharpe_ratio\":0,\"max_drawdown\":0,\"win_rate\":0,\"total_trades\":0,\"final_value\":100000..."
     },
     {
       "name": "Financial Statements",
       "endpoint": "/financials/statements",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 400,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Request failed with status code 400",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Financial Ratios",
       "endpoint": "/financials/ratios",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Financial ratios data not available in database. Ensure data has been loaded from financial data providers.",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Trading Positions",
       "endpoint": "/trading/positions",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "1ms",
+      "dataSize": 75,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[],\"count\":0,\"timestamp\":\"2025-09-23T18:24:57.587Z\"}..."
     },
     {
       "name": "Trading History",
       "endpoint": "/trading/history",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "1ms",
+      "dataSize": 110,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"trades\":[],\"total_trades\":0,\"realized_pnl\":0},\"timestamp\":\"2025-09-23T18:24:57.689Z\"}..."
     },
     {
       "name": "Price Data AAPL",
       "endpoint": "/price/AAPL",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 260,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"symbol\":\"AAPL\",\"data\":{\"symbol\":\"AAPL\",\"price\":150.25,\"current_price\":150.25,\"open\":149.5,\"high\":151.25,\"low\":148.75,\"close\":150.25,\"adj_close\":null,\"volume\":\"65000000\",\"date\":\"2024-0..."
     },
     {
       "name": "Price Historical AAPL",
       "endpoint": "/price/AAPL/historical",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 122,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"symbol\":\"AAPL\",\"period\":\"1y\",\"interval\":\"1d\",\"prices\":[]},\"timestamp\":\"2025-09-23T18:24:57.894Z\"}..."
     },
     {
       "name": "Performance Metrics",
       "endpoint": "/performance/metrics",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Route /api/performance/metrics not found",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Performance Summary",
       "endpoint": "/performance/summary",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Route /api/performance/summary not found",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Watchlist Default",
       "endpoint": "/watchlist",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 1972,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"id\":\"AAPL\",\"name\":\"My Watchlist\",\"symbol\":\"AAPL\",\"created_at\":\"2025-09-23T18:24:49.023Z\"},{\"id\":\"TSLA\",\"name\":\"My Watchlist\",\"symbol\":\"TSLA\",\"created_at\":\"2025-09-23T18:24:49..."
     },
     {
       "name": "Data Sources",
       "endpoint": "/data/sources",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 205,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"sources\":[{\"name\":\"Alpha Vantage\",\"status\":\"active\"},{\"name\":\"Yahoo Finance\",\"status\":\"active\"},{\"name\":\"PostgreSQL\",\"status\":\"connected\"}]},\"timestamp\":\"2025-09-23T18:24:58.3..."
     },
     {
       "name": "Data Status",
       "endpoint": "/data/status",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 193,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"status\":\"operational\",\"last_update\":\"2025-09-23T18:24:58.404Z\",\"tables\":{\"price_daily\":\"active\",\"fundamental_metrics\":\"active\"}},\"timestamp\":\"2025-09-23T18:24:58.404Z\"}..."
     },
     {
       "name": "Economic Indicators",
       "endpoint": "/economic/indicators",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "3ms",
+      "dataSize": 1956,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"series_id\":\"FEDERAL_FUNDS_RATE\",\"name\":\"Economic Indicator\",\"category\":\"economic\",\"frequency\":\"Monthly\",\"source\":\"Bureau of Labor Statistics\",\"last_updated\":\"2024-01-01T06:00..."
     },
     {
       "name": "Economic Data",
       "endpoint": "/economic/data",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 446,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"data\":[{\"series_id\":\"VIX\",\"date\":\"2024-01-02T06:00:00.000Z\",\"value\":18.5},{\"series_id\":\"FEDERAL_FUNDS_RATE\",\"date\":\"2024-01-01T06:00:00.000Z\",\"value\":5.25},{\"series_id\":\"GDP\",\"date\":\"2024-01-01T06:0..."
     },
     {
       "name": "Commodities Prices",
       "endpoint": "/commodities/prices",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "1ms",
+      "dataSize": 1372,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"CL\",\"name\":\"Crude Oil\",\"category\":\"energy\",\"price\":78.45,\"change\":0.67,\"changePercent\":0.86,\"unit\":\"per barrel\",\"currency\":\"USD\",\"volume\":245678,\"lastUpdated\":\"2025-..."
     },
     {
       "name": "Commodities Overview",
       "endpoint": "/commodities",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "1ms",
+      "dataSize": 415,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"system\":\"Commodities API\",\"version\":\"1.0.0\",\"status\":\"operational\",\"available_endpoints\":[\"GET /commodities/categories - Commodity categories\",\"GET /commodities/prices - Curre..."
     },
     {
       "name": "ETF List",
       "endpoint": "/etf",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 26,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[]}..."
     },
     {
       "name": "ETF Popular",
       "endpoint": "/etf/popular",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "1ms",
+      "dataSize": 196,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"etfs\":[{\"symbol\":\"SPY\",\"name\":\"SPDR S&P 500 ETF\",\"volume\":50000000},{\"symbol\":\"QQQ\",\"name\":\"Invesco QQQ Trust\",\"volume\":30000000}]},\"timestamp\":\"2025-09-23T18:24:59.017Z\"}..."
     },
     {
       "name": "Insider Trading",
       "endpoint": "/insider/trading",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 76,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"trades\":[]},\"timestamp\":\"2025-09-23T18:24:59.119Z\"}..."
     },
     {
       "name": "Insider Activity",
       "endpoint": "/insider/activity",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "4ms",
+      "dataSize": 78,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"activity\":[]},\"timestamp\":\"2025-09-23T18:24:59.221Z\"}..."
     },
     {
       "name": "Dividend Calendar",
       "endpoint": "/dividend/calendar",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "4ms",
+      "dataSize": 10390,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"upcoming_dividends\":[{\"symbol\":\"PFE\",\"ex_date\":\"2025-09-12T05:00:00.000Z\",\"record_date\":\"2025-09-14T05:00:00.000Z\",\"payment_date\":\"2025-09-27T05:00:00.000Z\",\"amount\":0.42,\"yie..."
     },
     {
       "name": "Dividend History",
       "endpoint": "/dividend/history",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Symbol not found or no dividend history available",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Live Data Stream",
       "endpoint": "/live-data/stream",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Live Data Quotes",
       "endpoint": "/live-data/quotes",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 500,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Request failed with status code 500",
+      "errorType": "ERR_BAD_RESPONSE"
     },
     {
       "name": "Orders Active",
       "endpoint": "/orders/active",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Orders History",
       "endpoint": "/orders/history",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 401,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Access token must be provided in Authorization header",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Analysts Recommendations",
       "endpoint": "/analysts/recommendations",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "2ms",
+      "dataSize": 85,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"recommendations\":[]},\"timestamp\":\"2025-09-23T18:24:59.944Z\"}..."
     },
     {
       "name": "Analysts Upgrades",
       "endpoint": "/analysts/upgrades",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "5ms",
+      "dataSize": 4931,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":[{\"symbol\":\"AAPL\",\"company_name\":\"Apple Inc.\",\"action\":\"upgrade\",\"firm\":\"Goldman Sachs\",\"date\":\"2024-01-15T06:00:00.000Z\",\"from_grade\":\"Hold\",\"to_grade\":\"Buy\",\"details\":\"Strong ..."
     },
     {
       "name": "Earnings Estimates",
       "endpoint": "/earnings/estimates",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Request failed with status code 404",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Earnings History",
       "endpoint": "/earnings/history",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Request failed with status code 404",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Positioning Data",
       "endpoint": "/positioning/data",
-      "status": "ERROR",
-      "statusCode": "N/A",
-      "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "responseTime": "1ms",
+      "dataSize": 81,
+      "hasData": true,
+      "dataStructure": "object",
+      "preview": "{\"success\":true,\"data\":{\"positioning\":[]},\"timestamp\":\"2025-09-23T18:25:00.357Z\"}..."
     },
     {
       "name": "Strategy Builder",
       "endpoint": "/strategyBuilder/strategies",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Route /api/strategyBuilder/strategies not found",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Diagnostics System",
       "endpoint": "/diagnostics/system",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Route /api/diagnostics/system not found",
+      "errorType": "ERR_BAD_REQUEST"
     },
     {
       "name": "Diagnostics Performance",
       "endpoint": "/diagnostics/performance",
       "status": "ERROR",
-      "statusCode": "N/A",
+      "statusCode": 404,
       "responseTime": "N/A",
-      "error": "connect ECONNREFUSED 127.0.0.1:3001",
-      "errorType": "ECONNREFUSED"
+      "error": "Route /api/diagnostics/performance not found",
+      "errorType": "ERR_BAD_REQUEST"
     }
   ]
 }

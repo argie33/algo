@@ -81,9 +81,9 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
       SELECT
         CONCAT('Q', er.quarter, ' ', er.year) as period,
         er.eps_estimate as estimate,
-        NULL as actual,
+        er.actual_revenue as actual,
         NULL as difference,
-        NULL as surprise_percent,
+        er.surprise_percent,
         er.report_date as reported_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
@@ -117,9 +117,9 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
       SELECT 
         CONCAT('Q', er.quarter, ' ', er.year) as period,
         NULL as estimate,
-        NULL as actual,
+        er.actual_revenue as actual,
         NULL as difference,
-        NULL as surprise_percent,
+        er.surprise_percent,
         er.report_date as reported_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
@@ -150,9 +150,9 @@ router.get("/:ticker/earnings-history", async (req, res) => {
       SELECT 
         CONCAT('Q', er.quarter, ' ', er.year) as quarter,
         er.eps_estimate as estimate,
-        er.eps_actual as actual,
-        (er.eps_actual - er.eps_estimate) as difference,
-        NULL as surprise_percent,
+        er.actual_eps as actual,
+        (er.actual_eps - er.eps_estimate) as difference,
+        er.surprise_percent,
         er.report_date as earnings_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
@@ -225,7 +225,7 @@ router.get("/:ticker/eps-trend", async (req, res) => {
       SELECT 
         er.symbol,
         '0q' as period,
-        er.eps_actual as current,
+        er.actual_eps as current,
         NULL as days7ago,
         NULL as days30ago,
         NULL as days60ago,
@@ -272,12 +272,12 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
       SELECT 
         er.symbol,
         er.year as fiscal_year,
-        er.eps_actual as earnings_per_share,
+        er.actual_eps as earnings_per_share,
         er.report_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
       AND er.year IS NOT NULL
-      AND er.eps_actual IS NOT NULL
+      AND er.actual_eps IS NOT NULL
       ORDER BY er.year DESC, er.quarter DESC
       LIMIT 20
     `;
@@ -286,14 +286,14 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     const earningsQuery = `
       SELECT 
         er.symbol,
-        er.eps_actual,
+        er.actual_eps,
         er.eps_estimate,
         er.year,
         er.quarter,
         er.report_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
-      AND er.eps_actual IS NOT NULL
+      AND er.actual_eps IS NOT NULL
       ORDER BY er.report_date DESC
       LIMIT 12
     `;
@@ -538,9 +538,9 @@ router.get("/:ticker/overview", async (req, res) => {
         `SELECT 
           CONCAT('Q', er.quarter, ' ', er.year) as period,
           er.eps_estimate as estimate,
-          er.eps_actual as actual,
-          (er.eps_actual - er.eps_estimate) as difference,
-          NULL as surprise_percent,
+          er.actual_eps as actual,
+          (er.actual_eps - er.eps_estimate) as difference,
+          er.surprise_percent,
           er.report_date as reported_date
         FROM earnings_reports er
         WHERE UPPER(er.symbol) = UPPER($1)
@@ -552,9 +552,9 @@ router.get("/:ticker/overview", async (req, res) => {
         `SELECT 
           CONCAT('Q', er.quarter, ' ', er.year) as period,
           NULL as estimate,
-          NULL as actual,
+          er.actual_revenue as actual,
           NULL as difference,
-          NULL as surprise_percent,
+          er.surprise_percent,
           er.report_date as reported_date
         FROM earnings_reports er
         WHERE UPPER(er.symbol) = UPPER($1)

@@ -167,15 +167,10 @@ describe("Authentication Routes Integration", () => {
     test("should require valid token", async () => {
       const response = await request(app).get("/auth/me");
 
-      // Due to development bypass in auth middleware (lines 30-47 in auth.js),
-      // requests without tokens may still succeed in NODE_ENV=test
-      expect(response.status).toBe(200);
-      if (response.status === 401) {
-        expect(response.body.success).toBe(false);
-      } else {
-        // Development bypass active
-        expect(response.body).toHaveProperty("user");
-      }
+      // Authentication should properly require tokens
+      expect(response.status).toBe(401);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe("Access token required");
     });
 
     test("should reject invalid token", async () => {
@@ -190,16 +185,23 @@ describe("Authentication Routes Integration", () => {
 
   describe("POST /auth/confirm", () => {
     test("should confirm user registration", async () => {
+      // Test with invalid code should fail
       const response = await request(app).post("/auth/confirm").send({
         username: "testuser",
-        confirmationCode: "123456",
+        confirmationCode: "invalid-code",
       });
 
       expect([400, 422]).toContain(response.status);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Confirmation failed");
-      if (response.status === 200) {
-        expect(response.body.message).toBe("Account confirmed successfully");
+
+      // Test with valid code should succeed
+      const validResponse = await request(app).post("/auth/confirm").send({
+        username: "testuser",
+        confirmationCode: "123456",
+      });
+      if (validResponse.status === 200) {
+        expect(validResponse.body.message).toBe("Account confirmed successfully");
       }
     });
 

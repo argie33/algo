@@ -58,6 +58,7 @@ router.get("/", (req, res) => {
         "/sentiment",
         "/correlation",
         "/data",
+        "/hours",
       ],
     },
     timestamp: new Date().toISOString(),
@@ -5746,6 +5747,80 @@ router.get("/historical", async (req, res) => {
       success: false,
       error: "Failed to fetch historical market data",
       message: error.message
+    });
+  }
+});
+
+// Market hours endpoint
+router.get("/hours", async (req, res) => {
+  try {
+    console.log("🕒 Market hours endpoint called");
+
+    // Get current EST time and determine if market is open
+    const now = new Date();
+    const easternTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    const hour = easternTime.getHours();
+    const day = easternTime.getDay(); // 0 = Sunday, 6 = Saturday
+
+    // Market is open Monday-Friday 9:30 AM - 4:00 PM EST
+    const isWeekday = day >= 1 && day <= 5;
+    const isMarketHours = hour >= 9 && hour < 16; // 9:30 AM to 4:00 PM
+    const isOpen = isWeekday && isMarketHours;
+
+    // Calculate next open/close times
+    let nextOpen, nextClose;
+    if (isOpen) {
+      // Market is open, next close is today at 4:00 PM EST
+      nextClose = new Date(easternTime);
+      nextClose.setHours(16, 0, 0, 0);
+    } else {
+      // Market is closed, calculate next open
+      nextOpen = new Date(easternTime);
+      if (day === 0) { // Sunday
+        nextOpen.setDate(nextOpen.getDate() + 1); // Monday
+      } else if (day === 6) { // Saturday
+        nextOpen.setDate(nextOpen.getDate() + 2); // Monday
+      } else if (hour >= 16) { // After hours on weekday
+        nextOpen.setDate(nextOpen.getDate() + 1); // Next day
+      }
+      nextOpen.setHours(9, 30, 0, 0);
+    }
+
+    const marketHours = {
+      is_open: isOpen,
+      current_time: easternTime.toISOString(),
+      timezone: "America/New_York",
+      regular_hours: {
+        open: "09:30:00",
+        close: "16:00:00"
+      },
+      extended_hours: {
+        pre_market: {
+          open: "04:00:00",
+          close: "09:30:00"
+        },
+        after_hours: {
+          open: "16:00:00",
+          close: "20:00:00"
+        }
+      },
+      next_open: nextOpen ? nextOpen.toISOString() : null,
+      next_close: nextClose ? nextClose.toISOString() : null,
+      trading_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    };
+
+    res.json({
+      success: true,
+      data: marketHours,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Market hours error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch market hours",
+      details: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });
