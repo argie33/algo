@@ -8,6 +8,23 @@ const { addTradingModeContext } = require("../utils/tradingModeHelper");
 
 const router = express.Router();
 
+// Helper function to check if a table exists
+async function tableExists(tableName) {
+  try {
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = $1
+      );
+    `;
+    const result = await query(tableCheckQuery, [tableName]);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking table existence for ${tableName}:`, error);
+    return false;
+  }
+}
+
 // Helper function to calculate annualized return with proper date-based calculation
 function calculateAnnualizedReturn(performance) {
   if (!performance || performance.length < 1) return 0;
@@ -173,14 +190,37 @@ router.get("/summary", authenticateToken, async (req, res) => {
     const userId = req.user.sub;
     console.log(`📊 Portfolio summary requested for user: ${userId}`);
 
+    // Check if portfolio tables exist
+    const [holdingsExists, performanceExists] = await Promise.all([
+      tableExists("portfolio_holdings"),
+      tableExists("portfolio_performance")
+    ]);
+
+    if (!holdingsExists || !performanceExists) {
+      return res.json({
+        success: true,
+        data: {
+          total_value: 0,
+          holdings: [],
+          metrics: {
+            unrealized_pnl: 0,
+            unrealized_pnl_percent: 0,
+            total_positions: 0,
+          }
+        },
+        message: "Portfolio data not yet loaded",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const [holdingsResult, performanceResult] = await Promise.all([
       query(
         `
-        SELECT 
+        SELECT
           symbol, quantity, average_cost, current_price,
           (current_price - average_cost) * quantity as unrealized_pnl,
           ((current_price - average_cost) / average_cost * 100) as unrealized_pnl_percent
-        FROM portfolio_holdings 
+        FROM portfolio_holdings
         WHERE user_id = $1 AND quantity > 0
         `,
         [userId]
@@ -188,9 +228,9 @@ router.get("/summary", authenticateToken, async (req, res) => {
       query(
         `
         SELECT total_value, daily_pnl, total_pnl, total_pnl_percent, created_at
-        FROM portfolio_performance 
-        WHERE user_id = $1 
-        ORDER BY created_at DESC 
+        FROM portfolio_performance
+        WHERE user_id = $1
+        ORDER BY created_at DESC
         LIMIT 1
         `,
         [userId]
@@ -257,20 +297,30 @@ router.get("/positions", async (req, res) => {
 
     console.log(`📋 Portfolio positions requested for user: ${userId}`);
 
+    // Check if portfolio_holdings table exists
+    if (!(await tableExists("portfolio_holdings"))) {
+      return res.json({
+        success: true,
+        data: [],
+        message: "Portfolio data not yet loaded",
+        total: 0,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const result = await query(
       `
       SELECT
         h.symbol, h.quantity, h.average_cost, h.current_price,
         h.last_updated as created_at, h.last_updated as updated_at,
         COALESCE(cp.short_name, h.symbol) as company_name,
-        COALESCE(s.sector, 'Unknown') as sector,
+        COALESCE(cp.sector, 'Unknown') as sector,
         (h.current_price - h.average_cost) * h.quantity as unrealized_pnl,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as unrealized_pnl_percent,
         h.current_price * h.quantity as market_value,
         h.average_cost * h.quantity as cost_basis
       FROM portfolio_holdings h
       LEFT JOIN company_profile cp ON h.symbol = cp.ticker
-      LEFT JOIN stocks fm ON h.symbol = s.symbol
       WHERE h.user_id = $1 AND h.quantity > 0
       ORDER BY h.current_price * h.quantity DESC
       LIMIT $2
@@ -323,17 +373,17 @@ router.get("/analytics", async (req, res) => {
   try {
     // Get user's portfolio holdings from database
     const holdingsQuery = `
-      SELECT 
-        ph.symbol, 
-        ph.quantity, 
+      SELECT
+        ph.symbol,
+        ph.quantity,
         ph.average_cost as avg_cost,
         ph.current_price,
         ph.last_updated,
         COALESCE(cp.sector, 'Unknown') as sector,
         COALESCE(cp.industry, 'Unknown') as industry,
-        ph.symbol as short_name
+        COALESCE(cp.short_name, ph.symbol) as short_name
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
       ORDER BY ph.symbol
@@ -445,7 +495,7 @@ router.get("/analytics", async (req, res) => {
         date: currentDate.toISOString().split("T")[0],
         total_value: totalValue,
         daily_pnl: totalPnl,
-        daily_pnl_percent: totalPnlPercent,
+        daily_pnl: totalPnl,
         total_pnl: totalPnl,
         total_pnl_percent: totalPnlPercent,
         benchmark_return: 0,
@@ -581,7 +631,7 @@ router.get("/analysis", async (req, res) => {
       FROM portfolio_holdings ph
       WHERE ph.user_id = $1
       AND ph.quantity > 0
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -767,7 +817,7 @@ router.get("/risk-analysis", async (req, res) => {
       FROM portfolio_holdings ph
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -833,7 +883,7 @@ router.get("/risk-metrics", async (req, res) => {
         COALESCE(cp.sector, 'Technology') as sector,
         ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
       ORDER BY ph.symbol
@@ -1000,9 +1050,9 @@ router.get("/:id/holdings", async (req, res) => {
         ph.last_updated,
         COALESCE(cp.sector, 'Unknown') as sector
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol 
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker 
       WHERE ph.user_id = $1
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
       `,
       [id]
     );
@@ -1023,22 +1073,22 @@ router.get("/:id/holdings", async (req, res) => {
     if (error.code === "42P01") {
       return res.error(
         "Portfolio holdings data not available",
+        503,
         {
           message: "Portfolio holdings table does not exist in database.",
           suggestion: "Portfolio holdings tracking needs to be set up",
           table_needed: "portfolio_holdings",
-        },
-        503
+        }
       );
     }
 
     res.error(
       "Failed to fetch portfolio holdings",
+      500,
       {
         message: error.message,
         portfolio_id: req.params.id,
-      },
-      500
+      }
     );
   }
 });
@@ -1057,7 +1107,7 @@ router.get("/:id/performance", async (req, res) => {
       `
       SELECT 
         date, total_value, total_pnl as total_return, total_pnl_percent as total_return_percent,
-        daily_pnl as daily_return, daily_pnl_percent as daily_return_percent,
+        daily_pnl as daily_return, (daily_pnl/total_value)*100 as daily_return_percent,
         shar NULL as pe_ratio, max_drawdown, volatility
       FROM portfolio_performance 
       WHERE user_id = $1 OR broker = $1
@@ -1083,22 +1133,22 @@ router.get("/:id/performance", async (req, res) => {
     if (error.code === "42P01") {
       return res.error(
         "Portfolio performance data not available",
+        503,
         {
           message: "Portfolio performance table does not exist in database.",
           suggestion: "Portfolio performance tracking needs to be set up",
           table_needed: "portfolio_performance",
-        },
-        503
+        }
       );
     }
 
     res.error(
       "Failed to fetch portfolio performance",
+      500,
       {
         message: error.message,
         portfolio_id: req.params.id,
-      },
-      500
+      }
     );
   }
 });
@@ -1126,9 +1176,9 @@ router.get("/performance", async (req, res) => {
     // Query portfolio_performance table for historical performance data
     const performanceQuery = `
       SELECT
-        date, total_value, daily_pnl, daily_pnl_percent,
+        date, total_value, daily_pnl, (daily_pnl/total_value)*100 as daily_pnl_percent,
         total_pnl, total_pnl_percent,
-        0 as benchmark_return, 0 as alpha, 1 as beta, 0 as shar NULL as pe_ratio, 0 as max_drawdown, 0 as volatility
+        0 as benchmark_return, 0 as alpha, 1 as beta, 0 as sharpe_ratio, 0 as max_drawdown, 0 as volatility
       FROM portfolio_performance 
       WHERE user_id = $1 
       ORDER BY date
@@ -1253,9 +1303,9 @@ router.get("/performance/analysis", async (req, res) => {
         CASE WHEN ph.average_cost > 0 THEN ROUND(((ph.current_price - ph.average_cost) / ph.average_cost * 100), 2) ELSE 0 END as pnl_percent,
         COALESCE(cp.sector, 'Technology') as sector, ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -1455,9 +1505,9 @@ router.get("/benchmark", async (req, res) => {
 
     // Get benchmark data from price_daily table
     const benchmarkQuery = `
-      SELECT 
+      SELECT
         date,
-        close_price as price,
+        close as price,
         volume
       FROM price_daily
       WHERE symbol = $1
@@ -1811,7 +1861,7 @@ router.get("/rebalance", async (req, res) => {
       LEFT JOIN price_daily md ON ph.symbol = md.symbol 
         AND md.date = (SELECT MAX(date) FROM price_daily WHERE price_daily.symbol = ph.symbol)
       WHERE ph.user_id = $1 AND ph.quantity > 0 
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -2819,16 +2869,16 @@ router.get("/metrics", async (req, res) => {
     let performanceQuery;
     if (period === "30d") {
       performanceQuery = `
-        SELECT total_value, daily_pnl, daily_pnl_percent, created_at as date
-        FROM portfolio_performance 
+        SELECT total_value, daily_pnl, (daily_pnl/total_value)*100 as daily_pnl_percent, created_at as date
+        FROM portfolio_performance
         WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '30 days'
         ORDER BY created_at DESC
       `;
     } else {
       performanceQuery = `
-        SELECT total_value, daily_pnl, daily_pnl_percent, created_at as date
-        FROM portfolio_performance 
-        WHERE user_id = $1 
+        SELECT total_value, daily_pnl, (daily_pnl/total_value)*100 as daily_pnl_percent, created_at as date
+        FROM portfolio_performance
+        WHERE user_id = $1
         ORDER BY created_at DESC
         LIMIT 100
       `;
@@ -3138,7 +3188,7 @@ router.get("/performance/history", async (req, res) => {
     }
 
     let performanceQuery = `
-      SELECT total_value, daily_pnl, daily_pnl_percent, total_pnl_percent, created_at as date
+      SELECT total_value, daily_pnl, (daily_pnl/total_value)*100 as daily_pnl_percent, total_pnl_percent, created_at as date
       FROM portfolio_performance 
       WHERE user_id = $1
     `;
@@ -3383,10 +3433,10 @@ router.get("/export", async (req, res) => {
 
     if (includeFields.includes("performance")) {
       const performanceQuery = `
-        SELECT total_value, daily_pnl, daily_pnl_percent, created_at as date
-        FROM portfolio_performance 
-        WHERE user_id = $1 
-        ORDER BY created_at DESC 
+        SELECT total_value, daily_pnl, (daily_pnl/total_value)*100 as daily_pnl_percent, created_at as date
+        FROM portfolio_performance
+        WHERE user_id = $1
+        ORDER BY created_at DESC
         LIMIT 30
       `;
       const performanceResult = await query(performanceQuery, [userId]);
@@ -4530,13 +4580,12 @@ async function storeImportedPortfolio(userId, portfolioData) {
       for (const perfData of portfolioData.performance) {
         const insertPerfQuery = `
           INSERT INTO portfolio_performance (
-            user_id, date, total_value, daily_pnl, daily_pnl_percent,
+            user_id, date, total_value, daily_pnl,
             total_pnl, total_pnl_percent, broker
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)
           ON CONFLICT (user_id, date, broker) DO UPDATE SET
             total_value = EXCLUDED.total_value,
             daily_pnl = EXCLUDED.daily_pnl,
-            daily_pnl_percent = EXCLUDED.daily_pnl_percent,
             total_pnl = EXCLUDED.total_pnl,
             total_pnl_percent = EXCLUDED.total_pnl_percent
         `;
@@ -4546,7 +4595,6 @@ async function storeImportedPortfolio(userId, portfolioData) {
           perfData.date,
           perfData.equity || 0,
           perfData.profitLoss || 0,
-          perfData.profitLossPercent || 0,
           perfData.equity - (perfData.baseValue || 0),
           perfData.profitLossPercent || 0,
           portfolioData.broker || "unknown",
@@ -4580,7 +4628,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0 
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -4650,7 +4698,7 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
       LEFT JOIN portfolio_risk pr ON pr.portfolio_id = 'default'
         AND pr.date = (SELECT MAX(date) FROM portfolio_risk WHERE portfolio_id = 'default')
       WHERE ph.user_id = $1 AND ph.quantity > 0 
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
     `;
     const holdingsResult = await query(holdingsQuery, [userId]);
     const holdings = holdingsResult?.rows || [];
@@ -4791,7 +4839,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0 
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
     `;
     const holdingsResult = await query(holdingsQuery, [userId]);
     const holdings = {
@@ -5752,7 +5800,7 @@ router.get("/watchlist", async (req, res) => {
         0 as change,
         0 as change_percent
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1
       ORDER BY ph.symbol
       LIMIT 10
@@ -5798,7 +5846,7 @@ router.get("/allocation", async (req, res) => {
           ELSE 'Equity'
         END as asset_class
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 
@@ -6079,9 +6127,9 @@ router.get("/value", async (req, res) => {
         ((ph.quantity * ph.current_price) as market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
         ph.quantity as shares
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1 AND ph.quantity > 0
-      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) DESC
       LIMIT 5
     `;
 
@@ -6217,15 +6265,15 @@ router.get("/factors", async (req, res) => {
 
     // Get holdings for factor analysis
     const holdingsQuery = `
-      SELECT 
+      SELECT
         ph.symbol,
         ph.quantity,
         (ph.quantity * ph.current_price) as market_value,
         ph.sector,
-        COALESCE(s.beta, 1.0) as beta,
-        COALESCE( NULL as pe_ratio, 15.0) as NULL as pe_ratio
+        COALESCE(km.beta, 1.0) as beta,
+        COALESCE(km.trailing_pe, 15.0) as pe_ratio
       FROM portfolio_holdings ph
-      LEFT JOIN stocks s ON ph.symbol = s.symbol
+      LEFT JOIN key_metrics km ON ph.symbol = km.ticker
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 

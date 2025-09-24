@@ -5,6 +5,23 @@ const responseFormatter = require("../middleware/responseFormatter");
 
 const router = express.Router();
 
+// Helper function to check if a table exists
+async function tableExists(tableName) {
+  try {
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = $1
+      );
+    `;
+    const result = await query(tableCheckQuery, [tableName]);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking table existence for ${tableName}:`, error);
+    return false;
+  }
+}
+
 // Apply response formatter middleware to all routes
 router.use(responseFormatter);
 
@@ -42,12 +59,22 @@ router.get("/:symbol", async (req, res) => {
 
     console.log(`💰 Current price requested for ${symbolUpper}`);
 
-    // Try price_daily table first (individual stocks) - using correct schema
+    // Check if price_daily table exists
+    if (!(await tableExists("price_daily"))) {
+      return res.status(404).json({
+        success: false,
+        error: `Price data not available`,
+        message: "Price data table not yet loaded",
+        symbol: symbolUpper,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Try price_daily table first (individual stocks) - using loadpricedaily.py schema
     let result = await query(
       `SELECT
         symbol, date,
-        open_price as open, high_price as high, low_price as low,
-        close_price as close, adj_close_price as adj_close, volume
+        open, high, low, close, adj_close, volume
        FROM price_daily
        WHERE symbol = $1
        ORDER BY date DESC
@@ -122,12 +149,23 @@ router.get("/:symbol/history", async (req, res) => {
       `📈 Price history requested for ${symbolUpper} (period: ${period})`
     );
 
-    // Try to get historical data from price_daily table - using correct schema
+    // Check if price_daily table exists
+    if (!(await tableExists("price_daily"))) {
+      return res.status(404).json({
+        success: false,
+        error: "Historical price data not available",
+        message: "Price data table not yet loaded",
+        symbol: symbolUpper,
+        period: limit,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Try to get historical data from price_daily table - using loadpricedaily.py schema
     let result = await query(
       `SELECT
         symbol, date,
-        open_price as open, high_price as high, low_price as low,
-        close_price as close, adj_close_price as adj_close, volume
+        open, high, low, close, adj_close, volume
        FROM price_daily
        WHERE symbol = $1
        ORDER BY date DESC
@@ -181,10 +219,20 @@ router.get("/:symbol/intraday", async (req, res) => {
       `⏰ Intraday data requested for ${symbolUpper} (interval: ${interval})`
     );
 
+    // Check if price_daily table exists
+    if (!(await tableExists("price_daily"))) {
+      return res.status(404).json({
+        success: false,
+        error: "Intraday data not available",
+        message: "Price data table not yet loaded",
+        symbol: symbolUpper,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Query recent daily data from price_daily table (since we don't have intraday data)
     const result = await query(
-      `SELECT symbol, date, open_price as open, high_price as high, low_price as low,
-              close_price as close, adj_close_price as adj_close, volume
+      `SELECT symbol, date, open, high, low, close, adj_close, volume
        FROM price_daily
        WHERE symbol = $1
        ORDER BY date DESC
@@ -251,12 +299,34 @@ router.post("/batch", async (req, res) => {
 
     console.log(`📊 Batch price request for ${symbols.length} symbols`);
 
+    // Check if price_daily table exists
+    if (!(await tableExists("price_daily"))) {
+      const prices = {};
+      symbols.forEach(symbol => {
+        prices[symbol.toUpperCase()] = {
+          symbol: symbol.toUpperCase(),
+          error: "Price data table not yet loaded",
+          timestamp: new Date().toISOString()
+        };
+      });
+
+      return res.json({
+        success: true,
+        data: { prices },
+        meta: {
+          count: symbols.length,
+          message: "Price data table not yet loaded",
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Query latest price data for all requested symbols
     const symbolsUpper = symbols.map(s => s.toUpperCase());
     const placeholders = symbolsUpper.map((_, i) => `$${i + 1}`).join(',');
 
     const result = await query(
-      `SELECT DISTINCT ON (symbol) symbol, date, close_price as close, volume
+      `SELECT DISTINCT ON (symbol) symbol, date, close, volume
        FROM price_daily
        WHERE symbol IN (${placeholders})
        ORDER BY symbol, date DESC`,
@@ -1806,11 +1876,23 @@ router.get("/daily/:symbol/:limit?", async (req, res) => {
       `📈 Fetching ${limitNum} days of daily price data for ${symbolUpper}`
     );
 
+    // Check if price_daily table exists
+    if (!(await tableExists("price_daily"))) {
+      return res.status(404).json({
+        success: false,
+        error: `Daily price data not available`,
+        message: "Price data table not yet loaded",
+        symbol: symbolUpper,
+        timeframe: "daily",
+        limit: limitNum,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Query real daily price data from price_daily table - using correct schema
     const dailyQuery = `
       SELECT symbol, date,
-        open_price as open, high_price as high, low_price as low,
-        close_price as close, adj_close_price as adj_close, volume
+        open, high, low, close, adj_close, volume
       FROM price_daily
       WHERE symbol = $1
       ORDER BY date DESC

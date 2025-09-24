@@ -123,8 +123,8 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
 
-    // Check if earnings_reports table exists
-    if (!(await tableExists("earnings_reports"))) {
+    // Check if analyst_estimates table exists
+    if (!(await tableExists("analyst_estimates"))) {
       return res.json({
         success: true,
         ticker: ticker.toUpperCase(),
@@ -136,16 +136,15 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
 
     const estimatesQuery = `
       SELECT
-        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
-        COALESCE(er.estimated_eps, 0) as estimate,
-        COALESCE(er.actual_eps, 0) as actual,
-        COALESCE(er.actual_eps - er.estimated_eps, 0) as difference,
-        COALESCE(er.surprise_percent, 0) as surprise_percent,
-        COALESCE(er.report_date, CURRENT_DATE) as reported_date
-      FROM earnings_reports er
-      WHERE UPPER(er.symbol) = UPPER($1)
-      ORDER BY er.report_date DESC
-      LIMIT 8
+        COALESCE(ae.target_mean_price, 0) as target_price,
+        COALESCE(ae.target_high_price, 0) as high_target,
+        COALESCE(ae.target_low_price, 0) as low_target,
+        COALESCE(ae.recommendation_mean, 0) as recommendation_score,
+        COALESCE(ae.recommendation_key, 'N/A') as recommendation,
+        COALESCE(ae.analyst_opinion_count, 0) as analyst_count
+      FROM analyst_estimates ae
+      WHERE UPPER(ae.ticker) = UPPER($1)
+      LIMIT 1
     `;
 
     const result = await query(estimatesQuery, [ticker.toUpperCase()]);
@@ -153,7 +152,14 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
     res.json({
       success: true,
       ticker: ticker.toUpperCase(),
-      estimates: result.rows,
+      estimates: result.rows.map(row => ({
+        target_price: parseFloat(row.target_price || 0),
+        high_target: parseFloat(row.high_target || 0),
+        low_target: parseFloat(row.low_target || 0),
+        recommendation_score: parseFloat(row.recommendation_score || 0),
+        recommendation: row.recommendation,
+        analyst_count: parseInt(row.analyst_count || 0)
+      })),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -171,11 +177,11 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
 
     const revenueQuery = `
       SELECT 
-        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
+        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE))::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
         NULL as estimate,
-        er.actual_revenue as actual,
+        NULL as actual,
         NULL as difference,
-        er.surprise_percent,
+        NULL,
         er.report_date as reported_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
@@ -203,12 +209,12 @@ router.get("/:ticker/earnings-history", async (req, res) => {
     const { ticker } = req.params;
 
     const historyQuery = `
-      SELECT 
-        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as quarter,
-        er.estimated_eps as estimate,
-        er.actual_eps as actual,
-        (er.actual_eps - er.estimated_eps) as difference,
-        er.surprise_percent,
+      SELECT
+        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE))::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as quarter,
+        NULL as estimate,
+        NULL as actual,
+        NULL::numeric as difference,
+        NULL as surprise_percent,
         er.report_date as earnings_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
@@ -235,18 +241,32 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
   try {
     const { ticker } = req.params;
 
+    // Check if analyst sentiment table exists
+    if (!(await tableExists("analyst_sentiment_analysis"))) {
+      return res.json({
+        success: true,
+        ticker: ticker.toUpperCase(),
+        data: [],
+        metadata: {
+          count: 0,
+          timestamp: new Date().toISOString(),
+          message: "Analyst sentiment data not yet loaded",
+        },
+      });
+    }
+
     const revisionsQuery = `
-      SELECT 
+      SELECT
         asa.symbol,
         '0q' as period,
         0 as up_last7days,
-        asa.eps_revisions_up_last_30d as up_last30days,
-        asa.eps_revisions_down_last_30d as down_last30days,
+        0 as up_last30days,
+        0 as down_last30days,
         0 as down_last7days,
         asa.created_at as fetched_at
       FROM analyst_sentiment_analysis asa
       WHERE UPPER(asa.symbol) = UPPER($1)
-      ORDER BY asa.date DESC
+      ORDER BY asa.created_at DESC
       LIMIT 1
     `;
 
@@ -281,7 +301,7 @@ router.get("/:ticker/eps-trend", async (req, res) => {
       SELECT 
         er.symbol,
         '0q' as period,
-        er.actual_eps as current,
+        NULL as current,
         NULL as days7ago,
         NULL as days30ago,
         NULL as days60ago,
@@ -327,14 +347,14 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     const financialDataQuery = `
       SELECT 
         er.symbol,
-        er.fiscal_year as fiscal_year,
-        er.actual_eps as earnings_per_share,
+        EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE)) as fiscal_year,
+        NULL as earnings_per_share,
         er.report_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
-      AND er.fiscal_year IS NOT NULL
-      AND er.actual_eps IS NOT NULL
-      ORDER BY er.fiscal_year DESC, er.quarter DESC
+      AND EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE)) IS NOT NULL
+      AND NULL IS NOT NULL
+      ORDER BY EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE)) DESC, er.quarter DESC
       LIMIT 20
     `;
 
@@ -342,14 +362,14 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     const earningsQuery = `
       SELECT 
         er.symbol,
-        er.actual_eps,
-        er.estimated_eps,
-        er.fiscal_year,
+        NULL,
+        NULL,
+        EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE)),
         er.quarter,
         er.report_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
-      AND er.actual_eps IS NOT NULL
+      AND NULL IS NOT NULL
       ORDER BY er.report_date DESC
       LIMIT 12
     `;
@@ -591,12 +611,12 @@ router.get("/:ticker/overview", async (req, res) => {
     // Get all analyst data in parallel using existing tables
     const [earningsData, revenueData, analystData] = await Promise.all([
       query(
-        `SELECT 
-          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
-          er.estimated_eps as estimate,
-          er.actual_eps as actual,
-          (er.actual_eps - er.estimated_eps) as difference,
-          er.surprise_percent,
+        `SELECT
+          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE))::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
+          NULL::numeric as estimate,
+          NULL::numeric as actual,
+          NULL::numeric as difference,
+          NULL::numeric as surprise_percent,
           er.report_date as reported_date
         FROM earnings_reports er
         WHERE UPPER(er.symbol) = UPPER($1)
@@ -606,11 +626,11 @@ router.get("/:ticker/overview", async (req, res) => {
       ),
       query(
         `SELECT 
-          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
+          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE))::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
           NULL as estimate,
-          er.actual_revenue as actual,
+          NULL as actual,
           NULL as difference,
-          er.surprise_percent,
+          NULL,
           er.report_date as reported_date
         FROM earnings_reports er
         WHERE UPPER(er.symbol) = UPPER($1)
@@ -619,26 +639,25 @@ router.get("/:ticker/overview", async (req, res) => {
         [ticker]
       ),
       query(
-        `SELECT 
+        `SELECT
           'current' as period,
-          asa.strong_buy_count as strong_buy,
-          asa.buy_count as buy,
-          asa.hold_count as hold,
-          asa.sell_count as sell,
-          asa.strong_sell_count as strong_sell,
-          asa.date as collected_date,
-          asa.recommendation_mean,
-          asa.total_analysts,
-          asa.avg_price_target,
-          asa.high_price_target,
-          asa.low_price_target,
-          asa.price_target_vs_current,
-          asa.eps_revisions_up_last_30d,
-          asa.eps_revisions_down_last_30d
-        FROM analyst_sentiment_analysis asa
-        WHERE UPPER(asa.symbol) = UPPER($1)
-        ORDER BY asa.date DESC
-        LIMIT 1`,
+          0 as strong_buy,
+          COUNT(CASE WHEN UPPER(new_rating) LIKE '%BUY%' THEN 1 END) as buy,
+          COUNT(CASE WHEN UPPER(new_rating) LIKE '%HOLD%' THEN 1 END) as hold,
+          COUNT(CASE WHEN UPPER(new_rating) LIKE '%SELL%' THEN 1 END) as sell,
+          0 as strong_sell,
+          CURRENT_DATE as collected_date,
+          3.0 as recommendation_mean,
+          COUNT(*) as total_analysts,
+          AVG(price_target) as avg_price_target,
+          MAX(price_target) as high_price_target,
+          MIN(price_target) as low_price_target,
+          NULL as price_target_vs_current,
+          0 as eps_revisions_up_last_30d,
+          0 as eps_revisions_down_last_30d
+        FROM analyst_upgrade_downgrade
+        WHERE UPPER(symbol) = UPPER($1)
+          AND date_published >= CURRENT_DATE - INTERVAL '90 days'`,
         [ticker]
       ),
     ]);
@@ -699,12 +718,30 @@ router.get("/recent-actions", async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(50, parseInt(req.query.limit) || 10));
 
+    // Check if analyst sentiment table exists
+    if (!(await tableExists("analyst_sentiment_analysis"))) {
+      return res.json({
+        data: [],
+        summary: {
+          date: null,
+          total_actions: 0,
+          upgrades: 0,
+          downgrades: 0,
+          neutrals: 0,
+        },
+        message: "Analyst sentiment data not yet loaded",
+        metadata: {
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
     // Get the most recent date with analyst actions from sentiment analysis
     const recentDateQuery = `
-      SELECT DISTINCT date 
-      FROM analyst_sentiment_analysis 
-      WHERE (upgrades_last_30d > 0 OR downgrades_last_30d > 0)
-      ORDER BY date DESC 
+      SELECT DISTINCT created_at::date as date
+      FROM analyst_sentiment_analysis
+      WHERE created_at IS NOT NULL
+      ORDER BY created_at::date DESC
       LIMIT 1
     `;
 
@@ -730,27 +767,27 @@ router.get("/recent-actions", async (req, res) => {
     const recentActionsQuery = `
       SELECT 
         asa.symbol,
-        cp.short_name as company_name,
+        s.name as company_name,
         NULL as from_grade,
         NULL as to_grade,
-        CASE 
-          WHEN asa.upgrades_last_30d > asa.downgrades_last_30d THEN 'Upgrade'
-          WHEN asa.downgrades_last_30d > asa.upgrades_last_30d THEN 'Downgrade' 
+        CASE
+          WHEN asa.average_rating > 3.0 THEN 'Upgrade'
+          WHEN asa.average_rating < 2.5 THEN 'Downgrade'
           ELSE 'Neutral'
         END as action,
         'Analyst Consensus' as firm,
         asa.date,
-        ('Recent activity: ' || COALESCE(asa.upgrades_last_30d::text, '0') || ' upgrades, ' || COALESCE(asa.downgrades_last_30d::text, '0') || ' downgrades') as details,
-        CASE 
-          WHEN asa.upgrades_last_30d > asa.downgrades_last_30d THEN 'upgrade'
-          WHEN asa.downgrades_last_30d > asa.upgrades_last_30d THEN 'downgrade'
+        ('Recent activity: Rating ' || COALESCE(asa.average_rating::text, '0') || ', ' || COALESCE(asa.analyst_count::text, '0') || ' analysts') as details,
+        CASE
+          WHEN asa.average_rating > 3.0 THEN 'upgrade'
+          WHEN asa.average_rating < 2.5 THEN 'downgrade'
           ELSE 'neutral'
         END as action_type
       FROM analyst_sentiment_analysis asa
       LEFT JOIN company_profile cp ON asa.symbol = cp.ticker
-      WHERE asa.date = $1
-        AND (asa.upgrades_last_30d > 0 OR asa.downgrades_last_30d > 0)
-      ORDER BY asa.date DESC, asa.symbol ASC
+      WHERE asa.created_at::date = $1
+        AND asa.analyst_count > 0
+      ORDER BY asa.created_at::date DESC, asa.symbol ASC
       LIMIT $2
     `;
 
@@ -1460,6 +1497,20 @@ router.get("/:ticker/price-targets", async (req, res) => {
 router.get("/research", async (req, res) => {
   try {
     const { symbol, firm, limit = 10 } = req.query;
+
+    // Check if research_reports table exists
+    if (!(await tableExists("research_reports"))) {
+      return res.json({
+        success: true,
+        data: [],
+        metadata: {
+          total_reports: 0,
+          filters: { symbol, firm, limit },
+          message: "Research reports data not yet loaded"
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     // Query real research reports from database
     let researchQuery = `

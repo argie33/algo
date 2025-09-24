@@ -7,6 +7,23 @@ const { AIMarketScanner } = require("../utils/aiMarketScanner");
 
 const router = express.Router();
 
+// Helper function to check if a table exists
+async function tableExists(tableName) {
+  try {
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = $1
+      );
+    `;
+    const result = await query(tableCheckQuery, [tableName]);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking table existence for ${tableName}:`, error);
+    return false;
+  }
+}
+
 // Root screener endpoint for health checks
 router.get("/", (req, res) => {
   res.json({
@@ -100,6 +117,25 @@ router.get("/screen", async (req, res) => {
     const offset = (page - 1) * limit;
 
     console.log("Stock screening with filters:", filters);
+
+    // Check if required tables exist
+    const stocksExists = await tableExists("stocks");
+    if (!stocksExists) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+        message: "Stock screening data not yet loaded",
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     // Build WHERE clause dynamically
     const whereConditions = [];

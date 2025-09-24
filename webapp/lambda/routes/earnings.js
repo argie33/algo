@@ -5,6 +5,23 @@ const responseFormatter = require("../middleware/responseFormatter");
 
 const router = express.Router();
 
+// Helper function to check if a table exists
+async function tableExists(tableName) {
+  try {
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = $1
+      );
+    `;
+    const result = await query(tableCheckQuery, [tableName]);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking table existence for ${tableName}:`, error);
+    return false;
+  }
+}
+
 // Apply response formatter middleware to all routes
 router.use(responseFormatter);
 
@@ -17,21 +34,39 @@ router.get("/", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = (page - 1) * limit;
 
-    // Try earnings_history table first, fallback if columns don't exist
+    // Check if earnings_estimates table exists
+    if (!(await tableExists("earnings_estimates"))) {
+      return res.json({
+        success: true,
+        earnings: [],
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          hasMore: false,
+        },
+        message: "Earnings estimates data not yet loaded",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Use earnings_estimates table from Python loader
     let result;
     try {
       const earningsQuery = `
         SELECT
           symbol,
-          quarter as report_date,
-          eps_actual,
-          eps_estimate,
-          eps_difference,
-          surprise_percent,
-          quarter,
+          period as report_date,
+          avg_estimate as eps_estimate,
+          low_estimate,
+          high_estimate,
+          year_ago_eps,
+          number_of_analysts,
+          growth,
           fetched_at as last_updated
-        FROM earnings_history
-        ORDER BY quarter DESC, symbol
+        FROM earnings_estimates
+        ORDER BY period DESC, symbol
         LIMIT $1 OFFSET $2
       `;
 
@@ -48,6 +83,7 @@ router.get("/", async (req, res) => {
 
     res.json({
       success: true,
+      earnings: result.rows,
       data: result.rows,
       pagination: {
         page,
