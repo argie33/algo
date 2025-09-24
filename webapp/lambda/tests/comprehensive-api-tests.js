@@ -81,9 +81,29 @@ const DATA_TESTS = [
   ["Watchlist", "/api/watchlist?limit=5"],
 ];
 
+// Endpoints that require authentication
+const AUTH_REQUIRED_ENDPOINTS = [
+  '/api/alerts', '/api/portfolio', '/api/recommendations', '/api/research',
+  '/api/settings', '/api/trades', '/api/watchlist'
+];
+
 async function testEndpoint(name, endpoint, expectedStatus = 200) {
   try {
-    const response = await axios.get(`${API_BASE}${endpoint}`, { timeout });
+    // Check if this endpoint requires authentication
+    const requiresAuth = AUTH_REQUIRED_ENDPOINTS.some(authEndpoint =>
+      endpoint.startsWith(authEndpoint)
+    );
+
+    // Set up headers with test token if auth is required
+    const headers = requiresAuth ? {
+      'Authorization': 'Bearer test-token',
+      'Content-Type': 'application/json'
+    } : {};
+
+    const response = await axios.get(`${API_BASE}${endpoint}`, {
+      timeout,
+      headers
+    });
     const success = response.status === expectedStatus;
 
     console.log(
