@@ -30,21 +30,96 @@ async function ensureTestData() {
   try {
     console.log('🔧 Setting up loader table structures...');
 
-    // Ensure core loader tables exist (matching loadinfo.py structure)
+    // Ensure core loader tables exist (matching Python loader scripts)
+    // Drop and recreate to ensure correct schema
+    await query(`DROP TABLE IF EXISTS stocks CASCADE;`);
+
+    // From setup_database_with_real_data.py - stocks table
     await query(`
-      CREATE TABLE IF NOT EXISTS company_profile (
-        ticker VARCHAR(10) PRIMARY KEY,
-        symbol VARCHAR(10) UNIQUE NOT NULL, -- For JOIN consistency with trading tables
-        short_name VARCHAR(100),
-        long_name VARCHAR(200),
+      CREATE TABLE stocks (
+        symbol VARCHAR(20) PRIMARY KEY,
+        name VARCHAR(255),
         sector VARCHAR(100),
         industry VARCHAR(100),
-        currency VARCHAR(10),
+        market_cap BIGINT,
+        price DECIMAL(10,2),
+        volume BIGINT,
+        pe_ratio DECIMAL(8,2),
+        eps DECIMAL(8,4),
+        dividend_yield DECIMAL(5,4),
+        beta DECIMAL(5,2),
         exchange VARCHAR(50),
-        website VARCHAR(255),
-        business_summary TEXT,
-        full_time_employees INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        previous_close DECIMAL(10,2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Drop and recreate price_daily table
+    await query(`DROP TABLE IF EXISTS price_daily CASCADE;`);
+
+    // From setup_database_with_real_data.py - price_daily table
+    await query(`
+      CREATE TABLE price_daily (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        open_price DOUBLE PRECISION,
+        high_price DOUBLE PRECISION,
+        low_price DOUBLE PRECISION,
+        close_price DOUBLE PRECISION,
+        adj_close_price DOUBLE PRECISION,
+        volume BIGINT,
+        change_amount DOUBLE PRECISION,
+        change_percent DOUBLE PRECISION,
+        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, date)
+      )
+    `);
+
+    // Drop and recreate earnings_history table
+    await query(`DROP TABLE IF EXISTS earnings_history CASCADE;`);
+
+    // From loadearningshistory.py - earnings_history table
+    await query(`
+      CREATE TABLE earnings_history (
+        symbol VARCHAR(20) NOT NULL,
+        quarter DATE NOT NULL,
+        eps_actual NUMERIC,
+        eps_estimate NUMERIC,
+        eps_difference NUMERIC,
+        surprise_percent NUMERIC,
+        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (symbol, quarter)
+      )
+    `);
+
+    // Drop and recreate stock_scores table
+    await query(`DROP TABLE IF EXISTS stock_scores CASCADE;`);
+
+    // From loadstockscores.py - stock_scores table
+    await query(`
+      CREATE TABLE stock_scores (
+        symbol VARCHAR(50) PRIMARY KEY,
+        composite_score DECIMAL(5,2),
+        momentum_score DECIMAL(5,2),
+        trend_score DECIMAL(5,2),
+        value_score DECIMAL(5,2),
+        quality_score DECIMAL(5,2),
+        rsi DECIMAL(5,2),
+        macd DECIMAL(10,4),
+        sma_20 DECIMAL(10,2),
+        sma_50 DECIMAL(10,2),
+        volume_avg_30d BIGINT,
+        current_price DECIMAL(10,2),
+        price_change_1d DECIMAL(5,2),
+        price_change_5d DECIMAL(5,2),
+        price_change_30d DECIMAL(5,2),
+        volatility_30d DECIMAL(5,2),
+        market_cap BIGINT,
+        pe_ratio DECIMAL(8,2),
+        score_date DATE DEFAULT CURRENT_DATE,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -163,16 +238,16 @@ async function ensureTestData() {
         id SERIAL PRIMARY KEY,
         symbol VARCHAR(10) NOT NULL,
         date DATE NOT NULL,
-        open DOUBLE PRECISION,
-        high DOUBLE PRECISION,
-        low DOUBLE PRECISION,
-        close DOUBLE PRECISION,
-        adj_close DOUBLE PRECISION,
+        open_price DOUBLE PRECISION,
+        high_price DOUBLE PRECISION,
+        low_price DOUBLE PRECISION,
+        close_price DOUBLE PRECISION,
+        adj_close_price DOUBLE PRECISION,
         volume BIGINT,
-        dividends DOUBLE PRECISION,
-        stock_splits DOUBLE PRECISION,
+        change_amount DOUBLE PRECISION,
         change_percent DOUBLE PRECISION,
-        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, date)
       )
     `);
 
@@ -300,12 +375,58 @@ async function ensureTestData() {
       )
     `);
 
-    // Insert basic test data for major symbols
+    // Insert basic test data for major symbols using correct stocks table schema
     await query(`
-      INSERT INTO company_profile (ticker, symbol, short_name, long_name, sector, industry, currency) VALUES
-      ('AAPL', 'AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics', 'USD'),
-      ('MSFT', 'MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'Technology', 'Software', 'USD')
-      ON CONFLICT (ticker) DO NOTHING
+      INSERT INTO stocks (symbol, name, sector, industry, market_cap, price, volume, pe_ratio, eps, dividend_yield, beta, exchange) VALUES
+      ('AAPL', 'Apple Inc.', 'Technology', 'Consumer Electronics', 3400000000000, 175.50, 65000000, 35.2, 6.15, 0.0044, 1.2, 'NASDAQ'),
+      ('MSFT', 'Microsoft Corporation', 'Technology', 'Software', 3200000000000, 420.75, 28000000, 32.1, 13.05, 0.0068, 0.9, 'NASDAQ')
+      ON CONFLICT (symbol) DO UPDATE SET
+        name = EXCLUDED.name,
+        sector = EXCLUDED.sector,
+        industry = EXCLUDED.industry,
+        market_cap = EXCLUDED.market_cap,
+        price = EXCLUDED.price,
+        volume = EXCLUDED.volume,
+        pe_ratio = EXCLUDED.pe_ratio,
+        eps = EXCLUDED.eps,
+        dividend_yield = EXCLUDED.dividend_yield,
+        beta = EXCLUDED.beta,
+        exchange = EXCLUDED.exchange,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+
+    // Insert test price data
+    await query(`
+      INSERT INTO price_daily (symbol, date, open_price, high_price, low_price, close_price, adj_close_price, volume) VALUES
+      ('AAPL', '2024-01-20', 174.00, 178.50, 173.50, 175.50, 175.50, 65000000),
+      ('AAPL', '2024-01-19', 172.00, 176.00, 171.80, 174.00, 174.00, 58000000),
+      ('MSFT', '2024-01-20', 418.00, 423.00, 417.50, 420.75, 420.75, 28000000),
+      ('MSFT', '2024-01-19', 415.00, 419.50, 414.00, 418.00, 418.00, 25000000)
+      ON CONFLICT (symbol, date) DO UPDATE SET
+        open_price = EXCLUDED.open_price,
+        high_price = EXCLUDED.high_price,
+        low_price = EXCLUDED.low_price,
+        close_price = EXCLUDED.close_price,
+        adj_close_price = EXCLUDED.adj_close_price,
+        volume = EXCLUDED.volume
+    `);
+
+    // Insert test stock scores data
+    await query(`
+      INSERT INTO stock_scores (symbol, composite_score, momentum_score, trend_score, value_score, quality_score,
+                               current_price, market_cap, pe_ratio) VALUES
+      ('AAPL', 85.5, 78.2, 88.1, 75.0, 92.3, 175.50, 3400000000000, 35.2),
+      ('MSFT', 88.7, 82.5, 90.1, 78.3, 95.1, 420.75, 3200000000000, 32.1)
+      ON CONFLICT (symbol) DO UPDATE SET
+        composite_score = EXCLUDED.composite_score,
+        momentum_score = EXCLUDED.momentum_score,
+        trend_score = EXCLUDED.trend_score,
+        value_score = EXCLUDED.value_score,
+        quality_score = EXCLUDED.quality_score,
+        current_price = EXCLUDED.current_price,
+        market_cap = EXCLUDED.market_cap,
+        pe_ratio = EXCLUDED.pe_ratio,
+        last_updated = CURRENT_TIMESTAMP
     `);
 
     // Insert stock symbols if they don't exist
@@ -341,14 +462,20 @@ async function ensureTestData() {
     // fundamental_metrics data insertion removed - using actual loader tables instead
 
     await query(`
-      INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume) VALUES
+      INSERT INTO price_daily (symbol, date, open_price, high_price, low_price, close_price, adj_close_price, volume) VALUES
       ('AAPL', '2024-01-02', 149.50, 151.25, 148.75, 150.25, 150.25, 65000000),
       ('AAPL', '2024-01-01', 148.00, 150.50, 147.50, 149.50, 149.50, 58000000),
       ('MSFT', '2024-01-02', 348.25, 352.50, 347.00, 350.75, 350.75, 45000000),
       ('MSFT', '2024-01-01', 346.50, 349.25, 345.75, 348.25, 348.25, 42000000),
       ('GOOGL', '2024-01-02', 139.75, 142.50, 138.25, 141.80, 141.80, 28000000),
       ('GOOGL', '2024-01-01', 137.50, 140.25, 136.75, 139.75, 139.75, 25000000)
-      ON CONFLICT DO NOTHING
+      ON CONFLICT (symbol, date) DO UPDATE SET
+        open_price = EXCLUDED.open_price,
+        high_price = EXCLUDED.high_price,
+        low_price = EXCLUDED.low_price,
+        close_price = EXCLUDED.close_price,
+        adj_close_price = EXCLUDED.adj_close_price,
+        volume = EXCLUDED.volume
     `);
 
     await query(`
@@ -738,6 +865,23 @@ async function ensureTestData() {
       )
     `);
 
+    // Insert test portfolio performance data matching Python loader schema
+    await query(`
+      INSERT INTO portfolio_performance (user_id, date, total_value, daily_pnl, daily_pnl_percent, total_pnl, total_pnl_percent) VALUES
+      ('test-user-1', '2024-01-20', 38587.50, 725.50, 1.91, 8587.50, 28.63),
+      ('test-user-1', '2024-01-19', 37862.00, -412.30, -1.08, 7862.00, 26.21),
+      ('test-user-2', '2024-01-20', 35100.00, 350.00, 1.01, 3100.00, 9.68),
+      ('dev-user-bypass', '2024-01-20', 57881.25, 1024.75, 1.80, 10631.25, 22.53),
+      ('dev-user-bypass', '2024-01-19', 56856.50, -289.25, -0.51, 9606.50, 20.33)
+      ON CONFLICT (user_id, date) DO UPDATE SET
+        total_value = EXCLUDED.total_value,
+        daily_pnl = EXCLUDED.daily_pnl,
+        daily_pnl_percent = EXCLUDED.daily_pnl_percent,
+        total_pnl = EXCLUDED.total_pnl,
+        total_pnl_percent = EXCLUDED.total_pnl_percent,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+
     // Create portfolio_holdings table
     await query(`DROP TABLE IF EXISTS portfolio_holdings`);
     await query(`
@@ -754,6 +898,23 @@ async function ensureTestData() {
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Insert test portfolio holdings data matching Python loader schema
+    await query(`
+      INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, unrealized_pnl) VALUES
+      ('test-user-1', 'AAPL', 100, 150.00, 175.50, 17550.00, 2550.00),
+      ('test-user-1', 'MSFT', 50, 300.00, 420.75, 21037.50, 6037.50),
+      ('test-user-2', 'AAPL', 200, 160.00, 175.50, 35100.00, 3100.00),
+      ('dev-user-bypass', 'AAPL', 150, 155.00, 175.50, 26325.00, 3075.00),
+      ('dev-user-bypass', 'MSFT', 75, 320.00, 420.75, 31556.25, 7556.25)
+      ON CONFLICT (user_id, symbol) DO UPDATE SET
+        quantity = EXCLUDED.quantity,
+        average_cost = EXCLUDED.average_cost,
+        current_price = EXCLUDED.current_price,
+        market_value = EXCLUDED.market_value,
+        unrealized_pnl = EXCLUDED.unrealized_pnl,
+        last_updated = CURRENT_TIMESTAMP
     `);
 
     // Create portfolio_symbol_performance table

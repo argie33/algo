@@ -326,52 +326,68 @@ describe("Database Comprehensive Integration Tests", () => {
     test("should maintain data consistency across operations", async () => {
       const testSymbol = "INTGTEST";
 
-      // Insert initial data
+      // Insert initial data using Python schema (stock_symbols)
       await query(
         `
-        INSERT INTO company_profile (ticker, short_name, sector)
+        INSERT INTO stock_symbols (symbol, name, market_category)
         VALUES ($1, 'Integrity Test Co', 'Technology')
-        ON CONFLICT (ticker) DO UPDATE SET short_name = EXCLUDED.short_name
+        ON CONFLICT (symbol) DO UPDATE SET name = EXCLUDED.name
       `,
         [testSymbol]
       );
 
-      // Update company profile data and insert market data
+      // Update stock_symbols data using Python schema
       await query(
         `
-        UPDATE company_profile
-        SET sector = $2
-        WHERE ticker = $1
+        UPDATE stock_symbols
+        SET market_category = $2
+        WHERE symbol = $1
       `,
         [testSymbol, "Healthcare"]
       );
 
-      // Insert market data with market_cap using loader schema
+      // Insert stock data using Python schema (stocks table)
       await query(
         `
-        INSERT INTO market_data (ticker, name, date, market_cap, price)
-        VALUES ($1, $1, CURRENT_DATE, $2, $3)
-        ON CONFLICT (ticker, date) DO UPDATE SET
+        INSERT INTO stocks (symbol, name, market_cap, price)
+        VALUES ($1, $1, $2, $3)
+        ON CONFLICT (symbol) DO UPDATE SET
           market_cap = EXCLUDED.market_cap,
           price = EXCLUDED.price
       `,
         [testSymbol, 2000000, 150.5]
       );
 
-      // Verify consistency across both tables
-      const profileResult = await query(
-        "SELECT * FROM company_profile WHERE ticker = $1",
+      // Insert price data using Python schema (price_daily table)
+      await query(
+        `
+        INSERT INTO price_daily (symbol, date, close_price, volume)
+        VALUES ($1, CURRENT_DATE, $2, 1000000)
+        ON CONFLICT (symbol, date) DO UPDATE SET
+          close_price = EXCLUDED.close_price
+      `,
+        [testSymbol, 150.5]
+      );
+
+      // Verify consistency across Python schema tables
+      const symbolResult = await query(
+        "SELECT * FROM stock_symbols WHERE symbol = $1",
         [testSymbol]
       );
-      const marketResult = await query(
-        "SELECT * FROM market_data WHERE ticker = $1",
+      const stockResult = await query(
+        "SELECT * FROM stocks WHERE symbol = $1",
+        [testSymbol]
+      );
+      const priceResult = await query(
+        "SELECT * FROM price_daily WHERE symbol = $1 AND date = CURRENT_DATE",
         [testSymbol]
       );
 
-      expect(profileResult.rows[0].sector).toBe("Healthcare");
-      expect(profileResult.rows[0].short_name).toBe("Integrity Test Co");
-      expect(parseInt(marketResult.rows[0].market_cap)).toBe(2000000);
-      expect(parseFloat(marketResult.rows[0].price)).toBe(150.5);
+      expect(symbolResult.rows[0].market_category).toBe("Healthcare");
+      expect(symbolResult.rows[0].name).toBe("Integrity Test Co");
+      expect(parseInt(stockResult.rows[0].market_cap)).toBe(2000000);
+      expect(parseFloat(stockResult.rows[0].price)).toBe(150.5);
+      expect(parseFloat(priceResult.rows[0].close_price)).toBe(150.5);
     });
 
     test("should handle foreign key relationships properly", async () => {
@@ -473,11 +489,11 @@ describe("Database Comprehensive Integration Tests", () => {
       // Clean up market_data first (child table) to avoid foreign key constraint violations
       const placeholders = testSymbols.map((_, i) => `$${i + 1}`).join(",");
       await query(
-        `DELETE FROM market_data WHERE ticker IN (${placeholders})`,
+        `DELETE FROM market_data WHERE symbol IN (${placeholders})`,
         testSymbols
       );
-      await query("DELETE FROM market_data WHERE ticker LIKE 'BULK_%'");
-      await query("DELETE FROM market_data WHERE ticker LIKE 'CONC%'");
+      await query("DELETE FROM market_data WHERE symbol LIKE 'BULK_%'");
+      await query("DELETE FROM market_data WHERE symbol LIKE 'CONC%'");
 
       // Then clean up company_profile (parent table)
       const deleteResult = await query(

@@ -107,8 +107,8 @@ router.get("/active", async (req, res) => {
       SELECT 
         ca.*,
         -- Get latest price for real-time updates
-        pd.close as latest_price,
-        ((pd.close - pd.open) / pd.open * 100) as daily_change,
+        pd.close_price as latest_price,
+        ((pd.close_price - pd.open_price) / pd.open_price * 100) as daily_change,
         pd.date as price_date,
         -- Time since creation
         EXTRACT(EPOCH FROM (NOW() - ca.created_at))/3600 as hours_since_created,
@@ -1913,7 +1913,7 @@ router.get("/price", async (req, res) => {
     if (symbols.length > 0) {
       const pricesQuery = await query(
         `
-        SELECT symbol, close as current_price, date
+        SELECT symbol, close_price as current_price, date
         FROM price_daily 
         WHERE symbol = ANY($1)
         AND date = (
@@ -2068,7 +2068,7 @@ router.post("/price", async (req, res) => {
     // Get current price for reference
     const priceQuery = await query(
       `
-      SELECT close as current_price 
+      SELECT close_price as current_price 
       FROM price_daily 
       WHERE symbol = $1 
       ORDER BY date DESC 

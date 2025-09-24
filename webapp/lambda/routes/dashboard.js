@@ -1042,27 +1042,6 @@ router.get("/debug", async (req, res) => {
       debugData.data_counts = `error: ${error.message}`;
     }
 
-    // Get sample data for debug validation
-    try {
-      const samplePriceResult = await query(`
-        SELECT symbol, close, volume, date
-        FROM price_daily
-        ORDER BY date DESC
-        LIMIT 1
-      `);
-
-      debugData.sample_data = {
-        price_daily_sample: samplePriceResult.rows[0] || null,
-        has_market_data: samplePriceResult.rows.length > 0,
-        sample_timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      debugData.sample_data = {
-        error: error.message,
-        has_market_data: false,
-        sample_timestamp: new Date().toISOString()
-      };
-    }
 
     // Database connectivity check
     debugData.database_connectivity = "operational";

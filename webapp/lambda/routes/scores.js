@@ -32,16 +32,16 @@ router.get("/", async (req, res) => {
     const stocksQuery = `
       SELECT
         symbol,
-        overall_score::numeric as composite_score,
+        composite_score::numeric as composite_score,
         fundamental_score::numeric as momentum_score,
         technical_score::numeric as trend_score,
         sentiment_score::numeric as value_score,
-        overall_score::numeric as quality_score,
+        composite_score::numeric as quality_score,
         sentiment::numeric as rsi,
         date as score_date,
         created_at as last_updated
       FROM stock_scores
-      ORDER BY overall_score DESC
+      ORDER BY composite_score DESC
       LIMIT $1 OFFSET $2
     `;
 
@@ -161,11 +161,11 @@ router.get("/:symbol", async (req, res) => {
     const symbolQuery = `
       SELECT
         symbol,
-        overall_score::numeric as composite_score,
+        composite_score::numeric as composite_score,
         fundamental_score::numeric as momentum_score,
         technical_score::numeric as trend_score,
         sentiment_score::numeric as value_score,
-        overall_score::numeric as quality_score,
+        composite_score::numeric as quality_score,
         sentiment::numeric as rsi,
         date as score_date,
         created_at as last_updated

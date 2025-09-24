@@ -349,7 +349,7 @@ router.get("/analytics", async (req, res) => {
     ) {
       const symbols = (holdingsResult.rows || []).map((h) => h.symbol);
       const priceQuery = `
-        SELECT symbol, close as current_price
+        SELECT symbol, close_price as current_price
         FROM price_daily
         WHERE symbol = ANY($1::text[])
         ORDER BY date DESC
@@ -574,14 +574,14 @@ router.get("/analysis", async (req, res) => {
       SELECT
         ph.symbol,
         ph.quantity,
-        ph.market_value,
+        (ph.quantity * ph.current_price) as market_value,
         (ph.average_cost * ph.quantity) as cost_basis,
         ph.symbol as company_name,
         'Technology' as sector
       FROM portfolio_holdings ph
       WHERE ph.user_id = $1
       AND ph.quantity > 0
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -761,13 +761,13 @@ router.get("/risk-analysis", async (req, res) => {
       SELECT 
         ph.symbol, 
         ph.quantity, 
-        ph.market_value,
+        (ph.quantity * ph.current_price) as market_value,
         50 as rsi,
         0.25 as volatility
       FROM portfolio_holdings ph
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -829,7 +829,7 @@ router.get("/risk-metrics", async (req, res) => {
         ph.user_id,
         ph.symbol, 
         ph.quantity, 
-        ph.market_value,
+        (ph.quantity * ph.current_price) as market_value,
         COALESCE(cp.sector, 'Technology') as sector,
         ph.last_updated
       FROM portfolio_holdings ph
@@ -865,7 +865,7 @@ router.get("/risk-metrics", async (req, res) => {
     // Get current market prices for holdings to supplement database data
     const symbols = holdingsResult.rows.map((h) => h.symbol);
     const priceQuery = `
-      SELECT symbol, close as current_price
+      SELECT symbol, close_price as current_price
       FROM price_daily
       WHERE symbol = ANY($1::text[])
     `;
@@ -994,13 +994,15 @@ router.get("/:id/holdings", async (req, res) => {
     const result = await query(
       `
       SELECT
-        ph.symbol, ph.quantity, ph.average_cost, ph.current_price, ph.market_value,
-        ph.unrealized_pnl, ph.unrealized_pnl_percent, ph.last_updated,
+        ph.symbol, ph.quantity, ph.average_cost, ph.current_price, (ph.quantity * ph.current_price) as market_value,
+        (ph.current_price - ph.average_cost) * ph.quantity as unrealized_pnl,
+        CASE WHEN ph.average_cost > 0 THEN ((ph.current_price - ph.average_cost) / ph.average_cost * 100) ELSE 0 END as unrealized_pnl_percent,
+        ph.last_updated,
         COALESCE(cp.sector, 'Unknown') as sector
       FROM portfolio_holdings ph
       LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol 
       WHERE ph.user_id = $1
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
       `,
       [id]
     );
@@ -1246,14 +1248,14 @@ router.get("/performance/analysis", async (req, res) => {
     // Query portfolio holdings for analysis
     const holdingsQuery = `
       SELECT 
-        ph.symbol, ph.quantity, ph.average_cost, ph.current_price, ph.market_value, 
-        ph.unrealized_pnl as pnl, 
-        ROUND((ph.unrealized_pnl / NULLIF((ph.average_cost * ph.quantity), 0)) * 100, 2) as pnl_percent,
+        ph.symbol, ph.quantity, ph.average_cost, ph.current_price, (ph.quantity * ph.current_price) as market_value, 
+        (ph.current_price - ph.average_cost) * ph.quantity as pnl, 
+        CASE WHEN ph.average_cost > 0 THEN ROUND(((ph.current_price - ph.average_cost) / ph.average_cost * 100), 2) ELSE 0 END as pnl_percent,
         COALESCE(cp.sector, 'Technology') as sector, ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -1455,7 +1457,7 @@ router.get("/benchmark", async (req, res) => {
     const benchmarkQuery = `
       SELECT 
         date,
-        close as price,
+        close_price as price,
         volume
       FROM price_daily
       WHERE symbol = $1
@@ -1669,8 +1671,8 @@ router.get("/holdings", async (req, res) => {
     const holdingsQuery = `
       SELECT 
         ph.user_id, ph.symbol, ph.quantity, ph.average_cost, ph.current_price, 
-        ph.market_value, (ph.average_cost * ph.quantity) as cost_basis, ph.unrealized_pnl as pnl, 
-        ROUND((ph.unrealized_pnl / NULLIF((ph.average_cost * ph.quantity), 0)) * 100, 2) as pnl_percent,
+        (ph.quantity * ph.current_price) as market_value, (ph.average_cost * ph.quantity) as cost_basis, (ph.current_price - ph.average_cost) * ph.quantity as pnl, 
+        CASE WHEN ph.average_cost > 0 THEN ROUND(((ph.current_price - ph.average_cost) / ph.average_cost * 100), 2) ELSE 0 END as pnl_percent,
         0 as day_change, 0 as day_change_percent,
         'Unknown' as sector, 
         'Unknown' as asset_class,
@@ -1802,14 +1804,14 @@ router.get("/rebalance", async (req, res) => {
     // Query portfolio_holdings table for user's rebalance data with market data
     const holdingsQuery = `
       SELECT 
-        ph.symbol, ph.quantity, ph.market_value, ph.current_price,
+        ph.symbol, ph.quantity, (ph.quantity * ph.current_price) as market_value, ph.current_price,
         'Unknown' as sector,
         'unknown' as market_cap_tier
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol 
         AND md.date = (SELECT MAX(date) FROM price_daily WHERE price_daily.symbol = ph.symbol)
       WHERE ph.user_id = $1 AND ph.quantity > 0 
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -2005,8 +2007,8 @@ router.post("/rebalance", async (req, res) => {
 
     // Generate recommendations based on custom allocations
     const holdingsQuery = `
-      SELECT symbol, quantity, market_value, current_price
-      FROM portfolio_holdings 
+      SELECT symbol, quantity, (quantity * current_price) as market_value, current_price
+      FROM portfolio_holdings
       WHERE user_id = $1 AND quantity > 0
     `;
 
@@ -2156,13 +2158,13 @@ router.get("/risk", async (req, res) => {
 
     // Query portfolio_holdings table for user's risk metrics data
     const holdingsQuery = `
-      SELECT 
-        symbol, quantity, market_value, current_price,
+      SELECT
+        symbol, quantity, (quantity * current_price) as market_value, current_price,
         'Unknown' as sector,
         1.0 as beta, 1000000000 as market_cap, 20.0 as historical_volatility_20d, 1000000 as volume
       FROM portfolio_holdings 
       WHERE user_id = $1 AND quantity > 0 
-      ORDER BY market_value DESC
+      ORDER BY (quantity * current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -2674,12 +2676,12 @@ router.get("/optimization", async (req, res) => {
     // Query portfolio_holdings table for user's optimization data (using actual schema)
     const holdingsQuery = `
       SELECT
-        symbol, quantity, market_value, 'Technology' as sector,
+        symbol, quantity, (quantity * current_price) as market_value, 'Technology' as sector,
         average_cost, current_price, 0 as unrealized_pnl_percent,
         (average_cost * quantity) as cost_basis, 'Equity' as asset_class, 'long' as position_type
       FROM portfolio_holdings
       WHERE user_id = $1 AND quantity > 0
-      ORDER BY market_value DESC
+      ORDER BY (quantity * current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -2799,15 +2801,15 @@ router.get("/metrics", async (req, res) => {
   try {
     // Get portfolio holdings
     const holdingsQuery = `
-      SELECT symbol, quantity, market_value, average_cost, current_price,
-             (average_cost * quantity) as cost_basis, (market_value - (average_cost * quantity)) as unrealized_pnl,
+      SELECT symbol, quantity, (quantity * current_price) as market_value, average_cost, current_price,
+             (average_cost * quantity) as cost_basis, ((quantity * current_price) - (average_cost * quantity)) as unrealized_pnl,
              CASE
                WHEN (average_cost * quantity) = 0 OR (average_cost * quantity) IS NULL THEN 0
-               ELSE ((market_value - (average_cost * quantity)) / (average_cost * quantity) * 100)
+               ELSE (((quantity * current_price) - (average_cost * quantity)) / (average_cost * quantity) * 100)
              END as unrealized_pnl_percent
       FROM portfolio_holdings
       WHERE user_id = $1 AND quantity > 0
-      ORDER BY market_value DESC
+      ORDER BY (quantity * current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -2968,17 +2970,17 @@ router.get("/holdings/detailed", async (req, res) => {
       SELECT
         symbol,
         quantity,
-        market_value,
+        (quantity * current_price) as market_value,
         average_cost,
         current_price,
         (average_cost * quantity) as cost_basis,
-        (market_value - (average_cost * quantity)) as unrealized_pnl,
-        ((market_value - (average_cost * quantity)) / NULLIF((average_cost * quantity), 0) * 100) as unrealized_pnl_percent,
-        (market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1 AND quantity > 0), 0) * 100) as portfolio_percentage,
+        ((quantity * current_price) - (average_cost * quantity)) as unrealized_pnl,
+        (((quantity * current_price) - (average_cost * quantity)) / NULLIF((average_cost * quantity), 0) * 100) as unrealized_pnl_percent,
+        ((quantity * current_price) / NULLIF((SELECT SUM(quantity * current_price) FROM portfolio_holdings WHERE user_id = $1 AND quantity > 0), 0) * 100) as portfolio_percentage,
         'Equity' as asset_type,
         'Technology' as sector
       FROM portfolio_holdings 
-      WHERE user_id = $1 AND quantity > 0 AND market_value >= $2
+      WHERE user_id = $1 AND quantity > 0 AND (quantity * current_price) >= $2
       ${orderClause}
     `;
 
@@ -3207,12 +3209,12 @@ router.get("/performance/attribution", async (req, res) => {
 
   try {
     const holdingsQuery = `
-      SELECT symbol, quantity, market_value, (average_cost * quantity) as cost_basis,
-             (market_value - (average_cost * quantity)) as contribution,
+      SELECT symbol, quantity, (quantity * current_price) as market_value, (average_cost * quantity) as cost_basis,
+             ((quantity * current_price) - (average_cost * quantity)) as contribution,
              'Technology' as sector
       FROM portfolio_holdings
       WHERE user_id = $1 AND quantity > 0
-      ORDER BY market_value DESC
+      ORDER BY (quantity * current_price) DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -3370,10 +3372,10 @@ router.get("/export", async (req, res) => {
 
     if (includeFields.includes("holdings")) {
       const holdingsQuery = `
-        SELECT symbol, quantity, market_value, average_cost, current_price, (average_cost * quantity) as cost_basis
+        SELECT symbol, quantity, (quantity * current_price) as market_value, average_cost, current_price, (average_cost * quantity) as cost_basis
         FROM portfolio_holdings
         WHERE user_id = $1 AND quantity > 0
-        ORDER BY market_value DESC
+        ORDER BY (quantity * current_price) DESC
       `;
       const holdingsResult = await query(holdingsQuery, [userId]);
       exportData.holdings = holdingsResult.rows;
@@ -4572,13 +4574,13 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
     const holdingsQuery = `
       SELECT 
         ph.symbol, ph.quantity, ph.average_cost as average_price, 
-        ph.market_value, 
+        (ph.quantity * ph.current_price) as market_value, 
         'Technology' as sector,
         'unknown' as market_cap_tier
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0 
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
     `;
 
     const holdingsResult = await query(holdingsQuery, [userId]);
@@ -4641,14 +4643,14 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
     const holdingsQuery = `
       SELECT 
         ph.symbol, ph.quantity, ph.average_cost as average_price, 
-        ph.market_value, 
+        (ph.quantity * ph.current_price) as market_value, 
         'Technology' as sector,
         COALESCE(pr.beta, 1.0) as beta
       FROM portfolio_holdings ph
       LEFT JOIN portfolio_risk pr ON pr.portfolio_id = 'default'
         AND pr.date = (SELECT MAX(date) FROM portfolio_risk WHERE portfolio_id = 'default')
       WHERE ph.user_id = $1 AND ph.quantity > 0 
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
     `;
     const holdingsResult = await query(holdingsQuery, [userId]);
     const holdings = holdingsResult?.rows || [];
@@ -4781,7 +4783,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
     // Query portfolio_holdings table for user's concentration analysis data
     const holdingsQuery = `
       SELECT 
-        ph.symbol, ph.quantity, ph.average_cost as average_price, ph.market_value,
+        ph.symbol, ph.quantity, ph.average_cost as average_price, (ph.quantity * ph.current_price) as market_value,
         'Technology' as sector, 
         'Technology' as industry,
         'unknown' as market_cap_tier,
@@ -4789,7 +4791,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
       FROM portfolio_holdings ph
       LEFT JOIN price_daily md ON ph.symbol = md.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0 
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
     `;
     const holdingsResult = await query(holdingsQuery, [userId]);
     const holdings = {
@@ -5787,7 +5789,7 @@ router.get("/allocation", async (req, res) => {
     // Query actual portfolio holdings with proper sector mapping from database
     const holdingsQuery = `
       SELECT 
-        ph.symbol, ph.quantity, ph.market_value, (ph.average_cost * ph.quantity) as cost_basis,
+        ph.symbol, ph.quantity, (ph.quantity * ph.current_price) as market_value, (ph.average_cost * ph.quantity) as cost_basis,
         COALESCE(cp.sector, 'Unknown') as sector,
         COALESCE(cp.industry, 'Unknown') as industry,
         CASE
@@ -6073,13 +6075,13 @@ router.get("/value", async (req, res) => {
       SELECT
         ph.symbol,
         ph.symbol as name,
-        ph.market_value as value,
-        (ph.market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
+        (ph.quantity * ph.current_price) as market_value as value,
+        ((ph.quantity * ph.current_price) as market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
         ph.quantity as shares
       FROM portfolio_holdings ph
       LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
-      ORDER BY ph.market_value DESC
+      ORDER BY (ph.quantity * ph.current_price) as market_value DESC
       LIMIT 5
     `;
 
@@ -6218,7 +6220,7 @@ router.get("/factors", async (req, res) => {
       SELECT 
         ph.symbol,
         ph.quantity,
-        ph.market_value,
+        (ph.quantity * ph.current_price) as market_value,
         ph.sector,
         COALESCE(s.beta, 1.0) as beta,
         COALESCE(s.pe_ratio, 15.0) as pe_ratio

@@ -145,57 +145,6 @@ router.get("/sectors", async (req, res) => {
   }
 });
 
-// Public sample endpoint for monitoring
-router.get("/public/sample", async (req, res) => {
-  try {
-    const limit = Math.min(parseInt(req.query.limit) || 5, 20);
-
-    const sampleQuery = `
-      SELECT
-        symbol,
-        sector,
-        industry,
-        market_cap,
-        pe_ratio,
-        dividend_yield,
-        beta
-      FROM fundamental_metrics
-      WHERE symbol IS NOT NULL
-        AND sector IS NOT NULL
-        AND market_cap > 0
-      ORDER BY market_cap DESC NULLS LAST
-      LIMIT $1
-    `;
-
-    const result = await query(sampleQuery, [limit]);
-
-    if (!result || !result.rows) {
-      return res.status(503).json({
-        success: false,
-        error: "Sample data unavailable",
-        message: "Stock data not available for monitoring",
-        service: "public-sample",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows,
-      count: result.rows.length,
-      limit: limit,
-      timestamp: new Date().toISOString(),
-      endpoint: "public-sample",
-    });
-  } catch (error) {
-    console.error("Error fetching sample stocks:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch sample stocks",
-      message: error.message,
-      service: "public-sample",
-    });
-  }
-});
 
 // Popular stocks endpoint
 router.get("/popular", async (req, res) => {
@@ -353,21 +302,21 @@ router.get("/:symbol", async (req, res) => {
         f.sector,
         f.industry,
         f.market_cap,
-        COALESCE(pd.close, 0) as current_price,
+        COALESCE(pd.close_price, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
         f.pe_ratio,
         f.earnings_per_share as eps,
         f.dividend_yield,
         f.beta,
         'NASDAQ' as exchange,
-        COALESCE(pd.close, 0) as previous_close,
+        COALESCE(pd.close_price, 0) as previous_close,
 
         -- Price data from price_daily
-        pd.open,
-        pd.high,
-        pd.low,
-        pd.close,
-        pd.adj_close,
+        pd.open_price,
+        pd.high_price,
+        pd.low_price,
+        pd.close_price,
+        pd.adj_close_price,
         pd.date as price_date
 
       FROM fundamental_metrics f
@@ -535,21 +484,21 @@ router.get("/", async (req, res) => {
         f.sector,
         f.industry,
         f.market_cap,
-        COALESCE(pd.close, 0) as current_price,
+        COALESCE(pd.close_price, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
         f.pe_ratio,
         f.dividend_yield,
         f.beta,
         'NASDAQ' as exchange,
         f.earnings_per_share as eps,
-        COALESCE(pd.close, 0) as previous_close,
+        COALESCE(pd.close_price, 0) as previous_close,
 
         -- Recent price data
-        pd.open,
-        pd.high,
-        pd.low,
-        pd.close,
-        pd.adj_close,
+        pd.open_price,
+        pd.high_price,
+        pd.low_price,
+        pd.close_price,
+        pd.adj_close_price,
         pd.date as price_date
 
       FROM fundamental_metrics f
@@ -1330,7 +1279,7 @@ router.get("/search", async (req, res) => {
         s.exchange,
         s.sector,
         s.market_cap,
-        COALESCE(pd.close, s.price) as price
+        COALESCE(pd.close_price, s.price) as price
       FROM stocks s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
@@ -1446,11 +1395,11 @@ router.get("/analysis", async (req, res) => {
         s.sector,
         s.market_cap,
         s.exchange,
-        COALESCE(pd.close, s.price) as current_price,
+        COALESCE(pd.close_price, s.price) as current_price,
         COALESCE(pd.volume, s.volume) as volume,
         CASE
-          WHEN pd.close IS NOT NULL AND pd.open IS NOT NULL AND pd.open > 0
-          THEN (pd.close - pd.open) / pd.open * 100
+          WHEN pd.close_price IS NOT NULL AND pd.open_price IS NOT NULL AND pd.open_price > 0
+          THEN (pd.close_price - pd.open_price) / pd.open_price * 100
           ELSE 0
         END as daily_change_percent
       FROM stocks s
@@ -1822,10 +1771,10 @@ router.get("/trending", authenticateToken, async (req, res) => {
       SELECT
         pd.symbol,
         NULL as name,
-        pd.close as current_price,
+        pd.close_price as current_price,
         pd.volume,
-        pd.close - prev_pd.close as price_change,
-        ((pd.close - prev_pd.close) / prev_pd.close) * 100 as change_percent
+        pd.close_price - prev_pd.close_price as price_change,
+        ((pd.close_price - prev_pd.close_price) / prev_pd.close_price) * 100 as change_percent
       FROM (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -1840,7 +1789,7 @@ router.get("/trending", authenticateToken, async (req, res) => {
         ORDER BY symbol, date DESC
       ) prev_pd ON ss.symbol = prev_pd.symbol
       WHERE pd.volume > 100000
-      ORDER BY pd.volume DESC, ABS(((pd.close - prev_pd.close) / prev_pd.close) * 100) DESC
+      ORDER BY pd.volume DESC, ABS(((pd.close_price - prev_pd.close_price) / prev_pd.close_price) * 100) DESC
       LIMIT $1
     `;
 
@@ -1879,8 +1828,8 @@ router.get("/screener", authenticateToken, async (req, res) => {
     } = req.query;
 
     let whereConditions = [
-      "pd.close >= $1",
-      "pd.close <= $2",
+      "pd.close_price >= $1",
+      "pd.close_price <= $2",
       "pd.volume >= $3",
     ];
     let queryParams = [min_price, max_price, min_volume];
@@ -1898,7 +1847,7 @@ router.get("/screener", authenticateToken, async (req, res) => {
         fm.symbol,
         NULL as name,
         fm.sector,
-        pd.close as current_price,
+        pd.close_price as current_price,
         pd.volume,
         fm.market_cap
       FROM fundamental_metrics fm
@@ -2292,18 +2241,11 @@ router.get("/movers", async (req, res) => {
     const { type = "all", limit = 10 } = req.query;
     console.log(`Market movers requested, type: ${type}, limit: ${limit}`);
 
-    res.json({
-      success: true,
-      data: {
-        gainers: [
-          { symbol: "AAPL", change: 5.2, change_percent: 3.1 },
-          { symbol: "MSFT", change: 8.5, change_percent: 2.8 },
-        ],
-        losers: [
-          { symbol: "TSLA", change: -12.3, change_percent: -4.2 },
-          { symbol: "NFLX", change: -8.7, change_percent: -2.1 },
-        ],
-      },
+    // Return error response - no mock fallbacks
+    res.status(503).json({
+      success: false,
+      error: "Market movers service not implemented",
+      message: "Market movers data requires real-time price data integration",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -3911,59 +3853,12 @@ router.get("/:symbol/financials", async (req, res) => {
       `📊 Stock financials requested for ${symbol}, period: ${period}, type: ${type}`
     );
 
-    // Query financial data with graceful fallback for missing columns
-    let result = { rows: [] };
-    try {
-      const financialsQuery = `
-        SELECT
-          'income_statement' as statement_type,
-          0 as total_assets,
-          0 as total_liabilities,
-          0 as shareholders_equity,
-          0 as total_debt,
-          SUM(CASE WHEN item_name = 'Total Revenue' THEN value::numeric ELSE 0 END) as revenue,
-          SUM(CASE WHEN item_name = 'Net Income' THEN value::numeric ELSE 0 END) as net_income,
-          0 as cash,
-          EXTRACT(YEAR FROM date) as year
-        FROM (SELECT NULL::date as date, NULL as item_name, NULL as value, NULL as symbol) as placeholder
-        WHERE symbol ILIKE $1
-        GROUP BY EXTRACT(YEAR FROM date)
-        ORDER BY year DESC
-        LIMIT 5
-      `;
-
-      result = await query(financialsQuery, [symbol]);
-    } catch (dbError) {
-      console.error(`Financials database error for ${symbol}:`, dbError.message);
-      return res.status(500).json({
-        success: false,
-        error: "Financials database error",
-        message: "Unable to retrieve financial data from database. Check database connection and table structure.",
-        symbol: symbol.toUpperCase(),
-        details: dbError.message,
-      });
-    }
-
-    if (!result.rows || result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: `No financial data found for symbol ${symbol}`,
-        message: "Financial data not available in database. Ensure financial data has been loaded from data providers.",
-        symbol: symbol.toUpperCase(),
-        period,
-        type,
-      });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        symbol: symbol.toUpperCase(),
-        period: period,
-        type: type,
-        statements: result.rows,
-        count: result.rows.length,
-      },
+    // Financial data not available - no financial statements table in current schema
+    return res.status(404).json({
+      success: false,
+      error: "Financial statements not available",
+      message: "Financial statements data is not available in the current database schema.",
+      symbol: symbol.toUpperCase(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -4022,18 +3917,11 @@ router.get("/movers", async (req, res) => {
     const { type = "all", limit = 10 } = req.query;
     console.log(`Market movers requested, type: ${type}, limit: ${limit}`);
 
-    res.json({
-      success: true,
-      data: {
-        gainers: [
-          { symbol: "AAPL", change: 5.2, change_percent: 3.1 },
-          { symbol: "MSFT", change: 8.5, change_percent: 2.8 },
-        ],
-        losers: [
-          { symbol: "TSLA", change: -12.3, change_percent: -4.2 },
-          { symbol: "NFLX", change: -8.7, change_percent: -2.1 },
-        ],
-      },
+    // Return error response - no mock fallbacks
+    res.status(503).json({
+      success: false,
+      error: "Market movers service not implemented",
+      message: "Market movers data requires real-time price data integration",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

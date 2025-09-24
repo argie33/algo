@@ -797,45 +797,11 @@ router.get("/results/test", async (req, res) => {
   try {
     console.log("📊 [BACKTEST] Getting test backtest results");
 
-    // Return a sample test backtest result
-    const testResult = {
-      id: "test-backtest-001",
-      name: "Test Strategy Results",
-      strategy: "Sample Buy and Hold Test",
-      status: "completed",
-      summary: {
-        total_return: 15.25,
-        sharpe_ratio: 1.42,
-        max_drawdown: -8.7,
-        win_rate: 67.5,
-        total_trades: 24,
-        final_value: 115250,
-        start_value: 100000,
-      },
-      performance_metrics: {
-        annualized_return: 12.8,
-        volatility: 16.4,
-        calmar_ratio: 1.47,
-        sortino_ratio: 1.85,
-        beta: 0.92,
-        alpha: 3.2,
-      },
-      execution_details: {
-        start_date: "2023-01-01",
-        end_date: "2023-12-31",
-        symbols: ["AAPL", "MSFT", "GOOGL"],
-        initial_capital: 100000,
-        commission: 0.001,
-      },
-      created_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-      duration_ms: 2847,
-    };
-
-    res.json({
-      success: true,
-      data: testResult,
-      message: "Test backtest results retrieved successfully",
+    // Test endpoint disabled - no sample data returned
+    return res.status(404).json({
+      success: false,
+      error: "Test backtest results not available",
+      message: "Test endpoint disabled - use actual backtest results from database",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

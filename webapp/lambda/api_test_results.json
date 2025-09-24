@@ -1,11 +1,11 @@
 {
-  "timestamp": "2025-09-23T16:02:11.310Z",
+  "timestamp": "2025-09-24T08:12:30.552Z",
   "totalEndpoints": 20,
-  "passed": 17,
-  "serverErrors": 0,
-  "clientErrors": 3,
+  "passed": 14,
+  "serverErrors": 1,
+  "clientErrors": 5,
   "fatalErrors": 0,
-  "passRate": 85,
+  "passRate": 70,
   "duration": "0.14",
   "results": [
     {
@@ -30,14 +30,15 @@
     },
     {
       "api": "/api/scores",
-      "status": "PASS",
-      "code": 200
+      "status": "SERVER_ERROR",
+      "code": 500,
+      "error": "Database query failed"
     },
     {
       "api": "/api/portfolio",
       "status": "CLIENT_ERROR",
       "code": 401,
-      "error": "Authorization header required"
+      "error": "Authentication required"
     },
     {
       "api": "/api/market",
@@ -68,13 +69,13 @@
       "api": "/api/recommendations",
       "status": "CLIENT_ERROR",
       "code": 401,
-      "error": "Authorization header required"
+      "error": "Authentication required"
     },
     {
       "api": "/api/alerts",
       "status": "CLIENT_ERROR",
       "code": 401,
-      "error": "Authorization header required"
+      "error": "Authentication required"
     },
     {
       "api": "/api/calendar",
@@ -103,13 +104,15 @@
     },
     {
       "api": "/api/watchlist",
-      "status": "PASS",
-      "code": 200
+      "status": "CLIENT_ERROR",
+      "code": 401,
+      "error": "Authentication required"
     },
     {
       "api": "/api/trades",
-      "status": "PASS",
-      "code": 200
+      "status": "CLIENT_ERROR",
+      "code": 401,
+      "error": "Authentication required"
     }
   ]
 }

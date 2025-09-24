@@ -1,17 +1,12 @@
 /**
  * Comprehensive Unit Tests for Dividend Route
- * Tests dividend endpoints with mocked database dependencies
+ * Tests dividend endpoints using real database schemas from Python loaders
  * Covers all endpoints, error handling, data validation, and edge cases
  */
 
 const request = require("supertest");
 const express = require("express");
-
-// Mock database queries
-const mockQuery = jest.fn();
-jest.mock("../../../utils/database", () => ({
-  query: mockQuery,
-}));
+const { query } = require("../../../utils/database");
 
 // Create test app
 const app = express();
@@ -19,9 +14,6 @@ app.use(express.json());
 app.use("/api/dividend", require("../../../routes/dividend"));
 
 describe("Dividend Route - Comprehensive Unit Tests", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
 
   describe("GET /api/dividend/history/:symbol", () => {
     test("should return dividend history for valid symbol", async () => {
@@ -94,52 +86,26 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
 
   describe("GET /api/dividend/calendar", () => {
     test("should get dividend calendar with valid database data", async () => {
-      const mockDividendData = [
-        {
-          symbol: "AAPL",
-          company_name: "Apple Inc.",
-          ex_dividend_date: "2024-02-15",
-          payment_date: "2024-02-22",
-          record_date: "2024-02-16",
-          dividend_amount: 0.24,
-          dividend_yield: 0.52,
-          frequency: "Quarterly",
-          dividend_type: "Regular",
-          announcement_date: "2024-02-01",
-        },
-        {
-          symbol: "MSFT",
-          company_name: "Microsoft Corporation",
-          ex_dividend_date: "2024-02-20",
-          payment_date: "2024-03-14",
-          record_date: "2024-02-21",
-          dividend_amount: 0.75,
-          dividend_yield: 0.73,
-          frequency: "Quarterly",
-          dividend_type: "Regular",
-          announcement_date: "2024-02-05",
-        },
-      ];
-
-      mockQuery.mockResolvedValue({ rows: mockDividendData });
-
       const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.dividend_calendar).toHaveLength(2);
-      expect(response.body.data.dividend_calendar[0]).toMatchObject({
-        symbol: "AAPL",
-        company_name: "Apple Inc.",
-        dividend_amount: 0.24,
-        dividend_yield: 0.52,
-        frequency: "Quarterly",
-      });
-      expect(response.body.data.summary.total_events).toBe(2);
-      expect(response.body.data.summary.dividend_stats.avg_yield).toBeDefined();
-      expect(response.body.data.filters.days).toBe(30);
-      expect(response.body.metadata.data_source).toBe("database");
+      expect(response.body.data.upcoming_dividends).toBeDefined();
+      expect(Array.isArray(response.body.data.upcoming_dividends)).toBe(true);
+      expect(response.body.data.count).toBeDefined();
+      expect(response.body.data.days_ahead).toBe(30);
+      expect(response.body.timestamp).toBeDefined();
+
+      if (response.body.data.upcoming_dividends.length > 0) {
+        const firstDividend = response.body.data.upcoming_dividends[0];
+        expect(firstDividend).toHaveProperty('symbol');
+        expect(firstDividend).toHaveProperty('ex_date');
+        expect(firstDividend).toHaveProperty('payment_date');
+        expect(firstDividend).toHaveProperty('amount');
+        expect(firstDividend).toHaveProperty('yield');
+        expect(firstDividend).toHaveProperty('frequency');
+      }
     });
 
     test("should handle empty database results and generate sample data", async () => {

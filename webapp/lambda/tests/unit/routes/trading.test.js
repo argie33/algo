@@ -1,14 +1,8 @@
 const express = require("express");
 const request = require("supertest");
-
-// Mock database for unit tests
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
-}));
-
 const { query } = require("../../../utils/database");
 
-// Mock authentication middleware
+// Mock authentication middleware for unit tests
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
     req.user = { sub: "test-user-123" };

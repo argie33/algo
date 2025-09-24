@@ -42,13 +42,15 @@ router.get("/:symbol", async (req, res) => {
 
     console.log(`💰 Current price requested for ${symbolUpper}`);
 
-    // Try price_daily table first (individual stocks)
+    // Try price_daily table first (individual stocks) - using correct schema
     let result = await query(
-      `SELECT 
-        symbol, date, open, high, low, close, adj_close, volume
-       FROM price_daily 
-       WHERE symbol = $1 
-       ORDER BY date DESC 
+      `SELECT
+        symbol, date,
+        open_price as open, high_price as high, low_price as low,
+        close_price as close, adj_close_price as adj_close, volume
+       FROM price_daily
+       WHERE symbol = $1
+       ORDER BY date DESC
        LIMIT 1`,
       [symbolUpper]
     );
@@ -120,10 +122,12 @@ router.get("/:symbol/history", async (req, res) => {
       `📈 Price history requested for ${symbolUpper} (period: ${period})`
     );
 
-    // Try to get historical data from price_daily table
+    // Try to get historical data from price_daily table - using correct schema
     let result = await query(
       `SELECT
-        symbol, date, open, high, low, close, adj_close, volume
+        symbol, date,
+        open_price as open, high_price as high, low_price as low,
+        close_price as close, adj_close_price as adj_close, volume
        FROM price_daily
        WHERE symbol = $1
        ORDER BY date DESC
@@ -252,7 +256,7 @@ router.post("/batch", async (req, res) => {
     const placeholders = symbolsUpper.map((_, i) => `$${i + 1}`).join(',');
 
     const result = await query(
-      `SELECT DISTINCT ON (symbol) symbol, date, close, volume
+      `SELECT DISTINCT ON (symbol) symbol, date, close_price as close, volume
        FROM price_daily
        WHERE symbol IN (${placeholders})
        ORDER BY symbol, date DESC`,
@@ -1802,9 +1806,11 @@ router.get("/daily/:symbol/:limit?", async (req, res) => {
       `📈 Fetching ${limitNum} days of daily price data for ${symbolUpper}`
     );
 
-    // Query real daily price data from price_daily table
+    // Query real daily price data from price_daily table - using correct schema
     const dailyQuery = `
-      SELECT symbol, date, open, high, low, close, adj_close, volume
+      SELECT symbol, date,
+        open_price as open, high_price as high, low_price as low,
+        close_price as close, adj_close_price as adj_close, volume
       FROM price_daily
       WHERE symbol = $1
       ORDER BY date DESC

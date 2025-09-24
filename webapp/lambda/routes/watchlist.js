@@ -14,56 +14,27 @@ router.get("/ping", (req, res) => {
   });
 });
 
-// Get user's watchlists - public endpoint for health checks
-router.get("/", async (req, res) => {
+// Get user's watchlists - requires authentication (no fallbacks)
+router.get("/", authenticateToken, async (req, res) => {
   try {
-    // If no auth header, return sample data for health checks
-    if (!req.headers.authorization) {
-      // Return sample watchlist data from portfolio_transactions for health checks
-      const sampleQuery = `
-        SELECT
-          symbol as id,
-          'My Watchlist' as name,
-          symbol,
-          created_at
-        FROM portfolio_transactions
-        GROUP BY symbol, created_at
-        ORDER BY created_at DESC
-        LIMIT 20
-      `;
+    const userId = req.user.sub;
 
-      const sampleData = await query(sampleQuery);
+    // Real database query for user's watchlists using portfolio_transactions as source
+    const watchlistQuery = `
+      SELECT
+        symbol as id,
+        'Portfolio Watchlist' as name,
+        symbol,
+        'Auto-generated from portfolio' as notes,
+        created_at,
+        created_at as updated_at
+      FROM portfolio_transactions
+      WHERE user_id = $1
+      GROUP BY symbol, created_at
+      ORDER BY created_at DESC
+    `;
 
-      return res.json({
-        success: true,
-        data: sampleData.rows || [],
-        message: "Sample watchlist data from portfolio symbols",
-        total: sampleData.rows ? sampleData.rows.length : 0,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // If there's an auth token, require authentication
-    return authenticateToken(req, res, async () => {
-    try {
-      const userId = req.user.sub;
-
-      // Real database query for user's watchlists using portfolio_transactions as source
-      const watchlistQuery = `
-        SELECT
-          symbol as id,
-          'Portfolio Watchlist' as name,
-          symbol,
-          'Auto-generated from portfolio' as notes,
-          created_at,
-          created_at as updated_at
-        FROM portfolio_transactions
-        WHERE user_id = $1
-        GROUP BY symbol, created_at
-        ORDER BY created_at DESC
-      `;
-
-      const watchlists = await query(watchlistQuery, [userId]);
+    const watchlists = await query(watchlistQuery, [userId]);
 
     if (!watchlists || !watchlists.rows) {
       return res.status(500).json({
@@ -78,16 +49,6 @@ router.get("/", async (req, res) => {
       data: watchlists.rows,
       total: watchlists.rows.length,
       timestamp: new Date().toISOString(),
-    });
-    } catch (error) {
-      console.error("Error fetching authenticated watchlists:", error);
-      res.status(500).json({
-        success: false,
-        error: "Failed to fetch watchlists",
-        message: process.env.NODE_ENV === "development" ? error.message : "Internal database error",
-        timestamp: new Date().toISOString(),
-      });
-    }
     });
   } catch (error) {
     console.error("Error fetching watchlists:", error);

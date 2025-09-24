@@ -6,25 +6,22 @@ process.env.ALLOW_DEV_BYPASS = "true";
 process.env.JWT_SECRET = "test-secret-key-for-testing-only";
 process.env.API_KEY_ENCRYPTION_SECRET = "test-encryption-secret-key-for-api-keys-testing-only";
 
-// Set database environment variables BEFORE importing any modules
-// Use real database for tests with seeded data (matching .env config)
-process.env.DB_HOST = "localhost";
-process.env.DB_USER = "postgres";
-process.env.DB_PASSWORD = "password";
-process.env.DB_NAME = "stocks";
+// Mock database setup - no real database connection needed
+process.env.DB_HOST = "mock-host";
+process.env.DB_USER = "mock-user";
+process.env.DB_PASSWORD = "mock-password";
+process.env.DB_NAME = "mock-db";
 process.env.DB_PORT = "5432";
 process.env.DB_SSL = "false";
-process.env.DB_CONNECT_TIMEOUT = "15000";
-process.env.DB_POOL_IDLE_TIMEOUT = "30000";
-process.env.DB_POOL_MAX = "5";
+
+// Mock the database module with loader-based schemas
+jest.mock('../utils/database', () => require('./setup/database').mockDatabaseModule);
 
 // Debug environment variables
-console.log("🔧 Test setup - Environment variables:", {
-  NODE_ENV: process.env.NODE_ENV,
+console.log("🔧 Test setup - Mock database environment:", {
+  NODE_ENGINE: process.env.NODE_ENV,
   DB_HOST: process.env.DB_HOST,
-  DB_USER: process.env.DB_USER,
-  DB_NAME: process.env.DB_NAME,
-  DB_PORT: process.env.DB_PORT,
+  MOCK_DATABASE: true
 });
 
 // Ensure crypto is available for all tests (fixes ETag generation issues)
@@ -46,7 +43,7 @@ if (!global.process) {
   global.process = process;
 }
 
-// Initialize database for tests
+// Initialize mock database for tests
 const db = require("../utils/database");
 
 // Mark database as available for all tests
@@ -54,67 +51,37 @@ global.DATABASE_AVAILABLE = () => true;
 global.TEST_DB = db;
 
 beforeAll(async () => {
-  console.log("✅ Using real database for testing with seeded data");
+  console.log("✅ Using mock database with loader-based schemas for testing");
 
-  // Initialize real database connection for tests
+  // Initialize mock database - no real connection needed
   try {
-    console.log("🔄 Initializing test database connection...");
+    console.log("🔄 Initializing mock database...");
 
-    // Initialize database with shorter timeout for faster tests
-    let timeoutId;
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(
-        () => reject(new Error("Database initialization timeout")),
-        8000
-      );
-    });
+    // Mock database initialization always succeeds
+    await db.initializeDatabase();
 
-    const initPromise = db.initializeDatabase();
-    const pool = await Promise.race([initPromise, timeoutPromise]);
+    // Test the mock query functionality
+    const testResult = await db.query("SELECT 1 as test");
 
-    // Clear timeout if initialization succeeded
-    if (timeoutId) {
-      clearTimeout(timeoutId);
+    if (!testResult || !testResult.rows) {
+      throw new Error("Mock database query test failed");
     }
 
-    if (!pool) {
-      throw new Error("Database pool initialization returned null");
-    }
-
-    // Quick connection test
-    const queryTimeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Database query timeout")), 3000)
-    );
-
-    const queryPromise = db.query("SELECT 1 as test");
-    const testResult = await Promise.race([queryPromise, queryTimeout]);
-
-    if (!testResult || !testResult.rows || testResult.rows.length === 0) {
-      throw new Error("Database query test failed - no results");
-    }
-
-    console.log("✅ Real PostgreSQL test database connected");
+    console.log("✅ Mock database with loader schemas initialized");
   } catch (error) {
-    console.error("❌ Database connection failed for tests:", error.message);
-    throw error; // Fail fast - no fallback mode, tests must use real database
+    console.error("❌ Mock database initialization failed:", error.message);
+    throw error;
   }
-}, 15000);
+}, 5000);
 
 afterAll(async () => {
-  // Skip database cleanup for mock environments
-  if (process.env.DB_HOST === "mock-host") {
-    console.log("✅ Mock database - skipping database cleanup");
-    return;
-  }
-
-  // Clean up database connection
+  // Clean up mock database
   try {
-    const db = require("../utils/database");
     if (db.closeDatabase) {
       await db.closeDatabase();
     }
-    console.log("✅ Test database connection closed");
+    console.log("✅ Mock database cleanup completed");
   } catch (error) {
-    console.error("❌ Error closing test database:", error);
+    console.error("❌ Error during mock database cleanup:", error);
   }
 });

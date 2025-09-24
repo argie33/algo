@@ -18,11 +18,11 @@ module.exports = {
   ],
   // Remove moduleNameMapper - use real database module
   testMatch: ["**/tests/unit/**/*.test.js", "**/tests/unit/**/*.spec.js"],
-  setupFilesAfterEnv: ["<rootDir>/tests/setup/database.setup.js"],
-  testTimeout: 30000, // Increased for real database connections
+  setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
+  testTimeout: 10000, // Reduced for mock database
   maxWorkers: 1,
   forceExit: true,
-  detectOpenHandles: true,
+  detectOpenHandles: false,
   verbose: false,
   silent: false,
   // globalSetup: "<rootDir>/tests/setup/globalSetup.js",

@@ -554,35 +554,18 @@ router.get("/sentiment", async (req, res) => {
 // Get market sentiment overview
 router.get("/market-sentiment", async (req, res) => {
   try {
-    const { timeframe = "24h" } = req.query;
-
-    // Return fallback data since news sentiment data has schema issues
-    const marketSentiment = {
-      timeframe,
-      overall_sentiment: {
-        score: 0.1,
-        label: "neutral",
-        distribution: {
-          positive: 0,
-          negative: 0,
-          neutral: 0,
-        },
-        total_articles: 0,
-      },
-      categories: [],
-      top_symbols: [],
-      trend: [],
-      message:
-        "News sentiment data temporarily unavailable - returning neutral baseline",
-    };
-
-    res.json({ success: true, data: marketSentiment });
+    // News sentiment feature requires dedicated news/sentiment tables not available in Python schema
+    res.status(501).json({
+      success: false,
+      error: "Market sentiment feature not implemented - requires news data infrastructure",
+      message: "Feature requires news/sentiment data tables not included in Python schema"
+    });
   } catch (error) {
-    console.error("Error fetching market sentiment:", error);
+    console.error("Error in market sentiment endpoint:", error);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch market sentiment",
-      message: error.message,
+      error: "Internal server error",
+      message: error.message
     });
   }
 });
@@ -1059,38 +1042,54 @@ router.get("/economic-calendar", async (req, res) => {
 // Market Sentiment Dashboard Data
 router.get("/sentiment-dashboard", async (req, res) => {
   try {
-    const { timeframe = "24h" } = req.query;
+    // Sentiment dashboard requires news/sentiment tables not available in Python schema
+    res.status(501).json({
+      success: false,
+      error: "Sentiment dashboard not implemented - requires news data infrastructure",
+      message: "Feature requires news/sentiment data tables not included in Python schema"
+    });
+  } catch (error) {
+    console.error("Error in sentiment dashboard endpoint:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message
+    });
+  }
+});
 
-    console.log(`📊 Sentiment dashboard requested for timeframe: ${timeframe}`);
+// News headlines endpoint - top headlines and breaking news
+router.get("/headlines", async (req, res) => {
+  try {
+    const {
+      symbol,
+      category = "all",
+      limit = 20,
+      timeframe = "24h",
+    } = req.query;
 
-    // Return fallback data due to sentiment data schema issues
-    const dashboardData = {
-      success: true,
-      data: {
-        market_sentiment: {
-          overall_score: 0.1,
-          sentiment_label: "neutral",
-          distribution: {
-            positive: 0,
-            negative: 0,
-            neutral: 0,
-          },
-          total_articles: 0,
-        },
-        sector_sentiment: [],
-        symbol_sentiment: [],
-        timeframe,
-        updated_at: new Date().toISOString(),
-        message:
-          "Sentiment data temporarily unavailable - showing neutral baseline",
-      },
-      timestamp: new Date().toISOString(),
-    };
+    console.log(
+      `📰 News headlines requested - symbol: ${symbol || "all"}, category: ${category}`
+    );
+    // Build filters
+    let symbolFilter = "";
+    let categoryFilter = "";
+    let queryParams = [parseInt(limit)];
+    let paramIndex = 2;
 
-    res.json(dashboardData);
+    if (symbol) {
+      symbolFilter = `AND (symbol = $${paramIndex} OR headline ILIKE '%' || $${paramIndex} || '%')`;
+      queryParams.push(symbol.toUpperCase());
+      paramIndex++;
+    }
 
-    // Get sector sentiment breakdown
-    const sectorSentimentQuery = `
+    if (category && category !== "all") {
+      categoryFilter = `AND category = $${paramIndex}`;
+      queryParams.push(category);
+      paramIndex++;
+    }
+
+    const headlinesQuery = `
         SELECT 
           category,
           AVG(CASE 
@@ -1723,10 +1722,10 @@ router.get("/sentiment/:symbol", async (req, res) => {
     let priceData = null;
     try {
       const priceQuery = `
-        SELECT close, change_percent, volume, date 
-        FROM price_daily 
-        WHERE symbol = $1 
-        ORDER BY date DESC 
+        SELECT close_price as close, change_percent, volume, date
+        FROM price_daily
+        WHERE symbol = $1
+        ORDER BY date DESC
         LIMIT 1
       `;
       const priceResult = await query(priceQuery, [symbol.toUpperCase()]);

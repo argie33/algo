@@ -191,9 +191,9 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         }),
       });
 
-      // Verify your actual queries with technical_data_daily table
+      // Verify your actual queries with price_daily table
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("technical_data_daily"),
+        expect.stringContaining("price_daily"),
         []
       );
     });
@@ -657,7 +657,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       // Should safely query technical data
       expect(query).toHaveBeenCalled();
       if (query.mock.calls.length > 2 && query.mock.calls[2]) {
-        expect(query.mock.calls[2][0]).toContain("technical_data_daily");
+        expect(query.mock.calls[2][0]).toContain("price_daily");
       }
     });
   });

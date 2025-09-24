@@ -38,20 +38,21 @@ const createTestDatabase = () => {
       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Price daily table (exact match to loadpricedaily.py but REAL instead of DOUBLE PRECISION)
+    -- Price daily table (exact match to setup_database_with_real_data.py but REAL instead of DOUBLE PRECISION)
     CREATE TABLE price_daily (
       id SERIAL PRIMARY KEY,
       symbol VARCHAR(10) NOT NULL,
       date DATE NOT NULL,
-      open REAL,
-      high REAL,
-      low REAL,
-      close REAL,
-      adj_close REAL,
+      open_price REAL,
+      high_price REAL,
+      low_price REAL,
+      close_price REAL,
+      adj_close_price REAL,
       volume BIGINT,
-      dividends REAL,
-      stock_splits REAL,
-      fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      change_amount REAL,
+      change_percent REAL,
+      fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(symbol, date)
     );
 
     -- ETF price daily table (exact match to loadpricedaily.py but REAL instead of DOUBLE PRECISION)
@@ -599,7 +600,7 @@ const createTestDatabase = () => {
     ('MSFT', 35.4, 28.9, 12.1, 13.8, 0.31, 2.5, 2.0, 0.0073, 2.4, 211915000000, 72361000000),
     ('TSLA', 75.2, 58.3, 8.9, 12.1, 0.18, 1.3, 1.1, 0.0, 3.2, 96773000000, 15000000000);
 
-    INSERT INTO price_daily (symbol, date, open, high, low, close, volume) VALUES
+    INSERT INTO price_daily (symbol, date, open_price, high_price, low_price, close_price, volume) VALUES
     ('AAPL', '2024-01-15', 150.0, 155.0, 148.0, 152.0, 50000000),
     ('AAPL', '2024-01-16', 152.0, 158.0, 150.0, 157.0, 55000000),
     ('GOOGL', '2024-01-15', 2800.0, 2850.0, 2780.0, 2820.0, 25000000),
