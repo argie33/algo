@@ -629,29 +629,12 @@ router.get("/overview", async (req, res) => {
       }));
     } catch (e) {
       console.error("Indices query failed:", e.message);
-      // Fallback to price_daily table if market_data doesn't work
-      try {
-        const priceResult = await query(`
-          SELECT DISTINCT ON (symbol)
-            symbol,
-            close as price,
-            (close - open) as change,
-            CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as changePercent
-          FROM price_daily
-          WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
-          ORDER BY symbol, date DESC
-        `);
-
-        indices = priceResult.rows.map(row => ({
-          symbol: row.symbol,
-          name: row.symbol,
-          price: parseFloat(row.price) || 0,
-          change: parseFloat(row.change) || 0,
-          changePercent: parseFloat(row.changepercent) || 0
-        }));
-      } catch (e2) {
-        console.error("Price daily query failed:", e2.message);
-      }
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch market indices",
+        details: e.message,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // Query 5: Market breadth from price_daily table (simplified for performance)
@@ -990,33 +973,12 @@ router.get("/sectors/performance", async (req, res) => {
       result = await query(sectorQuery);
     } catch (error) {
       console.error("Sector performance query error:", error.message);
-
-      // Fallback to simple sector data from stocks only
-      const fallbackQuery = `
-        SELECT
-          COALESCE(s.sector, 'Other') as sector,
-          COUNT(*) as stock_count,
-          0 as avg_change,
-          0 as total_volume,
-          AVG(COALESCE(s.market_cap, 1000000000)) as avg_market_cap
-        FROM stocks s
-        WHERE s.sector IS NOT NULL AND s.sector != ''
-        GROUP BY s.sector
-        ORDER BY COUNT(*) DESC
-        LIMIT 20
-      `;
-
-      try {
-        result = await query(fallbackQuery);
-      } catch (fallbackError) {
-        console.error("Sector performance query failed:", fallbackError.message);
-        return res.status(500).json({
-          success: false,
-          error: "Sector performance query failed",
-          details: fallbackError.message,
-          timestamp: new Date().toISOString(),
-        });
-      }
+      return res.status(500).json({
+        success: false,
+        error: "Sector performance query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
@@ -3408,7 +3370,7 @@ router.get("/ai-insights", async (req, res) => {
     const marketDataQuery = `
       SELECT
         symbol,
-        close_price,
+        close,
         volume,
         date
       FROM price_daily
@@ -3440,7 +3402,7 @@ router.get("/ai-insights", async (req, res) => {
     marketResult.rows.forEach(row => {
       if (!marketData[row.symbol]) marketData[row.symbol] = [];
       marketData[row.symbol].push({
-        price: parseFloat(row.close_price),
+        price: parseFloat(row.close),
         volume: parseInt(row.volume),
         date: row.date
       });
