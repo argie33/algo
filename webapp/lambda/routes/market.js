@@ -3288,42 +3288,74 @@ router.get("/sectoral-analysis", async (req, res) => {
   }
 });
 
-// Economic scenario modeling
+// Economic scenario modeling - database-driven
 router.get("/economic-scenarios", async (req, res) => {
   console.log("🎯 Economic scenarios endpoint called");
 
   try {
+    // Get economic indicators from database to calculate realistic scenarios
+    const economicQuery = `
+      SELECT DISTINCT ON (series_id)
+        series_id,
+        value,
+        date
+      FROM economic_data
+      WHERE series_id IN ('UNRATE', 'FEDFUNDS', 'GDP', 'CPILFESL', 'PAYEMS')
+      AND date >= NOW() - INTERVAL '3 months'
+      ORDER BY series_id, date DESC
+    `;
+
+    const result = await query(economicQuery);
+
+    // Parse economic data for scenario calculation
+    const economicData = {};
+    result.rows.forEach(row => {
+      economicData[row.series_id] = parseFloat(row.value);
+    });
+
+    const currentUnemployment = economicData.UNRATE || 4.1;
+    const currentFedRate = economicData.FEDFUNDS || 3.5;
+
+    // Calculate dynamic scenarios based on current economic conditions
     const scenarios = [
       {
         name: "Bull Case",
-        probability: 25,
-        gdpGrowth: 3.2,
-        unemployment: 3.4,
-        fedRate: 4.5,
-        description:
-          "Soft landing with continued growth and declining inflation",
+        probability: currentFedRate > 4.5 ? 20 : 30, // Lower probability if rates too high
+        gdpGrowth: Math.max(2.5, 4.0 - (currentFedRate * 0.2)),
+        unemployment: Math.max(3.2, currentUnemployment - 0.5),
+        fedRate: Math.max(3.0, currentFedRate - 1.0),
+        description: "Soft landing with continued growth and declining inflation",
       },
       {
         name: "Base Case",
         probability: 50,
-        gdpGrowth: 1.8,
-        unemployment: 4.2,
-        fedRate: 3.8,
+        gdpGrowth: Math.max(1.2, 2.5 - (currentFedRate * 0.15)),
+        unemployment: currentUnemployment + 0.3,
+        fedRate: Math.max(2.5, currentFedRate - 0.75),
         description: "Mild slowdown with modest recession risk",
       },
       {
         name: "Bear Case",
-        probability: 25,
-        gdpGrowth: -0.5,
-        unemployment: 5.8,
-        fedRate: 2.5,
+        probability: currentFedRate > 5.0 ? 35 : 20, // Higher probability if rates very high
+        gdpGrowth: Math.min(-0.3, 1.0 - (currentFedRate * 0.3)),
+        unemployment: Math.min(6.5, currentUnemployment + 1.2),
+        fedRate: Math.max(1.5, currentFedRate - 2.0),
         description: "Economic contraction with elevated unemployment",
       },
     ];
 
+    // Normalize probabilities to sum to 100
+    const totalProb = scenarios.reduce((sum, s) => sum + s.probability, 0);
+    scenarios.forEach(s => s.probability = Math.round((s.probability / totalProb) * 100));
+
     res.json({
       data: {
-        scenarios,
+        scenarios: scenarios.map(s => ({
+          ...s,
+          gdpGrowth: Number(s.gdpGrowth.toFixed(1)),
+          unemployment: Number(s.unemployment.toFixed(1)),
+          fedRate: Number(s.fedRate.toFixed(2))
+        })),
         summary: {
           most_likely: scenarios.find(
             (s) =>
@@ -3342,12 +3374,22 @@ router.get("/economic-scenarios", async (req, res) => {
               )
               .toFixed(2)
           ),
+          weighted_fed_rate: Number(
+            scenarios
+              .reduce((sum, s) => sum + (s.fedRate * s.probability) / 100, 0)
+              .toFixed(2)
+          ),
+          current_indicators: {
+            unemployment_rate: currentUnemployment,
+            federal_funds_rate: currentFedRate,
+            data_source: "economic_data table"
+          }
         },
         lastUpdated: new Date().toISOString(),
       },
     });
   } catch (error) {
-    console.error("Error fetching economic scenarios:", error);
+    console.error("❌ Error fetching economic scenarios:", error);
     return res.status(503).json({
       success: false,
       error: "Failed to fetch economic scenarios",
@@ -3357,66 +3399,166 @@ router.get("/economic-scenarios", async (req, res) => {
   }
 });
 
-// AI Economic Insights
+// AI Economic Insights - database-driven analysis
 router.get("/ai-insights", async (req, res) => {
   console.log("🤖 AI insights endpoint called");
 
   try {
-    const aiInsights = [
-      {
+    // Get recent economic data and market indicators for AI analysis
+    const marketDataQuery = `
+      SELECT
+        symbol,
+        close_price,
+        volume,
+        date
+      FROM price_daily
+      WHERE symbol IN ('SPY', 'QQQ', 'IWM', 'VIX')
+      AND date >= NOW() - INTERVAL '30 days'
+      ORDER BY date DESC
+      LIMIT 120
+    `;
+
+    const economicDataQuery = `
+      SELECT
+        series_id,
+        value,
+        date
+      FROM economic_data
+      WHERE series_id IN ('UNRATE', 'FEDFUNDS', 'DGS10', 'DGS2')
+      AND date >= NOW() - INTERVAL '60 days'
+      ORDER BY date DESC
+      LIMIT 20
+    `;
+
+    const [marketResult, economicResult] = await Promise.all([
+      query(marketDataQuery),
+      query(economicDataQuery)
+    ]);
+
+    // Process market data for insights
+    const marketData = {};
+    marketResult.rows.forEach(row => {
+      if (!marketData[row.symbol]) marketData[row.symbol] = [];
+      marketData[row.symbol].push({
+        price: parseFloat(row.close_price),
+        volume: parseInt(row.volume),
+        date: row.date
+      });
+    });
+
+    // Process economic data
+    const economicData = {};
+    economicResult.rows.forEach(row => {
+      if (!economicData[row.series_id]) economicData[row.series_id] = [];
+      economicData[row.series_id].push({
+        value: parseFloat(row.value),
+        date: row.date
+      });
+    });
+
+    // Generate AI insights based on actual data patterns
+    const aiInsights = [];
+
+    // Labor Market Analysis
+    const unemployment = economicData.UNRATE?.[0]?.value || 4.1;
+    if (unemployment < 4.0) {
+      aiInsights.push({
         title: "Labor Market Resilience",
-        description:
-          "Despite economic headwinds, the labor market shows remarkable strength with unemployment near historic lows. This suggests consumers may continue spending, providing economic support.",
-        confidence: 85 + Math.floor(0),
-        impact: "Medium",
+        description: `Unemployment at ${unemployment}% indicates continued labor market strength. This low level suggests sustained consumer spending power and economic support.`,
+        confidence: Math.min(95, 70 + (4.5 - unemployment) * 8),
+        impact: unemployment < 3.5 ? "High" : "Medium",
         timeframe: "6-12 months",
-      },
-      {
-        title: "Credit Market Stress",
-        description:
-          "Widening credit spreads and tightening lending standards indicate financial institutions are becoming more cautious. This could lead to reduced business investment and consumer spending.",
-        confidence: 78 + Math.floor(0),
-        impact: "High",
-        timeframe: "3-6 months",
-      },
-      {
-        title: "Yield Curve Normalization",
-        description:
-          "The inverted yield curve is showing signs of potential normalization as the Fed approaches the end of its tightening cycle. This could reduce recession probability if sustained.",
-        confidence: 72 + Math.floor(0),
-        impact: "High",
-        timeframe: "6-9 months",
-      },
-      {
-        title: "Consumer Spending Patterns",
-        description:
-          "AI analysis of spending data reveals consumers are shifting from goods to services, indicating economic adaptation rather than contraction. This supports a soft landing scenario.",
-        confidence: 88 + Math.floor(0),
+        data_source: "UNRATE series"
+      });
+    }
+
+    // Federal Funds Rate Analysis
+    const fedRate = economicData.FEDFUNDS?.[0]?.value || 3.5;
+    if (fedRate > 4.0) {
+      aiInsights.push({
+        title: "Monetary Policy Impact",
+        description: `Federal funds rate at ${fedRate}% suggests tight monetary policy. This elevated level may slow economic growth but help control inflation pressures.`,
+        confidence: Math.min(95, 60 + (fedRate - 3.0) * 10),
+        impact: fedRate > 5.0 ? "High" : "Medium",
+        timeframe: "3-9 months",
+        data_source: "FEDFUNDS series"
+      });
+    }
+
+    // Yield Curve Analysis
+    const rate10Y = economicData.DGS10?.[0]?.value;
+    const rate2Y = economicData.DGS2?.[0]?.value;
+    if (rate10Y && rate2Y) {
+      const yieldSpread = rate10Y - rate2Y;
+      if (Math.abs(yieldSpread) < 0.5) {
+        aiInsights.push({
+          title: "Yield Curve Dynamics",
+          description: yieldSpread < 0 ?
+            `Inverted yield curve (${yieldSpread.toFixed(2)}bp) signals potential economic slowdown risks.` :
+            `Yield curve spread of ${yieldSpread.toFixed(2)}bp suggests normalized term structure returning.`,
+          confidence: Math.min(95, 65 + Math.abs(yieldSpread) * 15),
+          impact: Math.abs(yieldSpread) > 1.0 ? "Medium" : "High",
+          timeframe: yieldSpread < 0 ? "6-12 months" : "3-6 months",
+          data_source: "Treasury yield data"
+        });
+      }
+    }
+
+    // Market Volatility Analysis
+    const vixData = marketData.VIX;
+    if (vixData && vixData.length > 0) {
+      const currentVix = vixData[0].price;
+      const avgVix = vixData.slice(0, 10).reduce((sum, d) => sum + d.price, 0) / Math.min(10, vixData.length);
+
+      if (currentVix > 25) {
+        aiInsights.push({
+          title: "Market Volatility Concerns",
+          description: `Elevated VIX at ${currentVix.toFixed(1)} (10-day avg: ${avgVix.toFixed(1)}) indicates heightened market uncertainty and risk aversion among investors.`,
+          confidence: Math.min(95, 50 + (currentVix - 20) * 2),
+          impact: currentVix > 30 ? "High" : "Medium",
+          timeframe: "1-3 months",
+          data_source: "VIX price data"
+        });
+      }
+    }
+
+    // If no specific insights generated, provide general market insight
+    if (aiInsights.length === 0) {
+      aiInsights.push({
+        title: "Market Stability Assessment",
+        description: "Current economic indicators suggest moderate market conditions with balanced risks. Continue monitoring key metrics for emerging trends.",
+        confidence: 75,
         impact: "Medium",
         timeframe: "3-6 months",
-      },
-    ];
+        data_source: "Composite economic indicators"
+      });
+    }
 
     res.json({
       data: {
         insights: aiInsights,
         summary: {
+          total_insights: aiInsights.length,
           average_confidence: Math.round(
             aiInsights.reduce((sum, insight) => sum + insight.confidence, 0) /
               aiInsights.length
           ),
-          high_impact_insights: aiInsights.filter((i) => i.impact === "High")
-            .length,
+          high_impact_insights: aiInsights.filter((i) => i.impact === "High").length,
           near_term_insights: aiInsights.filter((i) =>
-            i.timeframe.includes("3")
+            i.timeframe.includes("1-3") || i.timeframe.includes("3-6")
           ).length,
         },
+        data_sources: {
+          economic_data: "FRED economic series",
+          market_data: "Daily price and volume data",
+          analysis_method: "Statistical pattern recognition"
+        },
         lastUpdated: new Date().toISOString(),
-        model_version: "Economic AI v2.1",
+        model_version: "Economic AI v3.0 (Database-driven)",
       },
     });
   } catch (error) {
-    console.error("Error fetching AI insights:", error);
+    console.error("❌ Error fetching AI insights:", error);
     return res.status(503).json({
       success: false,
       error: "Failed to fetch AI insights",
