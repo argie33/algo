@@ -568,15 +568,15 @@ router.get("/quotes", async (req, res) => {
       WITH latest_prices AS (
         SELECT DISTINCT ON (p.symbol)
           p.symbol,
-          p.close,
-          p.high,
-          p.low,
-          p.open,
+          p.close_price as close,
+          p.high_price as high,
+          p.low_price as low,
+          p.open_price as open,
           p.volume,
           p.change_percent,
-          COALESCE(p.close - LAG(p.close) OVER (PARTITION BY p.symbol ORDER BY p.date), 0) as change_amount,
+          COALESCE(p.close_price - LAG(p.close_price) OVER (PARTITION BY p.symbol ORDER BY p.date), 0) as change_amount,
           p.date,
-          p.adj_close
+          p.adj_close_price as adj_close
         FROM price_daily p
         WHERE p.symbol = ANY($1)
         ORDER BY p.symbol, p.date DESC

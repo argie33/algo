@@ -3073,7 +3073,8 @@ router.get("/quotes/:symbol", async (req, res) => {
 
     // Query real quote data from price_daily table first
     let result = await query(
-      `SELECT symbol, date, open, high, low, close, adj_close, volume
+      `SELECT symbol, date, open_price as open, high_price as high, low_price as low,
+              close_price as close, adj_close_price as adj_close, volume
        FROM price_daily
        WHERE symbol = $1
        ORDER BY date DESC

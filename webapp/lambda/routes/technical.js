@@ -557,7 +557,8 @@ router.get("/chart/:symbol", async (req, res) => {
 
     // Query actual chart data from price_daily table
     const chartQuery = `
-      SELECT date, open, high, low, close, adj_close, volume,
+      SELECT date, open_price as open, high_price as high, low_price as low,
+             close_price as close, adj_close_price as adj_close, volume,
              created_at as timestamp
       FROM price_daily
       WHERE symbol = $1
@@ -710,7 +711,8 @@ router.get("/chart", async (req, res) => {
       indicatorColumns += ", adx, plus_di, minus_di";
 
     const chartQuery = `
-      SELECT t.date, p.open, p.high, p.low, p.close, p.volume${indicatorColumns}
+      SELECT t.date, p.open_price as open, p.high_price as high, p.low_price as low,
+             p.close_price as close, p.volume${indicatorColumns}
       FROM ${tableName} t
       JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       WHERE t.symbol = $1

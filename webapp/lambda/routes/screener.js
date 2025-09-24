@@ -1708,7 +1708,8 @@ router.get("/stocks", async (req, res) => {
         ss.sentiment,
         ss.overall_score
       FROM (
-        SELECT DISTINCT ON (symbol) symbol, close, volume, open, high, low, date, previous_close
+        SELECT DISTINCT ON (symbol) symbol, close_price as close, volume, open_price as open,
+               high_price as high, low_price as low, date, previous_close
         FROM price_daily 
         WHERE ${whereConditions.join(" AND ")}
         ORDER BY symbol, date DESC

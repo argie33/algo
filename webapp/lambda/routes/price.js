@@ -179,7 +179,8 @@ router.get("/:symbol/intraday", async (req, res) => {
 
     // Query recent daily data from price_daily table (since we don't have intraday data)
     const result = await query(
-      `SELECT symbol, date, open, high, low, close, adj_close, volume
+      `SELECT symbol, date, open_price as open, high_price as high, low_price as low,
+              close_price as close, adj_close_price as adj_close, volume
        FROM price_daily
        WHERE symbol = $1
        ORDER BY date DESC
