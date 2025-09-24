@@ -47,32 +47,32 @@ const mockData = {
     }
   ],
 
-  // price_daily table (from loadpricedaily.py)
+  // price_daily table (from setup_database_with_real_data.py - production schema)
   price_daily: [
     {
       symbol: 'AAPL',
       date: new Date(),
-      open: 174.0,
-      high: 176.5,
-      low: 173.2,
-      close: 175.8,
-      adj_close: 175.8,
+      open_price: 174.0,
+      high_price: 176.5,
+      low_price: 173.2,
+      close_price: 175.8,
+      adj_close_price: 175.8,
       volume: 55000000,
-      dividends: 0,
-      splits: 0,
+      change_amount: 1.8,
+      change_percent: 1.03,
       fetched_at: new Date()
     },
     {
       symbol: 'MSFT',
       date: new Date(),
-      open: 415.2,
-      high: 418.9,
-      low: 412.1,
-      close: 416.8,
-      adj_close: 416.8,
+      open_price: 415.2,
+      high_price: 418.9,
+      low_price: 412.1,
+      close_price: 416.8,
+      adj_close_price: 416.8,
       volume: 22000000,
-      dividends: 0,
-      splits: 0,
+      change_amount: 1.6,
+      change_percent: 0.38,
       fetched_at: new Date()
     }
   ],
@@ -110,7 +110,7 @@ const mockData = {
   // market_data table (from loadmarket.py)
   market_data: [
     {
-      ticker: 'AAPL',
+      symbol: 'AAPL',
       current_price: 175.8,
       regular_market_price: 175.8,
       volume: 55000000,
@@ -125,7 +125,7 @@ const mockData = {
   // stock_news table (from loadnews.py)
   stock_news: [
     {
-      ticker: 'AAPL',
+      symbol: 'AAPL',
       title: 'Apple Reports Strong Q4 Earnings',
       summary: 'Apple Inc. reported better than expected earnings for Q4',
       publish_time: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
@@ -354,6 +354,65 @@ function mockQuery(sql, params = []) {
 
   // Handle fundamental_metrics queries
   if (query.includes('fundamental_metrics')) {
+    // Handle /stocks/:symbol query (individual stock details)
+    if (query.includes('f.symbol,') && query.includes('LEFT JOIN price_daily pd')) {
+      return Promise.resolve({
+        rows: [
+          {
+            symbol: 'AAPL',
+            name: 'AAPL',
+            sector: 'Technology',
+            industry: 'Consumer Electronics',
+            market_cap: 3000000000000,
+            current_price: 175.8,
+            volume: 55000000,
+            pe_ratio: 28.5,
+            eps: 6.05,
+            dividend_yield: 0.44,
+            beta: 1.2,
+            exchange: 'NASDAQ',
+            previous_close: 174,
+            // Price fields with pd aliases
+            open_price: 174.0,
+            high_price: 176.5,
+            low_price: 173.2,
+            close_price: 175.8,
+            adj_close_price: 175.8,
+            price_date: new Date(),
+            // Also include old field names for compatibility
+            open: 174.0,
+            high: 176.5,
+            low: 173.2,
+            close: 175.8
+          }
+        ],
+        rowCount: 1
+      });
+    }
+
+    // Handle /stocks/list query specifically
+    if (query.includes('fm.symbol as symbol') && query.includes('fm.symbol as name')) {
+      // Return simplified structure for list endpoint
+      return Promise.resolve({
+        rows: [
+          {
+            symbol: 'AAPL',
+            name: 'AAPL',
+            sector: 'Technology',
+            market_cap: 3000000000000
+          },
+          {
+            symbol: 'MSFT',
+            name: 'MSFT',
+            sector: 'Technology',
+            market_cap: 2800000000000
+          }
+        ],
+        rowCount: 2
+      });
+    }
+
+    // Default fundamental_metrics query
     return Promise.resolve({
       rows: mockData.fundamental_metrics,
       rowCount: mockData.fundamental_metrics.length

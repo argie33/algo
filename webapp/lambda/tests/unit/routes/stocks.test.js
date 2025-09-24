@@ -145,10 +145,19 @@ describe("Stocks Routes Unit Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
-      expect(response.body).toHaveProperty("symbol", "AAPL");
-      expect(response.body).toHaveProperty("companyInfo");
-      expect(response.body).toHaveProperty("metadata");
-      expect(response.body.companyInfo).toHaveProperty("name");
+      // Verify response structure matches actual API implementation
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("timestamp");
+
+      // Verify data structure matches Python loader schemas
+      expect(response.body.data).toHaveProperty("symbol", "AAPL");
+      expect(response.body.data).toHaveProperty("name");
+      expect(response.body.data).toHaveProperty("sector");
+      expect(response.body.data).toHaveProperty("industry");
+      expect(response.body.data).toHaveProperty("market_cap");
+      expect(response.body.data).toHaveProperty("current_price");
+      expect(response.body.data).toHaveProperty("volume");
     });
   });
 

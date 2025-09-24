@@ -288,6 +288,55 @@ router.get("/ping", (req, res) => {
   });
 });
 
+// List stocks endpoint - must be before catch-all /:symbol route
+router.get("/list", async (req, res) => {
+  try {
+    console.log("📋 Stock list endpoint called");
+    const limit = parseInt(req.query.limit) || 50;
+
+    // Get stock list from fundamental_metrics table (using loader schema)
+    const listQuery = `
+      SELECT
+        fm.symbol as symbol,
+        fm.symbol as name,
+        fm.sector,
+        fm.market_cap
+      FROM fundamental_metrics fm
+      WHERE fm.symbol IS NOT NULL
+      ORDER BY fm.market_cap DESC NULLS LAST, fm.symbol
+      LIMIT $1
+    `;
+
+    const result = await query(listQuery, [limit]);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(503).json({
+        success: false,
+        error: "Stock list not available",
+        message: "Stock list requires database tables to be populated",
+        troubleshooting: {
+          suggestion: "Ensure fundamental_metrics table is populated with data",
+          required_tables: ["fundamental_metrics", "stocks"],
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rowCount,
+      limit: limit,
+    });
+  } catch (error) {
+    console.error("❌ Stock list error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch stock list",
+      details: error.message,
+    });
+  }
+});
+
 // Individual stock endpoint - GET /stocks/:symbol
 router.get("/:symbol", async (req, res) => {
   try {
@@ -1709,54 +1758,6 @@ router.get("/recommendations", async (req, res) => {
   }
 });
 
-// List stocks endpoint - must be before catch-all /:ticker route
-router.get("/list", async (req, res) => {
-  try {
-    console.log("📋 Stock list endpoint called");
-    const limit = parseInt(req.query.limit) || 50;
-
-    // Get stock list from fundamental_metrics table (using loader schema)
-    const listQuery = `
-      SELECT
-        fm.symbol as symbol,
-        fm.symbol as name,
-        fm.sector,
-        fm.market_cap
-      FROM fundamental_metrics fm
-      WHERE fm.symbol IS NOT NULL
-      ORDER BY fm.market_cap DESC NULLS LAST, fm.symbol
-      LIMIT $1
-    `;
-
-    const result = await query(listQuery, [limit]);
-
-    if (!result || !result.rows || result.rows.length === 0) {
-      return res.status(503).json({
-        success: false,
-        error: "Stock list not available",
-        message: "Stock list requires database tables to be populated",
-        troubleshooting: {
-          suggestion: "Ensure fundamental_metrics table is populated with data",
-          required_tables: ["fundamental_metrics", "stocks"],
-        },
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows,
-      count: result.rowCount,
-      limit: limit,
-    });
-  } catch (error) {
-    console.error("❌ Stock list error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch stock list",
-      details: error.message,
-    });
-  }
-});
 
 /**
  * @route GET /api/stocks/trending

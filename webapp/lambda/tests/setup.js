@@ -19,7 +19,7 @@ jest.mock('../utils/database', () => require('./setup/database').mockDatabaseMod
 
 // Debug environment variables
 console.log("🔧 Test setup - Mock database environment:", {
-  NODE_ENGINE: process.env.NODE_ENV,
+  NODE_ENV: process.env.NODE_ENV,
   DB_HOST: process.env.DB_HOST,
   MOCK_DATABASE: true
 });
@@ -44,7 +44,21 @@ if (!global.process) {
 }
 
 // Initialize mock database for tests
-const db = require("../utils/database");
+let db;
+
+// Determine if we need the mock or real database
+if (process.env.NODE_ENV === 'test' || process.env.MOCK_DATABASE === 'true') {
+  // Use the mock database for integration tests
+  db = require("./utils/database.mock");
+  console.log("🧪 Using mock database for tests");
+} else {
+  // Use the real database for other tests
+  db = require("../utils/database");
+  console.log("🔗 Using real database for tests");
+}
+
+// Replace the real database module with our mock for integration tests
+jest.doMock("../utils/database", () => db);
 
 // Mark database as available for all tests
 global.DATABASE_AVAILABLE = () => true;

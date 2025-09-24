@@ -537,9 +537,9 @@ router.get("/signals/:timeframe", async (req, res) => {
       ),
     ]);
 
-    const mainTableExists = tableChecks[0].rows[0].exists;
-    let companyProfileExists = tableChecks[1].rows[0].exists;
-    const priceDailyExists = tableChecks[2].rows[0].exists;
+    const mainTableExists = tableChecks[0]?.rows?.[0]?.exists ?? false;
+    let companyProfileExists = tableChecks[1]?.rows?.[0]?.exists ?? false;
+    const priceDailyExists = tableChecks[2]?.rows?.[0]?.exists ?? false;
 
     // Check which columns exist in the main trading table
     let tradingTableColumns = {

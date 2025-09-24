@@ -1530,11 +1530,7 @@ router.get("/correlation", async (req, res) => {
 
       diversification_ratio: 0,
 
-      risk_contribution: [
-        { symbol: "AAPL", contribution: (0.225).toFixed(3) },
-        { symbol: "MSFT", contribution: (0.175).toFixed(3) },
-        { symbol: "GOOGL", contribution: (0.125).toFixed(3) },
-      ],
+      risk_contribution: [],
 
       last_updated: new Date().toISOString(),
     };

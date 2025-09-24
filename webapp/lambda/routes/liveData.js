@@ -143,22 +143,12 @@ router.get("/status", async (req, res) => {
 // Get active symbols
 router.get("/symbols", async (req, res) => {
   try {
-    const symbols = [
-      { symbol: "AAPL", status: "active", provider: "alpaca", latency: 42 },
-      { symbol: "MSFT", status: "active", provider: "polygon", latency: 35 },
-      { symbol: "GOOGL", status: "active", provider: "alpaca", latency: 48 },
-      { symbol: "TSLA", status: "active", provider: "polygon", latency: 29 },
-      { symbol: "SPY", status: "active", provider: "polygon", latency: 18 },
-    ];
-
-    res.json({
-      success: true,
-      data: symbols, // Keep as array for test compatibility
-      count: symbols.length,
-      categories: ["stocks", "etfs", "crypto"],
-      total: symbols.length,
-      active: symbols.filter((s) => s.status === "active").length,
-      symbols: symbols, // Also include for backward compatibility
+    // Return service unavailable instead of mock data
+    res.status(503).json({
+      success: false,
+      error: "Live data connections not implemented",
+      message: "Live data provider integration not available",
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     try {

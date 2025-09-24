@@ -233,6 +233,52 @@ module.exports = async () => {
       )
     `);
 
+    // Create trading signal tables needed by trading routes (not in Python schema)
+    await query(`DROP TABLE IF EXISTS buy_sell_daily CASCADE`);
+    await query(`
+      CREATE TABLE buy_sell_daily (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        signal VARCHAR(10) NOT NULL, -- BUY, SELL, HOLD
+        price DOUBLE PRECISION,
+        stoplevel DOUBLE PRECISION,
+        inposition BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, date)
+      )
+    `);
+
+    await query(`DROP TABLE IF EXISTS buy_sell_weekly CASCADE`);
+    await query(`
+      CREATE TABLE buy_sell_weekly (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        signal VARCHAR(10) NOT NULL, -- BUY, SELL, HOLD
+        price DOUBLE PRECISION,
+        stoplevel DOUBLE PRECISION,
+        inposition BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, date)
+      )
+    `);
+
+    await query(`DROP TABLE IF EXISTS buy_sell_monthly CASCADE`);
+    await query(`
+      CREATE TABLE buy_sell_monthly (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        date DATE NOT NULL,
+        signal VARCHAR(10) NOT NULL, -- BUY, SELL, HOLD
+        price DOUBLE PRECISION,
+        stoplevel DOUBLE PRECISION,
+        inposition BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, date)
+      )
+    `);
+
     // Create dividend_calendar table for dividend route tests
     await query(`DROP TABLE IF EXISTS dividend_calendar CASCADE`);
     await query(`
@@ -281,6 +327,35 @@ module.exports = async () => {
       ('test-user-1', 'MSFT', 50, 400.00, 415.25),
       ('test-user-1', 'GOOGL', 75, 140.00, 142.80)
       ON CONFLICT (user_id, symbol) DO NOTHING
+    `);
+
+    // Insert test trading signals data
+    await query(`
+      INSERT INTO buy_sell_daily (symbol, date, signal, price) VALUES
+      ('AAPL', '2023-01-15', 'BUY', 150.25),
+      ('MSFT', '2023-01-15', 'SELL', 245.50),
+      ('GOOGL', '2023-01-16', 'BUY', 2800.75),
+      ('AAPL', '2023-01-17', 'HOLD', 151.30),
+      ('TSLA', '2023-01-15', 'BUY', 123.45)
+      ON CONFLICT (symbol, date) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO buy_sell_weekly (symbol, date, signal, price) VALUES
+      ('AAPL', '2023-01-09', 'BUY', 148.50),
+      ('MSFT', '2023-01-09', 'HOLD', 242.30),
+      ('TSLA', '2023-01-16', 'SELL', 123.45),
+      ('GOOGL', '2023-01-09', 'BUY', 2790.25)
+      ON CONFLICT (symbol, date) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO buy_sell_monthly (symbol, date, signal, price) VALUES
+      ('AAPL', '2023-01-01', 'BUY', 145.75),
+      ('NVDA', '2023-01-01', 'BUY', 195.25),
+      ('META', '2023-01-01', 'HOLD', 185.90),
+      ('MSFT', '2023-01-01', 'SELL', 240.50)
+      ON CONFLICT (symbol, date) DO NOTHING
     `);
 
     // Insert test dividend calendar data
