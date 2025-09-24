@@ -1,12 +1,12 @@
 {
-  "timestamp": "2025-09-24T08:12:30.552Z",
+  "timestamp": "2025-09-24T08:13:00.224Z",
   "totalEndpoints": 20,
-  "passed": 14,
-  "serverErrors": 1,
+  "passed": 15,
+  "serverErrors": 0,
   "clientErrors": 5,
   "fatalErrors": 0,
-  "passRate": 70,
-  "duration": "0.14",
+  "passRate": 75,
+  "duration": "0.12",
   "results": [
     {
       "api": "/api/health",
@@ -30,9 +30,8 @@
     },
     {
       "api": "/api/scores",
-      "status": "SERVER_ERROR",
-      "code": 500,
-      "error": "Database query failed"
+      "status": "PASS",
+      "code": 200
     },
     {
       "api": "/api/portfolio",

@@ -57,11 +57,12 @@ router.get("/analysis", async (req, res) => {
       `
       SELECT
         h.symbol, h.quantity, h.average_cost, h.current_price,
-        s.sector, s.short_name as company_name,
+        fm.sector, COALESCE(cp.short_name, h.symbol) as company_name,
         (h.current_price * h.quantity) as market_value,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as return_percent
       FROM portfolio_holdings h
-      LEFT JOIN fundamental_metrics s ON h.symbol = s.symbol
+      LEFT JOIN fundamental_metrics fm ON h.symbol = fm.symbol
+      LEFT JOIN company_profile cp ON h.symbol = cp.ticker
       WHERE h.user_id = $1 AND h.quantity > 0
       `,
       [userId]

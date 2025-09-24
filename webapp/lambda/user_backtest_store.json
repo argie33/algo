@@ -1,86 +1,21 @@
 [
   {
-    "name": "Test A 1758701526373",
+    "name": "Test A 1758702796053",
     "value": 123,
-    "id": "1758701526373"
+    "id": "1758702796053"
   },
   {
-    "name": "Test B 1758701526373",
+    "name": "Test B 1758702796053",
     "value": "string",
-    "id": "1758701526375"
+    "id": "1758702796056"
   },
   {
-    "name": "Test C 1758701526373",
+    "name": "Test C 1758702796053",
     "value": [
       1,
       2,
       3
     ],
-    "id": "1758701526377"
-  },
-  "test-backtest-1758701531529",
-  "test-backtest-1758701531536",
-  "test-backtest-1758701531549",
-  "test-backtest-1758701531578",
-  {
-    "name": "Test Strategy",
-    "code": "buy('AAPL', 100, data['AAPL'].close);",
-    "language": "javascript",
-    "id": "1758701531690"
-  },
-  {
-    "name": "AI Strategy - Test Strategy",
-    "description": "AI generated trading strategy",
-    "code": "function onTick(data) { return 'HOLD'; }",
-    "config": {
-      "initialCapital": 100000,
-      "commission": 0.001,
-      "slippage": 0.0005,
-      "startDate": "2023-01-01",
-      "endDate": "2023-12-31",
-      "symbols": [
-        "AAPL"
-      ],
-      "strategy": {
-        "name": "Test Strategy",
-        "code": "function onTick(data) { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
-      },
-      "strategyType": "ai_generated"
-    },
-    "type": "ai_strategy",
-    "created": "2025-09-24T08:12:15.135Z",
-    "status": "completed",
-    "id": "1758701535135"
-  },
-  {
-    "name": "AI Strategy - Test Strategy",
-    "description": "AI generated trading strategy",
-    "code": "function onTick() { return 'HOLD'; }",
-    "config": {
-      "initialCapital": 50000,
-      "commission": 0.002,
-      "slippage": 0.001,
-      "startDate": "2023-01-01",
-      "endDate": "2023-06-30",
-      "symbols": [
-        "AAPL",
-        "MSFT"
-      ],
-      "strategy": {
-        "name": "Test Strategy",
-        "code": "function onTick() { return 'HOLD'; }",
-        "symbols": [
-          "AAPL"
-        ]
-      },
-      "strategyType": "ai_generated"
-    },
-    "type": "ai_strategy",
-    "created": "2025-09-24T08:12:15.168Z",
-    "status": "completed",
-    "id": "1758701535168"
+    "id": "1758702796058"
   }
 ]
