@@ -15,7 +15,8 @@ const authenticateToken = (req, res, next) => {
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        error: "Access token required"
+        error: "Authentication required",
+        code: "MISSING_TOKEN"
       });
     }
 
@@ -26,7 +27,8 @@ const authenticateToken = (req, res, next) => {
     ) {
       return res.status(401).json({
         success: false,
-        error: "Invalid token format"
+        error: "Invalid token format",
+        code: "INVALID_TOKEN_FORMAT"
       });
     }
 
@@ -37,7 +39,8 @@ const authenticateToken = (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        error: "Access token required"
+        error: "Authentication required",
+        code: "MISSING_TOKEN"
       });
     }
 
@@ -47,7 +50,8 @@ const authenticateToken = (req, res, next) => {
     if (token === "") {
       return res.status(401).json({
         success: false,
-        error: "Access token required"
+        error: "Authentication required",
+        code: "MISSING_TOKEN"
       });
     }
 
@@ -96,6 +100,24 @@ const authenticateToken = (req, res, next) => {
         const jwtSecret = process.env.JWT_SECRET || "test-secret";
         const decoded = jwt.verify(token, jwtSecret);
 
+        // Validate required claims
+        if (!decoded.sub) {
+          return res.status(401).json({
+            success: false,
+            error: "Invalid token - missing required claims",
+            code: "MISSING_CLAIMS"
+          });
+        }
+
+        // Validate issued at time (prevent future tokens)
+        if (decoded.iat && decoded.iat > Math.floor(Date.now() / 1000)) {
+          return res.status(401).json({
+            success: false,
+            error: "Invalid token - future issued time",
+            code: "FUTURE_TOKEN"
+          });
+        }
+
         req.user = decoded;
         req.token = token;
 
@@ -104,24 +126,28 @@ const authenticateToken = (req, res, next) => {
         if (error.name === "TokenExpiredError") {
           return res.status(401).json({
             success: false,
-            error: "Token expired"
+            error: "Token expired",
+            code: "TOKEN_EXPIRED"
           });
         }
         if (error.name === "JsonWebTokenError") {
           return res.status(401).json({
             success: false,
-            error: "Invalid token"
+            error: "Invalid token",
+            code: "INVALID_TOKEN"
           });
         }
         return res.status(401).json({
           success: false,
-          error: "Authentication failed"
+          error: "Authentication failed",
+          code: "AUTH_FAILED"
         });
       }
     } catch (error) {
       return res.status(401).json({
         success: false,
-        error: "Authentication failed"
+        error: "Authentication failed",
+        code: "AUTH_FAILED"
       });
     }
   }
@@ -139,11 +165,16 @@ const authenticateTokenAsync = async (req, res, next) => {
 
     if (!authHeader) {
       console.log("🚨 Authentication required: No authorization header provided");
-      return res.status(401).json({
-        success: false,
-        error: "Authorization header required",
-        message: "Access token must be provided in Authorization header",
-        timestamp: new Date().toISOString()
+      return res.unauthorized("Authentication required", {
+        code: "MISSING_AUTHORIZATION",
+        suggestion: "Include valid authorization in the Authorization header",
+        requirements: "Authorization header must be present with format: Bearer <token>",
+        steps: [
+          "1. Log in to the application to obtain valid authentication",
+          "2. Include the token in the Authorization header: 'Bearer your-token'",
+          "3. Ensure your session hasn't expired - authentication is valid for a limited time",
+          "4. Check that you're using the correct API endpoint",
+        ],
       });
     }
 

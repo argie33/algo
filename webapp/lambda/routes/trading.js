@@ -5,6 +5,23 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Helper function to check if a table exists
+async function tableExists(tableName) {
+  try {
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = $1
+      );
+    `;
+    const result = await query(tableCheckQuery, [tableName]);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking table existence for ${tableName}:`, error);
+    return false;
+  }
+}
+
 // Health endpoint (no auth required)
 router.get("/health", (req, res) => {
   res.json({
@@ -1790,6 +1807,21 @@ router.get("/strategies", async (req, res) => {
     console.log(
       `📈 Trading strategies requested - category: ${category}, risk: ${risk_level}, active: ${active_only}`
     );
+
+    // Check if trading_strategies table exists
+    if (!(await tableExists("trading_strategies"))) {
+      return res.json({
+        success: true,
+        data: [],
+        summary: {
+          total_strategies: 0,
+          active_strategies: 0,
+          filtered_count: 0,
+        },
+        message: "Trading strategies data not yet loaded",
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     // Query trading strategies from database
     let strategiesQuery = `

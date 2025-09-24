@@ -21,21 +21,8 @@ router.get("/ping", (req, res) => {
   });
 });
 
-// Root endpoint - Public trades info (no auth for health checks)
-router.get("/", async (req, res) => {
-  // If no auth token, return basic service info
-  if (!req.headers.authorization) {
-    return res.json({
-      success: true,
-      message: "Trade History API - Ready",
-      status: "operational",
-      endpoints: ["/", "/health", "/ping"],
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  // If there's an auth token, require authentication
-  return authenticateToken(req, res, async () => {
+// Root endpoint - Protected trades info
+router.get("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { limit = 50, status = "all", symbol, offset = 0 } = req.query;
@@ -142,7 +129,6 @@ router.get("/", async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-  });
 });
 
 // Health endpoint (no auth required)

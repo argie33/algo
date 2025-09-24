@@ -141,7 +141,7 @@ describe("Auth Middleware with Service Integration", () => {
       for (const route of publicRoutes) {
         const response = await request(app).get(route);
 
-        expect([401, 500]).toContain(response.status);
+        expect(response.status).toBe(200);
       }
     });
   });

@@ -121,6 +121,15 @@ CREATE INDEX IF NOT EXISTS idx_fundamental_metrics_updated ON fundamental_metric
 CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_etf_price_daily_symbol_date ON etf_price_daily(symbol, date);
 
+-- New table indexes for performance
+CREATE INDEX IF NOT EXISTS idx_market_data_ticker ON market_data(ticker);
+CREATE INDEX IF NOT EXISTS idx_stock_news_ticker ON stock_news(ticker);
+CREATE INDEX IF NOT EXISTS idx_stock_news_publish_time ON stock_news(publish_time);
+CREATE INDEX IF NOT EXISTS idx_earnings_reports_symbol ON earnings_reports(symbol);
+CREATE INDEX IF NOT EXISTS idx_earnings_reports_date ON earnings_reports(report_date);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_symbol ON stock_scores(symbol);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_composite ON stock_scores(composite_score);
+
 -- Additional tables that exist in the current system but need to be compatible
 -- Company profile table (needs to be compatible with both loaders and current API)
 CREATE TABLE IF NOT EXISTS company_profile (
@@ -148,6 +157,102 @@ CREATE TABLE IF NOT EXISTS annual_balance_sheet (
     net_income BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(ticker, year)
+);
+
+-- Market data table (for real-time market data from loader)
+CREATE TABLE IF NOT EXISTS market_data (
+    ticker VARCHAR(10) PRIMARY KEY,
+    previous_close NUMERIC,
+    regular_market_previous_close NUMERIC,
+    open_price NUMERIC,
+    regular_market_open NUMERIC,
+    day_low NUMERIC,
+    regular_market_day_low NUMERIC,
+    day_high NUMERIC,
+    regular_market_day_high NUMERIC,
+    regular_market_price NUMERIC,
+    current_price NUMERIC,
+    post_market_price NUMERIC,
+    post_market_change NUMERIC,
+    post_market_change_pct NUMERIC,
+    volume BIGINT,
+    regular_market_volume BIGINT,
+    average_volume BIGINT,
+    avg_volume_10d BIGINT,
+    avg_daily_volume_10d BIGINT,
+    avg_daily_volume_3m BIGINT,
+    bid_price NUMERIC,
+    ask_price NUMERIC,
+    bid_size INT,
+    ask_size INT,
+    market_state VARCHAR(20),
+    fifty_two_week_low NUMERIC,
+    fifty_two_week_high NUMERIC,
+    fifty_two_week_range VARCHAR(50),
+    fifty_two_week_low_change NUMERIC,
+    fifty_two_week_low_change_pct NUMERIC,
+    fifty_two_week_high_change NUMERIC,
+    fifty_two_week_high_change_pct NUMERIC,
+    fifty_two_week_change_pct NUMERIC,
+    fifty_day_avg NUMERIC,
+    two_hundred_day_avg NUMERIC,
+    fifty_day_avg_change NUMERIC,
+    fifty_day_avg_change_pct NUMERIC,
+    two_hundred_day_avg_change NUMERIC,
+    two_hundred_day_avg_change_pct NUMERIC,
+    source_interval_sec INT,
+    market_cap BIGINT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Stock news table (for news data)
+CREATE TABLE IF NOT EXISTS stock_news (
+    id SERIAL PRIMARY KEY,
+    ticker VARCHAR(10) NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT,
+    url TEXT,
+    publish_time TIMESTAMP,
+    provider VARCHAR(100),
+    related_tickers JSONB,
+    sentiment_score DECIMAL(3,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Earnings reports table (from load_earnings_data.py)
+CREATE TABLE IF NOT EXISTS earnings_reports (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    company_name VARCHAR(200),
+    report_date DATE,
+    quarter INTEGER,
+    fiscal_year INTEGER,
+    estimated_eps DECIMAL(10,4),
+    actual_eps DECIMAL(10,4),
+    surprise_percent DECIMAL(8,4),
+    estimated_revenue BIGINT,
+    actual_revenue BIGINT,
+    revenue_surprise_percent DECIMAL(8,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year, quarter)
+);
+
+-- Stock scores table (from loadstockscores.py)
+CREATE TABLE IF NOT EXISTS stock_scores (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    composite_score DECIMAL(8,4),
+    momentum_score DECIMAL(8,4),
+    value_score DECIMAL(8,4),
+    quality_score DECIMAL(8,4),
+    growth_score DECIMAL(8,4),
+    volatility_score DECIMAL(8,4),
+    sentiment_score DECIMAL(8,4),
+    analyst_score DECIMAL(8,4),
+    technical_score DECIMAL(8,4),
+    financial_health_score DECIMAL(8,4),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol)
 );
 
 -- Key metrics table (for backwards compatibility with existing API)

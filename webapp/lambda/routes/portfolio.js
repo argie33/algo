@@ -144,7 +144,7 @@ router.get("/data", async (req, res) => {
 });
 
 // Root portfolio route - returns available endpoints
-router.get("/", async (req, res) => {
+router.get("/", authenticateToken, async (req, res) => {
   res.json({
     success: true,
     message: "Portfolio API - Ready",
@@ -168,7 +168,7 @@ router.get("/", async (req, res) => {
 });
 
 // Portfolio summary endpoint
-router.get("/summary", async (req, res) => {
+router.get("/summary", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     console.log(`📊 Portfolio summary requested for user: ${userId}`);

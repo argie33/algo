@@ -5390,14 +5390,14 @@ router.get("/search", async (req, res) => {
 
     // Search in fundamental_metrics table
     const result = await query(
-      `SELECT ticker as symbol, short_name as name, sector, industry
-       FROM fundamental_metrics 
-       WHERE ticker LIKE $1 OR UPPER(name) LIKE $1
-       ORDER BY 
-         CASE WHEN ticker = $2 THEN 1
-              WHEN ticker LIKE $3 THEN 2
+      `SELECT symbol, sector, industry
+       FROM fundamental_metrics
+       WHERE symbol LIKE $1 OR sector LIKE $1
+       ORDER BY
+         CASE WHEN symbol = $2 THEN 1
+              WHEN symbol LIKE $3 THEN 2
               ELSE 3 END,
-         ticker
+         symbol
        LIMIT $4 OFFSET $5`,
       [
         searchTerm,

@@ -1,6 +1,18 @@
 const request = require("supertest");
 const jwt = require("jsonwebtoken");
 const { app } = require("../../index");
+
+// Mock the apiKeyService module
+jest.mock("../../utils/apiKeyService", () => ({
+  storeApiKey: jest.fn(),
+  getApiKey: jest.fn(),
+  validateApiKey: jest.fn(),
+  deleteApiKey: jest.fn(),
+  listProviders: jest.fn(),
+  getHealthStatus: jest.fn(),
+  getDecryptedApiKey: jest.fn(),
+}));
+
 const apiKeyService = require("../../utils/apiKeyService");
 
 describe("Authentication Security Tests", () => {
@@ -205,8 +217,8 @@ describe("Authentication Security Tests", () => {
     });
 
     test("should encrypt API keys before storage", async () => {
-      const storeSpy = jest.spyOn(apiKeyService, "storeApiKey");
-      storeSpy.mockResolvedValue({ success: true });
+      // Configure the mock to resolve successfully
+      apiKeyService.storeApiKey.mockResolvedValue({ success: true });
 
       const validToken = jwt.sign({ sub: validUserId }, jwtSecret, {
         expiresIn: "1h",
@@ -233,9 +245,7 @@ describe("Authentication Security Tests", () => {
       }
 
       // Verify that the API key service was called
-      expect(storeSpy).toHaveBeenCalled();
-
-      storeSpy.mockRestore();
+      expect(apiKeyService.storeApiKey).toHaveBeenCalled();
     });
 
     test("should validate API key format before processing", async () => {
@@ -285,8 +295,8 @@ describe("Authentication Security Tests", () => {
     });
 
     test("should use different salts for different users", async () => {
-      const storeSpy = jest.spyOn(apiKeyService, "storeApiKey");
-      storeSpy.mockResolvedValue({ success: true });
+      // Configure the mock to resolve successfully
+      apiKeyService.storeApiKey.mockResolvedValue({ success: true });
 
       const user1Token = jwt.sign({ sub: "user-1" }, jwtSecret, {
         expiresIn: "1h",
@@ -313,15 +323,13 @@ describe("Authentication Security Tests", () => {
           apiSecret: mockApiKey.secret,
         });
 
-      expect(storeSpy).toHaveBeenCalledTimes(2);
+      expect(apiKeyService.storeApiKey).toHaveBeenCalledTimes(2);
 
       // Verify different users were passed to the service
-      const call1User = storeSpy.mock.calls[0][0];
-      const call2User = storeSpy.mock.calls[1][0];
+      const call1User = apiKeyService.storeApiKey.mock.calls[0][0];
+      const call2User = apiKeyService.storeApiKey.mock.calls[1][0];
 
       expect(call1User).not.toBe(call2User);
-
-      storeSpy.mockRestore();
     });
   });
 

@@ -57,7 +57,11 @@ describe("Authentication Middleware", () => {
     test("should reject request without authorization header", () => {
       authenticateToken(req, res, next);
 
-      expect(res.unauthorized).toHaveBeenCalledWith("Access token required");
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: "Authentication required"
+      });
       expect(next).not.toHaveBeenCalled();
     });
 
@@ -66,7 +70,11 @@ describe("Authentication Middleware", () => {
 
       authenticateToken(req, res, next);
 
-      expect(res.unauthorized).toHaveBeenCalledWith("Invalid token format");
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: "Invalid token format"
+      });
       expect(next).not.toHaveBeenCalled();
     });
 
@@ -80,7 +88,11 @@ describe("Authentication Middleware", () => {
 
       authenticateToken(req, res, next);
 
-      expect(res.unauthorized).toHaveBeenCalledWith("Token expired");
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: "Token expired"
+      });
       expect(next).not.toHaveBeenCalled();
     });
 
@@ -94,7 +106,11 @@ describe("Authentication Middleware", () => {
 
       authenticateToken(req, res, next);
 
-      expect(res.unauthorized).toHaveBeenCalledWith("Invalid token");
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: "Invalid token"
+      });
       expect(next).not.toHaveBeenCalled();
     });
 
@@ -155,7 +171,11 @@ describe("Authentication Middleware", () => {
 
       authenticateToken(req, res, next);
 
-      expect(res.unauthorized).toHaveBeenCalledWith("Access token required");
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: "Authentication required"
+      });
     });
 
     test("should handle authorization header with extra data", () => {
@@ -212,7 +232,11 @@ describe("Authentication Middleware", () => {
 
       authenticateToken(req, res, next);
 
-      expect(res.unauthorized).toHaveBeenCalledWith("Authentication failed");
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: "Authentication failed"
+      });
     });
 
     test("should handle missing JWT library", () => {
@@ -259,7 +283,7 @@ describe("Authentication Middleware", () => {
 
         authenticateToken(req, res, next);
 
-        expect(res.unauthorized).toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(401);
         expect(next).not.toHaveBeenCalled();
 
         // Reset for next iteration
@@ -309,6 +333,8 @@ describe("RequireRole Middleware", () => {
     res = {
       unauthorized: jest.fn().mockReturnThis(),
       forbidden: jest.fn().mockReturnThis(),
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
     };
     next = jest.fn();
     jest.clearAllMocks();
@@ -487,6 +513,8 @@ describe("RequireApiKey Middleware", () => {
     res = {
       unauthorized: jest.fn().mockReturnThis(),
       error: jest.fn().mockReturnThis(),
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
     };
     next = jest.fn();
     jest.clearAllMocks();
