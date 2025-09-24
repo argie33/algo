@@ -154,18 +154,23 @@ router.get("/popular", async (req, res) => {
     // Query popular stocks from stocks and price_daily tables (actual AWS schema)
     const popularQuery = `
       SELECT
-        f.symbol,
-        f.symbol as name,
-        COALESCE(f.market_cap, 0) as market_cap,
-        COALESCE(p.close, 0) as price,
+        cp.ticker as symbol,
+        COALESCE(cp.short_name, cp.ticker) as name,
+        0 as market_cap,
+        COALESCE(pd.close, 0) as price,
         0 as change_percent,
         0 as change,
-        COALESCE(p.volume, 0) as volume
-      FROM fundamental_metrics f
-      LEFT JOIN price_daily p ON f.symbol = p.symbol
-      WHERE f.market_cap IS NOT NULL
-        AND f.market_cap > 1000000000
-      ORDER BY f.market_cap DESC NULLS LAST
+        COALESCE(pd.volume, 0) as volume,
+        COALESCE(km.trailing_pe, 0) as pe,
+        COALESCE(km.total_revenue, 0) as revenue,
+        COALESCE(km.profit_margin_pct, 0) as "profitMargin",
+        COALESCE(km.dividend_yield, 0) as "dividendYield"
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
+      WHERE cp.ticker IS NOT NULL
+      ORDER BY cp.ticker ASC
       LIMIT 10
     `;
 
@@ -187,6 +192,13 @@ router.get("/popular", async (req, res) => {
       change_percent: parseFloat(row.change_percent) || 0,
       market_cap: row.market_cap,
       volume: row.volume,
+      keyMetrics: {
+        marketCap: row.market_cap,
+        pe: parseFloat(row.pe) || 0,
+        revenue: parseFloat(row.revenue) || 0,
+        profitMargin: parseFloat(row.profitMargin) || 0,
+        dividendYield: parseFloat(row.dividendYield) || 0,
+      },
     }));
 
     res.json({
@@ -297,13 +309,13 @@ router.get("/list", async (req, res) => {
     // Get stock list from stocks table (using loader schema)
     const listQuery = `
       SELECT
-        s.symbol as symbol,
-        s.symbol as name,
-        s.sector,
-        s.market_cap
-      FROM fundamental_metrics fm
-      WHERE s.symbol IS NOT NULL
-      ORDER BY s.market_cap DESC NULLS LAST, s.symbol
+        cp.ticker as symbol,
+        cp.short_name as name,
+        cp.sector,
+        0
+      FROM company_profile cp
+      WHERE cp.ticker IS NOT NULL
+      ORDER BY 0 DESC NULLS LAST, cp.ticker
       LIMIT $1
     `;
 
@@ -346,18 +358,18 @@ router.get("/:symbol", async (req, res) => {
     // Get stock data from confirmed tables only - simplified for AWS
     const stockQuery = `
       SELECT
-        f.symbol,
-        f.symbol as name,
-        f.sector,
-        f.industry,
-        f.market_cap,
+        cp.ticker as symbol,
+        cp.short_name as name,
+        cp.sector,
+        cp.industry,
+        0,
         COALESCE(pd.close, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
-        f.pe_ratio,
-        f.earnings_per_share as eps,
-        f.dividend_yield,
-        f.beta,
-        'NASDAQ' as exchange,
+        km.trailing_pe as pe_ratio,
+        km.eps_trailing as earnings_per_share,
+        km.dividend_yield,
+        km.beta,
+        COALESCE(cp.exchange, 'NASDAQ') as exchange,
         COALESCE(pd.close, 0) as previous_close,
 
         -- Price data from price_daily
@@ -368,10 +380,11 @@ router.get("/:symbol", async (req, res) => {
         pd.adj_close,
         pd.date as price_date
 
-      FROM fundamental_metrics f
-      LEFT JOIN price_daily pd ON f.symbol = pd.symbol
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = f.symbol)
-      WHERE f.symbol = $1
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
+      WHERE cp.ticker = $1
     `;
 
     const result = await query(stockQuery, [symbol.toUpperCase()]);
@@ -527,20 +540,50 @@ router.get("/", async (req, res) => {
 
     // ACTUAL AWS SCHEMA: Use stocks (from loadfundamentalmetrics.py)
     const stocksQuery = `
-      SELECT DISTINCT ON (f.symbol)
-        f.symbol,
-        f.symbol as name,
-        f.sector,
-        f.industry,
-        f.market_cap,
+      SELECT DISTINCT ON (cp.ticker)
+        cp.ticker as symbol,
+        COALESCE(cp.short_name, cp.ticker) as name,
+        cp.sector,
+        cp.industry,
+        md.market_cap,
         COALESCE(pd.close, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
-        f.pe_ratio,
-        f.dividend_yield,
-        f.beta,
-        'NASDAQ' as exchange,
-        f.earnings_per_share as eps,
-        COALESCE(pd.close, 0) as previous_close,
+        km.trailing_pe,
+        km.forward_pe,
+        km.dividend_yield,
+        NULL as beta,
+        cp.exchange_name as exchange,
+        km.eps_trailing as eps,
+        COALESCE(pd.close, 0, 0) as previous_close,
+        km.total_revenue,
+        km.profit_margin_pct,
+        km.price_to_book,
+        km.price_to_sales_ttm,
+        km.peg_ratio,
+        km.eps_trailing,
+        km.eps_forward,
+        km.eps_current_year,
+        km.enterprise_value,
+        km.ev_to_revenue,
+        km.ev_to_ebitda,
+        km.ebitda,
+        km.net_income,
+        km.gross_profit,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        km.total_debt,
+        km.debt_to_equity,
+        km.current_ratio,
+        km.quick_ratio,
+        km.gross_margin_pct,
+        km.operating_margin_pct,
+        km.ebitda_margin_pct,
+        km.return_on_equity_pct,
+        km.return_on_assets_pct,
+        km.earnings_growth_pct,
+        km.revenue_growth_pct,
 
         -- Recent price data
         pd.open,
@@ -550,23 +593,26 @@ router.get("/", async (req, res) => {
         pd.adj_close,
         pd.date as price_date
 
-      FROM fundamental_metrics f
-      LEFT JOIN price_daily pd ON f.symbol = pd.symbol
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = f.symbol)
-      ${whereClause.replace(/symbol/g, 'f.symbol')}
-      ORDER BY f.symbol, f.market_cap DESC NULLS LAST
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
+      ${whereClause.replace(/symbol/g, 'cp.ticker')}
+      ORDER BY cp.ticker ASC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
     params.push(limit, offset);
 
-    // Count query - use stocks table for accurate counts
+    // Count query - use loadinfo tables for accurate counts
     const countQuery = `
       SELECT COUNT(*) as total
       FROM (
-        SELECT DISTINCT f.symbol
-        FROM fundamental_metrics f
-        ${whereClause.replace(/symbol/g, 'f.symbol')}
+        SELECT DISTINCT cp.ticker
+        FROM company_profile cp
+        LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+          ${whereClause.replace(/symbol/g, 'cp.ticker')}
         LIMIT 1000
       ) as distinct_symbols
     `;
@@ -1158,9 +1204,9 @@ router.get("/screen", async (req, res) => {
     // Get total count for pagination using stocks table (Python loader schema)
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM fundamental_metrics fm
-      LEFT JOIN stock_symbols ss ON s.symbol = ss.symbol
-      WHERE ${whereClause.replace(/current_price/g, 's.market_cap').replace(/price/g, 's.market_cap').replace(/name/g, 'ss.security_name').replace(/sector/g, 's.sector')}
+      FROM company_profile cp
+      LEFT JOIN stock_symbols ss ON cp.ticker = ss.symbol
+      WHERE ${whereClause.replace(/current_price/g, '0').replace(/price/g, '0').replace(/name/g, 'ss.security_name').replace(/sector/g, 'cp.sector')}
     `;
 
     const countResult = await query(countQuery, queryParams);
@@ -1179,21 +1225,22 @@ router.get("/screen", async (req, res) => {
     // Get the actual stocks using stocks table (Python loader schema)
     const stocksQuery = `
       SELECT
-        s.symbol,
-        COALESCE(ss.security_name, s.symbol) as company_name,
-        s.sector,
+        cp.ticker as symbol,
+        COALESCE(ss.security_name, cp.short_name) as company_name,
+        cp.sector,
         COALESCE(pd.close, 0) as current_price,
         COALESCE(pd.change_percent, 0) as change_percent,
         COALESCE(pd.volume, 0) as volume,
-        s.market_cap,
- NULL as pe_ratio,
-        s.dividend_yield,
-        s.beta
-      FROM fundamental_metrics fm
-      LEFT JOIN stock_symbols ss ON s.symbol = ss.symbol
-      LEFT JOIN price_daily pd ON s.symbol = pd.symbol
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)
-      WHERE ${whereClause.replace(/current_price/g, 'COALESCE(pd.close, 0)').replace(/price/g, 'COALESCE(pd.close, 0)').replace(/name/g, 'ss.security_name').replace(/sector/g, 's.sector')}
+        0,
+        km.trailing_pe as pe_ratio,
+        km.dividend_yield,
+        km.beta
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN stock_symbols ss ON cp.ticker = ss.symbol
+      LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
+      WHERE ${whereClause.replace(/current_price/g, 'COALESCE(pd.close, 0)').replace(/price/g, 'COALESCE(pd.close, 0)').replace(/name/g, 'ss.security_name').replace(/sector/g, 'cp.sector')}
       ORDER BY ${safeSortBy.replace(/current_price/g, 'COALESCE(pd.close, 0)').replace(/price/g, 'COALESCE(pd.close, 0)')} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
@@ -1533,7 +1580,7 @@ router.get("/analysis/:symbol", async (req, res) => {
       // Price data
       query(
         `
-        SELECT date, close, volume, change_percent
+        SELECT date, close_price as close, volume, change_percent
         FROM price_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 

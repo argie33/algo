@@ -2,6 +2,12 @@ const request = require('supertest');
 
 const { app } = require('./index.js');
 
+// Endpoints that require authentication
+const AUTH_REQUIRED_ENDPOINTS = [
+  '/api/alerts', '/api/portfolio', '/api/recommendations', '/api/research',
+  '/api/settings', '/api/trades', '/api/watchlist'
+];
+
 // Comprehensive list of all critical API endpoints to test
 const criticalAPIs = [
   { path: '/api/health', method: 'GET', description: 'Health check endpoint' },
@@ -30,9 +36,23 @@ async function testAPI(api) {
   try {
     console.log(`\n🧪 Testing ${api.description}: ${api.method} ${api.path}`);
 
+    // Check if this endpoint requires authentication
+    const requiresAuth = AUTH_REQUIRED_ENDPOINTS.some(authEndpoint =>
+      api.path.startsWith(authEndpoint)
+    );
+
     let response;
     if (api.method === 'GET') {
-      response = await request(app).get(api.path).timeout(10000);
+      if (requiresAuth) {
+        console.log(`   🔧 Using authentication bypass token for protected endpoint`);
+        response = await request(app)
+          .get(api.path)
+          .set('Authorization', 'Bearer test-token')
+          .set('Content-Type', 'application/json')
+          .timeout(10000);
+      } else {
+        response = await request(app).get(api.path).timeout(10000);
+      }
     }
 
     console.log(`   Status: ${response.status}`);

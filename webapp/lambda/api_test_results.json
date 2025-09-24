@@ -1,11 +1,11 @@
 {
-  "timestamp": "2025-09-24T08:13:00.224Z",
+  "timestamp": "2025-09-24T17:15:03.091Z",
   "totalEndpoints": 20,
-  "passed": 15,
+  "passed": 20,
   "serverErrors": 0,
-  "clientErrors": 5,
+  "clientErrors": 0,
   "fatalErrors": 0,
-  "passRate": 75,
+  "passRate": 100,
   "duration": "0.12",
   "results": [
     {
@@ -35,9 +35,8 @@
     },
     {
       "api": "/api/portfolio",
-      "status": "CLIENT_ERROR",
-      "code": 401,
-      "error": "Authentication required"
+      "status": "PASS",
+      "code": 200
     },
     {
       "api": "/api/market",
@@ -66,15 +65,13 @@
     },
     {
       "api": "/api/recommendations",
-      "status": "CLIENT_ERROR",
-      "code": 401,
-      "error": "Authentication required"
+      "status": "PASS",
+      "code": 200
     },
     {
       "api": "/api/alerts",
-      "status": "CLIENT_ERROR",
-      "code": 401,
-      "error": "Authentication required"
+      "status": "PASS",
+      "code": 200
     },
     {
       "api": "/api/calendar",
@@ -103,15 +100,13 @@
     },
     {
       "api": "/api/watchlist",
-      "status": "CLIENT_ERROR",
-      "code": 401,
-      "error": "Authentication required"
+      "status": "PASS",
+      "code": 200
     },
     {
       "api": "/api/trades",
-      "status": "CLIENT_ERROR",
-      "code": 401,
-      "error": "Authentication required"
+      "status": "PASS",
+      "code": 200
     }
   ]
 }
