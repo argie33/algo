@@ -48,52 +48,39 @@ describe("Stocks Routes Unit Tests", () => {
       // Verify loader table structure fields when data exists
       if (response.body.data.length > 0) {
         const stock = response.body.data[0];
-        // company_profile table fields from loadinfo.py via API transformation
-        expect(stock).toHaveProperty("symbol"); // API uses symbol (maps to ticker)
-        expect(stock).toHaveProperty("name"); // maps to company_name from short_name/long_name
-        expect(stock).toHaveProperty("shortName"); // from company_profile.short_name
-        expect(stock).toHaveProperty("fullName"); // from company_profile.long_name
-        expect(stock).toHaveProperty("sector"); // from company_profile.sector
-        expect(stock).toHaveProperty("industry"); // from company_profile.industry
-        expect(stock).toHaveProperty("marketCap"); // from market_data.market_cap
-        expect(stock).toHaveProperty("price"); // object containing current_price from market_data
-        expect(stock).toHaveProperty("volume"); // from market_data table
+        // fundamental_metrics table fields from loadfundamentalmetrics.py
+        expect(stock).toHaveProperty("symbol"); // from fundamental_metrics.symbol
+        expect(stock).toHaveProperty("name"); // API transformation of various name fields
+        expect(stock).toHaveProperty("shortName"); // API transformation
+        expect(stock).toHaveProperty("fullName"); // API transformation
+        expect(stock).toHaveProperty("sector"); // from fundamental_metrics.sector
+        expect(stock).toHaveProperty("industry"); // from fundamental_metrics.industry
+        expect(stock).toHaveProperty("marketCap"); // from fundamental_metrics.market_cap
+        expect(stock).toHaveProperty("price"); // object containing price data from price_daily
+        expect(stock).toHaveProperty("volume"); // from price_daily.volume
 
-        // Verify key metrics from key_metrics table
-        expect(stock).toHaveProperty("displayData");
-        if (stock.displayData && stock.displayData.keyMetrics) {
-          const keyMetrics = stock.displayData.keyMetrics;
-          // Core financial highlights that should be in keyMetrics
-          expect(keyMetrics).toHaveProperty("marketCap");
-          expect(keyMetrics).toHaveProperty("pe"); // trailing_pe
-          expect(keyMetrics).toHaveProperty("revenue"); // total_revenue
-          expect(keyMetrics).toHaveProperty("profitMargin"); // profit_margin_pct
-          expect(keyMetrics).toHaveProperty("dividendYield"); // dividend_yield
-          expect(keyMetrics).toHaveProperty("analystRating"); // recommendation_key
-          expect(keyMetrics).toHaveProperty("targetPrice"); // target_mean_price
-
-          // Additional key metrics that should be included
-          expect(keyMetrics).toHaveProperty("priceToBook"); // price_to_book
-          expect(keyMetrics).toHaveProperty("priceToSales"); // price_to_sales_ttm
-          expect(keyMetrics).toHaveProperty("pegRatio"); // peg_ratio
-          expect(keyMetrics).toHaveProperty("eps"); // eps_trailing
-          expect(keyMetrics).toHaveProperty("enterpriseValue"); // enterprise_value
-          expect(keyMetrics).toHaveProperty("ebitda"); // ebitda
-          expect(keyMetrics).toHaveProperty("totalCash"); // total_cash
-          expect(keyMetrics).toHaveProperty("totalDebt"); // total_debt
-          expect(keyMetrics).toHaveProperty("debtToEquity"); // debt_to_equity
-          expect(keyMetrics).toHaveProperty("returnOnEquity"); // return_on_equity_pct
-          expect(keyMetrics).toHaveProperty("returnOnAssets"); // return_on_assets_pct
-          expect(keyMetrics).toHaveProperty("operatingMargin"); // operating_margin_pct
-          expect(keyMetrics).toHaveProperty("grossMargin"); // gross_margin_pct
-          expect(keyMetrics).toHaveProperty("currentRatio"); // current_ratio
-          expect(keyMetrics).toHaveProperty("quickRatio"); // quick_ratio
-          expect(keyMetrics).toHaveProperty("earningsGrowth"); // earnings_growth_pct
-          expect(keyMetrics).toHaveProperty("revenueGrowth"); // revenue_growth_pct
+        // Verify financial metrics from fundamental_metrics table
+        if (stock.financialMetrics) {
+          const metrics = stock.financialMetrics;
+          // Core financial metrics from fundamental_metrics table
+          expect(metrics).toHaveProperty("trailingPE"); // pe_ratio
+          expect(metrics).toHaveProperty("forwardPE"); // forward_pe
+          expect(metrics).toHaveProperty("priceToBook"); // price_to_book
+          expect(metrics).toHaveProperty("priceToSales"); // price_to_sales
+          expect(metrics).toHaveProperty("pegRatio"); // peg_ratio
+          expect(metrics).toHaveProperty("epsTrailing"); // earnings_per_share
+          expect(metrics).toHaveProperty("grossProfit"); // gross_profit
+          expect(metrics).toHaveProperty("ebitda"); // ebitda
+          expect(metrics).toHaveProperty("netIncome"); // net_income
+          expect(metrics).toHaveProperty("debtToEquity"); // debt_to_equity
+          expect(metrics).toHaveProperty("enterpriseValue"); // enterprise_value
+          expect(metrics).toHaveProperty("bookValue"); // book_value
+          expect(metrics).toHaveProperty("earningsGrowthQuarterly"); // quarterly_earnings_growth
+          expect(metrics).toHaveProperty("revenueGrowth"); // revenue_growth
         }
 
         if (stock.price) {
-          expect(stock.price).toHaveProperty("current"); // current_price from market_data
+          expect(stock.price).toHaveProperty("current"); // current_price from price_daily
         }
       }
     });
@@ -125,16 +112,16 @@ describe("Stocks Routes Unit Tests", () => {
       // Check the data structure matches what the loader creates
       if (response.body.data.length > 0) {
         const stock = response.body.data[0];
-        expect(stock).toHaveProperty("symbol"); // ticker as symbol
-        expect(stock).toHaveProperty("name"); // name from company_profile
-        expect(stock).toHaveProperty("sector"); // sector from company_profile
-        expect(stock).toHaveProperty("market_cap"); // market_cap from market_data table
+        expect(stock).toHaveProperty("symbol"); // symbol from fundamental_metrics
+        expect(stock).toHaveProperty("name"); // API transformation of company name
+        expect(stock).toHaveProperty("sector"); // sector from fundamental_metrics
+        expect(stock).toHaveProperty("market_cap"); // market_cap from fundamental_metrics table
       }
     });
   });
 
   describe("GET /stocks/sectors", () => {
-    test("should return sector data from company_profile table", async () => {
+    test("should return sector data from fundamental_metrics table", async () => {
       const response = await request(app).get("/stocks/sectors").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -146,7 +133,7 @@ describe("Stocks Routes Unit Tests", () => {
         const sector = response.body.data[0];
         expect(sector).toHaveProperty("sector");
         expect(sector).toHaveProperty("count");
-        expect(sector).toHaveProperty("avg_market_cap"); // From market_data.market_cap aggregated
+        expect(sector).toHaveProperty("avg_market_cap"); // From fundamental_metrics.market_cap aggregated
       }
     });
   });

@@ -241,6 +241,21 @@ def create_tables(conn):
         UNIQUE(user_id, broker_name)
     );
 
+    -- Create trading_strategies table
+    CREATE TABLE IF NOT EXISTS trading_strategies (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255),
+        strategy_name VARCHAR(255) NOT NULL,
+        strategy_description TEXT,
+        strategy_code TEXT,
+        backtest_id VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'inactive',
+        parameters JSONB DEFAULT '{}',
+        performance_metrics JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Grant permissions to stocks user
     GRANT ALL ON SCHEMA public TO stocks;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO stocks;

@@ -101,18 +101,17 @@ router.get("/stocks", async (req, res) => {
     sentimentQuery += ` ORDER BY date DESC LIMIT 10`;
 
     const [institutionalResult, sentimentResult] = await Promise.all([
-      query(institutionalQuery, params).catch((err) => {
-        console.warn("Institutional positioning query failed:", err.message);
-        return { rows: [] };
-      }),
-      query(sentimentQuery, sentimentParams).catch((err) => {
-        console.warn("Retail sentiment query failed:", err.message);
-        return { rows: [] };
-      }),
+      query(institutionalQuery, params),
+      query(sentimentQuery, sentimentParams)
     ]);
 
     if (!institutionalResult.rows.length && !sentimentResult.rows.length) {
-      return res.notFound("No positioning data found");
+      return res.status(404).json({
+        success: false,
+        error: "No positioning data found",
+        message: "Both positioning_metrics and retail_sentiment tables returned no data",
+        timestamp: new Date().toISOString()
+      });
     }
 
     res.json({

@@ -581,7 +581,7 @@ router.get("/", async (req, res) => {
     );
     const queryTimeout = 3000; // 3 second timeout for AWS Lambda
 
-    // Execute with error handling and fallback
+    // Execute with error handling
     let stocksResult;
     try {
       stocksResult = await Promise.race([
@@ -595,42 +595,12 @@ router.get("/", async (req, res) => {
       ]);
     } catch (dbError) {
       console.error('Stocks query error:', dbError.message);
-
-      // Fallback: Try simplified query with just price_daily table
-      const fallbackQuery = `
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          symbol as name,
-          'Technology' as sector,
-          'Software' as industry,
-          1000000000 as market_cap,
-          close as current_price,
-          volume,
-          15.5 as pe_ratio,
-          0.025 as dividend_yield,
-          1.2 as beta,
-          'NASDAQ' as exchange,
-          2.5 as eps,
-          close as previous_close,
-          open,
-          high,
-          low,
-          close,
-          adj_close,
-          date as price_date
-        FROM price_daily
-        WHERE symbol IS NOT NULL
-        ORDER BY symbol, date DESC
-        LIMIT 50
-      `;
-
-      try {
-        stocksResult = await query(fallbackQuery, []);
-        console.log('✅ Fallback query successful');
-      } catch (fallbackError) {
-        console.error('❌ Fallback query also failed:', fallbackError.message);
-        throw new Error('Both primary and fallback queries failed');
-      }
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch stocks data from fundamental_metrics table",
+        message: dbError.message,
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Check for valid results

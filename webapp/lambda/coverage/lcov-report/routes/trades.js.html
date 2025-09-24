@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">38.11% </span>
+                <span class="strong">36.95% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>263/690</span>
+                <span class='fraction'>255/690</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">25.96% </span>
+                <span class="strong">16.43% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>128/493</span>
+                <span class='fraction'>81/493</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">30.52% </span>
+                <span class="strong">28.42% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>29/95</span>
+                <span class='fraction'>27/95</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">38.8% </span>
+                <span class="strong">37.76% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>260/670</span>
+                <span class='fraction'>253/670</span>
             </div>
         
             
@@ -4257,12 +4257,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -4275,9 +4273,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -4704,7 +4704,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -4712,18 +4712,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -4736,6 +4724,18 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -7256,11 +7256,11 @@ router.get("/analytics", authenticateToken, async (req, res) =&gt; {
         [userId, startDate, endDate]
       );
 &nbsp;
-      if (metricsResult.rows[0] &amp;&amp; metricsResult.rows[0].total_trades &gt; 0) {
-        const metrics = metricsResult.rows[0];
-        const winRate = (metrics.winning_trades / metrics.total_trades) * 100;
+      <span class="missing-if-branch" title="if path not taken" >I</span>if (metricsResult.rows[0] &amp;&amp; metricsResult.rows[0].total_trades &gt; 0) {
+        const metrics = <span class="cstat-no" title="statement not covered" >metricsResult.rows[0];</span>
+        const winRate = <span class="cstat-no" title="statement not covered" >(metrics.winning_trades / metrics.total_trades) * 100;</span>
 &nbsp;
-        analyticsData.summary = {
+<span class="cstat-no" title="statement not covered" >        analyticsData.summary = {</span>
           total_trades: parseInt(metrics.total_trades),
           winning_trades: parseInt(metrics.winning_trades),
           losing_trades: parseInt(metrics.losing_trades),
@@ -7270,14 +7270,14 @@ router.get("/analytics", authenticateToken, async (req, res) =&gt; {
           avg_roi: parseFloat(metrics.avg_roi || 0),
           best_trade: parseFloat(metrics.best_trade || 0),
           worst_trade: parseFloat(metrics.worst_trade || 0),
-          total_volume: parseFloat(metrics.total_volume || <span class="branch-1 cbranch-no" title="branch not covered" >0)</span>,
+          total_volume: parseFloat(metrics.total_volume || 0),
           avg_holding_period: parseFloat(metrics.avg_holding_period || 0),
         };
 &nbsp;
         // Calculate performance metrics
-        const volatility = parseFloat(metrics.pnl_volatility || 0);
-        const avgReturn = parseFloat(metrics.avg_pnl || 0);
-        analyticsData.performance_metrics = {
+        const volatility = <span class="cstat-no" title="statement not covered" >parseFloat(metrics.pnl_volatility || 0);</span>
+        const avgReturn = <span class="cstat-no" title="statement not covered" >parseFloat(metrics.avg_pnl || 0);</span>
+<span class="cstat-no" title="statement not covered" >        analyticsData.performance_metrics = {</span>
           sharpe_ratio:
             volatility &gt; 0
               ? parseFloat((avgReturn / volatility).toFixed(3))
@@ -7285,13 +7285,13 @@ router.get("/analytics", authenticateToken, async (req, res) =&gt; {
           max_drawdown: parseFloat(
             (
               (Math.abs(metrics.worst_trade || 0) /
-                Math.max(metrics.total_volume || <span class="branch-1 cbranch-no" title="branch not covered" >1,</span> 1000)) *
+                Math.max(metrics.total_volume || 1, 1000)) *
               100
             ).toFixed(2)
           ),
           profit_factor:
             metrics.losing_trades &gt; 0
-              ? <span class="branch-0 cbranch-no" title="branch not covered" >parseFloat(</span>
+              ? parseFloat(
                   (
                     Math.abs(metrics.total_pnl) /
                     Math.abs(metrics.worst_trade * metrics.losing_trades)
@@ -7333,7 +7333,7 @@ router.get("/analytics", authenticateToken, async (req, res) =&gt; {
         [userId, startDate, endDate]
       );
 &nbsp;
-      analyticsData.sector_breakdown = sectorResult.rows.map((row) =&gt; ({
+      analyticsData.sector_breakdown = sectorResult.rows.map(<span class="fstat-no" title="function not covered" >(r</span>ow) =&gt; (<span class="cstat-no" title="statement not covered" >{</span>
         sector: row.sector,
         trade_count: parseInt(row.trade_count),
         pnl: parseFloat(row.sector_pnl || 0),
@@ -7703,39 +7703,39 @@ router.get("/analytics/overview", authenticateToken, async (req, res) =&gt; {
     };
 &nbsp;
     // Use database metrics if available
-    if (dbMetrics &amp;&amp; dbMetrics.total_trades &gt; 0) {
-      responseData = {
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (dbMetrics &amp;&amp; dbMetrics.total_trades &gt; 0) {
+<span class="cstat-no" title="statement not covered" >      responseData = {</span>
         timeframe,
         overview: {
-          totalTrades: parseInt(dbMetrics.total_trades) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
+          totalTrades: parseInt(dbMetrics.total_trades) || 0,
           winRate:
             dbMetrics.total_trades &gt; 0
               ? (
                   (dbMetrics.winning_trades / dbMetrics.total_trades) *
                   100
                 ).toFixed(2)
-              : <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-          totalPnL: parseFloat(dbMetrics.total_pnl) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-          avgPnL: parseFloat(dbMetrics.avg_pnl) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-          avgROI: parseFloat(dbMetrics.avg_roi) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-          bestTrade: parseFloat(dbMetrics.best_trade) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-          worstTrade: parseFloat(dbMetrics.worst_trade) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
+              : 0,
+          totalPnL: parseFloat(dbMetrics.total_pnl) || 0,
+          avgPnL: parseFloat(dbMetrics.avg_pnl) || 0,
+          avgROI: parseFloat(dbMetrics.avg_roi) || 0,
+          bestTrade: parseFloat(dbMetrics.best_trade) || 0,
+          worstTrade: parseFloat(dbMetrics.worst_trade) || 0,
           avgHoldingPeriod: parseFloat(dbMetrics.avg_holding_period) || 0,
           totalVolume: parseFloat(dbMetrics.total_volume) || 0,
         },
-        sectorBreakdown: sectorBreakdown.map((sector) =&gt; ({
+        sectorBreakdown: sectorBreakdown.map(<span class="fstat-no" title="function not covered" >(s</span>ector) =&gt; (<span class="cstat-no" title="statement not covered" >{</span>
           sector: sector.sector,
-          tradeCount: parseInt(sector.trade_count) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-          pnl: parseFloat(sector.sector_pnl) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-          avgROI: parseFloat(sector.avg_roi) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
-          volume: parseFloat(sector.total_volume) || <span class="branch-1 cbranch-no" title="branch not covered" >0,</span>
+          tradeCount: parseInt(sector.trade_count) || 0,
+          pnl: parseFloat(sector.sector_pnl) || 0,
+          avgROI: parseFloat(sector.avg_roi) || 0,
+          volume: parseFloat(sector.total_volume) || 0,
         })),
         dataSource: "stored_trades",
         message: "Analytics from stored trade history",
       };
     }
     // Use live data if available and no stored data
-    else <span class="cstat-no" title="statement not covered" ><span class="missing-if-branch" title="else path not taken" >E</span>if (liveTradeData &amp;&amp; liveTradeData.length &gt; 0) {</span>
+    else <span class="missing-if-branch" title="if path not taken" >I</span>if (liveTradeData &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >liveTradeData.length &gt; 0)</span> {
       // Process live trade data for analytics
       const fills = <span class="cstat-no" title="statement not covered" >liveTradeData.filter(</span>
 <span class="fstat-no" title="function not covered" >        (a</span>ctivity) =&gt; <span class="cstat-no" title="statement not covered" >activity.activity_type === "FILL"</span>
@@ -9070,7 +9070,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-24T02:06:48.416Z
+                at 2025-09-24T02:57:46.119Z
             </div>
         <script src="../prettify.js"></script>
         <script>

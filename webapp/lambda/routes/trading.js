@@ -1833,6 +1833,8 @@ router.get("/strategies", async (req, res) => {
         status,
         strategy_code,
         backtest_id,
+        parameters,
+        performance_metrics,
         created_at,
         updated_at
       FROM trading_strategies

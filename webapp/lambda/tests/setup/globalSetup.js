@@ -258,6 +258,8 @@ module.exports = async () => {
         strategy_code TEXT,
         backtest_id VARCHAR(100),
         status VARCHAR(20) DEFAULT 'draft',
+        parameters JSONB DEFAULT '{}',
+        performance_metrics JSONB DEFAULT '{}',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, strategy_name)

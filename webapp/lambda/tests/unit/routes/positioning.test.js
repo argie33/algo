@@ -31,11 +31,12 @@ describe("Positioning Routes", () => {
   });
 
   describe("GET /api/positioning/stocks", () => {
+    // Mock data matching positioning_metrics table schema from loadpositioning.py
     const mockInstitutionalData = [
       {
         symbol: "AAPL",
-        institution_type: "hedge_fund",
-        institution_name: "Test Fund",
+        institution_type: "Institutional",
+        institution_name: "Major Institution",
         position_size: 1000000,
         position_change_percent: 5.5,
         market_share: 2.1,
@@ -44,6 +45,7 @@ describe("Positioning Routes", () => {
       },
     ];
 
+    // Mock data matching retail_sentiment table schema from loadsentiment.py
     const mockSentimentData = [
       {
         symbol: "AAPL",
@@ -122,24 +124,20 @@ describe("Positioning Routes", () => {
       );
     });
 
-    it("should handle database query failures gracefully", async () => {
+    it("should handle database query failures with 500 error", async () => {
       mockQuery
         .mockRejectedValueOnce(new Error("Institutional query failed"))
         .mockRejectedValueOnce(new Error("Sentiment query failed"));
 
       const response = await request(app)
         .get("/api/positioning/stocks")
-        .expect(404);
+        .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("No positioning data found not found");
-      expect(console.warn).toHaveBeenCalledWith(
-        "Institutional positioning query failed:",
-        "Institutional query failed"
-      );
-      expect(console.warn).toHaveBeenCalledWith(
-        "Retail sentiment query failed:",
-        "Sentiment query failed"
+      expect(response.body.error).toBe("Failed to fetch stock positioning data");
+      expect(console.error).toHaveBeenCalledWith(
+        "Error fetching stock positioning data:",
+        expect.any(Error)
       );
     });
 
@@ -153,20 +151,24 @@ describe("Positioning Routes", () => {
         .expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("No positioning data found not found");
+      expect(response.body.error).toBe("No positioning data found");
+      expect(response.body.message).toBe("Both positioning_metrics and retail_sentiment tables returned no data");
     });
 
-    it("should handle one data source failing while other succeeds", async () => {
+    it("should handle database errors properly", async () => {
       mockQuery
-        .mockRejectedValueOnce(new Error("Institutional failed"))
-        .mockResolvedValueOnce({ rows: mockSentimentData });
+        .mockRejectedValueOnce(new Error("Institutional failed"));
 
       const response = await request(app)
         .get("/api/positioning/stocks")
-        .expect(200);
+        .expect(500);
 
-      expect(response.body.institutional_positioning).toEqual([]);
-      expect(response.body.retail_sentiment).toEqual(mockSentimentData);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe("Failed to fetch stock positioning data");
+      expect(console.error).toHaveBeenCalledWith(
+        "Error fetching stock positioning data:",
+        expect.any(Error)
+      );
     });
 
     it("should include correct metadata structure", async () => {
@@ -243,6 +245,7 @@ describe("Positioning Routes", () => {
   });
 
   describe("GET /api/positioning/summary", () => {
+    // Mock summary data using fundamental_metrics table for institutional flow
     const mockInstitutionalSummary = {
       rows: [
         {
@@ -254,6 +257,7 @@ describe("Positioning Routes", () => {
       ],
     };
 
+    // Mock summary data from retail_sentiment table
     const mockRetailSummary = {
       rows: [
         {
@@ -472,7 +476,7 @@ describe("Positioning Routes", () => {
       );
     });
 
-    it("should use correct SQL queries with date intervals", async () => {
+    it("should use correct SQL queries with fundamental metrics and retail sentiment", async () => {
       mockQuery
         .mockResolvedValueOnce(mockInstitutionalSummary)
         .mockResolvedValueOnce(mockRetailSummary);
@@ -480,9 +484,7 @@ describe("Positioning Routes", () => {
       await request(app).get("/api/positioning/summary").expect(200);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "WHERE filing_date >= CURRENT_DATE - INTERVAL '90 days'"
-        )
+        expect.stringContaining("FROM fundamental_metrics fm")
       );
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining(

@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">23.62% </span>
+                <span class="strong">23.66% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>194/821</span>
+                <span class='fraction'>195/824</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">17.14% </span>
+                <span class="strong">17.32% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>95/554</span>
+                <span class='fraction'>96/554</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">23.88% </span>
+                <span class="strong">23.91% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>192/804</span>
+                <span class='fraction'>193/807</span>
             </div>
         
             
@@ -4564,7 +4564,18 @@
 <a name='L4499'></a><a href='#L4499'>4499</a>
 <a name='L4500'></a><a href='#L4500'>4500</a>
 <a name='L4501'></a><a href='#L4501'>4501</a>
-<a name='L4502'></a><a href='#L4502'>4502</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">64x</span>
+<a name='L4502'></a><a href='#L4502'>4502</a>
+<a name='L4503'></a><a href='#L4503'>4503</a>
+<a name='L4504'></a><a href='#L4504'>4504</a>
+<a name='L4505'></a><a href='#L4505'>4505</a>
+<a name='L4506'></a><a href='#L4506'>4506</a>
+<a name='L4507'></a><a href='#L4507'>4507</a>
+<a name='L4508'></a><a href='#L4508'>4508</a>
+<a name='L4509'></a><a href='#L4509'>4509</a>
+<a name='L4510'></a><a href='#L4510'>4510</a>
+<a name='L4511'></a><a href='#L4511'>4511</a>
+<a name='L4512'></a><a href='#L4512'>4512</a>
+<a name='L4513'></a><a href='#L4513'>4513</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">64x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">64x</span>
 <span class="cline-any cline-yes">64x</span>
@@ -5148,7 +5159,26 @@
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
@@ -5159,14 +5189,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -5180,7 +5202,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">57x</span>
+<span class="cline-any cline-yes">14x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -9648,16 +9670,27 @@ router.get("/", async (req, res) =&gt; {
     );
     const queryTimeout = 3000; // 3 second timeout for AWS Lambda
 &nbsp;
-    // Execute only the stocks query to avoid count timeout issues in AWS
-    const stocksResult = await Promise.race([
-      query(stocksQuery, params),
-      new Promise((_, reject) =&gt;
-        setTimeout(
-<span class="fstat-no" title="function not covered" >          ()</span> =&gt; <span class="cstat-no" title="statement not covered" >reject(new Error("Stocks query timeout")),</span>
-          queryTimeout
-        )
-      ),
-    ]);
+    // Execute with error handling
+    let stocksResult;
+    try {
+      stocksResult = await Promise.race([
+        query(stocksQuery, params),
+        new Promise((_, reject) =&gt;
+          setTimeout(
+<span class="fstat-no" title="function not covered" >            ()</span> =&gt; <span class="cstat-no" title="statement not covered" >reject(new Error("Stocks query timeout")),</span>
+            queryTimeout
+          )
+        ),
+      ]);
+    } catch (dbError) {
+<span class="cstat-no" title="statement not covered" >      console.error('Stocks query error:', dbError.message);</span>
+<span class="cstat-no" title="statement not covered" >      return res.status(500).json({</span>
+        success: false,
+        error: "Failed to fetch stocks data from fundamental_metrics table",
+        message: dbError.message,
+        timestamp: new Date().toISOString()
+      });
+    }
 &nbsp;
     // Check for valid results
     <span class="missing-if-branch" title="if path not taken" >I</span>if (!stocksResult || !stocksResult.rows) {
@@ -9673,7 +9706,7 @@ router.get("/", async (req, res) =&gt; {
 &nbsp;
     // Use estimated total based on returned data (simplified pagination)
     const returnedCount = stocksResult.rows.length;
-    const estimatedTotal = returnedCount === limit ? (page * limit) + 1 : <span class="branch-1 cbranch-no" title="branch not covered" >(page - 1) * limit + returnedCount;</span>
+    const estimatedTotal = returnedCount === limit ? (page * limit) + 1 : (page - 1) * limit + returnedCount;
     const totalPages = Math.ceil(estimatedTotal / limit);
 &nbsp;
     console.log(
@@ -9858,11 +9891,11 @@ router.get("/", async (req, res) =&gt; {
       // Professional presentation with rich data
       displayData: {
         primaryExchange:
-          stock.full_exchange_name || stock.exchange || "Unknown",
+          stock.full_exchange_name || stock.exchange || <span class="branch-2 cbranch-no" title="branch not covered" >"Unknown",</span>
         category: stock.market_category || stock.type || "Standard",
         type: stock.type || "Stock",
         tradeable: stock.is_active === true,
-        sector: stock.sector_disp || stock.sector || <span class="branch-2 cbranch-no" title="branch not covered" >"Unknown",</span>
+        sector: stock.sector_disp || stock.sector || "Unknown",
         industry: stock.industry_disp || stock.industry || "Unknown",
 &nbsp;
         // Comprehensive key financial metrics from key_metrics table
@@ -13573,7 +13606,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-24T02:06:48.222Z
+                at 2025-09-24T02:57:45.934Z
             </div>
         <script src="../prettify.js"></script>
         <script>
