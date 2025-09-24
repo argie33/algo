@@ -50,15 +50,15 @@ router.get("/", async (req, res) => {
         'daily' as timeframe,
         'BUY' as signal_type,
         0.75 as confidence,
-        close_price as price,
+        close as price,
         volume
       FROM price_daily
-      WHERE volume > 0 AND close_price > 0
+      WHERE volume > 0 AND close > 0
       ORDER BY date DESC, symbol ASC
       LIMIT $1 OFFSET $2
     `;
 
-    const countQuery = `SELECT COUNT(*) as total FROM price_daily WHERE volume > 0 AND close_price > 0`;
+    const countQuery = `SELECT COUNT(*) as total FROM price_daily WHERE volume > 0 AND close > 0`;
 
     const [signalsResult, countResult] = await Promise.all([
       query(signalsQuery, [limit, offset]),
@@ -111,10 +111,10 @@ router.get("/buy", async (req, res) => {
         'daily' as timeframe,
         'BUY' as signal_type,
         0.80 as confidence,
-        close_price as price,
+        close as price,
         volume
       FROM price_daily
-      WHERE volume > 0 AND close_price > 0
+      WHERE volume > 0 AND close > 0
         AND MOD(EXTRACT(DAY FROM date)::integer, 3) = 1
       ORDER BY date DESC, symbol ASC
       LIMIT $1 OFFSET $2
@@ -123,7 +123,7 @@ router.get("/buy", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM price_daily
-      WHERE volume > 0 AND close_price > 0
+      WHERE volume > 0 AND close > 0
         AND MOD(EXTRACT(DAY FROM date)::integer, 3) = 1
     `;
 
@@ -179,10 +179,10 @@ router.get("/sell", async (req, res) => {
         'daily' as timeframe,
         'SELL' as signal_type,
         0.70 as confidence,
-        close_price as price,
+        close as price,
         volume
       FROM price_daily
-      WHERE volume > 0 AND close_price > 0
+      WHERE volume > 0 AND close > 0
         AND MOD(EXTRACT(DAY FROM date)::integer, 3) = 2
       ORDER BY date DESC, symbol ASC
       LIMIT $1 OFFSET $2
@@ -191,7 +191,7 @@ router.get("/sell", async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM price_daily
-      WHERE volume > 0 AND close_price > 0
+      WHERE volume > 0 AND close > 0
         AND MOD(EXTRACT(DAY FROM date)::integer, 3) = 2
     `;
 

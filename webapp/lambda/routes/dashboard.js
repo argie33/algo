@@ -133,9 +133,9 @@ router.get("/summary", async (req, res) => {
                 END) as avg_change,
                 AVG(pd.volume) as avg_volume
             FROM price_daily pd
-            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
+            LEFT JOIN price_daily prev ON pd.symbol = prev.symbol
                 AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-            JOIN stocks fm ON pd.symbol = s.symbol
+            JOIN stocks s ON pd.symbol = s.symbol
             WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
                 AND s.sector IS NOT NULL 
                 AND s.sector != ''
