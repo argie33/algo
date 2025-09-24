@@ -348,19 +348,19 @@ router.get("/:symbol", async (req, res) => {
     // Get stock data from confirmed tables only - simplified for AWS
     const stockQuery = `
       SELECT
-        s.symbol,
-        s.name,
-        s.sector,
-        s.industry,
-        s.market_cap,
-        s.price as current_price,
-        s.volume,
-        s.pe_ratio,
-        s.eps,
-        s.dividend_yield,
-        s.beta,
-        s.exchange,
-        s.previous_close,
+        f.symbol,
+        f.symbol as name,
+        f.sector,
+        f.industry,
+        f.market_cap,
+        COALESCE(pd.close, 0) as current_price,
+        COALESCE(pd.volume, 0) as volume,
+        f.pe_ratio,
+        f.earnings_per_share as eps,
+        f.dividend_yield,
+        f.beta,
+        'NASDAQ' as exchange,
+        COALESCE(pd.close, 0) as previous_close,
 
         -- Price data from price_daily
         pd.open,
@@ -370,10 +370,10 @@ router.get("/:symbol", async (req, res) => {
         pd.adj_close,
         pd.date as price_date
 
-      FROM stocks s
-      LEFT JOIN price_daily pd ON s.symbol = pd.symbol
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)
-      WHERE s.symbol = $1
+      FROM fundamental_metrics f
+      LEFT JOIN price_daily pd ON f.symbol = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = f.symbol)
+      WHERE f.symbol = $1
     `;
 
     const result = await query(stockQuery, [symbol.toUpperCase()]);

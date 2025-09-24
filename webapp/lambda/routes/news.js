@@ -57,12 +57,12 @@ router.get("/recent", async (req, res) => {
   try {
     console.log(`📰 Recent news requested, limit: ${limit}, hours: ${hours}`);
 
-    // Check if news_articles table exists
+    // Check if stock_news table exists (actual table from loadnews.py)
     const tableCheck = await query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name = 'news_articles'
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_name = 'stock_news'
     `);
 
     if (tableCheck.rows.length === 0) {
@@ -73,7 +73,7 @@ router.get("/recent", async (req, res) => {
           summary: {
             total_count: 0,
             message:
-              "News service requires database setup with news_articles table",
+              "News service requires database setup with stock_news table",
             filters_applied: {
               category: category || null,
               symbol: symbol || null,
@@ -94,26 +94,46 @@ router.get("/recent", async (req, res) => {
     let paramCounter = 1;
 
     if (category) {
-      whereConditions.push(`category = $${paramCounter}`);
+      whereConditions.push(`news_type = $${paramCounter}`);
       params.push(category);
       paramCounter++;
     }
 
     if (symbol) {
-      whereConditions.push(`symbols @> $${paramCounter}::jsonb`);
-      params.push(JSON.stringify([symbol.toUpperCase()]));
+      whereConditions.push(`ticker = $${paramCounter}`);
+      params.push(symbol.toUpperCase());
       paramCounter++;
     }
 
-    whereConditions.push(`published_at >= $${paramCounter}`);
+    whereConditions.push(`publish_time >= $${paramCounter}`);
     params.push(
       new Date(Date.now() - parseInt(hours) * 60 * 60 * 1000).toISOString()
     );
     paramCounter++;
 
-    // No news data available in current database schema
-    // Return empty successful response instead of database error
-    const articles = [];
+    // Query stock_news table (actual schema from loadnews.py)
+    const newsQuery = `
+      SELECT
+        id,
+        uuid,
+        ticker as symbol,
+        title,
+        publisher,
+        link,
+        publish_time,
+        news_type,
+        thumbnail,
+        related_tickers,
+        created_at
+      FROM stock_news
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY publish_time DESC NULLS LAST
+      LIMIT $${paramCounter}
+    `;
+
+    params.push(parseInt(limit));
+    const result = await query(newsQuery, params);
+    const articles = result?.rows || [];
 
     // Calculate summary statistics
     const totalArticles = articles.length;
