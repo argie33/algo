@@ -60,7 +60,8 @@ describe("Authentication Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        error: "Authentication required"
+        error: "Authentication required",
+        code: "MISSING_TOKEN"
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -73,7 +74,8 @@ describe("Authentication Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        error: "Invalid token format"
+        error: "Invalid token format",
+        code: "INVALID_TOKEN_FORMAT"
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -91,7 +93,8 @@ describe("Authentication Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        error: "Token expired"
+        error: "Token expired",
+        code: "TOKEN_EXPIRED"
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -109,7 +112,8 @@ describe("Authentication Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        error: "Invalid token"
+        error: "Invalid token",
+        code: "INVALID_TOKEN"
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -174,7 +178,8 @@ describe("Authentication Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        error: "Authentication required"
+        error: "Authentication required",
+        code: "MISSING_TOKEN"
       });
     });
 
@@ -235,7 +240,8 @@ describe("Authentication Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        error: "Authentication failed"
+        error: "Authentication failed",
+        code: "AUTH_FAILED"
       });
     });
 

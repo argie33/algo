@@ -1828,7 +1828,7 @@ router.get("/strategies", async (req, res) => {
       SELECT 
         id,
         strategy_name as name,
-        strategy_type as category,
+        status as category,
         description,
         status,
         parameters,
@@ -1845,7 +1845,7 @@ router.get("/strategies", async (req, res) => {
 
     // Add filters
     if (category !== "all") {
-      strategiesQuery += ` AND strategy_type = $${paramIndex}`;
+      strategiesQuery += ` AND status = $${paramIndex}`;
       queryParams.push(category);
       paramIndex++;
     }

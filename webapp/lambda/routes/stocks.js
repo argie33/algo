@@ -14,30 +14,18 @@ router.get("/sectors", async (req, res) => {
   try {
     console.log("Sectors endpoint called (public)");
 
-    // Simple sectors data from available price_daily table
+    // Use actual sectors from fundamental_metrics table (matches loadfundamentalmetrics.py schema)
     const sectorsQuery = `
       SELECT
-        'Technology' as sector,
+        COALESCE(sector, 'Other') as sector,
         COUNT(DISTINCT symbol) as count
-      FROM price_daily
+      FROM fundamental_metrics
       WHERE symbol IS NOT NULL
-      GROUP BY 1
-      UNION ALL
-      SELECT
-        'Finance' as sector,
-        COUNT(DISTINCT symbol) / 4 as count
-      FROM price_daily
-      WHERE symbol IS NOT NULL
-      GROUP BY 1
-      UNION ALL
-      SELECT
-        'Healthcare' as sector,
-        COUNT(DISTINCT symbol) / 6 as count
-      FROM price_daily
-      WHERE symbol IS NOT NULL
-      GROUP BY 1
+        AND sector IS NOT NULL
+        AND sector != ''
+      GROUP BY sector
       ORDER BY count DESC
-      LIMIT 10
+      LIMIT 15
     `;
 
     let result;
@@ -171,7 +159,7 @@ router.get("/public/sample", async (req, res) => {
         pe_ratio,
         dividend_yield,
         beta
-      FROM stocks
+      FROM fundamental_metrics
       WHERE symbol IS NOT NULL
         AND sector IS NOT NULL
         AND market_cap > 0
@@ -214,20 +202,21 @@ router.get("/popular", async (req, res) => {
   try {
     console.log("📈 Popular stocks requested");
 
-    // Query popular stocks from stocks table based on market cap (AWS confirmed schema)
-    // Simple query using stocks table with price data from price_daily
+    // Query popular stocks from fundamental_metrics and price_daily tables (actual AWS schema)
     const popularQuery = `
       SELECT
-        s.symbol,
-        s.name,
-        COALESCE(s.market_cap, 0) as market_cap,
-        COALESCE(s.price, 0) as price,
+        f.symbol,
+        f.symbol as name,
+        COALESCE(f.market_cap, 0) as market_cap,
+        COALESCE(p.close, 0) as price,
         0 as change_percent,
         0 as change,
-        COALESCE(s.volume, 0) as volume
-      FROM stocks s
-      WHERE s.market_cap IS NOT NULL
-      ORDER BY s.market_cap DESC NULLS LAST
+        COALESCE(p.volume, 0) as volume
+      FROM fundamental_metrics f
+      LEFT JOIN price_daily p ON f.symbol = p.symbol
+      WHERE f.market_cap IS NOT NULL
+        AND f.market_cap > 1000000000
+      ORDER BY f.market_cap DESC NULLS LAST
       LIMIT 10
     `;
 
@@ -538,22 +527,22 @@ router.get("/", async (req, res) => {
       offset,
     });
 
-    // SIMPLIFIED QUERY: Use only confirmed AWS tables with correct schema
+    // ACTUAL AWS SCHEMA: Use fundamental_metrics (from loadfundamentalmetrics.py)
     const stocksQuery = `
-      SELECT DISTINCT ON (s.symbol)
-        s.symbol,
-        s.name,
-        s.sector,
-        s.industry,
-        s.market_cap,
-        s.price as current_price,
-        s.volume,
-        s.pe_ratio,
-        s.dividend_yield,
-        s.beta,
-        s.exchange,
-        s.eps,
-        s.previous_close,
+      SELECT DISTINCT ON (f.symbol)
+        f.symbol,
+        f.symbol as name,
+        f.sector,
+        f.industry,
+        f.market_cap,
+        COALESCE(pd.close, 0) as current_price,
+        COALESCE(pd.volume, 0) as volume,
+        f.pe_ratio,
+        f.dividend_yield,
+        f.beta,
+        'NASDAQ' as exchange,
+        f.earnings_per_share as eps,
+        COALESCE(pd.close, 0) as previous_close,
 
         -- Recent price data
         pd.open,
@@ -563,23 +552,23 @@ router.get("/", async (req, res) => {
         pd.adj_close,
         pd.date as price_date
 
-      FROM stocks s
-      LEFT JOIN price_daily pd ON s.symbol = pd.symbol
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)
-      ${whereClause.replace(/symbol/g, 's.symbol')}
-      ORDER BY s.symbol, s.market_cap DESC NULLS LAST
+      FROM fundamental_metrics f
+      LEFT JOIN price_daily pd ON f.symbol = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = f.symbol)
+      ${whereClause.replace(/symbol/g, 'f.symbol')}
+      ORDER BY f.symbol, f.market_cap DESC NULLS LAST
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
     params.push(limit, offset);
 
-    // Count query - use optimized subquery for better performance in AWS
+    // Count query - use fundamental_metrics table for accurate counts
     const countQuery = `
       SELECT COUNT(*) as total
       FROM (
-        SELECT DISTINCT s.symbol
-        FROM stocks s
-        ${whereClause.replace(/symbol/g, 's.symbol')}
+        SELECT DISTINCT f.symbol
+        FROM fundamental_metrics f
+        ${whereClause.replace(/symbol/g, 'f.symbol')}
         LIMIT 1000
       ) as distinct_symbols
     `;

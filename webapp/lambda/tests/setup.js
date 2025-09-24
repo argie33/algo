@@ -4,6 +4,7 @@
 process.env.NODE_ENV = "test";
 process.env.ALLOW_DEV_BYPASS = "true";
 process.env.JWT_SECRET = "test-secret-key-for-testing-only";
+process.env.API_KEY_ENCRYPTION_SECRET = "test-encryption-secret-key-for-api-keys-testing-only";
 
 // Set database environment variables BEFORE importing any modules
 // Use real database for tests with seeded data (matching .env config)

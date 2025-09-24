@@ -223,7 +223,24 @@ def create_tables(conn):
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (series_id, date)
     );
-    
+
+    -- Create user_api_keys table for broker API credentials
+    CREATE TABLE IF NOT EXISTS user_api_keys (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        broker_name VARCHAR(100) NOT NULL,
+        encrypted_api_key TEXT NOT NULL,
+        encrypted_api_secret TEXT,
+        key_iv TEXT NOT NULL,
+        key_auth_tag TEXT NOT NULL,
+        secret_iv TEXT,
+        secret_auth_tag TEXT,
+        is_sandbox BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, broker_name)
+    );
+
     -- Grant permissions to stocks user
     GRANT ALL ON SCHEMA public TO stocks;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO stocks;
