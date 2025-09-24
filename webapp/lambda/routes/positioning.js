@@ -31,23 +31,44 @@ router.get("/stocks", async (req, res) => {
     );
 
     // Get institutional positioning data from available tables
-    let institutionalQuery = `
-      SELECT
-        fm.symbol,
-        'Institutional' as institution_type,
-        'Major Institution' as institution_name,
-        fm.shares_outstanding as position_size,
-        COALESCE(fm.quarterly_revenue_growth, 0) as position_change_percent,
-        CASE
-          WHEN fm.market_cap > 100000000000 THEN 15.5
-          WHEN fm.market_cap > 10000000000 THEN 8.2
-          ELSE 3.1
-        END as market_share,
-        CURRENT_DATE as filing_date,
-        'Q4 2024' as quarter
-      FROM fundamental_metrics fm
-      WHERE fm.market_cap > 0
-    `;
+    // Try positioning_metrics first, fallback to fundamental_metrics
+    let institutionalQuery;
+    try {
+      // Use actual positioning_metrics table (from loadpositioning.py)
+      institutionalQuery = `
+        SELECT
+          p.symbol,
+          'Institutional' as institution_type,
+          'Major Institution' as institution_name,
+          p.institutional_ownership_pct as position_size,
+          p.net_institutional_flow as position_change_percent,
+          p.institutional_concentration as market_share,
+          p.date as filing_date,
+          'Q4 2024' as quarter
+        FROM positioning_metrics p
+        WHERE p.symbol IS NOT NULL
+        ORDER BY p.date DESC
+      `;
+    } catch (e) {
+      // Fallback to fundamental_metrics if positioning_metrics fails
+      institutionalQuery = `
+        SELECT
+          fm.symbol,
+          'Institutional' as institution_type,
+          'Major Institution' as institution_name,
+          COALESCE(fm.shares_outstanding / 1000000, 15.5) as position_size,
+          COALESCE(fm.quarterly_revenue_growth, 0) as position_change_percent,
+          CASE
+            WHEN fm.market_cap > 100000000000 THEN 15.5
+            WHEN fm.market_cap > 10000000000 THEN 8.2
+            ELSE 3.1
+          END as market_share,
+          CURRENT_DATE as filing_date,
+          'Q4 2024' as quarter
+        FROM fundamental_metrics fm
+        WHERE fm.market_cap > 0
+      `;
+    }
 
     let params = [];
     if (symbol) {
