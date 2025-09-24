@@ -33,13 +33,13 @@ router.get("/", async (req, res) => {
       SELECT
         symbol,
         composite_score::numeric as composite_score,
-        fundamental_score::numeric as momentum_score,
-        technical_score::numeric as trend_score,
-        sentiment_score::numeric as value_score,
+        momentum_score::numeric as momentum_score,
+        trend_score::numeric as trend_score,
+        value_score::numeric as value_score,
         composite_score::numeric as quality_score,
-        sentiment::numeric as rsi,
-        date as score_date,
-        created_at as last_updated
+        rsi::numeric as rsi,
+        score_date as score_score_date,
+        last_updated as last_upscore_dated
       FROM stock_scores
       ORDER BY composite_score DESC
       LIMIT $1 OFFSET $2
@@ -93,8 +93,8 @@ router.get("/", async (req, res) => {
         volatility30d: null,
         marketCap: null,
         peRatio: null,
-        scoreDate: row.score_date,
-        lastUpdated: row.last_updated,
+        scoreDate: row.score_score_date,
+        lastUpscore_dated: row.last_upscore_dated,
       };
     });
 
@@ -136,7 +136,7 @@ router.get("/", async (req, res) => {
       },
       metadata: {
         dataSource: "stock_scores_table",
-        lastUpdated: stocks.length > 0 ? stocks[0].lastUpdated : null
+        lastUpscore_dated: stocks.length > 0 ? stocks[0].lastUpscore_dated : null
       },
       timestamp: new Date().toISOString(),
     });
@@ -162,13 +162,13 @@ router.get("/:symbol", async (req, res) => {
       SELECT
         symbol,
         composite_score::numeric as composite_score,
-        fundamental_score::numeric as momentum_score,
-        technical_score::numeric as trend_score,
-        sentiment_score::numeric as value_score,
+        momentum_score::numeric as momentum_score,
+        trend_score::numeric as trend_score,
+        value_score::numeric as value_score,
         composite_score::numeric as quality_score,
-        sentiment::numeric as rsi,
-        date as score_date,
-        created_at as last_updated
+        rsi::numeric as rsi,
+        score_date as score_score_date,
+        last_updated as last_upscore_dated
       FROM stock_scores
       WHERE symbol = $1
     `;
@@ -207,8 +207,8 @@ router.get("/:symbol", async (req, res) => {
         volatility30d: null,
         marketCap: null,
         peRatio: null,
-        scoreDate: score.score_date,
-        lastUpdated: score.last_updated,
+        scoreDate: score.score_score_date,
+        lastUpscore_dated: score.last_upscore_dated,
       },
       metadata: {
         dataSource: "stock_scores_table"
