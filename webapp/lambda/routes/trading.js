@@ -1825,17 +1825,16 @@ router.get("/strategies", async (req, res) => {
 
     // Query trading strategies from database
     let strategiesQuery = `
-      SELECT 
+      SELECT
         id,
         strategy_name as name,
         status as category,
-        description,
+        strategy_description as description,
         status,
-        parameters,
-        performance_metrics,
+        strategy_code,
+        backtest_id,
         created_at,
-        updated_at,
-        last_executed
+        updated_at
       FROM trading_strategies
       WHERE 1=1
     `;
