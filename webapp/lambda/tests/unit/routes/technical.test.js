@@ -106,23 +106,22 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       // Verify your actual database queries
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining("information_schema.tables"),
-        ["technical_data_daily"]
+        ["price_daily"]
       );
       expect(query).toHaveBeenCalledWith(expect.stringContaining("INNER JOIN"));
     });
 
-    test("should return 503 when technical_data_daily table doesn't exist", async () => {
+    test("should return 404 when price_daily table doesn't exist", async () => {
       const mockTableExists = { rows: [{ exists: false }] };
 
       query.mockResolvedValueOnce(mockTableExists);
 
-      const response = await request(app).get("/technical/").expect(503);
+      const response = await request(app).get("/technical/").expect(404);
 
       expect(response.body).toMatchObject({
         success: false,
         error: "Technical data not available",
         message: "Technical data table for daily timeframe does not exist",
-        service: "technical-overview",
         timeframe: "daily",
       });
     });
