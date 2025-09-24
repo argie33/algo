@@ -154,7 +154,7 @@ router.get("/symbols", async (req, res) => {
 
     const { category, limit, search } = req.query;
 
-    // Build query to get symbols from stocks table (populated by loader scripts)
+    // Build query to get symbols from fundamental_metrics table (populated by loader scripts)
     let symbolsQuery = `
       SELECT
         symbol,
@@ -162,10 +162,10 @@ router.get("/symbols", async (req, res) => {
         industry,
         market_cap,
         'stock' as category,
-        NULL as pe_ratio,
+        pe_ratio,
         dividend_yield,
         beta
-      FROM stocks
+      FROM fundamental_metrics
     `;
 
     const queryParams = [];
@@ -203,7 +203,7 @@ router.get("/symbols", async (req, res) => {
       industry: row.industry,
       market_cap: row.market_cap,
       metrics: {
-        pe_ratio: null,
+        pe_ratio: row.pe_ratio,
         dividend_yield: row.dividend_yield,
         beta: row.beta
       }
@@ -1116,7 +1116,7 @@ router.get("/stream", authenticateToken, async (req, res) => {
             s.price as close,
             0 as volume,
             CURRENT_TIMESTAMP as date
-          FROM stocks s
+          FROM fundamental_metrics s
           WHERE s.symbol = ANY($1)
           ORDER BY s.symbol
         `;

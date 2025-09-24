@@ -47,7 +47,7 @@ router.get("/calendar", async (req, res) => {
       WHERE payment_date >= CURRENT_DATE
         AND payment_date <= CURRENT_DATE + INTERVAL '${parseInt(days_ahead)} days'
         ${min_yield > 0 ? `AND dividend_yield >= ${parseFloat(min_yield)}` : ''}
-        ${sector ? `AND symbol IN (SELECT symbol FROM stocks WHERE sector = '${sector}')` : ''}
+        ${sector ? `AND symbol IN (SELECT symbol FROM fundamental_metrics WHERE sector = '${sector}')` : ''}
       ORDER BY payment_date ASC, dividend_yield DESC
       LIMIT $1
     `;
@@ -111,18 +111,18 @@ router.get("/aristocrats", async (req, res) => {
     // Query dividend aristocrats from available tables (fallback since dividend_aristocrats table doesn't exist)
     const aristocratsQuery = `
       SELECT
-        s.symbol,
-        COALESCE(cp.short_name, s.symbol) as company_name,
+        fm.symbol,
+        COALESCE(cp.short_name, fm.symbol) as company_name,
         25 as consecutive_years,
-        COALESCE(s.dividend_yield, 0) as current_yield,
-        COALESCE(s.dividend_rate, 0) as annual_dividend,
+        COALESCE(fm.dividend_yield, 0) as current_yield,
+        COALESCE(fm.dividend_rate, 0) as annual_dividend,
         0 as five_year_growth,
-        s.sector
-      FROM stocks fm
-      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-      WHERE s.dividend_yield >= $2
-        AND s.dividend_yield <= $3
-        AND s.dividend_yield > 0
+        fm.sector
+      FROM fundamental_metrics fm
+      LEFT JOIN company_profile cp ON fm.symbol = cp.ticker
+      WHERE fm.dividend_yield >= $2
+        AND fm.dividend_yield <= $3
+        AND fm.dividend_yield > 0
       ORDER BY current_yield DESC
       LIMIT $4
     `;

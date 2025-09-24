@@ -162,7 +162,7 @@ router.get("/earnings", async (req, res) => {
     // Transform and enrich the data with real database values from earnings_history
     const earnings = result.rows.map((row) => ({
       symbol: row.symbol,
-      company_name: null, // Will be populated from stocks table if available
+      company_name: null, // Will be populated from fundamental_metrics table if available
       sector: null,
       market_cap: null,
       report_date: row.report_date,
@@ -190,7 +190,7 @@ router.get("/earnings", async (req, res) => {
       if (symbols.length > 0) {
         const companyData = await query(
           `SELECT cp.symbol as symbol, cp.symbol as name, cp.sector, cp.market_cap
-           FROM stocks cp
+           FROM fundamental_metrics cp
            WHERE cp.symbol = ANY($1)`,
           [symbols]
         );

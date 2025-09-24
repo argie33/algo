@@ -598,15 +598,15 @@ router.get("/top", async (req, res) => {
 
     const topStocks = await query(
       `
-      SELECT cs.*, s.company_name, s.sector, s.market_cap,
+      SELECT cs.*, fm.company_name, fm.sector, fm.market_cap,
         CASE
-          WHEN s.market_cap > 10000000000 THEN 'Large Cap'
-          WHEN s.market_cap > 2000000000 THEN 'Mid Cap'
-          WHEN s.market_cap > 300000000 THEN 'Small Cap'
+          WHEN fm.market_cap > 10000000000 THEN 'Large Cap'
+          WHEN fm.market_cap > 2000000000 THEN 'Mid Cap'
+          WHEN fm.market_cap > 300000000 THEN 'Small Cap'
           ELSE 'Micro Cap'
         END as market_cap_tier
       FROM comprehensive_scores cs
-      LEFT JOIN stocks fm ON cs.symbol = s.symbol
+      LEFT JOIN fundamental_metrics fm ON cs.symbol = fm.symbol
       ${whereClause}
       AND cs.updated_at > NOW() - INTERVAL '24 hours'
       ORDER BY cs.composite_score DESC
@@ -659,14 +659,14 @@ router.get("/stats", async (req, res) => {
 
     const sectorStats = await query(`
       SELECT
-        COALESCE(s.sector, 'General') as sector,
+        COALESCE(fm.sector, 'General') as sector,
         COUNT(*) as count,
         AVG(cs.composite_score) as avg_score,
         MAX(cs.composite_score) as max_score
       FROM comprehensive_scores cs
-      LEFT JOIN stocks fm ON cs.symbol = s.symbol
+      LEFT JOIN fundamental_metrics fm ON cs.symbol = fm.symbol
       WHERE cs.updated_at > NOW() - INTERVAL '24 hours'
-      GROUP BY COALESCE(s.sector, 'General')
+      GROUP BY COALESCE(fm.sector, 'General')
       ORDER BY avg_score DESC
     `);
 
@@ -720,7 +720,7 @@ router.get("/stocks", async (req, res) => {
           sc.last_updated,
           p.close as current_price,
           p.volume
-        FROM stocks s
+        FROM fundamental_metrics s
         JOIN stock_scores sc ON s.symbol = sc.symbol
         LEFT JOIN price_daily p ON s.symbol = p.symbol
           AND p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.symbol)

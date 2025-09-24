@@ -31,7 +31,7 @@ router.get("/stocks", async (req, res) => {
     );
 
     // Get institutional positioning data from available tables
-    // Try positioning_metrics first, fallback to stocks
+    // Try positioning_metrics first, fallback to fundamental_metrics
     let institutionalQuery;
     try {
       // Use actual positioning_metrics table (from loadpositioning.py)
@@ -50,29 +50,29 @@ router.get("/stocks", async (req, res) => {
         ORDER BY p.date DESC
       `;
     } catch (e) {
-      // Fallback to stocks if positioning_metrics fails
+      // Fallback to fundamental_metrics if positioning_metrics fails
       institutionalQuery = `
         SELECT
-          s.symbol,
+          fm.symbol,
           'Institutional' as institution_type,
           'Major Institution' as institution_name,
-          COALESCE(s.shares_outstanding / 1000000, 15.5) as position_size,
-          COALESCE(s.quarterly_revenue_growth, 0) as position_change_percent,
+          COALESCE(fm.shares_outstanding / 1000000, 15.5) as position_size,
+          COALESCE(fm.quarterly_revenue_growth, 0) as position_change_percent,
           CASE
-            WHEN s.market_cap > 100000000000 THEN 15.5
-            WHEN s.market_cap > 10000000000 THEN 8.2
+            WHEN fm.market_cap > 100000000000 THEN 15.5
+            WHEN fm.market_cap > 10000000000 THEN 8.2
             ELSE 3.1
           END as market_share,
           CURRENT_DATE as filing_date,
           'Q4 2024' as quarter
-        FROM stocks fm
-        WHERE s.market_cap > 0
+        FROM fundamental_metrics fm
+        WHERE fm.market_cap > 0
       `;
     }
 
     let params = [];
     if (symbol) {
-      institutionalQuery = institutionalQuery.replace('WHERE s.market_cap > 0', 'WHERE s.market_cap > 0 AND s.symbol = $1');
+      institutionalQuery = institutionalQuery.replace('WHERE fm.market_cap > 0', 'WHERE fm.market_cap > 0 AND fm.symbol = $1');
       params.push(symbol);
     }
 
@@ -142,12 +142,12 @@ router.get("/summary", async (req, res) => {
     // Get institutional flow summary from available data
     const institutionalSummary = await query(`
       SELECT
-        AVG(COALESCE(s.quarterly_revenue_growth, 0)) as avg_change,
-        COUNT(CASE WHEN COALESCE(s.quarterly_revenue_growth, 0) > 0 THEN 1 END) as bullish_count,
-        COUNT(CASE WHEN COALESCE(s.quarterly_revenue_growth, 0) < 0 THEN 1 END) as bearish_count,
+        AVG(COALESCE(fm.quarterly_revenue_growth, 0)) as avg_change,
+        COUNT(CASE WHEN COALESCE(fm.quarterly_revenue_growth, 0) > 0 THEN 1 END) as bullish_count,
+        COUNT(CASE WHEN COALESCE(fm.quarterly_revenue_growth, 0) < 0 THEN 1 END) as bearish_count,
         COUNT(*) as total_positions
-      FROM stocks fm
-      WHERE s.market_cap > 0
+      FROM fundamental_metrics fm
+      WHERE fm.market_cap > 0
     `);
 
     // Get retail sentiment summary

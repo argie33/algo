@@ -924,7 +924,7 @@ router.get("/sectors", async (req, res) => {
   try {
     console.log("🏭 Public sectors analytics requested");
 
-    // Get general market sectors data from stocks
+    // Get general market sectors data from fundamental_metrics
     const sectorsResult = await query(
       `
       SELECT
@@ -932,7 +932,7 @@ router.get("/sectors", async (req, res) => {
         COUNT(DISTINCT cp.symbol) as stock_count,
         AVG(COALESCE(pd.close, 100)) as avg_price,
         SUM(COALESCE(pd.volume, 1000000)) as total_volume
-      FROM stocks cp
+      FROM fundamental_metrics cp
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -1264,7 +1264,7 @@ router.post("/custom", async (req, res) => {
                 const stockResult = await query(
                   `
                 SELECT symbol as symbol, close as current_price
-                FROM stocks
+                FROM fundamental_metrics
                 WHERE symbol = $1
                 LIMIT 1
               `,
@@ -1677,7 +1677,7 @@ router.get("/attribution", async (req, res) => {
         c.sector,
         c.industry
       FROM portfolio_holdings h
-      LEFT JOIN stocks c ON h.symbol = c.symbol
+      LEFT JOIN fundamental_metrics c ON h.symbol = c.symbol
       WHERE h.user_id = $1
       ORDER BY h.weight DESC
     `;

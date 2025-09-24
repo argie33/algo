@@ -91,7 +91,7 @@ router.get("/items", authenticateToken, async (req, res) => {
         FROM price_daily 
         ORDER BY symbol, date DESC
       ) sp ON wi.symbol = sp.symbol
-      LEFT JOIN stocks s ON wi.symbol = s.symbol
+      LEFT JOIN fundamental_metrics s ON wi.symbol = s.symbol
       WHERE w.user_id = $1
     `;
 
@@ -235,7 +235,7 @@ router.get("/items/recent", async (req, res) => {
       LEFT JOIN watchlists w ON wi.watchlist_id = w.id
       LEFT JOIN price_daily pd ON wi.symbol = pd.symbol
         AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = wi.symbol)
-      LEFT JOIN stocks s ON wi.symbol = s.symbol
+      LEFT JOIN fundamental_metrics s ON wi.symbol = s.symbol
       WHERE wi.added_at >= NOW() - INTERVAL $2 || ' days'
       ORDER BY wi.added_at DESC
       LIMIT $1

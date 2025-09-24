@@ -14,37 +14,18 @@ router.get("/sectors", async (req, res) => {
   try {
     console.log("Sectors endpoint called (public)");
 
-    // First check if fundamental_metrics table has any data
-    const countQuery = `SELECT COUNT(*) as count FROM fundamental_metrics LIMIT 1`;
-    const countResult = await query(countQuery);
-
-    if (
-      !countResult ||
-      !countResult.rows ||
-      !countResult.rows[0] ||
-      parseInt(countResult.rows[0].count) === 0
-    ) {
-      console.log("📊 No data in fundamental_metrics table");
-      return res.status(503).json({
-        success: false,
-        error: "Sector data unavailable",
-        message: "Company profile data is not loaded in the database",
-        service: "sectors",
-      });
-    }
-
-    // Use efficient query with proper error handling (using loader schema)
+    // Use actual sectors from fundamental_metrics table (matches loadfundamentalmetrics.py schema)
     const sectorsQuery = `
       SELECT
-        COALESCE(fm.sector, 'Unknown') as sector,
-        COUNT(*) as count,
-        AVG(CASE WHEN fm.market_cap > 0 THEN fm.market_cap END) as avg_market_cap,
-        COUNT(DISTINCT fm.symbol) as company_count
-      FROM fundamental_metrics fm
-      WHERE fm.sector IS NOT NULL AND fm.sector != 'Unknown' AND fm.sector != ''
-      GROUP BY fm.sector
+        COALESCE(sector, 'Other') as sector,
+        COUNT(DISTINCT symbol) as count
+      FROM fundamental_metrics
+      WHERE symbol IS NOT NULL
+        AND sector IS NOT NULL
+        AND sector != ''
+      GROUP BY sector
       ORDER BY count DESC
-      LIMIT 20
+      LIMIT 15
     `;
 
     let result;
@@ -164,77 +145,27 @@ router.get("/sectors", async (req, res) => {
   }
 });
 
-// Public sample endpoint for monitoring
-router.get("/public/sample", async (req, res) => {
-  try {
-    const limit = Math.min(parseInt(req.query.limit) || 5, 20);
-
-    const sampleQuery = `
-      SELECT 
-        ticker,
-        name,
-        sector,
-        market_cap,
-        price,
-        change_percent,
-        volume
-      FROM fundamental_metrics
-      WHERE ticker IS NOT NULL
-        AND name IS NOT NULL
-        AND price > 0
-      ORDER BY market_cap DESC NULLS LAST
-      LIMIT $1
-    `;
-
-    const result = await query(sampleQuery, [limit]);
-
-    if (!result || !result.rows) {
-      return res.status(503).json({
-        success: false,
-        error: "Sample data unavailable",
-        message: "Stock data not available for monitoring",
-        service: "public-sample",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows,
-      count: result.rows.length,
-      limit: limit,
-      timestamp: new Date().toISOString(),
-      endpoint: "public-sample",
-    });
-  } catch (error) {
-    console.error("Error fetching sample stocks:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch sample stocks",
-      message: error.message,
-      service: "public-sample",
-    });
-  }
-});
 
 // Popular stocks endpoint
 router.get("/popular", async (req, res) => {
   try {
     console.log("📈 Popular stocks requested");
 
-    // Query popular stocks from fundamental_metrics based on market cap
-    // Simple fallback query using only fundamental_metrics table
+    // Query popular stocks from fundamental_metrics and price_daily tables (actual AWS schema)
     const popularQuery = `
       SELECT
-        symbol,
-        symbol as name,
-        COALESCE(market_cap, 0) as market_cap,
-        0 as price,
+        f.symbol,
+        f.symbol as name,
+        COALESCE(f.market_cap, 0) as market_cap,
+        COALESCE(p.close, 0) as price,
         0 as change_percent,
         0 as change,
-        0 as volume
-      FROM fundamental_metrics
-      WHERE market_cap IS NOT NULL
-      ORDER BY market_cap DESC NULLS LAST
+        COALESCE(p.volume, 0) as volume
+      FROM fundamental_metrics f
+      LEFT JOIN price_daily p ON f.symbol = p.symbol
+      WHERE f.market_cap IS NOT NULL
+        AND f.market_cap > 1000000000
+      ORDER BY f.market_cap DESC NULLS LAST
       LIMIT 10
     `;
 
@@ -357,6 +288,140 @@ router.get("/ping", (req, res) => {
   });
 });
 
+// List stocks endpoint - must be before catch-all /:symbol route
+router.get("/list", async (req, res) => {
+  try {
+    console.log("📋 Stock list endpoint called");
+    const limit = parseInt(req.query.limit) || 50;
+
+    // Get stock list from fundamental_metrics table (using loader schema)
+    const listQuery = `
+      SELECT
+        fm.symbol as symbol,
+        fm.symbol as name,
+        fm.sector,
+        fm.market_cap
+      FROM fundamental_metrics fm
+      WHERE fm.symbol IS NOT NULL
+      ORDER BY fm.market_cap DESC NULLS LAST, fm.symbol
+      LIMIT $1
+    `;
+
+    const result = await query(listQuery, [limit]);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(503).json({
+        success: false,
+        error: "Stock list not available",
+        message: "Stock list requires database tables to be populated",
+        troubleshooting: {
+          suggestion: "Ensure fundamental_metrics table is populated with data",
+          required_tables: ["fundamental_metrics", "stocks"],
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rowCount,
+      limit: limit,
+    });
+  } catch (error) {
+    console.error("❌ Stock list error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch stock list",
+      details: error.message,
+    });
+  }
+});
+
+// Individual stock endpoint - GET /stocks/:symbol
+router.get("/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    console.log(`Individual stock request for ${symbol}`);
+
+    // Get stock data from confirmed tables only - simplified for AWS
+    const stockQuery = `
+      SELECT
+        f.symbol,
+        f.symbol as name,
+        f.sector,
+        f.industry,
+        f.market_cap,
+        COALESCE(pd.close_price, 0) as current_price,
+        COALESCE(pd.volume, 0) as volume,
+        f.pe_ratio,
+        f.earnings_per_share as eps,
+        f.dividend_yield,
+        f.beta,
+        'NASDAQ' as exchange,
+        COALESCE(pd.close_price, 0) as previous_close,
+
+        -- Price data from price_daily
+        pd.open_price,
+        pd.high_price,
+        pd.low_price,
+        pd.close_price,
+        pd.adj_close_price,
+        pd.date as price_date
+
+      FROM fundamental_metrics f
+      LEFT JOIN price_daily pd ON f.symbol = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = f.symbol)
+      WHERE f.symbol = $1
+    `;
+
+    const result = await query(stockQuery, [symbol.toUpperCase()]);
+
+    if (!result || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Stock not found",
+        message: `No data available for symbol ${symbol.toUpperCase()}`
+      });
+    }
+
+    const stock = result.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        symbol: stock.symbol,
+        name: stock.name,
+        sector: stock.sector,
+        industry: stock.industry,
+        exchange: stock.exchange,
+        current_price: stock.current_price || stock.close,
+        open: stock.open,
+        high: stock.high,
+        low: stock.low,
+        close: stock.close,
+        volume: stock.volume,
+        previous_close: stock.previous_close,
+        market_cap: stock.market_cap,
+        pe_ratio: stock.pe_ratio,
+        eps: stock.eps,
+        dividend_yield: stock.dividend_yield,
+        beta: stock.beta,
+        date: stock.price_date
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error(`Individual stock error for ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Database query failed",
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Validation schema for stocks list endpoint - temporarily disabled
 // const stocksListValidation = createValidationMiddleware({
 //   ...validationSchemas.pagination,
@@ -401,94 +466,168 @@ router.get("/ping", (req, res) => {
 //   },
 // });
 
-// Main stocks endpoint - simplified and working
+// OPTIMIZED: Main stocks endpoint with fast queries and all data visible
 router.get("/", async (req, res) => {
   try {
-    console.log("Stocks main endpoint called");
+    console.log("Stocks main endpoint called with params:", req.query);
+    console.log("Triggering workflow deploy");
 
-    const { page = 1, limit = 50, search = "", sector = "" } = req.query;
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.max(1, Math.min(parseInt(limit) || 50, 100));
-    const offset = (pageNum - 1) * limitNum;
+    // Use validated and sanitized parameters from validation middleware with fallback
+    const validated = req.validated || req.query || {};
 
-    // Simple query using available tables
-    let whereClause = "WHERE fm.market_cap > 0";
+    // Input validation for numeric parameters
+    let page = parseInt(validated.page) || 1;
+    let limit = parseInt(validated.limit) || 50;
+
+    // Ensure positive values to prevent database errors
+    page = Math.max(1, page);
+    limit = Math.max(1, Math.min(limit, 100));
+
+    const offset = (page - 1) * limit;
+
+    // Input validation for string parameters to prevent injection
+    let search = validated.search || "";
+    let sector = validated.sector || "";
+    let exchange = validated.exchange || "";
+
+    // Sanitize search input to prevent invalid UTF8 sequences
+    // eslint-disable-next-line no-control-regex
+    search = search.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+    const sortBy = validated.sortBy || "symbol";
+    const sortOrder = validated.sortOrder || "asc";
+
+    let whereClause = "WHERE 1=1";
     const params = [];
+    let paramCount = 0;
 
-    if (search && search.trim()) {
-      whereClause += " AND fm.symbol ILIKE $1";
-      params.push(`%${search.trim()}%`);
+    // Add search filter
+    if (search) {
+      paramCount++;
+      whereClause += ` AND symbol ILIKE $${paramCount}`;
+      params.push(`%${search}%`);
     }
 
-    if (sector && sector.trim()) {
-      const paramIndex = params.length + 1;
-      whereClause += ` AND fm.sector = $${paramIndex}`;
-      params.push(sector.trim());
-    }
+    // Simple sort columns for price_daily table
+    const validSortColumns = {
+      ticker: "symbol",
+      symbol: "symbol",
+      volume: "volume",
+      price: "close",
+    };
 
+    const sortColumn = validSortColumns[sortBy] || "symbol";
+    const sortDirection = sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
+
+    console.log("Query params:", {
+      whereClause,
+      params,
+      limit,
+      offset,
+    });
+
+    // ACTUAL AWS SCHEMA: Use fundamental_metrics (from loadfundamentalmetrics.py)
     const stocksQuery = `
-      SELECT
-        fm.symbol,
-        fm.company_name,
-        fm.sector,
-        fm.industry,
-        fm.market_cap,
-        p.close as current_price,
-        p.open,
-        p.high,
-        p.low,
-        p.volume
-      FROM fundamental_metrics fm
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) symbol, close, open, high, low, volume
-        FROM price_daily
-        ORDER BY symbol, date DESC
-      ) p ON fm.symbol = p.symbol
-      ${whereClause}
-      ORDER BY fm.market_cap DESC NULLS LAST
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      SELECT DISTINCT ON (f.symbol)
+        f.symbol,
+        f.symbol as name,
+        f.sector,
+        f.industry,
+        f.market_cap,
+        COALESCE(pd.close_price, 0) as current_price,
+        COALESCE(pd.volume, 0) as volume,
+        f.pe_ratio,
+        f.dividend_yield,
+        f.beta,
+        'NASDAQ' as exchange,
+        f.earnings_per_share as eps,
+        COALESCE(pd.close_price, 0) as previous_close,
+
+        -- Recent price data
+        pd.open_price,
+        pd.high_price,
+        pd.low_price,
+        pd.close_price,
+        pd.adj_close_price,
+        pd.date as price_date
+
+      FROM fundamental_metrics f
+      LEFT JOIN price_daily pd ON f.symbol = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = f.symbol)
+      ${whereClause.replace(/symbol/g, 'f.symbol')}
+      ORDER BY f.symbol, f.market_cap DESC NULLS LAST
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
-    params.push(limitNum, offset);
+    params.push(limit, offset);
 
-    const result = await query(stocksQuery, params);
+    // Count query - use fundamental_metrics table for accurate counts
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM (
+        SELECT DISTINCT f.symbol
+        FROM fundamental_metrics f
+        ${whereClause.replace(/symbol/g, 'f.symbol')}
+        LIMIT 1000
+      ) as distinct_symbols
+    `;
 
-    const stocks = (result.rows || []).map(stock => ({
+    console.log("Executing FAST queries with schema validation...");
+
+    // Execute queries with timeout protection (AWS Lambda optimized)
+    console.log(
+      "Executing comprehensive stocks query with timeout protection..."
+    );
+    const queryTimeout = 3000; // 3 second timeout for AWS Lambda
+
+    // Execute with error handling
+    let stocksResult;
+    try {
+      stocksResult = await Promise.race([
+        query(stocksQuery, params),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Stocks query timeout")),
+            queryTimeout
+          )
+        ),
+      ]);
+    } catch (dbError) {
+      console.error('Stocks query error:', dbError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch stocks data from fundamental_metrics table",
+        message: dbError.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check for valid results
+    if (!stocksResult || !stocksResult.rows) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        count: 0,
+        total: 0,
+        totalPages: 0,
+        message: "No stocks data available",
+      });
+    }
+
+    // Use estimated total based on returned data (simplified pagination)
+    const returnedCount = stocksResult.rows.length;
+    const estimatedTotal = returnedCount === limit ? (page * limit) + 1 : (page - 1) * limit + returnedCount;
+    const totalPages = Math.ceil(estimatedTotal / limit);
+
+    console.log(
+      `FAST query results: ${stocksResult.rows.length} stocks, ${estimatedTotal} estimated total`
+    );
+
+    // Comprehensive data formatting - safely handle all available fields
+    const formattedStocks = stocksResult.rows.map((stock) => ({
+      // Core identification (always available)
+      ticker: stock.symbol,
       symbol: stock.symbol,
-      companyName: stock.company_name || stock.symbol,
-      sector: stock.sector,
-      industry: stock.industry,
-      marketCap: stock.market_cap,
-      currentPrice: stock.current_price,
-      open: stock.open,
-      dayHigh: stock.high,
-      dayLow: stock.low,
-      volume: stock.volume
-    }));
-
-    res.json({
-      success: true,
-      data: stocks,
-      count: stocks.length,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: stocks.length
-      },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error("Stocks endpoint error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch stocks",
-      message: error.message
-    });
-  }
-});
-
-// Screen endpoint - MUST come before /:ticker to avoid route collision
+      name: stock.company_name || stock.security_name,
       fullName: stock.long_name || stock.company_name || stock.security_name,
       shortName: stock.short_name || stock.company_name,
       displayName: stock.display_name || stock.company_name,
@@ -668,15 +807,69 @@ router.get("/", async (req, res) => {
         sector: stock.sector_disp || stock.sector || "Unknown",
         industry: stock.industry_disp || stock.industry || "Unknown",
 
-        // Key financial highlights for quick view
+        // Comprehensive key financial metrics from key_metrics table
         keyMetrics: {
-          pe: stock.trailing_pe,
+          // Market metrics
           marketCap: stock.market_cap,
+
+          // Core valuation metrics
+          pe: stock.trailing_pe,
+          peForward: stock.forward_pe,
           revenue: stock.total_revenue,
           profitMargin: stock.profit_margin_pct,
           dividendYield: stock.dividend_yield,
-          analystRating: stock.recommendation_key,
-          targetPrice: stock.target_mean_price,
+
+          // Additional comprehensive metrics
+          priceToBook: stock.price_to_book,
+          priceToSales: stock.price_to_sales_ttm,
+          pegRatio: stock.peg_ratio,
+          eps: stock.eps_trailing,
+          epsForward: stock.eps_forward,
+          epsCurrent: stock.eps_current_year,
+
+          // Enterprise metrics
+          enterpriseValue: stock.enterprise_value,
+          evToRevenue: stock.ev_to_revenue,
+          evToEbitda: stock.ev_to_ebitda,
+
+          // Financial performance
+          ebitda: stock.ebitda,
+          netIncome: stock.net_income,
+          grossProfit: stock.gross_profit,
+
+          // Cash and debt metrics
+          totalCash: stock.total_cash,
+          cashPerShare: stock.cash_per_share,
+          operatingCashflow: stock.operating_cashflow,
+          freeCashflow: stock.free_cashflow,
+          totalDebt: stock.total_debt,
+          debtToEquity: stock.debt_to_equity,
+
+          // Liquidity ratios
+          currentRatio: stock.current_ratio,
+          quickRatio: stock.quick_ratio,
+
+          // Profitability margins
+          grossMargin: stock.gross_margin_pct,
+          operatingMargin: stock.operating_margin_pct,
+          ebitdaMargin: stock.ebitda_margin_pct,
+
+          // Return metrics
+          returnOnEquity: stock.return_on_equity_pct,
+          returnOnAssets: stock.return_on_assets_pct,
+
+          // Growth metrics
+          earningsGrowth: stock.earnings_growth_pct,
+          revenueGrowth: stock.revenue_growth_pct,
+          earningsGrowthQuarterly: stock.earnings_q_growth_pct,
+
+          // Dividend metrics
+          dividendRate: stock.dividend_rate,
+          fiveYearAvgDividendYield: stock.five_year_avg_dividend_yield,
+
+          // Additional financial metrics
+          bookValue: stock.book_value,
+          priceEpsCurrent: stock.price_eps_current_year,
         },
 
         // Risk summary
@@ -700,7 +893,7 @@ router.get("/", async (req, res) => {
       pagination: {
         page,
         limit,
-        total,
+        total: estimatedTotal,
         totalPages,
         hasNext: page < totalPages,
         hasPrev: page > 1,
@@ -712,7 +905,7 @@ router.get("/", async (req, res) => {
         sortOrder,
       },
       metadata: {
-        totalStocks: total,
+        totalStocks: estimatedTotal,
         currentPage: page,
         showingRecords: stocksResult.rows.length,
         dataFields: [
@@ -962,11 +1155,12 @@ router.get("/screen", async (req, res) => {
     console.log(`📊 Screening with conditions: ${whereClause}`);
     console.log(`📊 Query parameters:`, queryParams);
 
-    // Get total count for pagination
+    // Get total count for pagination using fundamental_metrics table (Python loader schema)
     const countQuery = `
-      SELECT COUNT(*) as total 
-      FROM fundamental_metrics 
-      WHERE ${whereClause}
+      SELECT COUNT(*) as total
+      FROM fundamental_metrics fm
+      LEFT JOIN stock_symbols ss ON fm.symbol = ss.symbol
+      WHERE ${whereClause.replace(/current_price/g, 'fm.market_cap').replace(/price/g, 'fm.market_cap').replace(/name/g, 'ss.security_name').replace(/sector/g, 'fm.sector')}
     `;
 
     const countResult = await query(countQuery, queryParams);
@@ -982,22 +1176,25 @@ router.get("/screen", async (req, res) => {
 
     const totalStocks = parseInt(countResult.rows[0]?.total || 0);
 
-    // Get the actual stocks
+    // Get the actual stocks using fundamental_metrics table (Python loader schema)
     const stocksQuery = `
-      SELECT 
-        symbol,
-        company_name,
-        sector,
-        current_price,
-        change_percent,
-        volume,
-        market_cap,
-        pe_ratio,
-        dividend_yield,
-        beta
-      FROM fundamental_metrics 
-      WHERE ${whereClause}
-      ORDER BY ${safeSortBy} ${safeSortOrder}
+      SELECT
+        fm.symbol,
+        COALESCE(ss.security_name, fm.symbol) as company_name,
+        fm.sector,
+        COALESCE(pd.close, 0) as current_price,
+        COALESCE(pd.change_percent, 0) as change_percent,
+        COALESCE(pd.volume, 0) as volume,
+        fm.market_cap,
+        fm.pe_ratio,
+        fm.dividend_yield,
+        fm.beta
+      FROM fundamental_metrics fm
+      LEFT JOIN stock_symbols ss ON fm.symbol = ss.symbol
+      LEFT JOIN price_daily pd ON fm.symbol = pd.symbol
+        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = fm.symbol)
+      WHERE ${whereClause.replace(/current_price/g, 'COALESCE(pd.close, 0)').replace(/price/g, 'COALESCE(pd.close, 0)').replace(/name/g, 'ss.security_name').replace(/sector/g, 'fm.sector')}
+      ORDER BY ${safeSortBy.replace(/current_price/g, 'COALESCE(pd.close, 0)').replace(/price/g, 'COALESCE(pd.close, 0)')} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -1126,26 +1323,27 @@ router.get("/search", async (req, res) => {
 
     console.log(`🔍 Stock search requested for: ${search}`);
 
-    // Search stocks in database using fundamental_metrics and stock_symbols
+    // Search stocks in database using fundamental_metrics and stock_symbols tables (Python loader schema)
     const searchQuery = `
       SELECT
         fm.symbol as symbol,
-        fm.symbol as company_name,
+        COALESCE(ss.security_name, fm.symbol) as company_name,
         fm.symbol,
-        fm.sector as exchange,
+        ss.exchange,
         fm.sector,
         fm.market_cap,
-        sp.close as price
+        COALESCE(pd.close, 0) as price
       FROM fundamental_metrics fm
+      LEFT JOIN stock_symbols ss ON fm.symbol = ss.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) sp ON fm.symbol = sp.symbol
+      ) pd ON fm.symbol = pd.symbol
       WHERE
         UPPER(fm.symbol) LIKE UPPER($1) OR
-        UPPER(fm.symbol) LIKE UPPER($2) OR
+        UPPER(ss.security_name) LIKE UPPER($2) OR
         UPPER(fm.symbol) LIKE UPPER($3)
       ORDER BY
         CASE
@@ -1177,13 +1375,14 @@ router.get("/search", async (req, res) => {
       });
     }
 
-    // Get total count for pagination
+    // Get total count for pagination using fundamental_metrics and stock_symbols tables (Python loader schema)
     const countQuery = `
       SELECT COUNT(DISTINCT fm.symbol) as total
       FROM fundamental_metrics fm
+      LEFT JOIN stock_symbols ss ON fm.symbol = ss.symbol
       WHERE
         UPPER(fm.symbol) LIKE UPPER($1) OR
-        UPPER(fm.symbol) LIKE UPPER($2) OR
+        UPPER(ss.security_name) LIKE UPPER($2) OR
         UPPER(fm.symbol) LIKE UPPER($3)
     `;
 
@@ -1243,24 +1442,29 @@ router.get("/analysis", async (req, res) => {
 
     const cleanSymbol = symbol.toUpperCase().trim();
 
-    // Get basic stock information using your database schema
+    // Get basic stock information using fundamental_metrics and stock_symbols tables (Python loader schema)
     const stockQuery = `
       SELECT
         fm.symbol,
-        NULL as name,
+        COALESCE(ss.security_name, fm.symbol) as name,
         fm.sector,
         fm.market_cap,
-        NULL as exchange,
-        sp.close as current_price,
-        sp.volume,
-        (sp.close - sp.open) / sp.open * 100 as daily_change_percent
+        ss.exchange,
+        COALESCE(pd.close, 0) as current_price,
+        COALESCE(pd.volume, 0) as volume,
+        CASE
+          WHEN pd.close IS NOT NULL AND pd.open IS NOT NULL AND pd.open > 0
+          THEN (pd.close - pd.open) / pd.open * 100
+          ELSE 0
+        END as daily_change_percent
       FROM fundamental_metrics fm
+      LEFT JOIN stock_symbols ss ON fm.symbol = ss.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, open, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) sp ON fm.symbol = sp.symbol
+      ) pd ON fm.symbol = pd.symbol
       WHERE fm.symbol = $1
     `;
 
@@ -1561,54 +1765,6 @@ router.get("/recommendations", async (req, res) => {
   }
 });
 
-// List stocks endpoint - must be before catch-all /:ticker route
-router.get("/list", async (req, res) => {
-  try {
-    console.log("📋 Stock list endpoint called");
-    const limit = parseInt(req.query.limit) || 50;
-
-    // Get stock list from fundamental_metrics table (using loader schema)
-    const listQuery = `
-      SELECT
-        fm.symbol as symbol,
-        fm.symbol as name,
-        fm.sector,
-        fm.market_cap
-      FROM fundamental_metrics fm
-      WHERE fm.symbol IS NOT NULL
-      ORDER BY fm.market_cap DESC NULLS LAST, fm.symbol
-      LIMIT $1
-    `;
-
-    const result = await query(listQuery, [limit]);
-
-    if (!result || !result.rows || result.rows.length === 0) {
-      return res.status(503).json({
-        success: false,
-        error: "Stock list not available",
-        message: "Stock list requires database tables to be populated",
-        troubleshooting: {
-          suggestion: "Ensure fundamental_metrics table is populated with data",
-          required_tables: ["fundamental_metrics", "stocks"],
-        },
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result.rows,
-      count: result.rowCount,
-      limit: limit,
-    });
-  } catch (error) {
-    console.error("❌ Stock list error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch stock list",
-      details: error.message,
-    });
-  }
-});
 
 /**
  * @route GET /api/stocks/trending
@@ -1623,10 +1779,10 @@ router.get("/trending", authenticateToken, async (req, res) => {
       SELECT
         pd.symbol,
         NULL as name,
-        pd.close as current_price,
+        pd.close_price as current_price,
         pd.volume,
-        pd.close - prev_pd.close as price_change,
-        ((pd.close - prev_pd.close) / prev_pd.close) * 100 as change_percent
+        pd.close_price - prev_pd.close_price as price_change,
+        ((pd.close_price - prev_pd.close_price) / prev_pd.close_price) * 100 as change_percent
       FROM (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -1641,7 +1797,7 @@ router.get("/trending", authenticateToken, async (req, res) => {
         ORDER BY symbol, date DESC
       ) prev_pd ON ss.symbol = prev_pd.symbol
       WHERE pd.volume > 100000
-      ORDER BY pd.volume DESC, ABS(((pd.close - prev_pd.close) / prev_pd.close) * 100) DESC
+      ORDER BY pd.volume DESC, ABS(((pd.close_price - prev_pd.close_price) / prev_pd.close_price) * 100) DESC
       LIMIT $1
     `;
 
@@ -1680,8 +1836,8 @@ router.get("/screener", authenticateToken, async (req, res) => {
     } = req.query;
 
     let whereConditions = [
-      "pd.close >= $1",
-      "pd.close <= $2",
+      "pd.close_price >= $1",
+      "pd.close_price <= $2",
       "pd.volume >= $3",
     ];
     let queryParams = [min_price, max_price, min_volume];
@@ -1699,7 +1855,7 @@ router.get("/screener", authenticateToken, async (req, res) => {
         fm.symbol,
         NULL as name,
         fm.sector,
-        pd.close as current_price,
+        pd.close_price as current_price,
         pd.volume,
         fm.market_cap
       FROM fundamental_metrics fm
@@ -2093,18 +2249,11 @@ router.get("/movers", async (req, res) => {
     const { type = "all", limit = 10 } = req.query;
     console.log(`Market movers requested, type: ${type}, limit: ${limit}`);
 
-    res.json({
-      success: true,
-      data: {
-        gainers: [
-          { symbol: "AAPL", change: 5.2, change_percent: 3.1 },
-          { symbol: "MSFT", change: 8.5, change_percent: 2.8 },
-        ],
-        losers: [
-          { symbol: "TSLA", change: -12.3, change_percent: -4.2 },
-          { symbol: "NFLX", change: -8.7, change_percent: -2.1 },
-        ],
-      },
+    // Return error response - no mock fallbacks
+    res.status(503).json({
+      success: false,
+      error: "Market movers service not implemented",
+      message: "Market movers data requires real-time price data integration",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -2304,7 +2453,8 @@ router.get("/price/:symbol", async (req, res) => {
 
     // Get latest price data
     const priceQuery = `
-      SELECT symbol, date, open, high, low, close, adj_close, volume
+      SELECT symbol, date, open_price as open, high_price as high, low_price as low,
+             close_price as close, adj_close_price as adj_close, volume
       FROM price_daily
       WHERE symbol = $1
       ORDER BY date DESC
@@ -2940,7 +3090,8 @@ router.get("/:symbol/prices/recent", async (req, res) => {
     );
 
     const pricesQuery = `
-      SELECT date, open, high, low, close, adjusted_close, volume
+      SELECT date, open_price as open, high_price as high, low_price as low,
+             close_price as close, adjusted_close_price as adjusted_close, volume
       FROM price_daily
       WHERE UPPER(symbol) = UPPER($1)
       ORDER BY date DESC
@@ -3478,7 +3629,7 @@ router.get("/:symbol/price", async (req, res) => {
 
     // Get the latest price data for the symbol
     const result = await query(
-      `SELECT symbol, close, date, volume, high, low, open FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
+      `SELECT symbol, close_price as close, date, volume, high_price as high, low_price as low, open_price as open FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
       [symbol.toUpperCase()]
     );
 
@@ -3598,9 +3749,9 @@ router.get("/:symbol/fundamentals", async (req, res) => {
     const { symbol } = req.params;
     console.log(`Fundamentals request for ${symbol}`);
 
-    // Get company profile data
+    // Get company profile data using fundamental_metrics and stock_symbols tables (Python loader schema)
     const result = await query(
-      `SELECT * FROM fundamental_metrics WHERE ticker = $1`,
+      `SELECT fm.symbol, COALESCE(ss.security_name, fm.symbol) as name, fm.sector, fm.industry, fm.market_cap, fm.pe_ratio, fm.dividend_yield, fm.beta, ss.exchange FROM fundamental_metrics fm LEFT JOIN stock_symbols ss ON fm.symbol = ss.symbol WHERE fm.symbol = $1`,
       [symbol.toUpperCase()]
     );
 
@@ -3622,15 +3773,17 @@ router.get("/:symbol/fundamentals", async (req, res) => {
     res.success(
       {
         fundamentals: {
-          symbol: company.ticker,
-          company_name: company.company_name,
+          symbol: company.symbol,
+          market_cap: company.market_cap,
           sector: company.sector,
           industry: company.industry,
-          market_cap: company.market_cap,
-          employees: company.employees,
-          description:
-            company.description?.substring(0, 500) + "..." ||
-            "No description available",
+          pe_ratio: company.pe_ratio,
+          forward_pe: company.forward_pe,
+          peg_ratio: company.peg_ratio,
+          price_to_book: company.price_to_book,
+          dividend_yield: company.dividend_yield,
+          beta: company.beta,
+          full_time_employees: company.full_time_employees,
         },
       },
       200,
@@ -3708,59 +3861,12 @@ router.get("/:symbol/financials", async (req, res) => {
       `📊 Stock financials requested for ${symbol}, period: ${period}, type: ${type}`
     );
 
-    // Query financial data with graceful fallback for missing columns
-    let result = { rows: [] };
-    try {
-      const financialsQuery = `
-        SELECT
-          'income_statement' as statement_type,
-          0 as total_assets,
-          0 as total_liabilities,
-          0 as shareholders_equity,
-          0 as total_debt,
-          SUM(CASE WHEN item_name = 'Total Revenue' THEN value::numeric ELSE 0 END) as revenue,
-          SUM(CASE WHEN item_name = 'Net Income' THEN value::numeric ELSE 0 END) as net_income,
-          0 as cash,
-          EXTRACT(YEAR FROM date) as year
-        FROM (SELECT NULL::date as date, NULL as item_name, NULL as value, NULL as symbol) as placeholder
-        WHERE symbol ILIKE $1
-        GROUP BY EXTRACT(YEAR FROM date)
-        ORDER BY year DESC
-        LIMIT 5
-      `;
-
-      result = await query(financialsQuery, [symbol]);
-    } catch (dbError) {
-      console.error(`Financials database error for ${symbol}:`, dbError.message);
-      return res.status(500).json({
-        success: false,
-        error: "Financials database error",
-        message: "Unable to retrieve financial data from database. Check database connection and table structure.",
-        symbol: symbol.toUpperCase(),
-        details: dbError.message,
-      });
-    }
-
-    if (!result.rows || result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: `No financial data found for symbol ${symbol}`,
-        message: "Financial data not available in database. Ensure financial data has been loaded from data providers.",
-        symbol: symbol.toUpperCase(),
-        period,
-        type,
-      });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        symbol: symbol.toUpperCase(),
-        period: period,
-        type: type,
-        statements: result.rows,
-        count: result.rows.length,
-      },
+    // Financial data not available - no financial statements table in current schema
+    return res.status(404).json({
+      success: false,
+      error: "Financial statements not available",
+      message: "Financial statements data is not available in the current database schema.",
+      symbol: symbol.toUpperCase(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -3819,18 +3925,11 @@ router.get("/movers", async (req, res) => {
     const { type = "all", limit = 10 } = req.query;
     console.log(`Market movers requested, type: ${type}, limit: ${limit}`);
 
-    res.json({
-      success: true,
-      data: {
-        gainers: [
-          { symbol: "AAPL", change: 5.2, change_percent: 3.1 },
-          { symbol: "MSFT", change: 8.5, change_percent: 2.8 },
-        ],
-        losers: [
-          { symbol: "TSLA", change: -12.3, change_percent: -4.2 },
-          { symbol: "NFLX", change: -8.7, change_percent: -2.1 },
-        ],
-      },
+    // Return error response - no mock fallbacks
+    res.status(503).json({
+      success: false,
+      error: "Market movers service not implemented",
+      message: "Market movers data requires real-time price data integration",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -4030,7 +4129,8 @@ router.get("/price/:symbol", async (req, res) => {
 
     // Get latest price data
     const priceQuery = `
-      SELECT symbol, date, open, high, low, close, adj_close, volume
+      SELECT symbol, date, open_price as open, high_price as high, low_price as low,
+             close_price as close, adj_close_price as adj_close, volume
       FROM price_daily
       WHERE symbol = $1
       ORDER BY date DESC

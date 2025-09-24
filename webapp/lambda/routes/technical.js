@@ -847,7 +847,7 @@ router.get("/screener", async (req, res) => {
              CASE WHEN p.close > p.open THEN 65.5 ELSE 34.5 END as rsi,
              p.volume,
              p.close as sma_50, p.close * 0.98 as sma_200,
-             'Unknown' as sector, 0 as market_cap, 0 as pe_ratio
+             'Unknown' as sector, 0 as market_cap, 0 as NULL as pe_ratio
       FROM price_daily p
       WHERE p.date = (SELECT MAX(date) FROM price_daily)
         AND CASE WHEN p.close > p.open THEN 65.5 ELSE 34.5 END BETWEEN $1 AND $2

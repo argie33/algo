@@ -263,14 +263,14 @@ router.get("/positions", async (req, res) => {
         h.symbol, h.quantity, h.average_cost, h.current_price,
         h.last_updated as created_at, h.last_updated as updated_at,
         COALESCE(cp.short_name, h.symbol) as company_name,
-        COALESCE(s.sector, 'Unknown') as sector,
+        COALESCE(fm.sector, 'Unknown') as sector,
         (h.current_price - h.average_cost) * h.quantity as unrealized_pnl,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as unrealized_pnl_percent,
         h.current_price * h.quantity as market_value,
         h.average_cost * h.quantity as cost_basis
       FROM portfolio_holdings h
       LEFT JOIN company_profile cp ON h.symbol = cp.ticker
-      LEFT JOIN stocks fm ON h.symbol = s.symbol
+      LEFT JOIN fundamental_metrics fm ON h.symbol = fm.symbol
       WHERE h.user_id = $1 AND h.quantity > 0
       ORDER BY h.current_price * h.quantity DESC
       LIMIT $2
@@ -333,7 +333,7 @@ router.get("/analytics", async (req, res) => {
         COALESCE(cp.industry, 'Unknown') as industry,
         ph.symbol as short_name
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
       ORDER BY ph.symbol
@@ -736,7 +736,7 @@ router.get("/analysis", async (req, res) => {
         period: period,
         holdings_count: holdings.length,
         analysis_date: new Date().toISOString(),
-        data_sources: ["portfolio_holdings", "stocks", "price_daily"],
+        data_sources: ["portfolio_holdings", "fundamental_metrics", "price_daily"],
       },
       timestamp: new Date().toISOString(),
     });
@@ -833,7 +833,7 @@ router.get("/risk-metrics", async (req, res) => {
         COALESCE(cp.sector, 'Technology') as sector,
         ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 
       AND ph.quantity > 0
       ORDER BY ph.symbol
@@ -1000,7 +1000,7 @@ router.get("/:id/holdings", async (req, res) => {
         ph.last_updated,
         COALESCE(cp.sector, 'Unknown') as sector
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol 
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol 
       WHERE ph.user_id = $1
       ORDER BY (ph.quantity * ph.current_price) as market_value DESC
       `,
@@ -1058,7 +1058,7 @@ router.get("/:id/performance", async (req, res) => {
       SELECT 
         date, total_value, total_pnl as total_return, total_pnl_percent as total_return_percent,
         daily_pnl as daily_return, daily_pnl_percent as daily_return_percent,
-        shar NULL as pe_ratio, max_drawdown, volatility
+        sharpe_ratio, max_drawdown, volatility
       FROM portfolio_performance 
       WHERE user_id = $1 OR broker = $1
       ORDER BY date DESC
@@ -1128,7 +1128,7 @@ router.get("/performance", async (req, res) => {
       SELECT
         date, total_value, daily_pnl, daily_pnl_percent,
         total_pnl, total_pnl_percent,
-        0 as benchmark_return, 0 as alpha, 1 as beta, 0 as shar NULL as pe_ratio, 0 as max_drawdown, 0 as volatility
+        0 as benchmark_return, 0 as alpha, 1 as beta, 0 as sharpe_ratio, 0 as max_drawdown, 0 as volatility
       FROM portfolio_performance 
       WHERE user_id = $1 
       ORDER BY date
@@ -1253,7 +1253,7 @@ router.get("/performance/analysis", async (req, res) => {
         CASE WHEN ph.average_cost > 0 THEN ROUND(((ph.current_price - ph.average_cost) / ph.average_cost * 100), 2) ELSE 0 END as pnl_percent,
         COALESCE(cp.sector, 'Technology') as sector, ph.last_updated
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1
       ORDER BY (ph.quantity * ph.current_price) as market_value DESC
     `;
@@ -5752,7 +5752,7 @@ router.get("/watchlist", async (req, res) => {
         0 as change,
         0 as change_percent
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1
       ORDER BY ph.symbol
       LIMIT 10
@@ -5798,7 +5798,7 @@ router.get("/allocation", async (req, res) => {
           ELSE 'Equity'
         END as asset_class
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 
@@ -6079,7 +6079,7 @@ router.get("/value", async (req, res) => {
         ((ph.quantity * ph.current_price) as market_value / NULLIF((SELECT SUM(market_value) FROM portfolio_holdings WHERE user_id = $1), 0) * 100) as percentage,
         ph.quantity as shares
       FROM portfolio_holdings ph
-      LEFT JOIN stocks cp ON ph.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics cp ON ph.symbol = cp.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
       ORDER BY (ph.quantity * ph.current_price) as market_value DESC
       LIMIT 5
@@ -6223,9 +6223,9 @@ router.get("/factors", async (req, res) => {
         (ph.quantity * ph.current_price) as market_value,
         ph.sector,
         COALESCE(s.beta, 1.0) as beta,
-        COALESCE( NULL as pe_ratio, 15.0) as NULL as pe_ratio
+        COALESCE(s.pe_ratio, 15.0) as pe_ratio
       FROM portfolio_holdings ph
-      LEFT JOIN stocks s ON ph.symbol = s.symbol
+      LEFT JOIN fundamental_metrics s ON ph.symbol = s.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 

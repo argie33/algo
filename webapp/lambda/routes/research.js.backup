@@ -134,22 +134,22 @@ router.get("/analyst", async (req, res) => {
     // Get analyst coverage data from available fundamental metrics
     const analystQuery = `
       SELECT
-        s.symbol,
+        fm.symbol,
         CURRENT_DATE as date,
         'Q4' as quarter,
         EXTRACT(YEAR FROM CURRENT_DATE) as year,
         5 as analyst_count,
-        s.earnings_per_share as estimated_eps,
-        s.earnings_per_share as actual_eps,
-        (s.revenue_per_share * s.shares_outstanding) as estimated_revenue,
-        (s.revenue_per_share * s.shares_outstanding) as actual_revenue,
-        s.company_name,
-        s.sector,
-        s.industry,
-        s.market_cap
-      FROM stocks fm
-      WHERE s.symbol = $1 AND s.market_cap > 0
-      ORDER BY s.market_cap DESC
+        fm.earnings_per_share as estimated_eps,
+        fm.earnings_per_share as actual_eps,
+        (fm.revenue_per_share * fm.shares_outstanding) as estimated_revenue,
+        (fm.revenue_per_share * fm.shares_outstanding) as actual_revenue,
+        fm.company_name,
+        fm.sector,
+        fm.industry,
+        fm.market_cap
+      FROM fundamental_metrics fm
+      WHERE fm.symbol = $1 AND fm.market_cap > 0
+      ORDER BY fm.market_cap DESC
       LIMIT $2
     `;
 

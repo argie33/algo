@@ -34,17 +34,17 @@ router.get("/market", async (req, res) => {
     // Get real market data from database - simplified for reliability
     const marketCapQuery = `
       SELECT
-        SUM(COALESCE(s.market_cap, 0)) as total_market_cap,
+        SUM(COALESCE(fm.market_cap, 0)) as total_market_cap,
         SUM(COALESCE(pd.volume, 0)) as total_volume,
         COUNT(*) as active_stocks
-      FROM stocks fm
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, volume
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
-      WHERE s.market_cap > 0`;
+      ) pd ON fm.symbol = pd.symbol
+      WHERE fm.market_cap > 0`;
 
     const result = await query(marketCapQuery);
     const marketData = result.rows[0] || {};
@@ -165,7 +165,7 @@ router.get("/", async (req, res) => {
 
     // Add search condition if provided
     if (search) {
-      whereConditions.push(`s.symbol ILIKE $${paramIndex}`);
+      whereConditions.push(`fm.symbol ILIKE $${paramIndex}`);
       queryParams.push(`%${search.toUpperCase()}%`);
       paramIndex++;
     }
@@ -240,7 +240,7 @@ router.get("/", async (req, res) => {
     let countWhereCondition = '';
 
     if (search) {
-      countWhereCondition = `WHERE s.symbol ILIKE $${countParamIndex}`;
+      countWhereCondition = `WHERE fm.symbol ILIKE $${countParamIndex}`;
       countParams.push(`%${search.toUpperCase()}%`);
     }
 

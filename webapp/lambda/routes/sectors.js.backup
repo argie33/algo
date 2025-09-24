@@ -45,25 +45,25 @@ router.get("/:sector/stocks", async (req, res) => {
       return Promise.race([queryPromise, timeoutPromise]);
     };
 
-    // Simple query to get stocks by sector using stocks table
+    // Simple query to get stocks by sector using fundamental_metrics table
     const stocksQuery = `
       SELECT
-        s.symbol,
-        s.symbol as name,
-        s.sector,
-        s.industry,
+        fm.symbol,
+        fm.symbol as name,
+        fm.sector,
+        fm.industry,
         COALESCE(pd.close, 100) as price,
         COALESCE(pd.volume, 1000000) as volume
-      FROM stocks fm
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
-      WHERE LOWER(s.sector) = LOWER($1)
-      ORDER BY s.symbol
+      ) pd ON fm.symbol = pd.symbol
+      WHERE LOWER(fm.sector) = LOWER($1)
+      ORDER BY fm.symbol
       LIMIT $2
     `;
 
@@ -142,36 +142,36 @@ router.get("/analysis", async (req, res) => {
       return Promise.race([queryPromise, timeoutPromise]);
     };
 
-    // Simplified query for AWS compatibility using stocks
+    // Simplified query for AWS compatibility using fundamental_metrics
     const sectorAnalysisQuery = `
       SELECT
-        s.sector,
-        COUNT(DISTINCT s.symbol) as stock_count,
+        fm.sector,
+        COUNT(DISTINCT fm.symbol) as stock_count,
         AVG(COALESCE(pd.close, 100)) as avg_price,
         SUM(COALESCE(pd.volume, 1000000)) as total_volume,
         -- Simulate performance based on sector for AWS compatibility
         CASE
-          WHEN s.sector = 'Technology' THEN 2.5
-          WHEN s.sector = 'Healthcare' THEN 1.8
-          WHEN s.sector = 'Financials' THEN 1.2
-          WHEN s.sector = 'Consumer Discretionary' THEN 0.8
-          WHEN s.sector = 'Industrial' THEN 0.5
-          WHEN s.sector = 'Energy' THEN -0.3
+          WHEN fm.sector = 'Technology' THEN 2.5
+          WHEN fm.sector = 'Healthcare' THEN 1.8
+          WHEN fm.sector = 'Financials' THEN 1.2
+          WHEN fm.sector = 'Consumer Discretionary' THEN 0.8
+          WHEN fm.sector = 'Industrial' THEN 0.5
+          WHEN fm.sector = 'Energy' THEN -0.3
           ELSE (RANDOM() * 4 - 2)
         END as monthly_change_pct,
         50.0 as avg_rsi,
         0.0 as avg_momentum
-      FROM stocks fm
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '30 days'
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
-      WHERE s.sector IS NOT NULL AND s.sector != ''
-      GROUP BY s.sector
-      HAVING COUNT(DISTINCT s.symbol) >= 1
+      ) pd ON fm.symbol = pd.symbol
+      WHERE fm.sector IS NOT NULL AND fm.sector != ''
+      GROUP BY fm.sector
+      HAVING COUNT(DISTINCT fm.symbol) >= 1
       ORDER BY monthly_change_pct DESC
       LIMIT 20
     `;
@@ -264,7 +264,7 @@ router.get("/list", async (req, res) => {
                     SELECT DISTINCT symbol FROM price_daily 
                     WHERE date >= CURRENT_DATE - INTERVAL '7 days'
                 ) THEN 1 END) as active_companies
-            FROM stocks 
+            FROM fundamental_metrics 
             WHERE sector IS NOT NULL 
                 AND sector != ''
                 AND industry IS NOT NULL 
@@ -361,38 +361,38 @@ router.get("/performance", async (req, res) => {
 
     const days = periodDays[period];
 
-    // Simplified query for AWS compatibility - get sector data from stocks
+    // Simplified query for AWS compatibility - get sector data from fundamental_metrics
     const result = await query(
       `
       SELECT
-        s.sector,
-        COUNT(DISTINCT s.symbol) as stock_count,
+        fm.sector,
+        COUNT(DISTINCT fm.symbol) as stock_count,
         AVG(COALESCE(pd.close, 100)) as avg_price,
         SUM(COALESCE(pd.volume, 1000000)) as total_volume,
         -- Simulate performance data for AWS compatibility
         CASE
-          WHEN s.sector = 'Technology' THEN 2.5
-          WHEN s.sector = 'Healthcare' THEN 1.8
-          WHEN s.sector = 'Financials' THEN 1.2
-          WHEN s.sector = 'Consumer Discretionary' THEN 0.8
-          WHEN s.sector = 'Industrial' THEN 0.5
-          WHEN s.sector = 'Energy' THEN -0.3
+          WHEN fm.sector = 'Technology' THEN 2.5
+          WHEN fm.sector = 'Healthcare' THEN 1.8
+          WHEN fm.sector = 'Financials' THEN 1.2
+          WHEN fm.sector = 'Consumer Discretionary' THEN 0.8
+          WHEN fm.sector = 'Industrial' THEN 0.5
+          WHEN fm.sector = 'Energy' THEN -0.3
           ELSE (RANDOM() * 4 - 2)
         END as performance_pct,
         -- Simulate gaining/losing stocks
-        GREATEST(1, FLOOR(COUNT(DISTINCT s.symbol) * 0.6)) as gaining_stocks,
-        GREATEST(0, FLOOR(COUNT(DISTINCT s.symbol) * 0.4)) as losing_stocks
-      FROM stocks fm
+        GREATEST(1, FLOOR(COUNT(DISTINCT fm.symbol) * 0.6)) as gaining_stocks,
+        GREATEST(0, FLOOR(COUNT(DISTINCT fm.symbol) * 0.4)) as losing_stocks
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '30 days'
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
-      WHERE s.sector IS NOT NULL AND s.sector != ''
-      GROUP BY s.sector
-      HAVING COUNT(DISTINCT s.symbol) >= 1
+      ) pd ON fm.symbol = pd.symbol
+      WHERE fm.sector IS NOT NULL AND fm.sector != ''
+      GROUP BY fm.sector
+      HAVING COUNT(DISTINCT fm.symbol) >= 1
       ORDER BY performance_pct DESC
       LIMIT $1
       `,
@@ -403,9 +403,9 @@ router.get("/performance", async (req, res) => {
     if (result.rows.length === 0) {
       console.log("🔍 No sector performance data found, checking tables...");
 
-      // Check if we have stocks data
+      // Check if we have fundamental_metrics data
       const companyProfileCheck = await query(
-        "SELECT COUNT(*) as count FROM stocks WHERE sector IS NOT NULL AND sector != ''"
+        "SELECT COUNT(*) as count FROM fundamental_metrics WHERE sector IS NOT NULL AND sector != ''"
       );
       console.log(`📊 Company profiles with sectors: ${companyProfileCheck.rows[0]?.count || 0}`);
 
@@ -495,12 +495,12 @@ router.get("/:sector/details", async (req, res) => {
       return Promise.race([queryPromise, timeoutPromise]);
     };
 
-    // Simplified query for AWS compatibility using stocks table
+    // Simplified query for AWS compatibility using fundamental_metrics table
     const sectorDetailQuery = `
       SELECT
-        s.symbol,
-        s.symbol as short_name,
-        s.industry,
+        fm.symbol,
+        fm.symbol as short_name,
+        fm.industry,
         'US' as market,
         'USA' as country,
         COALESCE(pd.close, 100) as current_price,
@@ -509,9 +509,9 @@ router.get("/:sector/details", async (req, res) => {
 
         -- Simplified performance metrics
         CASE
-          WHEN s.symbol LIKE 'A%' THEN 2.5
-          WHEN s.symbol LIKE 'B%' THEN 1.8
-          WHEN s.symbol LIKE 'C%' THEN 1.2
+          WHEN fm.symbol LIKE 'A%' THEN 2.5
+          WHEN fm.symbol LIKE 'B%' THEN 1.8
+          WHEN fm.symbol LIKE 'C%' THEN 1.2
           ELSE (RANDOM() * 4 - 2)
         END as monthly_change,
 
@@ -530,16 +530,16 @@ router.get("/:sector/details", async (req, res) => {
         0 as risk_adjusted_momentum,
         0 as momentum_strength
 
-      FROM stocks fm
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
-      WHERE s.sector = $1
-      ORDER BY s.symbol
+      ) pd ON fm.symbol = pd.symbol
+      WHERE fm.sector = $1
+      ORDER BY fm.symbol
       LIMIT $2
     `;
 
@@ -669,10 +669,10 @@ router.get("/allocation", async (req, res) => {
     const userId = req.user.sub;
     console.log(`📊 Sector allocation requested for user: ${userId}`);
 
-    // Get user's portfolio holdings with sector information using stocks
+    // Get user's portfolio holdings with sector information using fundamental_metrics
     const allocationQuery = `
       SELECT
-        COALESCE(s.sector, 'Unknown') as sector,
+        COALESCE(fm.sector, 'Unknown') as sector,
         COUNT(DISTINCT ph.symbol) as stock_count,
         SUM(ph.quantity * ph.average_cost) as total_cost,
         SUM(ph.quantity * COALESCE(pd.close, ph.average_cost)) as current_value,
@@ -680,7 +680,7 @@ router.get("/allocation", async (req, res) => {
         AVG(ph.average_cost) as avg_cost_basis,
         SUM(ph.quantity * COALESCE(pd.close, ph.average_cost)) - SUM(ph.quantity * ph.average_cost) as unrealized_pnl
       FROM portfolio_holdings ph
-      LEFT JOIN stocks fm ON ph.symbol = s.symbol
+      LEFT JOIN fundamental_metrics fm ON ph.symbol = fm.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, date
@@ -689,7 +689,7 @@ router.get("/allocation", async (req, res) => {
         ORDER BY symbol, date DESC
       ) pd ON ph.symbol = pd.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
-      GROUP BY s.sector
+      GROUP BY fm.sector
       ORDER BY current_value DESC
     `;
 

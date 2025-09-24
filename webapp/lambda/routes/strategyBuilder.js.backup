@@ -516,7 +516,7 @@ router.get("/available-symbols", authenticateToken, async (req, res) => {
 
     // Get available symbols from database
     const result = await query(
-      "SELECT DISTINCT symbol FROM stocks WHERE market_cap > 0 ORDER BY symbol LIMIT 100"
+      "SELECT DISTINCT symbol FROM fundamental_metrics WHERE market_cap > 0 ORDER BY symbol LIMIT 100"
     );
 
     // Handle cases where query returns null or empty results (database unavailable/empty)

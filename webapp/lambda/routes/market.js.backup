@@ -71,10 +71,10 @@ router.get("/data", async (req, res) => {
     console.log("📊 Market data endpoint called");
 
     // Check required tables
-    const requiredTables = ["stocks", "price_daily"];
+    const requiredTables = ["fundamental_metrics", "price_daily"];
     const tableStatus = await checkRequiredTables(requiredTables);
 
-    if (!tableStatus.stocks && !tableStatus.price_daily) {
+    if (!tableStatus.fundamental_metrics && !tableStatus.price_daily) {
       return res.status(503).json({
         success: false,
         error: "Market data tables not available",
@@ -86,25 +86,25 @@ router.get("/data", async (req, res) => {
     // Get basic market data from available tables
     let marketData = [];
 
-    if (tableStatus.stocks) {
+    if (tableStatus.fundamental_metrics) {
       const marketResult = await query(`
         SELECT
-               s.symbol,
-               s.symbol as name,
+               fm.symbol,
+               fm.symbol as name,
                sp.close as current_price,
                0 as change_percent,
                0 as change_amount,
                sp.volume,
-               s.market_cap
-        FROM stocks fm
+               fm.market_cap
+        FROM fundamental_metrics fm
         LEFT JOIN (
           SELECT DISTINCT ON (symbol)
             symbol, close, volume
           FROM price_daily
           ORDER BY symbol, date DESC
-        ) sp ON s.symbol = sp.symbol
-        WHERE s.market_cap IS NOT NULL
-        ORDER BY s.market_cap DESC NULLS LAST
+        ) sp ON fm.symbol = sp.symbol
+        WHERE fm.market_cap IS NOT NULL
+        ORDER BY fm.market_cap DESC NULLS LAST
         LIMIT 50
       `);
       marketData = marketResult.rows || [];
@@ -196,7 +196,7 @@ router.get("/summary", async (req, res) => {
           AVG(COALESCE(((md.close - md.open) / NULLIF(md.open, 0) * 100), 0)) as avg_change_percent,
           SUM(md.volume) as total_volume
         FROM price_daily md
-        JOIN stocks cp ON md.symbol = cp.symbol
+        JOIN fundamental_metrics cp ON md.symbol = cp.symbol
         WHERE cp.sector IS NOT NULL
           AND md.volume > 0
           AND md.date = (SELECT MAX(date) FROM price_daily)
@@ -303,7 +303,7 @@ router.get("/debug", async (req, res) => {
       "economic_data",
       "fear_greed_index",
       "naaim",
-      "stocks",
+      "fundamental_metrics",
       "aaii_sentiment",
     ];
 
@@ -693,7 +693,7 @@ router.get("/overview", async (req, res) => {
           SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
           SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
           SUM(market_cap) as total
-        FROM stocks
+        FROM fundamental_metrics
         WHERE market_cap IS NOT NULL AND market_cap > 0
       `);
 
@@ -761,12 +761,12 @@ router.get("/sectors", async (req, res) => {
   try {
     console.log("Market sectors endpoint called");
 
-    // Get sector performance data from stocks table
+    // Get sector performance data from fundamental_metrics table
     const sectorsQuery = `
       SELECT
         sector,
         COUNT(*) as company_count
-      FROM stocks
+      FROM fundamental_metrics
       WHERE sector IS NOT NULL
         AND sector != ''
       GROUP BY sector
@@ -976,7 +976,7 @@ router.get("/sectors/performance", async (req, res) => {
         SUM(pd.volume) as total_volume,
         AVG(s.market_cap) as avg_market_cap
       FROM price_daily pd
-      JOIN stocks s ON pd.symbol = s.ticker
+      JOIN fundamental_metrics s ON pd.symbol = s.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily)
         AND s.sector IS NOT NULL
         AND s.sector != ''
@@ -991,7 +991,7 @@ router.get("/sectors/performance", async (req, res) => {
     } catch (error) {
       console.error("Sector performance query error:", error.message);
 
-      // Fallback to simple sector data from stocks only
+      // Fallback to simple sector data from fundamental_metrics only
       const fallbackQuery = `
         SELECT
           COALESCE(s.sector, 'Other') as sector,
@@ -999,7 +999,7 @@ router.get("/sectors/performance", async (req, res) => {
           0 as avg_change,
           0 as total_volume,
           AVG(COALESCE(s.market_cap, 1000000000)) as avg_market_cap
-        FROM stocks s
+        FROM fundamental_metrics s
         WHERE s.sector IS NOT NULL AND s.sector != ''
         GROUP BY s.sector
         ORDER BY COUNT(*) DESC
@@ -1845,7 +1845,7 @@ router.get("/indicators", async (req, res) => {
         s.sector,
         pd.date
       FROM price_daily pd
-      JOIN stocks s ON pd.symbol = s.ticker
+      JOIN fundamental_metrics s ON pd.symbol = s.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily)
       ORDER BY pd.symbol
     `;
@@ -5172,7 +5172,7 @@ router.get("/trending", async (req, res) => {
           p.change_percent,
           p.volume,
           p.date
-        FROM stocks s
+        FROM fundamental_metrics s
         JOIN price_daily p ON s.ticker = p.symbol
         WHERE p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.ticker)
         AND p.volume > 1000000  -- High volume threshold
@@ -5388,10 +5388,10 @@ router.get("/search", async (req, res) => {
     const maxLimit = Math.min(parseInt(limit) || 10, 50);
     const searchOffset = Math.max(parseInt(offset) || 0, 0);
 
-    // Search in stocks table
+    // Search in fundamental_metrics table
     const result = await query(
       `SELECT symbol, sector, industry
-       FROM stocks
+       FROM fundamental_metrics
        WHERE symbol LIKE $1 OR sector LIKE $1
        ORDER BY
          CASE WHEN symbol = $2 THEN 1

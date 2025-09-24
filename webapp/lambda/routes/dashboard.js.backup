@@ -122,10 +122,10 @@ router.get("/summary", async (req, res) => {
             LIMIT 10
         `;
 
-    // Get sector performance from stocks table
+    // Get sector performance from fundamental_metrics table
     const sectorQuery = `
             SELECT 
-                s.sector,
+                fm.sector,
                 COUNT(*) as stock_count,
                 AVG(CASE 
                     WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
@@ -135,14 +135,14 @@ router.get("/summary", async (req, res) => {
             FROM price_daily pd
             LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
                 AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-            JOIN stocks fm ON pd.symbol = s.symbol
+            JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
             WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
-                AND s.sector IS NOT NULL 
-                AND s.sector != ''
+                AND fm.sector IS NOT NULL 
+                AND fm.sector != ''
                 AND pd.close IS NOT NULL
                 AND prev.close IS NOT NULL
                 AND prev.close > 0
-            GROUP BY s.sector
+            GROUP BY fm.sector
             ORDER BY avg_change DESC
             LIMIT 10
         `;
@@ -709,18 +709,18 @@ router.get("/market-data", async (req, res) => {
     // Get sector rotation using price_daily table with yfinance structure
     const sectorRotationQuery = `
             SELECT 
-                s.sector,
+                fm.sector,
                 AVG(((pd.close - pd.open) / pd.open * 100)) as avg_change,
                 COUNT(DISTINCT pd.symbol) as stock_count,
                 AVG(pd.volume) as avg_volume,
                 SUM(pd.volume * pd.close) as total_value
             FROM price_daily pd
-            JOIN stocks fm ON pd.symbol = s.symbol
-            WHERE s.sector IS NOT NULL 
+            JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
+            WHERE fm.sector IS NOT NULL 
                 AND pd.date >= CURRENT_DATE - INTERVAL '1 day'
                 AND pd.close IS NOT NULL
                 AND ((pd.close - pd.open) / pd.open * 100) IS NOT NULL
-            GROUP BY s.sector
+            GROUP BY fm.sector
             ORDER BY avg_change DESC
             LIMIT 20
         `;
@@ -888,7 +888,7 @@ router.get("/overview", async (req, res) => {
     // Get sector performance
     const sectorQuery = `
       SELECT 
-        s.sector,
+        fm.sector,
         COUNT(*) as stock_count,
         AVG(CASE 
           WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
@@ -897,12 +897,12 @@ router.get("/overview", async (req, res) => {
       FROM price_daily pd
       LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
           AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-      JOIN stocks fm ON pd.symbol = s.symbol
+      JOIN fundamental_metrics fm ON pd.symbol = fm.symbol
       WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
-        AND s.sector IS NOT NULL 
+        AND fm.sector IS NOT NULL 
         AND pd.close IS NOT NULL
         AND prev.close IS NOT NULL
-      GROUP BY s.sector
+      GROUP BY fm.sector
       ORDER BY change_percent DESC
       LIMIT 5
     `;
@@ -1033,9 +1033,9 @@ router.get("/debug", async (req, res) => {
       const countsResult = await query(`
                 SELECT
                     (SELECT COUNT(*) FROM price_daily) as price_count,
-                    (SELECT COUNT(*) FROM stocks) as profile_count,
+                    (SELECT COUNT(*) FROM fundamental_metrics) as profile_count,
                     (SELECT COUNT(*) FROM stock_symbols) as symbols_count,
-                    (SELECT COUNT(*) FROM stocks) as stocks_count
+                    (SELECT COUNT(*) FROM fundamental_metrics) as stocks_count
             `);
       debugData.data_counts = countsResult.rows[0];
     } catch (error) {
@@ -1126,7 +1126,7 @@ router.get("/analytics", async (req, res) => {
           SUM(up.market_value) as total_value,
           AVG(up.gain_loss_percent) as avg_performance
         FROM user_portfolio up
-        LEFT JOIN stocks s ON up.symbol = s.symbol
+        LEFT JOIN fundamental_metrics s ON up.symbol = s.symbol
         WHERE s.sector IS NOT NULL
         GROUP BY s.sector
         ORDER BY total_value DESC

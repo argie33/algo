@@ -200,23 +200,23 @@ router.get("/screen", async (req, res) => {
 
     // Growth filters
     if (filters.revenueGrowthMin) {
-      whereConditions.push(`revenue_growth >= $${paramIndex}`);
+      whereConditions.push(`s.revenue_growth >= $${paramIndex}`);
       params.push(parseFloat(filters.revenueGrowthMin) / 100);
       paramIndex++;
     }
     if (filters.revenueGrowthMax) {
-      whereConditions.push(`revenue_growth <= $${paramIndex}`);
+      whereConditions.push(`s.revenue_growth <= $${paramIndex}`);
       params.push(parseFloat(filters.revenueGrowthMax) / 100);
       paramIndex++;
     }
 
     if (filters.earningsGrowthMin) {
-      whereConditions.push(`earnings_growth >= $${paramIndex}`);
+      whereConditions.push(`s.earnings_growth >= $${paramIndex}`);
       params.push(parseFloat(filters.earningsGrowthMin) / 100);
       paramIndex++;
     }
     if (filters.earningsGrowthMax) {
-      whereConditions.push(`earnings_growth <= $${paramIndex}`);
+      whereConditions.push(`s.earnings_growth <= $${paramIndex}`);
       params.push(parseFloat(filters.earningsGrowthMax) / 100);
       paramIndex++;
     }
@@ -324,7 +324,7 @@ router.get("/screen", async (req, res) => {
         pd.volume,
         pd.date as price_date,
         s.market_cap,
-        km.trailing_pe as NULL as pe_ratio,
+        km.trailing_pe as pe_ratio,
         km.dividend_yield,
         sc.overall_score as factor_score,
         CASE
@@ -355,7 +355,7 @@ router.get("/screen", async (req, res) => {
         NULL as rsi,
         NULL as macd,
         NULL as macd_signal
-      FROM stocks s
+      FROM fundamental_metrics s
       LEFT JOIN company_profile cp ON s.symbol = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
@@ -367,7 +367,7 @@ router.get("/screen", async (req, res) => {
       ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
-          symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, NULL as price_to_book
+          symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, price_to_book
         FROM financial_ratios
         ORDER BY symbol, fiscal_year DESC
       ) km ON s.symbol = km.symbol
@@ -388,7 +388,7 @@ router.get("/screen", async (req, res) => {
     // Count query matching main query structure - real data only
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM stocks s
+      FROM fundamental_metrics s
       LEFT JOIN company_profile cp ON s.symbol = cp.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
@@ -400,7 +400,7 @@ router.get("/screen", async (req, res) => {
       ) pd ON s.symbol = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
-          symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, NULL as price_to_book
+          symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, price_to_book
         FROM financial_ratios
         ORDER BY symbol, fiscal_year DESC
       ) km ON s.symbol = km.symbol
@@ -538,7 +538,7 @@ router.get("/filters", async (req, res) => {
     try {
       const sectorResult = await query(`
         SELECT DISTINCT sector 
-        FROM stocks 
+        FROM fundamental_metrics 
         WHERE sector IS NOT NULL 
         ORDER BY sector
       `);
@@ -607,7 +607,7 @@ router.get("/filters", async (req, res) => {
           PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY market_cap) as q1_market_cap,
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY market_cap) as median_market_cap,
           PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY market_cap) as q3_market_cap
-        FROM stocks 
+        FROM fundamental_metrics 
         WHERE market_cap IS NOT NULL AND market_cap > 0
       `);
       marketCapStats = (marketCapResult.rows && marketCapResult.rows[0]) || {};
@@ -981,14 +981,14 @@ router.get("/results", async (req, res) => {
     // P/E ratio filters
     if (filters.peRatioMin) {
       whereConditions.push(
-        `NULL as pe_ratio >= $${paramIndex} AND NULL as pe_ratio IS NOT NULL`
+        `s.pe_ratio >= $${paramIndex} AND s.pe_ratio IS NOT NULL`
       );
       params.push(parseFloat(filters.peRatioMin));
       paramIndex++;
     }
     if (filters.peRatioMax) {
       whereConditions.push(
-        `NULL as pe_ratio <= $${paramIndex} AND NULL as pe_ratio IS NOT NULL`
+        `s.pe_ratio <= $${paramIndex} AND s.pe_ratio IS NOT NULL`
       );
       params.push(parseFloat(filters.peRatioMax));
       paramIndex++;
@@ -1048,49 +1048,49 @@ router.get("/results", async (req, res) => {
 
     // Build ORDER BY clause
     const sortFields = {
-      symbol: "s.symbol",
-      companyName: "s.company_name",
+      symbol: "fm.symbol",
+      companyName: "fm.company_name",
       price: "pd.close",
-      marketCap: "s.market_cap",
-      peRatio: "pe_ratio",
-      dividendYield: "s.dividend_yield",
+      marketCap: "fm.market_cap",
+      peRatio: "fm.pe_ratio",
+      dividendYield: "fm.dividend_yield",
       volume: "pd.volume",
       rsi: "NULL",
     };
 
-    const sortField = sortFields[sortBy] || "s.market_cap";
+    const sortField = sortFields[sortBy] || "fm.market_cap";
     const orderBy = `ORDER BY ${sortField} ${sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC"} NULLS LAST`;
 
     // Main query
     const mainQuery = `
       SELECT
-        s.symbol,
-        s.company_name,
-        s.sector,
+        fm.symbol,
+        fm.company_name,
+        fm.sector,
         'NYSE' as exchange,
         pd.close as price,
         pd.volume,
         ((pd.close - pd.open) / pd.open * 100) as price_change_percent,
         pd.date as price_date,
-        s.market_cap,
- NULL as pe_ratio,
-        COALESCE(s.dividend_yield * 100, 0) as dividend_yield_percent,
+        fm.market_cap,
+        fm.pe_ratio,
+        COALESCE(fm.dividend_yield * 100, 0) as dividend_yield_percent,
         NULL as rsi,
         NULL as sma_20,
         NULL as sma_50,
         'Neutral' as trend,
         CASE
-          WHEN s.market_cap > 10000000000 THEN 'Large Cap'
-          WHEN s.market_cap > 2000000000 THEN 'Mid Cap'
-          WHEN s.market_cap > 300000000 THEN 'Small Cap'
+          WHEN fm.market_cap > 10000000000 THEN 'Large Cap'
+          WHEN fm.market_cap > 2000000000 THEN 'Mid Cap'
+          WHEN fm.market_cap > 300000000 THEN 'Small Cap'
           ELSE 'Micro Cap'
         END as market_cap_category
-      FROM stocks fm
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON fm.symbol = pd.symbol
       ${whereClause}
       ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -1101,12 +1101,12 @@ router.get("/results", async (req, res) => {
     // Count query
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM stocks fm
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) *
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON fm.symbol = pd.symbol
       ${whereClause}
     `;
 
@@ -1126,7 +1126,7 @@ router.get("/results", async (req, res) => {
       ...stock,
       price: parseFloat(stock.price || 0).toFixed(2),
       market_cap: stock.market_cap ? parseInt(stock.market_cap) : null,
-      pe_ratio: null,
+      pe_ratio: stock.pe_ratio ? parseFloat(stock.pe_ratio).toFixed(2) : null,
       dividend_yield_percent: stock.dividend_yield_percent
         ? parseFloat(stock.dividend_yield_percent).toFixed(2)
         : null,
@@ -1349,25 +1349,25 @@ router.post("/export", async (req, res) => {
     const symbolsStr = symbols.map((s) => `'${s}'`).join(",");
     const result = await query(`
       SELECT
-        s.symbol,
-        COALESCE(s.company_name, s.symbol || ' Inc.') as company_name,
-        s.sector as sector,
+        fm.symbol,
+        COALESCE(fm.company_name, fm.symbol || ' Inc.') as company_name,
+        fm.sector as sector,
         md.close as price,
-        s.market_cap,
- NULL as pe_ratio,
-        s.dividend_yield,
+        fm.market_cap,
+        fm.pe_ratio,
+        fm.dividend_yield,
         0,
         50 as factor_score
-      FROM stocks fm
+      FROM fundamental_metrics fm
       LEFT JOIN (
         SELECT DISTINCT ON (pd.symbol)
           pd.symbol, pd.date, pd.close, pd.volume, pd.open, pd.high, pd.low
         FROM price_daily pd
         WHERE pd.date = (SELECT MAX(date) FROM price_daily pd2 WHERE pd2.symbol = pd.symbol)
         ORDER BY pd.symbol, pd.date DESC
-      ) md ON s.symbol = md.symbol
-      WHERE s.symbol IN (${symbolsStr})
-      ORDER BY s.market_cap DESC NULLS LAST
+      ) md ON fm.symbol = md.symbol
+      WHERE fm.symbol IN (${symbolsStr})
+      ORDER BY fm.market_cap DESC NULLS LAST
     `);
 
     if (format === "csv") {
@@ -1626,14 +1626,14 @@ router.post("/watchlists", async (req, res) => {
 
 // Stock screening endpoint - main endpoint for finding stocks based on criteria
 router.get("/stocks", async (req, res) => {
-  // This endpoint requires price_daily and stocks tables that don't exist in current schema
+  // This endpoint requires price_daily and fundamental_metrics tables that don't exist in current schema
   // Return a graceful response indicating the feature needs database setup
   try {
     const {
       price_min = 0, // minimum price
       price_max = 10000, // maximum price
       volume_min = 0, // minimum daily volume
-      sort_by = "volume", // market_cap, price, volume, NULL as pe_ratio, dividend_yield
+      sort_by = "volume", // market_cap, price, volume, pe_ratio, dividend_yield
       sort_order = "desc", // asc, desc
       limit = 50, // number of results to return
     } = req.query;
@@ -1789,7 +1789,7 @@ router.get("/stocks", async (req, res) => {
       volume_min = 0,             // minimum daily volume
       pe_ratio_max = 100,         // maximum P/E ratio
       dividend_yield_min = 0,     // minimum dividend yield
-      sort_by = "market_cap",     // market_cap, price, volume, NULL as pe_ratio, dividend_yield
+      sort_by = "market_cap",     // market_cap, price, volume, pe_ratio, dividend_yield
       sort_order = "desc",        // asc, desc
       limit = 50                  // number of results to return
     } = req.query;
@@ -1894,7 +1894,7 @@ router.get("/stocks", async (req, res) => {
         km.return_on_assets as roa,
         sp.last_updated
       FROM price_daily sp
-      LEFT JOIN stocks cp ON sp.symbol = cp.symbol
+      LEFT JOIN fundamental_metrics cp ON sp.symbol = cp.symbol
       LEFT JOIN key_metrics km ON sp.symbol = km.ticker
       WHERE ${whereConditions.join(' AND ')}
       ORDER BY sp.symbol, sp.last_updated DESC, ${orderBy}
@@ -1917,7 +1917,7 @@ router.get("/stocks", async (req, res) => {
             stocks: [],
             summary: {
               total_results: 0,
-              message: "Stock screener requires database setup with price_daily and stocks tables",
+              message: "Stock screener requires database setup with price_daily and fundamental_metrics tables",
               filters_applied: {
                 market_cap, sector, price_min, price_max, volume_min,
                 pe_ratio_max, dividend_yield_min
@@ -1967,7 +1967,7 @@ router.get("/stocks", async (req, res) => {
       market_cap: parseFloat(stock.market_cap) || 0,
       sector: stock.sector || "Unknown",
       industry: stock.industry || "Unknown",
-      pe_ratio: null,
+      pe_ratio: stock.pe_ratio ? parseFloat(stock.pe_ratio) : null,
       dividend_yield: stock.dividend_yield ? parseFloat(stock.dividend_yield) : null,
       profit_margin: stock.profit_margin ? parseFloat(stock.profit_margin) : null,
       debt_to_equity: stock.debt_to_equity ? parseFloat(stock.debt_to_equity) : null,
@@ -2023,7 +2023,7 @@ router.get("/stocks", async (req, res) => {
           stocks: [],
           summary: {
             total_results: 0,
-            message: "Stock screener requires database setup with price_daily and stocks tables",
+            message: "Stock screener requires database setup with price_daily and fundamental_metrics tables",
             filters_applied: {
               market_cap, sector, price_min, price_max, volume_min,
               pe_ratio_max, dividend_yield_min
@@ -2289,16 +2289,16 @@ router.post("/custom", authenticateToken, async (req, res) => {
         s.price,
         s.change_percent,
         s.volume,
- NULL as pe_ratio,
+        s.pe_ratio,
         s.pb_ratio,
         s.ps_ratio,
         s.roe,
         s.roa,
-        NULL as debt_to_equity,
-        NULL as current_ratio,
-        NULL as quick_ratio,
-        NULL as revenue_growth,
-        NULL as earnings_growth,
+        s.debt_to_equity,
+        s.current_ratio,
+        s.quick_ratio,
+        s.revenue_growth,
+        s.earnings_growth,
         s.net_margin,
         s.gross_margin,
         s.operating_margin,
@@ -2347,9 +2347,9 @@ router.post("/custom", authenticateToken, async (req, res) => {
               stocks.length,
             avgPE:
               stocks
-                .filter((s) => NULL as pe_ratio > 0)
-                .reduce((sum, s) => sum + NULL as pe_ratio, 0) /
-              stocks.filter((s) => NULL as pe_ratio > 0).length,
+                .filter((s) => s.pe_ratio > 0)
+                .reduce((sum, s) => sum + s.pe_ratio, 0) /
+              stocks.filter((s) => s.pe_ratio > 0).length,
             avgROE:
               stocks
                 .filter((s) => s.roe)
