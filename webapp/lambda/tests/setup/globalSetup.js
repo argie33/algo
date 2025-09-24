@@ -117,7 +117,7 @@ module.exports = async () => {
     await query(`DROP TABLE IF EXISTS market_data CASCADE`);
     await query(`
       CREATE TABLE market_data (
-        symbol VARCHAR(20),
+        ticker VARCHAR(20),
         name VARCHAR(255),
         date DATE,
         price DECIMAL(12,4),
@@ -162,7 +162,7 @@ module.exports = async () => {
 
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date)
+        PRIMARY KEY (ticker, date)
       )
     `);
 
@@ -195,16 +195,77 @@ module.exports = async () => {
     // Insert test data for market_data with loader schema from loadmarket.py
     await query(`
       INSERT INTO market_data (
-        symbol, name, date, price, volume, market_cap, high_52w, low_52w,
+        ticker, name, date, price, volume, market_cap, high_52w, low_52w,
         return_1d, return_1m, volatility_30d, asset_class, region
       ) VALUES
       ('AAPL', 'Apple Inc.', '2024-01-02', 180.50, 65000000, 3400000000000, 199.62, 125.02, 0.007, 0.124, 0.28, 'broad_market_etf', 'us'),
       ('MSFT', 'Microsoft Corporation', '2024-01-02', 415.25, 32000000, 2800000000000, 468.35, 324.73, 0.006, 0.089, 0.25, 'broad_market_etf', 'us'),
       ('GOOGL', 'Alphabet Inc.', '2024-01-02', 142.80, 28000000, 1680000000000, 191.18, 83.34, 0.004, 0.156, 0.32, 'broad_market_etf', 'us')
-      ON CONFLICT (symbol, date) DO NOTHING
+      ON CONFLICT (ticker, date) DO NOTHING
     `);
 
     // Create missing tables from fix_missing_columns.sql
+
+    // Create earnings_reports table for analysts routes
+    await query(`DROP TABLE IF EXISTS earnings_reports CASCADE`);
+    await query(`
+      CREATE TABLE earnings_reports (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(20) NOT NULL,
+        fiscal_year INTEGER,
+        quarter INTEGER,
+        estimated_eps DECIMAL(12,6),
+        actual_eps DECIMAL(12,6),
+        actual_revenue DECIMAL(15,2),
+        report_date DATE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, fiscal_year, quarter)
+      )
+    `);
+
+    // Create analyst_sentiment_analysis table for EPS revisions
+    await query(`DROP TABLE IF EXISTS analyst_sentiment_analysis CASCADE`);
+    await query(`
+      CREATE TABLE analyst_sentiment_analysis (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(20) NOT NULL,
+        high_price_target DECIMAL(12,4),
+        low_price_target DECIMAL(12,4),
+        price_target_vs_current DECIMAL(8,4),
+        eps_revisions_up_last_30d INTEGER DEFAULT 0,
+        eps_revisions_down_last_30d INTEGER DEFAULT 0,
+        collected_date DATE DEFAULT CURRENT_DATE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, collected_date)
+      )
+    `);
+
+    // Insert test data for earnings_reports
+    await query(`
+      INSERT INTO earnings_reports (
+        symbol, fiscal_year, quarter, estimated_eps, actual_eps, actual_revenue, report_date
+      ) VALUES
+      ('AAPL', 2024, 1, 2.10, 2.18, 119500000000, '2024-01-02'),
+      ('AAPL', 2023, 4, 2.08, 2.18, 117200000000, '2023-10-26'),
+      ('AAPL', 2023, 3, 1.95, 1.89, 89500000000, '2023-07-27'),
+      ('MSFT', 2024, 1, 2.78, 2.93, 62000000000, '2024-01-03'),
+      ('MSFT', 2023, 4, 2.78, 2.93, 62000000000, '2023-10-24'),
+      ('GOOGL', 2024, 1, 1.50, 1.64, 80500000000, '2024-01-30'),
+      ('GOOGL', 2023, 4, 1.35, 1.70, 80500000000, '2023-10-24')
+      ON CONFLICT (symbol, fiscal_year, quarter) DO NOTHING
+    `);
+
+    // Insert test data for analyst_sentiment_analysis
+    await query(`
+      INSERT INTO analyst_sentiment_analysis (
+        symbol, high_price_target, low_price_target, price_target_vs_current,
+        eps_revisions_up_last_30d, eps_revisions_down_last_30d, collected_date
+      ) VALUES
+      ('AAPL', 220.00, 160.00, 0.15, 3, 1, '2024-01-02'),
+      ('MSFT', 480.00, 350.00, 0.12, 5, 2, '2024-01-02'),
+      ('GOOGL', 180.00, 120.00, 0.18, 2, 3, '2024-01-02')
+      ON CONFLICT (symbol, collected_date) DO NOTHING
+    `);
 
     // Create trade_history table
     await query(`DROP TABLE IF EXISTS trade_history CASCADE`);

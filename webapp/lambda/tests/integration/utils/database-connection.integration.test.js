@@ -349,9 +349,9 @@ describe("Database Comprehensive Integration Tests", () => {
       // Insert market data with market_cap using loader schema
       await query(
         `
-        INSERT INTO market_data (symbol, name, date, market_cap, price)
+        INSERT INTO market_data (ticker, name, date, market_cap, price)
         VALUES ($1, $1, CURRENT_DATE, $2, $3)
-        ON CONFLICT (symbol, date) DO UPDATE SET
+        ON CONFLICT (ticker, date) DO UPDATE SET
           market_cap = EXCLUDED.market_cap,
           price = EXCLUDED.price
       `,
@@ -371,7 +371,7 @@ describe("Database Comprehensive Integration Tests", () => {
       expect(profileResult.rows[0].sector).toBe("Healthcare");
       expect(profileResult.rows[0].short_name).toBe("Integrity Test Co");
       expect(parseInt(marketResult.rows[0].market_cap)).toBe(2000000);
-      expect(parseFloat(marketResult.rows[0].current_price)).toBe(150.5);
+      expect(parseFloat(marketResult.rows[0].price)).toBe(150.5);
     });
 
     test("should handle foreign key relationships properly", async () => {
