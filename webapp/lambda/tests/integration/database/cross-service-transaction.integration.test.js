@@ -217,7 +217,7 @@ describe("Cross-Service Transaction Integration", () => {
           "INSERT INTO account_balance (user_id, balance) VALUES (1, 15000.00)"
         );
         await client.query(
-          "INSERT INTO market_data (symbol, current_price, available_shares) VALUES ('GOOGL', 2700.00, 100)"
+          "INSERT INTO market_data (symbol, name, date, price) VALUES ('GOOGL', 'Alphabet Inc.', CURRENT_DATE, 2700.00)"
         );
       });
 

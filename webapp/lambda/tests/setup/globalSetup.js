@@ -192,25 +192,16 @@ module.exports = async () => {
       ON CONFLICT (ticker) DO NOTHING
     `);
 
-    // Insert test data for market_data with production schema
+    // Insert test data for market_data with loader schema from loadmarket.py
     await query(`
       INSERT INTO market_data (
-        ticker, current_price, regular_market_price, previous_close,
-        regular_market_previous_close, open_price, regular_market_open,
-        day_low, regular_market_day_low, day_high, regular_market_day_high,
-        volume, regular_market_volume, market_cap, average_volume,
-        fifty_two_week_low, fifty_two_week_high
+        symbol, name, date, price, volume, market_cap, high_52w, low_52w,
+        return_1d, return_1m, volatility_30d, asset_class, region
       ) VALUES
-      ('AAPL', 180.50, 180.50, 179.25, 179.25, 179.80, 179.80,
-       178.90, 178.90, 181.20, 181.20, 65000000, 65000000,
-       3400000000000, 55000000, 125.02, 199.62),
-      ('MSFT', 415.25, 415.25, 412.80, 412.80, 413.50, 413.50,
-       410.15, 410.15, 417.85, 417.85, 32000000, 32000000,
-       2800000000000, 28000000, 324.73, 468.35),
-      ('GOOGL', 142.80, 142.80, 141.95, 141.95, 142.10, 142.10,
-       140.85, 140.85, 143.75, 143.75, 28000000, 28000000,
-       1680000000000, 24000000, 83.34, 191.18)
-      ON CONFLICT (ticker) DO NOTHING
+      ('AAPL', 'Apple Inc.', '2024-01-02', 180.50, 65000000, 3400000000000, 199.62, 125.02, 0.007, 0.124, 0.28, 'broad_market_etf', 'us'),
+      ('MSFT', 'Microsoft Corporation', '2024-01-02', 415.25, 32000000, 2800000000000, 468.35, 324.73, 0.006, 0.089, 0.25, 'broad_market_etf', 'us'),
+      ('GOOGL', 'Alphabet Inc.', '2024-01-02', 142.80, 28000000, 1680000000000, 191.18, 83.34, 0.004, 0.156, 0.32, 'broad_market_etf', 'us')
+      ON CONFLICT (symbol, date) DO NOTHING
     `);
 
     // Create missing tables from fix_missing_columns.sql

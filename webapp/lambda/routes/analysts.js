@@ -4,6 +4,33 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
+// Helper function to check if a table exists
+async function tableExists(tableName) {
+  try {
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = $1
+      );
+    `;
+    const result = await query(tableCheckQuery, [tableName]);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking table existence for ${tableName}:`, error);
+    return false;
+  }
+}
+
+// Helper function to return empty result when table doesn't exist
+function emptyTableResponse(message = "Data not yet loaded") {
+  return {
+    success: true,
+    data: [],
+    message,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 // Root endpoint - provides overview of available analyst endpoints
 router.get("/", async (req, res) => {
   res.json({
@@ -31,6 +58,25 @@ router.get("/upgrades", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 25));
     const offset = Math.max(0, (page - 1) * limit);
+
+    // Check if required table exists
+    if (!(await tableExists("analyst_upgrade_downgrade"))) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+        message: "Analyst upgrade/downgrade data not yet loaded",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Query database for upgrades
     const upgradesQuery = `
       SELECT
@@ -77,12 +123,23 @@ router.get("/:ticker/earnings-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
 
+    // Check if earnings_reports table exists
+    if (!(await tableExists("earnings_reports"))) {
+      return res.json({
+        success: true,
+        ticker: ticker.toUpperCase(),
+        estimates: [],
+        message: "Earnings data not yet loaded",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const estimatesQuery = `
       SELECT
-        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
-        COALESCE(er.eps_estimate, 0) as estimate,
+        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
+        COALESCE(er.estimated_eps, 0) as estimate,
         COALESCE(er.actual_eps, 0) as actual,
-        COALESCE(er.actual_eps - er.eps_estimate, 0) as difference,
+        COALESCE(er.actual_eps - er.estimated_eps, 0) as difference,
         COALESCE(er.surprise_percent, 0) as surprise_percent,
         COALESCE(er.report_date, CURRENT_DATE) as reported_date
       FROM earnings_reports er
@@ -114,7 +171,7 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
 
     const revenueQuery = `
       SELECT 
-        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
+        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
         NULL as estimate,
         er.actual_revenue as actual,
         NULL as difference,
@@ -147,10 +204,10 @@ router.get("/:ticker/earnings-history", async (req, res) => {
 
     const historyQuery = `
       SELECT 
-        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as quarter,
-        er.eps_estimate as estimate,
+        ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as quarter,
+        er.estimated_eps as estimate,
         er.actual_eps as actual,
-        (er.actual_eps - er.eps_estimate) as difference,
+        (er.actual_eps - er.estimated_eps) as difference,
         er.surprise_percent,
         er.report_date as earnings_date
       FROM earnings_reports er
@@ -270,14 +327,14 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     const financialDataQuery = `
       SELECT 
         er.symbol,
-        er.year as fiscal_year,
+        er.fiscal_year as fiscal_year,
         er.actual_eps as earnings_per_share,
         er.report_date
       FROM earnings_reports er
       WHERE UPPER(er.symbol) = UPPER($1)
-      AND er.year IS NOT NULL
+      AND er.fiscal_year IS NOT NULL
       AND er.actual_eps IS NOT NULL
-      ORDER BY er.year DESC, er.quarter DESC
+      ORDER BY er.fiscal_year DESC, er.quarter DESC
       LIMIT 20
     `;
 
@@ -286,8 +343,8 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
       SELECT 
         er.symbol,
         er.actual_eps,
-        er.eps_estimate,
-        er.year,
+        er.estimated_eps,
+        er.fiscal_year,
         er.quarter,
         er.report_date
       FROM earnings_reports er
@@ -535,10 +592,10 @@ router.get("/:ticker/overview", async (req, res) => {
     const [earningsData, revenueData, analystData] = await Promise.all([
       query(
         `SELECT 
-          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
-          er.eps_estimate as estimate,
+          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
+          er.estimated_eps as estimate,
           er.actual_eps as actual,
-          (er.actual_eps - er.eps_estimate) as difference,
+          (er.actual_eps - er.estimated_eps) as difference,
           er.surprise_percent,
           er.report_date as reported_date
         FROM earnings_reports er
@@ -549,7 +606,7 @@ router.get("/:ticker/overview", async (req, res) => {
       ),
       query(
         `SELECT 
-          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
+          ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(er.fiscal_year::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
           NULL as estimate,
           er.actual_revenue as actual,
           NULL as difference,

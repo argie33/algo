@@ -34,6 +34,7 @@ async function ensureTestData() {
     await query(`
       CREATE TABLE IF NOT EXISTS company_profile (
         ticker VARCHAR(10) PRIMARY KEY,
+        symbol VARCHAR(10) UNIQUE NOT NULL, -- For JOIN consistency with trading tables
         short_name VARCHAR(100),
         long_name VARCHAR(200),
         sector VARCHAR(100),
@@ -301,9 +302,9 @@ async function ensureTestData() {
 
     // Insert basic test data for major symbols
     await query(`
-      INSERT INTO company_profile (ticker, short_name, long_name, sector, industry, currency) VALUES
-      ('AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics', 'USD'),
-      ('MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'Technology', 'Software', 'USD')
+      INSERT INTO company_profile (ticker, symbol, short_name, long_name, sector, industry, currency) VALUES
+      ('AAPL', 'AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics', 'USD'),
+      ('MSFT', 'MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'Technology', 'Software', 'USD')
       ON CONFLICT (ticker) DO NOTHING
     `);
 
@@ -320,11 +321,11 @@ async function ensureTestData() {
 
     // Ensure company_profile records exist before inserting market_data
     await query(`
-      INSERT INTO company_profile (ticker, short_name, long_name, sector, industry) VALUES
-      ('AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
-      ('MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'Technology', 'Software'),
-      ('SPY', 'SPDR S&P 500 ETF Trust', 'SPDR S&P 500 ETF Trust', 'ETF', 'ETF'),
-      ('QQQ', 'Invesco QQQ Trust', 'Invesco QQQ Trust', 'ETF', 'ETF')
+      INSERT INTO company_profile (ticker, symbol, short_name, long_name, sector, industry) VALUES
+      ('AAPL', 'AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
+      ('MSFT', 'MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'Technology', 'Software'),
+      ('SPY', 'SPY', 'SPDR S&P 500 ETF Trust', 'SPDR S&P 500 ETF Trust', 'ETF', 'ETF'),
+      ('QQQ', 'QQQ', 'Invesco QQQ Trust', 'Invesco QQQ Trust', 'ETF', 'ETF')
       ON CONFLICT (ticker) DO NOTHING
     `);
 
@@ -1129,6 +1130,30 @@ async function ensureTestData() {
       (1, 'MSFT', 'Microsoft'),
       (2, 'GOOGL', 'Google/Alphabet')
       ON CONFLICT (watchlist_id, symbol) DO NOTHING
+    `);
+
+    // Create dividend_calendar table (from dividend route requirements)
+    await query(`
+      CREATE TABLE IF NOT EXISTS dividend_calendar (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        ex_dividend_date DATE,
+        record_date DATE,
+        payment_date DATE,
+        dividend_amount DECIMAL(10,4),
+        dividend_yield DECIMAL(8,4),
+        dividend_type VARCHAR(20) DEFAULT 'cash',
+        frequency VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await query(`
+      INSERT INTO dividend_calendar (symbol, ex_dividend_date, payment_date, dividend_amount, dividend_yield) VALUES
+      ('AAPL', '2024-02-01', '2024-02-15', 0.24, 0.52),
+      ('MSFT', '2024-02-05', '2024-02-20', 0.68, 0.68),
+      ('SPY', '2024-01-30', '2024-02-10', 0.45, 1.25)
+      ON CONFLICT DO NOTHING
     `);
 
     console.log('✅ Basic test data and loader tables created');
