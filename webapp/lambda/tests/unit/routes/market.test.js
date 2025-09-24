@@ -292,6 +292,110 @@ describe("Market Routes Unit Tests", () => {
     });
   });
 
+  // AWS Failing Endpoints Tests (Previously failing due to mock responses)
+  describe("AWS Failing Endpoints - Database-Driven", () => {
+    test("GET /market/recession-forecast should return database-driven recession analysis", async () => {
+      const response = await request(app)
+        .get("/market/recession-forecast")
+        .expect(200);
+
+      expect(response.body).toBeDefined();
+      expect(typeof response.body).toBe("object");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+
+      if (response.body.data) {
+        expect(response.body.data).toHaveProperty("recession_probability");
+        expect(response.body.data).toHaveProperty("indicators");
+        expect(response.body.data).toHaveProperty("analysis");
+      }
+    });
+
+    test("GET /market/leading-indicators should return database-driven leading indicators", async () => {
+      const response = await request(app)
+        .get("/market/leading-indicators")
+        .expect(200);
+
+      expect(response.body).toBeDefined();
+      expect(typeof response.body).toBe("object");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+
+      if (response.body.data) {
+        expect(response.body.data).toHaveProperty("indicators");
+        expect(response.body.data).toHaveProperty("summary");
+      }
+    });
+
+    test("GET /market/sectoral-analysis should return database-driven sector analysis", async () => {
+      const response = await request(app)
+        .get("/market/sectoral-analysis")
+        .expect(200);
+
+      expect(response.body).toBeDefined();
+      expect(typeof response.body).toBe("object");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+
+      if (response.body.data) {
+        expect(response.body.data).toHaveProperty("sectors");
+        expect(response.body.data).toHaveProperty("analysis");
+      }
+    });
+
+    test("GET /market/ai-insights should return database-driven AI insights", async () => {
+      const response = await request(app)
+        .get("/market/ai-insights")
+        .expect(200);
+
+      expect(response.body).toBeDefined();
+      expect(typeof response.body).toBe("object");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+
+      if (response.body.data) {
+        expect(response.body.data).toHaveProperty("insights");
+        expect(Array.isArray(response.body.data.insights)).toBe(true);
+        // Verify insights are based on real data, not hardcoded
+        if (response.body.data.insights.length > 0) {
+          const firstInsight = response.body.data.insights[0];
+          expect(firstInsight).toHaveProperty("title");
+          expect(firstInsight).toHaveProperty("description");
+          expect(firstInsight).toHaveProperty("confidence");
+          // Should have data_source indicating real data usage
+          expect(firstInsight).toHaveProperty("data_source");
+        }
+      }
+    });
+
+    test("GET /market/economic-scenarios should return database-driven economic scenarios", async () => {
+      const response = await request(app)
+        .get("/market/economic-scenarios")
+        .expect(200);
+
+      expect(response.body).toBeDefined();
+      expect(typeof response.body).toBe("object");
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+
+      if (response.body.data) {
+        expect(response.body.data).toHaveProperty("scenarios");
+        expect(Array.isArray(response.body.data.scenarios)).toBe(true);
+        // Verify scenarios are based on real economic data
+        if (response.body.data.scenarios.length > 0) {
+          const scenario = response.body.data.scenarios[0];
+          expect(scenario).toHaveProperty("name");
+          expect(scenario).toHaveProperty("probability");
+          expect(scenario).toHaveProperty("gdpGrowth");
+          expect(scenario).toHaveProperty("unemployment");
+          expect(scenario).toHaveProperty("fedRate");
+          // Should have data_source indicating real data usage
+          expect(scenario).toHaveProperty("data_source");
+        }
+      }
+    });
+  });
+
   // Error handling tests
   describe("Error Handling", () => {
     test("should handle invalid query parameters gracefully", async () => {

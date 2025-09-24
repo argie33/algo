@@ -2347,9 +2347,9 @@ router.post("/custom", authenticateToken, async (req, res) => {
               stocks.length,
             avgPE:
               stocks
-                .filter((s) => NULL as pe_ratio > 0)
-                .reduce((sum, s) => sum + NULL as pe_ratio, 0) /
-              stocks.filter((s) => NULL as pe_ratio > 0).length,
+                .filter((s) => s.pe_ratio > 0)
+                .reduce((sum, s) => sum + s.pe_ratio, 0) /
+              stocks.filter((s) => s.pe_ratio > 0).length,
             avgROE:
               stocks
                 .filter((s) => s.roe)

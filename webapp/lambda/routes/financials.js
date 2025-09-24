@@ -1894,8 +1894,8 @@ router.get("/:ticker/key-metrics", async (req, res) => {
           icon: "TrendingUp",
           metrics: {
             "P/E Ratio (Trailing)": metrics.trailing_pe,
-            "P/E Ratio (Forward)": metricNULL as forward_pe,
-            "Price/Book": metricNULL as price_to_book,
+            "P/E Ratio (Forward)": metrics.forward_pe,
+            "Price/Book": metrics.price_to_book,
             "PEG Ratio": metrics.peg_ratio,
           },
         },
