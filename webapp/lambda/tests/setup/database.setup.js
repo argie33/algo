@@ -76,7 +76,7 @@ async function ensureTestData() {
       console.warn('⚠️  Could not load setup_database.sql, using fallback:', error.message);
 
       // Fallback: Create essential webapp tables only
-    await query(`
+      await query(`
       CREATE TABLE IF NOT EXISTS watchlists (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -149,6 +149,7 @@ async function ensureTestData() {
     `);
 
     console.log('✅ Database webapp-only tables created successfully');
+    }
 
   } catch (error) {
     console.error('❌ Error creating webapp tables:', error);
@@ -186,8 +187,39 @@ async function createLoaderTables() {
         ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
         trailing_pe NUMERIC,
         forward_pe NUMERIC,
+        price_to_sales_ttm NUMERIC,
+        price_to_book NUMERIC,
+        peg_ratio NUMERIC,
+        enterprise_value NUMERIC,
+        profit_margin_pct NUMERIC,
+        return_on_assets_pct NUMERIC,
+        return_on_equity_pct NUMERIC,
         dividend_yield NUMERIC,
-        eps_trailing NUMERIC
+        eps_trailing NUMERIC,
+        eps_forward NUMERIC,
+        total_revenue NUMERIC,
+        net_income NUMERIC,
+        debt_to_equity NUMERIC,
+        current_ratio NUMERIC,
+        quick_ratio NUMERIC,
+        total_cash NUMERIC,
+        cash_per_share NUMERIC,
+        operating_cashflow NUMERIC,
+        free_cashflow NUMERIC,
+        beta NUMERIC,
+        earnings_growth_pct NUMERIC,
+        revenue_growth_pct NUMERIC
+      )
+    `);
+
+    // Create market_data table for current market information
+    await query(`
+      CREATE TABLE IF NOT EXISTS market_data (
+        ticker VARCHAR(10) PRIMARY KEY,
+        market_cap BIGINT,
+        current_price NUMERIC,
+        volume BIGINT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -220,6 +252,64 @@ async function createLoaderTables() {
       )
     `);
 
+    // Create buy_sell signals tables for signals API
+    await query(`
+      CREATE TABLE IF NOT EXISTS buy_sell_daily (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        timeframe VARCHAR(10) DEFAULT 'daily',
+        date DATE NOT NULL,
+        open NUMERIC,
+        high NUMERIC,
+        low NUMERIC,
+        close NUMERIC,
+        volume BIGINT,
+        signal VARCHAR(10),
+        buylevel NUMERIC,
+        stoplevel NUMERIC,
+        inposition BOOLEAN DEFAULT false,
+        UNIQUE(symbol, timeframe, date)
+      )
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS buy_sell_weekly (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        timeframe VARCHAR(10) DEFAULT 'weekly',
+        date DATE NOT NULL,
+        open NUMERIC,
+        high NUMERIC,
+        low NUMERIC,
+        close NUMERIC,
+        volume BIGINT,
+        signal VARCHAR(10),
+        buylevel NUMERIC,
+        stoplevel NUMERIC,
+        inposition BOOLEAN DEFAULT false,
+        UNIQUE(symbol, timeframe, date)
+      )
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS buy_sell_monthly (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        timeframe VARCHAR(10) DEFAULT 'monthly',
+        date DATE NOT NULL,
+        open NUMERIC,
+        high NUMERIC,
+        low NUMERIC,
+        close NUMERIC,
+        volume BIGINT,
+        signal VARCHAR(10),
+        buylevel NUMERIC,
+        stoplevel NUMERIC,
+        inposition BOOLEAN DEFAULT false,
+        UNIQUE(symbol, timeframe, date)
+      )
+    `);
+
     console.log('✅ Python loader tables created for testing');
   } catch (error) {
     console.error('❌ Error creating Python loader tables:', error);
@@ -248,10 +338,10 @@ async function populateLoaderTestData() {
     `);
 
     await query(`
-      INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, dividend_yield, eps_trailing) VALUES
-      ('AAPL', 28.5, 25.2, 0.55, 6.15),
-      ('MSFT', 35.8, 29.1, 0.80, 11.75),
-      ('GOOGL', 24.2, 21.5, 0.00, 5.89)
+      INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, dividend_yield, eps_trailing, price_to_sales_ttm, price_to_book, peg_ratio, profit_margin_pct, return_on_assets_pct, return_on_equity_pct, eps_forward, total_revenue, net_income, debt_to_equity, current_ratio, quick_ratio, total_cash, cash_per_share, operating_cashflow, free_cashflow, beta, earnings_growth_pct, revenue_growth_pct, enterprise_value) VALUES
+      ('AAPL', 28.5, 25.2, 0.55, 6.15, 7.8, 45.5, 2.1, 25.3, 0.18, 0.35, 7.20, 394328000000, 99803000000, 1.73, 1.12, 1.00, 29965000000, 1.85, 99584000000, 84726000000, 1.29, 0.085, 0.071, 2750000000000),
+      ('MSFT', 35.8, 29.1, 0.80, 11.75, 12.4, 13.2, 2.5, 36.7, 0.15, 0.42, 13.50, 245122000000, 88136000000, 0.35, 2.52, 2.19, 104757000000, 14.05, 87582000000, 65149000000, 0.89, 0.103, 0.099, 3050000000000),
+      ('GOOGL', 24.2, 21.5, 0.00, 5.89, 5.1, 6.8, 1.8, 22.4, 0.12, 0.28, 6.75, 307394000000, 73795000000, 0.12, 2.05, 1.87, 115696000000, 8.89, 91495000000, 67012000000, 1.05, 0.126, 0.089, 1680000000000)
       ON CONFLICT (ticker) DO NOTHING
     `);
 
@@ -269,6 +359,22 @@ async function populateLoaderTestData() {
       ('MSFT', CURRENT_DATE, 2.93, 2.85, 2.8),
       ('GOOGL', CURRENT_DATE, 1.44, 1.38, 4.3)
       ON CONFLICT (symbol, quarter) DO NOTHING
+    `);
+
+    // Insert test signals data
+    await query(`
+      INSERT INTO buy_sell_daily (symbol, timeframe, date, open, high, low, close, volume, signal, buylevel, stoplevel, inposition) VALUES
+      ('AAPL', 'daily', CURRENT_DATE, 175.0, 176.5, 174.0, 175.5, 65000000, 'BUY', 175.0, 170.0, true),
+      ('MSFT', 'daily', CURRENT_DATE, 420.0, 422.0, 419.0, 420.75, 28000000, 'BUY', 420.0, 410.0, true),
+      ('GOOGL', 'daily', CURRENT_DATE, 142.0, 144.0, 141.0, 143.5, 22000000, 'SELL', 145.0, 140.0, false)
+      ON CONFLICT (symbol, timeframe, date) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO buy_sell_weekly (symbol, timeframe, date, open, high, low, close, volume, signal, buylevel, stoplevel, inposition) VALUES
+      ('AAPL', 'weekly', CURRENT_DATE, 170.0, 180.0, 169.0, 178.0, 325000000, 'BUY', 170.0, 165.0, true),
+      ('MSFT', 'weekly', CURRENT_DATE, 415.0, 430.0, 414.0, 428.0, 140000000, 'BUY', 415.0, 400.0, true)
+      ON CONFLICT (symbol, timeframe, date) DO NOTHING
     `);
 
     console.log('✅ Test data populated for existing Python loader tables');

@@ -663,7 +663,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             bs.symbol,
             bs.date,
             bs.${signalColumn} as signal,
-            bs.price,
+            bs.close as price,
             ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
             ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
             ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
@@ -673,10 +673,10 @@ router.get("/signals/:timeframe", async (req, res) => {
             NULL as trailing_pe,
             NULL as dividend_yield,
             CASE 
-              WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
-              THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
-              WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
-              THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
+              WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close" : "bs.close"} > bs.close
+              THEN ((${priceDailyExists ? "pd.close" : "bs.close"} - bs.close) / bs.close * 100)
+              WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close" : "bs.close"} < bs.close
+              THEN ((bs.close - ${priceDailyExists ? "pd.close" : "bs.close"}) / bs.close * 100)
               ELSE 0
             END as performance_percent,
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
@@ -697,7 +697,7 @@ router.get("/signals/:timeframe", async (req, res) => {
           bs.symbol,
           bs.date,
           bs.${signalColumn} as signal,
-          bs.price,
+          bs.close as price,
           ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
           ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
           ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
@@ -707,10 +707,10 @@ router.get("/signals/:timeframe", async (req, res) => {
           NULL as trailing_pe,
           NULL as dividend_yield,
           CASE 
-            WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
-            THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
-            WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
-            THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
+            WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close" : "bs.close"} > bs.close
+            THEN ((${priceDailyExists ? "pd.close" : "bs.close"} - bs.close) / bs.close * 100)
+            WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close" : "bs.close"} < bs.close
+            THEN ((bs.close - ${priceDailyExists ? "pd.close" : "bs.close"}) / bs.close * 100)
             ELSE 0
           END as performance_percent
         FROM ${tableName} bs
@@ -1168,23 +1168,23 @@ router.get("/performance", async (req, res) => {
         COUNT(*) as total_signals,
         AVG(
           CASE
-            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price
-            THEN ((s.close - bs.price) / bs.price * 100)
-            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price
-            THEN ((bs.price - s.close) / bs.price * 100)
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.close
+            THEN ((s.close - bs.close) / bs.close * 100)
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.close
+            THEN ((bs.close - s.close) / bs.close * 100)
             ELSE 0
           END
         ) as avg_performance,
         COUNT(
           CASE
-            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price THEN 1
-            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price THEN 1
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.close THEN 1
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.close THEN 1
           END
         ) as winning_trades,
         (COUNT(
           CASE
-            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price THEN 1
-            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price THEN 1
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.close THEN 1
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.close THEN 1
           END
         ) * 100.0 / COUNT(*)) as win_rate
       FROM buy_sell_daily bs
@@ -1652,19 +1652,36 @@ router.get("/simulator", async (req, res) => {
       inposition: false,
     };
     try {
+      // First check all available columns to debug the issue
+      const allColumnsCheck = await query(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = $1
+        ORDER BY column_name
+      `,
+        [tableName]
+      );
+      console.log(`🔍 All available columns in ${tableName}:`, allColumnsCheck.rows.map(r => r.column_name));
+
       const columnCheck = await query(
         `
         SELECT column_name
         FROM information_schema.columns
         WHERE table_schema = 'public'
         AND table_name = $1
-        AND column_name IN ('symbol', 'date', 'signal', 'signal_type', 'price', 'buylevel', 'stoplevel', 'inposition')
+        AND LOWER(column_name) IN ('symbol', 'date', 'signal', 'signal_type', 'price', 'buylevel', 'stoplevel', 'inposition', 'close', 'current_price', 'entry_price')
       `,
         [tableName]
       );
+      console.log(`🎮 Found columns in ${tableName}:`, columnCheck.rows.map(r => r.column_name));
+
       columnCheck.rows.forEach((row) => {
         tradingTableColumns[row.column_name] = true;
       });
+
+      console.log(`🎮 Trading table columns config:`, tradingTableColumns);
     } catch (error) {
       console.error(
         `[TRADING] Error checking columns for ${tableName}:`,
@@ -1673,6 +1690,7 @@ router.get("/simulator", async (req, res) => {
       tradingTableColumns = {
         symbol: true,
         date: true,
+        signal: true,
         signal_type: true,
         price: true,
         buylevel: false,
@@ -1683,18 +1701,38 @@ router.get("/simulator", async (req, res) => {
 
     // Simulate trading performance based on historical signals using dynamic column detection
     const signalColumn = tradingTableColumns.signal_type ? 'signal_type' : 'signal';
+
+    // Dynamic price column detection
+    const priceColumn = tradingTableColumns.price ? 'price' :
+                       tradingTableColumns.current_price ? 'current_price' :
+                       tradingTableColumns.close_price ? 'close_price' :
+                       tradingTableColumns.entry_price ? 'entry_price' :
+                       '0'; // Fallback value if no price column found
+
+    console.log(`🎮 Using price column: ${priceColumn} for trading simulation`);
+
+    if (priceColumn === '0') {
+      return res.status(500).json({
+        success: false,
+        error: "Trading simulator not available",
+        message: "No price data column found in signals table",
+        details: `Available columns: ${Object.keys(tradingTableColumns).join(', ')}`,
+        table: tableName
+      });
+    }
+
     const simulatorQuery = `
       SELECT
         symbol,
         date,
         ${signalColumn} as signal,
-        price as entry_price,
+        ${priceColumn} as entry_price,
         ${tradingTableColumns.stoplevel ? "stoplevel" : "NULL"} as exit_price,
         CASE
           WHEN ${signalColumn} = 'BUY' AND ${tradingTableColumns.stoplevel ? "stoplevel IS NOT NULL" : "FALSE"}
-          THEN ${tradingTableColumns.stoplevel ? "((stoplevel - price) / price * 100)" : "0"}
+          THEN ${tradingTableColumns.stoplevel ? `((stoplevel - ${priceColumn}) / ${priceColumn} * 100)` : "0"}
           WHEN ${signalColumn} = 'SELL' AND ${tradingTableColumns.stoplevel ? "stoplevel IS NOT NULL" : "FALSE"}
-          THEN ${tradingTableColumns.stoplevel ? "((price - stoplevel) / price * 100)" : "0"}
+          THEN ${tradingTableColumns.stoplevel ? `((${priceColumn} - stoplevel) / ${priceColumn} * 100)` : "0"}
           ELSE 0
         END as trade_return
       FROM ${tableName}

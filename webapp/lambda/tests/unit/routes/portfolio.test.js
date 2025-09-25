@@ -72,8 +72,9 @@ describe("Portfolio Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
-      expect(response.body).toHaveProperty("metrics");
-      expect(response.body).toHaveProperty("performance");
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("metrics");
+      expect(response.body.data).toHaveProperty("performance");
     });
   });
 

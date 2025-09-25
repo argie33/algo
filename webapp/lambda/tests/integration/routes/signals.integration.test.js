@@ -82,9 +82,7 @@ describe("Signals Routes", () => {
     });
 
     test("should handle filters properly", async () => {
-      const response = await request(app).get(
-        "/api/signals/buy?min_strength=0.8"
-      );
+      const response = await request(app).get("/api/signals/buy?min_strength=0.8");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -135,6 +133,7 @@ describe("Signals Routes", () => {
 
       const response = await request(app)
         .post("/api/signals/alerts")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send(alertData);
 
       expect(response.status).toBe(201);
@@ -144,7 +143,10 @@ describe("Signals Routes", () => {
     });
 
     test("should handle missing symbol in request body", async () => {
-      const response = await request(app).post("/api/signals/alerts").send({});
+      const response = await request(app)
+        .post("/api/signals/alerts")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .send({});
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -194,7 +196,24 @@ describe("Signals Routes", () => {
 
   describe("DELETE /api/signals/alerts/:alertId", () => {
     test("should delete alert successfully", async () => {
-      const response = await request(app).delete("/api/signals/alerts/123");
+      // First create an alert to delete
+      const createResponse = await request(app)
+        .post("/api/signals/alerts")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .send({
+          symbol: "AAPL",
+          signal_type: "BUY",
+          min_strength: 0.8,
+          notification_method: "email",
+        });
+
+      expect(createResponse.status).toBe(201);
+      const alertId = createResponse.body.data.alert_id;
+
+      // Now delete the created alert
+      const response = await request(app)
+        .delete(`/api/signals/alerts/${alertId}`)
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);

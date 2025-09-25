@@ -290,7 +290,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
 });
 
 // Portfolio positions endpoint
-router.get("/positions", async (req, res) => {
+router.get("/positions", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { limit = 50 } = req.query;
@@ -362,7 +362,7 @@ router.get("/positions", async (req, res) => {
 });
 
 // Portfolio analytics endpoint for advanced metrics
-router.get("/analytics", async (req, res) => {
+router.get("/analytics", authenticateToken, async (req, res) => {
   const userId = req.user.sub; // Use authenticated user's ID
   const { timeframe = "1y" } = req.query;
 
@@ -399,7 +399,7 @@ router.get("/analytics", async (req, res) => {
     ) {
       const symbols = (holdingsResult.rows || []).map((h) => h.symbol);
       const priceQuery = `
-        SELECT symbol, close_price as current_price
+        SELECT symbol, close as current_price
         FROM price_daily
         WHERE symbol = ANY($1::text[])
         ORDER BY date DESC
@@ -605,7 +605,7 @@ router.get("/analytics", async (req, res) => {
 });
 
 // Portfolio analysis endpoint - comprehensive portfolio analysis
-router.get("/analysis", async (req, res) => {
+router.get("/analysis", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const {
@@ -648,17 +648,51 @@ router.get("/analysis", async (req, res) => {
     const holdings = holdingsResult?.rows || [];
 
     if (holdings.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No portfolio holdings found",
-        details: `No portfolio holdings found for user ${userId}. Portfolio analysis requires holdings data.`,
-        troubleshooting: {
-          suggestion: "Add portfolio holdings to enable analysis",
-          required_data: [
-            "Portfolio holdings in portfolio_holdings table",
-            "Company profiles for sector analysis",
-            "Current market prices for valuation",
-          ],
+      return res.status(200).json({
+        success: true,
+        data: {
+          analysis: {
+            totalValue: 0,
+            totalCost: 0,
+            totalPnL: 0,
+            totalPnLPercent: 0,
+            sectors: [],
+            holdings: [],
+            diversification: {
+              score: 0,
+              concentration: 0,
+              geographic: {}
+            },
+            sector_allocation: {},
+            risk_metrics: {
+              beta: 0,
+              volatility: 0,
+              sharpeRatio: 0,
+              maxDrawdown: 0
+            },
+            performance_attribution: {
+              sectors: {},
+              holdings: []
+            },
+            riskMetrics: {
+              beta: 0,
+              volatility: 0,
+              sharpeRatio: 0,
+              maxDrawdown: 0
+            },
+            performance: {
+              dailyReturn: 0,
+              weeklyReturn: 0,
+              monthlyReturn: 0,
+              yearToDateReturn: 0
+            }
+          },
+          metadata: {
+            message: "No portfolio holdings found",
+            suggestion: "Add portfolio holdings to enable analysis",
+            userId: userId,
+            period: period
+          }
         },
         timestamp: new Date().toISOString(),
       });
@@ -800,7 +834,7 @@ router.get("/analysis", async (req, res) => {
   }
 });
 // Portfolio risk analysis endpoint
-router.get("/risk-analysis", async (req, res) => {
+router.get("/risk-analysis", authenticateToken, async (req, res) => {
   const userId = req.user.sub; // Use authenticated user's ID
 
   console.log(`Portfolio risk analysis endpoint called for user: ${userId}`);
@@ -867,7 +901,7 @@ router.get("/risk-analysis", async (req, res) => {
 });
 
 // Portfolio risk metrics endpoint - simplified version that works with our schema
-router.get("/risk-metrics", async (req, res) => {
+router.get("/risk-metrics", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
 
   console.log(`Portfolio risk metrics endpoint called for user: ${userId}`);
@@ -915,7 +949,7 @@ router.get("/risk-metrics", async (req, res) => {
     // Get current market prices for holdings to supplement database data
     const symbols = holdingsResult.rows.map((h) => h.symbol);
     const priceQuery = `
-      SELECT symbol, close_price as current_price
+      SELECT symbol, close as current_price
       FROM price_daily
       WHERE symbol = ANY($1::text[])
     `;
@@ -1281,7 +1315,7 @@ router.get("/performance", async (req, res) => {
 });
 
 // Portfolio performance analysis endpoint
-router.get("/performance/analysis", async (req, res) => {
+router.get("/performance/analysis", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const {
@@ -1709,7 +1743,7 @@ router.get("/benchmark", async (req, res) => {
 });
 
 // Portfolio holdings endpoint with real database integration
-router.get("/holdings", async (req, res) => {
+router.get("/holdings", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
 
@@ -1841,7 +1875,7 @@ router.get("/holdings", async (req, res) => {
 });
 
 // Portfolio rebalance suggestions
-router.get("/rebalance", async (req, res) => {
+router.get("/rebalance", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
 
   try {
@@ -2025,7 +2059,7 @@ router.get("/rebalance", async (req, res) => {
 });
 
 // POST /rebalance - Handle custom target allocations
-router.post("/rebalance", async (req, res) => {
+router.post("/rebalance", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
 
   try {
@@ -2122,7 +2156,7 @@ router.post("/rebalance", async (req, res) => {
 });
 
 // Execute portfolio rebalance
-router.post("/rebalance/execute", async (req, res) => {
+router.post("/rebalance/execute", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
 
   try {
@@ -2200,7 +2234,7 @@ router.post("/rebalance/execute", async (req, res) => {
 });
 
 // General portfolio risk endpoint
-router.get("/risk", async (req, res) => {
+router.get("/risk", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
 
   try {
@@ -2715,7 +2749,7 @@ router.get("/valuation/:brokerName", async (req, res) => {
 });
 
 // Portfolio optimization suggestions
-router.get("/optimization", async (req, res) => {
+router.get("/optimization", authenticateToken, async (req, res) => {
   const userId = req.user.sub; // Use authenticated user's ID
 
   console.log(
@@ -2782,7 +2816,7 @@ router.get("/optimization", async (req, res) => {
 });
 
 // POST /portfolio/optimization/execute - Execute optimization recommendations
-router.post("/optimization/execute", async (req, res) => {
+router.post("/optimization/execute", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
   const { recommendations, riskTolerance = "moderate" } = req.body;
 
@@ -2840,7 +2874,7 @@ router.post("/optimization/execute", async (req, res) => {
 });
 
 // GET /portfolio/metrics - Detailed portfolio metrics
-router.get("/metrics", async (req, res) => {
+router.get("/metrics", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
   const { period = "30d", include_risk = "false" } = req.query;
 
@@ -2990,7 +3024,7 @@ router.get("/metrics", async (req, res) => {
 });
 
 // GET /portfolio/holdings/detailed - Enhanced holdings with filtering/sorting
-router.get("/holdings/detailed", async (req, res) => {
+router.get("/holdings/detailed", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
   const {
     min_value = "0",
@@ -3008,11 +3042,11 @@ router.get("/holdings/detailed", async (req, res) => {
     // Build the ORDER BY clause
     let orderClause = "ORDER BY ";
     if (sort_by === "unrealized_pnl") {
-      orderClause += "(market_value - (average_cost * quantity))";
+      orderClause += "((quantity * current_price) - (average_cost * quantity))";
     } else if (sort_by === "symbol") {
       orderClause += "symbol";
     } else {
-      orderClause += "market_value";
+      orderClause += "(quantity * current_price)";
     }
     orderClause += order === "asc" ? " ASC" : " DESC";
 
@@ -3101,7 +3135,7 @@ router.get("/holdings/detailed", async (req, res) => {
 });
 
 // POST /portfolio/holdings/add - Add new holding to portfolio
-router.post("/holdings/add", async (req, res) => {
+router.post("/holdings/add", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
   const { symbol, quantity, averageCost, average_cost } = req.body;
   const cost = averageCost || average_cost;
@@ -3135,8 +3169,8 @@ router.post("/holdings/add", async (req, res) => {
     // Insert new holding
     const insertQuery = `
       INSERT INTO portfolio_holdings
-      (user_id, symbol, quantity, average_cost, current_price, market_value, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      (user_id, symbol, quantity, average_cost, current_price)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
 
@@ -3146,7 +3180,6 @@ router.post("/holdings/add", async (req, res) => {
       quantity,
       cost,
       currentPrice,
-      marketValue,
     ]);
 
     res.status(201).json({
@@ -3172,7 +3205,7 @@ router.post("/holdings/add", async (req, res) => {
 });
 
 // GET /portfolio/performance/history - Historical performance data
-router.get("/performance/history", async (req, res) => {
+router.get("/performance/history", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
   const { start_date, end_date, benchmark, limit = "100" } = req.query;
 
@@ -3253,7 +3286,7 @@ router.get("/performance/history", async (req, res) => {
 });
 
 // GET /portfolio/performance/attribution - Performance attribution analysis
-router.get("/performance/attribution", async (req, res) => {
+router.get("/performance/attribution", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
   const { breakdown = "sectors" } = req.query;
 
@@ -3412,7 +3445,7 @@ router.post("/watchlist/add", async (req, res) => {
 });
 
 // GET /portfolio/export - Export portfolio data
-router.get("/export", async (req, res) => {
+router.get("/export", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
   const { format = "json", include = "holdings" } = req.query;
 
@@ -5729,7 +5762,7 @@ router.get("/transactions", async (req, res) => {
 });
 
 // Get portfolio risk analysis
-router.get("/risk/analysis", async (req, res) => {
+router.get("/risk/analysis", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     console.log(`⚠️ Portfolio risk analysis requested for user: ${userId}`);
@@ -5785,7 +5818,7 @@ router.get("/risk/analysis", async (req, res) => {
 });
 
 // Get portfolio watchlist
-router.get("/watchlist", async (req, res) => {
+router.get("/watchlist", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     console.log(`👀 Portfolio watchlist requested for user: ${userId}`);
@@ -5829,7 +5862,7 @@ router.get("/watchlist", async (req, res) => {
 });
 
 // Get portfolio allocation analysis
-router.get("/allocation", async (req, res) => {
+router.get("/allocation", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId || req.user.sub;
     console.log(`📊 Portfolio allocation requested for user: ${userId}`);
@@ -5968,7 +6001,7 @@ router.get("/allocation", async (req, res) => {
 });
 
 // Alias for plural version - direct route
-router.get("/allocations", async (req, res) => {
+router.get("/allocations", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     console.log(`📊 Portfolio allocations requested for user: ${userId}`);
@@ -6060,7 +6093,7 @@ router.get("/allocations", async (req, res) => {
 });
 
 // Portfolio value endpoint
-router.get("/value", async (req, res) => {
+router.get("/value", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     console.log(`💰 Portfolio value requested for user: ${userId}`);
@@ -6157,7 +6190,7 @@ router.get("/value", async (req, res) => {
 });
 
 // Portfolio returns endpoint
-router.get("/returns", async (req, res) => {
+router.get("/returns", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub;
     const { period = "1y", benchmark = "SPY" } = req.query;

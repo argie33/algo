@@ -355,7 +355,7 @@ router.get("/screen", async (req, res) => {
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name) as company_name,
         cp.sector,
-        cp.exchange,
+        cp.exchange_name as exchange,
         pd.close as price,
         pd.volume,
         pd.date as price_date,

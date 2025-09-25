@@ -8,6 +8,13 @@ const request = require("supertest");
 const express = require("express");
 const { query } = require("../../../utils/database");
 
+// Mock the database query function
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+}));
+
+const mockQuery = query;
+
 // Create test app
 const app = express();
 app.use(express.json());
@@ -84,7 +91,6 @@ describe("Analysts Route - Comprehensive Unit Tests", () => {
       expect(response.body.pagination).toHaveProperty("totalPages");
     });
 
-
   });
 
   describe("GET /api/analysts/:ticker/earnings-estimates", () => {
@@ -113,8 +119,6 @@ describe("Analysts Route - Comprehensive Unit Tests", () => {
 
       expect(response.body.ticker).toBe("AAPL");
       expect(response.body.success).toBe(true);
-    });
-
     });
   });
 

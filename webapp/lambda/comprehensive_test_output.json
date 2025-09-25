@@ -1,0 +1,224 @@
+JWT verifier initialized successfully
+🚨 Alert System initialized
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+📊 Monitoring started
+🎛️ Live Data Manager initialized
+🔍 Running comprehensive AWS API verification...
+
+Testing 20 critical endpoints...
+
+
+🧪 Testing Health check endpoint: GET /api/health
+Processing request: GET /api/health
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/health HTTP/1.1" 200 345 "-" "-"
+   Status: 200
+   ✅ PASS - Health check endpoint
+
+🧪 Testing Market metrics endpoint: GET /api/metrics
+Processing request: GET /api/metrics
+Database connection verified for database-dependent endpoint
+📊 Metrics endpoint called
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/metrics HTTP/1.1" 200 458 "-" "-"
+   Status: 200
+   ✅ PASS - Market metrics endpoint
+   📊 Data count: 1
+
+🧪 Testing Stocks listing endpoint: GET /api/stocks?limit=5
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: { limit: '5' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 5, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 6 estimated total
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/stocks?limit=5 HTTP/1.1" 200 14082 "-" "-"
+   Status: 200
+   ✅ PASS - Stocks listing endpoint
+   📊 Data count: 5
+
+🧪 Testing Trading signals endpoint: GET /api/signals
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/signals HTTP/1.1" 200 4304 "-" "-"
+   Status: 200
+   ✅ PASS - Trading signals endpoint
+   📊 Data count: 11
+
+🧪 Testing Stock scores endpoint: GET /api/scores
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Scores endpoint called - using precomputed table
+📊 Scores query result: 3 rows from stock_scores table
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/scores HTTP/1.1" 200 1480 "-" "-"
+   Status: 200
+   ✅ PASS - Stock scores endpoint
+   📊 Data count: object
+
+🧪 Testing Portfolio endpoint: GET /api/portfolio
+   🔧 Using authentication bypass token for protected endpoint
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🔧 Using bypass token for authentication: dev-bypass-token
+🔧 Using bypass token for authentication: dev-bypass-token
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "-"
+   Status: 200
+   ✅ PASS - Portfolio endpoint
+
+🧪 Testing Market data endpoint: GET /api/market
+Processing request: GET /api/market
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/market HTTP/1.1" 200 314 "-" "-"
+   Status: 200
+   ✅ PASS - Market data endpoint
+   📊 Data count: object
+
+🧪 Testing News endpoint: GET /api/news
+Processing request: GET /api/news
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/news HTTP/1.1" 200 26 "-" "-"
+   Status: 200
+   ✅ PASS - News endpoint
+   📊 Data count: 0
+
+🧪 Testing Earnings endpoint: GET /api/earnings
+Processing request: GET /api/earnings
+Database connection verified for database-dependent endpoint
+📈 Earnings data requested
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/earnings HTTP/1.1" 200 2618 "-" "-"
+   Status: 200
+   ✅ PASS - Earnings endpoint
+   📊 Data count: 6
+
+🧪 Testing Sectors endpoint: GET /api/sectors
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "-"
+   Status: 200
+   ✅ PASS - Sectors endpoint
+   📊 Data count: 0
+
+🧪 Testing Analytics endpoint: GET /api/analytics
+   🔧 Using authentication bypass token for protected endpoint
+Processing request: GET /api/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/analytics HTTP/1.1" 200 827 "-" "-"
+   Status: 200
+   ✅ PASS - Analytics endpoint
+   📊 Data count: object
+
+🧪 Testing Recommendations endpoint: GET /api/recommendations
+   🔧 Using authentication bypass token for protected endpoint
+Processing request: GET /api/recommendations
+Database connection verified for database-dependent endpoint
+🔧 Using bypass token for authentication: dev-bypass-token
+📊 Stock recommendations requested - symbol: all, category: all
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/recommendations HTTP/1.1" 200 2011 "-" "-"
+   Status: 200
+   ✅ PASS - Recommendations endpoint
+
+🧪 Testing Alerts endpoint: GET /api/alerts
+   🔧 Using authentication bypass token for protected endpoint
+Processing request: GET /api/alerts
+Database connection verified for database-dependent endpoint
+🔧 Using bypass token for authentication: dev-bypass-token
+📋 All alerts requested for user: dev-user-bypass, status: all
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/alerts HTTP/1.1" 200 682 "-" "-"
+   Status: 200
+   ✅ PASS - Alerts endpoint
+   📊 Data count: object
+
+🧪 Testing Calendar endpoint: GET /api/calendar
+Processing request: GET /api/calendar
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/calendar HTTP/1.1" 200 120 "-" "-"
+   Status: 200
+   ✅ PASS - Calendar endpoint
+
+🧪 Testing Technical analysis endpoint: GET /api/technical
+Processing request: GET /api/technical
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/technical HTTP/1.1" 200 108 "-" "-"
+   Status: 200
+   ✅ PASS - Technical analysis endpoint
+   📊 Data count: 0
+
+🧪 Testing Performance endpoint: GET /api/performance
+Processing request: GET /api/performance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/performance HTTP/1.1" 200 423 "-" "-"
+   Status: 200
+   ✅ PASS - Performance endpoint
+
+🧪 Testing Risk assessment endpoint: GET /api/risk
+   🔧 Using authentication bypass token for protected endpoint
+Processing request: GET /api/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/risk HTTP/1.1" 200 125 "-" "-"
+   Status: 200
+   ✅ PASS - Risk assessment endpoint
+   📊 Data count: object
+
+🧪 Testing Stock screener endpoint: GET /api/screener
+Processing request: GET /api/screener
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "-"
+   Status: 200
+   ✅ PASS - Stock screener endpoint
+   📊 Data count: object
+
+🧪 Testing Watchlist endpoint: GET /api/watchlist
+   🔧 Using authentication bypass token for protected endpoint
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🔧 Using bypass token for authentication: dev-bypass-token
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/watchlist HTTP/1.1" 200 432 "-" "-"
+   Status: 200
+   ✅ PASS - Watchlist endpoint
+   📊 Data count: 2
+
+🧪 Testing Trades endpoint: GET /api/trades
+   🔧 Using authentication bypass token for protected endpoint
+Processing request: GET /api/trades
+Database connection verified for database-dependent endpoint
+🔧 Using bypass token for authentication: dev-bypass-token
+Available columns in trades: [
+  'trade_id',        'user_id',
+  'symbol',          'side',
+  'quantity',        'type',
+  'limit_price',     'stop_price',
+  'time_in_force',   'status',
+  'executed_at',     'average_fill_price',
+  'filled_quantity', 'created_at',
+  'updated_at'
+]
+Successfully queried trades from table: trades
+::ffff:127.0.0.1 - - [25/Sep/2025:13:14:40 +0000] "GET /api/trades HTTP/1.1" 200 67 "-" "-"
+   Status: 200
+   ✅ PASS - Trades endpoint
+   📊 Data count: 0
+
+============================================================
+📊 COMPREHENSIVE API TEST RESULTS
+============================================================
+✅ Passed: 20/20 (100%)
+❌ Server Errors (5xx): 0/20
+⚠️  Client Errors (4xx): 0/20
+💥 Fatal Errors: 0/20
+❓ Unexpected: 0/20
+⏱️  Test Duration: 0.11s
+
+🎉 All critical APIs are functional! Site ready for deployment.
+
+✅ Comprehensive test complete

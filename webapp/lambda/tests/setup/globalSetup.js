@@ -474,24 +474,28 @@ module.exports = async () => {
         )
       `);
 
-      // Add sentiment test data
+      // Add sentiment test data with recent dates
       await query(`
         INSERT INTO analyst_sentiment_analysis (symbol, date, recommendation_mean, price_target_vs_current, analyst_count) VALUES
-        ('AAPL', '2024-01-15', 2.1, 5.5, 25),
-        ('MSFT', '2024-01-15', 1.9, 8.2, 22),
-        ('GOOGL', '2024-01-15', 2.0, 12.1, 18),
-        ('TSLA', '2024-01-15', 2.5, -2.8, 15),
-        ('AMZN', '2024-01-15', 2.2, 7.3, 20)
+        ('AAPL', CURRENT_DATE, 2.1, 5.5, 25),
+        ('AAPL', CURRENT_DATE - 1, 2.0, 4.8, 24),
+        ('AAPL', CURRENT_DATE - 2, 2.2, 6.2, 26),
+        ('MSFT', CURRENT_DATE, 1.9, 8.2, 22),
+        ('GOOGL', CURRENT_DATE, 2.0, 12.1, 18),
+        ('TSLA', CURRENT_DATE, 2.5, -2.8, 15),
+        ('AMZN', CURRENT_DATE, 2.2, 7.3, 20)
         ON CONFLICT (symbol, date) DO NOTHING
       `);
 
       await query(`
         INSERT INTO social_sentiment_analysis (symbol, date, news_sentiment_score, reddit_sentiment_score, search_volume_index, news_article_count) VALUES
-        ('AAPL', '2024-01-15', 0.75, 0.68, 85, 152),
-        ('MSFT', '2024-01-15', 0.82, 0.71, 78, 134),
-        ('GOOGL', '2024-01-15', 0.71, 0.64, 92, 167),
-        ('TSLA', '2024-01-15', 0.45, 0.52, 125, 289),
-        ('AMZN', '2024-01-15', 0.78, 0.73, 88, 198)
+        ('AAPL', CURRENT_DATE, 0.75, 0.68, 85, 152),
+        ('AAPL', CURRENT_DATE - 1, 0.72, 0.65, 82, 148),
+        ('AAPL', CURRENT_DATE - 2, 0.78, 0.71, 88, 156),
+        ('MSFT', CURRENT_DATE, 0.82, 0.71, 78, 134),
+        ('GOOGL', CURRENT_DATE, 0.71, 0.64, 92, 167),
+        ('TSLA', CURRENT_DATE, 0.45, 0.52, 125, 289),
+        ('AMZN', CURRENT_DATE, 0.78, 0.73, 88, 198)
         ON CONFLICT (symbol, date) DO NOTHING
       `);
 

@@ -96,7 +96,7 @@ router.get("/data", async (req, res) => {
                0 as change_amount,
                sp.volume,
                s.market_cap
-        FROM stocks fm
+        FROM stocks s
         LEFT JOIN (
           SELECT DISTINCT ON (symbol)
             symbol, close, volume
@@ -135,6 +135,7 @@ router.get("/data", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Database error - Failed to fetch market data",
+      details: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -189,7 +190,7 @@ router.get("/summary", async (req, res) => {
       breadthResult = await executeQueryWithTimeout(query(breadthQuery), "breadth");
 
       // Get sector performance
-      const sectorQuery = `
+      const overviewSectorQuery = `
         SELECT
           cp.sector,
           COUNT(*) as stock_count,
@@ -204,7 +205,7 @@ router.get("/summary", async (req, res) => {
         ORDER BY avg_change_percent DESC
         LIMIT 15
       `;
-      sectorResult = await executeQueryWithTimeout(query(sectorQuery), "sector");
+      sectorResult = await executeQueryWithTimeout(query(overviewSectorQuery), "sector");
 
     } catch (error) {
       console.error("Market summary queries failed:", error.message);
@@ -951,7 +952,7 @@ router.get("/sectors/performance", async (req, res) => {
     }
 
     // Get sector performance data
-    const sectorQuery = `
+    const marketSectorQuery = `
       SELECT 
         s.sector,
         COUNT(*) as stock_count,
@@ -970,7 +971,7 @@ router.get("/sectors/performance", async (req, res) => {
 
     let result;
     try {
-      result = await query(sectorQuery);
+      result = await query(marketSectorQuery);
     } catch (error) {
       console.error("Sector performance query error:", error.message);
       return res.status(500).json({
@@ -3121,7 +3122,7 @@ router.get("/sectoral-analysis", async (req, res) => {
 
   try {
     // Get relevant economic indicators for sector analysis
-    const sectorQuery = `
+    const sectorAnalysisQuery = `
       WITH latest_values AS (
         SELECT
           series_id,
@@ -3139,7 +3140,7 @@ router.get("/sectoral-analysis", async (req, res) => {
       ORDER BY series_id
     `;
 
-    const result = await query(sectorQuery);
+    const result = await query(sectorAnalysisQuery);
     const indicators = {};
 
     result.rows.forEach((row) => {
@@ -3149,80 +3150,38 @@ router.get("/sectoral-analysis", async (req, res) => {
       };
     });
 
-    // Create synthetic sector analysis based on available economic data
-    const sectors = [
-      {
-        name: "Manufacturing",
-        performance: indicators["INDPRO"] ? "positive" : "stable",
-        growth_rate: indicators["INDPRO"]
-          ? (((indicators["INDPRO"].value - 100) / 100) * 100).toFixed(1)
-          : 2.1,
-        indicator_value: indicators["INDPRO"]
-          ? indicators["INDPRO"].value
-          : 105.2,
-        description: "Based on Industrial Production Index",
-        outlook:
-          indicators["INDPRO"] && indicators["INDPRO"].value > 105
-            ? "Expanding"
-            : "Stable",
-      },
-      {
-        name: "Construction & Real Estate",
-        performance: indicators["HOUST"] ? "positive" : "stable",
-        growth_rate: indicators["HOUST"] ? 3.8 : 2.5,
-        indicator_value: indicators["HOUST"] ? indicators["HOUST"].value : 1400,
-        description: "Based on Housing Starts data",
-        outlook:
-          indicators["HOUST"] && indicators["HOUST"].value > 1350
-            ? "Strong"
-            : "Moderate",
-      },
-      {
-        name: "Retail & Consumer",
-        performance: indicators["RETAILMNSA"] ? "positive" : "stable",
-        growth_rate: indicators["RETAILMNSA"] ? 4.2 : 3.1,
-        indicator_value: indicators["RETAILMNSA"]
-          ? indicators["RETAILMNSA"].value
-          : 695000,
-        description: "Based on Retail Sales data",
-        outlook: "Resilient",
-      },
-      {
-        name: "Technology",
-        performance: "positive",
-        growth_rate: 6.8,
-        indicator_value: 112.5,
-        description: "Estimated from overall economic conditions",
-        outlook: "Strong Growth",
-      },
-      {
-        name: "Financial Services",
-        performance: "stable",
-        growth_rate: 2.9,
-        indicator_value: 108.3,
-        description: "Interest rate sensitive sector",
-        outlook: "Cautious Optimism",
-      },
-    ];
+    // Query real sector data from database - no synthetic data generation
+    const sectorPerformanceQuery = `
+      SELECT
+        sector as name,
+        AVG(performance_score) as performance,
+        AVG(growth_rate) as growth_rate,
+        COUNT(*) as company_count,
+        'Database' as description
+      FROM sectors_performance
+      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY sector
+      ORDER BY performance DESC
+    `;
+
+    let sectors = [];
+    try {
+      const sectorResult = await query(sectorPerformanceQuery);
+      sectors = sectorResult.rows || [];
+    } catch (error) {
+      console.log("No sector data available in database");
+      sectors = []; // Return empty sectors instead of synthetic data
+    }
 
     const response = {
       success: true,
       data: {
         sectors: sectors,
         summary: {
-          overall_health: "Moderate Growth",
-          strongest_sector: "Technology",
-          weakest_sector: "Financial Services",
-          key_risks: [
-            "Interest rate sensitivity",
-            "Consumer spending patterns",
-            "Supply chain disruptions",
-          ],
-          opportunities: [
-            "Infrastructure investment",
-            "Technology adoption",
-            "Green energy transition",
-          ],
+          overall_health: sectors.length > 0 ? "Data Available" : "No Data Available",
+          strongest_sector: sectors.length > 0 ? sectors[0].name : "N/A",
+          weakest_sector: sectors.length > 0 ? sectors[sectors.length - 1].name : "N/A",
+          total_sectors: sectors.length,
         },
         economic_context: {
           gdp_growth: indicators["GDPC1"] ? indicators["GDPC1"].value : null,

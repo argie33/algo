@@ -784,5 +784,6 @@ devAuthService.isTokenExpired = (...args) => DevAuthService.prototype.isTokenExp
 devAuthService.confirmMFA = (...args) => DevAuthService.prototype.confirmMFA.call(devAuthService, ...args);
 devAuthService.updateUserAttributes = (...args) => DevAuthService.prototype.updateUserAttributes.call(devAuthService, ...args);
 devAuthService.validatePassword = (...args) => DevAuthService.prototype.validatePassword.call(devAuthService, ...args);
+devAuthService.ensureDevUser = (...args) => DevAuthService.prototype.ensureDevUser.call(devAuthService, ...args);
 
 export default devAuthService;

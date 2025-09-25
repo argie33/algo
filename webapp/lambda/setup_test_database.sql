@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS company_profile (
 -- Market data table (from loadinfo.py)
 CREATE TABLE IF NOT EXISTS market_data (
     ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+    symbol VARCHAR(10),
     previous_close NUMERIC,
     regular_market_previous_close NUMERIC,
     open_price NUMERIC,
@@ -250,6 +251,7 @@ CREATE TABLE IF NOT EXISTS buy_sell_daily (
     UNIQUE(symbol, timeframe, date)
 );
 
+
 -- Buy sell weekly table (from loadbuysellweekly.py)
 CREATE TABLE IF NOT EXISTS buy_sell_weekly (
     id SERIAL PRIMARY KEY,
@@ -268,6 +270,7 @@ CREATE TABLE IF NOT EXISTS buy_sell_weekly (
     UNIQUE(symbol, timeframe, date)
 );
 
+
 -- Buy sell monthly table (from loadbuysellmonthly.py)
 CREATE TABLE IF NOT EXISTS buy_sell_monthly (
     id SERIAL PRIMARY KEY,
@@ -285,6 +288,7 @@ CREATE TABLE IF NOT EXISTS buy_sell_monthly (
     inposition BOOLEAN,
     UNIQUE(symbol, timeframe, date)
 );
+
 
 -- Swing trading signals table
 CREATE TABLE IF NOT EXISTS swing_trading_signals (
@@ -531,28 +535,28 @@ CREATE INDEX IF NOT EXISTS idx_watchlists_user ON watchlists(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders_paper(user_id);
 
 -- Insert test data for core Python loader tables to make routes work
-INSERT INTO company_profile (ticker, short_name, long_name, sector, industry, exchange, website_url, business_summary, employee_count) VALUES
-('AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics', 'NASDAQ', 'https://www.apple.com', 'Technology company', 154000),
-('MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Technology', 'Software', 'NASDAQ', 'https://www.microsoft.com', 'Software company', 221000),
-('GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Technology', 'Internet Content & Information', 'NASDAQ', 'https://www.google.com', 'Search and advertising', 182000),
-('TSLA', 'Tesla Inc.', 'Tesla, Inc.', 'Consumer Cyclical', 'Auto Manufacturers', 'NASDAQ', 'https://www.tesla.com', 'Electric vehicles', 140000),
-('AMZN', 'Amazon.com Inc.', 'Amazon.com, Inc.', 'Consumer Cyclical', 'Internet Retail', 'NASDAQ', 'https://www.amazon.com', 'E-commerce and cloud', 1500000)
+INSERT INTO company_profile (ticker, short_name, long_name, display_name, quote_type, symbol_type, exchange_name, sector, industry) VALUES
+('AAPL', 'Apple Inc.', 'Apple Inc.', 'Apple Inc.', 'EQUITY', 'EQUITY', 'NASDAQ', 'Technology', 'Consumer Electronics'),
+('MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Microsoft Corporation', 'EQUITY', 'EQUITY', 'NASDAQ', 'Technology', 'Software'),
+('GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Alphabet Inc.', 'EQUITY', 'EQUITY', 'NASDAQ', 'Technology', 'Internet Content & Information'),
+('TSLA', 'Tesla Inc.', 'Tesla, Inc.', 'Tesla, Inc.', 'EQUITY', 'EQUITY', 'NASDAQ', 'Consumer Cyclical', 'Auto Manufacturers'),
+('AMZN', 'Amazon.com Inc.', 'Amazon.com, Inc.', 'Amazon.com, Inc.', 'EQUITY', 'EQUITY', 'NASDAQ', 'Consumer Cyclical', 'Internet Retail')
 ON CONFLICT (ticker) DO NOTHING;
 
-INSERT INTO market_data (ticker, previous_close, current_price, volume, market_cap, fifty_two_week_low, fifty_two_week_high) VALUES
-('AAPL', 175.50, 180.25, 52000000, 2800000000000, 130.00, 200.00),
-('MSFT', 420.75, 425.30, 28000000, 3100000000000, 310.00, 450.00),
-('GOOGL', 135.80, 138.45, 31000000, 1700000000000, 120.00, 160.00),
-('TSLA', 250.30, 255.75, 67000000, 800000000000, 150.00, 420.00),
-('AMZN', 145.20, 148.90, 35000000, 1500000000000, 120.00, 180.00)
+INSERT INTO market_data (ticker, symbol, previous_close, regular_market_previous_close, regular_market_price, current_price, volume, regular_market_volume, market_cap) VALUES
+('AAPL', 'AAPL', 175.50, 175.50, 180.25, 180.25, 52000000, 52000000, 2800000000000),
+('MSFT', 'MSFT', 420.75, 420.75, 425.30, 425.30, 28000000, 28000000, 3100000000000),
+('GOOGL', 'GOOGL', 135.80, 135.80, 138.45, 138.45, 31000000, 31000000, 1700000000000),
+('TSLA', 'TSLA', 250.30, 250.30, 255.75, 255.75, 67000000, 67000000, 800000000000),
+('AMZN', 'AMZN', 145.20, 145.20, 148.90, 148.90, 35000000, 35000000, 1500000000000)
 ON CONFLICT (ticker) DO NOTHING;
 
-INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, price_to_book, profit_margin_pct, return_on_equity_pct, return_on_assets_pct, market_cap, enterprise_value) VALUES
-('AAPL', 28.5, 25.2, 4.2, 0.26, 0.35, 0.18, 2800000000000, 2750000000000),
-('MSFT', 32.1, 28.8, 5.1, 0.31, 0.42, 0.15, 3100000000000, 3050000000000),
-('GOOGL', 22.3, 20.1, 3.8, 0.21, 0.28, 0.12, 1700000000000, 1680000000000),
-('TSLA', 45.2, 38.5, 8.9, 0.08, 0.18, 0.09, 800000000000, 780000000000),
-('AMZN', 38.7, 35.2, 6.2, 0.05, 0.12, 0.06, 1500000000000, 1480000000000)
+INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, price_to_sales_ttm, price_to_book, peg_ratio, enterprise_value, profit_margin_pct, return_on_assets_pct, return_on_equity_pct) VALUES
+('AAPL', 28.5, 25.2, 7.1, 4.2, 2.1, 2750000000000, 0.26, 0.18, 0.35),
+('MSFT', 32.1, 28.8, 8.2, 5.1, 2.5, 3050000000000, 0.31, 0.15, 0.42),
+('GOOGL', 22.3, 20.1, 4.5, 3.8, 1.8, 1680000000000, 0.21, 0.12, 0.28),
+('TSLA', 45.2, 38.5, 9.1, 8.9, 3.2, 780000000000, 0.08, 0.09, 0.18),
+('AMZN', 38.7, 35.2, 2.1, 6.2, 2.8, 1480000000000, 0.05, 0.06, 0.12)
 ON CONFLICT (ticker) DO NOTHING;
 
 INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume) VALUES
@@ -570,6 +574,98 @@ INSERT INTO earnings_history (symbol, quarter, eps_actual, eps_estimate, eps_dif
 ('TSLA', '2024-01-30', 0.71, 0.73, -0.02, -2.74),
 ('AMZN', '2024-02-05', 1.00, 0.80, 0.20, 25.00)
 ON CONFLICT (symbol, quarter) DO NOTHING;
+
+-- Insert test data for buy_sell tables to support signals route
+INSERT INTO buy_sell_daily (symbol, timeframe, date, open, high, low, close, volume, signal, buylevel, stoplevel, inposition) VALUES
+('AAPL', 'daily', '2024-01-01', 175.00, 180.50, 174.20, 180.25, 52000000, 'BUY', 175.00, 170.00, true),
+('AAPL', 'daily', '2024-01-02', 180.25, 182.00, 178.50, 181.50, 48000000, 'HOLD', 175.00, 170.00, true),
+('MSFT', 'daily', '2024-01-01', 420.00, 425.80, 418.90, 425.30, 28000000, 'BUY', 420.00, 410.00, true),
+('GOOGL', 'daily', '2024-01-01', 135.20, 139.00, 134.80, 138.45, 31000000, 'SELL', 140.00, 130.00, false),
+('TSLA', 'daily', '2024-01-01', 248.50, 256.20, 247.80, 255.75, 67000000, 'BUY', 250.00, 240.00, true),
+('AMZN', 'daily', '2024-01-01', 144.80, 149.20, 143.90, 148.90, 35000000, 'HOLD', 145.00, 140.00, true)
+ON CONFLICT (symbol, timeframe, date) DO NOTHING;
+
+INSERT INTO buy_sell_weekly (symbol, timeframe, date, open, high, low, close, volume, signal, buylevel, stoplevel, inposition) VALUES
+('AAPL', 'weekly', '2024-01-01', 175.00, 185.00, 170.00, 182.00, 260000000, 'BUY', 175.00, 165.00, true),
+('MSFT', 'weekly', '2024-01-01', 420.00, 430.00, 415.00, 428.00, 140000000, 'BUY', 420.00, 400.00, true),
+('GOOGL', 'weekly', '2024-01-01', 135.00, 142.00, 132.00, 140.00, 155000000, 'SELL', 145.00, 125.00, false)
+ON CONFLICT (symbol, timeframe, date) DO NOTHING;
+
+INSERT INTO buy_sell_monthly (symbol, timeframe, date, open, high, low, close, volume, signal, buylevel, stoplevel, inposition) VALUES
+('AAPL', 'monthly', '2024-01-01', 170.00, 190.00, 160.00, 185.00, 1040000000, 'BUY', 170.00, 155.00, true),
+('MSFT', 'monthly', '2024-01-01', 410.00, 440.00, 400.00, 435.00, 560000000, 'BUY', 410.00, 380.00, true)
+ON CONFLICT (symbol, timeframe, date) DO NOTHING;
+
+-- ETF tables for testing
+CREATE TABLE IF NOT EXISTS etfs (
+    symbol VARCHAR(10) PRIMARY KEY,
+    fund_name VARCHAR(200) NOT NULL,
+    total_assets BIGINT,
+    expense_ratio DECIMAL(5,4),
+    dividend_yield DECIMAL(5,4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS etf_holdings (
+    id SERIAL PRIMARY KEY,
+    etf_symbol VARCHAR(10) NOT NULL,
+    holding_symbol VARCHAR(10) NOT NULL,
+    company_name VARCHAR(200),
+    weight_percent DECIMAL(5,2),
+    shares_held BIGINT,
+    market_value BIGINT,
+    sector VARCHAR(100),
+    UNIQUE(etf_symbol, holding_symbol)
+);
+
+-- Insert ETF test data
+INSERT INTO etfs (symbol, fund_name, total_assets, expense_ratio, dividend_yield) VALUES
+('SPY', 'SPDR S&P 500 ETF Trust', 350000000000, 0.0945, 1.25),
+('QQQ', 'Invesco QQQ Trust', 150000000000, 0.20, 0.65),
+('VTI', 'Vanguard Total Stock Market ETF', 250000000000, 0.03, 1.8)
+ON CONFLICT (symbol) DO NOTHING;
+
+INSERT INTO etf_holdings (etf_symbol, holding_symbol, company_name, weight_percent, shares_held, market_value, sector) VALUES
+('SPY', 'AAPL', 'Apple Inc.', 6.85, 165000000, 25000000000, 'Technology'),
+('SPY', 'MSFT', 'Microsoft Corp.', 6.12, 72000000, 21000000000, 'Technology'),
+('SPY', 'GOOGL', 'Alphabet Inc.', 4.25, 12000000, 14500000000, 'Technology'),
+('SPY', 'TSLA', 'Tesla Inc.', 2.8, 55000000, 9800000000, 'Consumer Cyclical'),
+('SPY', 'AMZN', 'Amazon.com Inc.', 3.15, 65000000, 10500000000, 'Consumer Cyclical')
+ON CONFLICT (etf_symbol, holding_symbol) DO NOTHING;
+
+-- Signal alerts table for signals route - matches expected schema from signals.js
+CREATE TABLE IF NOT EXISTS signal_alerts (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL DEFAULT 'default_user',
+    symbol VARCHAR(10) NOT NULL,
+    signal_type VARCHAR(10) DEFAULT 'BUY',
+    conditions JSONB DEFAULT '{"min_strength": 0.7}',
+    notification_methods JSONB DEFAULT '{"method": "email"}',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Analyst upgrade/downgrade table for analysts route
+CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    firm VARCHAR(100),
+    date DATE NOT NULL,
+    from_grade VARCHAR(50),
+    to_grade VARCHAR(50),
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert test data for analysts
+INSERT INTO analyst_upgrade_downgrade (symbol, action, firm, date, from_grade, to_grade, details) VALUES
+('AAPL', 'Upgrade', 'Goldman Sachs', '2024-01-15', 'Hold', 'Buy', 'Strong quarterly results and iPhone sales'),
+('MSFT', 'Upgrade', 'Morgan Stanley', '2024-01-16', 'Neutral', 'Overweight', 'Cloud growth acceleration'),
+('GOOGL', 'Downgrade', 'JP Morgan', '2024-01-17', 'Buy', 'Neutral', 'Ad revenue concerns'),
+('TSLA', 'Neutral', 'Barclays', '2024-01-18', 'Underweight', 'Equal Weight', 'EV market competition'),
+('AMZN', 'Upgrade', 'Deutsche Bank', '2024-01-19', 'Hold', 'Buy', 'AWS margin improvement')
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert webapp test data
 INSERT INTO watchlists (user_id, name) VALUES

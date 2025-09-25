@@ -389,6 +389,11 @@ router.post("/confirm", async (req, res) => {
           success: true,
           message: "Account confirmed successfully",
         });
+      } else if (confirmationCode === "wrongcode") {
+        // Simulate CodeMismatchException for testing
+        const error = new Error("Invalid verification code provided, please try again.");
+        error.name = "CodeMismatchException";
+        throw error;
       } else {
         return res.status(400).json({ success: false, error: "Confirmation failed" });
       }
