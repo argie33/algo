@@ -1,6 +1,7 @@
 const request = require("supertest");
 const { app } = require("../../index");
 const jwt = require("jsonwebtoken");
+const { query } = require("../../utils/database");
 
 describe("API Load Testing and Performance", () => {
   const validUserId = "load-test-user";
@@ -10,13 +11,9 @@ describe("API Load Testing and Performance", () => {
     { expiresIn: "1h" }
   );
 
-  let testDatabase;
-
   beforeAll(async () => {
-    testDatabase = global.TEST_DATABASE;
-
     // Setup test data for load testing
-    await testDatabase.query(`
+    await query(`
       INSERT INTO stock_prices (symbol, price, change_amount, change_percent, volume)
       VALUES 
         ('AAPL', 189.45, 2.15, 1.15, 45000000),
