@@ -140,11 +140,18 @@ router.get("/", async (req, res) => {
     const totalPages = Math.ceil(total / limit);
 
     if (!signalsResult.rows || signalsResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No signals data found",
-        message: `No ${timeframe} signals available in database`,
+      return res.status(200).json({
+        success: true,
+        data: [],
+        total: 0,
+        message: `No ${timeframe} signals currently available. Signals will appear after data loading.`,
         timeframe,
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0
+        },
         timestamp: new Date().toISOString(),
       });
     }

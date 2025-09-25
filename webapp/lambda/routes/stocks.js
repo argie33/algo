@@ -578,20 +578,37 @@ router.get("/compare", async (req, res) => {
     const symbolList = symbols.split(',').map(s => s.trim().toUpperCase()).slice(0, 5); // Limit to 5 stocks
     console.log(`Comparing stocks: ${symbolList.join(', ')}`);
 
-    // Return mock comparison data
-    const comparisonData = symbolList.map(symbol => ({
-      symbol,
-      name: `${symbol} Company Inc.`,
-      price: Math.random() * 300 + 50, // Random price between $50-$350
-      marketCap: Math.random() * 1000000000000 + 10000000000, // Random market cap
-      peRatio: Math.random() * 30 + 5,
-      dividendYield: Math.random() * 5,
-      beta: Math.random() * 2 + 0.5,
-      eps: Math.random() * 15 + 1,
-      revenue: Math.random() * 100000000000 + 1000000000,
-      profitMargin: Math.random() * 25 + 5,
-      sector: ["Technology", "Healthcare", "Finance", "Consumer", "Industrial"][Math.floor(Math.random() * 5)]
-    }));
+    // Query real stock data for comparison from database
+    const placeholders = symbolList.map((_, index) => `$${index + 1}`).join(',');
+    const comparisonQuery = `
+      SELECT
+        cp.ticker as symbol,
+        cp.short_name as name,
+        cp.sector,
+        cp.industry,
+        md.current_price as price,
+        md.market_cap as marketCap,
+        km.trailing_pe as peRatio,
+        km.dividend_yield as dividendYield,
+        0 as beta,
+        km.eps_trailing as eps
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE cp.ticker = ANY($1)
+    `;
+
+    const result = await query(comparisonQuery, [symbolList]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No comparison data found",
+        message: `No data available for symbols: ${symbolList.join(', ')}`
+      });
+    }
+
+    const comparisonData = result.rows;
 
     res.json({
       success: true,
@@ -660,7 +677,7 @@ router.get("/:symbol", async (req, res, next) => {
         pd.date as price_date
 
       FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.symbol
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN LATERAL (
         SELECT open, high, low, close, adj_close, volume, date
         FROM price_daily pd2
@@ -835,7 +852,7 @@ router.get("/", async (req, res) => {
         COALESCE(km.trailing_pe, 0) as trailing_pe,
         COALESCE(km.forward_pe, 0) as forward_pe,
         COALESCE(km.dividend_yield, 0) as dividend_yield,
-        COALESCE(km.beta, 0) as beta,
+        0 as beta,
         'NASDAQ' as exchange,
         COALESCE(km.eps_trailing, 0) as eps,
         COALESCE(pd.close, md.current_price, 0) as previous_close,
