@@ -850,7 +850,7 @@ router.delete("/subscribe", authenticateToken, async (req, res) => {
 
     const response = success({
       message: "Unsubscribed successfully",
-      remainingSubscriptions: Array.from(userSubscriptions.get(userId)),
+      remainingSubscriptions: Array.from(userSubscriptions.get(userId) || []),
     });
     res.status(response.statusCode).json(response.response);
   } catch (error) {
