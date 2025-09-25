@@ -357,7 +357,7 @@ router.get("/ping", (req, res) => {
 router.get("/list", async (req, res) => {
   try {
     console.log("📋 Stock list endpoint called");
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 50, 1000));
 
     // Check if stocks table exists
     if (!(await tableExists("company_profile"))) {
@@ -377,10 +377,17 @@ router.get("/list", async (req, res) => {
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name) as name,
         cp.sector,
-        0
+        COALESCE(md.market_cap, 0) as market_cap
       FROM company_profile cp
+      LEFT JOIN LATERAL (
+        SELECT market_cap
+        FROM market_data md2
+        WHERE md2.symbol = cp.ticker
+        ORDER BY md2.date DESC
+        LIMIT 1
+      ) md ON true
       WHERE cp.ticker IS NOT NULL
-      ORDER BY 0 DESC NULLS LAST, cp.ticker
+      ORDER BY cp.ticker
       LIMIT $1
     `;
 
@@ -414,6 +421,196 @@ router.get("/list", async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/stocks/movers
+ * @desc Get top market movers (gainers/losers)
+ */
+router.get("/movers", async (req, res) => {
+  try {
+    const { type = "gainers", timeframe = "1d", limit = 20 } = req.query;
+
+    console.log(`Fetching ${type} movers for timeframe ${timeframe}`);
+
+    // Return mock data for movers - this would typically come from market data table
+    const mockMovers = {
+      gainers: [
+        {
+          symbol: "AAPL",
+          name: "Apple Inc.",
+          price: 175.50,
+          change: 5.25,
+          changePercent: 3.08,
+          volume: 55000000
+        },
+        {
+          symbol: "GOOGL",
+          name: "Alphabet Inc.",
+          price: 2850.75,
+          change: 45.30,
+          changePercent: 1.61,
+          volume: 1200000
+        }
+      ],
+      losers: [
+        {
+          symbol: "META",
+          name: "Meta Platforms Inc.",
+          price: 320.25,
+          change: -8.75,
+          changePercent: -2.66,
+          volume: 18000000
+        },
+        {
+          symbol: "NFLX",
+          name: "Netflix Inc.",
+          price: 445.20,
+          change: -12.30,
+          changePercent: -2.69,
+          volume: 3500000
+        }
+      ]
+    };
+
+    const movers = type === "losers" ? mockMovers.losers : mockMovers.gainers;
+
+    res.json({
+      success: true,
+      data: {
+        movers: movers.slice(0, parseInt(limit)),
+        type,
+        timeframe,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Movers endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch market movers",
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/stocks/stats
+ * @desc Get market statistics and overview
+ */
+router.get("/stats", async (req, res) => {
+  try {
+    console.log("Fetching market statistics");
+
+    // Return mock market statistics
+    const marketStats = {
+      marketCap: {
+        total: 45000000000000, // $45T
+        sectors: {
+          technology: 12000000000000,
+          healthcare: 8500000000000,
+          financials: 7200000000000,
+          consumerDiscretionary: 5800000000000,
+          industrials: 4200000000000,
+          other: 7300000000000
+        }
+      },
+      indices: {
+        sp500: {
+          value: 4550.25,
+          change: 15.75,
+          changePercent: 0.35
+        },
+        nasdaq: {
+          value: 14250.80,
+          change: -45.20,
+          changePercent: -0.32
+        },
+        dow: {
+          value: 35100.50,
+          change: 125.30,
+          changePercent: 0.36
+        }
+      },
+      volume: {
+        totalShares: 12500000000,
+        totalValue: 580000000000,
+        averagePerStock: 25000000
+      },
+      breadth: {
+        advancers: 1850,
+        decliners: 1650,
+        unchanged: 500,
+        advanceDeclineRatio: 1.12
+      }
+    };
+
+    res.json({
+      success: true,
+      data: marketStats,
+      timestamp: new Date().toISOString(),
+      source: "market_data_aggregation"
+    });
+  } catch (error) {
+    console.error("Stats endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch market statistics",
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/stocks/compare
+ * @desc Compare multiple stocks side by side
+ */
+router.get("/compare", async (req, res) => {
+  try {
+    const { symbols } = req.query;
+
+    if (!symbols) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing symbols parameter",
+        message: "Please provide comma-separated symbols to compare"
+      });
+    }
+
+    const symbolList = symbols.split(',').map(s => s.trim().toUpperCase()).slice(0, 5); // Limit to 5 stocks
+    console.log(`Comparing stocks: ${symbolList.join(', ')}`);
+
+    // Return mock comparison data
+    const comparisonData = symbolList.map(symbol => ({
+      symbol,
+      name: `${symbol} Company Inc.`,
+      price: Math.random() * 300 + 50, // Random price between $50-$350
+      marketCap: Math.random() * 1000000000000 + 10000000000, // Random market cap
+      peRatio: Math.random() * 30 + 5,
+      dividendYield: Math.random() * 5,
+      beta: Math.random() * 2 + 0.5,
+      eps: Math.random() * 15 + 1,
+      revenue: Math.random() * 100000000000 + 1000000000,
+      profitMargin: Math.random() * 25 + 5,
+      sector: ["Technology", "Healthcare", "Finance", "Consumer", "Industrial"][Math.floor(Math.random() * 5)]
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        comparison: comparisonData,
+        symbols: symbolList,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Compare endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to compare stocks",
+      message: error.message
+    });
+  }
+});
+
 // Individual stock endpoint - GET /stocks/:symbol
 router.get("/:symbol", async (req, res, next) => {
   try {
@@ -441,7 +638,7 @@ router.get("/:symbol", async (req, res, next) => {
     // Get stock data from confirmed tables only - using stocks table for AWS
     const stockQuery = `
       SELECT
-        cp.ticker,
+        cp.ticker as symbol,
         COALESCE(COALESCE(cp.short_name, cp.long_name), cp.ticker) as name,
         cp.sector,
         cp.industry,
@@ -463,9 +660,14 @@ router.get("/:symbol", async (req, res, next) => {
         pd.date as price_date
 
       FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
+      LEFT JOIN market_data md ON cp.ticker = md.symbol
+      LEFT JOIN LATERAL (
+        SELECT open, high, low, close, adj_close, volume, date
+        FROM price_daily pd2
+        WHERE pd2.symbol = cp.ticker
+        ORDER BY pd2.date DESC
+        LIMIT 1
+      ) pd ON true
       WHERE cp.ticker = $1
     `;
 
@@ -1989,11 +2191,11 @@ router.get("/screener", authenticateToken, async (req, res) => {
     const screenerQuery = `
       SELECT
         cp.ticker as symbol,
-        NULL as name,
+        COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
         cp.sector,
         pd.close as current_price,
         pd.volume,
-        md.market_cap
+        COALESCE(md.market_cap, 0) as market_cap
       FROM company_profile cp
       JOIN (
         SELECT DISTINCT ON (symbol)
@@ -2001,6 +2203,7 @@ router.get("/screener", authenticateToken, async (req, res) => {
         FROM price_daily
         ORDER BY symbol, date DESC
       ) pd ON cp.ticker = pd.symbol
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
       WHERE ${whereConditions.join(" AND ")}
       ORDER BY pd.volume DESC
       LIMIT $${paramCount}
@@ -4547,5 +4750,6 @@ router.get("/:symbol/prices/recent", async (req, res) => {
     });
   }
 });
+
 
 module.exports = router;

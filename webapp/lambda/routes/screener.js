@@ -923,6 +923,32 @@ router.get("/growth", (req, res) => {
   });
 });
 
+// Value stocks endpoint (specific value filter)
+router.get("/value", (req, res) => {
+  res.json({
+    success: true,
+    data: [
+      {
+        id: "value_stocks",
+        name: "Value Stocks",
+        description: "Undervalued stocks with strong fundamentals",
+        filters: {
+          peRatioMax: 15,
+          priceToBookMax: 3,
+          dividendYieldMin: 2,
+          marketCapMin: 1000000000,
+        },
+        criteria: {
+          peRatio: "maximum 15",
+          priceToBook: "maximum 3.0",
+          dividendYield: "minimum 2%",
+          marketCap: "minimum $1B",
+        },
+      },
+    ],
+  });
+});
+
 // Screener results endpoint
 router.get("/results", async (req, res) => {
   try {

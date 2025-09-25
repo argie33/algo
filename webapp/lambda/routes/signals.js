@@ -116,39 +116,24 @@ router.get("/", async (req, res) => {
     // Query real signals data from buy_sell tables
     console.log(`📊 Fetching real ${timeframe} signals from database`);
 
-    // Use helper function to build dynamic query
-    let queryConfig;
-    try {
-      queryConfig = await buildSignalQuery(tableName, null, timeframe);
-    } catch (error) {
-      console.error(`Error building query for ${tableName}:`, error.message);
-      return res.status(404).json({
-        success: false,
-        error: "Signals data not available",
-        message: error.message,
-        timeframe,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Build the final queries
+    // Simplified query approach for reliability
     const signalsQuery = `
-      SELECT ${queryConfig.selectColumns}
+      SELECT
+        symbol, date, timeframe, signal, open, high, low, close, volume,
+        buylevel, stoplevel, inposition
       FROM ${tableName}
-      ${queryConfig.whereClause}
-      ORDER BY date DESC
-      LIMIT $${queryConfig.queryParams.length + 1} OFFSET $${queryConfig.queryParams.length + 2}
+      ORDER BY date DESC, symbol
+      LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
       FROM ${tableName}
-      ${queryConfig.whereClause}
     `;
 
     const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, [...queryConfig.queryParams, limit, offset]),
-      query(countQuery, queryConfig.countParams)
+      query(signalsQuery, [limit, offset]),
+      query(countQuery, [])
     ]);
 
     const total = parseInt(countResult.rows[0].total) || 0;
@@ -187,7 +172,7 @@ router.get("/", async (req, res) => {
       stop_level: parseFloat(row.stoplevel || 0),
       timeframe: row.timeframe || timeframe,
       in_position: row.inposition || false,
-      volume: queryConfig.availableColumns.includes('volume') ? (row.volume || 0) : null,
+      volume: row.volume || 0,
       entry_price: parseFloat(row.close || 0),
       sector: "Technology", // Would come from company_profile JOIN
       timestamp: row.date || new Date().toISOString(),
@@ -313,7 +298,7 @@ router.get("/buy", async (req, res) => {
       stop_level: parseFloat(row.stoplevel || 0),
       timeframe: row.timeframe || timeframe,
       in_position: row.inposition || false,
-      volume: queryConfig.availableColumns.includes('volume') ? (row.volume || 0) : null,
+      volume: row.volume || 0,
       entry_price: parseFloat(row.close || 0),
       sector: "Technology", // Would come from company_profile JOIN
       timestamp: row.date || new Date().toISOString(),
@@ -440,7 +425,7 @@ router.get("/sell", async (req, res) => {
       stop_level: parseFloat(row.stoplevel || 0),
       timeframe: row.timeframe || timeframe,
       in_position: row.inposition || false,
-      volume: queryConfig.availableColumns.includes('volume') ? (row.volume || 0) : null,
+      volume: row.volume || 0,
       entry_price: parseFloat(row.close || 0),
       sector: "Technology", // Would come from company_profile JOIN
       timestamp: row.date || new Date().toISOString(),
