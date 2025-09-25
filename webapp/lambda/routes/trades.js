@@ -1613,6 +1613,12 @@ router.get("/analytics/:positionId", authenticateToken, async (req, res) => {
   try {
     const userId = validateUserAuthentication(req);
     const positionId = parseInt(req.params.positionId);
+    if (isNaN(positionId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid position ID. Must be a valid integer."
+      });
+    }
     // Database queries will use the query function directly
 
     // Get position with full analytics

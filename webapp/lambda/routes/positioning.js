@@ -22,9 +22,9 @@ router.get("/stocks", async (req, res) => {
   try {
     const { symbol, timeframe = "daily", limit = 50, page = 1 } = req.query;
 
-    // Convert to numbers to avoid string/number issues in tests
-    const limitNum = parseInt(limit, 10);
-    const pageNum = parseInt(page, 10);
+    // Safely parse integers with validation to prevent NaN in database queries
+    const limitNum = Math.max(1, Math.min(parseInt(limit, 10) || 50, 1000));
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const offset = (pageNum - 1) * limitNum;
     console.log(
       `📊 Stock positioning data requested - symbol: ${symbol || "all"}, timeframe: ${timeframe}`

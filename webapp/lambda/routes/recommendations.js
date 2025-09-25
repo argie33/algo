@@ -90,7 +90,7 @@ router.get("/", authenticateToken, async (req, res) => {
       LIMIT $${paramIndex}
     `;
 
-    queryParams.push(parseInt(limit));
+    queryParams.push(Math.max(1, Math.min(parseInt(limit) || 20, 100)));
     const result = await query(recommendationsQuery, queryParams);
 
     if (result.rows.length === 0) {
@@ -534,7 +534,7 @@ router.get("/ai", authenticateToken, async (req, res) => {
       risk_tolerance,
       investment_horizon,
       sector_preference,
-      parseInt(limit),
+      Math.max(1, Math.min(parseInt(limit) || 10, 100)),
       strategy
     );
 
