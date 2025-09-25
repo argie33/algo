@@ -8,7 +8,6 @@ const schemas = {
   // Core tables from Python loaders
   stocks: true,
   price_daily: true,
-  fundamental_metrics: true,
 
   // User and portfolio tables
   users: true,
@@ -55,6 +54,8 @@ async function initializeDatabase() {
   for (const tableName of schemaDefinitions) {
     mockTables.set(tableName, []);
   }
+
+  // Removed fundamental_metrics table - no longer needed
 
   console.log(`✅ Mock database initialized with ${schemaDefinitions.length} tables`);
   return true;
@@ -136,7 +137,7 @@ function handleInsert(sql, params) {
 
     // If we have column names, use them
     if (columnsMatch) {
-      const columns = columnsMatch[1].split(',').map(col => col.trim().replace(/['"]/g, ''));
+      const columns = columnsMatch[1].split(',').map(col => col.trim().replace(/['\"]/g, ''));
       const values = params.length > 0 ? params : parseValues(valuesMatch[1]);
 
       columns.forEach((col, index) => {
@@ -193,16 +194,19 @@ function handleSelect(sql, params) {
     return { rows: [{ count: count.toString() }], rowCount: 1 };
   }
 
-  // Handle WHERE clauses
+  // Handle WHERE clauses with ILIKE for symbol search
   let filteredRows = [...table];
   const whereMatch = sql.match(/WHERE\s+(.+?)(?:ORDER BY|GROUP BY|LIMIT|$)/i);
   if (whereMatch && params.length > 0) {
-    const condition = whereMatch[1];
-    // Simple parameter substitution for test purposes
-    filteredRows = table.filter((row, index) => {
-      // Very basic filtering - in real scenarios this would need proper SQL parsing
-      return true; // For now, return all rows
-    });
+    const whereClause = whereMatch[1];
+
+    // Handle ILIKE for symbol search
+    if (whereClause.includes('ILIKE')) {
+      const searchTerm = params[0].replace(/%/g, '').toUpperCase();
+      filteredRows = table.filter(row =>
+        row.symbol && row.symbol.toUpperCase().includes(searchTerm)
+      );
+    }
   }
 
   // Handle ORDER BY
@@ -216,6 +220,13 @@ function handleSelect(sql, params) {
         return 0;
       });
     }
+  }
+
+  // Handle LIMIT
+  const limitMatch = sql.match(/LIMIT\s+(\d+)/i);
+  if (limitMatch) {
+    const limit = parseInt(limitMatch[1]);
+    filteredRows = filteredRows.slice(0, limit);
   }
 
   return { rows: filteredRows, rowCount: filteredRows.length };

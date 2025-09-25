@@ -245,7 +245,7 @@ describe("Positioning Routes", () => {
   });
 
   describe("GET /api/positioning/summary", () => {
-    // Mock summary data using fundamental_metrics table for institutional flow
+    // Mock summary data using stocks table for institutional flow
     const mockInstitutionalSummary = {
       rows: [
         {
@@ -484,7 +484,7 @@ describe("Positioning Routes", () => {
       await request(app).get("/api/positioning/summary").expect(200);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("FROM fundamental_metrics fm")
+        expect.stringContaining("FROM stocks")
       );
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining(

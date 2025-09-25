@@ -75,50 +75,6 @@ CREATE TABLE etf_price_daily (
     fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Fundamental metrics table (exact match to loadfundamentalmetrics.py)
-CREATE TABLE fundamental_metrics (
-    id SERIAL PRIMARY KEY,
-    symbol VARCHAR(10) NOT NULL,
-    market_cap BIGINT,
-    pe_ratio DECIMAL(10,2),
-    forward_pe DECIMAL(10,2),
-    peg_ratio DECIMAL(10,2),
-    price_to_book DECIMAL(10,2),
-    price_to_sales DECIMAL(10,2),
-    price_to_cash_flow DECIMAL(10,2),
-    dividend_yield DECIMAL(8,4),
-    dividend_rate DECIMAL(10,2),
-    beta DECIMAL(8,4),
-    fifty_two_week_high DECIMAL(10,2),
-    fifty_two_week_low DECIMAL(10,2),
-    revenue_per_share DECIMAL(10,2),
-    revenue_growth DECIMAL(8,4),
-    quarterly_revenue_growth DECIMAL(8,4),
-    gross_profit BIGINT,
-    ebitda BIGINT,
-    operating_income BIGINT,
-    net_income BIGINT,
-    earnings_per_share DECIMAL(10,2),
-    quarterly_earnings_growth DECIMAL(8,4),
-    return_on_equity DECIMAL(8,4),
-    return_on_assets DECIMAL(8,4),
-    debt_to_equity DECIMAL(10,2),
-    current_ratio DECIMAL(8,4),
-    quick_ratio DECIMAL(8,4),
-    book_value DECIMAL(10,2),
-    shares_outstanding BIGINT,
-    float_shares BIGINT,
-    short_ratio DECIMAL(8,2),
-    short_interest BIGINT,
-    enterprise_value BIGINT,
-    enterprise_to_revenue DECIMAL(10,2),
-    enterprise_to_ebitda DECIMAL(10,2),
-    sector VARCHAR(100),
-    industry VARCHAR(200),
-    full_time_employees INTEGER,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol)
-);
 
 -- Last updated tracking table (from loaders)
 CREATE TABLE last_updated (

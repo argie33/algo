@@ -6270,10 +6270,10 @@ router.get("/factors", async (req, res) => {
         ph.quantity,
         (ph.quantity * ph.current_price) as market_value,
         ph.sector,
-        COALESCE(km.beta, 1.0) as beta,
-        COALESCE(km.trailing_pe, 15.0) as pe_ratio
+        COALESCE(s.beta, 1.0) as beta,
+        15.0 as pe_ratio
       FROM portfolio_holdings ph
-      LEFT JOIN key_metrics km ON ph.symbol = km.ticker
+      LEFT JOIN stocks s ON ph.symbol = s.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 

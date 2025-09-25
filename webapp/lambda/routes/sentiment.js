@@ -86,18 +86,13 @@ router.get("/analysis", async (req, res) => {
         [targetSymbol.toUpperCase(), days]
       );
     } catch (e) {
-      console.log('Sentiment tables not available, using fallback');
-      // Fallback: Generate synthetic sentiment data
-      sentimentResult = {
-        rows: [{
-          symbol: targetSymbol.toUpperCase(),
-          date: new Date(),
-          sentiment: Math.random() > 0.5 ? 0.65 : -0.35,
-          reddit_sentiment_score: Math.random() * 0.4 - 0.2,
-          search_volume_index: Math.floor(Math.random() * 100),
-          news_article_count: Math.floor(Math.random() * 20)
-        }]
-      };
+      console.error('Sentiment analysis query failed:', e.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch sentiment analysis data",
+        message: "Required sentiment analysis tables not available",
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // Calculate sentiment metrics from actual sentiment data
@@ -126,7 +121,7 @@ router.get("/analysis", async (req, res) => {
         : 0;
 
     // Group articles by date for trend analysis
-    const dailySentiment = articles.reduce((daily, article) => {
+    const dailySentiment = sentimentData.reduce((daily, article) => {
       // Handle missing or invalid published_at dates
       const publishedDate = article.published_at;
       let date;
@@ -135,7 +130,7 @@ router.get("/analysis", async (req, res) => {
       } else if (publishedDate && typeof publishedDate === 'string') {
         date = new Date(publishedDate).toISOString().split("T")[0];
       } else {
-        date = new Date().toISOString().split("T")[0]; // Use today as fallback
+        date = new Date().toISOString().split("T")[0]; // Default to today for invalid dates
       }
 
       if (!daily[date]) {
@@ -231,7 +226,7 @@ router.get("/analysis", async (req, res) => {
               : "0.0",
         },
         daily_sentiment: dailySentiment,
-        recent_articles: articles.slice(0, 10).map((article) => ({
+        recent_articles: sentimentData.slice(0, 10).map((article) => ({
           title: article.title,
           sentiment: article.sentiment,
           source: article.source,

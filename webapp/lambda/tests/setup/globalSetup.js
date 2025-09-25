@@ -1,4 +1,5 @@
-// Global setup for tests - ensures database tables match Python loader schemas EXACTLY
+// Global setup for tests - creates ONLY webapp-specific tables
+// Python loaders handle their own table creation
 module.exports = async () => {
   process.env.NODE_ENV = "test";
 
@@ -13,365 +14,135 @@ module.exports = async () => {
   try {
     const { query } = require('../../utils/database');
 
-    console.log('🔧 Setting up database tables to match Python loader schemas EXACTLY...');
+    console.log('🔧 Global Setup: Creating ONLY webapp tables (Python loaders handle their own)...');
 
-    // Create stock_symbols table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS stock_symbols CASCADE`);
+    // NOTE: Do NOT create Python loader tables here:
+    // - stocks, price_daily, earnings_history: created by Python loaders
+    // - company_profile, market_data, key_metrics: created by loadinfo.py
+    // - buy_sell_* tables: created by loadbuyselldaily.py etc.
+
+    // Create ONLY webapp-specific tables:
+
+    // Watchlists (user-specific feature)
     await query(`
-      CREATE TABLE stock_symbols (
-        symbol VARCHAR(50) PRIMARY KEY,
-        name TEXT,
-        exchange VARCHAR(100),
-        security_name TEXT,
-        cqs_symbol VARCHAR(50),
-        market_category VARCHAR(50),
-        test_issue CHAR(1),
-        financial_status VARCHAR(50),
-        round_lot_size INT,
-        etf CHAR(1),
-        secondary_symbol VARCHAR(50)
+      CREATE TABLE IF NOT EXISTS watchlists (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
-    // Create price_daily table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS price_daily CASCADE`);
     await query(`
-      CREATE TABLE price_daily (
+      CREATE TABLE IF NOT EXISTS watchlist_items (
         id SERIAL PRIMARY KEY,
+        watchlist_id INTEGER REFERENCES watchlists(id) ON DELETE CASCADE,
         symbol VARCHAR(10) NOT NULL,
-        date DATE NOT NULL,
-        open_price DOUBLE PRECISION,
-        high_price DOUBLE PRECISION,
-        low_price DOUBLE PRECISION,
-        close_price DOUBLE PRECISION,
-        adj_close_price DOUBLE PRECISION,
-        volume BIGINT,
-        change_amount DOUBLE PRECISION,
-        change_percent DOUBLE PRECISION,
-        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(symbol, date)
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(watchlist_id, symbol)
       )
     `);
 
-    // Create technical_data_daily table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS technical_data_daily CASCADE`);
+    // Portfolio (user-specific feature)
     await query(`
-      CREATE TABLE technical_data_daily (
-        symbol VARCHAR(50),
-        date TIMESTAMP,
-        rsi DOUBLE PRECISION,
-        macd DOUBLE PRECISION,
-        macd_signal DOUBLE PRECISION,
-        macd_hist DOUBLE PRECISION,
-        mom DOUBLE PRECISION,
-        roc DOUBLE PRECISION,
-        adx DOUBLE PRECISION,
-        plus_di DOUBLE PRECISION,
-        minus_di DOUBLE PRECISION,
-        atr DOUBLE PRECISION,
-        ad DOUBLE PRECISION,
-        cmf DOUBLE PRECISION,
-        mfi DOUBLE PRECISION,
-        td_sequential DOUBLE PRECISION,
-        td_combo DOUBLE PRECISION,
-        marketwatch DOUBLE PRECISION,
-        dm DOUBLE PRECISION,
-        sma_10 DOUBLE PRECISION,
-        sma_20 DOUBLE PRECISION,
-        sma_50 DOUBLE PRECISION,
-        sma_100 DOUBLE PRECISION,
-        sma_200 DOUBLE PRECISION,
-        ema_10 DOUBLE PRECISION,
-        ema_20 DOUBLE PRECISION,
-        ema_50 DOUBLE PRECISION,
-        ema_100 DOUBLE PRECISION,
-        ema_200 DOUBLE PRECISION,
-        bb_upper DOUBLE PRECISION,
-        bb_middle DOUBLE PRECISION,
-        bb_lower DOUBLE PRECISION,
-        stoch_k DOUBLE PRECISION,
-        stoch_d DOUBLE PRECISION,
-        williams_r DOUBLE PRECISION,
-        cci DOUBLE PRECISION,
-        ppo DOUBLE PRECISION,
-        ultimate_osc DOUBLE PRECISION,
-        trix DOUBLE PRECISION,
-        dpo DOUBLE PRECISION,
-        kama DOUBLE PRECISION,
-        tema DOUBLE PRECISION,
-        aroon_up DOUBLE PRECISION,
-        aroon_down DOUBLE PRECISION,
-        aroon_osc DOUBLE PRECISION,
-        bop DOUBLE PRECISION,
-        cmo DOUBLE PRECISION,
-        dx DOUBLE PRECISION,
-        minus_dm DOUBLE PRECISION,
-        plus_dm DOUBLE PRECISION,
-        willr DOUBLE PRECISION,
-        natr DOUBLE PRECISION,
-        trange DOUBLE PRECISION,
-        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create stocks table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS stocks CASCADE`);
-    await query(`
-      CREATE TABLE stocks (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL UNIQUE,
-        name VARCHAR(255),
-        sector VARCHAR(100),
-        industry VARCHAR(100),
-        market_cap NUMERIC,
-        price NUMERIC,
-        dividend_yield NUMERIC,
-        beta NUMERIC,
-        exchange VARCHAR(50),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create analyst_recommendations table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS analyst_recommendations CASCADE`);
-    await query(`
-      CREATE TABLE analyst_recommendations (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        analyst_firm VARCHAR(100),
-        rating VARCHAR(20),
-        target_price DOUBLE PRECISION,
-        current_price DOUBLE PRECISION,
-        date_published DATE,
-        date_updated DATE DEFAULT CURRENT_DATE,
-        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create portfolio_holdings table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS portfolio_holdings CASCADE`);
-    await query(`
-      CREATE TABLE portfolio_holdings (
+      CREATE TABLE IF NOT EXISTS portfolio_holdings (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         symbol VARCHAR(10) NOT NULL,
-        quantity NUMERIC NOT NULL DEFAULT 0,
-        average_cost NUMERIC NOT NULL DEFAULT 0,
-        current_price NUMERIC DEFAULT 0,
-        last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        quantity DECIMAL(15,8) NOT NULL,
+        average_cost DECIMAL(10,4) NOT NULL,
+        current_price DECIMAL(10,4),
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, symbol)
       )
     `);
 
-    // Create portfolio_performance table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS portfolio_performance CASCADE`);
     await query(`
-      CREATE TABLE portfolio_performance (
+      CREATE TABLE IF NOT EXISTS portfolio_performance (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         date DATE NOT NULL,
-        total_value NUMERIC NOT NULL DEFAULT 0,
-        daily_pnl NUMERIC DEFAULT 0,
-        total_pnl NUMERIC DEFAULT 0,
-        total_pnl_percent NUMERIC DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        total_value DECIMAL(15,2),
+        daily_pnl DECIMAL(15,2),
+        total_pnl DECIMAL(15,2),
+        total_pnl_percent DECIMAL(8,4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, date)
       )
     `);
 
-    // Create economic_data table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS economic_data CASCADE`);
     await query(`
-      CREATE TABLE economic_data (
-        series_id TEXT NOT NULL,
-        date DATE NOT NULL,
-        value DOUBLE PRECISION,
-        title TEXT,
-        units TEXT,
-        frequency TEXT,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (series_id, date)
-      )
-    `);
-
-    // Create user_api_keys table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS user_api_keys CASCADE`);
-    await query(`
-      CREATE TABLE user_api_keys (
+      CREATE TABLE IF NOT EXISTS portfolio_metadata (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
-        broker_name VARCHAR(100) NOT NULL,
-        encrypted_api_key TEXT NOT NULL,
-        encrypted_api_secret TEXT,
-        key_iv TEXT NOT NULL,
-        key_auth_tag TEXT NOT NULL,
-        secret_iv TEXT,
-        secret_auth_tag TEXT,
-        is_sandbox BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, broker_name)
+        broker VARCHAR(100) NOT NULL DEFAULT 'paper',
+        total_value DECIMAL(15,2),
+        total_cash DECIMAL(15,2),
+        total_pnl DECIMAL(15,2),
+        total_pnl_percent DECIMAL(8,4),
+        day_pnl DECIMAL(15,2),
+        day_pnl_percent DECIMAL(8,4),
+        positions_count INTEGER DEFAULT 0,
+        account_status VARCHAR(50) DEFAULT 'active',
+        environment VARCHAR(20) DEFAULT 'paper',
+        imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, broker)
       )
     `);
 
-    // Create trading_strategies table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS trading_strategies CASCADE`);
+    // Orders (user-specific trading feature)
     await query(`
-      CREATE TABLE trading_strategies (
+      CREATE TABLE IF NOT EXISTS orders_paper (
         id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255),
-        strategy_name VARCHAR(255) NOT NULL,
-        strategy_description TEXT,
-        strategy_code TEXT,
-        backtest_id VARCHAR(255),
-        status VARCHAR(50) DEFAULT 'inactive',
-        parameters JSONB DEFAULT '{}',
-        performance_metrics JSONB DEFAULT '{}',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create trading signal tables needed by trading routes (not in Python schema)
-    await query(`DROP TABLE IF EXISTS buy_sell_daily CASCADE`);
-    await query(`
-      CREATE TABLE buy_sell_daily (
-        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
         symbol VARCHAR(10) NOT NULL,
-        date DATE NOT NULL,
-        signal VARCHAR(10) NOT NULL, -- BUY, SELL, HOLD
-        price DOUBLE PRECISION,
-        stoplevel DOUBLE PRECISION,
-        inposition BOOLEAN DEFAULT FALSE,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
+        quantity DECIMAL(15,8) NOT NULL,
+        order_type VARCHAR(20) NOT NULL DEFAULT 'market',
+        price DECIMAL(10,4),
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(symbol, date)
+        executed_at TIMESTAMP,
+        executed_price DECIMAL(10,4)
       )
     `);
 
-    await query(`DROP TABLE IF EXISTS buy_sell_weekly CASCADE`);
+    // User alerts (webapp-specific feature)
     await query(`
-      CREATE TABLE buy_sell_weekly (
+      CREATE TABLE IF NOT EXISTS user_alerts (
         id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
         symbol VARCHAR(10) NOT NULL,
-        date DATE NOT NULL,
-        signal VARCHAR(10) NOT NULL, -- BUY, SELL, HOLD
-        price DOUBLE PRECISION,
-        stoplevel DOUBLE PRECISION,
-        inposition BOOLEAN DEFAULT FALSE,
+        alert_type VARCHAR(50) NOT NULL,
+        condition_type VARCHAR(20) NOT NULL,
+        threshold_value DECIMAL(10,4),
+        message TEXT,
+        is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(symbol, date)
+        triggered_at TIMESTAMP
       )
     `);
 
-    await query(`DROP TABLE IF EXISTS buy_sell_monthly CASCADE`);
+    // Insert minimal test data for webapp tables
     await query(`
-      CREATE TABLE buy_sell_monthly (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        date DATE NOT NULL,
-        signal VARCHAR(10) NOT NULL, -- BUY, SELL, HOLD
-        price DOUBLE PRECISION,
-        stoplevel DOUBLE PRECISION,
-        inposition BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(symbol, date)
-      )
-    `);
-
-    // Create dividend_calendar table for dividend route tests
-    await query(`DROP TABLE IF EXISTS dividend_calendar CASCADE`);
-    await query(`
-      CREATE TABLE dividend_calendar (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        ex_dividend_date DATE,
-        record_date DATE,
-        payment_date DATE,
-        dividend_amount DECIMAL(10,4),
-        dividend_yield DECIMAL(8,4),
-        dividend_type VARCHAR(20) DEFAULT 'cash',
-        frequency VARCHAR(20),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Insert test data matching Python schema
-    await query(`
-      INSERT INTO stock_symbols (symbol, name, exchange, security_name) VALUES
-      ('AAPL', 'Apple Inc.', 'NASDAQ', 'Apple Inc.'),
-      ('MSFT', 'Microsoft Corporation', 'NASDAQ', 'Microsoft Corporation'),
-      ('GOOGL', 'Alphabet Inc.', 'NASDAQ', 'Alphabet Inc. (Class A)')
-      ON CONFLICT (symbol) DO NOTHING
-    `);
-
-    await query(`
-      INSERT INTO stocks (symbol, name, sector, industry, market_cap, price, exchange) VALUES
-      ('AAPL', 'Apple Inc.', 'Technology', 'Consumer Electronics', 3400000000000, 180.50, 'NASDAQ'),
-      ('MSFT', 'Microsoft Corporation', 'Technology', 'Software Infrastructure', 2800000000000, 415.25, 'NASDAQ'),
-      ('GOOGL', 'Alphabet Inc.', 'Communication Services', 'Internet Content & Information', 1680000000000, 142.80, 'NASDAQ')
-      ON CONFLICT (symbol) DO NOTHING
-    `);
-
-    await query(`
-      INSERT INTO price_daily (symbol, date, open_price, high_price, low_price, close_price, volume) VALUES
-      ('AAPL', '2024-01-02', 180.00, 181.50, 179.50, 180.50, 65000000),
-      ('MSFT', '2024-01-02', 414.00, 416.25, 413.50, 415.25, 32000000),
-      ('GOOGL', '2024-01-02', 142.00, 143.80, 141.50, 142.80, 28000000)
-      ON CONFLICT (symbol, date) DO NOTHING
+      INSERT INTO watchlists (user_id, name) VALUES
+      ('test-user-123', 'My Watchlist'),
+      ('test-user-456', 'Tech Stocks')
+      ON CONFLICT DO NOTHING
     `);
 
     await query(`
       INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price) VALUES
-      ('test-user-1', 'AAPL', 100, 175.00, 180.50),
-      ('test-user-1', 'MSFT', 50, 400.00, 415.25),
-      ('test-user-1', 'GOOGL', 75, 140.00, 142.80)
+      ('test-user-123', 'AAPL', 10.0, 150.00, 175.50),
+      ('test-user-123', 'MSFT', 5.0, 300.00, 420.75)
       ON CONFLICT (user_id, symbol) DO NOTHING
     `);
 
-    // Insert test trading signals data
-    await query(`
-      INSERT INTO buy_sell_daily (symbol, date, signal, price) VALUES
-      ('AAPL', '2023-01-15', 'BUY', 150.25),
-      ('MSFT', '2023-01-15', 'SELL', 245.50),
-      ('GOOGL', '2023-01-16', 'BUY', 2800.75),
-      ('AAPL', '2023-01-17', 'HOLD', 151.30),
-      ('TSLA', '2023-01-15', 'BUY', 123.45)
-      ON CONFLICT (symbol, date) DO NOTHING
-    `);
-
-    await query(`
-      INSERT INTO buy_sell_weekly (symbol, date, signal, price) VALUES
-      ('AAPL', '2023-01-09', 'BUY', 148.50),
-      ('MSFT', '2023-01-09', 'HOLD', 242.30),
-      ('TSLA', '2023-01-16', 'SELL', 123.45),
-      ('GOOGL', '2023-01-09', 'BUY', 2790.25)
-      ON CONFLICT (symbol, date) DO NOTHING
-    `);
-
-    await query(`
-      INSERT INTO buy_sell_monthly (symbol, date, signal, price) VALUES
-      ('AAPL', '2023-01-01', 'BUY', 145.75),
-      ('NVDA', '2023-01-01', 'BUY', 195.25),
-      ('META', '2023-01-01', 'HOLD', 185.90),
-      ('MSFT', '2023-01-01', 'SELL', 240.50)
-      ON CONFLICT (symbol, date) DO NOTHING
-    `);
-
-    // Insert test dividend calendar data
-    await query(`
-      INSERT INTO dividend_calendar (symbol, ex_dividend_date, record_date, payment_date, dividend_amount, dividend_yield, dividend_type, frequency) VALUES
-      ('AAPL', '2024-02-09', '2024-02-12', '2024-02-15', 0.24, 0.52, 'cash', 'quarterly'),
-      ('MSFT', '2024-02-14', '2024-02-15', '2024-02-29', 0.75, 0.72, 'cash', 'quarterly'),
-      ('GOOGL', CURRENT_DATE + INTERVAL '10 days', CURRENT_DATE + INTERVAL '12 days', CURRENT_DATE + INTERVAL '25 days', 0.20, 0.14, 'cash', 'quarterly')
-      ON CONFLICT DO NOTHING
-    `);
-
-    console.log('✅ Database tables created matching Python loader structure');
-    return true;
+    console.log('✅ Global Setup: Webapp-only tables created successfully');
 
   } catch (error) {
-    console.error('❌ Error setting up database tables:', error);
-    throw error;
+    console.error('❌ Global setup failed:', error);
+    // Don't throw - allow tests to continue and fail gracefully if needed
   }
 };

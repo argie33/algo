@@ -1593,79 +1593,57 @@ router.get("/sentiment/:symbol", async (req, res) => {
 
     console.log(`📊 News sentiment requested for ${symbol}`);
 
-    // Generate synthetic news articles for sentiment analysis (in production, this would come from news feeds)
-    const syntheticNewsArticles = [
-      {
-        title: `${symbol} Reports Strong Q4 Earnings, Beats Expectations`,
-        description: `${symbol} delivered strong quarterly results with revenue growth and profit margins exceeding analyst expectations. The company showed resilience in challenging market conditions.`,
-        publishedAt: new Date(
-          Date.now() - Math.random() * 86400000 * parseInt(days)
-        ).toISOString(),
-        source: "MarketWatch",
-        url: `https://marketwatch.com/${symbol.toLowerCase()}-earnings-beat`,
-        impact: "high",
-      },
-      {
-        title: `Analyst Upgrades ${symbol} to Buy Rating`,
-        description: `Wall Street analysts upgraded ${symbol} citing strong fundamentals and positive outlook for growth in the coming quarters.`,
-        publishedAt: new Date(
-          Date.now() - Math.random() * 86400000 * parseInt(days)
-        ).toISOString(),
-        source: "Reuters",
-        url: `https://reuters.com/${symbol.toLowerCase()}-upgrade`,
-        impact: "medium",
-      },
-      {
-        title: `${symbol} Stock Shows Bullish Technical Signals`,
-        description: `Technical analysis indicates ${symbol} is breaking above key resistance levels with strong volume, suggesting potential upward momentum.`,
-        publishedAt: new Date(
-          Date.now() - Math.random() * 86400000 * parseInt(days)
-        ).toISOString(),
-        source: "Bloomberg",
-        url: `https://bloomberg.com/${symbol.toLowerCase()}-technical`,
-        impact: "medium",
-      },
-      {
-        title: `Market Volatility May Impact ${symbol} Performance`,
-        description: `Current market uncertainty and economic headwinds could pose challenges for ${symbol}'s near-term performance despite strong fundamentals.`,
-        publishedAt: new Date(
-          Date.now() - Math.random() * 86400000 * parseInt(days)
-        ).toISOString(),
-        source: "CNBC",
-        url: `https://cnbc.com/${symbol.toLowerCase()}-volatility`,
-        impact: "medium",
-      },
-      {
-        title: `${symbol} Maintains Stable Growth Trajectory`,
-        description: `The company continues to show steady performance with consistent revenue streams and maintains its position in the competitive landscape.`,
-        publishedAt: new Date(
-          Date.now() - Math.random() * 86400000 * parseInt(days)
-        ).toISOString(),
-        source: "Financial Times",
-        url: `https://ft.com/${symbol.toLowerCase()}-growth`,
-        impact: "low",
-      },
-    ];
+    // Query real news data from database
+    const newsQuery = `
+      SELECT
+        id,
+        symbol,
+        headline as title,
+        summary as description,
+        published_at as publishedAt,
+        source,
+        url,
+        impact_score,
+        sentiment,
+        sentiment_confidence
+      FROM news_unified
+      WHERE symbol = $1
+        AND published_at >= CURRENT_DATE - INTERVAL '$2 days'
+      ORDER BY published_at DESC
+      LIMIT $3
+    `;
+
+    const newsResult = await query(newsQuery, [symbol.toUpperCase(), days, parseInt(limit)]);
+
+    if (newsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No news found",
+        message: `No news articles found for symbol ${symbol} in the last ${days} days`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const newsArticles = newsResult.rows;
 
     // Analyze sentiment for each article using our NewsAnalyzer
-    const analyzedArticles = syntheticNewsArticles
-      .slice(0, parseInt(limit))
+    const analyzedArticles = newsArticles
       .map((article) => {
         const sentimentAnalysis = newsAnalyzer.analyzeSentiment(article);
 
         return {
-          id: `${symbol}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          symbol: symbol.toUpperCase(),
+          id: article.id,
+          symbol: article.symbol,
           title: article.title,
           description: article.description,
-          publishedAt: article.publishedAt,
+          publishedAt: article.publishedat,
           source: article.source,
           url: article.url,
-          impact: article.impact,
+          impact_score: article.impact_score,
           sentiment: {
             classification: sentimentAnalysis.sentiment,
-            score: sentimentAnalysis.score,
-            confidence: sentimentAnalysis.confidence,
+            score: article.sentiment || sentimentAnalysis.score,
+            confidence: article.sentiment_confidence || sentimentAnalysis.confidence,
             keywords: sentimentAnalysis.keywords,
             word_count: sentimentAnalysis.wordCount,
             sentiment_word_count: sentimentAnalysis.sentimentWordCount,
