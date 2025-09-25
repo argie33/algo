@@ -1487,11 +1487,19 @@ router.get("/search", async (req, res) => {
     ]);
 
     if (!result || !result.rows || result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No stocks found",
-        message: `No stocks matching "${search}" found in database. Ensure stock data has been loaded from data providers.`,
-        query: search,
+      return res.status(200).json({
+        success: true,
+        data: {
+          results: [],
+          query: search,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total: 0,
+            totalPages: 0,
+          },
+        },
+        message: `No stocks matching "${search}" found in database`,
       });
     }
 
