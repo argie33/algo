@@ -8,6 +8,125 @@ const responseFormatter = require("../middleware/responseFormatter");
 
 const router = express.Router();
 
+// Helper function for dynamic schema detection
+async function buildTradesQuery(tableName = 'portfolio_transactions', userId, filters = {}) {
+  try {
+    // Get available columns
+    const columnsQuery = `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = $1 AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `;
+
+    const columnsResult = await query(columnsQuery, [tableName]);
+    if (columnsResult.rows.length === 0) {
+      throw new Error(`Table ${tableName} does not exist`);
+    }
+
+    const availableColumns = columnsResult.rows.map(row => row.column_name);
+    console.log(`Available columns in ${tableName}:`, availableColumns);
+
+    // Map desired columns to available columns
+    const columnMappings = {
+      trade_id: availableColumns.includes('trade_id') ? 'trade_id' :
+                availableColumns.includes('transaction_id') ? 'transaction_id' : 'id',
+      symbol: 'symbol',
+      side: availableColumns.includes('side') ? 'side' : 'transaction_type',
+      quantity: 'quantity',
+      status: availableColumns.includes('status') ? 'status' : "'filled'",
+      type: availableColumns.includes('type') ? 'type' :
+            availableColumns.includes('order_type') ? 'order_type' : "'market'",
+      executed_at: availableColumns.includes('executed_at') ? 'executed_at' :
+                   availableColumns.includes('execution_time') ? 'execution_time' :
+                   availableColumns.includes('created_at') ? 'created_at' : 'updated_at',
+      average_fill_price: availableColumns.includes('average_fill_price') ? 'average_fill_price' :
+                         availableColumns.includes('fill_price') ? 'fill_price' :
+                         availableColumns.includes('price') ? 'price' : 'amount',
+      filled_quantity: availableColumns.includes('filled_quantity') ? 'filled_quantity' : 'quantity',
+      created_at: availableColumns.includes('created_at') ? 'created_at' : columnMappings.executed_at,
+      updated_at: availableColumns.includes('updated_at') ? 'updated_at' : columnMappings.executed_at
+    };
+
+    // Build SELECT clause with available columns
+    const selectClauses = [];
+    for (const [alias, column] of Object.entries(columnMappings)) {
+      if (availableColumns.includes(column) || column.startsWith("'")) {
+        if (column === alias) {
+          selectClauses.push(column);
+        } else {
+          selectClauses.push(`${column} as ${alias}`);
+        }
+      }
+    }
+
+    let queryStr = `SELECT ${selectClauses.join(', ')} FROM ${tableName}`;
+    const queryParams = [];
+    let paramIndex = 1;
+
+    // Add WHERE clauses
+    const whereClauses = [];
+
+    // User filter (always required)
+    const userColumn = availableColumns.includes('user_id') ? 'user_id' :
+                      availableColumns.includes('userId') ? 'userId' : null;
+    if (userColumn) {
+      whereClauses.push(`${userColumn} = $${paramIndex}`);
+      queryParams.push(userId);
+      paramIndex++;
+    }
+
+    // Status filter
+    if (filters.status && filters.status !== 'all') {
+      const statusColumn = availableColumns.includes('status') ? 'status' : null;
+      if (statusColumn) {
+        whereClauses.push(`${statusColumn} = $${paramIndex}`);
+        queryParams.push(filters.status);
+        paramIndex++;
+      }
+    }
+
+    // Symbol filter
+    if (filters.symbol) {
+      whereClauses.push(`symbol = $${paramIndex}`);
+      queryParams.push(filters.symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    if (whereClauses.length > 0) {
+      queryStr += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    // Add ordering
+    const orderColumn = columnMappings.executed_at;
+    queryStr += ` ORDER BY ${orderColumn} DESC`;
+
+    // Add pagination
+    if (filters.limit) {
+      queryStr += ` LIMIT $${paramIndex}`;
+      queryParams.push(parseInt(filters.limit));
+      paramIndex++;
+    }
+
+    if (filters.offset) {
+      queryStr += ` OFFSET $${paramIndex}`;
+      queryParams.push(parseInt(filters.offset));
+      paramIndex++;
+    }
+
+    return {
+      query: queryStr,
+      params: queryParams,
+      columnMappings,
+      availableColumns
+    };
+
+  } catch (error) {
+    console.error('Error building trades query:', error);
+    throw error;
+  }
+}
+
 // Apply response formatter middleware to all routes
 router.use(responseFormatter);
 
@@ -35,19 +154,37 @@ router.get("/", authenticateToken, async (req, res) => {
       return Promise.race([queryPromise, timeoutPromise]);
     };
 
-    // Check if portfolio_transactions table exists first
-    const tableCheckQuery = `
-      SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = 'portfolio_transactions'
-    `;
+    // Try different table names in order of preference
+    const tablesToTry = ['trades', 'portfolio_transactions', 'transactions'];
+    let tradesData = null;
+    let tableUsed = null;
 
-    const tableCheck = await executeQueryWithTimeout(
-      query(tableCheckQuery),
-      "table check"
-    );
+    for (const tableName of tablesToTry) {
+      try {
+        const queryBuilder = await buildTradesQuery(tableName, userId, {
+          status,
+          symbol,
+          limit,
+          offset
+        });
 
-    if (tableCheck.rows.length === 0) {
-      // Return empty trades if table doesn't exist
+        const result = await executeQueryWithTimeout(
+          query(queryBuilder.query, queryBuilder.params),
+          `${tableName} query`
+        );
+
+        tradesData = result;
+        tableUsed = tableName;
+        break;
+
+      } catch (error) {
+        console.log(`Table ${tableName} not available or query failed:`, error.message);
+        continue;
+      }
+    }
+
+    if (!tradesData) {
+      // Return empty trades if no table works
       return res.json({
         success: true,
         data: [],
@@ -56,51 +193,19 @@ router.get("/", authenticateToken, async (req, res) => {
           offset: parseInt(offset),
           count: 0,
         },
-        message: "Trades data loading - database table being initialized",
+        message: "Trades data loading - database tables being initialized",
       });
     }
 
-    // Use portfolio_transactions as fallback since trades table doesn't exist
-    let query_str = `
-      SELECT transaction_id as trade_id, symbol,
-             transaction_type as side, quantity,
-             'filled' as status, 'market' as type,
-             created_at as executed_at, price as average_fill_price,
-             quantity as filled_quantity,
-             created_at, created_at as updated_at
-      FROM portfolio_transactions
-      WHERE user_id = $1
-    `;
-    const queryParams = [userId];
-    let paramIndex = 2;
-
-    if (status !== "all") {
-      query_str += ` AND status = $${paramIndex}`;
-      queryParams.push(status);
-      paramIndex++;
-    }
-
-    if (symbol) {
-      query_str += ` AND symbol = $${paramIndex}`;
-      queryParams.push(symbol.toUpperCase());
-      paramIndex++;
-    }
-
-    query_str += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    queryParams.push(parseInt(limit), parseInt(offset));
-
-    const result = await executeQueryWithTimeout(
-      query(query_str, queryParams),
-      "trades query"
-    );
+    console.log(`Successfully queried trades from table: ${tableUsed}`);
 
     res.json({
       success: true,
-      data: result.rows,
+      data: tradesData.rows,
       meta: {
         limit: parseInt(limit),
         offset: parseInt(offset),
-        count: result.rows.length,
+        count: tradesData.rows.length,
       },
     });
   } catch (error) {
@@ -234,260 +339,26 @@ router.get("/recent", authenticateToken, async (req, res) => {
     } = req.query;
 
     console.log(
-      `🕒 Getting recent trades for user: ${userId}, last ${days} days`
+      `🕒 Recent trades endpoint disabled for user: ${userId}`
     );
 
-    // Build query to get recent trade data from trade_history table
-    let baseQuery = `
-      WITH recent_trades AS (
-        SELECT 
-          th.id,
-          th.symbol,
-          th.side,
-          th.quantity,
-          th.price,
-          th.total_amount,
-          th.fees,
-          th.trade_date,
-          th.status,
-          th.order_type,
-          th.broker,
-          th.created_at,
-          -- Calculate PnL (simplified)
-          CASE 
-            WHEN th.side = 'buy' THEN (pd.close - th.price) * th.quantity
-            WHEN th.side = 'sell' THEN (th.price - pd.close) * th.quantity
-            ELSE 0
-          END as unrealized_pnl,
-          -- Get current market data
-          pd.close as current_price,
-          ((pd.close - pd.open) / pd.open * 100) as daily_change,
-          -- Calculate position info
-          CASE 
-            WHEN th.side = 'buy' THEN th.quantity
-            WHEN th.side = 'sell' THEN -th.quantity
-            ELSE 0
-          END as position_change
-        FROM trade_history th
-        LEFT JOIN price_daily pd ON th.symbol = pd.symbol 
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = th.symbol)
-        WHERE th.user_id = $1
-        AND th.trade_date >= CURRENT_DATE - INTERVAL '${parseInt(days)} days'
-      ),
-      trade_analytics AS (
-        SELECT 
-          rt.*,
-          -- Calculate return percentage
-          CASE 
-            WHEN rt.price > 0 THEN ((rt.current_price - rt.price) / rt.price * 100)
-            ELSE 0
-          END as return_percentage,
-          -- Determine trade performance
-          CASE 
-            WHEN rt.side = 'buy' AND rt.current_price > rt.price THEN 'winning'
-            WHEN rt.side = 'sell' AND rt.current_price < rt.price THEN 'winning'
-            WHEN rt.side = 'buy' AND rt.current_price < rt.price THEN 'losing'
-            WHEN rt.side = 'sell' AND rt.current_price > rt.price THEN 'losing'
-            ELSE 'neutral'
-          END as performance,
-          -- Market value
-          rt.quantity * rt.current_price as market_value,
-          -- Days held (for buy orders)
-          CASE 
-            WHEN rt.side = 'buy' THEN EXTRACT(EPOCH FROM (NOW() - rt.trade_date))/86400
-            ELSE NULL
-          END as days_held
-        FROM recent_trades rt
-      )
-      SELECT 
-        ta.*,
-        -- Risk metrics
-        CASE 
-          WHEN ABS(ta.return_percentage) > 20 THEN 'high_volatility'
-          WHEN ABS(ta.return_percentage) > 10 THEN 'medium_volatility'
-          ELSE 'low_volatility'
-        END as volatility_category,
-        -- Trade size category
-        CASE 
-          WHEN ta.total_amount > 10000 THEN 'large'
-          WHEN ta.total_amount > 1000 THEN 'medium'
-          ELSE 'small'
-        END as trade_size
-      FROM trade_analytics ta
-      WHERE 1=1
-    `;
-
-    const params = [userId];
-    let paramIndex = 2;
-
-    // Apply filters
-    if (symbol) {
-      baseQuery += ` AND ta.symbol = $${paramIndex}`;
-      params.push(symbol.toUpperCase());
-      paramIndex++;
-    }
-
-    if (type && type !== "all") {
-      baseQuery += ` AND ta.side = $${paramIndex}`;
-      params.push(type);
-      paramIndex++;
-    }
-
-    if (status && status !== "all") {
-      baseQuery += ` AND ta.status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
-    }
-
-    // Add ordering and limit
-    baseQuery += ` ORDER BY ta.trade_date DESC, ta.created_at DESC`;
-    baseQuery += ` LIMIT $${paramIndex}`;
-    params.push(parseInt(limit));
-
-    const results = await query(baseQuery, params);
-
-    if (!results.rows || results.rows.length === 0) {
-      return res.json({
-        success: true,
-        data: {
-          trades: [],
-          summary: {
-            total_trades: 0,
-            buy_trades: 0,
-            sell_trades: 0,
-            winning_trades: 0,
-            losing_trades: 0,
-            win_rate: "0.0",
-            total_pnl: "0.00",
-            total_fees: "0.00",
-            total_volume: "0.00",
-            avg_trade_size: "0.00",
-            performance_distribution: {
-              winning: 0,
-              losing: 0,
-              neutral: 0,
-            },
-          },
-        },
-        message: `No trades found for the last ${days} days`,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Process trades with enhanced analytics
-    const recentTrades = (results.rows || results).map((trade) => ({
-      id: trade.id,
-      symbol: trade.symbol,
-      side: trade.side,
-      quantity: parseInt(trade.quantity),
-      price: parseFloat(trade.price).toFixed(2),
-      current_price: parseFloat(trade.current_price || 0).toFixed(2),
-      total_amount: parseFloat(trade.total_amount).toFixed(2),
-      market_value: parseFloat(trade.market_value || 0).toFixed(2),
-      fees: parseFloat(trade.fees || 0).toFixed(2),
-
-      // Performance metrics
-      unrealized_pnl: parseFloat(trade.unrealized_pnl || 0).toFixed(2),
-      return_percentage: parseFloat(trade.return_percentage || 0).toFixed(2),
-      performance: trade.performance,
-      days_held: trade.days_held
-        ? parseFloat(trade.days_held).toFixed(1)
-        : null,
-
-      // Risk and categorization
-      volatility_category: trade.volatility_category,
-      trade_size: trade.trade_size,
-
-      // Status and metadata
-      status: trade.status,
-      order_type: trade.order_type,
-      broker: trade.broker,
-      trade_date: trade.trade_date,
-      daily_change: parseFloat(trade.daily_change || 0).toFixed(2),
-
-      // Indicators
-      is_profitable: parseFloat(trade.unrealized_pnl || 0) > 0,
-      is_recent:
-        new Date(trade.trade_date) >
-        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-
-      created_at: trade.created_at,
-    }));
-
-    // Calculate summary statistics
-    const totalTrades = recentTrades.length;
-    const buyTrades = recentTrades.filter((t) => t.side === "buy").length;
-    const sellTrades = recentTrades.filter((t) => t.side === "sell").length;
-    const winningTrades = recentTrades.filter(
-      (t) => t.performance === "winning"
-    ).length;
-    const losingTrades = recentTrades.filter(
-      (t) => t.performance === "losing"
-    ).length;
-
-    const totalPnL = recentTrades.reduce(
-      (sum, t) => sum + parseFloat(t.unrealized_pnl),
-      0
-    );
-    const totalFees = recentTrades.reduce(
-      (sum, t) => sum + parseFloat(t.fees),
-      0
-    );
-    const totalVolume = recentTrades.reduce(
-      (sum, t) => sum + parseFloat(t.total_amount),
-      0
-    );
-
-    return res.json({
-      success: true,
-      data: {
-        trades: recentTrades,
-        summary: {
-          total_trades: totalTrades,
-          buy_trades: buyTrades,
-          sell_trades: sellTrades,
-          winning_trades: winningTrades,
-          losing_trades: losingTrades,
-          win_rate:
-            totalTrades > 0
-              ? ((winningTrades / totalTrades) * 100).toFixed(1)
-              : "0.0",
-
-          // Financial metrics
-          total_pnl: totalPnL.toFixed(2),
-          total_fees: totalFees.toFixed(2),
-          total_volume: totalVolume.toFixed(2),
-          avg_trade_size:
-            totalTrades > 0 ? (totalVolume / totalTrades).toFixed(2) : "0.00",
-
-          // Performance breakdown
-          performance_distribution: {
-            winning: Math.round(
-              (winningTrades / Math.max(totalTrades, 1)) * 100
-            ),
-            losing: Math.round((losingTrades / Math.max(totalTrades, 1)) * 100),
-            neutral: Math.round(
-              ((totalTrades - winningTrades - losingTrades) /
-                Math.max(totalTrades, 1)) *
-                100
-            ),
-          },
-        },
+    // Return 501 - Recent trades feature is intentionally disabled
+    return res.status(501).json({
+      success: false,
+      error: "Recent trades not implemented",
+      message: "Recent trades feature is temporarily disabled",
+      details: "Endpoint intentionally disabled pending schema updates",
+      troubleshooting: {
+        suggestion: "Use /api/trades endpoint for trade history",
+        alternative_endpoints: ["/api/trades", "/api/trades/history"],
+        status: "Feature temporarily disabled"
       },
       filters: {
-        user_id: userId,
         limit: parseInt(limit),
         days: parseInt(days),
         symbol: symbol || null,
-        type: type,
-        status: status,
-      },
-      period: {
-        start_date: new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
-        end_date: new Date().toISOString().split("T")[0],
-        days_requested: parseInt(days),
+        type,
+        status
       },
       timestamp: new Date().toISOString(),
     });
@@ -2339,22 +2210,58 @@ router.get("/analysis/patterns", authenticateToken, async (req, res) => {
       `📊 Trade pattern analysis requested for user: ${userId}, period: ${period}`
     );
 
-    // Get user's trading history for pattern analysis
-    const tradesResult = await query(
-      `
-      SELECT 
-        symbol, quantity, price, side, executed_at, order_type,
-        EXTRACT(DOW FROM executed_at) as day_of_week,
-        EXTRACT(HOUR FROM executed_at) as hour_of_day,
-        ABS(quantity * price) as trade_value
-      FROM trades 
-      WHERE user_id = $1 
-        AND executed_at >= NOW() - INTERVAL '3 months'
-        AND status = 'executed'
-      ORDER BY executed_at ASC
-    `,
-      [userId]
-    );
+    // Get user's trading history for pattern analysis using dynamic schema
+    let tradesResult = null;
+    const tablesToTry = ['trades', 'portfolio_transactions', 'transactions'];
+
+    for (const tableName of tablesToTry) {
+      try {
+        // Get available columns for this table
+        const columnsResult = await query(
+          `SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND table_schema = 'public'`,
+          [tableName]
+        );
+
+        if (columnsResult.rows.length === 0) continue;
+
+        const availableColumns = columnsResult.rows.map(row => row.column_name);
+        console.log(`Available columns in ${tableName}:`, availableColumns);
+
+        // Map columns to what we need
+        const executedAtCol = availableColumns.includes('executed_at') ? 'executed_at' :
+                              availableColumns.includes('execution_time') ? 'execution_time' :
+                              availableColumns.includes('created_at') ? 'created_at' : 'updated_at';
+
+        const sideCol = availableColumns.includes('side') ? 'side' : 'transaction_type';
+        const orderTypeCol = availableColumns.includes('order_type') ? 'order_type' : "'market'";
+        const statusCol = availableColumns.includes('status') ? 'status' : null;
+        const userCol = availableColumns.includes('user_id') ? 'user_id' : 'userId';
+
+        let whereClause = `WHERE ${userCol} = $1 AND ${executedAtCol} >= NOW() - INTERVAL '3 months'`;
+        if (statusCol) {
+          whereClause += ` AND ${statusCol} = 'executed'`;
+        }
+
+        const patternQuery = `
+          SELECT
+            symbol, quantity, price, ${sideCol} as side, ${executedAtCol} as executed_at, ${orderTypeCol} as order_type,
+            EXTRACT(DOW FROM ${executedAtCol}) as day_of_week,
+            EXTRACT(HOUR FROM ${executedAtCol}) as hour_of_day,
+            ABS(quantity * price) as trade_value
+          FROM ${tableName}
+          ${whereClause}
+          ORDER BY ${executedAtCol} ASC
+        `;
+
+        tradesResult = await query(patternQuery, [userId]);
+        console.log(`✅ Pattern analysis using table: ${tableName}`);
+        break;
+
+      } catch (error) {
+        console.log(`❌ Pattern analysis failed for ${tableName}:`, error.message);
+        continue;
+      }
+    }
 
     if (!tradesResult || !tradesResult.rows || tradesResult.rows.length < 5) {
       return res.json({

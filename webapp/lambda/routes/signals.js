@@ -1,6 +1,7 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
+const { authenticateToken } = require("../middleware/auth");
 const responseFormatter = require("../middleware/responseFormatter");
 
 const router = express.Router();
@@ -280,11 +281,21 @@ router.get("/buy", async (req, res) => {
     const totalPages = Math.ceil(total / limit);
 
     if (!signalsResult.rows || signalsResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No BUY signals found",
-        message: `No ${timeframe} BUY signals available in database`,
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
         timeframe,
+        signal_type: 'BUY',
+        data_source: 'database',
+        message: `No ${timeframe} BUY signals available for page ${page}`,
         timestamp: new Date().toISOString(),
       });
     }
@@ -397,11 +408,21 @@ router.get("/sell", async (req, res) => {
     const totalPages = Math.ceil(total / limit);
 
     if (!signalsResult.rows || signalsResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No SELL signals found",
-        message: `No ${timeframe} SELL signals available in database`,
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
         timeframe,
+        signal_type: 'SELL',
+        data_source: 'database',
+        message: `No ${timeframe} SELL signals available`,
         timestamp: new Date().toISOString(),
       });
     }
@@ -459,8 +480,9 @@ router.get("/technical", async (req, res) => {
     const limit = parseInt(req.query.limit) || 25;
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
+    const symbols = req.query.symbols ? req.query.symbols.split(',').map(s => s.trim().toUpperCase()) : null;
 
-    console.log(`📊 Technical signals requested for ${timeframe} timeframe`);
+    console.log(`📊 Technical signals requested for ${timeframe} timeframe${symbols ? ` filtered by symbols: ${symbols.join(', ')}` : ''}`);
 
     // Validate timeframe parameter
     const validTimeframes = ["daily", "weekly", "monthly"];
@@ -490,24 +512,40 @@ router.get("/technical", async (req, res) => {
       });
     }
 
+    // Add symbol filtering if requested
+    let additionalWhere = '';
+    let additionalParams = [...queryConfig.queryParams];
+    let countParams = [...queryConfig.countParams];
+
+    if (symbols && symbols.length > 0) {
+      const symbolPlaceholders = symbols.map((_, idx) => `$${queryConfig.queryParams.length + idx + 1}`).join(', ');
+      if (queryConfig.whereClause) {
+        additionalWhere = ` AND symbol IN (${symbolPlaceholders})`;
+      } else {
+        additionalWhere = ` WHERE symbol IN (${symbolPlaceholders})`;
+      }
+      additionalParams = [...additionalParams, ...symbols];
+      countParams = [...countParams, ...symbols];
+    }
+
     // Build the final queries
     const technicalSignalsQuery = `
       SELECT ${queryConfig.selectColumns}
       FROM ${tableName}
-      ${queryConfig.whereClause}
+      ${queryConfig.whereClause}${additionalWhere}
       ORDER BY date DESC
-      LIMIT $${queryConfig.queryParams.length + 1} OFFSET $${queryConfig.queryParams.length + 2}
+      LIMIT $${additionalParams.length + 1} OFFSET $${additionalParams.length + 2}
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
       FROM ${tableName}
-      ${queryConfig.whereClause}
+      ${queryConfig.whereClause}${additionalWhere}
     `;
 
     const [signalsResult, countResult] = await Promise.all([
-      query(technicalSignalsQuery, [...queryConfig.queryParams, limit, offset]),
-      query(countQuery, queryConfig.countParams)
+      query(technicalSignalsQuery, [...additionalParams, limit, offset]),
+      query(countQuery, countParams)
     ]);
 
     const total = parseInt(countResult.rows[0].total) || 0;
@@ -837,7 +875,7 @@ router.get("/alerts", async (req, res) => {
 });
 
 // Create signal alert
-router.post("/alerts", async (req, res) => {
+router.post("/alerts", authenticateToken, async (req, res) => {
   try {
     const { symbol, signal_type, min_strength, notification_method } = req.body;
 
@@ -904,7 +942,7 @@ router.post("/alerts", async (req, res) => {
 });
 
 // Delete signal alert
-router.delete("/alerts/:id", async (req, res) => {
+router.delete("/alerts/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1254,7 +1292,7 @@ router.get("/sector-rotation", async (req, res) => {
 });
 
 // Create custom signal alert
-router.post("/custom", async (req, res) => {
+router.post("/custom", authenticateToken, async (req, res) => {
   try {
     const { name, description, criteria, symbols, alert_threshold, symbol, signal_type } = req.body;
 
@@ -1263,6 +1301,15 @@ router.post("/custom", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing required fields: (symbol/symbols/name) and criteria",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate criteria format - should be an object, not string
+    if (typeof criteria !== 'object' || criteria === null || Array.isArray(criteria)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid criteria format. Criteria must be an object.",
         timestamp: new Date().toISOString(),
       });
     }

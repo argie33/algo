@@ -220,35 +220,14 @@ class RiskEngine {
         // Production signature: calculateVaR(portfolioId, method, confidenceLevel, timeHorizon, lookbackDays)
         portfolioId = portfolioIdOrData;
 
-        // Handle case when database is not available (test environment)
+        // Require database connection - no mock data fallbacks
         if (!db || typeof db.query !== "function") {
-          console.log(
-            "Database not available, using mock data for VaR calculation"
-          );
-          positions = {
-            rows: [
-              {
-                symbol: "AAPL",
-                quantity: 100,
-                current_price: 150,
-                total_value: 15000,
-                close: 150,
-                date: new Date().toISOString().split("T")[0],
-              },
-              {
-                symbol: "GOOGL",
-                quantity: 50,
-                current_price: 2000,
-                total_value: 100000,
-                close: 2000,
-                date: new Date().toISOString().split("T")[0],
-              },
-            ],
-          };
-        } else {
-          positions = await db.query(
+          throw new Error("Database connection required for VaR calculation - no fallback data available");
+        }
+
+        positions = await db.query(
             `
-          SELECT p.symbol, p.quantity, p.current_price, 
+          SELECT p.symbol, p.quantity, p.current_price,
                  COALESCE(p.total_value, p.quantity * p.current_price) as total_value,
                  d.close, d.volume, d.date
           FROM portfolio_holdings p
@@ -259,7 +238,6 @@ class RiskEngine {
         `,
             [portfolioId]
           );
-        }
       }
 
       // Validate parameters after processing - these should not be caught
@@ -638,15 +616,9 @@ class RiskEngine {
         return correlationMatrix;
       }
 
-      // Handle case when database is not available (test environment with portfolioId)
+      // Require database connection - no mock data fallbacks
       if (!db || typeof db.query !== "function") {
-        console.log(
-          "Database not available, using mock data for correlation matrix calculation"
-        );
-        return {
-          AAPL: { AAPL: 1.0, GOOGL: 0.45 },
-          GOOGL: { AAPL: 0.45, GOOGL: 1.0 },
-        };
+        throw new Error("Database connection required for correlation matrix calculation - no fallback data available");
       }
 
       // Production mode: use portfolio ID to get assets
