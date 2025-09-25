@@ -39,9 +39,9 @@ describe("Technical Router", () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.status).toBe("ok");
-      expect(response.body.endpoint).toBe("technical");
-      expect(response.body.timestamp).toBeDefined();
+      expect(response.body.data.status).toBe("ok");
+      expect(response.body.data.endpoint).toBe("technical");
+      expect(response.body.data.timestamp).toBeDefined();
     });
   });
 
@@ -186,7 +186,7 @@ describe("Technical Router", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.timeframe).toBe("weekly");
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("technical_data_weekly"),
+        expect.stringContaining("price_daily"),
         ["AAPL"]
       );
     });
@@ -225,7 +225,7 @@ describe("Technical Router", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.timeframe).toBe("monthly");
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("technical_data_monthly"),
+        expect.stringContaining("price_daily"),
         ["AAPL"]
       );
     });
