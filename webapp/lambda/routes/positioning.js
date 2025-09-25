@@ -30,53 +30,28 @@ router.get("/stocks", async (req, res) => {
       `📊 Stock positioning data requested - symbol: ${symbol || "all"}, timeframe: ${timeframe}`
     );
 
-    // Get institutional positioning data from available tables
-    // Try positioning_metrics first, fallback to stocks
-    let institutionalQuery;
-    try {
-      // Use actual positioning_metrics table (from loadpositioning.py)
-      institutionalQuery = `
-        SELECT
-          p.symbol,
-          'Institutional' as institution_type,
-          'Major Institution' as institution_name,
-          p.institutional_ownership_pct as position_size,
-          p.net_institutional_flow as position_change_percent,
-          p.institutional_concentration as market_share,
-          p.date as filing_date,
-          'Q4 2024' as quarter
-        FROM positioning_metrics p
-        WHERE p.symbol IS NOT NULL
-        ORDER BY p.date DESC
-      `;
-    } catch (e) {
-      // Fallback to stocks if positioning_metrics fails
-      institutionalQuery = `
-        SELECT
-          s.symbol,
-          'Institutional' as institution_type,
-          'Major Institution' as institution_name,
-          COALESCE(s.shares_outstanding / 1000000, 15.5) as position_size,
-          COALESCE(s.quarterly_revenue_growth, 0) as position_change_percent,
-          CASE
-            WHEN s.market_cap > 100000000000 THEN 15.5
-            WHEN s.market_cap > 10000000000 THEN 8.2
-            ELSE 3.1
-          END as market_share,
-          CURRENT_DATE as filing_date,
-          'Q4 2024' as quarter
-        FROM stocks fm
-        WHERE s.market_cap > 0
-      `;
-    }
+    // Get institutional positioning data from institutional_positioning table
+    let institutionalQuery = `
+      SELECT
+        ip.symbol,
+        ip.institution_type,
+        ip.institution_name,
+        ip.position_size,
+        ip.position_change_percent,
+        ip.market_share,
+        ip.filing_date,
+        ip.quarter
+      FROM institutional_positioning ip
+      WHERE ip.symbol IS NOT NULL
+    `;
 
     let params = [];
     if (symbol) {
-      institutionalQuery = institutionalQuery.replace('WHERE s.market_cap > 0', 'WHERE s.market_cap > 0 AND s.symbol = $1');
+      institutionalQuery += ` AND ip.symbol = $1`;
       params.push(symbol);
     }
 
-    institutionalQuery += ` ORDER BY filing_date DESC, position_size DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    institutionalQuery += ` ORDER BY ip.filing_date DESC, ip.position_size DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limitNum, offset);
 
     // Get retail sentiment
@@ -146,7 +121,7 @@ router.get("/summary", async (req, res) => {
         COUNT(CASE WHEN COALESCE(s.quarterly_revenue_growth, 0) > 0 THEN 1 END) as bullish_count,
         COUNT(CASE WHEN COALESCE(s.quarterly_revenue_growth, 0) < 0 THEN 1 END) as bearish_count,
         COUNT(*) as total_positions
-      FROM stocks fm
+      FROM stocks s
       WHERE s.market_cap > 0
     `);
 

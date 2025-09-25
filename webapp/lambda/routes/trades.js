@@ -1937,18 +1937,18 @@ router.get("/history", authenticateToken, async (req, res) => {
 
     try {
       const fallbackQuery = `
-        SELECT 
+        SELECT
           transaction_id as id,
           symbol,
           transaction_type as action,
           quantity,
           price,
           total_amount as pnl,
-          executed_at as execution_time,
+          created_at as execution_time,
           'database' as source
-        FROM portfolio_transactions 
+        FROM portfolio_transactions
         WHERE user_id = $1
-        ORDER BY executed_at DESC
+        ORDER BY created_at DESC
         LIMIT $2 OFFSET $3
       `;
 

@@ -1465,7 +1465,9 @@ async function healthCheck() {
 
 module.exports = {
   initializeDatabase,
+  initializeSchema,
   getPool,
+  getDbConfig,
   query,
   cachedQuery,
   clearQueryCache,

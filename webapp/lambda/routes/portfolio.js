@@ -2192,9 +2192,9 @@ router.post("/rebalance/execute", authenticateToken, async (req, res) => {
       if (rec.action !== "hold") {
         const transactionQuery = `
           INSERT INTO portfolio_transactions (
-            user_id, symbol, transaction_type, quantity, price, total_amount, created_at, executed_at
+            user_id, symbol, transaction_type, quantity, price, total_amount, created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
         `;
 
         const quantity = Math.abs(rec.shares_to_trade || 0);
@@ -2207,7 +2207,6 @@ router.post("/rebalance/execute", authenticateToken, async (req, res) => {
           quantity,
           price,
           quantity * price,
-          now,
           now,
         ]);
       }

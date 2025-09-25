@@ -54,7 +54,7 @@ router.get("/:sector/stocks", async (req, res) => {
         s.industry,
         COALESCE(pd.close, 100) as price,
         COALESCE(pd.volume, 1000000) as volume
-      FROM stocks fm
+      FROM stocks s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -161,7 +161,7 @@ router.get("/analysis", async (req, res) => {
         END as monthly_change_pct,
         50.0 as avg_rsi,
         0.0 as avg_momentum
-      FROM stocks fm
+      FROM stocks s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -382,7 +382,7 @@ router.get("/performance", async (req, res) => {
         -- Simulate gaining/losing stocks
         GREATEST(1, FLOOR(COUNT(DISTINCT s.symbol) * 0.6)) as gaining_stocks,
         GREATEST(0, FLOOR(COUNT(DISTINCT s.symbol) * 0.4)) as losing_stocks
-      FROM stocks fm
+      FROM stocks s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -530,7 +530,7 @@ router.get("/:sector/details", async (req, res) => {
         0 as risk_adjusted_momentum,
         0 as momentum_strength
 
-      FROM stocks fm
+      FROM stocks s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date

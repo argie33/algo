@@ -77,8 +77,7 @@ router.get("/bulk", async (req, res) => {
 
   try {
     const bulkQuery = `
-      SELECT symbol, date, open_price as open, high_price as high, low_price as low,
-             close_price as close, adj_close_price as adj_close, volume
+      SELECT symbol, date, open, high, low, close, adj_close, volume
       FROM price_daily 
       WHERE symbol = ANY($1) 
       AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)
@@ -242,8 +241,7 @@ router.get("/:symbol", async (req, res) => {
 
     // Get latest price data
     const priceQuery = `
-      SELECT symbol, date, open_price as open, high_price as high, low_price as low,
-             close_price as close, adj_close_price as adj_close, volume
+      SELECT symbol, date, open, high, low, close, adj_close, volume
       FROM price_daily 
       WHERE symbol = $1 
       ORDER BY date DESC 
@@ -341,8 +339,7 @@ router.get("/historical/:symbol", async (req, res) => {
 
   try {
     let historicalQuery = `
-      SELECT symbol, date, open_price as open, high_price as high, low_price as low,
-             close_price as close, adj_close_price as adj_close, volume
+      SELECT symbol, date, open, high, low, close, adj_close, volume
       FROM price_daily 
       WHERE symbol = $1
     `;
@@ -425,8 +422,7 @@ router.get("/realtime/:symbol", async (req, res) => {
   try {
     // Get the latest historical data as base
     const baseQuery = `
-      SELECT symbol, date, open_price as open, high_price as high, low_price as low,
-             close_price as close, adj_close_price as adj_close, volume
+      SELECT symbol, date, open, high, low, close, adj_close, volume
       FROM price_daily 
       WHERE symbol = $1 
       ORDER BY date DESC 
