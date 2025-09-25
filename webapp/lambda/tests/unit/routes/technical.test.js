@@ -104,12 +104,12 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       // Verify your actual database queries
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining("information_schema.tables"),
-        ["price_daily"]
+        ["technical_data_daily"]
       );
       expect(query).toHaveBeenCalledWith(expect.stringContaining("technical_data_daily"));
     });
 
-    test("should return 404 when price_daily table doesn't exist", async () => {
+    test("should return 404 when technical_data_daily table doesn't exist", async () => {
       const mockTableExists = { rows: [{ exists: false }] };
 
       query.mockResolvedValueOnce(mockTableExists);
@@ -127,7 +127,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
 
   describe("GET /technical/:timeframe - Timeframe-based data", () => {
     test("should return daily technical data with pagination", async () => {
-      const mockTableExists = { rows: [{ exists: true }] };
       const mockCountResult = { rows: [{ total: "150" }] };
       const mockTechnicalData = {
         rows: [
@@ -137,7 +136,14 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
             rsi: 65.8,
             macd: 0.25,
             sma_20: 172.5,
-            volume: 45000000,
+            macd_signal: 0.18,
+            macd_hist: 0.07,
+            mom: 1.8,
+            roc: 3.2,
+            adx: 28.4,
+            plus_di: 25.2,
+            minus_di: 18.6,
+            atr: 2.85,
           },
           {
             symbol: "MSFT",
@@ -145,15 +151,21 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
             rsi: 58.2,
             macd: 0.18,
             sma_20: 378.9,
-            volume: 28000000,
+            macd_signal: 0.15,
+            macd_hist: 0.03,
+            mom: 2.1,
+            roc: 2.8,
+            adx: 24.1,
+            plus_di: 22.8,
+            minus_di: 19.2,
+            atr: 3.12,
           },
         ],
       };
 
       query
-        .mockResolvedValueOnce(mockTableExists)
-        .mockResolvedValueOnce(mockCountResult)
-        .mockResolvedValueOnce(mockTechnicalData);
+        .mockResolvedValueOnce(mockTechnicalData)
+        .mockResolvedValueOnce(mockCountResult);
 
       const response = await request(app)
         .get("/technical/daily")
@@ -189,10 +201,10 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         }),
       });
 
-      // Verify your actual queries with price_daily table
+      // Verify your actual queries with technical_data_daily table
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("price_daily"),
-        []
+        expect.stringContaining("technical_data_daily"),
+        expect.any(Array)
       );
     });
 

@@ -26,7 +26,7 @@ router.get("/daily/summary", async (req, res) => {
   const timeframe = "daily";
 
   try {
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     // Check if table exists
     const tableExists = await query(
@@ -58,10 +58,10 @@ router.get("/daily/summary", async (req, res) => {
         COUNT(DISTINCT symbol) as unique_symbols,
         MIN(date) as earliest_date,
         MAX(date) as latest_date,
-        AVG(CASE WHEN close > open THEN 65.5 ELSE 34.5 END) as avg_rsi,
-        AVG(CASE WHEN volume > 1000000 THEN 0.75 ELSE 0.45 END) as avg_macd,
-        AVG(close) as avg_sma_20,
-        AVG(volume) as avg_volume
+        AVG(rsi) as avg_rsi,
+        AVG(macd) as avg_macd,
+        AVG(sma_20) as avg_sma_20,
+        AVG(CASE WHEN rsi > 70 THEN 1 WHEN rsi < 30 THEN -1 ELSE 0 END) as avg_sentiment
       FROM ${tableName}
     `;
 
@@ -96,7 +96,7 @@ router.get("/daily/summary", async (req, res) => {
           sma20: summary.avg_sma_20
             ? parseFloat(summary.avg_sma_20).toFixed(2)
             : null,
-          volume: summary.avg_volume ? parseInt(summary.avg_volume) : null,
+          sentiment: summary.avg_sentiment ? parseFloat(summary.avg_sentiment).toFixed(2) : null,
         },
       },
       topSymbols: topSymbolsResult.rows.map((row) => ({
@@ -210,20 +210,22 @@ router.get("/daily", async (req, res) => {
 
     res.json({
       success: true,
-      data: result.rows,
-      pagination: {
-        current_page: pageNum,
-        total_pages: totalPages,
-        total_records: total,
-        per_page: limitNum,
-        has_next: pageNum < totalPages,
-        has_prev: pageNum > 1
-      },
-      metadata: {
-        timeframe: 'daily',
-        sort_by: sortField,
-        sort_order: order,
-        symbol_filter: symbol || null
+      data: {
+        data: result.rows,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: total,
+          totalPages: totalPages,
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1
+        },
+        metadata: {
+          timeframe: 'daily',
+          sort_by: sortField,
+          sort_order: order,
+          symbol_filter: symbol || null
+        }
       },
       timestamp: new Date().toISOString()
     });
@@ -815,7 +817,7 @@ router.get("/chart", async (req, res) => {
     const dataPoints = Math.min(parseInt(limit), days);
 
     // Query database for real technical chart data - no data generation
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     // Build columns to select based on requested indicators
     let indicatorColumns = "";
@@ -1375,7 +1377,7 @@ router.get("/", async (req, res) => {
         message: `Supported timeframes: ${validTimeframes.join(", ")}, got: ${timeframe}`,
       });
     }
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     // Check if table exists
     const tableExists = await query(
@@ -1738,7 +1740,7 @@ router.get("/support-resistance/:symbol", async (req, res) => {
       });
     }
 
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     // Check if table exists
     const tableExists = await query(
@@ -1909,7 +1911,7 @@ router.get("/data", async (req, res) => {
       });
     }
 
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     // Check if table exists
     const tableExists = await query(
@@ -2482,7 +2484,7 @@ async function getPriceDataForPatterns(symbol, _timeframe) {
     }
 
     // Try to get real price data
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
     const priceQuery = `
       SELECT p.close, p.high, p.low, t.date
       FROM ${tableName} t
@@ -2926,7 +2928,7 @@ router.get("/overview", async (req, res) => {
       });
     }
 
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     // Check if table exists
     const tableExists = await query(
@@ -3006,7 +3008,7 @@ router.get("/:symbol", async (req, res) => {
     console.log(`📊 Technical data requested for ${symbol.toUpperCase()}, timeframe: ${timeframe}`);
 
     // Redirect to daily endpoint with the symbol
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     const result = await query(
       `SELECT * FROM ${tableName}
@@ -3129,7 +3131,7 @@ router.get("/:timeframe", async (req, res) => {
     }
 
     // Determine table name based on timeframe
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     // Check if table exists
     const tableExists = await query(
@@ -3307,7 +3309,7 @@ router.get("/:timeframe/summary", async (req, res) => {
   // console.log(`Technical summary endpoint called for timeframe: ${timeframe}`);
 
   try {
-    const tableName = "price_daily";
+    const tableName = "technical_data_daily";
 
     // Check if table exists
     const tableExists = await query(
@@ -3382,7 +3384,7 @@ router.get("/:timeframe/summary", async (req, res) => {
           sma20: summary.avg_sma_20
             ? parseFloat(summary.avg_sma_20).toFixed(2)
             : null,
-          volume: summary.avg_volume ? parseInt(summary.avg_volume) : null,
+          sentiment: summary.avg_sentiment ? parseFloat(summary.avg_sentiment).toFixed(2) : null,
         },
       },
       topSymbols: topSymbolsResult.rows.map((row) => ({
