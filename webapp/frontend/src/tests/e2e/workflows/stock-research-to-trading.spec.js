@@ -311,7 +311,7 @@ test.describe("Stock Research to Trading Workflow", () => {
   test("should handle stock screener workflow", async ({ page }) => {
     console.log("🔍 Testing stock screener workflow...");
 
-    await page.goto("/screener-advanced");
+    await page.goto("/stocks");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 

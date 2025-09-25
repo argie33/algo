@@ -1,6 +1,23 @@
 // Load environment variables first
 require('dotenv').config();
 
+// Configure real database connection for tests
+process.env.NODE_ENV = "test";
+process.env.ALLOW_DEV_BYPASS = "true";
+process.env.JWT_SECRET = "test-secret-key-for-testing-only";
+
+// Set real database connection environment variables
+process.env.DB_HOST = "localhost";
+process.env.DB_USER = "postgres";
+process.env.DB_PASSWORD = "password";
+process.env.DB_NAME = "stocks";
+process.env.DB_PORT = "5432";
+process.env.DB_SSL = "false";
+
+console.log('🔧 Setting up webapp-specific database tables...');
+console.log('Using database config from environment variables');
+console.log(`Database config loaded from environment: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
+
 // Database setup for individual test files
 const { query, initializeDatabase } = require('../../utils/database');
 
@@ -25,471 +42,171 @@ async function getTestData(tableName, limit = 10) {
   }
 }
 
-// Helper to create test data if needed
+// Helper to create all tables using the main setup_database.sql file
 async function ensureTestData() {
   try {
-    console.log('🔧 Setting up loader table structures...');
+    console.log('🔧 Setting up webapp-specific tables from setup_database.sql...');
 
-    // Ensure core loader tables exist (matching Python loader scripts)
-    // Drop and recreate to ensure correct schema
-    await query(`DROP TABLE IF EXISTS stocks CASCADE;`);
+    // Use the webapp-specific database setup SQL file
+    const fs = require('fs');
+    const path = require('path');
 
-    // From setup_database_with_real_data.py - stocks table
+    try {
+      const setupSqlPath = path.join(__dirname, '../../setup_database.sql');
+      const setupSql = fs.readFileSync(setupSqlPath, 'utf8');
+
+      // Split SQL into individual statements and execute them
+      const statements = setupSql.split(';').filter(stmt => stmt.trim().length > 0);
+
+      for (const statement of statements) {
+        if (statement.trim()) {
+          try {
+            await query(statement.trim() + ';');
+          } catch (error) {
+            // Log error but continue with other statements
+            if (!error.message.includes('already exists')) {
+              console.warn(`Warning executing SQL statement: ${error.message}`);
+            }
+          }
+        }
+      }
+
+      console.log('✅ Database schema loaded from setup_database.sql');
+    } catch (error) {
+      console.warn('⚠️  Could not load setup_database.sql, using fallback:', error.message);
+
+      // Fallback: Create essential webapp tables only
     await query(`
-      CREATE TABLE stocks (
-        symbol VARCHAR(20) PRIMARY KEY,
-        name VARCHAR(255),
-        sector VARCHAR(100),
-        industry VARCHAR(100),
-        market_cap BIGINT,
-        price DECIMAL(10,2),
-        volume BIGINT,
-        pe_ratio DECIMAL(8,2),
-        eps DECIMAL(8,4),
-        dividend_yield DECIMAL(5,4),
-        beta DECIMAL(5,2),
-        exchange VARCHAR(50),
-        previous_close DECIMAL(10,2),
+      CREATE TABLE IF NOT EXISTS watchlists (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        name VARCHAR(100) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
-    // Drop and recreate price_daily table
-    await query(`DROP TABLE IF EXISTS price_daily CASCADE;`);
-
-    // From setup_database_with_real_data.py - price_daily table
     await query(`
-      CREATE TABLE price_daily (
+      CREATE TABLE IF NOT EXISTS watchlist_items (
         id SERIAL PRIMARY KEY,
+        watchlist_id INTEGER REFERENCES watchlists(id) ON DELETE CASCADE,
         symbol VARCHAR(10) NOT NULL,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(watchlist_id, symbol)
+      )
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_holdings (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        quantity DECIMAL(15,8) NOT NULL,
+        average_cost DECIMAL(10,4) NOT NULL,
+        current_price DECIMAL(10,4),
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, symbol)
+      )
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS portfolio_performance (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
         date DATE NOT NULL,
-        open_price DOUBLE PRECISION,
-        high_price DOUBLE PRECISION,
-        low_price DOUBLE PRECISION,
-        close_price DOUBLE PRECISION,
-        adj_close_price DOUBLE PRECISION,
-        volume BIGINT,
-        change_amount DOUBLE PRECISION,
-        change_percent DOUBLE PRECISION,
-        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(symbol, date)
+        total_value DECIMAL(15,2),
+        daily_pnl DECIMAL(15,2),
+        total_pnl DECIMAL(15,2),
+        total_pnl_percent DECIMAL(8,4),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, date)
       )
     `);
 
-    // Drop and recreate earnings_history table
-    await query(`DROP TABLE IF EXISTS earnings_history CASCADE;`);
-
-    // From loadearningshistory.py - earnings_history table
+    // Create orders table for trading functionality
     await query(`
-      CREATE TABLE earnings_history (
-        symbol VARCHAR(20) NOT NULL,
-        quarter DATE NOT NULL,
-        eps_actual NUMERIC,
-        eps_estimate NUMERIC,
-        eps_difference NUMERIC,
-        surprise_percent NUMERIC,
-        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, quarter)
+      CREATE TABLE IF NOT EXISTS orders_paper (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
+        quantity DECIMAL(15,8) NOT NULL,
+        order_type VARCHAR(20) NOT NULL DEFAULT 'market',
+        price DECIMAL(10,4),
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        executed_at TIMESTAMP,
+        executed_price DECIMAL(10,4)
       )
     `);
 
-    // Drop and recreate stock_scores table
-    await query(`DROP TABLE IF EXISTS stock_scores CASCADE;`);
-
-    // From loadstockscores.py - stock_scores table
+    // Insert minimal test data for webapp tables
     await query(`
-      CREATE TABLE stock_scores (
-        symbol VARCHAR(50) PRIMARY KEY,
-        composite_score DECIMAL(5,2),
-        momentum_score DECIMAL(5,2),
-        trend_score DECIMAL(5,2),
-        value_score DECIMAL(5,2),
-        quality_score DECIMAL(5,2),
-        rsi DECIMAL(5,2),
-        macd DECIMAL(10,4),
-        sma_20 DECIMAL(10,2),
-        sma_50 DECIMAL(10,2),
-        volume_avg_30d BIGINT,
-        current_price DECIMAL(10,2),
-        price_change_1d DECIMAL(5,2),
-        price_change_5d DECIMAL(5,2),
-        price_change_30d DECIMAL(5,2),
-        volatility_30d DECIMAL(5,2),
-        market_cap BIGINT,
-        pe_ratio DECIMAL(8,2),
-        score_date DATE DEFAULT CURRENT_DATE,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      INSERT INTO watchlists (user_id, name) VALUES
+      ('test-user-123', 'My Watchlist'),
+      ('test-user-456', 'Tech Stocks')
+      ON CONFLICT DO NOTHING
     `);
 
+    console.log('✅ Database webapp-only tables created successfully');
+
+  } catch (error) {
+    console.error('❌ Error creating webapp tables:', error);
+    throw error;
+  }
+}
+
+// Function to create Python loader tables for testing
+async function createLoaderTables() {
+  try {
+    // Create company_profile table from loadinfo.py
     await query(`
-      CREATE TABLE IF NOT EXISTS stock_symbols (
-        symbol VARCHAR(10) PRIMARY KEY,
-        name VARCHAR(200),
+      CREATE TABLE IF NOT EXISTS company_profile (
+        ticker VARCHAR(10) PRIMARY KEY,
+        short_name VARCHAR(100),
+        long_name VARCHAR(200),
         sector VARCHAR(100),
-        market VARCHAR(50),
-        active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        industry VARCHAR(100)
       )
     `);
 
+    // Create market_data table from loadinfo.py
     await query(`
       CREATE TABLE IF NOT EXISTS market_data (
-        symbol VARCHAR(20),
-        name VARCHAR(255),
-        date DATE,
-        price DECIMAL(12,4),
-        volume BIGINT,
+        ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
+        current_price NUMERIC,
         market_cap BIGINT,
-        return_1d DECIMAL(8,6),
-        return_5d DECIMAL(8,6),
-        return_1m DECIMAL(8,6),
-        return_3m DECIMAL(8,6),
-        return_6m DECIMAL(8,6),
-        return_1y DECIMAL(8,6),
-        volatility_30d DECIMAL(8,6),
-        volatility_90d DECIMAL(8,6),
-        volatility_1y DECIMAL(8,6),
-        sma_20 DECIMAL(12,4),
-        sma_50 DECIMAL(12,4),
-        sma_200 DECIMAL(12,4),
-        price_vs_sma_20 DECIMAL(8,6),
-        price_vs_sma_50 DECIMAL(8,6),
-        price_vs_sma_200 DECIMAL(8,6),
-        high_52w DECIMAL(12,4),
-        low_52w DECIMAL(12,4),
-        distance_from_high DECIMAL(8,6),
-        distance_from_low DECIMAL(8,6),
-        avg_volume_30d BIGINT,
-        volume_ratio DECIMAL(8,4),
-        beta DECIMAL(8,4),
-        asset_class VARCHAR(50),
-        region VARCHAR(50),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date)
+        volume BIGINT
       )
     `);
 
-    // Create comprehensive key_metrics table matching reset-database-to-loaders.sql
+    // Create key_metrics table from loadinfo.py
     await query(`
       CREATE TABLE IF NOT EXISTS key_metrics (
-        ticker VARCHAR(10) PRIMARY KEY,
+        ticker VARCHAR(10) PRIMARY KEY REFERENCES company_profile(ticker),
         trailing_pe NUMERIC,
         forward_pe NUMERIC,
-        price_to_sales_ttm NUMERIC,
-        price_to_book NUMERIC,
-        book_value NUMERIC,
-        peg_ratio NUMERIC,
-        enterprise_value BIGINT,
-        ev_to_revenue NUMERIC,
-        ev_to_ebitda NUMERIC,
-        total_revenue BIGINT,
-        net_income BIGINT,
-        ebitda BIGINT,
-        gross_profit BIGINT,
-        eps_trailing NUMERIC,
-        eps_forward NUMERIC,
-        eps_current_year NUMERIC,
-        price_eps_current_year NUMERIC,
-        earnings_q_growth_pct NUMERIC,
-        revenue_growth_pct NUMERIC,
-        earnings_growth_pct NUMERIC,
-        total_cash BIGINT,
-        cash_per_share NUMERIC,
-        operating_cashflow BIGINT,
-        free_cashflow BIGINT,
-        total_debt BIGINT,
-        debt_to_equity NUMERIC,
-        quick_ratio NUMERIC,
-        current_ratio NUMERIC,
-        profit_margin_pct NUMERIC,
-        gross_margin_pct NUMERIC,
-        ebitda_margin_pct NUMERIC,
-        operating_margin_pct NUMERIC,
-        return_on_assets_pct NUMERIC,
-        return_on_equity_pct NUMERIC,
-        dividend_rate NUMERIC,
         dividend_yield NUMERIC,
-        five_year_avg_dividend_yield NUMERIC,
-        last_annual_dividend_amt NUMERIC,
-        last_annual_dividend_yield NUMERIC
+        eps_trailing NUMERIC
       )
     `);
 
-    // Insert comprehensive test data for key_metrics
-    await query(`
-      INSERT INTO key_metrics (
-        ticker, trailing_pe, forward_pe, price_to_sales_ttm, price_to_book,
-        peg_ratio, enterprise_value, total_revenue, net_income, ebitda,
-        eps_trailing, eps_forward, dividend_yield, debt_to_equity,
-        current_ratio, profit_margin_pct, gross_margin_pct,
-        return_on_equity_pct, return_on_assets_pct
-      ) VALUES
-      ('AAPL', 28.5, 26.2, 7.8, 45.2, 2.1, 3500000000000, 365000000000, 94000000000, 120000000000, 5.89, 6.25, 0.52, 1.73, 1.07, 25.7, 43.0, 175.0, 27.1),
-      ('MSFT', 32.1, 29.8, 12.4, 13.5, 2.5, 2800000000000, 211000000000, 72000000000, 88000000000, 10.95, 12.10, 0.68, 0.47, 2.54, 34.2, 68.4, 47.1, 18.3),
-      ('GOOGL', 24.7, 22.3, 5.2, 5.8, 1.8, 1700000000000, 283000000000, 76000000000, 92000000000, 5.02, 5.85, 0.0, 0.10, 3.77, 26.9, 57.0, 29.8, 16.2)
-      ON CONFLICT (ticker) DO NOTHING
-    `);
-
+    // Create price_daily table from loadpricedaily.py
     await query(`
       CREATE TABLE IF NOT EXISTS price_daily (
-        id SERIAL PRIMARY KEY,
         symbol VARCHAR(10) NOT NULL,
         date DATE NOT NULL,
-        open_price DOUBLE PRECISION,
-        high_price DOUBLE PRECISION,
-        low_price DOUBLE PRECISION,
-        close_price DOUBLE PRECISION,
-        adj_close_price DOUBLE PRECISION,
+        open DOUBLE PRECISION,
+        high DOUBLE PRECISION,
+        low DOUBLE PRECISION,
+        close DOUBLE PRECISION,
+        adj_close DOUBLE PRECISION,
         volume BIGINT,
-        change_amount DOUBLE PRECISION,
-        change_percent DOUBLE PRECISION,
-        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(symbol, date)
-      )
-    `);
-
-    // Add unique constraint separately to handle existing tables
-    // Check if constraint already exists before trying to add it
-    const constraintExists = await query(`
-      SELECT COUNT(*) FROM pg_constraint
-      WHERE conname = 'unique_symbol_date'
-    `);
-
-    if (constraintExists.rows[0].count === '0') {
-      try {
-        await query(`
-          ALTER TABLE price_daily
-          ADD CONSTRAINT unique_symbol_date
-          UNIQUE (symbol, date)
-        `);
-      } catch (error) {
-        // Only log if it's an unexpected error
-        if (!error.message.includes('already exists') && error.code !== '42P07') {
-          console.warn('Could not add unique constraint to price_daily:', error.message);
-        }
-      }
-    }
-
-    await query(`
-      CREATE TABLE IF NOT EXISTS stock_scores (
-        symbol VARCHAR(10) NOT NULL,
-        date DATE NOT NULL,
-        fundamental_score DECIMAL(5,2),
-        technical_score DECIMAL(5,2),
-        overall_score DECIMAL(5,2),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
       )
     `);
 
-    // Create buy_sell tables matching loadlatestbuyselldaily.py structure
-    await query(`
-      CREATE TABLE IF NOT EXISTS buy_sell_daily (
-        symbol VARCHAR(20) NOT NULL,
-        date DATE NOT NULL,
-        timeframe VARCHAR(10) NOT NULL DEFAULT 'daily',
-        signal_type VARCHAR(10) NOT NULL,
-        confidence DECIMAL(5,2) NOT NULL DEFAULT 0.0,
-        price DECIMAL(12,4),
-        rsi DECIMAL(5,2),
-        macd DECIMAL(10,6),
-        volume BIGINT,
-        volume_avg_10d BIGINT,
-        price_vs_ma20 DECIMAL(5,2),
-        price_vs_ma50 DECIMAL(5,2),
-        bollinger_position DECIMAL(5,2),
-        support_level DECIMAL(12,4),
-        resistance_level DECIMAL(12,4),
-        pattern_score DECIMAL(5,2),
-        momentum_score DECIMAL(5,2),
-        risk_score DECIMAL(5,2),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date, timeframe, signal_type)
-      )
-    `);
-
-    await query(`
-      CREATE TABLE IF NOT EXISTS buy_sell_weekly (
-        symbol VARCHAR(20) NOT NULL,
-        date DATE NOT NULL,
-        timeframe VARCHAR(10) NOT NULL DEFAULT 'weekly',
-        signal_type VARCHAR(10) NOT NULL,
-        confidence DECIMAL(5,2) NOT NULL DEFAULT 0.0,
-        price DECIMAL(12,4),
-        rsi DECIMAL(5,2),
-        macd DECIMAL(10,6),
-        volume BIGINT,
-        volume_avg_10d BIGINT,
-        price_vs_ma20 DECIMAL(5,2),
-        price_vs_ma50 DECIMAL(5,2),
-        bollinger_position DECIMAL(5,2),
-        support_level DECIMAL(12,4),
-        resistance_level DECIMAL(12,4),
-        pattern_score DECIMAL(5,2),
-        momentum_score DECIMAL(5,2),
-        risk_score DECIMAL(5,2),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date, timeframe, signal_type)
-      )
-    `);
-
-    await query(`
-      CREATE TABLE IF NOT EXISTS buy_sell_monthly (
-        symbol VARCHAR(20) NOT NULL,
-        date DATE NOT NULL,
-        timeframe VARCHAR(10) NOT NULL DEFAULT 'monthly',
-        signal_type VARCHAR(10) NOT NULL,
-        confidence DECIMAL(5,2) NOT NULL DEFAULT 0.0,
-        price DECIMAL(12,4),
-        rsi DECIMAL(5,2),
-        macd DECIMAL(10,6),
-        volume BIGINT,
-        volume_avg_10d BIGINT,
-        price_vs_ma20 DECIMAL(5,2),
-        price_vs_ma50 DECIMAL(5,2),
-        bollinger_position DECIMAL(5,2),
-        support_level DECIMAL(12,4),
-        resistance_level DECIMAL(12,4),
-        pattern_score DECIMAL(5,2),
-        momentum_score DECIMAL(5,2),
-        risk_score DECIMAL(5,2),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date, timeframe, signal_type)
-      )
-    `);
-
-    // Ensure technical_data_daily table exists for signals route
-    await query(`
-      CREATE TABLE IF NOT EXISTS technical_data_daily (
-        symbol VARCHAR(10) NOT NULL,
-        date DATE NOT NULL,
-        rsi DECIMAL(5,2),
-        macd DECIMAL(10,6),
-        bb_upper DECIMAL(12,4),
-        bb_lower DECIMAL(12,4),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date)
-      )
-    `);
-
-    // Insert basic test data for major symbols using correct stocks table schema
-    await query(`
-      INSERT INTO stocks (symbol, name, sector, industry, market_cap, price, volume, pe_ratio, eps, dividend_yield, beta, exchange) VALUES
-      ('AAPL', 'Apple Inc.', 'Technology', 'Consumer Electronics', 3400000000000, 175.50, 65000000, 35.2, 6.15, 0.0044, 1.2, 'NASDAQ'),
-      ('MSFT', 'Microsoft Corporation', 'Technology', 'Software', 3200000000000, 420.75, 28000000, 32.1, 13.05, 0.0068, 0.9, 'NASDAQ')
-      ON CONFLICT (symbol) DO UPDATE SET
-        name = EXCLUDED.name,
-        sector = EXCLUDED.sector,
-        industry = EXCLUDED.industry,
-        market_cap = EXCLUDED.market_cap,
-        price = EXCLUDED.price,
-        volume = EXCLUDED.volume,
-        pe_ratio = EXCLUDED.pe_ratio,
-        eps = EXCLUDED.eps,
-        dividend_yield = EXCLUDED.dividend_yield,
-        beta = EXCLUDED.beta,
-        exchange = EXCLUDED.exchange,
-        updated_at = CURRENT_TIMESTAMP
-    `);
-
-    // Insert test price data
-    await query(`
-      INSERT INTO price_daily (symbol, date, open_price, high_price, low_price, close_price, adj_close_price, volume) VALUES
-      ('AAPL', '2024-01-20', 174.00, 178.50, 173.50, 175.50, 175.50, 65000000),
-      ('AAPL', '2024-01-19', 172.00, 176.00, 171.80, 174.00, 174.00, 58000000),
-      ('MSFT', '2024-01-20', 418.00, 423.00, 417.50, 420.75, 420.75, 28000000),
-      ('MSFT', '2024-01-19', 415.00, 419.50, 414.00, 418.00, 418.00, 25000000)
-      ON CONFLICT (symbol, date) DO UPDATE SET
-        open_price = EXCLUDED.open_price,
-        high_price = EXCLUDED.high_price,
-        low_price = EXCLUDED.low_price,
-        close_price = EXCLUDED.close_price,
-        adj_close_price = EXCLUDED.adj_close_price,
-        volume = EXCLUDED.volume
-    `);
-
-    // Insert test stock scores data
-    await query(`
-      INSERT INTO stock_scores (symbol, composite_score, momentum_score, trend_score, value_score, quality_score,
-                               current_price, market_cap, pe_ratio) VALUES
-      ('AAPL', 85.5, 78.2, 88.1, 75.0, 92.3, 175.50, 3400000000000, 35.2),
-      ('MSFT', 88.7, 82.5, 90.1, 78.3, 95.1, 420.75, 3200000000000, 32.1)
-      ON CONFLICT (symbol) DO UPDATE SET
-        composite_score = EXCLUDED.composite_score,
-        momentum_score = EXCLUDED.momentum_score,
-        trend_score = EXCLUDED.trend_score,
-        value_score = EXCLUDED.value_score,
-        quality_score = EXCLUDED.quality_score,
-        current_price = EXCLUDED.current_price,
-        market_cap = EXCLUDED.market_cap,
-        pe_ratio = EXCLUDED.pe_ratio,
-        last_updated = CURRENT_TIMESTAMP
-    `);
-
-    // Insert stock symbols if they don't exist
-    const symbolExists = await query(`SELECT COUNT(*) FROM stock_symbols WHERE symbol IN ('AAPL', 'MSFT')`);
-    if (symbolExists && symbolExists.rows && symbolExists.rows[0].count < 2) {
-      await query(`
-        INSERT INTO stock_symbols (symbol, security_name)
-        SELECT 'AAPL', 'Apple Inc.' WHERE NOT EXISTS (SELECT 1 FROM stock_symbols WHERE symbol = 'AAPL')
-        UNION ALL
-        SELECT 'MSFT', 'Microsoft Corporation' WHERE NOT EXISTS (SELECT 1 FROM stock_symbols WHERE symbol = 'MSFT')
-      `);
-    }
-
-    // Ensure company_profile records exist before inserting market_data
-    await query(`
-      INSERT INTO company_profile (ticker, symbol, short_name, long_name, sector, industry) VALUES
-      ('AAPL', 'AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
-      ('MSFT', 'MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'Technology', 'Software'),
-      ('SPY', 'SPY', 'SPDR S&P 500 ETF Trust', 'SPDR S&P 500 ETF Trust', 'ETF', 'ETF'),
-      ('QQQ', 'QQQ', 'Invesco QQQ Trust', 'Invesco QQQ Trust', 'ETF', 'ETF')
-      ON CONFLICT (ticker) DO NOTHING
-    `);
-
-    await query(`
-      INSERT INTO market_data (symbol, name, date, price, volume, market_cap) VALUES
-      ('AAPL', 'Apple Inc.', '2024-01-02', 150.25, 65000000, 3500000000000),
-      ('MSFT', 'Microsoft Corporation', '2024-01-02', 350.75, 45000000, 2800000000000),
-      ('SPY', 'SPDR S&P 500 ETF Trust', '2024-01-02', 446.95, 65000000, 400000000000),
-      ('QQQ', 'Invesco QQQ Trust', '2024-01-02', 387.30, 42000000, 200000000000)
-      ON CONFLICT (symbol, date) DO NOTHING
-    `);
-
-    // fundamental_metrics data insertion removed - using actual loader tables instead
-
-    await query(`
-      INSERT INTO price_daily (symbol, date, open_price, high_price, low_price, close_price, adj_close_price, volume) VALUES
-      ('AAPL', '2024-01-02', 149.50, 151.25, 148.75, 150.25, 150.25, 65000000),
-      ('AAPL', '2024-01-01', 148.00, 150.50, 147.50, 149.50, 149.50, 58000000),
-      ('MSFT', '2024-01-02', 348.25, 352.50, 347.00, 350.75, 350.75, 45000000),
-      ('MSFT', '2024-01-01', 346.50, 349.25, 345.75, 348.25, 348.25, 42000000),
-      ('GOOGL', '2024-01-02', 139.75, 142.50, 138.25, 141.80, 141.80, 28000000),
-      ('GOOGL', '2024-01-01', 137.50, 140.25, 136.75, 139.75, 139.75, 25000000)
-      ON CONFLICT (symbol, date) DO UPDATE SET
-        open_price = EXCLUDED.open_price,
-        high_price = EXCLUDED.high_price,
-        low_price = EXCLUDED.low_price,
-        close_price = EXCLUDED.close_price,
-        adj_close_price = EXCLUDED.adj_close_price,
-        volume = EXCLUDED.volume
-    `);
-
-    await query(`
-      INSERT INTO stock_scores (symbol, date, fundamental_score, technical_score, overall_score) VALUES
-      ('AAPL', '2024-01-02', 85.5, 72.3, 78.9),
-      ('MSFT', '2024-01-02', 88.2, 75.6, 81.9)
-      ON CONFLICT (symbol, date) DO NOTHING
-    `);
-
-    // Buy_sell_daily test data is already handled by globalSetup.js - no duplicate insert needed
-
-    // Technical data already inserted by globalSetup.js - no duplicate insert needed
-
-    // Create earnings_history table for financial routes
+    // Create earnings_history table from loadearningshistory.py
     await query(`
       CREATE TABLE IF NOT EXISTS earnings_history (
         symbol VARCHAR(20) NOT NULL,
@@ -503,847 +220,92 @@ async function ensureTestData() {
       )
     `);
 
-    await query(`
-      INSERT INTO earnings_history (symbol, quarter, eps_actual, eps_estimate, surprise_percent) VALUES
-      ('AAPL', '2024-01-01', 2.18, 2.10, 3.8),
-      ('MSFT', '2024-01-01', 2.93, 2.88, 1.7)
-      ON CONFLICT (symbol, quarter) DO NOTHING
-    `);
-
-    // Create portfolio_metadata table for portfolio routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS portfolio_metadata (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        broker VARCHAR(50) NOT NULL,
-        last_rebalance_date TIMESTAMP WITH TIME ZONE,
-        rebalance_count INTEGER DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT unique_user_broker_metadata UNIQUE (user_id, broker)
-      )
-    `);
-
-    await query(`
-      INSERT INTO portfolio_metadata (user_id, broker, last_rebalance_date, rebalance_count) VALUES
-      ('test-user-1', 'alpaca', '2024-01-01', 1),
-      ('test-user-2', 'alpaca', '2024-01-02', 2)
-      ON CONFLICT (user_id, broker) DO NOTHING
-    `);
-
-    // Create alert_settings table for alerts routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS alert_settings (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL UNIQUE,
-        notification_preferences JSONB DEFAULT '{}',
-        delivery_settings JSONB DEFAULT '{}',
-        alert_categories JSONB DEFAULT '{}',
-        watchlist_settings JSONB DEFAULT '{}',
-        advanced_settings JSONB DEFAULT '{}',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO alert_settings (user_id, notification_preferences, delivery_settings) VALUES
-      ('test-user-1', '{"email": true, "sms": false}', '{"frequency": "immediate"}'),
-      ('test-user-2', '{"email": false, "sms": true}', '{"frequency": "daily"}')
-      ON CONFLICT (user_id) DO NOTHING
-    `);
-
-    // Create volume_alerts table for alerts routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS volume_alerts (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        threshold_multiplier DECIMAL(5,2) NOT NULL,
-        condition VARCHAR(20) NOT NULL,
-        notification_methods JSONB DEFAULT '["email"]',
-        status VARCHAR(20) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO volume_alerts (user_id, symbol, threshold_multiplier, condition, notification_methods) VALUES
-      ('test-user-1', 'AAPL', 2.0, 'above', '["email"]'),
-      ('test-user-2', 'MSFT', 1.5, 'above', '["sms"]')
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Create volume_analysis table for alerts routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS volume_analysis (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        current_volume BIGINT,
-        avg_volume_20d BIGINT,
-        volume_ratio DECIMAL(8,6),
-        volume_trend VARCHAR(20),
-        analysis_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO volume_analysis (symbol, current_volume, avg_volume_20d, volume_ratio, volume_trend) VALUES
-      ('AAPL', 65000000, 58000000, 1.12, 'increasing'),
-      ('MSFT', 45000000, 42000000, 1.07, 'stable')
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Create daily_volume_history table for alerts routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS daily_volume_history (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        trading_date DATE NOT NULL,
-        volume BIGINT,
-        avg_volume_20d BIGINT,
-        volume_ratio DECIMAL(8,6),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(symbol, trading_date)
-      )
-    `);
-
-    await query(`
-      INSERT INTO daily_volume_history (symbol, trading_date, volume, avg_volume_20d, volume_ratio) VALUES
-      ('AAPL', '2024-01-02', 65000000, 58000000, 1.12),
-      ('AAPL', '2024-01-01', 58000000, 55000000, 1.05),
-      ('MSFT', '2024-01-02', 45000000, 42000000, 1.07),
-      ('MSFT', '2024-01-01', 42000000, 40000000, 1.05)
-      ON CONFLICT (symbol, trading_date) DO NOTHING
-    `);
-
-    // Create technical_alerts table for alerts routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS technical_alerts (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        indicator_type VARCHAR(50) NOT NULL,
-        condition VARCHAR(20) NOT NULL,
-        threshold_value DECIMAL(10,4),
-        current_value DECIMAL(10,4),
-        notification_methods JSONB DEFAULT '["email"]',
-        status VARCHAR(20) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        triggered_at TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO technical_alerts (user_id, symbol, indicator_type, condition, threshold_value, notification_methods) VALUES
-      ('test-user-1', 'AAPL', 'RSI', 'below', 30.0, '["email"]'),
-      ('test-user-2', 'MSFT', 'MACD', 'crosses_above', 0.0, '["sms"]')
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Create ETFs table (from etf.js requirements)
-    await query(`
-      CREATE TABLE IF NOT EXISTS etfs (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL UNIQUE,
-        fund_name VARCHAR(255),
-        total_assets DECIMAL(20,2),
-        expense_ratio DECIMAL(6,4),
-        dividend_yield DECIMAL(8,6),
-        inception_date DATE,
-        category VARCHAR(100),
-        strategy TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create ETF holdings table (from etf.js requirements)
-    await query(`
-      CREATE TABLE IF NOT EXISTS etf_holdings (
-        id SERIAL PRIMARY KEY,
-        etf_symbol VARCHAR(10) NOT NULL,
-        holding_symbol VARCHAR(10) NOT NULL,
-        company_name VARCHAR(255),
-        weight_percent DECIMAL(8,6),
-        shares_held BIGINT,
-        market_value DECIMAL(15,2),
-        sector VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create portfolio returns table (from performance.js requirements)
-    await query(`
-      CREATE TABLE IF NOT EXISTS portfolio_returns (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        calculation_type VARCHAR(50) NOT NULL,
-        period VARCHAR(20) NOT NULL,
-        time_weighted_return DECIMAL(10,6),
-        dollar_weighted_return DECIMAL(10,6),
-        annualized_time_weighted DECIMAL(10,6),
-        annualized_dollar_weighted DECIMAL(10,6),
-        excess_return DECIMAL(10,6),
-        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create portfolio risk metrics table (from performance.js and risk.js requirements)
-    await query(`
-      CREATE TABLE IF NOT EXISTS portfolio_risk_metrics (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        portfolio_id INTEGER,
-        period VARCHAR(20) NOT NULL,
-        volatility DECIMAL(10,6),
-        var_95 DECIMAL(10,6),
-        var_99 DECIMAL(10,6),
-        expected_shortfall_95 DECIMAL(10,6),
-        expected_shortfall_99 DECIMAL(10,6),
-        maximum_drawdown DECIMAL(10,6),
-        calmar_ratio DECIMAL(10,6),
-        beta DECIMAL(10,6),
-        correlation_to_market DECIMAL(10,6),
-        tracking_error DECIMAL(10,6),
-        active_risk DECIMAL(10,6),
-        systematic_risk DECIMAL(10,6),
-        idiosyncratic_risk DECIMAL(10,6),
-        concentration_risk DECIMAL(10,6),
-        liquidity_risk DECIMAL(10,6),
-        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create orders table for orders routes
-    await query(`DROP TABLE IF EXISTS orders`);
-    await query(`
-      CREATE TABLE orders (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
-        quantity INTEGER NOT NULL CHECK (quantity > 0),
-        order_type VARCHAR(20) NOT NULL DEFAULT 'market',
-        limit_price DECIMAL(10,2),
-        stop_price DECIMAL(10,2),
-        time_in_force VARCHAR(10) DEFAULT 'day',
-        status VARCHAR(20) DEFAULT 'pending',
-        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        filled_at TIMESTAMP,
-        filled_quantity INTEGER DEFAULT 0,
-        average_price DECIMAL(10,2),
-        broker VARCHAR(50) DEFAULT 'alpaca',
-        notes TEXT,
-        extended_hours BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO orders (user_id, symbol, side, quantity, order_type, limit_price, status, submitted_at, broker) VALUES
-      ('test-user-1', 'AAPL', 'buy', 100, 'limit', 150.00, 'filled', '2024-01-01', 'alpaca'),
-      ('test-user-2', 'MSFT', 'sell', 50, 'market', NULL, 'pending', '2024-01-02', 'alpaca')
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Create trades table for trading functionality
-    await query(`DROP TABLE IF EXISTS trades`);
-    await query(`
-      CREATE TABLE trades (
-        trade_id VARCHAR(255) PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
-        quantity INTEGER NOT NULL CHECK (quantity > 0),
-        type VARCHAR(20) NOT NULL DEFAULT 'market',
-        limit_price DECIMAL(10,4),
-        stop_price DECIMAL(10,4),
-        time_in_force VARCHAR(10) DEFAULT 'day',
-        status VARCHAR(20) NOT NULL DEFAULT 'pending',
-        executed_at TIMESTAMP,
-        average_fill_price DECIMAL(10,4),
-        filled_quantity INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO trades (trade_id, user_id, symbol, side, quantity, type, status, executed_at, average_fill_price, filled_quantity) VALUES
-      ('trade-1', 'test-user-1', 'AAPL', 'buy', 100, 'market', 'filled', '2024-01-01', 150.50, 100),
-      ('trade-2', 'test-user-2', 'MSFT', 'sell', 50, 'limit', 'filled', '2024-01-02', 330.25, 50)
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Create news alerts table for alerts routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS news_alerts (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        sentiment_threshold DECIMAL(5,4),
-        sentiment_type VARCHAR(20),
-        sources JSONB,
-        notification_methods JSONB,
-        status VARCHAR(20) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create portfolio alerts table for alerts routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS portfolio_alerts (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        alert_type VARCHAR(50) NOT NULL,
-        threshold_value DECIMAL(12,4),
-        condition VARCHAR(20),
-        notification_methods JSONB,
-        status VARCHAR(20) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create portfolio transactions table for trade analytics
-    await query(`
-      CREATE TABLE IF NOT EXISTS portfolio_transactions (
-        transaction_id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        side VARCHAR(10) NOT NULL CHECK (side IN ('buy', 'sell')),
-        transaction_type VARCHAR(20) NOT NULL,
-        quantity NUMERIC NOT NULL,
-        price NUMERIC NOT NULL,
-        amount NUMERIC NOT NULL,
-        commission NUMERIC DEFAULT 0,
-        pnl NUMERIC DEFAULT 0,
-        transaction_date DATE NOT NULL,
-        settlement_date DATE,
-        description TEXT,
-        account_id VARCHAR(100),
-        broker VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create order activities table for order execution tracking
-    await query(`
-      CREATE TABLE IF NOT EXISTS order_activities (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        order_id INTEGER NOT NULL,
-        activity_type VARCHAR(50) NOT NULL,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create portfolio_performance table
-    await query(`DROP TABLE IF EXISTS portfolio_performance`);
-    await query(`
-      CREATE TABLE portfolio_performance (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        total_value DECIMAL(15,4) NOT NULL,
-        daily_pnl DECIMAL(15,4) DEFAULT 0,
-        daily_pnl_percent DECIMAL(8,4) DEFAULT 0,
-        total_pnl DECIMAL(15,4) DEFAULT 0,
-        total_pnl_percent DECIMAL(8,4) DEFAULT 0,
-        date DATE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Insert test portfolio performance data matching Python loader schema
-    await query(`
-      INSERT INTO portfolio_performance (user_id, date, total_value, daily_pnl, daily_pnl_percent, total_pnl, total_pnl_percent) VALUES
-      ('test-user-1', '2024-01-20', 38587.50, 725.50, 1.91, 8587.50, 28.63),
-      ('test-user-1', '2024-01-19', 37862.00, -412.30, -1.08, 7862.00, 26.21),
-      ('test-user-2', '2024-01-20', 35100.00, 350.00, 1.01, 3100.00, 9.68),
-      ('dev-user-bypass', '2024-01-20', 57881.25, 1024.75, 1.80, 10631.25, 22.53),
-      ('dev-user-bypass', '2024-01-19', 56856.50, -289.25, -0.51, 9606.50, 20.33)
-      ON CONFLICT (user_id, date) DO UPDATE SET
-        total_value = EXCLUDED.total_value,
-        daily_pnl = EXCLUDED.daily_pnl,
-        daily_pnl_percent = EXCLUDED.daily_pnl_percent,
-        total_pnl = EXCLUDED.total_pnl,
-        total_pnl_percent = EXCLUDED.total_pnl_percent,
-        updated_at = CURRENT_TIMESTAMP
-    `);
-
-    // Create portfolio_holdings table
-    await query(`DROP TABLE IF EXISTS portfolio_holdings`);
-    await query(`
-      CREATE TABLE portfolio_holdings (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        quantity DECIMAL(15,4) NOT NULL,
-        average_cost DECIMAL(12,4) NOT NULL,
-        current_price DECIMAL(12,4) DEFAULT 0,
-        market_value DECIMAL(15,4) DEFAULT 0,
-        unrealized_pnl DECIMAL(15,4) DEFAULT 0,
-        unrealized_pnl_percent DECIMAL(8,4) DEFAULT 0,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Insert test portfolio holdings data matching Python loader schema
-    await query(`
-      INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, unrealized_pnl) VALUES
-      ('test-user-1', 'AAPL', 100, 150.00, 175.50, 17550.00, 2550.00),
-      ('test-user-1', 'MSFT', 50, 300.00, 420.75, 21037.50, 6037.50),
-      ('test-user-2', 'AAPL', 200, 160.00, 175.50, 35100.00, 3100.00),
-      ('dev-user-bypass', 'AAPL', 150, 155.00, 175.50, 26325.00, 3075.00),
-      ('dev-user-bypass', 'MSFT', 75, 320.00, 420.75, 31556.25, 7556.25)
-      ON CONFLICT (user_id, symbol) DO UPDATE SET
-        quantity = EXCLUDED.quantity,
-        average_cost = EXCLUDED.average_cost,
-        current_price = EXCLUDED.current_price,
-        market_value = EXCLUDED.market_value,
-        unrealized_pnl = EXCLUDED.unrealized_pnl,
-        last_updated = CURRENT_TIMESTAMP
-    `);
-
-    // Create portfolio_symbol_performance table
-    await query(`DROP TABLE IF EXISTS portfolio_symbol_performance`);
-    await query(`
-      CREATE TABLE portfolio_symbol_performance (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        realized_pnl DECIMAL(15,4) DEFAULT 0,
-        unrealized_pnl DECIMAL(15,4) DEFAULT 0,
-        win_rate DECIMAL(8,4) DEFAULT 0,
-        avg_hold_time_days INTEGER DEFAULT 0,
-        period VARCHAR(10) NOT NULL,
-        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create portfolio_analytics table
-    await query(`DROP TABLE IF EXISTS portfolio_analytics`);
-    await query(`
-      CREATE TABLE portfolio_analytics (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        period VARCHAR(10) NOT NULL,
-        total_return DECIMAL(8,4) DEFAULT 0,
-        sharpe_ratio DECIMAL(8,4) DEFAULT 0,
-        max_drawdown DECIMAL(8,4) DEFAULT 0,
-        volatility DECIMAL(8,4) DEFAULT 0,
-        beta DECIMAL(8,4) DEFAULT 1.0,
-        alpha DECIMAL(8,4) DEFAULT 0,
-        tracking_error DECIMAL(8,4) DEFAULT 0,
-        information_ratio DECIMAL(8,4) DEFAULT 0,
-        sortino_ratio DECIMAL(8,4) DEFAULT 0,
-        calmar_ratio DECIMAL(8,4) DEFAULT 0,
-        win_rate DECIMAL(8,4) DEFAULT 0,
-        average_win DECIMAL(8,4) DEFAULT 0,
-        average_loss DECIMAL(8,4) DEFAULT 0,
-        profit_factor DECIMAL(8,4) DEFAULT 0,
-        recovery_factor DECIMAL(8,4) DEFAULT 0,
-        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create trade_history table
-    await query(`DROP TABLE IF EXISTS trade_history`);
-    await query(`
-      CREATE TABLE trade_history (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        action VARCHAR(10) NOT NULL,
-        quantity DECIMAL(15,4) NOT NULL,
-        price DECIMAL(12,4) NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        order_id VARCHAR(50),
-        commission DECIMAL(10,4) DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create attribution_analysis table
-    await query(`DROP TABLE IF EXISTS attribution_analysis`);
-    await query(`
-      CREATE TABLE attribution_analysis (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        period VARCHAR(20) NOT NULL,
-        total_return DECIMAL(8,4),
-        benchmark_return DECIMAL(8,4),
-        active_return DECIMAL(8,4),
-        allocation_effect DECIMAL(8,4),
-        selection_effect DECIMAL(8,4),
-        interaction_effect DECIMAL(8,4),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create brinson_attribution table
-    await query(`DROP TABLE IF EXISTS brinson_attribution`);
-    await query(`
-      CREATE TABLE brinson_attribution (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        sector VARCHAR(50) NOT NULL,
-        allocation_effect DECIMAL(8,4),
-        selection_effect DECIMAL(8,4),
-        interaction_effect DECIMAL(8,4),
-        total_effect DECIMAL(8,4),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create attribution_components table
-    await query(`DROP TABLE IF EXISTS attribution_components`);
-    await query(`
-      CREATE TABLE attribution_components (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        component_type VARCHAR(50) NOT NULL,
-        component_name VARCHAR(100) NOT NULL,
-        weight DECIMAL(8,4),
-        return_value DECIMAL(8,4),
-        contribution DECIMAL(8,4),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create analyst_sentiment_analysis table
-    await query(`DROP TABLE IF EXISTS analyst_sentiment_analysis`);
-    await query(`
-      CREATE TABLE analyst_sentiment_analysis (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        sentiment_score DECIMAL(5,2) DEFAULT 0,
-        sentiment_label VARCHAR(20) DEFAULT 'neutral',
-        confidence DECIMAL(5,2) DEFAULT 0,
-        analysis_date DATE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create analyst_recommendations table
-    await query(`DROP TABLE IF EXISTS analyst_recommendations`);
-    await query(`
-      CREATE TABLE analyst_recommendations (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        analyst_firm VARCHAR(100),
-        recommendation VARCHAR(20) NOT NULL,
-        previous_recommendation VARCHAR(20),
-        target_price DECIMAL(12,4),
-        previous_target_price DECIMAL(12,4),
-        date_published DATE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create analyst_coverage table
-    await query(`DROP TABLE IF EXISTS analyst_coverage`);
-    await query(`
-      CREATE TABLE analyst_coverage (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        analyst_firm VARCHAR(100) NOT NULL,
-        analyst_name VARCHAR(100),
-        coverage_started DATE,
-        coverage_status VARCHAR(20) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create analyst_price_targets table
-    await query(`DROP TABLE IF EXISTS analyst_price_targets`);
-    await query(`
-      CREATE TABLE analyst_price_targets (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        analyst_firm VARCHAR(100),
-        target_price DECIMAL(12,4) NOT NULL,
-        previous_target_price DECIMAL(12,4),
-        target_date DATE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create research_reports table
-    await query(`DROP TABLE IF EXISTS research_reports`);
-    await query(`
-      CREATE TABLE research_reports (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        analyst_firm VARCHAR(100),
-        report_title VARCHAR(200),
-        report_summary TEXT,
-        report_url VARCHAR(500),
-        report_date DATE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Create position_history table for trades route
-    await query(`DROP TABLE IF EXISTS position_history`);
-    await query(`
-      CREATE TABLE position_history (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        side VARCHAR(10) NOT NULL,
-        quantity DECIMAL(15,4) NOT NULL,
-        avg_entry_price DECIMAL(12,4),
-        avg_exit_price DECIMAL(12,4),
-        net_pnl DECIMAL(15,4),
-        gross_pnl DECIMAL(15,4),
-        return_percentage DECIMAL(8,4),
-        holding_period_days INTEGER,
-        opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        closed_at TIMESTAMP,
-        status VARCHAR(20) DEFAULT 'open',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO position_history (user_id, symbol, side, quantity, avg_entry_price, avg_exit_price, net_pnl, return_percentage, status, opened_at, closed_at) VALUES
-      ('test-user-1', 'AAPL', 'long', 100, 150.25, 155.75, 550.00, 3.66, 'closed', '2024-01-01 10:00:00', '2024-01-02 15:30:00'),
-      ('test-user-2', 'MSFT', 'long', 50, 348.25, 352.50, 212.50, 1.22, 'closed', '2024-01-01 11:00:00', '2024-01-02 14:00:00'),
-      ('test-user-1', 'GOOGL', 'long', 25, 2850.00, NULL, 393.75, 0.55, 'open', '2024-01-02 09:30:00', NULL),
-      ('test-user-2', 'TSLA', 'short', 75, 247.80, 244.25, 266.25, 1.43, 'closed', '2024-01-01 12:00:00', '2024-01-02 16:00:00')
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Create broker_api_configs table (from trades.js requirements)
-    await query(`DROP TABLE IF EXISTS broker_api_configs`);
-    await query(`
-      CREATE TABLE broker_api_configs (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        broker VARCHAR(50) NOT NULL,
-        is_active BOOLEAN DEFAULT true,
-        last_sync_status VARCHAR(50) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO broker_api_configs (user_id, broker, is_active, last_sync_status) VALUES
-      ('test-user-123', 'alpaca', true, 'connected'),
-      ('test-user-1', 'alpaca', true, 'connected'),
-      ('test-user-2', 'td_ameritrade', false, 'pending')
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Create user_api_keys table (from trades.js requirements)
-    await query(`DROP TABLE IF EXISTS user_api_keys`);
-    await query(`
-      CREATE TABLE user_api_keys (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(50) NOT NULL,
-        broker_name VARCHAR(50) NOT NULL,
-        encrypted_api_key TEXT,
-        key_iv TEXT,
-        key_auth_tag TEXT,
-        encrypted_api_secret TEXT,
-        secret_iv TEXT,
-        secret_auth_tag TEXT,
-        is_sandbox BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO user_api_keys (user_id, broker_name, encrypted_api_key, encrypted_api_secret, is_sandbox) VALUES
-      ('test-user-123', 'alpaca', 'encrypted_key_123', 'encrypted_secret_123', true),
-      ('test-user-1', 'alpaca', 'encrypted_key_456', 'encrypted_secret_456', true),
-      ('test-user-2', 'td_ameritrade', 'encrypted_key_789', 'encrypted_secret_789', true)
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Create earnings_reports table (from calendar.js requirements)
-    await query(`DROP TABLE IF EXISTS earnings_reports`);
-    await query(`
-      CREATE TABLE earnings_reports (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        report_date DATE,
-        quarter INTEGER,
-        year INTEGER,
-        eps_estimate DECIMAL(10,4),
-        eps_actual DECIMAL(10,4),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO earnings_reports (symbol, report_date, quarter, year, eps_estimate, eps_actual) VALUES
-      ('AAPL', '2024-01-15', 1, 2024, 1.85, 1.92),
-      ('MSFT', '2024-01-20', 1, 2024, 2.45, 2.51),
-      ('GOOGL', '2024-01-25', 1, 2024, 3.25, 3.18),
-      ('TSLA', '2024-01-30', 1, 2024, 0.85, 0.91)
-      ON CONFLICT DO NOTHING
-    `);
-
-    // Add test tables for performance stress testing
-    await query(`DROP TABLE IF EXISTS test_transaction_stress`);
-    await query(`
-      CREATE TABLE test_transaction_stress (
-        id SERIAL PRIMARY KEY,
-        value INTEGER NOT NULL,
-        updated_by VARCHAR(50),
-        transaction_id VARCHAR(50),
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`DROP TABLE IF EXISTS test_isolation_stress`);
-    await query(`
-      CREATE TABLE test_isolation_stress (
-        id INTEGER PRIMARY KEY,
-        counter INTEGER DEFAULT 0,
-        last_updated_by INTEGER
-      )
-    `);
-
-    // Economic Data table (from loadecondata.py)
-    await query(`DROP TABLE IF EXISTS economic_data`);
-    await query(`
-      CREATE TABLE economic_data (
-        id SERIAL PRIMARY KEY,
-        series_id VARCHAR(100) NOT NULL,
-        date DATE NOT NULL,
-        value DOUBLE PRECISION,
-        category VARCHAR(100),
-        fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(series_id, date)
-      )
-    `);
-
-    // Custom signals table (for signals routes)
-    await query(`
-      CREATE TABLE IF NOT EXISTS custom_signals (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(10) NOT NULL,
-        signal_type VARCHAR(50) NOT NULL,
-        signal_strength DECIMAL(5,2),
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP,
-        is_active BOOLEAN DEFAULT true
-      )
-    `);
-
-    // Create watchlist tables for watchlist routes
-    await query(`
-      CREATE TABLE IF NOT EXISTS watchlists (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        description TEXT,
-        is_default BOOLEAN DEFAULT FALSE,
-        is_public BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      CREATE TABLE IF NOT EXISTS watchlist_items (
-        id SERIAL PRIMARY KEY,
-        watchlist_id INTEGER REFERENCES watchlists(id) ON DELETE CASCADE,
-        symbol VARCHAR(10) NOT NULL,
-        notes TEXT,
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(watchlist_id, symbol)
-      )
-    `);
-
-    await query(`
-      INSERT INTO watchlists (user_id, name, description, is_default, is_public) VALUES
-      ('test-user-1', 'My Portfolio', 'Main investment portfolio', true, false),
-      ('test-user-2', 'Tech Stocks', 'Technology sector stocks', false, true)
-      ON CONFLICT DO NOTHING
-    `);
-
-    await query(`
-      INSERT INTO watchlist_items (watchlist_id, symbol, notes) VALUES
-      (1, 'AAPL', 'Apple Inc'),
-      (1, 'MSFT', 'Microsoft'),
-      (2, 'GOOGL', 'Google/Alphabet')
-      ON CONFLICT (watchlist_id, symbol) DO NOTHING
-    `);
-
-    // Create dividend_calendar table (from dividend route requirements)
-    await query(`
-      CREATE TABLE IF NOT EXISTS dividend_calendar (
-        id SERIAL PRIMARY KEY,
-        symbol VARCHAR(10) NOT NULL,
-        ex_dividend_date DATE,
-        record_date DATE,
-        payment_date DATE,
-        dividend_amount DECIMAL(10,4),
-        dividend_yield DECIMAL(8,4),
-        dividend_type VARCHAR(20) DEFAULT 'cash',
-        frequency VARCHAR(20),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await query(`
-      INSERT INTO dividend_calendar (symbol, ex_dividend_date, payment_date, dividend_amount, dividend_yield) VALUES
-      ('AAPL', '2024-02-01', '2024-02-15', 0.24, 0.52),
-      ('MSFT', '2024-02-05', '2024-02-20', 0.68, 0.68),
-      ('SPY', '2024-01-30', '2024-02-10', 0.45, 1.25)
-      ON CONFLICT DO NOTHING
-    `);
-
-    console.log('✅ Basic test data and loader tables created');
+    console.log('✅ Python loader tables created for testing');
   } catch (error) {
-    console.warn('Could not create test data:', error.message);
+    console.error('❌ Error creating Python loader tables:', error);
+    throw error;
   }
 }
 
-// Make helpers globally available for tests
-global.testDbHelpers = {
+// Function to populate test data for Python loader tables (will only work if tables exist)
+async function populateLoaderTestData() {
+  try {
+    // Insert test data into Python loader tables
+    await query(`
+      INSERT INTO company_profile (ticker, short_name, long_name, sector, industry) VALUES
+      ('AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
+      ('MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Technology', 'Software'),
+      ('GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Technology', 'Internet Services')
+      ON CONFLICT (ticker) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO market_data (ticker, current_price, market_cap, volume) VALUES
+      ('AAPL', 175.50, 3400000000000, 65000000),
+      ('MSFT', 420.75, 3200000000000, 28000000),
+      ('GOOGL', 143.50, 1800000000000, 22000000)
+      ON CONFLICT (ticker) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, dividend_yield, eps_trailing) VALUES
+      ('AAPL', 28.5, 25.2, 0.55, 6.15),
+      ('MSFT', 35.8, 29.1, 0.80, 11.75),
+      ('GOOGL', 24.2, 21.5, 0.00, 5.89)
+      ON CONFLICT (ticker) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume) VALUES
+      ('AAPL', CURRENT_DATE, 175.0, 176.5, 174.0, 175.5, 175.5, 65000000),
+      ('MSFT', CURRENT_DATE, 420.0, 422.0, 419.0, 420.75, 420.75, 28000000),
+      ('GOOGL', CURRENT_DATE, 142.0, 144.0, 141.0, 143.5, 143.5, 22000000)
+      ON CONFLICT (symbol, date) DO NOTHING
+    `);
+
+    await query(`
+      INSERT INTO earnings_history (symbol, quarter, eps_actual, eps_estimate, surprise_percent) VALUES
+      ('AAPL', CURRENT_DATE, 1.52, 1.45, 4.8),
+      ('MSFT', CURRENT_DATE, 2.93, 2.85, 2.8),
+      ('GOOGL', CURRENT_DATE, 1.44, 1.38, 4.3)
+      ON CONFLICT (symbol, quarter) DO NOTHING
+    `);
+
+    console.log('✅ Test data populated for existing Python loader tables');
+  } catch (error) {
+    console.warn('⚠️  Could not populate test data for loader tables:', error.message);
+    // Non-fatal error - tests can still run
+  }
+}
+
+// Setup function for tests
+async function setupTestDatabase() {
+  try {
+    // Initialize database connection
+    await initializeDatabase();
+    console.log('✅ Database connection pool initialized successfully');
+
+    // Create webapp-only tables
+    await ensureTestData();
+
+    // Create Python loader tables for testing
+    await createLoaderTables();
+
+    // Try to populate test data for Python loader tables if they exist
+    await populateLoaderTestData();
+
+    console.log('✅ Database tables created matching Python loader structure');
+  } catch (error) {
+    console.error('❌ Failed to setup test database:', error);
+    throw error;
+  }
+}
+
+module.exports = {
   isDatabaseAvailable,
   getTestData,
   ensureTestData,
-  query: async (sql, params) => {
-    try {
-      return await query(sql, params);
-    } catch (error) {
-      console.warn('Test query failed:', error.message);
-      return null;
-    }
-  }
+  createLoaderTables,
+  populateLoaderTestData,
+  setupTestDatabase
 };
-
-// Setup hook to run before all tests
-beforeAll(async () => {
-  if (await isDatabaseAvailable()) {
-    await ensureTestData();
-    console.log('✅ Database is available for tests');
-  } else {
-    console.warn('⚠️ Database not available - tests will use graceful fallback');
-  }
-});

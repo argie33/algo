@@ -154,7 +154,7 @@ router.get("/symbols", async (req, res) => {
 
     const { category, limit, search } = req.query;
 
-    // Build query to get symbols from stocks table (populated by loader scripts)
+    // Build query to get symbols from stocks table (populated by loader scripts) - Python loader schema ONLY
     let symbolsQuery = `
       SELECT
         symbol,
@@ -163,8 +163,8 @@ router.get("/symbols", async (req, res) => {
         market_cap,
         'stock' as category,
         NULL as pe_ratio,
-        dividend_yield,
-        beta
+        NULL as dividend_yield,
+        NULL as beta
       FROM stocks
     `;
 
@@ -204,8 +204,8 @@ router.get("/symbols", async (req, res) => {
       market_cap: row.market_cap,
       metrics: {
         pe_ratio: null,
-        dividend_yield: row.dividend_yield,
-        beta: row.beta
+        dividend_yield: null, // Not available in Python loader schema
+        beta: null // Not available in Python loader schema
       }
     }));
 
@@ -221,16 +221,15 @@ router.get("/symbols", async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        symbols,
-        total: symbols.length,
-        category: category || 'all',
-        source: 'database'
-      },
+      data: symbols,
+      count: symbols.length,
+      categories: ['stock'],
       meta: {
         correlationId,
         duration,
         timestamp: new Date().toISOString(),
+        category: category || 'all',
+        source: 'database'
       },
     });
   } catch (error) {

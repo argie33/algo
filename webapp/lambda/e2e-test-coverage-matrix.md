@@ -21,7 +21,6 @@ E2E tests validate complete user journeys from frontend to backend to database. 
 | `/portfolio/performance`     | PortfolioPerformance  | portfolio | Yes     | 🟠 **HIGH**     |
 | `/portfolio/optimize`        | PortfolioOptimization | portfolio | Yes     | 🟡 **MEDIUM**   |
 | `/market`                    | MarketOverview        | markets   | No      | 🟠 **HIGH**     |
-| `/screener-advanced`         | AdvancedScreener      | stocks    | No      | 🟠 **HIGH**     |
 | `/scores`                    | ScoresDashboard       | stocks    | Yes     | 🟡 **MEDIUM**   |
 | `/sentiment`                 | SentimentAnalysis     | sentiment | Yes     | 🟡 **MEDIUM**   |
 | `/economic`                  | EconomicModeling      | markets   | No      | 🟡 **MEDIUM**   |

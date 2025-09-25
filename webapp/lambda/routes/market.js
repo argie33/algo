@@ -160,7 +160,7 @@ router.get("/summary", async (req, res) => {
       const indicesQuery = `
         SELECT
           symbol,
-          close as close,
+          close_price as close,
           COALESCE((close - open), 0) as change_amount,
           CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as change_percent,
           volume,
@@ -1350,19 +1350,19 @@ router.get("/breadth", async (req, res) => {
       WITH daily_changes AS (
         SELECT
           pd1.symbol,
-          pd1.close as current_close,
-          pd2.close as prev_close,
+          pd1.close_price as current_close,
+          pd2.close_price as prev_close,
           pd1.volume,
           CASE
-            WHEN pd2.close IS NOT NULL AND pd2.close > 0
-            THEN ((pd1.close - pd2.close) / pd2.close) * 100
+            WHEN pd2.close_price IS NOT NULL AND pd2.close_price > 0
+            THEN ((pd1.close_price - pd2.close_price) / pd2.close_price) * 100
             ELSE 0
           END as calculated_change_percent
         FROM price_daily pd1
         LEFT JOIN price_daily pd2 ON pd1.symbol = pd2.symbol
           AND pd2.date = pd1.date - INTERVAL '1 day'
         WHERE pd1.date = (SELECT MAX(date) FROM price_daily)
-          AND pd1.close IS NOT NULL
+          AND pd1.close_price IS NOT NULL
       )
       SELECT
         COUNT(*) as total_stocks,
@@ -1691,7 +1691,7 @@ router.get("/volatility", async (req, res) => {
     const volatilityQuery = `
       SELECT 
         symbol,
-        close as close,
+        close_price as close,
         COALESCE(change_amount, 0) as change_amount,
         COALESCE(change_percent, 0) as change_percent,
         date
@@ -1799,8 +1799,8 @@ router.get("/indicators", async (req, res) => {
     const indicatorsQuery = `
       SELECT 
         pd.symbol,
-        pd.close as close,
-        COALESCE(pd.change_amount, 0) as change_amount,
+        pd.close,
+        COALESCE(0, 0) as change_amount,
         COALESCE(((pd.close - pd.open) / pd.open * 100), 0) as change_percent,
         pd.volume,
         s.market_cap,
@@ -5191,7 +5191,7 @@ router.get("/historical/:symbol", async (req, res) => {
     try {
       result = await query(
         `SELECT date, open_price as open, high_price as high, low_price as low, 
-                close as close, volume
+                close_price as close, volume
          FROM price_daily 
          WHERE symbol = $1 
          AND date >= CURRENT_DATE - INTERVAL '${periodDays[period]} days'

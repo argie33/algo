@@ -5,6 +5,33 @@ const { authenticateToken, _optionalAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
+// Helper function to check if a table exists
+async function tableExists(tableName) {
+  try {
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = $1
+      );
+    `;
+    const result = await query(tableCheckQuery, [tableName]);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking table existence for ${tableName}:`, error);
+    return false;
+  }
+}
+
+// Helper function to return empty result when table doesn't exist
+function emptyTableResponse(message = "Data not yet loaded") {
+  return {
+    success: true,
+    data: [],
+    message,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 // Health check endpoint
 router.get("/health", (req, res) => {
   res.status(200).json({
@@ -124,25 +151,25 @@ router.get("/summary", async (req, res) => {
 
     // Get sector performance from stocks table
     const sectorQuery = `
-            SELECT 
-                s.sector,
+            SELECT
+                cp.sector,
                 COUNT(*) as stock_count,
-                AVG(CASE 
+                AVG(CASE
                     WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
-                    ELSE 0 
+                    ELSE 0
                 END) as avg_change,
                 AVG(pd.volume) as avg_volume
             FROM price_daily pd
             LEFT JOIN price_daily prev ON pd.symbol = prev.symbol
                 AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-            JOIN stocks s ON pd.symbol = s.symbol
+            JOIN company_profile cp ON pd.symbol = cp.ticker
             WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
-                AND s.sector IS NOT NULL 
-                AND s.sector != ''
+                AND cp.sector IS NOT NULL
+                AND cp.sector != ''
                 AND pd.close IS NOT NULL
                 AND prev.close IS NOT NULL
                 AND prev.close > 0
-            GROUP BY s.sector
+            GROUP BY cp.sector
             ORDER BY avg_change DESC
             LIMIT 10
         `;
@@ -387,30 +414,57 @@ router.get("/holdings", authenticateToken, async (req, res) => {
       });
     }
 
+    // Check if portfolio_holdings table exists
+    if (!(await tableExists("portfolio_holdings"))) {
+      return res.json({
+        success: true,
+        data: {
+          holdings: [],
+          summary: {
+            total_positions: 0,
+            total_portfolio_value: 0,
+            total_gain_loss: 0,
+            avg_gain_loss_percent: 0,
+            market_value: 0
+          }
+        },
+        message: "Portfolio holdings data not yet loaded",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const holdingsQuery = `
-            SELECT 
+            SELECT
                 ph.symbol,
                 ph.quantity::numeric as shares,
                 ph.average_cost::numeric as avg_price,
                 ph.current_price::numeric,
-                ph.market_value::numeric as total_value,
-                ph.unrealized_pnl::numeric as gain_loss,
-                ph.unrealized_pnl_percent::numeric as gain_loss_percent,
+                (ph.quantity * ph.current_price)::numeric as total_value,
+                (ph.quantity * (ph.current_price - ph.average_cost))::numeric as gain_loss,
+                CASE
+                    WHEN ph.average_cost > 0
+                    THEN ((ph.current_price - ph.average_cost) / ph.average_cost * 100)::numeric
+                    ELSE 0
+                END as gain_loss_percent,
                 'General' as sector,
                 ph.symbol as company_name,
                 ph.last_updated as created_at
             FROM portfolio_holdings ph
             WHERE ph.user_id = $1
-            ORDER BY ph.market_value DESC
+            ORDER BY (ph.quantity * ph.current_price) DESC
         `;
 
     // Get portfolio summary
     const summaryQuery = `
-            SELECT 
+            SELECT
                 COUNT(*) as total_positions,
-                SUM(market_value) as total_portfolio_value,
-                SUM(unrealized_pnl) as total_gain_loss,
-                AVG(unrealized_pnl_percent) as avg_gain_loss_percent,
+                SUM(quantity * current_price) as total_portfolio_value,
+                SUM(quantity * (current_price - average_cost)) as total_gain_loss,
+                CASE
+                    WHEN AVG(average_cost) > 0
+                    THEN AVG((current_price - average_cost) / average_cost * 100)
+                    ELSE 0
+                END as avg_gain_loss_percent,
                 SUM(quantity * current_price) as market_value
             FROM portfolio_holdings
             WHERE user_id = $1
@@ -496,14 +550,45 @@ router.get("/performance", authenticateToken, async (req, res) => {
     const userId = req.user?.sub;
 
     if (!userId) {
-      return res.unauthorized("User authentication required");
+      return res.status(401).json({
+        success: false,
+        error: "User authentication required",
+        message: "Please provide valid authentication credentials",
+      });
+    }
+
+    // Check if portfolio_performance table exists
+    if (!(await tableExists("portfolio_performance"))) {
+      return res.json({
+        success: true,
+        data: {
+          performance_data: [],
+          metrics: {
+            avg_daily_return: 0,
+            volatility: 0,
+            max_return: 0,
+            min_return: 0,
+            trading_days: 0,
+            total_return_percent: 0,
+            annualized_return_percent: 0,
+            sharpe_ratio: 0,
+            max_drawdown_percent: 0
+          }
+        },
+        message: "Portfolio performance data not yet loaded",
+        timestamp: new Date().toISOString(),
+      });
     }
 
     const performanceQuery = `
             SELECT
                 date,
                 total_value,
-                daily_pnl_percent as daily_return,
+                CASE
+                    WHEN total_value > 0 AND daily_pnl IS NOT NULL
+                    THEN (daily_pnl / total_value * 100)
+                    ELSE 0
+                END as daily_return,
                 total_pnl_percent as cumulative_return,
                 0 as benchmark_return,
                 0 as excess_return
@@ -514,9 +599,17 @@ router.get("/performance", authenticateToken, async (req, res) => {
 
     // Get performance metrics
     const metricsQuery = `
-            SELECT 
-                AVG(daily_pnl_percent) as avg_daily_return,
-                STDDEV(daily_pnl_percent) as volatility,
+            SELECT
+                CASE
+                    WHEN AVG(total_value) > 0
+                    THEN AVG(daily_pnl / total_value * 100)
+                    ELSE 0
+                END as avg_daily_return,
+                CASE
+                    WHEN AVG(total_value) > 0
+                    THEN STDDEV(daily_pnl / total_value * 100)
+                    ELSE 0
+                END as volatility,
                 MAX(total_pnl_percent) as max_return,
                 MIN(total_pnl_percent) as min_return,
                 COUNT(*) as trading_days
@@ -708,19 +801,19 @@ router.get("/market-data", async (req, res) => {
 
     // Get sector rotation using price_daily table with yfinance structure
     const sectorRotationQuery = `
-            SELECT 
-                s.sector,
+            SELECT
+                cp.sector,
                 AVG(((pd.close - pd.open) / pd.open * 100)) as avg_change,
                 COUNT(DISTINCT pd.symbol) as stock_count,
                 AVG(pd.volume) as avg_volume,
                 SUM(pd.volume * pd.close) as total_value
             FROM price_daily pd
-            JOIN stocks fm ON pd.symbol = s.symbol
-            WHERE s.sector IS NOT NULL 
+            JOIN company_profile cp ON pd.symbol = cp.ticker
+            WHERE cp.sector IS NOT NULL 
                 AND pd.date >= CURRENT_DATE - INTERVAL '1 day'
                 AND pd.close IS NOT NULL
                 AND ((pd.close - pd.open) / pd.open * 100) IS NOT NULL
-            GROUP BY s.sector
+            GROUP BY cp.sector
             ORDER BY avg_change DESC
             LIMIT 20
         `;
@@ -887,22 +980,22 @@ router.get("/overview", async (req, res) => {
 
     // Get sector performance
     const sectorQuery = `
-      SELECT 
-        s.sector,
+      SELECT
+        cp.sector,
         COUNT(*) as stock_count,
-        AVG(CASE 
+        AVG(CASE
           WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
-          ELSE 0 
+          ELSE 0
         END) as change_percent
       FROM price_daily pd
       LEFT JOIN price_daily prev ON pd.symbol = prev.symbol 
           AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
-      JOIN stocks fm ON pd.symbol = s.symbol
+      JOIN company_profile cp ON pd.symbol = cp.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
-        AND s.sector IS NOT NULL 
+        AND cp.sector IS NOT NULL 
         AND pd.close IS NOT NULL
         AND prev.close IS NOT NULL
-      GROUP BY s.sector
+      GROUP BY cp.sector
       ORDER BY change_percent DESC
       LIMIT 5
     `;
@@ -1033,9 +1126,9 @@ router.get("/debug", async (req, res) => {
       const countsResult = await query(`
                 SELECT
                     (SELECT COUNT(*) FROM price_daily) as price_count,
-                    (SELECT COUNT(*) FROM stocks) as profile_count,
-                    (SELECT COUNT(*) FROM stock_symbols) as symbols_count,
-                    (SELECT COUNT(*) FROM stocks) as stocks_count
+                    (SELECT COUNT(*) FROM company_profile) as profile_count,
+                    (SELECT COUNT(*) FROM company_profile) as symbols_count,
+                    (SELECT COUNT(*) FROM company_profile) as stocks_count
             `);
       debugData.data_counts = countsResult.rows[0];
     } catch (error) {
@@ -1126,9 +1219,9 @@ router.get("/analytics", async (req, res) => {
           SUM(up.market_value) as total_value,
           AVG(up.gain_loss_percent) as avg_performance
         FROM user_portfolio up
-        LEFT JOIN stocks s ON up.symbol = s.symbol
-        WHERE s.sector IS NOT NULL
-        GROUP BY s.sector
+        LEFT JOIN company_profile cp ON up.symbol = cp.ticker
+        WHERE cp.sector IS NOT NULL
+        GROUP BY cp.sector
         ORDER BY total_value DESC
         LIMIT 10
       `);

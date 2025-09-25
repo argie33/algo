@@ -48,29 +48,28 @@ describe("Stocks Routes Unit Tests", () => {
       // Verify loader table structure fields when data exists
       if (response.body.data.length > 0) {
         const stock = response.body.data[0];
-        // Core fields from stocks table and price_daily table
-        expect(stock).toHaveProperty("symbol"); // from stocks.symbol
-        expect(stock).toHaveProperty("sector"); // from stocks.sector
-        expect(stock).toHaveProperty("industry"); // from stocks.industry
-        expect(stock).toHaveProperty("marketCap"); // from stocks.market_cap
-        expect(stock).toHaveProperty("price"); // object containing price data from price_daily
-        expect(stock).toHaveProperty("volume"); // from price_daily.volume
+        // Core fields from company_profile and market_data tables
+        expect(stock).toHaveProperty("symbol"); // from company_profile.ticker
+        expect(stock).toHaveProperty("sector"); // from company_profile.sector
+        expect(stock).toHaveProperty("industry"); // from company_profile.industry
+        expect(stock).toHaveProperty("marketCap"); // from market_data.market_cap
+        expect(stock).toHaveProperty("price"); // object containing price data from market_data
+        expect(stock).toHaveProperty("volume"); // from market_data.volume
 
         // Optional fields that may or may not be present
         // expect(stock).toHaveProperty("name"); // from stocks.name (may be null)
         // expect(stock).toHaveProperty("shortName"); // API transformation
         // expect(stock).toHaveProperty("fullName"); // API transformation
 
-        // Financial metrics are now mostly null since fundamental_metrics table was removed
+        // Financial metrics from key_metrics table
         if (stock.financialMetrics) {
           const metrics = stock.financialMetrics;
-          // Most metrics will be null/undefined due to removed fundamental_metrics table
-          // Only basic fields from stocks table are available
+          // Metrics available from key_metrics table (trailing_pe, forward_pe, etc.)
           expect(typeof metrics).toBe("object");
         }
 
         if (stock.price) {
-          expect(stock.price).toHaveProperty("current"); // current_price from price_daily
+          expect(stock.price).toHaveProperty("current"); // current_price from market_data
         }
       }
     });
@@ -102,10 +101,10 @@ describe("Stocks Routes Unit Tests", () => {
       // Check the data structure matches what the loader creates
       if (response.body.data.length > 0) {
         const stock = response.body.data[0];
-        expect(stock).toHaveProperty("symbol"); // symbol from fundamental_metrics
-        expect(stock).toHaveProperty("name"); // API transformation of company name
-        expect(stock).toHaveProperty("sector"); // sector from fundamental_metrics
-        expect(stock).toHaveProperty("market_cap"); // market_cap from fundamental_metrics table
+        expect(stock).toHaveProperty("symbol"); // ticker from company_profile
+        expect(stock).toHaveProperty("name"); // short_name or long_name from company_profile
+        expect(stock).toHaveProperty("sector"); // sector from company_profile
+        expect(stock).toHaveProperty("market_cap"); // market_cap from market_data table
       }
     });
   });
@@ -123,7 +122,7 @@ describe("Stocks Routes Unit Tests", () => {
         const sector = response.body.data[0];
         expect(sector).toHaveProperty("sector");
         expect(sector).toHaveProperty("count");
-        expect(sector).toHaveProperty("avg_market_cap"); // From stocks.market_cap aggregated
+        expect(sector).toHaveProperty("avg_market_cap"); // From market_data.market_cap aggregated
       }
     });
   });

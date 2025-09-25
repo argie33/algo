@@ -642,9 +642,9 @@ router.get("/:ticker/overview", async (req, res) => {
         `SELECT
           'current' as period,
           0 as strong_buy,
-          COUNT(CASE WHEN UPPER(new_rating) LIKE '%BUY%' THEN 1 END) as buy,
-          COUNT(CASE WHEN UPPER(new_rating) LIKE '%HOLD%' THEN 1 END) as hold,
-          COUNT(CASE WHEN UPPER(new_rating) LIKE '%SELL%' THEN 1 END) as sell,
+          COUNT(CASE WHEN UPPER(to_grade) LIKE '%BUY%' THEN 1 END) as buy,
+          COUNT(CASE WHEN UPPER(to_grade) LIKE '%HOLD%' THEN 1 END) as hold,
+          COUNT(CASE WHEN UPPER(to_grade) LIKE '%SELL%' THEN 1 END) as sell,
           0 as strong_sell,
           CURRENT_DATE as collected_date,
           3.0 as recommendation_mean,

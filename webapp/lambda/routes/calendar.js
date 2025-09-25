@@ -189,9 +189,10 @@ router.get("/earnings", async (req, res) => {
       const symbols = [...new Set(earnings.map((e) => e.symbol))];
       if (symbols.length > 0) {
         const companyData = await query(
-          `SELECT cp.symbol as symbol, cp.symbol as name, cp.sector, cp.market_cap
-           FROM stocks cp
-           WHERE cp.symbol = ANY($1)`,
+          `SELECT cp.ticker as symbol, COALESCE(cp.short_name, cp.long_name) as name, cp.sector, md.market_cap
+           FROM company_profile cp
+           LEFT JOIN market_data md ON cp.ticker = md.ticker
+           WHERE cp.ticker = ANY($1)`,
           [symbols]
         );
 
@@ -265,17 +266,17 @@ router.get("/earnings", async (req, res) => {
   }
 });
 
-// Debug endpoint to check earnings_reports table status (used for calendar functionality)
+// Debug endpoint to check earnings_history table status (used for calendar functionality)
 router.get("/debug", async (req, res) => {
   try {
     console.log("Calendar debug endpoint called");
 
-    // Check if earnings_reports table exists (our calendar data source)
+    // Check if earnings_history table exists (our calendar data source)
     const tableExistsQuery = `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name = 'earnings_reports'
+        AND table_name = 'earnings_history'
       );
     `;
 
@@ -284,17 +285,17 @@ router.get("/debug", async (req, res) => {
 
     if (tableExists.rows[0].exists) {
       // Count total records
-      const countQuery = `SELECT COUNT(*) as total FROM earnings_reports`;
+      const countQuery = `SELECT COUNT(*) as total FROM earnings_history`;
       const countResult = await query(countQuery);
       console.log("Total earnings reports:", countResult.rows[0]);
 
       // Get sample records
       const sampleQuery = `
-        SELECT symbol, 'earnings' as event_type, report_date as start_date, 
-               CONCAT('Q', quarter, ' ', year, ' Earnings Report') as title, 
+        SELECT symbol, 'earnings' as event_type, quarter as start_date,
+               CONCAT(symbol, ' Q', EXTRACT(QUARTER FROM quarter), ' ', EXTRACT(YEAR FROM quarter), ' Earnings Report') as title,
                eps_estimate, eps_actual
-        FROM earnings_reports 
-        ORDER BY report_date DESC 
+        FROM earnings_history
+        ORDER BY quarter DESC
         LIMIT 5
       `;
       const sampleResult = await query(sampleQuery);
@@ -302,16 +303,16 @@ router.get("/debug", async (req, res) => {
 
       res.json({
         tableExists: true,
-        tableName: "earnings_reports",
+        tableName: "earnings_history",
         totalRecords: parseInt(countResult.rows[0].total),
         sampleRecords: sampleResult.rows,
-        note: "Using earnings_reports table for calendar functionality",
+        note: "Using earnings_history table for calendar functionality",
         timestamp: new Date().toISOString(),
       });
     } else {
       res.json({
         tableExists: false,
-        message: "earnings_reports table does not exist",
+        message: "earnings_history table does not exist",
         timestamp: new Date().toISOString(),
       });
     }
@@ -326,22 +327,22 @@ router.get("/debug", async (req, res) => {
   }
 });
 
-// Simple test endpoint that returns raw data from earnings_reports
+// Simple test endpoint that returns raw data from earnings_history
 router.get("/test", async (req, res) => {
   try {
     console.log("Calendar test endpoint called");
 
     const testQuery = `
-      SELECT 
+      SELECT
         symbol,
         'earnings' as event_type,
-        report_date as start_date,
-        report_date as end_date,
-        CONCAT('Q', quarter, ' ', year, ' Earnings Report') as title,
+        quarter as start_date,
+        quarter as end_date,
+        CONCAT(symbol, ' Q', EXTRACT(QUARTER FROM quarter), ' ', EXTRACT(YEAR FROM quarter), ' Earnings Report') as title,
         eps_estimate,
         eps_actual
-      FROM earnings_reports
-      ORDER BY report_date ASC
+      FROM earnings_history
+      ORDER BY quarter ASC
       LIMIT 10
     `;
 
@@ -355,7 +356,7 @@ router.get("/test", async (req, res) => {
       success: true,
       count: result.rows.length,
       data: result.rows,
-      note: "Using earnings_reports table for calendar test data",
+      note: "Using earnings_history table for calendar test data",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -732,10 +733,10 @@ router.get("/earnings-metrics", async (req, res) => {
 
     // Simple query using the existing earnings_history table structure
     const metricsQuery = `
-      SELECT 
+      SELECT
         symbol,
         symbol as company_name,
-        date as report_date,
+        quarter as report_date,
         eps_actual,
         eps_estimate,
         surprise_percent as eps_surprise_last_q,

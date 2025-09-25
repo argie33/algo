@@ -71,7 +71,7 @@ describe("Scores Routes Unit Tests", () => {
         expect(score).toHaveProperty("currentPrice");
         expect(score).toHaveProperty("volume");
         expect(score).toHaveProperty("rsi");
-        expect(score).toHaveProperty("lastUpdated");
+        expect(score).toHaveProperty("lastUpscore_dated");
       }
     });
 
@@ -223,7 +223,7 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body.data).toHaveProperty("currentPrice");
         expect(response.body.data).toHaveProperty("volume");
         expect(response.body.data).toHaveProperty("rsi");
-        expect(response.body.data).toHaveProperty("lastUpdated");
+        expect(response.body.data).toHaveProperty("lastUpscore_dated");
         expect(response.body).toHaveProperty("metadata");
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_table");
       } else if (response.status === 404) {

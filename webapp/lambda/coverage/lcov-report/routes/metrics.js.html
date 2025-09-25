@@ -415,18 +415,18 @@
 <a name='L350'></a><a href='#L350'>350</a>
 <a name='L351'></a><a href='#L351'>351</a>
 <a name='L352'></a><a href='#L352'>352</a>
-<a name='L353'></a><a href='#L353'>353</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">17x</span>
+<a name='L353'></a><a href='#L353'>353</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -437,7 +437,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -446,7 +446,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -519,7 +519,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -564,7 +564,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -698,7 +698,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -767,7 +767,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
+<span class="cline-any cline-yes">18x</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
 &nbsp;
 const { query } = require("../utils/database");
 const responseFormatter = require("../middleware/responseFormatter");
@@ -803,17 +803,17 @@ router.get("/market", <span class="fstat-no" title="function not covered" >as</s
     // Get real market data from database - simplified for reliability
     const marketCapQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT
-        SUM(COALESCE(fm.market_cap, 0)) as total_market_cap,
+        SUM(COALESCE(s.market_cap, 0)) as total_market_cap,
         SUM(COALESCE(pd.volume, 0)) as total_volume,
         COUNT(*) as active_stocks
-      FROM fundamental_metrics fm
+      FROM stocks fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, volume
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd ON fm.symbol = pd.symbol
-      WHERE fm.market_cap &gt; 0`;
+      ) pd ON s.symbol = pd.symbol
+      WHERE s.market_cap &gt; 0`;
 &nbsp;
     const result = <span class="cstat-no" title="statement not covered" >await query(marketCapQuery);</span>
     const marketData = <span class="cstat-no" title="statement not covered" >result.rows[0] || {};</span>
@@ -934,7 +934,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
 &nbsp;
     // Add search condition if provided
 <span class="cstat-no" title="statement not covered" >    if (search) {</span>
-<span class="cstat-no" title="statement not covered" >      whereConditions.push(`fm.symbol ILIKE $${paramIndex}`);</span>
+<span class="cstat-no" title="statement not covered" >      whereConditions.push(`s.symbol ILIKE $${paramIndex}`);</span>
 <span class="cstat-no" title="statement not covered" >      queryParams.push(`%${search.toUpperCase()}%`);</span>
 <span class="cstat-no" title="statement not covered" >      paramIndex++;</span>
     }
@@ -1009,7 +1009,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
     let countWhereCondition = <span class="cstat-no" title="statement not covered" >'';</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    if (search) {</span>
-<span class="cstat-no" title="statement not covered" >      countWhereCondition = `WHERE fm.symbol ILIKE $${countParamIndex}`;</span>
+<span class="cstat-no" title="statement not covered" >      countWhereCondition = `WHERE s.symbol ILIKE $${countParamIndex}`;</span>
 <span class="cstat-no" title="statement not covered" >      countParams.push(`%${search.toUpperCase()}%`);</span>
     }
 &nbsp;
@@ -1126,7 +1126,7 @@ module.exports = router;</pre></td></tr></table></pre>
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-24T08:33:45.566Z
+                at 2025-09-25T01:54:58.784Z
             </div>
         <script src="../prettify.js"></script>
         <script>

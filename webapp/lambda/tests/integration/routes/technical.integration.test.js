@@ -250,7 +250,10 @@ describe("Technical Router", () => {
         },
       ];
 
-      query.mockResolvedValue({ rows: mockComparisonData });
+      // Mock each symbol's query separately since endpoint queries one by one
+      query
+        .mockResolvedValueOnce({ rows: [mockComparisonData[0]] }) // AAPL first
+        .mockResolvedValueOnce({ rows: [mockComparisonData[1]] }); // MSFT second
 
       const response = await request(app)
         .get("/api/technical/compare?symbols=AAPL,MSFT")
@@ -393,7 +396,7 @@ describe("Technical Router", () => {
 
       expect(response.body.success).toBe(true);
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("rsi BETWEEN"),
+        expect.stringContaining("BETWEEN $1 AND $2"),
         expect.arrayContaining([30, 70, 1000000])
       );
     });

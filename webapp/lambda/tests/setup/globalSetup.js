@@ -14,16 +14,33 @@ module.exports = async () => {
   try {
     const { query } = require('../../utils/database');
 
-    console.log('🔧 Global Setup: Creating ONLY webapp tables (Python loaders handle their own)...');
+    console.log('🔧 Global Setup: Creating tables from setup_test_database.sql...');
 
-    // NOTE: Do NOT create Python loader tables here:
-    // - stocks, price_daily, earnings_history: created by Python loaders
-    // - company_profile, market_data, key_metrics: created by loadinfo.py
-    // - buy_sell_* tables: created by loadbuyselldaily.py etc.
+    // Run the webapp-specific database setup SQL file
+    // Python loaders create their own tables in AWS/production
+    const fs = require('fs');
+    const path = require('path');
 
-    // Create ONLY webapp-specific tables:
+    try {
+      const setupSqlPath = path.join(__dirname, '../../setup_test_database.sql');
+      const setupSql = fs.readFileSync(setupSqlPath, 'utf8');
 
-    // Watchlists (user-specific feature)
+      // Split SQL into individual statements and execute them
+      const statements = setupSql.split(';').filter(stmt => stmt.trim().length > 0);
+
+      for (const statement of statements) {
+        if (statement.trim()) {
+          await query(statement.trim() + ';');
+        }
+      }
+
+      console.log('✅ Database schema loaded from setup_test_database.sql');
+    } catch (error) {
+      console.warn('⚠️  Could not load setup_test_database.sql, using fallback table creation:', error.message);
+
+      // Fallback: Create essential webapp tables only
+
+      // Watchlists (user-specific feature)
     await query(`
       CREATE TABLE IF NOT EXISTS watchlists (
         id SERIAL PRIMARY KEY,
@@ -139,7 +156,8 @@ module.exports = async () => {
       ON CONFLICT (user_id, symbol) DO NOTHING
     `);
 
-    console.log('✅ Global Setup: Webapp-only tables created successfully');
+      console.log('✅ Global Setup: Webapp-only tables created successfully (fallback)');
+    }
 
   } catch (error) {
     console.error('❌ Global setup failed:', error);

@@ -107,8 +107,8 @@ router.get("/active", async (req, res) => {
       SELECT 
         ca.*,
         -- Get latest price for real-time updates
-        pd.close_price as latest_price,
-        ((pd.close_price - pd.open_price) / pd.open_price * 100) as daily_change,
+        pd.close as latest_price,
+        ((pd.close - pd.open) / pd.open * 100) as daily_change,
         pd.date as price_date,
         -- Time since creation
         EXTRACT(EPOCH FROM (NOW() - ca.created_at))/3600 as hours_since_created,
@@ -299,6 +299,23 @@ router.get("/active", async (req, res) => {
   }
 });
 
+// Helper function to check if a table exists
+async function tableExists(tableName) {
+  try {
+    const tableCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = $1
+      );
+    `;
+    const result = await query(tableCheckQuery, [tableName]);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking table existence for ${tableName}:`, error);
+    return false;
+  }
+}
+
 // Get all alerts (active + resolved)
 router.get("/", async (req, res) => {
   try {
@@ -309,34 +326,57 @@ router.get("/", async (req, res) => {
       `📋 All alerts requested for user: ${userId}, status: ${status}`
     );
 
-    // For simplicity, return all alerts including resolved ones
-    // This simulates fetching all alerts from the database
-    const alertsResult = [
-      {
-        id: 1,
-        type: "price_alert",
-        symbol: "AAPL",
-        condition: "price_above",
-        target_value: 150.00,
-        current_value: 148.50,
-        status: "active",
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        triggered_at: null,
-        user_id: userId
-      },
-      {
-        id: 2,
-        type: "volume_alert",
-        symbol: "TSLA",
-        condition: "volume_spike",
-        target_value: 10000000,
-        current_value: 8500000,
-        status: "resolved",
-        created_at: new Date(Date.now() - 172800000).toISOString(),
-        triggered_at: new Date(Date.now() - 86400000).toISOString(),
-        user_id: userId
+    // Check if alerts table exists
+    if (!(await tableExists("price_alerts")) && !(await tableExists("alerts"))) {
+      return res.json({
+        success: true,
+        alerts: [],
+        total: 0,
+        message: "Alerts system not yet configured",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Try to query real alerts data
+    let alertsResult = [];
+    try {
+      // First try price_alerts table
+      if (await tableExists("price_alerts")) {
+        const alertsQuery = `
+          SELECT * FROM price_alerts
+          WHERE user_id = $1
+          ${status !== "all" ? "AND status = $2" : ""}
+          ORDER BY created_at DESC
+          LIMIT $${status !== "all" ? "3" : "2"}
+          OFFSET $${status !== "all" ? "4" : "3"}
+        `;
+        const params = [userId];
+        if (status !== "all") params.push(status);
+        params.push(parseInt(limit), parseInt(_offset));
+
+        const result = await query(alertsQuery, params);
+        alertsResult = result.rows;
+      } else if (await tableExists("alerts")) {
+        // Fallback to generic alerts table
+        const alertsQuery = `
+          SELECT * FROM alerts
+          WHERE user_id = $1
+          ${status !== "all" ? "AND status = $2" : ""}
+          ORDER BY created_at DESC
+          LIMIT $${status !== "all" ? "3" : "2"}
+          OFFSET $${status !== "all" ? "4" : "3"}
+        `;
+        const params = [userId];
+        if (status !== "all") params.push(status);
+        params.push(parseInt(limit), parseInt(_offset));
+
+        const result = await query(alertsQuery, params);
+        alertsResult = result.rows;
       }
-    ];
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+      alertsResult = [];
+    }
 
     // Filter alerts based on status if specified
     let filteredAlerts = alertsResult;

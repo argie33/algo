@@ -239,7 +239,7 @@ describe("Calendar Routes", () => {
       const response = await request(app).get("/api/calendar/debug");
 
       if (response.body.tableExists) {
-        expect(response.body.tableName).toBe("earnings_reports");
+        expect(response.body.tableName).toBe("earnings_history");
         expect(response.body).toHaveProperty("totalRecords");
         expect(response.body).toHaveProperty("sampleRecords");
         expect(Array.isArray(response.body.sampleRecords)).toBe(true);

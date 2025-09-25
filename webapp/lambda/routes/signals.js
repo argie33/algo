@@ -33,40 +33,52 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Use safe table name without interpolation to prevent SQL errors
-    if (timeframe !== 'daily') {
-      return res.status(400).json({
-        success: false,
-        error: "Only daily timeframe is currently supported",
-        timestamp: new Date().toISOString(),
-      });
-    }
+    // Query real signals data from buy_sell tables
+    console.log(`📊 Fetching real ${timeframe} signals from database`);
 
-    // Query actual data from existing tables - no fallbacks
     const signalsQuery = `
       SELECT
         symbol,
         date,
-        'daily' as timeframe,
-        'BUY' as signal_type,
-        0.75 as confidence,
-        close as price,
-        volume
-      FROM price_daily
-      WHERE volume > 0 AND close > 0
-      ORDER BY date DESC, symbol ASC
-      LIMIT $1 OFFSET $2
+        timeframe,
+        signal,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        buylevel,
+        stoplevel,
+        inposition
+      FROM ${tableName}
+      WHERE timeframe = $1
+      ORDER BY date DESC
+      LIMIT $2 OFFSET $3
     `;
 
-    const countQuery = `SELECT COUNT(*) as total FROM price_daily WHERE volume > 0 AND close > 0`;
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM ${tableName}
+      WHERE timeframe = $1
+    `;
 
     const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, [limit, offset]),
-      query(countQuery)
+      query(signalsQuery, [timeframe, limit, offset]),
+      query(countQuery, [timeframe])
     ]);
 
-    const total = parseInt(countResult.rows[0].total);
+    const total = parseInt(countResult.rows[0].total) || 0;
     const totalPages = Math.ceil(total / limit);
+
+    if (!signalsResult.rows || signalsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No signals data found",
+        message: `No ${timeframe} signals available in database`,
+        timeframe,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return res.json({
       success: true,
@@ -80,6 +92,7 @@ router.get("/", async (req, res) => {
         hasPrev: page > 1,
       },
       timeframe,
+      data_source: 'database',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -101,39 +114,64 @@ router.get("/buy", async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
 
-    console.log(`📈 Buy signals requested for ${timeframe} timeframe`);
+    // Validate timeframe parameter
+    const validTimeframes = ["daily", "weekly", "monthly"];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
+        timestamp: new Date().toISOString(),
+      });
+    }
 
-    // Use the same pattern as main signals endpoint - query price_daily with synthetic signal data
-    const signalsQuery = `
+    const tableName = `buy_sell_${timeframe}`;
+
+    console.log(`📈 Fetching real BUY signals from ${tableName}`);
+
+    // Query real BUY signals from database
+    const buySignalsQuery = `
       SELECT
         symbol,
         date,
-        'daily' as timeframe,
-        'BUY' as signal_type,
-        0.80 as confidence,
-        close as price,
-        volume
-      FROM price_daily
-      WHERE volume > 0 AND close > 0
-        AND MOD(EXTRACT(DAY FROM date)::integer, 3) = 1
-      ORDER BY date DESC, symbol ASC
-      LIMIT $1 OFFSET $2
+        timeframe,
+        signal,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        buylevel,
+        stoplevel,
+        inposition
+      FROM ${tableName}
+      WHERE timeframe = $1 AND signal = 'BUY'
+      ORDER BY date DESC
+      LIMIT $2 OFFSET $3
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM price_daily
-      WHERE volume > 0 AND close > 0
-        AND MOD(EXTRACT(DAY FROM date)::integer, 3) = 1
+      FROM ${tableName}
+      WHERE timeframe = $1 AND signal = 'BUY'
     `;
 
     const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, [limit, offset]),
-      query(countQuery)
+      query(buySignalsQuery, [timeframe, limit, offset]),
+      query(countQuery, [timeframe])
     ]);
 
-    const total = parseInt(countResult.rows[0].total);
+    const total = parseInt(countResult.rows[0].total) || 0;
     const totalPages = Math.ceil(total / limit);
+
+    if (!signalsResult.rows || signalsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No BUY signals found",
+        message: `No ${timeframe} BUY signals available in database`,
+        timeframe,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return res.json({
       success: true,
@@ -148,6 +186,7 @@ router.get("/buy", async (req, res) => {
       },
       timeframe,
       signal_type: 'BUY',
+      data_source: 'database',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -171,37 +210,67 @@ router.get("/sell", async (req, res) => {
 
     console.log(`📉 Sell signals requested for ${timeframe} timeframe`);
 
-    // Use the same pattern as main signals endpoint - query price_daily with synthetic signal data
-    const signalsQuery = `
+    // Query real SELL signals from database
+    console.log(`📉 Fetching real SELL signals for ${timeframe} timeframe`);
+
+    // Safely map timeframes to table names
+    const timeframeMap = {
+      daily: "buy_sell_daily",
+      weekly: "buy_sell_weekly",
+      monthly: "buy_sell_monthly"
+    };
+
+    const tableName = timeframeMap[timeframe];
+    if (!tableName) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
+      });
+    }
+
+    const sellSignalsQuery = `
       SELECT
         symbol,
         date,
-        'daily' as timeframe,
-        'SELL' as signal_type,
-        0.70 as confidence,
-        close as price,
-        volume
-      FROM price_daily
-      WHERE volume > 0 AND close > 0
-        AND MOD(EXTRACT(DAY FROM date)::integer, 3) = 2
-      ORDER BY date DESC, symbol ASC
-      LIMIT $1 OFFSET $2
+        timeframe,
+        signal,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        buylevel,
+        stoplevel,
+        inposition
+      FROM ${tableName}
+      WHERE timeframe = $1 AND signal = 'SELL'
+      ORDER BY date DESC
+      LIMIT $2 OFFSET $3
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM price_daily
-      WHERE volume > 0 AND close > 0
-        AND MOD(EXTRACT(DAY FROM date)::integer, 3) = 2
+      FROM ${tableName}
+      WHERE timeframe = $1 AND signal = 'SELL'
     `;
 
     const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, [limit, offset]),
-      query(countQuery)
+      query(sellSignalsQuery, [timeframe, limit, offset]),
+      query(countQuery, [timeframe])
     ]);
 
-    const total = parseInt(countResult.rows[0].total);
+    const total = parseInt(countResult.rows[0].total) || 0;
     const totalPages = Math.ceil(total / limit);
+
+    if (!signalsResult.rows || signalsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No SELL signals found",
+        message: `No ${timeframe} SELL signals available in database`,
+        timeframe,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return res.json({
       success: true,
@@ -216,6 +285,7 @@ router.get("/sell", async (req, res) => {
       },
       timeframe,
       signal_type: 'SELL',
+      data_source: 'database',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -235,12 +305,53 @@ router.get("/trending", async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const timeframe = req.query.timeframe || "daily";
 
-    console.log(`📈 Trending signals requested for ${timeframe} timeframe`);
+    // Validate timeframe
+    const validTimeframes = ["daily", "weekly", "monthly"];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const tableName = `buy_sell_${timeframe}`;
+
+    console.log(`📈 Fetching trending signals from ${tableName}`);
+
+    // Query trending signals - get most active symbols by volume
+    const trendingQuery = `
+      SELECT
+        symbol,
+        COUNT(*) as signal_count,
+        AVG(confidence) as avg_confidence,
+        SUM(volume) as total_volume,
+        MAX(date) as latest_date
+      FROM ${tableName}
+      WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+      GROUP BY symbol
+      HAVING COUNT(*) >= 2
+      ORDER BY signal_count DESC, total_volume DESC
+      LIMIT $1
+    `;
+
+    const result = await query(trendingQuery, [limit]);
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No trending signals found",
+        message: `No trending ${timeframe} signals found in database`,
+        timeframe,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     res.json({
       success: true,
-      data: [],
-      message: "No trending signals data available",
+      data: result.rows,
+      timeframe,
+      data_source: 'database',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -475,22 +586,54 @@ router.get("/backtest", async (req, res) => {
 // Signal performance endpoint
 router.get("/performance", async (req, res) => {
   try {
-    const { timeframe } = req.query;
+    const timeframe = req.query.timeframe || "daily";
 
-    console.log(`📊 Signal performance requested`);
+    console.log(`📊 Signal performance requested for ${timeframe}`);
 
-    if (timeframe && !["1D", "1W", "1M", "3M", "6M", "1Y"].includes(timeframe)) {
+    // Validate timeframe
+    const validTimeframes = ["daily", "weekly", "monthly"];
+    if (!validTimeframes.includes(timeframe)) {
       return res.status(400).json({
         success: false,
-        error: "Invalid timeframe. Must be 1D, 1W, 1M, 3M, 6M, or 1Y",
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const tableName = `buy_sell_${timeframe}`;
+
+    // Query signal performance metrics
+    const performanceQuery = `
+      SELECT
+        signal,
+        COUNT(*) as total_signals,
+        AVG(volume) as avg_volume,
+        AVG(close) as avg_price,
+        MIN(date) as earliest_date,
+        MAX(date) as latest_date
+      FROM ${tableName}
+      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY signal
+      ORDER BY signal
+    `;
+
+    const result = await query(performanceQuery);
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No performance data found",
+        message: `No ${timeframe} signal performance data found in database`,
+        timeframe,
         timestamp: new Date().toISOString(),
       });
     }
 
     res.json({
       success: true,
-      data: [],
-      message: "Signal performance data not available",
+      data: result.rows,
+      timeframe,
+      data_source: 'database',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -513,6 +656,18 @@ router.get("/:symbol", async (req, res) => {
 
     console.log(`📊 Signals requested for symbol: ${symbol.toUpperCase()}`);
 
+    // Skip processing if symbol looks like a timeframe (API routing issue)
+    const timeframeLike = ["daily", "weekly", "monthly", "buy", "sell", "trending", "alerts", "backtest", "performance"];
+    if (timeframeLike.includes(symbol.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid symbol. Use query parameters instead of path parameters for timeframe.",
+        details: `Received '${symbol}' as symbol, but this appears to be a timeframe. Use ?timeframe=${symbol} instead.`,
+        symbol: symbol.toUpperCase(),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Validate timeframe parameter to prevent SQL injection and missing table errors
     const validTimeframes = ["daily", "weekly", "monthly"];
     if (!validTimeframes.includes(timeframe)) {
@@ -524,64 +679,65 @@ router.get("/:symbol", async (req, res) => {
       });
     }
 
-    // Map timeframe to table suffix
-    const tableMap = {
-      daily: "buy_sell_daily",
-      weekly: "buy_sell_weekly",
-      monthly: "buy_sell_monthly"
-    };
+    // Determine table name based on timeframe
+    const tableName = `buy_sell_${timeframe}`;
 
-    const tableName = tableMap[timeframe];
+    // Query real signals from database for specific symbol
+    console.log(`📊 Fetching real signals for ${symbol.toUpperCase()} from ${tableName} table`);
 
-    // Query signals data from the appropriate table with defensive column selection
-    const signalsQuery = `
+    const symbolSignalsQuery = `
       SELECT
         symbol,
         date,
-        signal_type,
-        buylevel,
-        stoplevel,
-        inposition,
+        timeframe,
+        signal,
+        open,
+        high,
+        low,
         close,
         volume,
-        COALESCE(confidence, 0.5) as confidence,
-        COALESCE(risk_score, 0.5) as risk_score
+        buylevel,
+        stoplevel,
+        inposition
       FROM ${tableName}
-      WHERE symbol = $1
+      WHERE symbol = $1 AND timeframe = $2
       ORDER BY date DESC
-      LIMIT $2
+      LIMIT $3
     `;
 
-    const signalsResult = await query(signalsQuery, [symbol.toUpperCase(), limit]);
+    const result = await query(symbolSignalsQuery, [symbol.toUpperCase(), timeframe, limit]);
 
-    // Get summary statistics
-    const summaryQuery = `
-      SELECT
-        COUNT(*) as total_signals,
-        COUNT(CASE WHEN signal_type = 'BUY' THEN 1 END) as buy_signals,
-        COUNT(CASE WHEN signal_type = 'SELL' THEN 1 END) as sell_signals,
-        AVG(COALESCE(confidence, 0.5)) as avg_confidence,
-        AVG(COALESCE(risk_score, 0.5)) as avg_risk
-      FROM ${tableName}
-      WHERE symbol = $1
-    `;
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No signals found for symbol",
+        message: `No ${timeframe} signals found for ${symbol.toUpperCase()} in database`,
+        symbol: symbol.toUpperCase(),
+        timeframe,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
-    const summaryResult = await query(summaryQuery, [symbol.toUpperCase()]);
-    const summary = summaryResult.rows[0] || {};
+    // Calculate summary statistics from real data
+    const signalData = result.rows;
+    const summary = {
+      total_signals: signalData.length,
+      buy_signals: signalData.filter(d => d.signal === 'BUY').length,
+      sell_signals: signalData.filter(d => d.signal === 'SELL').length,
+      avg_volume: signalData.length > 0 ?
+        (signalData.reduce((sum, d) => sum + parseFloat(d.volume || 0), 0) / signalData.length).toFixed(0) : "0",
+      avg_price: signalData.length > 0 ?
+        (signalData.reduce((sum, d) => sum + parseFloat(d.close || 0), 0) / signalData.length).toFixed(2) : "0.00",
+    };
 
-    // Format the response
+    // Format the response with real data
     return res.json({
       success: true,
       symbol: symbol.toUpperCase(),
       timeframe,
-      data: signalsResult.rows,
-      summary: {
-        total_signals: parseInt(summary.total_signals) || 0,
-        buy_signals: parseInt(summary.buy_signals) || 0,
-        sell_signals: parseInt(summary.sell_signals) || 0,
-        avg_confidence: summary.avg_confidence ? parseFloat(summary.avg_confidence).toFixed(2) : null,
-        avg_risk: summary.avg_risk ? parseFloat(summary.avg_risk).toFixed(2) : null,
-      },
+      data: signalData,
+      summary,
+      data_source: 'database', // Real database data
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

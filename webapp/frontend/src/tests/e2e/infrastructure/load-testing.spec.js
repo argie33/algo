@@ -86,7 +86,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       "/market",
       "/settings",
       "/technical",
-      "/screener-advanced",
+      "/stocks",
     ];
 
     // Rapid navigation test
@@ -240,7 +240,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       "/market",
       "/technical",
       "/sentiment",
-      "/screener-advanced",
+      "/stocks",
     ];
 
     await Promise.all(
@@ -310,7 +310,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
         "/portfolio",
         "/market",
         "/technical",
-        "/screener-advanced",
+        "/stocks",
         "/settings",
       ];
 
@@ -359,7 +359,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   }) => {
     console.log("🖱️ Testing UI responsiveness under heavy load...");
 
-    await page.goto("/screener-advanced");
+    await page.goto("/stocks");
     await page.waitForSelector("#root", { state: "attached" });
     await page.waitForTimeout(2000);
 

@@ -88,13 +88,9 @@ router.get("/statements", async (req, res) => {
           `;
         } else {
           balanceQuery = `
-            SELECT ticker as symbol, year::text as date, 'total_assets' as item_name, total_assets::text as value
+            SELECT symbol, date, item_name, value
             FROM annual_balance_sheet
-            WHERE ticker ILIKE $1
-            UNION ALL
-            SELECT ticker as symbol, year::text as date, 'total_liabilities' as item_name, total_liabilities::text as value
-            FROM annual_balance_sheet
-            WHERE ticker ILIKE $1
+            WHERE symbol ILIKE $1
             ORDER BY date DESC, item_name
             LIMIT 50
           `;
@@ -211,35 +207,36 @@ router.get("/screener", async (req, res) => {
       limit = 20
     } = req.query;
 
-    // Get companies with basic financial data for screening from stocks table
+    // Get companies with basic financial data for screening
     const screeningQuery = `
       SELECT
-        s.symbol as symbol,
-        s.name as company_name,
-        s.sector,
-        s.market_cap,
+        cp.ticker as symbol,
+        cp.long_name as company_name,
+        cp.sector,
+        md.market_cap,
         -- Derive financial metrics from available data
         CASE
-          WHEN s.market_cap IS NOT NULL THEN s.market_cap * 0.25
+          WHEN md.market_cap IS NOT NULL THEN md.market_cap * 0.25
           ELSE (RANDOM() * 100000000000 + 10000000000)
         END as revenue,
         CASE
-          WHEN s.price IS NOT NULL AND s.market_cap IS NOT NULL THEN (s.market_cap / s.price) / (s.market_cap * 0.08 / s.market_cap)
+          WHEN md.previous_close IS NOT NULL AND md.market_cap IS NOT NULL THEN (md.market_cap / md.previous_close) / (md.market_cap * 0.08 / md.market_cap)
           ELSE (RANDOM() * 40 + 10)
-        END as NULL as pe_ratio,
+        END as pe_ratio,
         CASE
-          WHEN s.sector IS NOT NULL THEN
+          WHEN cp.sector IS NOT NULL THEN
             CASE
-              WHEN s.sector = 'Technology' THEN 0.28
-              WHEN s.sector = 'Healthcare' THEN 0.15
-              WHEN s.sector = 'Financials' THEN 0.22
+              WHEN cp.sector = 'Technology' THEN 0.28
+              WHEN cp.sector = 'Healthcare' THEN 0.15
+              WHEN cp.sector = 'Financials' THEN 0.22
               ELSE (RANDOM() * 0.3 + 0.05)
             END
           ELSE (RANDOM() * 0.3 + 0.05)
         END as net_margin
-      FROM stocks s
-      WHERE s.symbol IS NOT NULL
-      ORDER BY s.market_cap DESC NULLS LAST
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE cp.ticker IS NOT NULL
+      ORDER BY md.market_cap DESC NULLS LAST
       LIMIT $1
     `;
 
@@ -452,51 +449,52 @@ router.get("/ratios", async (req, res) => {
     // Use default symbol if none provided
     const targetSymbol = symbol || "AAPL";
 
-    // Query financial ratios from stocks table (since financial_ratios doesn't exist)
+    // Query financial ratios from company_profile and key_metrics tables
     let result = { rows: [] };
     try {
       const ratiosQuery = `
         SELECT
-          s.symbol,
+          cp.ticker as symbol,
           -- Calculate estimated ratios from available data
           CASE
-            WHEN s.price IS NOT NULL AND s.market_cap IS NOT NULL
-            THEN (s.market_cap / s.price) / GREATEST(s.market_cap * 0.08 / s.market_cap, 0.01)
+            WHEN md.previous_close IS NOT NULL AND md.market_cap IS NOT NULL
+            THEN (md.market_cap / md.previous_close) / GREATEST(md.market_cap * 0.08 / md.market_cap, 0.01)
             ELSE 25.0
           END as trailing_pe,
-          NULL as forward_pe,
-          CASE
-            WHEN s.price IS NOT NULL AND s.market_cap IS NOT NULL
-            THEN s.price / GREATEST(s.market_cap * 0.15 / (s.market_cap / s.price), 0.1)
-            ELSE 3.2
-          END as NULL as price_to_book,
-          NULL as price_to_sales,
-          NULL as debt_to_equity,
-          NULL as current_ratio,
-          NULL as quick_ratio,
-          -- Estimate margins based on sector
-          CASE
-            WHEN s.sector = 'Technology' THEN 0.28
-            WHEN s.sector = 'Healthcare' THEN 0.15
-            WHEN s.sector = 'Financials' THEN 0.22
-            ELSE 0.12
-          END as profit_margin_pct,
-          CASE
-            WHEN s.sector = 'Technology' THEN 0.18
-            WHEN s.sector = 'Healthcare' THEN 0.12
-            WHEN s.sector = 'Financials' THEN 0.15
-            ELSE 0.08
-          END as return_on_equity_pct,
-          CASE
-            WHEN s.sector = 'Technology' THEN 0.12
-            WHEN s.sector = 'Healthcare' THEN 0.08
-            WHEN s.sector = 'Financials' THEN 0.01
-            ELSE 0.05
-          END as return_on_assets_pct,
-          0.0 as revenue_growth_1yr,
-          0.0 as earnings_growth_1yr
-        FROM stocks s
-        WHERE s.symbol ILIKE $1
+          km.forward_pe,
+          km.price_to_book,
+          km.price_to_sales,
+          km.debt_to_equity,
+          km.current_ratio,
+          km.quick_ratio,
+          -- Estimate margins based on sector or use actual data
+          COALESCE(km.profit_margin_pct,
+            CASE
+              WHEN cp.sector = 'Technology' THEN 0.28
+              WHEN cp.sector = 'Healthcare' THEN 0.15
+              WHEN cp.sector = 'Financials' THEN 0.22
+              ELSE 0.12
+            END) as profit_margin_pct,
+          COALESCE(km.return_on_equity_pct,
+            CASE
+              WHEN cp.sector = 'Technology' THEN 0.18
+              WHEN cp.sector = 'Healthcare' THEN 0.12
+              WHEN cp.sector = 'Financials' THEN 0.15
+              ELSE 0.08
+            END) as return_on_equity_pct,
+          COALESCE(km.return_on_assets_pct,
+            CASE
+              WHEN cp.sector = 'Technology' THEN 0.12
+              WHEN cp.sector = 'Healthcare' THEN 0.08
+              WHEN cp.sector = 'Financials' THEN 0.01
+              ELSE 0.05
+            END) as return_on_assets_pct,
+          km.revenue_growth_pct as revenue_growth_1yr,
+          km.earnings_growth_pct as earnings_growth_1yr
+        FROM company_profile cp
+        LEFT JOIN market_data md ON cp.ticker = md.ticker
+        LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+        WHERE cp.ticker ILIKE $1
         LIMIT 1
       `;
 
@@ -1164,12 +1162,12 @@ router.get("/estimates", async (req, res) => {
       `📊 Financial estimates requested - symbol: ${symbol || "all"}, period: ${period}`
     );
 
-    // Use stocks table as the base for basic financial info since financial_estimates doesn't exist
-    let query_sql = `SELECT symbol, name, sector, industry, market_cap, price, dividend_yield, beta FROM stocks`;
+    // Use company_profile and market_data tables as the base for basic financial info
+    let query_sql = `SELECT cp.ticker as symbol, cp.long_name as name, cp.sector, cp.industry, md.market_cap, md.previous_close as price, md.dividend_yield, km.beta FROM company_profile cp LEFT JOIN market_data md ON cp.ticker = md.ticker LEFT JOIN key_metrics km ON cp.ticker = km.ticker`;
     let params = [];
 
     if (symbol) {
-      query_sql += ` WHERE symbol ILIKE $1`;
+      query_sql += ` WHERE cp.ticker ILIKE $1`;
       params.push(symbol.toUpperCase());
     }
 
@@ -1502,53 +1500,55 @@ router.get("/ratios/:symbol", async (req, res) => {
   );
 
   try {
-    // Query financial ratios from stocks table since financial_ratios/fundamental_metrics don't exist
+    // Query financial ratios from loadinfo.py schema tables (company_profile, key_metrics)
     const ratiosQuery = `
       SELECT
-        s.symbol,
-        -- Calculate estimated ratios from available data
-        CASE
-          WHEN s.price IS NOT NULL AND s.market_cap IS NOT NULL
-          THEN (s.market_cap / s.price) / GREATEST(s.market_cap * 0.08 / s.market_cap, 0.01)
-          ELSE 25.0
-        END as trailing_pe,
-        NULL as forward_pe,
-        CASE
-          WHEN s.price IS NOT NULL AND s.market_cap IS NOT NULL
-          THEN s.price / GREATEST(s.market_cap * 0.15 / (s.market_cap / s.price), 0.1)
-          ELSE 3.2
-        END as NULL as price_to_book,
-        NULL as price_to_sales,
-        NULL as debt_to_equity,
-        NULL as current_ratio,
-        NULL as quick_ratio,
-        -- Estimate returns based on sector
-        CASE
-          WHEN s.sector = 'Technology' THEN 0.18
-          WHEN s.sector = 'Healthcare' THEN 0.12
-          WHEN s.sector = 'Financials' THEN 0.15
-          ELSE 0.08
-        END as return_on_equity_pct,
-        CASE
-          WHEN s.sector = 'Technology' THEN 0.12
-          WHEN s.sector = 'Healthcare' THEN 0.08
-          WHEN s.sector = 'Financials' THEN 0.01
-          ELSE 0.05
-        END as return_on_assets_pct,
-        NULL as revenue_growth_pct,
-        NULL as earnings_growth_pct,
-        CASE
-          WHEN s.sector = 'Technology' THEN 0.28
-          WHEN s.sector = 'Healthcare' THEN 0.15
-          WHEN s.sector = 'Financials' THEN 0.22
-          ELSE 0.12
-        END as profit_margin_pct,
-        NULL as gross_margin_pct,
-        NULL as ev_to_ebitda,
-        s.sector,
-        s.industry
-      FROM stocks s
-      WHERE s.symbol ILIKE $1
+        cp.ticker as symbol,
+        -- Calculate estimated ratios from available data or use actual data
+        COALESCE(km.trailing_pe,
+          CASE
+            WHEN md.previous_close IS NOT NULL AND md.market_cap IS NOT NULL
+            THEN (md.market_cap / md.previous_close) / GREATEST(md.market_cap * 0.08 / md.market_cap, 0.01)
+            ELSE 25.0
+          END) as trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.price_to_sales,
+        km.debt_to_equity,
+        km.current_ratio,
+        km.quick_ratio,
+        -- Use actual data or estimate returns based on sector
+        COALESCE(km.return_on_equity_pct,
+          CASE
+            WHEN cp.sector = 'Technology' THEN 0.18
+            WHEN cp.sector = 'Healthcare' THEN 0.12
+            WHEN cp.sector = 'Financials' THEN 0.15
+            ELSE 0.08
+          END) as return_on_equity_pct,
+        COALESCE(km.return_on_assets_pct,
+          CASE
+            WHEN cp.sector = 'Technology' THEN 0.12
+            WHEN cp.sector = 'Healthcare' THEN 0.08
+            WHEN cp.sector = 'Financials' THEN 0.01
+            ELSE 0.05
+          END) as return_on_assets_pct,
+        km.revenue_growth_pct as revenue_growth_pct,
+        km.earnings_growth_pct as earnings_growth_pct,
+        COALESCE(km.profit_margin_pct,
+          CASE
+            WHEN cp.sector = 'Technology' THEN 0.28
+            WHEN cp.sector = 'Healthcare' THEN 0.15
+            WHEN cp.sector = 'Financials' THEN 0.22
+            ELSE 0.12
+          END) as profit_margin_pct,
+        km.gross_margin_pct as gross_margin_pct,
+        km.ev_to_ebitda as ev_to_ebitda,
+        cp.sector,
+        cp.industry
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE cp.ticker ILIKE $1
       LIMIT 1
     `;
 
@@ -1640,45 +1640,47 @@ router.get("/:symbol/ratios", async (req, res) => {
   console.log(`💰 [FINANCIALS] Fetching ratios for ${symbol} (test endpoint)`);
 
   try {
-    // Use stocks table since financial_ratios/fundamental_metrics don't exist
+    // Use loadinfo.py schema tables (company_profile, key_metrics)
     const ratiosQuery = `
       SELECT
-        s.symbol,
-        -- Calculate estimated ratios from available data
-        CASE
-          WHEN s.price IS NOT NULL AND s.market_cap IS NOT NULL
-          THEN (s.market_cap / s.price) / GREATEST(s.market_cap * 0.08 / s.market_cap, 0.01)
-          ELSE 25.0
-        END as trailing_pe,
-        NULL as forward_pe,
-        CASE
-          WHEN s.price IS NOT NULL AND s.market_cap IS NOT NULL
-          THEN s.price / GREATEST(s.market_cap * 0.15 / (s.market_cap / s.price), 0.1)
-          ELSE 3.2
-        END as NULL as price_to_book,
-        NULL as debt_to_equity,
-        NULL as current_ratio,
-        NULL as quick_ratio,
-        CASE
-          WHEN s.sector = 'Technology' THEN 0.28
-          WHEN s.sector = 'Healthcare' THEN 0.15
-          WHEN s.sector = 'Financials' THEN 0.22
-          ELSE 0.12
-        END as profit_margin_pct,
-        CASE
-          WHEN s.sector = 'Technology' THEN 0.18
-          WHEN s.sector = 'Healthcare' THEN 0.12
-          WHEN s.sector = 'Financials' THEN 0.15
-          ELSE 0.08
-        END as return_on_equity_pct,
-        CASE
-          WHEN s.sector = 'Technology' THEN 0.12
-          WHEN s.sector = 'Healthcare' THEN 0.08
-          WHEN s.sector = 'Financials' THEN 0.01
-          ELSE 0.05
-        END as return_on_assets_pct
-      FROM stocks s
-      WHERE s.symbol ILIKE $1
+        cp.ticker as symbol,
+        -- Calculate estimated ratios from available data or use actual metrics
+        COALESCE(km.trailing_pe,
+          CASE
+            WHEN md.previous_close IS NOT NULL AND md.market_cap IS NOT NULL
+            THEN (md.market_cap / md.previous_close) / GREATEST(md.market_cap * 0.08 / md.market_cap, 0.01)
+            ELSE 25.0
+          END) as trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.debt_to_equity,
+        km.current_ratio,
+        km.quick_ratio,
+        COALESCE(km.profit_margin_pct,
+          CASE
+            WHEN cp.sector = 'Technology' THEN 0.28
+            WHEN cp.sector = 'Healthcare' THEN 0.15
+            WHEN cp.sector = 'Financials' THEN 0.22
+            ELSE 0.12
+          END) as profit_margin_pct,
+        COALESCE(km.return_on_equity_pct,
+          CASE
+            WHEN cp.sector = 'Technology' THEN 0.18
+            WHEN cp.sector = 'Healthcare' THEN 0.12
+            WHEN cp.sector = 'Financials' THEN 0.15
+            ELSE 0.08
+          END) as return_on_equity_pct,
+        COALESCE(km.return_on_assets_pct,
+          CASE
+            WHEN cp.sector = 'Technology' THEN 0.12
+            WHEN cp.sector = 'Healthcare' THEN 0.08
+            WHEN cp.sector = 'Financials' THEN 0.01
+            ELSE 0.05
+          END) as return_on_assets_pct
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE cp.ticker ILIKE $1
       LIMIT 1
     `;
 
@@ -1829,33 +1831,32 @@ router.get("/:ticker/key-metrics", async (req, res) => {
     console.log(`Key metrics request for ${ticker}`);
 
     try {
-      // Query the stocks table since key_metrics doesn't exist
+      // Query the proper loadinfo.py schema tables
       const keyMetricsQuery = `
       SELECT
-        symbol,
-        name,
-        sector,
-        industry,
-        market_cap,
-        price,
-        dividend_yield,
-        beta,
-        -- Calculate estimated metrics
-        CASE
-          WHEN price IS NOT NULL AND market_cap IS NOT NULL
-          THEN (market_cap / price) / GREATEST(market_cap * 0.08 / market_cap, 0.01)
-          ELSE 25.0
-        END as trailing_pe,
-        NULL as forward_pe,
-        CASE
-          WHEN price IS NOT NULL AND market_cap IS NOT NULL
-          THEN price / GREATEST(market_cap * 0.15 / (market_cap / price), 0.1)
-          ELSE 3.2
-        END as NULL as price_to_book,
-        NULL as peg_ratio,
-        CURRENT_DATE as created_at
-      FROM stocks
-      WHERE symbol ILIKE $1
+        cp.ticker as symbol,
+        cp.long_name as name,
+        cp.sector,
+        cp.industry,
+        md.market_cap,
+        md.previous_close as price,
+        md.dividend_yield,
+        km.beta,
+        -- Use actual metrics or calculate estimated metrics
+        COALESCE(km.trailing_pe,
+          CASE
+            WHEN md.previous_close IS NOT NULL AND md.market_cap IS NOT NULL
+            THEN (md.market_cap / md.previous_close) / GREATEST(md.market_cap * 0.08 / md.market_cap, 0.01)
+            ELSE 25.0
+          END) as trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.peg_ratio,
+        CURRENT_TIMESTAMP as created_at
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE cp.ticker ILIKE $1
     `;
 
       const result = await query(keyMetricsQuery, [ticker.toUpperCase()]);

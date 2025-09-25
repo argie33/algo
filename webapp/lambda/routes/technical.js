@@ -191,6 +191,13 @@ router.get("/daily", async (req, res) => {
         plus_di,
         minus_di,
         atr,
+        ad,
+        cmf,
+        mfi,
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
         sma_10,
         sma_20,
         sma_50,
@@ -204,6 +211,8 @@ router.get("/daily", async (req, res) => {
         bbands_upper,
         pivot_high,
         pivot_low,
+        pivot_high_triggered,
+        pivot_low_triggered,
         fetched_at
       FROM (
         SELECT DISTINCT ON (symbol) *
@@ -1488,38 +1497,53 @@ router.get("/data/:symbol", async (req, res) => {
       });
     }
 
-    // Get latest technical data for the symbol
+    // Get latest technical data for the symbol from technical_data_daily table
     const dataQuery = `
       SELECT
-        p.symbol,
-        p.date,
+        t.symbol,
+        t.date,
+        t.rsi,
+        t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.mom,
+        t.roc,
+        t.adx,
+        t.plus_di,
+        t.minus_di,
+        t.atr,
+        t.ad,
+        t.cmf,
+        t.mfi,
+        t.td_sequential,
+        t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.sma_10,
+        t.sma_20,
+        t.sma_50,
+        t.sma_150,
+        t.sma_200,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_lower,
+        t.bbands_middle,
+        t.bbands_upper,
+        t.pivot_high,
+        t.pivot_low,
+        t.pivot_high_triggered,
+        t.pivot_low_triggered,
+        t.fetched_at,
         p.open,
         p.high,
         p.low,
         p.close,
-        p.volume,
-        CASE WHEN p.close > p.open THEN 65.5 ELSE 34.5 END as rsi,
-        CASE WHEN p.volume > 1000000 THEN 0.75 ELSE 0.45 END as macd,
-        CASE WHEN p.high > p.low * 1.05 THEN 2.3 ELSE -1.2 END as macd_signal,
-        CASE WHEN p.close > p.open THEN 1.1 ELSE -0.8 END as macd_hist,
-        p.close as sma_20,
-        p.close * 1.02 as sma_50,
-        p.close * 0.99 as ema_4,
-        p.close * 1.01 as ema_9,
-        p.close * 0.98 as ema_21,
-        p.high * 1.02 as bbands_upper,
-        p.low * 0.98 as bbands_lower,
-        (p.high + p.low + p.close) / 3 as bbands_middle,
-        CASE WHEN p.volume > 500000 THEN 45.2 ELSE 25.8 END as adx,
-        CASE WHEN p.close > p.open THEN 15.3 ELSE 8.7 END as plus_di,
-        CASE WHEN p.open > p.close THEN 12.1 ELSE 6.4 END as minus_di,
-        (p.high - p.low) as atr,
-        CASE WHEN p.volume > 2000000 THEN 75.5 ELSE 45.2 END as mfi,
-        ((p.close - p.open) / p.open * 100) as roc,
-        (p.close - p.open) as mom
-      FROM price_daily p
-      WHERE p.symbol = $1
-      ORDER BY p.date DESC
+        p.volume
+      FROM technical_data_daily t
+      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+      WHERE t.symbol = $1
+      ORDER BY t.date DESC
       LIMIT 1
     `;
 
@@ -1571,9 +1595,9 @@ router.get("/indicators/:symbol", async (req, res) => {
     const tableExists = await query(
       `
       SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'price_daily'
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'technical_data_daily'
       );
     `,
       []
@@ -1589,30 +1613,44 @@ router.get("/indicators/:symbol", async (req, res) => {
       });
     }
 
-    // Get latest technical indicators for the symbol
+    // Get latest technical indicators for the symbol - ALL fields from loadtechnicalsdaily.py
     const indicatorsQuery = `
-      SELECT 
+      SELECT
         symbol,
         date,
         rsi,
         macd,
         macd_signal,
         macd_hist,
-        sma_20,
-        sma_50,
-        ema_4,
-        ema_9,
-        ema_21,
-        bbands_upper,
-        bbands_lower,
-        bbands_middle,
+        mom,
+        roc,
         adx,
         plus_di,
         minus_di,
         atr,
+        ad,
+        cmf,
         mfi,
-        roc,
-        mom
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
+        sma_10,
+        sma_20,
+        sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_lower,
+        bbands_middle,
+        bbands_upper,
+        pivot_high,
+        pivot_low,
+        pivot_high_triggered,
+        pivot_low_triggered,
+        fetched_at
       FROM technical_data_daily
       WHERE symbol = $1
       ORDER BY date DESC

@@ -19,7 +19,6 @@ This directory contains end-to-end (E2E) tests organized by purpose and function
 ## Feature Tests (`/features/`) - Individual Pages
 Tests specific pages in isolation (matches exact unit test naming pattern and actual app routes):
 
-- `AdvancedScreener.spec.js` - Advanced screener page (`/screener-advanced`)
 - `Dashboard.spec.js` - Dashboard page (`/`)
 - `MarketOverview.spec.js` - Market overview page (`/market`)
 - `Portfolio.spec.js` - Portfolio holdings page (`/portfolio`)

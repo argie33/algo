@@ -99,8 +99,8 @@ describe("Database Comprehensive Integration Tests", () => {
     test("should handle complex queries with JOINs", async () => {
       // First ensure we have some test data using correct loader column names
       await query(`
-        INSERT INTO company_profile (ticker, short_name, long_name, sector, industry, exchange)
-        VALUES ('TESTSTOCK', 'Test Co', 'Test Company Inc', 'Technology', 'Software', 'NASDAQ')
+        INSERT INTO company_profile (ticker, short_name, long_name, sector, industry)
+        VALUES ('TESTSTOCK', 'Test Co', 'Test Company Inc', 'Technology', 'Software')
         ON CONFLICT (ticker) DO NOTHING
       `);
 
@@ -128,8 +128,8 @@ describe("Database Comprehensive Integration Tests", () => {
       const result = await transaction(async (client) => {
         // Insert test data
         await client.query(`
-          INSERT INTO company_profile (ticker, short_name, exchange, sector)
-          VALUES ('TRANS', 'Transaction Test Co', 'NASDAQ', 'Technology')
+          INSERT INTO company_profile (ticker, short_name, sector)
+          VALUES ('TRANS', 'Transaction Test Co', 'Technology')
           ON CONFLICT (ticker) DO UPDATE SET short_name = EXCLUDED.short_name
         `);
 
@@ -361,10 +361,10 @@ describe("Database Comprehensive Integration Tests", () => {
       // Insert price data using Python schema (price_daily table)
       await query(
         `
-        INSERT INTO price_daily (symbol, date, close_price, volume)
+        INSERT INTO price_daily (symbol, date, close, volume)
         VALUES ($1, CURRENT_DATE, $2, 1000000)
         ON CONFLICT (symbol, date) DO UPDATE SET
-          close_price = EXCLUDED.close_price
+          close = EXCLUDED.close
       `,
         [testSymbol, 150.5]
       );
@@ -387,7 +387,7 @@ describe("Database Comprehensive Integration Tests", () => {
       expect(symbolResult.rows[0].name).toBe("Integrity Test Co");
       expect(parseInt(stockResult.rows[0].market_cap)).toBe(2000000);
       expect(parseFloat(stockResult.rows[0].price)).toBe(150.5);
-      expect(parseFloat(priceResult.rows[0].close_price)).toBe(150.5);
+      expect(parseFloat(priceResult.rows[0].close)).toBe(150.5);
     });
 
     test("should handle foreign key relationships properly", async () => {
@@ -489,11 +489,11 @@ describe("Database Comprehensive Integration Tests", () => {
       // Clean up market_data first (child table) to avoid foreign key constraint violations
       const placeholders = testSymbols.map((_, i) => `$${i + 1}`).join(",");
       await query(
-        `DELETE FROM market_data WHERE symbol IN (${placeholders})`,
+        `DELETE FROM market_data WHERE ticker IN (${placeholders})`,
         testSymbols
       );
-      await query("DELETE FROM market_data WHERE symbol LIKE 'BULK_%'");
-      await query("DELETE FROM market_data WHERE symbol LIKE 'CONC%'");
+      await query("DELETE FROM market_data WHERE ticker LIKE 'BULK_%'");
+      await query("DELETE FROM market_data WHERE ticker LIKE 'CONC%'");
 
       // Then clean up company_profile (parent table)
       const deleteResult = await query(

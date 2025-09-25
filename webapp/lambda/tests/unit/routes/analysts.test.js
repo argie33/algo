@@ -756,7 +756,6 @@ describe("Analysts Route - Comprehensive Unit Tests", () => {
     });
   });
 
-  // Performance and Load Testing
   describe("Performance Testing", () => {
     test("should handle multiple concurrent requests", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
@@ -796,7 +795,6 @@ describe("Analysts Route - Comprehensive Unit Tests", () => {
     });
   });
 
-  // Response Format Validation
   describe("Response Format Validation", () => {
     test("should return consistent JSON response format", async () => {
       const response = await request(app).get("/api/analysts/").expect(200);

@@ -16,17 +16,16 @@ module.exports = {
     "!tests/**",
     "!coverage/**",
   ],
-  // Remove moduleNameMapper - use real database module
+  // Use real database module - NO mock database
   testMatch: ["**/tests/unit/**/*.test.js", "**/tests/unit/**/*.spec.js"],
-  setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
-  testTimeout: 10000, // Reduced for mock database
+  setupFilesAfterEnv: ["<rootDir>/tests/setup/database.setup.js"],
+  testTimeout: 30000, // Increased for real database operations
   maxWorkers: 1,
   forceExit: true,
   detectOpenHandles: false,
   verbose: false,
   silent: false,
-  // globalSetup: "<rootDir>/tests/setup/globalSetup.js",
-  // globalTeardown: "<rootDir>/tests/setup/globalTeardown.js",
+  globalSetup: "<rootDir>/tests/setup/globalSetup.js",
   testEnvironmentOptions: {
     NODE_ENV: "test",
   },

@@ -68,7 +68,6 @@ import OrderManagement from "./pages/OrderManagement";
 import SentimentAnalysis from "./pages/SentimentAnalysis";
 import NewsAnalysis from "./pages/NewsAnalysis";
 import PatternRecognition from "./pages/PatternRecognition";
-import AdvancedScreener from "./pages/AdvancedScreener";
 import EconomicModeling from "./pages/EconomicModeling";
 import Settings from "./pages/Settings";
 import ScoresDashboard from "./pages/ScoresDashboard";
@@ -110,12 +109,6 @@ const menuItems = [
   },
 
   // Stocks Section
-  {
-    text: "Stock Screener",
-    icon: <SearchIcon />,
-    path: "/screener-advanced",
-    category: "stocks",
-  },
   {
     text: "Stock Analysis",
     icon: <FilterListIcon />,
@@ -647,7 +640,6 @@ function App() {
               element={<AdvancedPortfolioAnalytics />}
             />
             <Route path="/market" element={<MarketOverview />} />
-            <Route path="/screener-advanced" element={<AdvancedScreener />} />
             <Route path="/scores" element={<ScoresDashboard />} />
             <Route path="/sentiment" element={<SentimentAnalysis />} />
             <Route path="/economic" element={<EconomicModeling />} />

@@ -65,7 +65,7 @@ router.get("/", authenticateToken, async (req, res) => {
       SELECT transaction_id as trade_id, symbol,
              transaction_type as side, quantity,
              'filled' as status, 'market' as type,
-             transaction_date as executed_at, price as average_fill_price,
+             created_at as executed_at, price as average_fill_price,
              quantity as filled_quantity,
              created_at, created_at as updated_at
       FROM portfolio_transactions

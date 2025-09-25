@@ -1,1 +1,1185 @@
-/bin/bash: line 1: PORT=3999: command not found
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+JWT verifier initialized successfully
+🚨 Alert System initialized
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+📊 Monitoring started
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+🔌 WebSocket endpoint: ws://localhost:3001/ws
+Processing request: GET /api/signals/AAPL
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+📊 Signals requested for symbol: AAPL
+📊 Using synthetic signals data for AAPL
+::1 - - [25/Sep/2025:01:05:12 +0000] "GET /api/signals/AAPL?limit=2 HTTP/1.1" 200 652 "-" "curl/8.5.0"
+Processing request: GET /api/livedata/symbols
+Database connection verified for database-dependent endpoint
+[2025-09-25T01:05:12.569Z] [INFO] [livedata-symbols-1758762312569] Processing symbols request
+Context: {
+  "query": {}
+}
+[2025-09-25T01:05:12.571Z] [INFO] [livedata-symbols-1758762312569] Symbols request completed
+Context: {
+  "duration": 2,
+  "symbolCount": 4,
+  "search": null,
+  "limit": 100
+}
+::1 - - [25/Sep/2025:01:05:12 +0000] "GET /api/livedata/symbols HTTP/1.1" 200 1000 "-" "curl/8.5.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/health HTTP/1.1" 200 347 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/performance HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/alerts/active HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/diagnostics HTTP/1.1" 200 564 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/backtest/strategies
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/backtest/strategies HTTP/1.1" 200 2265 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/value HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/metrics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/metrics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/market HTTP/1.1" 200 314 "-" "axios/1.12.2"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: {}
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+Database query error: {
+  error: 'column cp.exchange does not exist',
+  query: '\n' +
+    '      SELECT DISTINCT ON (cp.ticker)\n' +
+    '        cp.ticker as symbol,\n' +
+    '        COALESCE(cp.short_name, c...',
+  params: '2 parameters',
+  code: '42703'
+}
+Stocks query error: column cp.exchange does not exist
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/stocks HTTP/1.1" 500 158 "-" "axios/1.12.2"
+Processing request: GET /api/technical
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/technical HTTP/1.1" 200 108 "-" "axios/1.12.2"
+Processing request: GET /api/live-data
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/live-data HTTP/1.1" 200 465 "-" "axios/1.12.2"
+Processing request: GET /api/live-data/status
+Database connection verified for database-dependent endpoint
+[2025-09-25T01:30:54.073Z] [INFO] [livedata-status-1758763854073] Processing live data status request
+[2025-09-25T01:30:54.073Z] [INFO] [livedata-status-1758763854073] Live data status request completed
+Context: {
+  "duration": 0,
+  "cacheEntries": 0,
+  "totalConnections": 0
+}
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/live-data/status HTTP/1.1" 200 3304 "-" "axios/1.12.2"
+Processing request: GET /api/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/analytics HTTP/1.1" 200 827 "-" "axios/1.12.2"
+Processing request: GET /api/performance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/performance HTTP/1.1" 200 423 "-" "axios/1.12.2"
+Processing request: GET /api/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/risk HTTP/1.1" 200 125 "-" "axios/1.12.2"
+Processing request: GET /api/news
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/news HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Generating 25 synthetic signals for daily timeframe
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/signals HTTP/1.1" 200 3505 "-" "axios/1.12.2"
+Processing request: GET /api/trading
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/trading HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/orders
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/orders HTTP/1.1" 200 783 "-" "axios/1.12.2"
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/watchlist HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/screener
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "axios/1.12.2"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Scores endpoint called - using precomputed table
+📊 Scores query result: 3 rows from stock_scores table
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/scores HTTP/1.1" 200 1480 "-" "axios/1.12.2"
+Processing request: GET /api/metrics
+Database connection verified for database-dependent endpoint
+📊 Metrics endpoint called
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/metrics HTTP/1.1" 200 458 "-" "axios/1.12.2"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "axios/1.12.2"
+Processing request: GET /api/sentiment
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/sentiment HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/etf
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/etf HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:54 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/performance HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 2ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/alerts/active HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/backtest/strategies
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/backtest/strategies HTTP/1.1" 200 2265 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/value HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/metrics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/metrics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/market HTTP/1.1" 200 314 "-" "axios/1.12.2"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: {}
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+Database query error: {
+  error: 'column cp.exchange does not exist',
+  query: '\n' +
+    '      SELECT DISTINCT ON (cp.ticker)\n' +
+    '        cp.ticker as symbol,\n' +
+    '        COALESCE(cp.short_name, c...',
+  params: '2 parameters',
+  code: '42703'
+}
+Stocks query error: column cp.exchange does not exist
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/stocks HTTP/1.1" 500 158 "-" "axios/1.12.2"
+Processing request: GET /api/technical
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/technical HTTP/1.1" 200 108 "-" "axios/1.12.2"
+Processing request: GET /api/live-data
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/live-data HTTP/1.1" 200 465 "-" "axios/1.12.2"
+Processing request: GET /api/live-data/status
+Database connection verified for database-dependent endpoint
+[2025-09-25T01:30:57.235Z] [INFO] [livedata-status-1758763857235] Processing live data status request
+[2025-09-25T01:30:57.235Z] [INFO] [livedata-status-1758763857235] Live data status request completed
+Context: {
+  "duration": 0,
+  "cacheEntries": 0,
+  "totalConnections": 0
+}
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/live-data/status HTTP/1.1" 200 3304 "-" "axios/1.12.2"
+Processing request: GET /api/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/analytics HTTP/1.1" 200 827 "-" "axios/1.12.2"
+Processing request: GET /api/performance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/performance HTTP/1.1" 200 423 "-" "axios/1.12.2"
+Processing request: GET /api/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/risk HTTP/1.1" 200 125 "-" "axios/1.12.2"
+Processing request: GET /api/news
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/news HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Generating 25 synthetic signals for daily timeframe
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/signals HTTP/1.1" 200 3508 "-" "axios/1.12.2"
+Processing request: GET /api/trading
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/trading HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/orders
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/orders HTTP/1.1" 200 783 "-" "axios/1.12.2"
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/watchlist HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/screener
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "axios/1.12.2"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Scores endpoint called - using precomputed table
+📊 Scores query result: 3 rows from stock_scores table
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/scores HTTP/1.1" 200 1480 "-" "axios/1.12.2"
+Processing request: GET /api/metrics
+Database connection verified for database-dependent endpoint
+📊 Metrics endpoint called
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/metrics HTTP/1.1" 200 458 "-" "axios/1.12.2"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "axios/1.12.2"
+Processing request: GET /api/sentiment
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/sentiment HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/etf
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/etf HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 2ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:30:57 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 2ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/portfolio/performance HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/alerts/active HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/backtest/strategies
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/backtest/strategies HTTP/1.1" 200 1250 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/portfolio/value HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:33 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/metrics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/portfolio/metrics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/market HTTP/1.1" 200 314 "-" "axios/1.12.2"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: {}
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+Database query error: {
+  error: 'column cp.exchange does not exist',
+  query: '\n' +
+    '      SELECT DISTINCT ON (cp.ticker)\n' +
+    '        cp.ticker as symbol,\n' +
+    '        COALESCE(cp.short_name, c...',
+  params: '2 parameters',
+  code: '42703'
+}
+Stocks query error: column cp.exchange does not exist
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/stocks HTTP/1.1" 500 158 "-" "axios/1.12.2"
+Processing request: GET /api/technical
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/technical HTTP/1.1" 200 108 "-" "axios/1.12.2"
+Processing request: GET /api/live-data
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/live-data HTTP/1.1" 200 465 "-" "axios/1.12.2"
+Processing request: GET /api/live-data/status
+Database connection verified for database-dependent endpoint
+[2025-09-25T01:32:34.013Z] [INFO] [livedata-status-1758763954013] Processing live data status request
+[2025-09-25T01:32:34.013Z] [INFO] [livedata-status-1758763954013] Live data status request completed
+Context: {
+  "duration": 0,
+  "cacheEntries": 0,
+  "totalConnections": 0
+}
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/live-data/status HTTP/1.1" 200 3302 "-" "axios/1.12.2"
+Processing request: GET /api/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/analytics HTTP/1.1" 200 827 "-" "axios/1.12.2"
+Processing request: GET /api/performance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/performance HTTP/1.1" 200 423 "-" "axios/1.12.2"
+Processing request: GET /api/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/risk HTTP/1.1" 200 125 "-" "axios/1.12.2"
+Processing request: GET /api/news
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/news HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Generating 25 synthetic signals for daily timeframe
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/signals HTTP/1.1" 200 3511 "-" "axios/1.12.2"
+Processing request: GET /api/trading
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/trading HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/orders
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/orders HTTP/1.1" 200 783 "-" "axios/1.12.2"
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/watchlist HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/screener
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "axios/1.12.2"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Scores endpoint called - using precomputed table
+📊 Scores query result: 3 rows from stock_scores table
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/scores HTTP/1.1" 200 1480 "-" "axios/1.12.2"
+Processing request: GET /api/metrics
+Database connection verified for database-dependent endpoint
+📊 Metrics endpoint called
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/metrics HTTP/1.1" 200 458 "-" "axios/1.12.2"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "axios/1.12.2"
+Processing request: GET /api/sentiment
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/sentiment HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/etf
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/etf HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:32:34 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/performance HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/alerts/active HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/backtest/strategies
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/backtest/strategies HTTP/1.1" 200 3767 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/value HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/metrics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/metrics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/market HTTP/1.1" 200 314 "-" "axios/1.12.2"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: {}
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+Database query error: {
+  error: 'column cp.exchange does not exist',
+  query: '\n' +
+    '      SELECT DISTINCT ON (cp.ticker)\n' +
+    '        cp.ticker as symbol,\n' +
+    '        COALESCE(cp.short_name, c...',
+  params: '2 parameters',
+  code: '42703'
+}
+Stocks query error: column cp.exchange does not exist
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/stocks HTTP/1.1" 500 158 "-" "axios/1.12.2"
+Processing request: GET /api/technical
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/technical HTTP/1.1" 200 108 "-" "axios/1.12.2"
+Processing request: GET /api/live-data
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/live-data HTTP/1.1" 200 465 "-" "axios/1.12.2"
+Processing request: GET /api/live-data/status
+Database connection verified for database-dependent endpoint
+[2025-09-25T01:33:19.655Z] [INFO] [livedata-status-1758763999655] Processing live data status request
+[2025-09-25T01:33:19.655Z] [INFO] [livedata-status-1758763999655] Live data status request completed
+Context: {
+  "duration": 0,
+  "cacheEntries": 0,
+  "totalConnections": 0
+}
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/live-data/status HTTP/1.1" 200 3304 "-" "axios/1.12.2"
+Processing request: GET /api/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/analytics HTTP/1.1" 200 827 "-" "axios/1.12.2"
+Processing request: GET /api/performance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/performance HTTP/1.1" 200 423 "-" "axios/1.12.2"
+Processing request: GET /api/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/risk HTTP/1.1" 200 125 "-" "axios/1.12.2"
+Processing request: GET /api/news
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/news HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Generating 25 synthetic signals for daily timeframe
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/signals HTTP/1.1" 200 3509 "-" "axios/1.12.2"
+Processing request: GET /api/trading
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/trading HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/orders
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/orders HTTP/1.1" 200 783 "-" "axios/1.12.2"
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/watchlist HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/screener
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "axios/1.12.2"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Scores endpoint called - using precomputed table
+📊 Scores query result: 3 rows from stock_scores table
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/scores HTTP/1.1" 200 1480 "-" "axios/1.12.2"
+Processing request: GET /api/metrics
+Database connection verified for database-dependent endpoint
+📊 Metrics endpoint called
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/metrics HTTP/1.1" 200 458 "-" "axios/1.12.2"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "axios/1.12.2"
+Processing request: GET /api/sentiment
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/sentiment HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/etf
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/etf HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:19 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/health HTTP/1.1" 200 347 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/performance HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/alerts/active HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/diagnostics HTTP/1.1" 200 564 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/backtest/strategies
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/backtest/strategies HTTP/1.1" 200 1250 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/value HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/metrics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/metrics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/market HTTP/1.1" 200 314 "-" "axios/1.12.2"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: {}
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+Database query error: {
+  error: 'column cp.exchange does not exist',
+  query: '\n' +
+    '      SELECT DISTINCT ON (cp.ticker)\n' +
+    '        cp.ticker as symbol,\n' +
+    '        COALESCE(cp.short_name, c...',
+  params: '2 parameters',
+  code: '42703'
+}
+Stocks query error: column cp.exchange does not exist
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/stocks HTTP/1.1" 500 158 "-" "axios/1.12.2"
+Processing request: GET /api/technical
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/technical HTTP/1.1" 200 108 "-" "axios/1.12.2"
+Processing request: GET /api/live-data
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/live-data HTTP/1.1" 200 465 "-" "axios/1.12.2"
+Processing request: GET /api/live-data/status
+Database connection verified for database-dependent endpoint
+[2025-09-25T01:33:54.780Z] [INFO] [livedata-status-1758764034780] Processing live data status request
+[2025-09-25T01:33:54.780Z] [INFO] [livedata-status-1758764034780] Live data status request completed
+Context: {
+  "duration": 0,
+  "cacheEntries": 0,
+  "totalConnections": 0
+}
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/live-data/status HTTP/1.1" 200 3304 "-" "axios/1.12.2"
+Processing request: GET /api/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/analytics HTTP/1.1" 200 827 "-" "axios/1.12.2"
+Processing request: GET /api/performance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/performance HTTP/1.1" 200 423 "-" "axios/1.12.2"
+Processing request: GET /api/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/risk HTTP/1.1" 200 125 "-" "axios/1.12.2"
+Processing request: GET /api/news
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/news HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Generating 25 synthetic signals for daily timeframe
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/signals HTTP/1.1" 200 3504 "-" "axios/1.12.2"
+Processing request: GET /api/trading
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/trading HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/orders
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/orders HTTP/1.1" 200 783 "-" "axios/1.12.2"
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/watchlist HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/screener
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "axios/1.12.2"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Scores endpoint called - using precomputed table
+📊 Scores query result: 3 rows from stock_scores table
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/scores HTTP/1.1" 200 1480 "-" "axios/1.12.2"
+Processing request: GET /api/metrics
+Database connection verified for database-dependent endpoint
+📊 Metrics endpoint called
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/metrics HTTP/1.1" 200 458 "-" "axios/1.12.2"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "axios/1.12.2"
+Processing request: GET /api/sentiment
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/sentiment HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/etf
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/etf HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/health HTTP/1.1" 200 347 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 2ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:33:54 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/performance HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/alerts/active HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/diagnostics HTTP/1.1" 200 564 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/backtest/strategies
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/backtest/strategies HTTP/1.1" 200 1250 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/holdings HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/value HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/analytics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/transactions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/summary HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/metrics
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/metrics HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/market HTTP/1.1" 200 314 "-" "axios/1.12.2"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: {}
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+Database query error: {
+  error: 'column cp.exchange does not exist',
+  query: '\n' +
+    '      SELECT DISTINCT ON (cp.ticker)\n' +
+    '        cp.ticker as symbol,\n' +
+    '        COALESCE(cp.short_name, c...',
+  params: '2 parameters',
+  code: '42703'
+}
+Stocks query error: column cp.exchange does not exist
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/stocks HTTP/1.1" 500 158 "-" "axios/1.12.2"
+Processing request: GET /api/technical
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/technical HTTP/1.1" 200 108 "-" "axios/1.12.2"
+Processing request: GET /api/live-data
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/live-data HTTP/1.1" 200 465 "-" "axios/1.12.2"
+Processing request: GET /api/live-data/status
+Database connection verified for database-dependent endpoint
+[2025-09-25T01:35:38.516Z] [INFO] [livedata-status-1758764138516] Processing live data status request
+[2025-09-25T01:35:38.516Z] [INFO] [livedata-status-1758764138516] Live data status request completed
+Context: {
+  "duration": 0,
+  "cacheEntries": 0,
+  "totalConnections": 0
+}
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/live-data/status HTTP/1.1" 200 3304 "-" "axios/1.12.2"
+Processing request: GET /api/analytics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/analytics HTTP/1.1" 200 827 "-" "axios/1.12.2"
+Processing request: GET /api/performance
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/performance HTTP/1.1" 200 423 "-" "axios/1.12.2"
+Processing request: GET /api/risk
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/risk HTTP/1.1" 200 125 "-" "axios/1.12.2"
+Processing request: GET /api/news
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/news HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Generating 25 synthetic signals for daily timeframe
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/signals HTTP/1.1" 200 3508 "-" "axios/1.12.2"
+Processing request: GET /api/trading
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/trading HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/orders
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/orders HTTP/1.1" 200 783 "-" "axios/1.12.2"
+Processing request: GET /api/watchlist
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/watchlist HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/screener
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "axios/1.12.2"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Scores endpoint called - using precomputed table
+📊 Scores query result: 3 rows from stock_scores table
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/scores HTTP/1.1" 200 1480 "-" "axios/1.12.2"
+Processing request: GET /api/metrics
+Database connection verified for database-dependent endpoint
+📊 Metrics endpoint called
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/metrics HTTP/1.1" 200 458 "-" "axios/1.12.2"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "axios/1.12.2"
+Processing request: GET /api/sentiment
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/sentiment HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/etf
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/etf HTTP/1.1" 200 26 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/health HTTP/1.1" 200 347 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+🚨 Authentication required: No authorization header provided
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/portfolio/positions HTTP/1.1" 401 531 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 2ms using real loader tables
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/market/overview HTTP/1.1" 200 664 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 259 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 374 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [25/Sep/2025:01:35:38 +0000] "GET /api/diagnostics HTTP/1.1" 200 565 "-" "axios/1.12.2"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Generating 25 synthetic signals for daily timeframe
+::ffff:127.0.0.1 - - [25/Sep/2025:01:54:50 +0000] "GET /api/signals HTTP/1.1" 200 3507 "-" "axios/1.12.2"

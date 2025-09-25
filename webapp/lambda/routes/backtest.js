@@ -585,11 +585,11 @@ router.delete("/strategies/:id", (req, res) => {
 async function getHistoricalData(symbol, startDate, endDate) {
   try {
     const sqlQuery = `
-      SELECT 
+      SELECT
         date,
-        open_price as open,
-        high_price as high,
-        low_price as low,
+        open,
+        high,
+        low,
         close,
         volume
       FROM price_daily 

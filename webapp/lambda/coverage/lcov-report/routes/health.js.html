@@ -1087,19 +1087,20 @@
 <a name='L1022'></a><a href='#L1022'>1022</a>
 <a name='L1023'></a><a href='#L1023'>1023</a>
 <a name='L1024'></a><a href='#L1024'>1024</a>
-<a name='L1025'></a><a href='#L1025'>1025</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">17x</span>
+<a name='L1025'></a><a href='#L1025'>1025</a>
+<a name='L1026'></a><a href='#L1026'>1026</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1564,6 +1565,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1619,7 +1621,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1758,7 +1760,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1780,7 +1782,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1868,7 +1870,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2110,7 +2112,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
 &nbsp;
 const {
@@ -2222,7 +2224,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
               responseTime: dbHealth.responseTime || 0,
               tables: dbHealth.tables || {
                 portfolio_holdings: true,
-                fundamental_metrics: true,
+                company_profile: true,
                 price_daily: true,
                 trading_alerts: true,
               },
@@ -2280,7 +2282,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
                 responseTime: dbTime,
                 tables: {
                   portfolio_holdings: true,
-                  fundamental_metrics: true,
+                  company_profile: true,
                   price_daily: true,
                   trading_alerts: true,
                 },
@@ -2446,18 +2448,18 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
             'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
             'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
             'ttm_income_statement', 'ttm_cash_flow',
-            'fundamental_metrics', 'price_daily', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
+            'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
             'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
             'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
             'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
             'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-            'stock_news', 'stocks',
+            'stock_news', 'comprehensive_scores',
             'quality_metrics', 'value_metrics', 'stock_scores',
             'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness',
             'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_growth_analysis',
             'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis',
-            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime', 'stock_symbols',
-            'earnings', 'prices'
+            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime',
+            'earnings', 'prices', 'sentiment_analysis', 'swing_trading_signals', 'technical_data_daily'
           )
         `),
         new Promise(<span class="fstat-no" title="function not covered" >(_</span>, reject) =&gt;
@@ -2541,8 +2543,8 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
         "quarterly_cash_flow",
         "ttm_income_statement",
         "ttm_cash_flow",
-        "fundamental_metrics",
-        "price_daily",
+        "company_profile",
+        "market_data",
         "key_metrics",
         "analyst_estimates",
         "governance_scores",
@@ -2564,7 +2566,7 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
         "buy_sell_weekly",
         "buy_sell_monthly",
         "stock_news",
-        "stocks",
+        "comprehensive_scores",
         "quality_metrics",
         "value_metrics",
         "stock_scores",
@@ -2584,9 +2586,10 @@ router.get("/", <span class="fstat-no" title="function not covered" >as</span>yn
         "insider_trading_analysis",
         "score_performance_tracking",
         "market_regime",
-        "stock_symbols",
         "earnings",
         "prices",
+        "sentiment_analysis",
+        "swing_trading_signals"
       ].forEach(<span class="fstat-no" title="function not covered" >(t</span>ableName) =&gt; {
 <span class="cstat-no" title="statement not covered" >        if (!existingTables.includes(tableName)) {</span>
 <span class="cstat-no" title="statement not covered" >          tables[tableName] = "not_found";</span>
@@ -3142,7 +3145,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-24T08:33:45.566Z
+                at 2025-09-25T01:54:58.784Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -263,7 +263,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       });
     });
 
-    await page.goto("/screener-advanced");
+    await page.goto("/stocks");
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(3000);
 

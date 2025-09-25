@@ -214,34 +214,8 @@ class RiskEngine {
         lookbackDays = arguments[2] !== undefined ? arguments[2] : 252; // Third argument is lookbackDays
         method = "historical";
 
-        // Create mock positions for test data with historical price data
-        positions = {
-          rows: [],
-        };
-
-        portfolio.forEach((pos) => {
-          // Generate multiple historical price points for VaR calculation
-          const basePrice = pos.currentPrice || pos.weight * 1000;
-          let currentPrice = basePrice;
-
-          for (let i = 0; i < 30; i++) {
-            // Generate 30 days of price data with realistic daily returns
-            const dailyVolatility = 0.02; // 2% daily volatility
-            const randomReturn = (Math.random() - 0.5) * 2 * dailyVolatility; // Range: -2% to +2%
-            currentPrice = currentPrice * (1 + randomReturn);
-
-            positions.rows.push({
-              symbol: pos.symbol,
-              quantity: pos.quantity || 100,
-              current_price: basePrice,
-              total_value: pos.weight ? pos.weight * 100000 : 15000,
-              close: currentPrice,
-              date: new Date(Date.now() - i * 24 * 60 * 60 * 1000)
-                .toISOString()
-                .split("T")[0],
-            });
-          }
-        });
+        // No mock data - return error if no real portfolio data available
+        throw new Error("Portfolio data required for VaR calculation - no mock data available");
       } else {
         // Production signature: calculateVaR(portfolioId, method, confidenceLevel, timeHorizon, lookbackDays)
         portfolioId = portfolioIdOrData;

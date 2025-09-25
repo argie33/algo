@@ -72,7 +72,7 @@ describe("Signals Route - Unit Tests", () => {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("error");
       } else {
-        expect(response.body).toHaveProperty("signal_type", "buy");
+        expect(response.body).toHaveProperty("signal_type", "BUY");
       }
     });
 
@@ -644,7 +644,7 @@ describe("Signals Route - Unit Tests", () => {
       expect(response.body).toHaveProperty("data");
       if (response.body.data.length > 0) {
         response.body.data.forEach((signal) => {
-          expect(signal.signal_type).toBe("buy");
+          expect(signal.signal_type).toBe("BUY");
         });
       }
     });
@@ -861,7 +861,7 @@ describe("Signals Route - Unit Tests", () => {
       const response = await request(app).get("/api/signals/buy").expect(200);
 
       expect(response.body).toHaveProperty("data");
-      expect(response.body).toHaveProperty("signal_type", "buy");
+      expect(response.body).toHaveProperty("signal_type", "BUY");
     });
   });
 

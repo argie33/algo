@@ -109,7 +109,7 @@ router.get("/", async (req, res) => {
               responseTime: dbHealth.responseTime || 0,
               tables: dbHealth.tables || {
                 portfolio_holdings: true,
-                stocks: true,
+                company_profile: true,
                 price_daily: true,
                 trading_alerts: true,
               },
@@ -167,7 +167,7 @@ router.get("/", async (req, res) => {
                 responseTime: dbTime,
                 tables: {
                   portfolio_holdings: true,
-                  stocks: true,
+                  company_profile: true,
                   price_daily: true,
                   trading_alerts: true,
                 },
@@ -333,18 +333,18 @@ router.get("/", async (req, res) => {
             'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
             'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
             'ttm_income_statement', 'ttm_cash_flow',
-            'stocks', 'price_daily', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
+            'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
             'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
             'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
             'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
             'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-            'stock_news', 'stocks',
+            'stock_news', 'comprehensive_scores',
             'quality_metrics', 'value_metrics', 'stock_scores',
             'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness',
             'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_growth_analysis',
             'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis',
-            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime', 'stock_symbols',
-            'earnings', 'prices'
+            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime',
+            'earnings', 'prices', 'sentiment_analysis', 'swing_trading_signals', 'technical_data_daily'
           )
         `),
         new Promise((_, reject) =>
@@ -428,8 +428,8 @@ router.get("/", async (req, res) => {
         "quarterly_cash_flow",
         "ttm_income_statement",
         "ttm_cash_flow",
-        "stocks",
-        "price_daily",
+        "company_profile",
+        "market_data",
         "key_metrics",
         "analyst_estimates",
         "governance_scores",
@@ -451,7 +451,7 @@ router.get("/", async (req, res) => {
         "buy_sell_weekly",
         "buy_sell_monthly",
         "stock_news",
-        "stocks",
+        "comprehensive_scores",
         "quality_metrics",
         "value_metrics",
         "stock_scores",
@@ -471,9 +471,10 @@ router.get("/", async (req, res) => {
         "insider_trading_analysis",
         "score_performance_tracking",
         "market_regime",
-        "stock_symbols",
         "earnings",
         "prices",
+        "sentiment_analysis",
+        "swing_trading_signals"
       ].forEach((tableName) => {
         if (!existingTables.includes(tableName)) {
           tables[tableName] = "not_found";

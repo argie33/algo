@@ -666,24 +666,24 @@ router.get("/signals/:timeframe", async (req, res) => {
             bs.price,
             ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
             ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
-            ${priceDailyExists ? "pd.close_price" : "NULL"} as current_price,
+            ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
             ${companyProfileExists ? "cp.short_name" : "NULL"} as company_name,
             ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
             NULL as market_cap,
             NULL as trailing_pe,
             NULL as dividend_yield,
             CASE 
-              WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close_price" : "bs.price"} > bs.price
-              THEN ((${priceDailyExists ? "pd.close_price" : "bs.price"} - bs.price) / bs.price * 100)
-              WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close_price" : "bs.price"} < bs.price
-              THEN ((bs.price - ${priceDailyExists ? "pd.close_price" : "bs.price"}) / bs.price * 100)
+              WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
+              THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
+              WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
+              THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
               ELSE 0
             END as performance_percent,
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
           ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
-          ${companyProfileExists ? "LEFT JOIN stocks fm ON bs.symbol = s.symbol" : ""}
-          ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close_price FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
+          ${companyProfileExists ? "LEFT JOIN stocks fm ON bs.symbol = fm.symbol" : ""}
+          ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
           ${whereClause}
         )
         SELECT * FROM ranked_signals 
@@ -700,23 +700,23 @@ router.get("/signals/:timeframe", async (req, res) => {
           bs.price,
           ${tradingTableColumns.stoplevel ? "bs.stoplevel" : "NULL"} as stoplevel,
           ${tradingTableColumns.inposition ? "bs.inposition" : "false"} as inposition,
-          ${priceDailyExists ? "pd.close_price" : "NULL"} as current_price,
+          ${priceDailyExists ? "pd.close" : "NULL"} as current_price,
           ${companyProfileExists ? "cp.short_name" : "NULL"} as company_name,
           ${companyProfileExists ? "cp.sector" : "NULL"} as sector,
           NULL as market_cap,
           NULL as trailing_pe,
           NULL as dividend_yield,
           CASE 
-            WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close_price" : "bs.price"} > bs.price
-            THEN ((${priceDailyExists ? "pd.close_price" : "bs.price"} - bs.price) / bs.price * 100)
-            WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close_price" : "bs.price"} < bs.price
-            THEN ((bs.price - ${priceDailyExists ? "pd.close_price" : "bs.price"}) / bs.price * 100)
+            WHEN bs.${signalColumn} = 'BUY' AND ${priceDailyExists ? "pd.close" : "bs.price"} > bs.price
+            THEN ((${priceDailyExists ? "pd.close" : "bs.price"} - bs.price) / bs.price * 100)
+            WHEN bs.${signalColumn} = 'SELL' AND ${priceDailyExists ? "pd.close" : "bs.price"} < bs.price
+            THEN ((bs.price - ${priceDailyExists ? "pd.close" : "bs.price"}) / bs.price * 100)
             ELSE 0
           END as performance_percent
         FROM ${tableName} bs
         ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
-        ${companyProfileExists ? "LEFT JOIN stocks fm ON bs.symbol = s.symbol" : ""}
-        ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close_price FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
+        ${companyProfileExists ? "LEFT JOIN stocks fm ON bs.symbol = fm.symbol" : ""}
+        ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
         ${whereClause}
         ORDER BY bs.date DESC, bs.symbol ASC
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
@@ -1010,22 +1010,22 @@ router.get("/swing-signals", async (req, res) => {
         st.target_price,
         st.risk_reward_ratio,
         st.date,
-        s.close_price as current_price,
+        s.close as current_price,
         CASE
-          WHEN st.signal = 'BUY' AND s.close_price >= st.target_price
+          WHEN st.signal = 'BUY' AND s.close >= st.target_price
           THEN 'TARGET_HIT'
-          WHEN st.signal = 'BUY' AND s.close_price <= st.stop_loss
+          WHEN st.signal = 'BUY' AND s.close <= st.stop_loss
           THEN 'STOP_LOSS_HIT'
-          WHEN st.signal = 'SELL' AND s.close_price <= st.target_price
+          WHEN st.signal = 'SELL' AND s.close <= st.target_price
           THEN 'TARGET_HIT'
-          WHEN st.signal = 'SELL' AND s.close_price >= st.stop_loss
+          WHEN st.signal = 'SELL' AND s.close >= st.stop_loss
           THEN 'STOP_LOSS_HIT'
           ELSE 'ACTIVE'
         END as status
       FROM swing_trading_signals st
       LEFT JOIN company_profile cp ON st.symbol = cp.ticker
-      JOIN stocks fm ON st.symbol = s.symbol
-      LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close_price as close_price FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON st.symbol = s.symbol
+      JOIN stocks fm ON st.symbol = fm.symbol
+      LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close as close FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON st.symbol = s.symbol
       ORDER BY st.date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -1102,7 +1102,7 @@ router.get("/:ticker/technicals", async (req, res) => {
         NULL as macd_hist,
         NULL as ema_21,
         NULL as bbands_upper,
-        close_price as bbands_middle,
+        close as bbands_middle,
         NULL as bbands_lower,
         date as created_at
       FROM (
@@ -1168,27 +1168,27 @@ router.get("/performance", async (req, res) => {
         COUNT(*) as total_signals,
         AVG(
           CASE
-            WHEN ${signalColumn} = 'BUY' AND s.close_price > bs.price
-            THEN ((s.close_price - bs.price) / bs.price * 100)
-            WHEN ${signalColumn} = 'SELL' AND s.close_price < bs.price
-            THEN ((bs.price - s.close_price) / bs.price * 100)
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price
+            THEN ((s.close - bs.price) / bs.price * 100)
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price
+            THEN ((bs.price - s.close) / bs.price * 100)
             ELSE 0
           END
         ) as avg_performance,
         COUNT(
           CASE
-            WHEN ${signalColumn} = 'BUY' AND s.close_price > bs.price THEN 1
-            WHEN ${signalColumn} = 'SELL' AND s.close_price < bs.price THEN 1
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price THEN 1
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price THEN 1
           END
         ) as winning_trades,
         (COUNT(
           CASE
-            WHEN ${signalColumn} = 'BUY' AND s.close_price > bs.price THEN 1
-            WHEN ${signalColumn} = 'SELL' AND s.close_price < bs.price THEN 1
+            WHEN ${signalColumn} = 'BUY' AND s.close > bs.price THEN 1
+            WHEN ${signalColumn} = 'SELL' AND s.close < bs.price THEN 1
           END
         ) * 100.0 / COUNT(*)) as win_rate
       FROM buy_sell_daily bs
-      LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close_price as close_price FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON bs.symbol = s.symbol
+      LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close as close FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON bs.symbol = s.symbol
       WHERE bs.date >= NOW() - INTERVAL '${days} days'
       GROUP BY ${signalColumn}
     `;
@@ -2291,14 +2291,14 @@ router.get("/risk/portfolio", async (req, res) => {
         ph.average_cost as avg_cost,
         ph.market_value as current_value,
         cp.sector,
-        COALESCE(pd.close_price, 0) as market_cap,
-        pd.close_price as current_price,
+        COALESCE(pd.close, 0) as market_cap,
+        pd.close as current_price,
         pd.volume,
         0.15 as volatility,
         1.0 as beta
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
-      LEFT JOIN stocks fm ON ph.symbol = s.symbol
+      LEFT JOIN stocks fm ON ph.symbol = fm.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) symbol, close, volume
         FROM price_daily
@@ -2695,7 +2695,7 @@ router.post("/positions/:symbol/close", authenticateToken, async (req, res) => {
     // Get current market price for closing calculation
     const priceQuery = await query(
       `
-      SELECT close_price as current_price
+      SELECT close as current_price
       FROM price_daily 
       WHERE symbol = $1 
       ORDER BY date DESC 
@@ -3074,7 +3074,7 @@ router.get("/quotes/:symbol", async (req, res) => {
     // Query real quote data from price_daily table first
     let result = await query(
       `SELECT symbol, date, open_price as open, high_price as high, low_price as low,
-              close_price as close, adj_close_price as adj_close, volume
+              close as close, adj_close as adj_close, volume
        FROM price_daily
        WHERE symbol = $1
        ORDER BY date DESC
@@ -3098,7 +3098,7 @@ router.get("/quotes/:symbol", async (req, res) => {
     const row = result.rows[0];
     const quote = {
       symbol: symbol.toUpperCase(),
-      price: parseFloat(row.close_price || row.current_price) || 0,
+      price: parseFloat(row.close || row.current_price) || 0,
       open: parseFloat(row.open || row.open_price) || 0,
       high: parseFloat(row.high || row.day_high) || 0,
       low: parseFloat(row.low || row.day_low) || 0,
