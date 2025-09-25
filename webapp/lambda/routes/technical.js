@@ -61,7 +61,7 @@ router.get("/daily/summary", async (req, res) => {
         AVG(rsi) as avg_rsi,
         AVG(macd) as avg_macd,
         AVG(sma_20) as avg_sma_20,
-        AVG(CASE WHEN rsi > 70 THEN 1 WHEN rsi < 30 THEN -1 ELSE 0 END) as avg_sentiment
+        AVG(adx) as avg_adx
       FROM ${tableName}
     `;
 
@@ -96,7 +96,7 @@ router.get("/daily/summary", async (req, res) => {
           sma20: summary.avg_sma_20
             ? parseFloat(summary.avg_sma_20).toFixed(2)
             : null,
-          sentiment: summary.avg_sentiment ? parseFloat(summary.avg_sentiment).toFixed(2) : null,
+          adx: summary.avg_adx ? parseFloat(summary.avg_adx).toFixed(2) : null,
         },
       },
       topSymbols: topSymbolsResult.rows.map((row) => ({
@@ -3418,7 +3418,7 @@ router.get("/:timeframe/summary", async (req, res) => {
           sma20: summary.avg_sma_20
             ? parseFloat(summary.avg_sma_20).toFixed(2)
             : null,
-          sentiment: summary.avg_sentiment ? parseFloat(summary.avg_sentiment).toFixed(2) : null,
+          adx: summary.avg_adx ? parseFloat(summary.avg_adx).toFixed(2) : null,
         },
       },
       topSymbols: topSymbolsResult.rows.map((row) => ({

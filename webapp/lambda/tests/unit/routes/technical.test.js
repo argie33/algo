@@ -298,7 +298,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
 
   describe("GET /technical/:timeframe/summary - Technical summary", () => {
     test("should return technical summary statistics", async () => {
-      const mockTableExists = { rows: [{ exists: true }] };
       const mockSummaryResult = {
         rows: [
           {
@@ -309,7 +308,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
             avg_rsi: "52.5",
             avg_macd: "0.15",
             avg_sma_20: "165.80",
-            avg_volume: "35000000",
+            avg_adx: "28.5",
           },
         ],
       };
@@ -322,7 +321,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       };
 
       query
-        .mockResolvedValueOnce(mockTableExists)
         .mockResolvedValueOnce(mockSummaryResult)
         .mockResolvedValueOnce(mockTopSymbols);
 
@@ -343,7 +341,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
             rsi: "52.50",
             macd: "0.1500",
             sma20: "165.80",
-            volume: 35000000,
+            adx: "28.50",
           }),
         }),
         topSymbols: expect.arrayContaining([
