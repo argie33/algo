@@ -46,33 +46,31 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         rows: [
           {
             symbol: "AAPL",
-            date: "2025-07-16",
-            open: 174.0,
-            high: 176.5,
-            low: 173.25,
-            close: 175.25,
-            volume: 45000000,
+            date: "2025-07-16T00:00:00.000Z",
             rsi: 65.8,
             macd: 0.25,
             macd_signal: 0.18,
-            macd_histogram: 0.07,
+            macd_hist: 0.07,
+            mom: 1.8,
+            roc: 3.2,
+            adx: 28.4,
+            plus_di: 25.2,
+            minus_di: 18.6,
+            atr: 2.85,
+            sma_10: 174.8,
             sma_20: 172.5,
             sma_50: 168.3,
-            ema_12: 174.2,
-            ema_26: 171.15,
-            bollinger_upper: 178.5,
-            bollinger_lower: 166.8,
-            bollinger_middle: 172.65,
-            stochastic_k: 72.5,
-            stochastic_d: 68.2,
-            williams_r: -27.5,
-            cci: 85.6,
-            adx: 28.4,
-            atr: 2.85,
-            obv: 1250000000,
-            mfi: 58.9,
-            roc: 3.2,
-            momentum: 1.8,
+            sma_150: 165.2,
+            sma_200: 163.8,
+            ema_4: 175.1,
+            ema_9: 174.2,
+            ema_21: 171.15,
+            bbands_lower: 166.8,
+            bbands_middle: 172.65,
+            bbands_upper: 178.5,
+            pivot_high: null,
+            pivot_low: null,
+            fetched_at: "2025-07-16T10:30:00.000Z",
           },
         ],
       };
@@ -88,12 +86,12 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         data: expect.arrayContaining([
           expect.objectContaining({
             symbol: "AAPL",
-            date: "2025-07-16",
-            close: 175.25,
+            date: "2025-07-16T00:00:00.000Z",
             rsi: 65.8,
             macd: 0.25,
+            macd_signal: 0.18,
             sma_20: 172.5,
-            bollinger_upper: 178.5,
+            bbands_upper: 178.5,
           }),
         ]),
         count: 1,
@@ -108,7 +106,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         expect.stringContaining("information_schema.tables"),
         ["price_daily"]
       );
-      expect(query).toHaveBeenCalledWith(expect.stringContaining("INNER JOIN"));
+      expect(query).toHaveBeenCalledWith(expect.stringContaining("technical_data_daily"));
     });
 
     test("should return 404 when price_daily table doesn't exist", async () => {
@@ -657,7 +655,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       // Should safely query technical data
       expect(query).toHaveBeenCalled();
       if (query.mock.calls.length > 2 && query.mock.calls[2]) {
-        expect(query.mock.calls[2][0]).toContain("price_daily");
+        expect(query.mock.calls[2][0]).toContain("technical_data_daily");
       }
     });
   });

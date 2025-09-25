@@ -118,6 +118,127 @@ router.get("/daily/summary", async (req, res) => {
   }
 });
 
+// Daily technical data endpoint for multiple symbols with pagination
+/**
+ * @route GET /api/technical/daily
+ * @desc Get daily technical data for all symbols with pagination
+ */
+router.get("/daily", async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'symbol',
+      sortOrder = 'asc',
+      symbol
+    } = req.query;
+
+    console.log(`📊 Daily technical data requested - page: ${page}, limit: ${limit}, sortBy: ${sortBy}, sortOrder: ${sortOrder}`);
+
+    // Validate parameters
+    const pageNum = parseInt(page);
+    const limitNum = Math.min(parseInt(limit), 100); // Max 100 per page
+    const offset = (pageNum - 1) * limitNum;
+
+    // Validate sort parameters
+    const validSortFields = ['symbol', 'date', 'rsi', 'macd', 'sma_20', 'sma_50', 'sma_200'];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'symbol';
+    const order = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    let whereClause = '';
+    let queryParams = [limitNum, offset];
+
+    if (symbol) {
+      whereClause = 'WHERE symbol = $3';
+      queryParams.push(symbol.toUpperCase());
+    }
+
+    // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
+    const result = await query(
+      `
+      SELECT
+        symbol,
+        date,
+        rsi,
+        macd,
+        macd_signal,
+        macd_hist,
+        mom,
+        roc,
+        adx,
+        plus_di,
+        minus_di,
+        atr,
+        sma_10,
+        sma_20,
+        sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_lower,
+        bbands_middle,
+        bbands_upper,
+        pivot_high,
+        pivot_low,
+        fetched_at
+      FROM (
+        SELECT DISTINCT ON (symbol) *
+        FROM technical_data_daily
+        ${whereClause}
+        ORDER BY symbol, date DESC
+      ) latest_technical
+      ORDER BY ${sortField} ${order}
+      LIMIT $1 OFFSET $2
+      `,
+      queryParams
+    );
+
+    // Get total count for pagination
+    const countResult = await query(
+      `
+      SELECT COUNT(DISTINCT symbol) as total
+      FROM technical_data_daily
+      ${whereClause ? whereClause.replace('$3', '$1') : ''}
+      `,
+      symbol ? [symbol.toUpperCase()] : []
+    );
+
+    const total = parseInt(countResult.rows[0]?.total || 0);
+    const totalPages = Math.ceil(total / limitNum);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        current_page: pageNum,
+        total_pages: totalPages,
+        total_records: total,
+        per_page: limitNum,
+        has_next: pageNum < totalPages,
+        has_prev: pageNum > 1
+      },
+      metadata: {
+        timeframe: 'daily',
+        sort_by: sortField,
+        sort_order: order,
+        symbol_filter: symbol || null
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Error fetching daily technical data:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch daily technical data",
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Main technical data endpoint - timeframe-based (daily, weekly, monthly)
 /**
  * @route GET /api/technical/daily/:symbol
