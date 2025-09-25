@@ -415,9 +415,16 @@ router.get("/list", async (req, res) => {
 });
 
 // Individual stock endpoint - GET /stocks/:symbol
-router.get("/:symbol", async (req, res) => {
+router.get("/:symbol", async (req, res, next) => {
   try {
     const { symbol } = req.params;
+
+    // Skip reserved keywords that should be handled by specific routes
+    const reservedKeywords = ['search', 'trending', 'screener', 'watchlist', 'analysis', 'recommendations'];
+    if (reservedKeywords.includes(symbol.toLowerCase())) {
+      return next(); // Pass to next route handler
+    }
+
     console.log(`Individual stock request for ${symbol}`);
 
     // Check if stocks table exists

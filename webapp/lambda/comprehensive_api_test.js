@@ -5,7 +5,8 @@ const { app } = require('./index.js');
 // Endpoints that require authentication
 const AUTH_REQUIRED_ENDPOINTS = [
   '/api/alerts', '/api/portfolio', '/api/recommendations', '/api/research',
-  '/api/settings', '/api/trades', '/api/watchlist'
+  '/api/settings', '/api/trades', '/api/watchlist', '/api/analytics',
+  '/api/risk', '/api/orders', '/api/strategyBuilder'
 ];
 
 // Comprehensive list of all critical API endpoints to test
@@ -47,7 +48,7 @@ async function testAPI(api) {
         console.log(`   🔧 Using authentication bypass token for protected endpoint`);
         response = await request(app)
           .get(api.path)
-          .set('Authorization', 'Bearer test-token')
+          .set('Authorization', 'Bearer dev-bypass-token')
           .set('Content-Type', 'application/json')
           .timeout(10000);
       } else {
