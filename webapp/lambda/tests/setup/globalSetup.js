@@ -70,6 +70,7 @@ module.exports = async () => {
         quantity DECIMAL(15,8) NOT NULL,
         average_cost DECIMAL(10,4) NOT NULL,
         current_price DECIMAL(10,4),
+        market_value DECIMAL(15,2),
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, symbol)
       )
@@ -150,9 +151,9 @@ module.exports = async () => {
     `);
 
     await query(`
-      INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price) VALUES
-      ('test-user-123', 'AAPL', 10.0, 150.00, 175.50),
-      ('test-user-123', 'MSFT', 5.0, 300.00, 420.75)
+      INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value) VALUES
+      ('test-user-123', 'AAPL', 10.0, 150.00, 175.50, 1755.00),
+      ('test-user-123', 'MSFT', 5.0, 300.00, 420.75, 2103.75)
       ON CONFLICT (user_id, symbol) DO NOTHING
     `);
 
