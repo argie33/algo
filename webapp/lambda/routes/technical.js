@@ -130,7 +130,9 @@ router.get("/daily", async (req, res) => {
       limit = 10,
       sortBy = 'symbol',
       sortOrder = 'asc',
-      symbol
+      symbol,
+      rsi_min,
+      rsi_max
     } = req.query;
 
     console.log(`📊 Daily technical data requested - page: ${page}, limit: ${limit}, sortBy: ${sortBy}, sortOrder: ${sortOrder}`);
@@ -147,10 +149,30 @@ router.get("/daily", async (req, res) => {
 
     let whereClause = '';
     let queryParams = [limitNum, offset];
+    let paramIndex = 3;
+
+    const whereClauses = [];
 
     if (symbol) {
-      whereClause = 'WHERE symbol = $3';
+      whereClauses.push(`symbol = $${paramIndex}`);
       queryParams.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    if (rsi_min !== undefined && rsi_min !== '') {
+      whereClauses.push(`rsi >= $${paramIndex}`);
+      queryParams.push(parseFloat(rsi_min));
+      paramIndex++;
+    }
+
+    if (rsi_max !== undefined && rsi_max !== '') {
+      whereClauses.push(`rsi <= $${paramIndex}`);
+      queryParams.push(parseFloat(rsi_max));
+      paramIndex++;
+    }
+
+    if (whereClauses.length > 0) {
+      whereClause = 'WHERE ' + whereClauses.join(' AND ');
     }
 
     // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
@@ -196,13 +218,14 @@ router.get("/daily", async (req, res) => {
     );
 
     // Get total count for pagination
+    const countParams = queryParams.slice(2); // Remove limit and offset parameters
     const countResult = await query(
       `
       SELECT COUNT(DISTINCT symbol) as total
       FROM technical_data_daily
-      ${whereClause ? whereClause.replace('$3', '$1') : ''}
+      ${whereClause}
       `,
-      symbol ? [symbol.toUpperCase()] : []
+      countParams
     );
 
     const total = parseInt(countResult.rows[0]?.total || 0);
@@ -2986,12 +3009,23 @@ router.get("/:symbol", async (req, res) => {
   const { symbol } = req.params;
   const { timeframe = "daily" } = req.query;
 
-  // Check if this looks like a stock symbol (not a timeframe)
+  // Check if this looks like a timeframe rather than a symbol
   const validTimeframes = ["daily", "weekly", "monthly"];
+
+  // If it matches a valid timeframe, it should go to the timeframe route
   if (validTimeframes.includes(symbol.toLowerCase())) {
-    // This is actually a timeframe, not a symbol - pass to next route
+    // This is actually a timeframe, not a symbol - delegate to timeframe route
+    req.params.timeframe = symbol.toLowerCase();
+    return require('./technical.js'); // This won't work - need different approach
+  }
+
+  // If it's a string that looks like it might be an invalid timeframe (longer than symbol)
+  // or contains underscores/periods, treat it as a timeframe validation error
+  if (symbol.length > 5 || /_|\.|-/.test(symbol) ||
+      ['minute', 'hourly', 'daily', 'weekly', 'monthly', 'yearly'].some(tf =>
+        symbol.toLowerCase().includes(tf))) {
     return res.status(400).json({
-      error: "Invalid route. Use /api/technical/timeframe or /api/technical/symbol?timeframe=daily"
+      error: "Invalid timeframe. Use daily, weekly, or monthly."
     });
   }
 

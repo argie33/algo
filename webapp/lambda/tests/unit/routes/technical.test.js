@@ -219,7 +219,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
     });
 
     test("should handle symbol filtering", async () => {
-      const mockTableExists = { rows: [{ exists: true }] };
       const mockCountResult = { rows: [{ total: "5" }] };
       const mockTechnicalData = {
         rows: [
@@ -228,33 +227,55 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
             date: "2025-07-16",
             rsi: 65.8,
             macd: 0.25,
+            macd_signal: 0.18,
+            macd_hist: 0.07,
+            mom: 1.8,
+            roc: 3.2,
+            adx: 28.4,
+            plus_di: 25.2,
+            minus_di: 18.6,
+            atr: 2.85,
           },
         ],
       };
 
       query
-        .mockResolvedValueOnce(mockTableExists)
-        .mockResolvedValueOnce(mockCountResult)
-        .mockResolvedValueOnce(mockTechnicalData);
+        .mockResolvedValueOnce(mockTechnicalData)
+        .mockResolvedValueOnce(mockCountResult);
 
       await request(app)
         .get("/technical/daily")
         .query({ symbol: "AAPL" })
         .expect(200);
 
-      // Verify symbol filter was applied
-      expect(query.mock.calls[2][1]).toContain("AAPL");
+      // Verify symbol filter was applied - first call should contain AAPL in WHERE clause
+      expect(query.mock.calls[0][1]).toEqual(expect.arrayContaining(["AAPL"]));
     });
 
     test("should handle RSI filtering", async () => {
-      const mockTableExists = { rows: [{ exists: true }] };
       const mockCountResult = { rows: [{ total: "10" }] };
-      const mockTechnicalData = { rows: [] };
+      const mockTechnicalData = {
+        rows: [
+          {
+            symbol: "AAPL",
+            date: "2025-07-16",
+            rsi: 75.0,
+            macd: 0.25,
+            macd_signal: 0.18,
+            macd_hist: 0.07,
+            mom: 1.8,
+            roc: 3.2,
+            adx: 28.4,
+            plus_di: 25.2,
+            minus_di: 18.6,
+            atr: 2.85,
+          }
+        ]
+      };
 
       query
-        .mockResolvedValueOnce(mockTableExists)
-        .mockResolvedValueOnce(mockCountResult)
-        .mockResolvedValueOnce(mockTechnicalData);
+        .mockResolvedValueOnce(mockTechnicalData)
+        .mockResolvedValueOnce(mockCountResult);
 
       await request(app)
         .get("/technical/daily")
@@ -262,9 +283,14 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         .expect(200);
 
       // Verify RSI filters were applied
+      const dataQuery = query.mock.calls[0][0];
       const countQuery = query.mock.calls[1][0];
+      expect(dataQuery).toContain("rsi >= $");
+      expect(dataQuery).toContain("rsi <= $");
       expect(countQuery).toContain("rsi >= $");
       expect(countQuery).toContain("rsi <= $");
+      expect(query.mock.calls[0][1]).toContain(70);
+      expect(query.mock.calls[0][1]).toContain(80);
       expect(query.mock.calls[1][1]).toContain(70);
       expect(query.mock.calls[1][1]).toContain(80);
     });
