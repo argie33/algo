@@ -15,6 +15,30 @@ CREATE TABLE IF NOT EXISTS stock_symbols (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Stock scores table (from loadstockscores.py)
+CREATE TABLE IF NOT EXISTS stock_scores (
+    symbol VARCHAR(50) PRIMARY KEY,
+    composite_score DECIMAL(5,2),
+    momentum_score DECIMAL(5,2),
+    trend_score DECIMAL(5,2),
+    value_score DECIMAL(5,2),
+    quality_score DECIMAL(5,2),
+    rsi DECIMAL(5,2),
+    macd DECIMAL(10,4),
+    sma_20 DECIMAL(10,2),
+    sma_50 DECIMAL(10,2),
+    volume_avg_30d BIGINT,
+    current_price DECIMAL(10,2),
+    price_change_1d DECIMAL(5,2),
+    price_change_5d DECIMAL(5,2),
+    price_change_30d DECIMAL(5,2),
+    volatility_30d DECIMAL(5,2),
+    market_cap BIGINT,
+    pe_ratio DECIMAL(8,2),
+    score_date DATE DEFAULT CURRENT_DATE,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Company profile table (from loadinfo.py)
 CREATE TABLE IF NOT EXISTS company_profile (
     ticker VARCHAR(10) PRIMARY KEY,
@@ -54,6 +78,7 @@ CREATE TABLE IF NOT EXISTS company_profile (
     employee_count INT,
     first_trade_date_ms BIGINT,
     gmt_offset_ms BIGINT,
+    exchange VARCHAR(100),
     full_exchange_name VARCHAR(100),
     exchange_timezone_name VARCHAR(100),
     exchange_timezone_short_name VARCHAR(20),
@@ -472,11 +497,10 @@ CREATE TABLE IF NOT EXISTS portfolio_holdings (
     user_id VARCHAR(255) NOT NULL,
     symbol VARCHAR(10) NOT NULL,
     quantity DECIMAL(15,6),
-    avg_price DECIMAL(10,2),
+    average_cost DECIMAL(10,2),
     current_price DECIMAL(10,2),
     market_value DECIMAL(15,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, symbol)
 );
 
@@ -489,6 +513,32 @@ CREATE TABLE IF NOT EXISTS portfolio_performance (
     total_return DECIMAL(10,4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, date)
+);
+
+-- Real trading orders (live trading)
+CREATE TABLE IF NOT EXISTS orders (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    symbol VARCHAR(10) NOT NULL,
+    side VARCHAR(10) NOT NULL, -- 'buy' or 'sell'
+    quantity DECIMAL(15,6) NOT NULL,
+    order_type VARCHAR(20) NOT NULL, -- 'market', 'limit', 'stop', 'stop_limit'
+    limit_price DECIMAL(10,2),
+    stop_price DECIMAL(10,2),
+    time_in_force VARCHAR(10) DEFAULT 'day', -- 'day', 'gtc', 'ioc', 'fok'
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'filled', 'cancelled', 'partial', 'rejected'
+    filled_quantity DECIMAL(15,6) DEFAULT 0,
+    average_price DECIMAL(10,4),
+    broker VARCHAR(50),
+    broker_order_id VARCHAR(100),
+    notes TEXT,
+    extended_hours BOOLEAN DEFAULT false,
+    all_or_none BOOLEAN DEFAULT false,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    filled_at TIMESTAMP,
+    cancelled_at TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Paper trading orders
@@ -532,24 +582,21 @@ CREATE INDEX IF NOT EXISTS idx_ttm_income_statement_symbol ON ttm_income_stateme
 CREATE INDEX IF NOT EXISTS idx_ttm_cash_flow_symbol ON ttm_cash_flow(symbol);
 CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user ON portfolio_holdings(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlists_user ON watchlists(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_user ON orders_paper(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_symbol ON orders(symbol);
+CREATE INDEX IF NOT EXISTS idx_orders_paper_user ON orders_paper(user_id);
 
 -- Insert test data for core Python loader tables to make routes work
-INSERT INTO company_profile (ticker, short_name, long_name, display_name, quote_type, symbol_type, exchange_name, sector, industry) VALUES
-('AAPL', 'Apple Inc.', 'Apple Inc.', 'Apple Inc.', 'EQUITY', 'EQUITY', 'NASDAQ', 'Technology', 'Consumer Electronics'),
-('MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Microsoft Corporation', 'EQUITY', 'EQUITY', 'NASDAQ', 'Technology', 'Software'),
-('GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Alphabet Inc.', 'EQUITY', 'EQUITY', 'NASDAQ', 'Technology', 'Internet Content & Information'),
-('TSLA', 'Tesla Inc.', 'Tesla, Inc.', 'Tesla, Inc.', 'EQUITY', 'EQUITY', 'NASDAQ', 'Consumer Cyclical', 'Auto Manufacturers'),
-('AMZN', 'Amazon.com Inc.', 'Amazon.com, Inc.', 'Amazon.com, Inc.', 'EQUITY', 'EQUITY', 'NASDAQ', 'Consumer Cyclical', 'Internet Retail')
+INSERT INTO company_profile (ticker, short_name, long_name, display_name, quote_type, symbol_type, exchange, sector, industry) VALUES
+('AAPL', 'Apple Inc.', 'Apple Inc.', 'Apple Inc.', 'EQUITY', 'EQUITY', 'NMS', 'Technology', 'Consumer Electronics'),
+('MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Microsoft Corporation', 'EQUITY', 'EQUITY', 'NMS', 'Technology', 'Software'),
+('GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Alphabet Inc.', 'EQUITY', 'EQUITY', 'NMS', 'Technology', 'Internet Content & Information'),
+('TSLA', 'Tesla Inc.', 'Tesla, Inc.', 'Tesla, Inc.', 'EQUITY', 'EQUITY', 'NMS', 'Consumer Cyclical', 'Auto Manufacturers'),
+('AMZN', 'Amazon.com Inc.', 'Amazon.com, Inc.', 'Amazon.com, Inc.', 'EQUITY', 'EQUITY', 'NMS', 'Consumer Cyclical', 'Internet Retail')
 ON CONFLICT (ticker) DO NOTHING;
 
-INSERT INTO market_data (ticker, symbol, previous_close, regular_market_previous_close, regular_market_price, current_price, volume, regular_market_volume, market_cap) VALUES
-('AAPL', 'AAPL', 175.50, 175.50, 180.25, 180.25, 52000000, 52000000, 2800000000000),
-('MSFT', 'MSFT', 420.75, 420.75, 425.30, 425.30, 28000000, 28000000, 3100000000000),
-('GOOGL', 'GOOGL', 135.80, 135.80, 138.45, 138.45, 31000000, 31000000, 1700000000000),
-('TSLA', 'TSLA', 250.30, 250.30, 255.75, 255.75, 67000000, 67000000, 800000000000),
-('AMZN', 'AMZN', 145.20, 145.20, 148.90, 148.90, 35000000, 35000000, 1500000000000)
-ON CONFLICT (ticker) DO NOTHING;
+-- No market_data INSERT needed - actual database has different schema
 
 INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, price_to_sales_ttm, price_to_book, peg_ratio, enterprise_value, profit_margin_pct, return_on_assets_pct, return_on_equity_pct) VALUES
 ('AAPL', 28.5, 25.2, 7.1, 4.2, 2.1, 2750000000000, 0.26, 0.18, 0.35),
@@ -559,12 +606,12 @@ INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, price_to_sales_ttm, pr
 ('AMZN', 38.7, 35.2, 2.1, 6.2, 2.8, 1480000000000, 0.05, 0.06, 0.12)
 ON CONFLICT (ticker) DO NOTHING;
 
-INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume) VALUES
-('AAPL', '2024-01-01', 175.00, 180.50, 174.20, 180.25, 180.25, 52000000),
-('MSFT', '2024-01-01', 420.00, 425.80, 418.90, 425.30, 425.30, 28000000),
-('GOOGL', '2024-01-01', 135.20, 139.00, 134.80, 138.45, 138.45, 31000000),
-('TSLA', '2024-01-01', 248.50, 256.20, 247.80, 255.75, 255.75, 67000000),
-('AMZN', '2024-01-01', 144.80, 149.20, 143.90, 148.90, 148.90, 35000000)
+INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume, dividends, splits) VALUES
+('AAPL', '2024-01-01', 175.00, 180.50, 174.20, 180.25, 180.25, 52000000, 0.0, 1.0),
+('MSFT', '2024-01-01', 420.00, 425.80, 418.90, 425.30, 425.30, 28000000, 0.0, 1.0),
+('GOOGL', '2024-01-01', 135.20, 139.00, 134.80, 138.45, 138.45, 31000000, 0.0, 1.0),
+('TSLA', '2024-01-01', 248.50, 256.20, 247.80, 255.75, 255.75, 67000000, 0.0, 1.0),
+('AMZN', '2024-01-01', 144.80, 149.20, 143.90, 148.90, 148.90, 35000000, 0.0, 1.0)
 ON CONFLICT (symbol, date) DO NOTHING;
 
 INSERT INTO earnings_history (symbol, quarter, eps_actual, eps_estimate, eps_difference, surprise_percent) VALUES
@@ -595,6 +642,33 @@ INSERT INTO buy_sell_monthly (symbol, timeframe, date, open, high, low, close, v
 ('AAPL', 'monthly', '2024-01-01', 170.00, 190.00, 160.00, 185.00, 1040000000, 'BUY', 170.00, 155.00, true),
 ('MSFT', 'monthly', '2024-01-01', 410.00, 440.00, 400.00, 435.00, 560000000, 'BUY', 410.00, 380.00, true)
 ON CONFLICT (symbol, timeframe, date) DO NOTHING;
+
+-- Drop and recreate portfolio_transactions table with correct structure
+DROP TABLE IF EXISTS portfolio_transactions;
+CREATE TABLE portfolio_transactions (
+    transaction_id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    transaction_type VARCHAR(20) NOT NULL,
+    quantity DECIMAL(15,4) NOT NULL,
+    price DECIMAL(15,4) NOT NULL,
+    total_amount DECIMAL(15,4) NOT NULL,
+    commission DECIMAL(10,4) DEFAULT 0.00,
+    transaction_date TIMESTAMP NOT NULL,
+    settlement_date TIMESTAMP,
+    notes TEXT,
+    user_id VARCHAR(50) NOT NULL,
+    broker VARCHAR(50) DEFAULT 'manual',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert test data for portfolio transactions
+INSERT INTO portfolio_transactions (symbol, transaction_type, quantity, price, total_amount, commission, transaction_date, settlement_date, notes, user_id, broker) VALUES
+('AAPL', 'BUY', 100.00, 150.00, 15000.00, 7.50, '2024-01-01', '2024-01-03', 'Initial AAPL purchase', 'dev-user-bypass', 'manual'),
+('MSFT', 'BUY', 50.00, 400.00, 20000.00, 5.00, '2024-01-02', '2024-01-04', 'MSFT position', 'dev-user-bypass', 'manual'),
+('GOOGL', 'SELL', 25.00, 140.00, 3500.00, 3.50, '2024-01-05', '2024-01-07', 'Partial GOOGL sale', 'dev-user-bypass', 'manual'),
+('TSLA', 'BUY', 30.00, 250.00, 7500.00, 4.00, '2024-01-10', '2024-01-12', 'Tesla investment', 'dev-user-bypass', 'manual'),
+('AMZN', 'DIVIDEND', 10.00, 3.50, 35.00, 0.00, '2024-01-15', '2024-01-15', 'Quarterly dividend', 'dev-user-bypass', 'manual')
+ON CONFLICT DO NOTHING;
 
 -- ETF tables for testing
 CREATE TABLE IF NOT EXISTS etfs (
@@ -632,6 +706,20 @@ INSERT INTO etf_holdings (etf_symbol, holding_symbol, company_name, weight_perce
 ('SPY', 'TSLA', 'Tesla Inc.', 2.8, 55000000, 9800000000, 'Consumer Cyclical'),
 ('SPY', 'AMZN', 'Amazon.com Inc.', 3.15, 65000000, 10500000000, 'Consumer Cyclical')
 ON CONFLICT (etf_symbol, holding_symbol) DO NOTHING;
+
+-- User alerts table for alerts functionality
+CREATE TABLE IF NOT EXISTS user_alerts (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    symbol VARCHAR(10) NOT NULL,
+    alert_type VARCHAR(50) NOT NULL,
+    condition_type VARCHAR(20) NOT NULL,
+    threshold_value DECIMAL(10,4),
+    message TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    triggered_at TIMESTAMP
+);
 
 -- Signal alerts table for signals route - matches expected schema from signals.js
 CREATE TABLE IF NOT EXISTS signal_alerts (
@@ -677,5 +765,88 @@ INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current
 ('test-user-123', 'AAPL', 10.0, 150.00, 175.50),
 ('test-user-123', 'MSFT', 5.0, 300.00, 420.75)
 ON CONFLICT (user_id, symbol) DO NOTHING;
+
+-- Missing sentiment analysis tables for sentiment routes
+CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    date DATE NOT NULL,
+    recommendation_mean NUMERIC(3,2),
+    price_target_vs_current NUMERIC(10,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+CREATE TABLE IF NOT EXISTS social_sentiment_analysis (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    date DATE NOT NULL,
+    news_sentiment_score NUMERIC(3,2),
+    reddit_sentiment_score NUMERIC(3,2),
+    search_volume_index INTEGER,
+    news_article_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Insert test sentiment data
+INSERT INTO analyst_sentiment_analysis (symbol, date, recommendation_mean, price_target_vs_current) VALUES
+('AAPL', CURRENT_DATE - INTERVAL '1 day', 1.8, 185.50),
+('AAPL', CURRENT_DATE - INTERVAL '2 days', 1.9, 182.00),
+('MSFT', CURRENT_DATE - INTERVAL '1 day', 2.1, 430.00),
+('GOOGL', CURRENT_DATE - INTERVAL '1 day', 1.7, 2800.00)
+ON CONFLICT (symbol, date) DO NOTHING;
+
+INSERT INTO social_sentiment_analysis (symbol, date, news_sentiment_score, reddit_sentiment_score, search_volume_index, news_article_count) VALUES
+('AAPL', CURRENT_DATE - INTERVAL '1 day', 0.65, 0.72, 85, 45),
+('AAPL', CURRENT_DATE - INTERVAL '2 days', 0.68, 0.70, 88, 42),
+('MSFT', CURRENT_DATE - INTERVAL '1 day', 0.71, 0.75, 75, 38),
+('GOOGL', CURRENT_DATE - INTERVAL '1 day', 0.63, 0.68, 92, 52)
+ON CONFLICT (symbol, date) DO NOTHING;
+
+-- Trading strategies table for strategyBuilder route
+CREATE TABLE IF NOT EXISTS trading_strategies (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255),
+    strategy_name VARCHAR(255) NOT NULL,
+    strategy_type VARCHAR(50) NOT NULL,
+    description TEXT,
+    strategy_description TEXT,
+    strategy_code TEXT,
+    backtest_id VARCHAR(255),
+    risk_settings JSONB,
+    hft_config JSONB,
+    deployment_status VARCHAR(50) DEFAULT 'draft',
+    parameters JSONB,
+    status VARCHAR(20) DEFAULT 'active',
+    performance_metrics JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- API keys table for trading mode helper
+CREATE TABLE IF NOT EXISTS api_keys (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    provider VARCHAR(100) NOT NULL,
+    api_key VARCHAR(500) NOT NULL,
+    api_secret VARCHAR(500),
+    is_sandbox BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, provider)
+);
+
+-- Insert test data for trading strategies
+INSERT INTO trading_strategies (user_id, strategy_name, strategy_type, description, risk_settings, hft_config, status) VALUES
+('test-user-123', 'Test HFT Strategy', 'HFT', 'High frequency trading strategy for testing', '{"maxDrawdown": 0.05}', '{"frequency": "high", "latency": 1}', 'active'),
+('test-user-123', 'Test Swing Strategy', 'SWING', 'Swing trading strategy for testing', '{"maxDrawdown": 0.10}', '{}', 'draft')
+ON CONFLICT DO NOTHING;
+
+-- Insert test data for api_keys
+INSERT INTO api_keys (user_id, provider, api_key, api_secret, is_sandbox) VALUES
+('test-user-123', 'alpaca', 'test_key_123', 'test_secret_123', true),
+('test-user-123', 'interactive_brokers', 'test_ib_key', 'test_ib_secret', false)
+ON CONFLICT (user_id, provider) DO NOTHING;
 
 COMMIT;
