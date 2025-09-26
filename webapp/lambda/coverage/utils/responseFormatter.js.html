@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">58.82% </span>
+                <span class="strong">64.7% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>10/17</span>
+                <span class='fraction'>11/17</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">5.88% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/34</span>
+                <span class='fraction'>2/34</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">12.5% </span>
+                <span class="strong">25% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/8</span>
+                <span class='fraction'>2/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">58.82% </span>
+                <span class="strong">64.7% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>10/17</span>
+                <span class='fraction'>11/17</span>
             </div>
         
             
@@ -281,25 +281,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -318,12 +299,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -365,11 +342,34 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -486,8 +486,8 @@
  * @param {Object} meta - Additional metadata
  * @returns {Object} Formatted success response
  */
-const success = (data, statusCode = <span class="branch-0 cbranch-no" title="branch not covered" >200,</span> meta = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> =&gt; {
-  return {
+const success = <span class="fstat-no" title="function not covered" >(d</span>ata, statusCode = <span class="branch-0 cbranch-no" title="branch not covered" >200,</span> meta = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> =&gt; {
+<span class="cstat-no" title="statement not covered" >  return {</span>
     response: {
       success: true,
       data,
@@ -505,13 +505,13 @@ const success = (data, statusCode = <span class="branch-0 cbranch-no" title="bra
  * @param {Object} details - Additional error details
  * @returns {Object} Formatted error response
  */
-const error = <span class="fstat-no" title="function not covered" >(m</span>essage, statusCode = <span class="branch-0 cbranch-no" title="branch not covered" >400,</span> details = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> =&gt; {
-<span class="cstat-no" title="statement not covered" >  return {</span>
+const error = (message, statusCode = <span class="branch-0 cbranch-no" title="branch not covered" >400,</span> details = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> =&gt; {
+  return {
     response: {
       success: false,
       error: message,
       timestamp: new Date().toISOString(),
-      service: details.service || "financial-platform",
+      service: details.service || <span class="branch-1 cbranch-no" title="branch not covered" >"financial-platform",</span>
       ...details,
     },
     statusCode,
@@ -574,8 +574,8 @@ const validationError = <span class="fstat-no" title="function not covered" >(e<
  * @param {Object} troubleshooting - Troubleshooting details
  * @returns {Object} Formatted not found response
  */
-const notFound = <span class="fstat-no" title="function not covered" >(r</span>esource = <span class="branch-0 cbranch-no" title="branch not covered" >"Resource",</span> troubleshooting = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> =&gt; {
-<span class="cstat-no" title="statement not covered" >  return error(`${resource} not found`, 404, {</span>
+const notFound = (resource = <span class="branch-0 cbranch-no" title="branch not covered" >"Resource",</span> troubleshooting = {}) =&gt; {
+  return error(`${resource} not found`, 404, {
     type: "not_found_error",
     service: "financial-platform",
     troubleshooting: {
@@ -688,7 +688,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-26T23:25:30.166Z
+                at 2025-09-26T23:27:16.637Z
             </div>
         <script src="../prettify.js"></script>
         <script>

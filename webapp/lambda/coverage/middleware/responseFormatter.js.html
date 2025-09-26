@@ -147,57 +147,57 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">53x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
@@ -219,9 +219,9 @@ const responseFormatterMiddleware = (req, res, next) =&gt; {
   res.set("Api-Version", "v1.0");
 &nbsp;
   // Add success method
-  res.success = (data, statusCode = <span class="branch-0 cbranch-no" title="branch not covered" >200,</span> meta = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> =&gt; {
-    const formatted = responseFormatter.success(data, statusCode, meta);
-    return res.status(formatted.statusCode).json(formatted.response);
+  res.success = <span class="fstat-no" title="function not covered" >(d</span>ata, statusCode = <span class="branch-0 cbranch-no" title="branch not covered" >200,</span> meta = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> =&gt; {
+    const formatted = <span class="cstat-no" title="statement not covered" >responseFormatter.success(data, statusCode, meta);</span>
+<span class="cstat-no" title="statement not covered" >    return res.status(formatted.statusCode).json(formatted.response);</span>
   };
 &nbsp;
   // Add error method
@@ -243,9 +243,9 @@ const responseFormatterMiddleware = (req, res, next) =&gt; {
   };
 &nbsp;
   // Add not found method
-  res.notFound = <span class="fstat-no" title="function not covered" >(r</span>esource = <span class="branch-0 cbranch-no" title="branch not covered" >"Resource")</span> =&gt; {
-    const formatted = <span class="cstat-no" title="statement not covered" >responseFormatter.notFound(resource);</span>
-<span class="cstat-no" title="statement not covered" >    return res.status(formatted.statusCode).json(formatted.response);</span>
+  res.notFound = (resource = <span class="branch-0 cbranch-no" title="branch not covered" >"Resource")</span> =&gt; {
+    const formatted = responseFormatter.notFound(resource);
+    return res.status(formatted.statusCode).json(formatted.response);
   };
 &nbsp;
   // Add unauthorized method
@@ -277,7 +277,7 @@ module.exports = responseFormatterMiddleware;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-26T23:25:30.166Z
+                at 2025-09-26T23:27:16.637Z
             </div>
         <script src="../prettify.js"></script>
         <script>
