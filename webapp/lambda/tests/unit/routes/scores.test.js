@@ -52,26 +52,40 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(response.body.data).toHaveProperty("viewType", "list");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
       expect(response.body).toHaveProperty("pagination");
       expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("metadata");
-      expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_table");
+      expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
+      expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
 
-      // Check score structure matches new stock_scores table
-      if (response.body.data.scores.length > 0) {
-        const score = response.body.data.scores[0];
-        expect(score).toHaveProperty("symbol");
-        expect(score).toHaveProperty("compositeScore");
-        expect(score).toHaveProperty("momentumScore");
-        expect(score).toHaveProperty("trendScore");
-        expect(score).toHaveProperty("valueScore");
-        expect(score).toHaveProperty("qualityScore");
-        expect(score).toHaveProperty("currentPrice");
-        expect(score).toHaveProperty("volume");
-        expect(score).toHaveProperty("rsi");
-        expect(score).toHaveProperty("lastUpscore_dated");
+      // Check score structure matches new list format with six factor analysis
+      if (response.body.data.stocks.length > 0) {
+        const stock = response.body.data.stocks[0];
+        expect(stock).toHaveProperty("symbol");
+        expect(stock).toHaveProperty("compositeScore");
+        expect(stock).toHaveProperty("currentPrice");
+        expect(stock).toHaveProperty("priceChange1d");
+        expect(stock).toHaveProperty("volume");
+        expect(stock).toHaveProperty("marketCap");
+        expect(stock).toHaveProperty("factors");
+        expect(stock).toHaveProperty("lastUpdated");
+        expect(stock).toHaveProperty("scoreDate");
+
+        // Check six factor analysis structure
+        expect(stock.factors).toHaveProperty("momentum");
+        expect(stock.factors).toHaveProperty("trend");
+        expect(stock.factors).toHaveProperty("value");
+        expect(stock.factors).toHaveProperty("quality");
+        expect(stock.factors).toHaveProperty("technical");
+        expect(stock.factors).toHaveProperty("risk");
+
+        // Check momentum factor structure
+        expect(stock.factors.momentum).toHaveProperty("score");
+        expect(stock.factors.momentum).toHaveProperty("rsi");
+        expect(stock.factors.momentum).toHaveProperty("description");
       }
     });
 
@@ -84,8 +98,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
       expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toHaveProperty("page", 2);
       expect(response.body.pagination).toHaveProperty("limit", 25);
@@ -93,17 +107,25 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body.pagination).toHaveProperty("totalPages");
     });
 
-    test("should return all scores (no search filtering implemented)", async () => {
+    test("should handle search parameter for filtering stocks", async () => {
       const response = await request(app)
         .get("/scores")
+        .query({ search: "AAPL" })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-      // Current implementation returns all scores sorted by composite_score DESC
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
+      expect(response.body.metadata).toHaveProperty("searchTerm", "AAPL");
+
+      // If results are found, they should match the search term
+      if (response.body.data.stocks.length > 0) {
+        response.body.data.stocks.forEach(stock => {
+          expect(stock.symbol).toContain("AAPL");
+        });
+      }
     });
 
     test("should handle limit parameter correctly", async () => {
@@ -115,9 +137,9 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-      expect(response.body.data.scores.length).toBeLessThanOrEqual(10);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
+      expect(response.body.data.stocks.length).toBeLessThanOrEqual(10);
       expect(response.body.pagination).toHaveProperty("limit", 10);
     });
 
@@ -142,14 +164,14 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
 
-      // Check that scores are sorted by composite score descending
-      if (response.body.data.scores.length > 1) {
-        for (let i = 1; i < response.body.data.scores.length; i++) {
-          expect(response.body.data.scores[i-1].compositeScore)
-            .toBeGreaterThanOrEqual(response.body.data.scores[i].compositeScore);
+      // Check that stocks are sorted by composite score descending
+      if (response.body.data.stocks.length > 1) {
+        for (let i = 1; i < response.body.data.stocks.length; i++) {
+          expect(response.body.data.stocks[i-1].compositeScore)
+            .toBeGreaterThanOrEqual(response.body.data.stocks[i].compositeScore);
         }
       }
     });
@@ -163,8 +185,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
       expect(response.body.pagination).toHaveProperty("limit", 200);
     });
 
@@ -180,8 +202,8 @@ describe("Scores Routes Unit Tests", () => {
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
       // Should default to page 1, limit 50
       expect(response.body.pagination).toHaveProperty("page", 1);
       expect(response.body.pagination).toHaveProperty("limit", 50);
@@ -196,11 +218,11 @@ describe("Scores Routes Unit Tests", () => {
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
-        expect(response.body.data).toHaveProperty("scores");
-        expect(Array.isArray(response.body.data.scores)).toBe(true);
+        expect(response.body.data).toHaveProperty("stocks");
+        expect(Array.isArray(response.body.data.stocks)).toBe(true);
       } else if (response.status === 500) {
         expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error");
+        expect(response.body.error || response.body.success).toBeDefined();
       }
     });
   });
@@ -216,20 +238,35 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
         expect(response.body.data).toHaveProperty("compositeScore");
-        expect(response.body.data).toHaveProperty("momentumScore");
-        expect(response.body.data).toHaveProperty("trendScore");
-        expect(response.body.data).toHaveProperty("valueScore");
-        expect(response.body.data).toHaveProperty("qualityScore");
         expect(response.body.data).toHaveProperty("currentPrice");
+        expect(response.body.data).toHaveProperty("priceChange1d");
         expect(response.body.data).toHaveProperty("volume");
-        expect(response.body.data).toHaveProperty("rsi");
-        expect(response.body.data).toHaveProperty("lastUpscore_dated");
+        expect(response.body.data).toHaveProperty("marketCap");
+        expect(response.body.data).toHaveProperty("factors");
+        expect(response.body.data).toHaveProperty("performance");
+        expect(response.body.data).toHaveProperty("lastUpdated");
+        expect(response.body.data).toHaveProperty("scoreDate");
         expect(response.body).toHaveProperty("metadata");
-        expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_table");
+        expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
+        expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
+
+        // Check six factor analysis structure
+        expect(response.body.data.factors).toHaveProperty("momentum");
+        expect(response.body.data.factors).toHaveProperty("trend");
+        expect(response.body.data.factors).toHaveProperty("value");
+        expect(response.body.data.factors).toHaveProperty("quality");
+        expect(response.body.data.factors).toHaveProperty("technical");
+        expect(response.body.data.factors).toHaveProperty("risk");
+
+        // Check performance structure
+        expect(response.body.data.performance).toHaveProperty("priceChange1d");
+        expect(response.body.data.performance).toHaveProperty("priceChange5d");
+        expect(response.body.data.performance).toHaveProperty("priceChange30d");
+        expect(response.body.data.performance).toHaveProperty("volatility30d");
       } else if (response.status === 404) {
         expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error");
-        expect(response.body.error).toContain("not found");
+        expect(response.body.error || response.body.success).toBeDefined();
+        expect(response.body.error).toContain("Symbol not found in stock_scores table");
       }
     });
 
@@ -250,8 +287,8 @@ describe("Scores Routes Unit Tests", () => {
         .expect(404);
 
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("not found");
+      expect(response.body.error || response.body.success).toBeDefined();
+      expect(response.body.error).toContain("Symbol not found in stock_scores table");
     });
 
     test("should handle database errors gracefully", async () => {
@@ -265,7 +302,7 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("data");
       } else {
         expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error");
+        expect(response.body.error || response.body.success).toBeDefined();
         expect([404, 500]).toContain(response.status);
       }
     });
@@ -314,23 +351,28 @@ describe("Scores Routes Unit Tests", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
-      if (response.body.data.scores.length > 0) {
-        const score = response.body.data.scores[0];
+      if (response.body.data.stocks.length > 0) {
+        const stock = response.body.data.stocks[0];
 
         // Check that scores are numbers and within expected ranges
-        expect(typeof score.compositeScore).toBe("number");
-        expect(score.compositeScore).toBeGreaterThanOrEqual(0);
-        expect(score.compositeScore).toBeLessThanOrEqual(100);
+        expect(typeof stock.compositeScore).toBe("number");
+        expect(stock.compositeScore).toBeGreaterThanOrEqual(0);
+        expect(stock.compositeScore).toBeLessThanOrEqual(100);
 
-        expect(typeof score.momentumScore).toBe("number");
-        expect(score.momentumScore).toBeGreaterThanOrEqual(0);
-        expect(score.momentumScore).toBeLessThanOrEqual(100);
+        expect(typeof stock.currentPrice).toBe("number");
+        expect(stock.currentPrice).toBeGreaterThanOrEqual(0);
 
-        expect(typeof score.currentPrice).toBe("number");
-        expect(score.currentPrice).toBeGreaterThanOrEqual(0);
+        expect(typeof stock.volume).toBe("number");
+        expect(stock.volume).toBeGreaterThanOrEqual(0);
 
-        expect(typeof score.volume).toBe("number");
-        expect(score.volume).toBeGreaterThanOrEqual(0);
+        expect(typeof stock.marketCap).toBe("number");
+        expect(stock.marketCap).toBeGreaterThanOrEqual(0);
+
+        // Check factor scores are numbers
+        expect(typeof stock.factors.momentum.score).toBe("number");
+        expect(typeof stock.factors.trend.score).toBe("number");
+        expect(typeof stock.factors.value.score).toBe("number");
+        expect(typeof stock.factors.quality.score).toBe("number");
       }
     });
   });

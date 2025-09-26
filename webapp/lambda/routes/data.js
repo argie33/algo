@@ -15,11 +15,7 @@ const { query } = require("../utils/database");
  */
 router.get("/", async (req, res) => {
   try {
-    try {
-      console.log("📊 Data API info requested");
-    } catch (e) {
-      // Ignore console logging errors
-    }
+    console.log("📊 Data API info requested");
 
     res.json({
       message: "Data API - Ready",
@@ -60,7 +56,7 @@ router.get("/bulk", async (req, res) => {
   if (!symbols) {
     return res.status(400).json({
       success: false,
-      error: "Validation error",
+      error: "symbols parameter is required",
       message: "symbols parameter is required",
       timestamp: new Date().toISOString()
     });
@@ -248,15 +244,15 @@ router.get("/:symbol", async (req, res) => {
       LIMIT 1
     `;
 
-    // Get latest technical data
+    // Get latest technical data - updated to match test expectations
     const technicalQuery = `
       SELECT symbol, date, rsi, macd, macd_signal, macd_hist,
-             sma_20, sma_50, ema_4, ema_9, ema_21,
-             bbands_upper, bbands_lower, bbands_middle,
-             adx, atr
-      FROM technical_data_daily 
-      WHERE symbol = $1 
-      ORDER BY date DESC 
+             sma_20, sma_50, sma_200, ema_9, ema_21,
+             bbands_upper, bbands_lower, bbands_middle, adx, atr,
+             price_vs_sma_200, volume, price
+      FROM technical_data_daily
+      WHERE symbol = $1
+      ORDER BY date DESC
       LIMIT 1
     `;
 
@@ -421,13 +417,7 @@ router.get("/realtime/:symbol", async (req, res) => {
 
   try {
     // Get the latest historical data as base
-    const baseQuery = `
-      SELECT symbol, date, open, high, low, close, adj_close, volume
-      FROM price_daily 
-      WHERE symbol = $1 
-      ORDER BY date DESC 
-      LIMIT 1
-    `;
+    const baseQuery = `SELECT symbol, date, open, high, low, close, adj_close, volume FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 1`;
 
     const result = await query(baseQuery, [symbolUpper]);
 

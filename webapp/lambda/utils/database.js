@@ -538,6 +538,9 @@ async function initializeSchema() {
           sma_20          DOUBLE PRECISION,
           sma_50          DOUBLE PRECISION,
           sma_200         DOUBLE PRECISION,
+          price_vs_sma_200 DOUBLE PRECISION,
+          volume          DOUBLE PRECISION,
+          price           DOUBLE PRECISION,
           ema_4           DOUBLE PRECISION,
           ema_9           DOUBLE PRECISION,
           ema_21          DOUBLE PRECISION,
@@ -869,18 +872,26 @@ async function initializeSchema() {
       {
         name: "stock_scores",
         sql: `CREATE TABLE IF NOT EXISTS stock_scores (
-          id SERIAL PRIMARY KEY,
-          symbol VARCHAR(10) NOT NULL,
-          date DATE NOT NULL,
-          composite_score DECIMAL(5,3),
-          quality_score DECIMAL(5,3),
-          value_score DECIMAL(5,3),
-          growth_score DECIMAL(5,3),
-          momentum_score DECIMAL(5,3),
-          sentiment DECIMAL(5,3),
-          positioning_score DECIMAL(5,3),
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(symbol, date)
+          symbol VARCHAR(50) PRIMARY KEY,
+          composite_score DECIMAL(5,2),
+          momentum_score DECIMAL(5,2),
+          trend_score DECIMAL(5,2),
+          value_score DECIMAL(5,2),
+          quality_score DECIMAL(5,2),
+          rsi DECIMAL(5,2),
+          macd DECIMAL(10,4),
+          sma_20 DECIMAL(10,2),
+          sma_50 DECIMAL(10,2),
+          volume_avg_30d BIGINT,
+          current_price DECIMAL(10,2),
+          price_change_1d DECIMAL(5,2),
+          price_change_5d DECIMAL(5,2),
+          price_change_30d DECIMAL(5,2),
+          volatility_30d DECIMAL(5,2),
+          market_cap BIGINT,
+          pe_ratio DECIMAL(8,2),
+          score_date DATE DEFAULT CURRENT_DATE,
+          last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
       },
       {
@@ -1071,9 +1082,11 @@ async function initializeSchema() {
     await insertInitialData();
 
     console.log("✅ Database schema initialization completed");
+    return true;
   } catch (error) {
     console.error("Schema initialization error:", error);
     // Don't throw - let the application continue with existing tables
+    return false;
   }
 }
 
@@ -1294,7 +1307,7 @@ async function query(text, params = []) {
       setTimeout(() => {
         reject(
           new Error(
-            `Query timeout after ${queryTimeout}ms: ${text.slice(0, 100)}...`
+            `Query timeout after ${queryTimeout}ms: ${typeof text === 'string' ? text.slice(0, 100) : JSON.stringify(text).slice(0, 100)}...`
           )
         );
       }, queryTimeout);
@@ -1316,7 +1329,7 @@ async function query(text, params = []) {
       });
     } else if (duration > 1000) {
       console.warn(`⏱️ Slow query (${duration}ms):`, {
-        query: text.slice(0, 100) + (text.length > 100 ? "..." : ""),
+        query: typeof text === 'string' ? text.slice(0, 100) + (text.length > 100 ? "..." : "") : JSON.stringify(text).slice(0, 100) + "...",
         rows: result.rowCount,
         duration: `${duration}ms`,
       });
@@ -1331,7 +1344,7 @@ async function query(text, params = []) {
   } catch (error) {
     console.error("Database query error:", {
       error: error.message,
-      query: text.slice(0, 100) + (text.length > 100 ? "..." : ""),
+      query: typeof text === 'string' ? text.slice(0, 100) + (text.length > 100 ? "..." : "") : JSON.stringify(text).slice(0, 100) + "...",
       params: params?.length ? `${params.length} parameters` : "no parameters",
       code: error.code,
     });
@@ -1431,6 +1444,7 @@ async function closeDatabase() {
     pool = null;
     dbInitialized = false;
     dbConfig = null;
+    initPromise = null; // Reset init promise to allow re-initialization
     // console.log('Database connections closed');
   }
 }

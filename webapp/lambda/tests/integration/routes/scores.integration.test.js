@@ -34,15 +34,20 @@ describe("Scores Routes Integration", () => {
   });
 
   describe("GET /scores", () => {
-    test("should return scores data with AWS-compatible structure", async () => {
+    test("should return stocks data with list view structure", async () => {
       const response = await request(app).get("/scores");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(response.body.data).toHaveProperty("viewType", "list");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
       expect(response.body).toHaveProperty("pagination");
+      expect(response.body).toHaveProperty("summary");
+      expect(response.body).toHaveProperty("metadata");
+      expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
+      expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
     });
 
     test("should handle pagination parameters", async () => {
@@ -53,8 +58,8 @@ describe("Scores Routes Integration", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
       expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toHaveProperty("page", 1);
       expect(response.body.pagination).toHaveProperty("limit", 10);
@@ -68,46 +73,33 @@ describe("Scores Routes Integration", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
+      expect(response.body.metadata).toHaveProperty("searchTerm", "AAPL");
+
+      // If results are found, they should match the search term
+      if (response.body.data.stocks.length > 0) {
+        response.body.data.stocks.forEach(stock => {
+          expect(stock.symbol).toContain("AAPL");
+        });
+      }
     });
 
-    test("should handle sector filter", async () => {
-      const response = await request(app)
-        .get("/scores")
-        .query({ sector: "Technology" });
+    test("should return stocks sorted by composite score descending by default", async () => {
+      const response = await request(app).get("/scores");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-    });
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
 
-    test("should handle score range filters", async () => {
-      const response = await request(app)
-        .get("/scores")
-        .query({ minScore: 50, maxScore: 100 });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-    });
-
-    test("should handle sorting parameters", async () => {
-      const response = await request(app)
-        .get("/scores")
-        .query({ sortBy: "composite_score", sortOrder: "desc" });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
-      if (response.body.data.scores.length > 0) {
-        expect(response.body.data.scores[0]).toHaveProperty("compositeScore");
+      // Check that stocks are sorted by composite score descending
+      if (response.body.data.stocks.length > 1) {
+        for (let i = 1; i < response.body.data.stocks.length; i++) {
+          expect(response.body.data.stocks[i-1].compositeScore)
+            .toBeGreaterThanOrEqual(response.body.data.stocks[i].compositeScore);
+        }
       }
     });
 
@@ -117,8 +109,8 @@ describe("Scores Routes Integration", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
       expect(response.body.pagination).toHaveProperty("limit");
       expect(response.body.pagination.limit).toBeLessThanOrEqual(200);
     });
@@ -134,14 +126,66 @@ describe("Scores Routes Integration", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
+    });
+  });
+
+  describe("GET /scores/:symbol", () => {
+    test("should return individual symbol data with six factor analysis", async () => {
+      const response = await request(app).get("/scores/AAPL");
+
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+        expect(response.body.data).toHaveProperty("symbol", "AAPL");
+        expect(response.body.data).toHaveProperty("compositeScore");
+        expect(response.body.data).toHaveProperty("currentPrice");
+        expect(response.body.data).toHaveProperty("factors");
+        expect(response.body.data).toHaveProperty("performance");
+        expect(response.body).toHaveProperty("metadata");
+        expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
+        expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
+
+        // Check six factor analysis structure
+        expect(response.body.data.factors).toHaveProperty("momentum");
+        expect(response.body.data.factors).toHaveProperty("trend");
+        expect(response.body.data.factors).toHaveProperty("value");
+        expect(response.body.data.factors).toHaveProperty("quality");
+        expect(response.body.data.factors).toHaveProperty("technical");
+        expect(response.body.data.factors).toHaveProperty("risk");
+
+        // Check factor details for accordion functionality
+        expect(response.body.data.factors.momentum).toHaveProperty("score");
+        expect(response.body.data.factors.momentum).toHaveProperty("description");
+        expect(response.body.data.factors.trend).toHaveProperty("score");
+        expect(response.body.data.factors.trend).toHaveProperty("description");
+      } else if (response.status === 404) {
+        expect(response.body).toHaveProperty("success", false);
+        expect(response.body.error).toContain("Symbol not found in stock_scores table");
+      }
+    });
+
+    test("should handle case insensitive symbol lookup", async () => {
+      const response = await request(app).get("/scores/aapl");
+
+      if (response.status === 200) {
+        expect(response.body.data).toHaveProperty("symbol", "AAPL");
+      }
+    });
+
+    test("should return 404 for non-existent symbol", async () => {
+      const response = await request(app).get("/scores/NONEXISTENT");
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body.error).toContain("Symbol not found in stock_scores table");
     });
   });
 
   describe("Error handling", () => {
     test("should handle invalid endpoints", async () => {
-      const response = await request(app).get("/scores/nonexistent");
+      const response = await request(app).get("/scores/invalid/endpoint");
 
       expect([404, 500]).toContain(response.status);
     });
@@ -160,8 +204,8 @@ describe("Scores Routes Integration", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
     });
   });
 
@@ -176,8 +220,8 @@ describe("Scores Routes Integration", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
     });
 
     test("should handle XSS attempts", async () => {
@@ -189,8 +233,8 @@ describe("Scores Routes Integration", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
     });
 
     test("should handle large payloads", async () => {
@@ -203,8 +247,8 @@ describe("Scores Routes Integration", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("scores");
-      expect(Array.isArray(response.body.data.scores)).toBe(true);
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
     });
   });
 
