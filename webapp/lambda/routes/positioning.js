@@ -1,6 +1,7 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
+const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -112,7 +113,7 @@ router.get("/stocks", async (req, res) => {
 });
 
 // Get positioning summary
-router.get("/summary", async (req, res) => {
+router.get("/summary", authenticateToken, async (req, res) => {
   try {
     // Get institutional flow summary from available data
     const institutionalSummary = await query(`

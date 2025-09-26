@@ -116,14 +116,8 @@ describe("Error Handler Middleware", () => {
       await request(app).get("/test-generic-error");
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error occurred:",
-        expect.objectContaining({
-          message: "Generic error message",
-          url: "/test-generic-error",
-          method: "GET",
-          timestamp: expect.any(String),
-          stack: expect.any(String),
-        })
+        "AWS Lambda Error:",
+        expect.stringMatching(/"message":\s*"Generic error message"/)
       );
     });
 

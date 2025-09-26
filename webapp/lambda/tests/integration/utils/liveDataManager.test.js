@@ -17,6 +17,32 @@ describe("Live Data Manager Integration Tests", () => {
     liveDataManager = new LiveDataManager();
   });
 
+  beforeEach(() => {
+    // Reset liveDataManager state before each test
+    if (liveDataManager) {
+      // Clear all connections
+      if (liveDataManager.connectionPool) {
+        liveDataManager.connectionPool.clear();
+      }
+      if (liveDataManager.connections) {
+        liveDataManager.connections.clear();
+      }
+      // Reset providers connections
+      if (liveDataManager.providers) {
+        liveDataManager.providers.forEach(provider => {
+          if (provider.connections) {
+            provider.connections.clear();
+          }
+        });
+      }
+      // Reset metrics
+      if (liveDataManager.metrics && liveDataManager.metrics.connections) {
+        liveDataManager.metrics.connections.total = 0;
+        liveDataManager.metrics.connections.active = 0;
+      }
+    }
+  });
+
   afterAll(async () => {
     await closeDatabase();
   });

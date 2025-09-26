@@ -11,6 +11,14 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
+// Mock the authentication middleware
+jest.mock("../../../middleware/auth", () => ({
+  authenticateToken: (req, res, next) => {
+    req.user = { sub: "test-user-123" };
+    next();
+  },
+}));
+
 describe("Recommendations Routes Unit Tests", () => {
   let app;
   let recommendationsRouter;
@@ -43,6 +51,11 @@ describe("Recommendations Routes Unit Tests", () => {
   });
 
   describe("GET /recommendations", () => {
+    beforeEach(() => {
+      // Default mock for all tests in this describe block
+      mockQuery.mockResolvedValue({ rows: [] });
+    });
+
     test("should return recommendations with mocked data", async () => {
       // Mock successful database response
       mockQuery.mockResolvedValue({
@@ -118,18 +131,12 @@ describe("Recommendations Routes Unit Tests", () => {
     test("should include comprehensive troubleshooting information", async () => {
       const response = await request(app).get("/recommendations");
 
-      expect(response.body.troubleshooting).toHaveProperty("suggestion");
-      expect(response.body.troubleshooting).toHaveProperty("required_setup");
-      expect(response.body.troubleshooting).toHaveProperty("status");
-      expect(Array.isArray(response.body.troubleshooting.required_setup)).toBe(
-        true
-      );
-      expect(response.body.troubleshooting.required_setup).toContain(
-        "Analyst recommendations data provider integration (Bloomberg, Refinitiv, S&P)"
-      );
-      expect(response.body.troubleshooting.required_setup).toContain(
-        "Recommendation consensus calculation modules"
-      );
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("recommendations");
+      expect(response.body).toHaveProperty("summary");
+      expect(response.body).toHaveProperty("filters");
+      expect(response.body).toHaveProperty("timestamp");
     });
 
     test("should handle different category parameters", async () => {
@@ -140,9 +147,9 @@ describe("Recommendations Routes Unit Tests", () => {
           .get("/recommendations")
           .query({ category });
 
-        expect(response.status).toBe(501);
+        expect(response.status).toBe(200);
         expect(response.body.filters).toHaveProperty("category", category);
-        expect(response.body).toHaveProperty("success", false);
+        expect(response.body).toHaveProperty("success", true);
       }
     });
 
@@ -151,7 +158,7 @@ describe("Recommendations Routes Unit Tests", () => {
         .get("/recommendations")
         .query({ symbol: "AAPL" });
 
-      expect(response.status).toBe(501);
+      expect(response.status).toBe(200);
       expect(response.body.filters).toHaveProperty("category", "all"); // default value
     });
 
@@ -163,9 +170,9 @@ describe("Recommendations Routes Unit Tests", () => {
           .get("/recommendations")
           .query({ timeframe });
 
-        expect(response.status).toBe(501);
+        expect(response.status).toBe(200);
         expect(response.body.filters).toHaveProperty("timeframe", timeframe);
-        expect(response.body).toHaveProperty("success", false);
+        expect(response.body).toHaveProperty("success", true);
       }
     });
 
@@ -174,9 +181,9 @@ describe("Recommendations Routes Unit Tests", () => {
         .get("/recommendations")
         .query({ analyst: "morgan_stanley" });
 
-      expect(response.status).toBe(501);
+      expect(response.status).toBe(200);
       expect(response.body.filters).toHaveProperty("analyst", "morgan_stanley");
-      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("success", true);
     });
 
     test("should handle limit parameter and parse as integer", async () => {
@@ -184,15 +191,15 @@ describe("Recommendations Routes Unit Tests", () => {
         .get("/recommendations")
         .query({ limit: "100" });
 
-      expect(response.status).toBe(501);
+      expect(response.status).toBe(200);
       expect(response.body.filters).toHaveProperty("limit", 100); // Should be parsed as number
-      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("success", true);
     });
 
     test("should handle default limit parameter", async () => {
       const response = await request(app).get("/recommendations");
 
-      expect(response.status).toBe(501);
+      expect(response.status).toBe(200);
       expect(response.body.filters).toHaveProperty("limit", 20); // default value
     });
 
@@ -201,17 +208,17 @@ describe("Recommendations Routes Unit Tests", () => {
         .get("/recommendations")
         .query({ symbol: "GOOGL" });
 
-      expect(response.status).toBe(501);
-      expect(response.body).toHaveProperty("symbol", "GOOGL");
-      expect(response.body).toHaveProperty("success", false);
+      expect(response.status).toBe(200);
+      expect(response.body.filters).toHaveProperty("symbol", "GOOGL");
+      expect(response.body).toHaveProperty("success", true);
     });
 
     test("should handle no symbol parameter", async () => {
       const response = await request(app).get("/recommendations");
 
-      expect(response.status).toBe(501);
-      expect(response.body).toHaveProperty("symbol", null);
-      expect(response.body).toHaveProperty("success", false);
+      expect(response.status).toBe(200);
+      expect(response.body.filters.symbol).toBeUndefined();
+      expect(response.body).toHaveProperty("success", true);
     });
   });
 
@@ -255,9 +262,9 @@ describe("Recommendations Routes Unit Tests", () => {
 
       const response = await request(app).get("/recommendations");
 
-      // Should still return the not implemented response
-      expect(response.status).toBe(501);
-      expect(response.body).toHaveProperty("success", false);
+      // Should still return the success response
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
 
       // Restore console.error
       console.error = originalConsoleError;
@@ -270,9 +277,9 @@ describe("Recommendations Routes Unit Tests", () => {
         analyst: "special!@#$%^&*()characters",
       });
 
-      expect(response.status).toBe(501);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body.filters).toHaveProperty("limit", NaN); // parseInt of invalid string
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.filters.limit == null || isNaN(response.body.filters.limit)).toBe(true); // parseInt of invalid string
       expect(response.body.filters).toHaveProperty(
         "category",
         "invalid_category_but_still_works"
@@ -286,9 +293,9 @@ describe("Recommendations Routes Unit Tests", () => {
         analyst: "<script>alert('xss')</script>",
       });
 
-      expect(response.status).toBe(501);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty(
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.filters).toHaveProperty(
         "symbol",
         "AAPL'; DROP TABLE recommendations; --"
       );
@@ -306,11 +313,11 @@ describe("Recommendations Routes Unit Tests", () => {
         analyst: "",
       });
 
-      expect(response.status).toBe(501);
-      expect(response.body).toHaveProperty("symbol", "");
+      expect(response.status).toBe(200);
+      expect(response.body.filters).toHaveProperty("symbol", "");
       expect(response.body.filters).toHaveProperty("category", "");
       expect(response.body.filters).toHaveProperty("analyst", "");
-      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("success", true);
     });
   });
 
@@ -324,16 +331,14 @@ describe("Recommendations Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("timestamp");
     });
 
-    test("should include detailed implementation requirements", async () => {
+    test("should include proper response structure", async () => {
       const response = await request(app).get("/recommendations");
 
-      expect(response.body).toHaveProperty("details");
-      expect(response.body.details).toContain("analyst recommendations data");
-      expect(response.body).toHaveProperty("troubleshooting");
-      expect(response.body.troubleshooting).toHaveProperty("required_setup");
-      expect(
-        response.body.troubleshooting.required_setup.length
-      ).toBeGreaterThan(0);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("recommendations");
+      expect(response.body).toHaveProperty("summary");
+      expect(response.body).toHaveProperty("filters");
+      expect(response.body).toHaveProperty("timestamp");
     });
 
     test("should preserve query parameters in response", async () => {
@@ -343,7 +348,7 @@ describe("Recommendations Routes Unit Tests", () => {
         limit: "25",
       });
 
-      expect(response.body).toHaveProperty("symbol", "TSLA");
+      expect(response.body.filters).toHaveProperty("symbol", "TSLA");
       expect(response.body.filters).toHaveProperty("category", "buy");
       expect(response.body.filters).toHaveProperty("limit", 25);
     });
@@ -366,7 +371,7 @@ describe("Recommendations Routes Unit Tests", () => {
   });
 
   describe("Future implementation readiness", () => {
-    test("should be ready for future implementation with proper parameter handling", async () => {
+    test("should handle comprehensive parameter requests with proper structure", async () => {
       const response = await request(app).get("/recommendations").query({
         symbol: "AAPL",
         category: "buy",
@@ -375,18 +380,14 @@ describe("Recommendations Routes Unit Tests", () => {
         limit: "30",
       });
 
-      // Response structure should support future implementation
-      expect(response.body).toHaveProperty("symbol");
+      // Response structure should be complete and functional
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("filters");
+      expect(response.body.filters).toHaveProperty("symbol", "AAPL");
       expect(response.body).toHaveProperty("timestamp");
-
-      // Troubleshooting info indicates what needs to be implemented
-      expect(response.body.troubleshooting.required_setup).toContain(
-        "Price target and rating tracking system"
-      );
-      expect(response.body.troubleshooting.required_setup).toContain(
-        "Analyst firm and individual analyst tracking"
-      );
+      expect(response.body).toHaveProperty("recommendations");
+      expect(response.body).toHaveProperty("summary");
     });
 
     test("should handle all expected recommendation categories", async () => {
@@ -397,8 +398,10 @@ describe("Recommendations Routes Unit Tests", () => {
           .get("/recommendations")
           .query({ category });
 
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("success", true);
         expect(response.body.filters).toHaveProperty("category", category);
-        // Future implementation should support these categories
+        // Implementation supports these categories
       }
     });
   });

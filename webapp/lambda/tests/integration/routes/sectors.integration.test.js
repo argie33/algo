@@ -43,7 +43,7 @@ describe("Sectors Routes", () => {
 
     test("should handle period parameter", async () => {
       const response = await request(app).get(
-        "/api/sectors/performance?period=1M"
+        "/api/sectors/performance?period=1m"
       );
 
       expect(response.status).toBe(200);
@@ -57,8 +57,8 @@ describe("Sectors Routes", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty("gainers");
-      expect(response.body.data).toHaveProperty("losers");
+      expect(response.body.data).toHaveProperty("top_performing_sectors");
+      expect(response.body.data).toHaveProperty("sector_breadth");
     });
   });
 
@@ -68,14 +68,16 @@ describe("Sectors Routes", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty("rotation");
-      expect(response.body.data).toHaveProperty("momentum");
+      expect(response.body.data).toHaveProperty("sector_rankings");
+      expect(response.body.data).toHaveProperty("market_cycle");
     });
   });
 
-  describe("GET /api/sectors/:sector", () => {
+  describe("GET /api/sectors/:sector/details", () => {
     test("should return specific sector data", async () => {
-      const response = await request(app).get("/api/sectors/Technology");
+      const response = await request(app)
+        .get("/api/sectors/Technology/details")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -104,13 +106,16 @@ describe("Sectors Routes", () => {
     });
   });
 
-  describe("GET /api/sectors/heatmap", () => {
-    test("should return sector heatmap data", async () => {
-      const response = await request(app).get("/api/sectors/heatmap");
+  describe("GET /api/sectors/allocation", () => {
+    test("should return sector allocation data", async () => {
+      const response = await request(app)
+        .get("/api/sectors/allocation")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data).toHaveProperty("allocation");
+      expect(Array.isArray(response.body.data.allocation)).toBe(true);
     });
   });
 });

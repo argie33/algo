@@ -15,6 +15,10 @@ async function tableExists(tableName) {
       );
     `;
     const result = await query(tableCheckQuery, [tableName]);
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result:', result);
+      return null;
+    }
     return result.rows[0].exists;
   } catch (error) {
     console.warn(`Error checking table existence for ${tableName}:`, error);
@@ -109,7 +113,12 @@ router.get("/:symbol", async (req, res) => {
       });
     }
 
-    const priceData = result.rows[0];
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for priceData:', result);
+      const priceData = null;
+    } else {
+      const priceData = result.rows[0];
+    }
 
     return res.json({
       success: true,
@@ -622,7 +631,12 @@ router.get("/latest/:symbol", async (req, res) => {
       });
     }
 
-    const latestData = result.rows[0];
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for latestData:', result);
+      const latestData = null;
+    } else {
+      const latestData = result.rows[0];
+    }
 
     res.json({
       success: true,

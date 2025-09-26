@@ -27,7 +27,7 @@ class SentimentEngine {
    */
   scoreToLabel(score) {
     try {
-      if (typeof score !== "number" || isNaN(score)) {
+      if (typeof score !== "number" || isNaN(score) || !isFinite(score)) {
         return "neutral";
       }
 

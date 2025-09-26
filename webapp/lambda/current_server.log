@@ -1,0 +1,31 @@
+
+> financial-dashboard-lambda@1.0.0 start
+> node index.js
+
+JWT verifier initialized successfully
+🚨 Alert System initialized
+🔍 Alert monitoring started
+🚨 Alert system integration initialized
+📊 Monitoring started
+🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+🔌 WebSocket endpoint: ws://localhost:3001/ws
+Processing request: GET /api/screener/screen
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+Stock screening with filters: {}
+Executing screener queries with params: 2 parameters
+::1 - - [26/Sep/2025:01:38:24 +0000] "GET /api/screener/screen HTTP/1.1" 200 152 "-" "curl/8.5.0"
+Processing request: GET /api/signals/list
+Database connection verified for database-dependent endpoint
+📊 Signals requested for symbol: LIST
+📊 Fetching real signals for LIST from buy_sell_daily table
+::1 - - [26/Sep/2025:01:38:43 +0000] "GET /api/signals/list HTTP/1.1" 404 186 "-" "curl/8.5.0"

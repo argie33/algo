@@ -8,6 +8,10 @@ const request = require("supertest");
 const express = require("express");
 const { query } = require("../../../utils/database");
 
+// Mock database query function
+jest.mock("../../../utils/database");
+const mockQuery = query;
+
 // Create test app
 const app = express();
 app.use(express.json());

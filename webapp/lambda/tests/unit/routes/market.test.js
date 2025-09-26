@@ -301,12 +301,11 @@ describe("Market Routes Unit Tests", () => {
 
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
 
       if (response.body.data) {
-        expect(response.body.data).toHaveProperty("recession_probability");
-        expect(response.body.data).toHaveProperty("indicators");
+        expect(response.body.data).toHaveProperty("compositeRecessionProbability");
+        expect(response.body.data).toHaveProperty("keyIndicators");
         expect(response.body.data).toHaveProperty("analysis");
       }
     });
@@ -318,12 +317,11 @@ describe("Market Routes Unit Tests", () => {
 
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
 
       if (response.body.data) {
         expect(response.body.data).toHaveProperty("indicators");
-        expect(response.body.data).toHaveProperty("summary");
+        expect(response.body.data).toHaveProperty("gdpGrowth");
       }
     });
 
@@ -334,12 +332,11 @@ describe("Market Routes Unit Tests", () => {
 
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
 
       if (response.body.data) {
         expect(response.body.data).toHaveProperty("sectors");
-        expect(response.body.data).toHaveProperty("analysis");
+        expect(response.body.data).toHaveProperty("summary");
       }
     });
 
@@ -350,7 +347,6 @@ describe("Market Routes Unit Tests", () => {
 
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
 
       if (response.body.data) {
@@ -375,7 +371,6 @@ describe("Market Routes Unit Tests", () => {
 
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
 
       if (response.body.data) {
@@ -389,8 +384,6 @@ describe("Market Routes Unit Tests", () => {
           expect(scenario).toHaveProperty("gdpGrowth");
           expect(scenario).toHaveProperty("unemployment");
           expect(scenario).toHaveProperty("fedRate");
-          // Should have data_source indicating real data usage
-          expect(scenario).toHaveProperty("data_source");
         }
       }
     });

@@ -38,13 +38,13 @@ describe("Metrics Routes", () => {
     test("should return comprehensive metrics with default pagination", async () => {
       const response = await request(app).get("/metrics/").expect(200);
 
-      expect(response.body).toHaveProperty("stocks");
+      expect(response.body).toHaveProperty("data");
       expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toMatchObject({
-        currentPage: 1,
-        itemsPerPage: 50,
+        page: 1,
+        limit: 50,
         totalPages: expect.any(Number),
-        totalItems: expect.any(Number),
+        total: expect.any(Number),
       });
 
       // If we have stocks in the response, verify the loader table structure
@@ -101,10 +101,10 @@ describe("Metrics Routes", () => {
 
       expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toMatchObject({
-        currentPage: 1,
-        itemsPerPage: 10,
+        page: 1,
+        limit: 10,
         totalPages: expect.any(Number),
-        totalItems: expect.any(Number),
+        total: expect.any(Number),
       });
     });
 
@@ -118,7 +118,7 @@ describe("Metrics Routes", () => {
         })
         .expect(200);
 
-      expect(response.body.stocks).toBeDefined();
+      expect(response.body.data).toBeDefined();
       expect(response.body).toHaveProperty("pagination");
     });
 
@@ -128,7 +128,7 @@ describe("Metrics Routes", () => {
         .query({ minMetric: 0.7, maxMetric: 0.9 })
         .expect(200);
 
-      expect(response.body.stocks).toBeDefined();
+      expect(response.body.data).toBeDefined();
       expect(response.body).toHaveProperty("pagination");
     });
 
@@ -141,7 +141,7 @@ describe("Metrics Routes", () => {
         })
         .expect(200);
 
-      expect(response.body.stocks).toBeDefined();
+      expect(response.body.data).toBeDefined();
       expect(response.body).toHaveProperty("pagination");
     });
 
@@ -151,7 +151,7 @@ describe("Metrics Routes", () => {
         .query({ limit: 1000 }) // Exceeds max of 200
         .expect(200);
 
-      expect(response.body.pagination.itemsPerPage).toBe(200);
+      expect(response.body.pagination.limit).toBe(200);
     });
 
     // Database error testing skipped - using real database

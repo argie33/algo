@@ -4,23 +4,26 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
-// Mapping of common economic indicator names to FRED series IDs
+// Mapping of common economic indicator names to actual database series IDs
 const SERIES_MAPPING = {
-  'GDP': 'GDPC1',           // Real Gross Domestic Product
-  'CPI': 'CPIAUCSL',        // Consumer Price Index
+  'GDP': 'GDP',             // GDP (matches database)
+  'CPI': 'CPI',             // Consumer Price Index (database has both CPI and CPIAUCSL)
   'UNEMPLOYMENT': 'UNRATE', // Unemployment Rate
+  'UNEMPLOYMENT_RATE': 'UNRATE', // Alternative unemployment rate name
   'FEDERAL_FUNDS': 'FEDFUNDS', // Federal Funds Rate
-  'INFLATION': 'CPIAUCSL',  // Use CPI for inflation
+  'INFLATION': 'CPI',       // Use CPI for inflation
   'PAYROLL': 'PAYEMS',      // Nonfarm Payrolls
-  'VIX': 'VIXCLS',          // VIX Volatility Index
-  'SP500': 'SP500',         // S&P 500 Index
   'HOUSING_STARTS': 'HOUST', // Housing Starts
-  'PERMITS': 'PERMIT',      // Building Permits
-  'MORTGAGE_RATES': 'MORTGAGE30US', // 30-Year Fixed Mortgage Rate
   'YIELD_10Y': 'DGS10',     // 10-Year Treasury Yield
   'YIELD_2Y': 'DGS2',       // 2-Year Treasury Yield
-  'YIELD_CURVE': 'T10Y2Y',  // 10Y-2Y Treasury Spread
   'MONEY_SUPPLY': 'M2SL',   // M2 Money Supply
+
+  // Keep original mappings for any series we don't have in database yet
+  'VIX': 'VIXCLS',          // VIX Volatility Index
+  'SP500': 'SP500',         // S&P 500 Index
+  'PERMITS': 'PERMIT',      // Building Permits
+  'MORTGAGE_RATES': 'MORTGAGE30US', // 30-Year Fixed Mortgage Rate
+  'YIELD_CURVE': 'T10Y2Y',  // 10Y-2Y Treasury Spread
   'FED_BALANCE': 'WALCL',   // Federal Reserve Balance Sheet
   'CORE_CPI': 'CPILFESL',   // Core CPI (excluding food and energy)
   'PCE': 'PCEPI',           // Personal Consumption Expenditures Price Index
@@ -264,12 +267,30 @@ router.get("/indicators", async (req, res) => {
       `📊 Economic indicators requested, category: ${category || "all"}`
     );
 
+    // Since we don't have category data in our economic_data table,
+    // we'll simulate categories by mapping series types
     let whereClause = "";
     const queryParams = [];
 
     if (category) {
-      whereClause = "WHERE category = $1";
-      queryParams.push(category);
+      // Map category filters to series patterns since we don't have a category column
+      switch (category.toLowerCase()) {
+        case 'growth':
+          whereClause = "WHERE series_id IN ('GDP', 'GDPC1')";
+          break;
+        case 'inflation':
+          whereClause = "WHERE series_id IN ('CPI', 'CPIAUCSL')";
+          break;
+        case 'employment':
+          whereClause = "WHERE series_id = 'UNRATE'";
+          break;
+        case 'monetary':
+          whereClause = "WHERE series_id = 'FEDFUNDS'";
+          break;
+        default:
+          // For unknown categories, return empty result but with 200 status
+          whereClause = "WHERE 1=0";
+      }
     }
 
     const indicatorsResult = await query(
@@ -291,14 +312,14 @@ router.get("/indicators", async (req, res) => {
     );
 
     if (!indicatorsResult.rows || indicatorsResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No economic indicators found",
-        message:
-          "No economic indicators available. Please check if economic data tables exist.",
+      return res.status(200).json({
+        success: true,
+        data: [],
+        categories: {},
+        message: "No indicators found for the specified criteria",
         details: {
           category: category || "all",
-          suggestion: "Ensure economic data has been loaded into the database",
+          total_indicators: 0,
         },
       });
     }
@@ -339,22 +360,36 @@ router.get("/calendar", async (req, res) => {
     );
 
     // Since we don't have a dedicated calendar table, simulate with economic data releases
+    // Map importance filter to our simulated data
+    const importanceLevel = importance ? importance.toLowerCase() : null;
+    let importanceFilter = 'Medium'; // default
+    if (importanceLevel === 'high') importanceFilter = 'high';
+    if (importanceLevel === 'low') importanceFilter = 'low';
+
     const calendarResult = await query(
       `
-      SELECT 
+      SELECT
         series_id as event_name,
         date as event_date,
         value as forecast_value,
-        'Medium' as importance,
+        CASE
+          WHEN $3 = 'high' THEN 'high'
+          WHEN $3 = 'low' THEN 'low'
+          ELSE 'Medium'
+        END as importance,
         'US' as country,
         'Data Release' as event_type
-      FROM economic_data 
+      FROM economic_data
       WHERE date >= COALESCE(NULLIF($1, '')::date, CURRENT_DATE - INTERVAL '30 days')
         AND date <= COALESCE(NULLIF($2, '')::date, CURRENT_DATE + INTERVAL '30 days')
+        AND ($3 IS NULL OR $3 = '' OR
+             ($3 = 'high' AND series_id IN ('FEDFUNDS', 'UNRATE', 'CPIAUCSL')) OR
+             ($3 = 'medium' AND series_id IN ('GDPC1', 'VIXCLS')) OR
+             ($3 = 'low' AND series_id IN ('GDP', 'CPI')))
       ORDER BY date DESC
       LIMIT 100
     `,
-      [start_date, end_date]
+      [start_date, end_date, importanceLevel]
     );
 
     res.json({

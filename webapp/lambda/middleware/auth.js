@@ -8,8 +8,14 @@ const { validateJwtToken } = require("../utils/apiKeyService");
 
 // Enhanced authentication middleware with session management
 const authenticateToken = (req, res, next) => {
-  // In test environment, use simple JWT validation to match test expectations
-  if (process.env.NODE_ENV === "test") {
+  // Development bypass for local testing
+  if (process.env.ALLOW_DEV_BYPASS === "true" && process.env.NODE_ENV === "development") {
+    req.user = { id: "dev_user", sub: "dev_user", username: "dev_user" };
+    return next();
+  }
+
+  // In test environment OR development environment, use simple JWT validation to match test expectations
+  if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development") {
     const authHeader = req.headers["authorization"];
 
     if (!authHeader) {
@@ -58,9 +64,11 @@ const authenticateToken = (req, res, next) => {
     // Check for special bypass tokens in test environment
     if (token === "dev-bypass-token" || token === "test-token" || token === "mock-access-token") {
       console.log(`🔧 Test mode: Using ${token} for authentication`);
+      const userId = token === "dev-bypass-token" ? "dev-user-bypass" :
+                     token === "mock-access-token" ? "mock-user-123" : "test-user-123";
       req.user = {
-        sub: token === "dev-bypass-token" ? "dev-user-bypass" :
-             token === "mock-access-token" ? "mock-user-123" : "test-user-123",
+        id: userId,  // Add id field for route compatibility
+        sub: userId,
         email:
           token === "dev-bypass-token"
             ? "dev-bypass@example.com"

@@ -14,6 +14,13 @@ async function tableExists(tableName) {
       );
     `;
     const result = await query(tableCheckQuery, [tableName]);
+
+    // Add safety check for undefined result
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn(`Table check returned invalid result for ${tableName}:`, result);
+      return false;
+    }
+
     return result.rows[0].exists;
   } catch (error) {
     console.warn(`Error checking table existence for ${tableName}:`, error);
@@ -248,7 +255,7 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
     const { ticker } = req.params;
 
     // Check if analyst sentiment table exists
-    if (!(await tableExists("analyst_sentiment_analysis"))) {
+    if (!(await tableExists("sentiment_analysis"))) {
       return res.json({
         success: true,
         ticker: ticker.toUpperCase(),
@@ -256,7 +263,7 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
         metadata: {
           count: 0,
           timestamp: new Date().toISOString(),
-          message: "Analyst sentiment data not yet loaded",
+          message: "EPS revision data not available",
         },
       });
     }
@@ -270,7 +277,7 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
         0 as down_last30days,
         0 as down_last7days,
         asa.created_at as fetched_at
-      FROM analyst_sentiment_analysis asa
+      FROM sentiment_analysis asa
       WHERE UPPER(asa.symbol) = UPPER($1)
       ORDER BY asa.created_at DESC
       LIMIT 1
@@ -734,8 +741,8 @@ router.get("/recent-actions", async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(50, parseInt(req.query.limit) || 10));
 
-    // Check if analyst sentiment table exists
-    if (!(await tableExists("analyst_sentiment_analysis"))) {
+    // Check if analyst upgrade/downgrade table exists
+    if (!(await tableExists("analyst_upgrade_downgrade"))) {
       return res.json({
         data: [],
         summary: {
@@ -745,19 +752,19 @@ router.get("/recent-actions", async (req, res) => {
           downgrades: 0,
           neutrals: 0,
         },
-        message: "Analyst sentiment data not yet loaded",
+        message: "Analyst data not yet loaded",
         metadata: {
           timestamp: new Date().toISOString(),
         },
       });
     }
 
-    // Get the most recent date with analyst actions from sentiment analysis
+    // Get the most recent date with analyst actions
     const recentDateQuery = `
-      SELECT DISTINCT created_at::date as date
-      FROM analyst_sentiment_analysis
-      WHERE created_at IS NOT NULL
-      ORDER BY created_at::date DESC
+      SELECT DISTINCT date
+      FROM analyst_upgrade_downgrade
+      WHERE date IS NOT NULL
+      ORDER BY date DESC
       LIMIT 1
     `;
 
@@ -779,31 +786,22 @@ router.get("/recent-actions", async (req, res) => {
 
     const mostRecentDate = recentDateResult.rows[0].date;
 
-    // Get all actions for the most recent date from sentiment analysis
+    // Get all actions for the most recent date
     const recentActionsQuery = `
-      SELECT 
-        asa.symbol,
-        s.name as company_name,
-        NULL as from_grade,
-        NULL as to_grade,
-        CASE
-          WHEN asa.average_rating > 3.0 THEN 'Upgrade'
-          WHEN asa.average_rating < 2.5 THEN 'Downgrade'
-          ELSE 'Neutral'
-        END as action,
-        'Analyst Consensus' as firm,
-        asa.date,
-        ('Recent activity: Rating ' || COALESCE(asa.average_rating::text, '0') || ', ' || COALESCE(asa.analyst_count::text, '0') || ' analysts') as details,
-        CASE
-          WHEN asa.average_rating > 3.0 THEN 'upgrade'
-          WHEN asa.average_rating < 2.5 THEN 'downgrade'
-          ELSE 'neutral'
-        END as action_type
-      FROM analyst_sentiment_analysis asa
-      LEFT JOIN company_profile cp ON asa.symbol = cp.ticker
-      WHERE asa.created_at::date = $1
-        AND asa.analyst_count > 0
-      ORDER BY asa.created_at::date DESC, asa.symbol ASC
+      SELECT
+        aud.symbol,
+        cp.short_name as company_name,
+        aud.from_grade,
+        aud.to_grade,
+        aud.action,
+        aud.firm,
+        aud.date,
+        aud.details,
+        LOWER(aud.action) as action_type
+      FROM analyst_upgrade_downgrade aud
+      LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
+      WHERE aud.date = $1
+      ORDER BY aud.date DESC, aud.symbol ASC
       LIMIT $2
     `;
 

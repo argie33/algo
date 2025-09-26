@@ -1067,10 +1067,10 @@ router.get("/recent", authenticateToken, async (req, res) => {
       paramCounter++;
     }
 
+    // Note: portfolio_transactions table doesn't have status column
+    // Status filtering is not available for recent transactions
     if (status && status !== "all") {
-      whereConditions.push(`status = $${paramCounter}`);
-      params.push(status.toUpperCase());
-      paramCounter++;
+      console.log(`⚠️ Status filter '${status}' ignored - portfolio_transactions table has no status column`);
     }
 
     whereConditions.push(`o.created_at >= $${paramCounter}`);
@@ -1080,18 +1080,30 @@ router.get("/recent", authenticateToken, async (req, res) => {
     paramCounter++;
 
     const ordersQuery = `
-      SELECT 
-        o.*,
-        CASE 
+      SELECT
+        o.transaction_id,
+        o.symbol,
+        o.transaction_type,
+        o.quantity,
+        o.price,
+        o.total_amount,
+        o.commission,
+        o.transaction_date,
+        o.settlement_date,
+        o.notes,
+        o.user_id,
+        o.broker,
+        o.created_at,
+        CASE
           WHEN p.close IS NOT NULL THEN p.close
-          ELSE o.price 
+          ELSE o.price
         END as current_price,
-        CASE 
+        CASE
           WHEN p.close IS NOT NULL THEN (p.close - o.price) / o.price * 100
-          ELSE 0 
+          ELSE 0
         END as price_distance_pct,
         CASE
-          WHEN o.status = 'FILLED' AND p.close IS NOT NULL THEN
+          WHEN p.close IS NOT NULL THEN
             CASE
               WHEN o.transaction_type = 'buy' THEN (p.close - o.price) * o.quantity
               ELSE (o.price - p.close) * o.quantity

@@ -256,14 +256,19 @@ router.post("/validate", authenticateToken, async (req, res) => {
 
     logger.info("Strategy validation completed", {
       userId,
-      isValid: validation.isValid,
+      isValid: validation.valid,
       errorCount: validation.errors?.length || 0,
       warningCount: validation.warnings?.length || 0,
     });
 
     res.json({
       success: true,
-      validation: validation,
+      validation: {
+        isValid: validation.valid,
+        errors: validation.errors,
+        warnings: validation.warnings,
+        suggestions: validation.suggestions
+      },
     });
   } catch (err) {
     logger.error("Strategy validation error", {
@@ -300,71 +305,21 @@ router.post("/run-ai-strategy", authenticateToken, async (req, res) => {
       });
     }
 
-    // Set default backtest configuration
-    const _backtestConfig = {
-      startDate: config.startDate || "2023-01-01",
-      endDate: config.endDate || "2023-12-31",
-      initialCapital: config.initialCapital || 100000,
-      commission: config.commission || 0.001,
-      slippage: config.slippage || 0.0005,
-      ...config,
-    };
-
     // Use strategy symbols if none provided
-    const backtestSymbols = symbols.length > 0 ? symbols : strategy.symbols;
-    if (backtestSymbols.length === 0) {
+    const backtestSymbols = symbols.length > 0 ? symbols : (strategy.symbols || []);
+    if (!backtestSymbols || backtestSymbols.length === 0) {
       return res.status(400).json({
         success: false,
         error: "At least one symbol is required for backtesting",
       });
     }
 
-    // Run backtest using existing backtest engine
-    try {
-      const engineConfig = {
-        initialCapital: _backtestConfig.initialCapital || 100000,
-        commission: _backtestConfig.commission || 0.001,
-        slippage: _backtestConfig.slippage || 0.001,
-        startDate: _backtestConfig.startDate || "2023-01-01",
-        endDate: _backtestConfig.endDate || "2024-01-01",
-        symbols: backtestSymbols,
-        strategy: strategy,
-        strategyType: "ai_generated",
-      };
-
-      // Create and store the backtest
-      const backtestResult = backtestStore.addStrategy({
-        name: `AI Strategy - ${strategy.name || "Generated"}`,
-        description: strategy.description || "AI generated trading strategy",
-        code: strategy.code || strategy.logic,
-        config: engineConfig,
-        userId: userId,
-        type: "ai_strategy",
-        created: new Date().toISOString(),
-        status: "completed",
-      });
-
-      return res.json({
-        success: true,
-        data: {
-          backtest_id: backtestResult.id,
-          strategy: strategy,
-          config: engineConfig,
-          message: "AI strategy backtest initiated successfully",
-        },
-      });
-    } catch (backtestError) {
-      logger.error("Backtest execution failed", {
-        userId: userId,
-        error: backtestError.message,
-      });
-
-      return res.status(500).json({
-        success: false,
-        error: "Backtest execution failed",
-        message: backtestError.message,
-      });
-    }
+    // Return not implemented error for backtesting functionality
+    return res.status(500).json({
+      success: false,
+      error: "AI strategy backtesting is not implemented",
+      message: "AI strategy backtest execution is not yet implemented",
+    });
   } catch (err) {
     logger.error("AI strategy backtest error", {
       userId: req.user?.id,
@@ -430,13 +385,20 @@ router.post("/deploy-hft", authenticateToken, async (req, res) => {
       });
     }
 
-    // Deploy strategy to database for HFT execution
+    // HFT deployment is not implemented yet
+    return res.status(501).json({
+      success: false,
+      error: "HFT deployment is not implemented",
+      message: "High-frequency trading deployment is not yet implemented",
+    });
+
+    // Deploy strategy to database for HFT execution (disabled)
     try {
       const deploymentQuery = `
         INSERT INTO trading_strategies (
           user_id, strategy_name, strategy_description, strategy_code,
-          backtest_id, risk_settings, hft_config, deployment_status, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+          backtest_id, risk_settings, hft_config, deployment_status, strategy_type
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, strategy_name, deployment_status, created_at
       `;
 
@@ -457,6 +419,7 @@ router.post("/deploy-hft", authenticateToken, async (req, res) => {
         JSON.stringify(riskSettings),
         JSON.stringify(_hftConfig),
         "pending_review", // Requires manual approval for live trading
+        "hft", // strategy_type
       ]);
 
       if (!deploymentResult.rows || deploymentResult.rows.length === 0) {

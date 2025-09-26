@@ -399,8 +399,8 @@ router.get("/api-keys", async (req, res) => {
 
     res.json({
       success: true,
-      apiKeys: providers,
-      providers: providers,
+      apiKeys: providers.providers || [],
+      providers: providers.providers || [],
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

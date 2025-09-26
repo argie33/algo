@@ -209,7 +209,7 @@ describe("Database Real Site Functionality Tests", () => {
     test("should verify database connection and schema integrity", async () => {
       const healthResult = await healthCheck();
 
-      expect(healthResult).toBe(true);
+      expect(healthResult.status).toBe("healthy");
 
       // Test actual schema by checking table structure
       const columnsResult = await query(`
@@ -263,7 +263,7 @@ describe("Database Real Site Functionality Tests", () => {
       const createResult = await query(`
         CREATE TEMPORARY TABLE ${tempTableName} (
           id SERIAL PRIMARY KEY,
-          test_symbol VARCHAR(10) NOT NULL UNIQUE,
+          test_symbol VARCHAR(50) NOT NULL UNIQUE,
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
@@ -335,7 +335,7 @@ describe("Database Real Site Functionality Tests", () => {
     test("should perform accurate health checks", async () => {
       const isHealthy = await healthCheck();
 
-      expect(isHealthy).toBe(true);
+      expect(isHealthy.status).toBe("healthy");
 
       // Verify health check actually tests database responsiveness
       const startTime = Date.now();

@@ -80,7 +80,7 @@ describe("Authentication Flow Integration", () => {
         "/api/portfolio",
         "/api/portfolio/summary",
         "/api/alerts/active",
-        "/api/trades",
+        "/api/trades/summary",
       ];
 
       for (const endpoint of protectedEndpoints) {

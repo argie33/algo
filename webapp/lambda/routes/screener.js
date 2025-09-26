@@ -353,41 +353,23 @@ router.get("/screen", async (req, res) => {
     const mainQuery = `
       SELECT
         cp.ticker as symbol,
-        COALESCE(cp.short_name, cp.long_name) as company_name,
+        cp.short_name as company_name,
         cp.sector,
-        cp.exchange_name as exchange,
+        cp.exchange,
         pd.close as price,
         pd.volume,
         pd.date as price_date,
         md.market_cap,
-        km.trailing_pe as NULL as pe_ratio,
+        km.trailing_pe as pe_ratio,
         km.dividend_yield,
-        sc.overall_score as factor_score,
-        CASE
-          WHEN sc.overall_score >= 80 THEN 'A'
-          WHEN sc.overall_score >= 70 THEN 'B'
-          WHEN sc.overall_score >= 60 THEN 'C'
-          WHEN sc.overall_score >= 50 THEN 'D'
-          ELSE 'F'
-        END as factor_grade,
+        NULL as factor_score,
+        'N/A' as factor_grade,
         NULL as sma_20,
         NULL as sma_50,
         NULL as sma_200,
-        CASE
-          WHEN pd.close > LAG(pd.close, 63) OVER (PARTITION BY cp.ticker ORDER BY pd.date)
-          THEN ((pd.close / LAG(pd.close, 63) OVER (PARTITION BY cp.ticker ORDER BY pd.date)) - 1) * 100
-          ELSE NULL
-        END as price_momentum_3m,
-        CASE
-          WHEN pd.close > LAG(pd.close, 252) OVER (PARTITION BY cp.ticker ORDER BY pd.date)
-          THEN ((pd.close / LAG(pd.close, 252) OVER (PARTITION BY cp.ticker ORDER BY pd.date)) - 1) * 100
-          ELSE NULL
-        END as price_momentum_12m,
-        CASE
-          WHEN pd.close IS NOT NULL AND pd.close > 0 AND LAG(pd.close) OVER (PARTITION BY cp.ticker ORDER BY pd.date) > 0
-          THEN ((pd.close - LAG(pd.close) OVER (PARTITION BY cp.ticker ORDER BY pd.date)) / LAG(pd.close) OVER (PARTITION BY cp.ticker ORDER BY pd.date)) * 100
-          ELSE 0
-        END as price_change_percent,
+        NULL as price_momentum_3m,
+        NULL as price_momentum_12m,
+        0 as price_change_percent,
         NULL as rsi,
         NULL as macd,
         NULL as macd_signal
@@ -401,18 +383,7 @@ router.get("/screen", async (req, res) => {
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON cp.ticker = pd.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, NULL as price_to_book
-        FROM financial_ratios
-        ORDER BY symbol, fiscal_year DESC
-      ) km ON cp.ticker = km.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol, overall_score
-        FROM stock_scores
-        ORDER BY symbol, date DESC
-      ) sc ON cp.ticker = sc.symbol
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       WHERE pd.close IS NOT NULL AND pd.close > 0
       ${whereConditions.length > 0 ? "AND " + whereConditions.join(" AND ") : ""}
       ${orderBy}
@@ -434,18 +405,7 @@ router.get("/screen", async (req, res) => {
           AND close IS NOT NULL AND close > 0
         ORDER BY symbol, date DESC
       ) pd ON cp.ticker = pd.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol, price_to_earnings as trailing_pe, NULL as dividend_yield, NULL as peg_ratio, NULL as price_to_book
-        FROM financial_ratios
-        ORDER BY symbol, fiscal_year DESC
-      ) km ON cp.ticker = km.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol, overall_score
-        FROM stock_scores
-        ORDER BY symbol, date DESC
-      ) sc ON cp.ticker = sc.symbol
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       WHERE pd.close IS NOT NULL AND pd.close > 0
       ${whereConditions.length > 0 ? "AND " + whereConditions.join(" AND ") : ""}
     `;
@@ -1418,7 +1378,7 @@ router.post("/export", async (req, res) => {
         md.market_cap,
  NULL as pe_ratio,
         s.dividend_yield,
-        0,
+        0 as beta,
         50 as factor_score
       FROM company_profile cp
       LEFT JOIN (
@@ -1765,10 +1725,10 @@ router.get("/stocks", async (req, res) => {
             ROUND(((pd.close - pd.previous_close) / pd.previous_close * 100)::numeric, 2)
           ELSE 0 
         END as change_percent,
-        ss.technical_score,
-        ss.fundamental_score,
-        ss.sentiment,
-        ss.overall_score
+        NULL as technical_score,
+        NULL as fundamental_score,
+        NULL as sentiment,
+        NULL as overall_score
       FROM (
         SELECT DISTINCT ON (symbol) symbol, close_price as close, volume, open_price as open,
                high_price as high, low_price as low, date, previous_close
@@ -1776,7 +1736,6 @@ router.get("/stocks", async (req, res) => {
         WHERE ${whereConditions.join(" AND ")}
         ORDER BY symbol, date DESC
       ) pd
-      LEFT JOIN stock_scores ss ON pd.symbol = scp.ticker
       ORDER BY ${orderByClause}
       LIMIT $${paramIndex}
     `;

@@ -18,6 +18,10 @@ async function tableExists(tableName) {
       );
     `;
     const result = await query(tableCheckQuery, [tableName]);
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result:', result);
+      return null;
+    }
     return result.rows[0].exists;
   } catch (error) {
     console.warn(`Error checking table existence for ${tableName}:`, error);
@@ -299,7 +303,12 @@ router.get("/quote/:symbol", async (req, res) => {
       });
     }
 
-    const priceData = result.rows[0];
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for priceData:', result);
+      const priceData = null;
+    } else {
+      const priceData = result.rows[0];
+    }
 
     // Calculate change and change percent if we have previous close
     const change = priceData.previous_close
@@ -698,7 +707,13 @@ router.get("/:symbol", async (req, res, next) => {
       });
     }
 
-    const stock = result.rows[0];
+    let stock = null;
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for stock:', result);
+      stock = null;
+    } else {
+      stock = result.rows[0];
+    }
 
     res.json({
       success: true,
@@ -726,7 +741,7 @@ router.get("/:symbol", async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error(`Individual stock error for ${req.paramcp.ticker}:`, error);
+    console.error(`Individual stock error for ${req.params.ticker}:`, error);
     res.status(500).json({
       success: false,
       error: "Database query failed",
@@ -980,7 +995,7 @@ router.get("/", async (req, res) => {
 
       // Exchange & categorization
       exchange: stock.exchange,
-      fullExchangeName: stock.full_exchange_name || stock.exchange,
+      fullExchangeName: stock.exchange,
       marketCategory: stock.market_category || "Standard",
       market: stock.market || stock.exchange,
       financialStatus: stock.financial_status,
@@ -1146,7 +1161,7 @@ router.get("/", async (req, res) => {
       // Professional presentation with rich data
       displayData: {
         primaryExchange:
-          stock.full_exchange_name || stock.exchange || "Unknown",
+          stock.exchange || "Unknown",
         category: stock.market_category || stock.type || "Standard",
         type: stock.type || "Stock",
         tradeable: stock.is_active === true,
@@ -1288,7 +1303,7 @@ router.get("/", async (req, res) => {
           "phone_number",
           "currency",
           "market",
-          "full_exchange_name",
+          "exchange",
 
           // Market data
           "current_price",
@@ -2829,7 +2844,12 @@ router.get("/price/:symbol", async (req, res) => {
       });
     }
 
-    const latestPrice = result.rows[0];
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for latestPrice:', result);
+      const latestPrice = null;
+    } else {
+      const latestPrice = result.rows[0];
+    }
     const priceData = {
       symbol: symbolUpper,
       current_price: parseFloat(latestPrice.close),
@@ -2974,7 +2994,13 @@ router.get("/:ticker", async (req, res) => {
       });
     }
 
-    const stock = result.rows[0];
+    let stock = null;
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for stock:', result);
+      stock = null;
+    } else {
+      stock = result.rows[0];
+    }
 
     // FIXED RESPONSE - Using the correct data structure
     const response = {
@@ -3679,7 +3705,12 @@ router.get("/screen/stats", async (req, res) => {
     }
 
     if (result && result.rows.length > 0) {
+      if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for stats:', result);
+      const stats = null;
+    } else {
       const stats = result.rows[0];
+    }
 
       res.json({
         success: true,
@@ -3948,7 +3979,19 @@ router.get("/:symbol/quote", async (req, res) => {
       );
     }
 
-    const quote = result.rows[0];
+    let quote;
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for quote:', result);
+      return res.status(404).json({
+        success: false,
+        message: "Quote data not found for symbol",
+        error: `No quote data available for ${symbol.toUpperCase()}`,
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      quote = result.rows[0];
+    }
+
     res.success(
       {
         quote: {
@@ -4007,7 +4050,12 @@ router.get("/:symbol/price", async (req, res) => {
       );
     }
 
-    const priceData = result.rows[0];
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for priceData:', result);
+      const priceData = null;
+    } else {
+      const priceData = result.rows[0];
+    }
     res.success(
       {
         price: {
@@ -4133,7 +4181,12 @@ router.get("/:symbol/fundamentals", async (req, res) => {
       );
     }
 
-    const company = result.rows[0];
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for company:', result);
+      const company = null;
+    } else {
+      const company = result.rows[0];
+    }
     res.success(
       {
         fundamentals: {
@@ -4508,7 +4561,12 @@ router.get("/price/:symbol", async (req, res) => {
       });
     }
 
-    const latestPrice = result.rows[0];
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Query returned invalid result for latestPrice:', result);
+      const latestPrice = null;
+    } else {
+      const latestPrice = result.rows[0];
+    }
     const priceData = {
       symbol: symbolUpper,
       current_price: parseFloat(latestPrice.close),

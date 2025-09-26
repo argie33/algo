@@ -291,9 +291,9 @@ class AIStrategyGenerator {
     const lowerPrompt = prompt.toLowerCase();
 
     // Extract action intent
-    if (lowerPrompt.includes("buy") || lowerPrompt.includes("long")) {
+    if (lowerPrompt.includes("buy") || lowerPrompt.includes("long") || lowerPrompt.includes("purchase")) {
       intent.action = "buy";
-    } else if (lowerPrompt.includes("sell") || lowerPrompt.includes("short")) {
+    } else if (lowerPrompt.includes("sell") || lowerPrompt.includes("short") || lowerPrompt.includes("exit")) {
       intent.action = "sell";
     } else if (
       lowerPrompt.includes("trade") ||
@@ -338,11 +338,12 @@ class AIStrategyGenerator {
 
     // Extract timeframe
     const timeframePatterns = {
-      "1min": ["1 minute", "1min", "minute"],
-      "5min": ["5 minute", "5min"],
+      "1min": ["1 minute", "1min"],
+      "5min": ["5 minute", "5min", "5 minute scalping"],
       "15min": ["15 minute", "15min"],
       "1hour": ["1 hour", "1h", "hourly"],
       "1day": ["daily", "1 day", "1d", "day"],
+      "1week": ["weekly", "1 week", "1w", "week"],
     };
 
     for (const [timeframe, patterns] of Object.entries(timeframePatterns)) {
@@ -385,6 +386,19 @@ class AIStrategyGenerator {
       intent.riskTolerance = "high";
     }
 
+    // Determine strategy type based on content
+    if (lowerPrompt.includes("momentum") || lowerPrompt.includes("trend following")) {
+      intent.strategyType = "momentum";
+    } else if (lowerPrompt.includes("mean reversion") || lowerPrompt.includes("reversal")) {
+      intent.strategyType = "mean_reversion";
+    } else if (lowerPrompt.includes("breakout")) {
+      intent.strategyType = "breakout";
+    } else if (lowerPrompt.includes("scalping")) {
+      intent.strategyType = "scalping";
+    } else if (lowerPrompt.includes("swing")) {
+      intent.strategyType = "swing";
+    }
+
     return intent;
   }
 
@@ -424,9 +438,8 @@ class AIStrategyGenerator {
    */
   filterSymbolsByIntent(intent, availableSymbols) {
     if (!availableSymbols || availableSymbols.length === 0) {
-      throw new Error(
-        "No symbols available for strategy generation. Symbol data service must be configured and accessible for AI strategy creation."
-      );
+      // Return empty array gracefully instead of throwing error
+      return [];
     }
 
     let filtered = availableSymbols;
@@ -478,7 +491,18 @@ class AIStrategyGenerator {
     // Add natural language comment
     const comment = `# AI Generated Strategy: ${intent.description}\n# Generated on: ${new Date().toISOString()}\n\n`;
 
-    return comment + code;
+    // Wrap the code in error handling
+    const errorHandlingWrapper = `try:
+    ${code.split('\n').map(line => '    ' + line).join('\n')}
+except Exception as e:
+    print(f"Error: {e}")
+    signals.append({
+        'action': 'ERROR',
+        'error': str(e),
+        'timestamp': pd.Timestamp.now()
+    })`;
+
+    return comment + errorHandlingWrapper;
   }
 
   /**
@@ -491,14 +515,18 @@ class AIStrategyGenerator {
 import pandas as pd
 import numpy as np
 
-# Strategy Parameters
-short_window = parameters.get('short_window', 10)
-long_window = parameters.get('long_window', 30)
-position_size = parameters.get('position_size', 0.1)
+def momentum_strategy(data_frames, parameters, context, signals):
+    """
+    Momentum trading strategy using moving average crossovers
+    """
+    # Strategy Parameters
+    short_window = parameters.get('short_window', 10)
+    long_window = parameters.get('long_window', 30)
+    position_size = parameters.get('position_size', 0.1)
 
-# Process each symbol
-for symbol in data_frames.keys():
-    df = data_frames[symbol]
+    # Process each symbol
+    for symbol in data_frames.keys():
+        df = data_frames[symbol]
     
     if len(df) < long_window:
         continue
@@ -575,11 +603,15 @@ signals.append({
 import pandas as pd
 import numpy as np
 
-# Strategy Parameters
-rsi_period = parameters.get('rsi_period', 14)
-oversold_threshold = parameters.get('oversold_threshold', 30)
-overbought_threshold = parameters.get('overbought_threshold', 70)
-position_size = parameters.get('position_size', 0.1)
+def mean_reversion_strategy(data_frames, parameters, context, signals):
+    """
+    Mean reversion strategy using RSI indicator
+    """
+    # Strategy Parameters
+    rsi_period = parameters.get('rsi_period', 14)
+    oversold_threshold = parameters.get('oversold_threshold', 30)
+    overbought_threshold = parameters.get('overbought_threshold', 70)
+    position_size = parameters.get('position_size', 0.1)
 
 def calculate_rsi(prices, period=14):
     """Calculate RSI indicator"""
@@ -1112,7 +1144,7 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
    */
   async validateStrategy(strategy) {
     const validation = {
-      isValid: true,
+      valid: true,
       errors: [],
       warnings: [],
       suggestions: [],
@@ -1121,16 +1153,41 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
     // Basic validation
     if (!strategy.code || strategy.code.trim().length === 0) {
       validation.errors.push("Strategy code is required");
-      validation.isValid = false;
+      validation.valid = false;
     }
 
     if (!strategy.name || strategy.name.trim().length === 0) {
       validation.errors.push("Strategy name is required");
-      validation.isValid = false;
+      validation.valid = false;
+    }
+
+    if (!strategy.description || strategy.description.trim().length === 0) {
+      validation.errors.push("Strategy description is required");
+      validation.valid = false;
+    }
+
+    if (!strategy.parameters || typeof strategy.parameters !== 'object') {
+      validation.errors.push("Strategy parameters are required");
+      validation.valid = false;
     }
 
     // Code validation
     if (strategy.code) {
+      // Basic syntax validation - check for common Python syntax issues
+      const lines = strategy.code.split('\n');
+      for (const line of lines) {
+        // Check for unmatched parentheses in function definitions
+        if (line.includes('def ') && line.includes('(')) {
+          const openParens = (line.match(/\(/g) || []).length;
+          const closeParens = (line.match(/\)/g) || []).length;
+          if (openParens !== closeParens) {
+            validation.errors.push("Code contains syntax errors in function definition");
+            validation.valid = false;
+            break;
+          }
+        }
+      }
+
       if (!strategy.code.includes("signals.append")) {
         validation.warnings.push(
           "Strategy does not generate any trading signals"
@@ -1152,8 +1209,9 @@ data_frames = {k: v for k, v in data_frames.items() if k in target_symbols}
     // Parameter validation
     if (strategy.parameters) {
       Object.entries(strategy.parameters).forEach(([key, value]) => {
-        if (typeof value !== "number" || isNaN(value)) {
-          validation.warnings.push(`Parameter ${key} should be a valid number`);
+        if (typeof value !== "number" || isNaN(value) || value === null || value === undefined) {
+          validation.errors.push(`Parameter ${key} should be a valid number`);
+          validation.valid = false;
         }
       });
     }

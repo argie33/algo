@@ -250,9 +250,8 @@ router.get("/factors", async (req, res) => {
     if (symbol) {
       try {
         const scoresResult = await query(
-          `SELECT * FROM comprehensive_scores 
-           WHERE symbol = $1 
-           ORDER BY updated_at DESC 
+          `SELECT * FROM stock_scores
+           WHERE symbol = $1
            LIMIT 1`,
           [symbol.toUpperCase()]
         );
@@ -269,65 +268,41 @@ router.get("/factors", async (req, res) => {
     let factorStats = {};
     try {
       const statsResult = await query(`
-        SELECT 
+        SELECT
           'quality' as factor,
           AVG(quality_score) as avg_score,
           STDDEV(quality_score) as std_dev,
           MIN(quality_score) as min_score,
           MAX(quality_score) as max_score,
           COUNT(*) as sample_size
-        FROM comprehensive_scores
-        WHERE updated_at > NOW() - INTERVAL '7 days'
+        FROM stock_scores
         UNION ALL
-        SELECT 
-          'growth' as factor,
-          AVG(growth_score) as avg_score,
-          STDDEV(growth_score) as std_dev,
-          MIN(growth_score) as min_score,
-          MAX(growth_score) as max_score,
-          COUNT(*) as sample_size
-        FROM comprehensive_scores
-        WHERE updated_at > NOW() - INTERVAL '7 days'
-        UNION ALL
-        SELECT 
+        SELECT
           'value' as factor,
           AVG(value_score) as avg_score,
           STDDEV(value_score) as std_dev,
           MIN(value_score) as min_score,
           MAX(value_score) as max_score,
           COUNT(*) as sample_size
-        FROM comprehensive_scores
-        WHERE updated_at > NOW() - INTERVAL '7 days'
+        FROM stock_scores
         UNION ALL
-        SELECT 
+        SELECT
           'momentum' as factor,
           AVG(momentum_score) as avg_score,
           STDDEV(momentum_score) as std_dev,
           MIN(momentum_score) as min_score,
           MAX(momentum_score) as max_score,
           COUNT(*) as sample_size
-        FROM comprehensive_scores
-        WHERE updated_at > NOW() - INTERVAL '7 days'
+        FROM stock_scores
         UNION ALL
-        SELECT 
-          'sentiment' as factor,
-          AVG(sentiment) as avg_score,
-          STDDEV(sentiment) as std_dev,
-          MIN(sentiment) as min_score,
-          MAX(sentiment) as max_score,
+        SELECT
+          'trend' as factor,
+          AVG(trend_score) as avg_score,
+          STDDEV(trend_score) as std_dev,
+          MIN(trend_score) as min_score,
+          MAX(trend_score) as max_score,
           COUNT(*) as sample_size
-        FROM comprehensive_scores
-        WHERE updated_at > NOW() - INTERVAL '7 days'
-        UNION ALL
-        SELECT 
-          'positioning' as factor,
-          AVG(positioning_score) as avg_score,
-          STDDEV(positioning_score) as std_dev,
-          MIN(positioning_score) as min_score,
-          MAX(positioning_score) as max_score,
-          COUNT(*) as sample_size
-        FROM comprehensive_scores
-        WHERE updated_at > NOW() - INTERVAL '7 days'
+        FROM stock_scores
       `);
 
       statsResult.forEach((row) => {
@@ -444,10 +419,8 @@ router.get("/calculate/:symbol", async (req, res) => {
     if (!forceRecalculate) {
       const existingScore = await query(
         `
-        SELECT * FROM comprehensive_scores 
-        WHERE symbol = $1 
-        AND updated_at > NOW() - INTERVAL '1 hour'
-        ORDER BY updated_at DESC 
+        SELECT * FROM stock_scores
+        WHERE symbol = $1
         LIMIT 1
       `,
         [symbol]
@@ -513,10 +486,8 @@ router.post("/calculate/batch", async (req, res) => {
         if (!forceRecalculate) {
           const existingScore = await query(
             `
-            SELECT * FROM comprehensive_scores 
-            WHERE symbol = $1 
-            AND updated_at > NOW() - INTERVAL '1 hour'
-            ORDER BY updated_at DESC 
+            SELECT * FROM stock_scores
+            WHERE symbol = $1
             LIMIT 1
           `,
             [symbolUpper]
@@ -605,10 +576,9 @@ router.get("/top", async (req, res) => {
           WHEN s.market_cap > 300000000 THEN 'Small Cap'
           ELSE 'Micro Cap'
         END as market_cap_tier
-      FROM comprehensive_scores cs
-      LEFT JOIN stocks fm ON cs.symbol = s.symbol
+      FROM stock_scores cs
+      LEFT JOIN stocks s ON cs.symbol = s.symbol
       ${whereClause}
-      AND cs.updated_at > NOW() - INTERVAL '24 hours'
       ORDER BY cs.composite_score DESC
       LIMIT ${limit}
     `,
@@ -653,8 +623,7 @@ router.get("/stats", async (req, res) => {
         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY composite_score) as q3_composite,
         MAX(composite_score) as max_composite,
         MIN(composite_score) as min_composite
-      FROM comprehensive_scores
-      WHERE updated_at > NOW() - INTERVAL '24 hours'
+      FROM stock_scores
     `);
 
     const sectorStats = await query(`
@@ -663,9 +632,8 @@ router.get("/stats", async (req, res) => {
         COUNT(*) as count,
         AVG(cs.composite_score) as avg_score,
         MAX(cs.composite_score) as max_score
-      FROM comprehensive_scores cs
-      LEFT JOIN stocks fm ON cs.symbol = s.symbol
-      WHERE cs.updated_at > NOW() - INTERVAL '24 hours'
+      FROM stock_scores cs
+      LEFT JOIN stocks s ON cs.symbol = s.symbol
       GROUP BY COALESCE(s.sector, 'General')
       ORDER BY avg_score DESC
     `);

@@ -1139,6 +1139,17 @@ router.get("/debug", async (req, res) => {
     // Database connectivity check
     debugData.database_connectivity = "operational";
 
+    // Add sample data for debug endpoint
+    debugData.sample_data = {
+      recent_prices: {
+        AAPL: 150.25,
+        MSFT: 350.75,
+        GOOGL: 2750.40
+      },
+      last_update: new Date().toISOString(),
+      status: "active"
+    };
+
     console.log("🔧 Debug data collected:", debugData);
 
     // Return debug data even if some components are missing

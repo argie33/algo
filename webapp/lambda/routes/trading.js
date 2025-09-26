@@ -1707,6 +1707,7 @@ router.get("/simulator", async (req, res) => {
                        tradingTableColumns.current_price ? 'current_price' :
                        tradingTableColumns.close_price ? 'close_price' :
                        tradingTableColumns.entry_price ? 'entry_price' :
+                       tradingTableColumns.close ? 'close' :
                        '0'; // Fallback value if no price column found
 
     console.log(`🎮 Using price column: ${priceColumn} for trading simulation`);

@@ -1500,45 +1500,5 @@ router.post("/subscriptions", async (req, res) => {
   }
 });
 
-// Live data stream
-router.get("/stream", async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: {
-        stream: "unavailable",
-        message: "Live streaming not implemented",
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Live data stream unavailable",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
-
-// Live quotes
-router.get("/quotes", async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: {
-        quotes: [],
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Live quotes unavailable",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 module.exports = router;

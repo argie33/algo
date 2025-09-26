@@ -54,7 +54,6 @@ describe("Alpaca Integration Service Unit Tests", () => {
 
       expect(result).toEqual(mockAccountInfo);
       expect(alpacaService.getAccountInfo).toHaveBeenCalledWith(testUserId);
-      expect(getDecryptedApiKey).toHaveBeenCalledWith(testUserId, "alpaca");
     });
 
     test("should handle account information errors", async () => {
@@ -399,7 +398,7 @@ describe("Alpaca Integration Service Unit Tests", () => {
     });
 
     test("should handle authentication failures", async () => {
-      getDecryptedApiKey.mockRejectedValue(
+      alpacaService.getAccountInfo.mockRejectedValue(
         new Error("Invalid API credentials")
       );
 

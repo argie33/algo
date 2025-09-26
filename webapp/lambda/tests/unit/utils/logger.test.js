@@ -34,13 +34,14 @@ describe("Logger", () => {
     });
 
     test("should initialize with environment variables", () => {
+      // Set environment variables before creating new instance
       process.env.LOG_LEVEL = "DEBUG";
       process.env.SERVICE_NAME = "test-service";
       process.env.APP_VERSION = "2.0.0";
 
-      // Create new logger instance
-      delete require.cache[require.resolve("../../../utils/logger")];
-      const newLogger = require("../../../utils/logger");
+      // Create new logger instance that will read the updated environment
+      const { Logger } = require("../../../utils/logger");
+      const newLogger = new Logger();
 
       expect(newLogger.currentLevel).toBe(3); // DEBUG level
       expect(newLogger.serviceName).toBe("test-service");

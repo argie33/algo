@@ -431,7 +431,7 @@ router.post("/run", async (req, res) => {
     if (!startDate || !endDate) {
       return res
         .status(400)
-        .json({ error: "Start date and end date are required" });
+        .json({ success: false, error: "Start date and end date are required" });
     }
 
     if (symbols.length === 0) {
@@ -945,65 +945,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Get backtest by ID (for tests)
-router.get("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`📊 [BACKTEST] Getting backtest ${id}`);
-
-    // Try to get from backtestStore
-    const backtest = backtestStore.getStrategy(id);
-
-    if (!backtest) {
-      return res.error("Backtest not found", 404, {
-        message: `No backtest found with ID ${id}`,
-      });
-    }
-
-    res.json({
-      success: true,
-      data: backtest,
-    });
-  } catch (error) {
-    console.error("Error fetching backtest:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to fetch backtest",
-      details: error.message,
-    });
-  }
-});
-
-// Delete user backtest (for tests)
-router.delete("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log(`📊 [BACKTEST] Deleting backtest ${id}`);
-
-    // Check if backtest exists
-    const backtest = backtestStore.getStrategy(id);
-
-    if (!backtest) {
-      return res.error("Backtest not found", 404, {
-        message: `No backtest found with ID ${id}`,
-      });
-    }
-
-    // Delete from backtestStore (this will just remove from memory)
-    // In a real implementation, this would delete from database
-
-    res.json({ message: `Backtest ${id} deleted successfully`, deletedId: id });
-  } catch (error) {
-    console.error("Error deleting backtest:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to delete backtest",
-      details: error.message,
-    });
-  }
-});
-
-// Get backtest optimization endpoint
+// Get backtest optimization endpoint (MUST come before /:id route)
 router.get("/optimize", async (req, res) => {
   try {
     const {
@@ -1219,5 +1161,64 @@ router.get("/optimize", async (req, res) => {
     });
   }
 });
+
+// Get backtest by ID (for tests)
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`📊 [BACKTEST] Getting backtest ${id}`);
+
+    // Try to get from backtestStore
+    const backtest = backtestStore.getStrategy(id);
+
+    if (!backtest) {
+      return res.error("Backtest not found", 404, {
+        message: `No backtest found with ID ${id}`,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: backtest,
+    });
+  } catch (error) {
+    console.error("Error fetching backtest:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch backtest",
+      details: error.message,
+    });
+  }
+});
+
+// Delete user backtest (for tests)
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`📊 [BACKTEST] Deleting backtest ${id}`);
+
+    // Check if backtest exists
+    const backtest = backtestStore.getStrategy(id);
+
+    if (!backtest) {
+      return res.error("Backtest not found", 404, {
+        message: `No backtest found with ID ${id}`,
+      });
+    }
+
+    // Delete from backtestStore (this will just remove from memory)
+    // In a real implementation, this would delete from database
+
+    res.json({ message: `Backtest ${id} deleted successfully`, deletedId: id });
+  } catch (error) {
+    console.error("Error deleting backtest:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to delete backtest",
+      details: error.message,
+    });
+  }
+});
+
 
 module.exports = router;

@@ -11,6 +11,11 @@ describe("Alert System", () => {
     alertSystem.lastNotificationTime.clear();
   });
 
+  afterEach(() => {
+    // Stop monitoring to prevent hanging tests
+    alertSystem.stopMonitoring();
+  });
+
   describe("alert creation and management", () => {
     test("should create alert with proper parameters", () => {
       const key = "test-alert-123";

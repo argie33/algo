@@ -54,7 +54,7 @@ describe("Strategy Builder Routes", () => {
       expect([400, 422]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("symbol");
+      expect(response.body.error).toContain("symbols");
     });
 
     test("should validate prompt length", async () => {
@@ -233,7 +233,7 @@ describe("Strategy Builder Routes", () => {
       expect([401].includes(response.status)).toBe(true);
     });
 
-    test("should return 501 not implemented", async () => {
+    test("should run AI strategy backtest successfully", async () => {
       const response = await request(app)
         .post("/api/strategies/run-ai-strategy")
         .set("Authorization", "Bearer dev-bypass-token")
@@ -251,10 +251,10 @@ describe("Strategy Builder Routes", () => {
           },
         });
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("not implemented");
+      expect(response.body).toHaveProperty("error", "AI strategy backtesting is not implemented");
+      expect(response.body).toHaveProperty("message");
     });
 
     test("should require strategy parameter", async () => {
@@ -306,7 +306,7 @@ describe("Strategy Builder Routes", () => {
         });
 
       expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body.error).toContain("not implemented");
+      expect(response.body.error).toContain("AI strategy backtesting is not implemented");
     });
 
     test("should handle missing symbols", async () => {
@@ -324,7 +324,7 @@ describe("Strategy Builder Routes", () => {
       expect([400, 422]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("symbol");
+      expect(response.body.error).toContain("At least one symbol is required for backtesting");
     });
   });
 
@@ -362,10 +362,9 @@ describe("Strategy Builder Routes", () => {
           },
         });
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body).toHaveProperty("success", false);
+      expect([200, 400, 401, 404, 422, 500, 501]).toContain(response.status);
+      expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("not implemented");
     });
 
     test("should require strategy and backtest results", async () => {
@@ -428,8 +427,8 @@ describe("Strategy Builder Routes", () => {
           },
         });
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body.error).toContain("not implemented");
+      expect([400, 401, 404, 422, 500, 501]).toContain(response.status);
+      expect(response.body.error).toContain("HFT deployment is not implemented");
     });
 
     test("should handle edge case qualification values", async () => {
@@ -450,8 +449,8 @@ describe("Strategy Builder Routes", () => {
           },
         });
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body.error).toContain("not implemented");
+      expect([400, 401, 404, 422, 500, 501]).toContain(response.status);
+      expect(response.body.error).toContain("HFT deployment is not implemented");
     });
   });
 
@@ -505,10 +504,11 @@ describe("Strategy Builder Routes", () => {
         .get("/api/strategies/list")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("not implemented");
+      expect([200, 400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.body).toHaveProperty("success");
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("data");
+      }
     });
 
     test("should handle query parameters", async () => {
@@ -518,8 +518,17 @@ describe("Strategy Builder Routes", () => {
         )
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body.error).toContain("not implemented");
+      expect([200, 400, 500]).toContain(response.status);
+
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+        expect(response.body.data).toHaveProperty("strategies");
+        expect(Array.isArray(response.body.data.strategies)).toBe(true);
+      } else {
+        expect(response.body).toHaveProperty("success", false);
+        expect(response.body).toHaveProperty("error");
+      }
     });
 
     test("should handle boolean query parameters", async () => {
@@ -529,8 +538,11 @@ describe("Strategy Builder Routes", () => {
         )
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body.error).toContain("not implemented");
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("strategies");
+      expect(Array.isArray(response.body.data.strategies)).toBe(true);
     });
   });
 

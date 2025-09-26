@@ -231,10 +231,12 @@ describe("Settings Routes Integration Tests", () => {
         .get("/api/settings/api-keys/alpaca")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 401].includes(response.status)).toBe(true);
+      expect([200, 401, 404].includes(response.status)).toBe(true);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("provider", "alpaca");
+      } else if (response.status === 404) {
+        expect(response.body).toHaveProperty("error");
       }
     });
 
@@ -280,10 +282,12 @@ describe("Settings Routes Integration Tests", () => {
         .delete("/api/settings/api-keys/alpaca")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 401].includes(response.status)).toBe(true);
+      expect([200, 401, 404].includes(response.status)).toBe(true);
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
+      } else if (response.status === 404) {
+        expect(response.body).toHaveProperty("error");
       }
     });
 

@@ -283,7 +283,9 @@ router.get("/analysts/:symbol", authenticateToken, async (req, res) => {
       success: true,
       symbol: symbol.toUpperCase(),
       coverage,
+      analysts: coverage, // Alias for test compatibility
       consensus,
+      limit: Math.max(1, Math.min(parseInt(limit) || 10, 100)),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

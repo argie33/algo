@@ -561,6 +561,15 @@ CREATE INDEX IF NOT EXISTS idx_stock_symbols_exchange ON stock_symbols(exchange)
 CREATE INDEX IF NOT EXISTS idx_company_profile_sector ON company_profile(sector);
 -- CREATE INDEX IF NOT EXISTS idx_company_profile_exchange ON company_profile(exchange); -- column doesn't exist
 CREATE INDEX IF NOT EXISTS idx_market_data_market_cap ON market_data(market_cap);
+
+-- Add additional columns and constraints needed for tests
+ALTER TABLE market_data ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+ALTER TABLE market_data ADD COLUMN IF NOT EXISTS date DATE;
+ALTER TABLE market_data ADD COLUMN IF NOT EXISTS price NUMERIC;
+ALTER TABLE market_data ADD COLUMN IF NOT EXISTS volume BIGINT;
+
+-- Create unique constraint needed for ON CONFLICT operations
+CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_symbol_date ON market_data(symbol, date) WHERE symbol IS NOT NULL AND date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_buy_sell_weekly_symbol_date ON buy_sell_weekly(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_buy_sell_monthly_symbol_date ON buy_sell_monthly(symbol, date);

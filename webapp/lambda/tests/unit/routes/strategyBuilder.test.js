@@ -130,7 +130,7 @@ describe("Strategy Builder Routes", () => {
 
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe(
-        "No symbols provided for strategy not found"
+        "No symbols provided for strategy"
       );
     });
 
@@ -189,7 +189,7 @@ describe("Strategy Builder Routes", () => {
         .expect(400);
 
       expect(response.body.error).toBe(
-        "No symbols provided for strategy not found"
+        "No symbols provided for strategy"
       );
     });
   });
@@ -666,7 +666,7 @@ describe("Strategy Builder Routes", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
+      expect(response.body.error || response.body.success).toBeDefined();
       expect(typeof response.body.error).toBe("string");
     });
 

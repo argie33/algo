@@ -29,6 +29,9 @@ class Logger {
    * Parse log level from string
    */
   parseLogLevel(levelStr) {
+    if (!levelStr || typeof levelStr !== 'string') {
+      return LOG_LEVELS.INFO;
+    }
     const level = levelStr.toUpperCase();
     return LOG_LEVELS[level] !== undefined
       ? LOG_LEVELS[level]
@@ -84,12 +87,29 @@ class Logger {
       } = logEntry;
       console.log(`[${timestamp}] [${level}] [${correlationId}] ${message}`);
       if (Object.keys(rest).length > 0) {
-        console.log("Context:", JSON.stringify(rest, null, 2));
+        console.log("Context:", JSON.stringify(rest, this.getCircularReplacer(), 2));
       }
     } else {
       // JSON format for production (structured logging)
-      console.log(JSON.stringify(logEntry));
+      // Use safe stringify to handle circular references
+      console.log(JSON.stringify(logEntry, this.getCircularReplacer()));
     }
+  }
+
+  /**
+   * Get circular reference replacer for JSON.stringify
+   */
+  getCircularReplacer() {
+    const seen = new WeakSet();
+    return (key, value) => {
+      if (typeof value === "object" && value !== null) {
+        if (seen.has(value)) {
+          return "[Circular]";
+        }
+        seen.add(value);
+      }
+      return value;
+    };
   }
 
   /**
@@ -407,3 +427,4 @@ function createLogger(serviceName, component) {
 
 module.exports = logger;
 module.exports.createLogger = createLogger;
+module.exports.Logger = Logger;

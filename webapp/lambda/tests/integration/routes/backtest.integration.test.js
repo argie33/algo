@@ -342,19 +342,15 @@ describe("Backtest Routes", () => {
   });
 
   describe("GET /api/backtest/optimize", () => {
-    test("should return 501 not implemented or 404 not found", async () => {
+    test("should require strategy_id parameter", async () => {
       const response = await request(app)
         .get("/api/backtest/optimize")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([501, 404].includes(response.status)).toBe(true);
-
-      if (response.status === 501) {
-        expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error");
-        expect(response.body).toHaveProperty("troubleshooting");
-        expect(response.body.error).toContain("not implemented");
-      }
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
+      expect(response.body.error).toContain("Strategy ID is required");
     });
   });
 

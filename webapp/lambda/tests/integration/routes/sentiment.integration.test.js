@@ -24,8 +24,9 @@ describe("Sentiment Routes", () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("message", "Sentiment API - Ready");
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("status", "operational");
+      expect(response.body).toHaveProperty("status", "operational");
+      expect(response.body).toHaveProperty("service", "sentiment");
+      expect(response.body).toHaveProperty("endpoints");
       expect(response.body).toHaveProperty("timestamp");
 
       // Validate timestamp
@@ -243,7 +244,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/social")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.status).toBe(501);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty(
         "error",
@@ -261,7 +262,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/social/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.status).toBe(501);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty(
         "error",
@@ -280,7 +281,7 @@ describe("Sentiment Routes", () => {
           .get(`/api/sentiment/social/${symbol}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
-        expect([400, 401, 404, 422, 500]).toContain(response.status);
+        expect(response.status).toBe(501);
         expect(response.body.message).toContain(symbol);
       }
     });
@@ -290,7 +291,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/social/BRK.A")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.status).toBe(501);
       expect(response.body.message).toContain("BRK.A");
     });
   });
@@ -301,7 +302,7 @@ describe("Sentiment Routes", () => {
         .get("/api/sentiment/trending")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.status).toBe(501);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty(
         "error",

@@ -134,6 +134,7 @@ router.get("/prices", (req, res) => {
   try {
     const category = req.query.category;
     const symbol = req.query.symbol;
+    const limit = parseInt(req.query.limit) || 50;
 
     let commodities = [
       {
@@ -220,6 +221,9 @@ router.get("/prices", (req, res) => {
       commodities = commodities.filter((c) => c.symbol === symbol);
     }
 
+    // Apply limit
+    commodities = commodities.slice(0, limit);
+
     res.json({
       success: true,
       data: commodities,
@@ -300,34 +304,34 @@ router.get("/correlations", (req, res) => {
       {
         pair: ["energy", "precious-metals"],
         coefficient: -0.23,
-        strength: "weak_negative",
+        strength: "weak",
         description:
           "Energy and precious metals show weak negative correlation",
       },
       {
         pair: ["energy", "base-metals"],
         coefficient: 0.47,
-        strength: "moderate_positive",
+        strength: "moderate",
         description:
           "Energy and base metals show moderate positive correlation",
       },
       {
         pair: ["energy", "agriculture"],
         coefficient: 0.12,
-        strength: "weak_positive",
+        strength: "weak",
         description: "Energy and agriculture show weak positive correlation",
       },
       {
         pair: ["precious-metals", "base-metals"],
         coefficient: 0.18,
-        strength: "weak_positive",
+        strength: "weak",
         description:
           "Precious metals and base metals show weak positive correlation",
       },
       {
         pair: ["precious-metals", "agriculture"],
         coefficient: -0.05,
-        strength: "very_weak_negative",
+        strength: "weak",
         description:
           "Precious metals and agriculture show very weak negative correlation",
       },
@@ -722,9 +726,10 @@ router.get("/news", async (req, res) => {
       SELECT
         id,
         title,
+        title as summary,
         publisher as source,
         link as url,
-        publish_time as "publishedAt",
+        publish_time as "published_at",
         news_type as category,
         ticker as symbol
       FROM stock_news
@@ -756,16 +761,26 @@ router.get("/news", async (req, res) => {
     const result = await query(newsQuery, queryParams);
 
     if (!result || result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No commodity news found",
+      return res.json({
+        success: true,
+        data: {
+          articles: []
+        },
+        pagination: {
+          total: 0,
+          limit: limitNum,
+          page: 1,
+        },
         message: "No news articles found for the specified criteria",
+        timestamp: new Date().toISOString(),
       });
     }
 
     res.json({
       success: true,
-      data: result.rows,
+      data: {
+        articles: result.rows
+      },
       pagination: {
         total: result.rows.length,
         limit: limitNum,

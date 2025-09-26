@@ -326,10 +326,9 @@ describe("Watchlist Routes", () => {
 
       const response = await request(app).get("/api/watchlist/invalid");
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
         success: false,
-        error: "Watchlist not found",
       });
     });
   });

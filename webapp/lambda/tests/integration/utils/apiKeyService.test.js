@@ -8,6 +8,7 @@ const {
   closeDatabase,
 } = require("../../../utils/database");
 const apiKeyService = require("../../../utils/apiKeyService");
+const serviceInstance = apiKeyService.__getServiceInstance();
 
 describe("API Key Service Integration Tests", () => {
   beforeAll(async () => {
@@ -144,8 +145,8 @@ describe("API Key Service Integration Tests", () => {
     test("should record JWT success and failure", () => {
       // These methods should not throw errors
       expect(() => {
-        apiKeyService.recordJwtSuccess();
-        apiKeyService.recordJwtFailure(new Error("test error"));
+        serviceInstance.recordJwtSuccess();
+        serviceInstance.recordJwtFailure(new Error("test error"));
       }).not.toThrow();
     });
   });
@@ -159,8 +160,8 @@ describe("API Key Service Integration Tests", () => {
     test("should record success and failure", () => {
       // These methods should not throw errors
       expect(() => {
-        apiKeyService.recordSuccess();
-        apiKeyService.recordFailure(new Error("test error"));
+        serviceInstance.recordSuccess();
+        serviceInstance.recordFailure(new Error("test error"));
       }).not.toThrow();
     });
   });
@@ -174,14 +175,14 @@ describe("API Key Service Integration Tests", () => {
 
       // Should not throw error
       await expect(
-        apiKeyService.logAuditEvent(userId, action, provider, sessionId)
+        serviceInstance.logAuditEvent(userId, action, provider, sessionId)
       ).resolves.not.toThrow();
     });
 
     test("should handle audit logging failures gracefully", async () => {
       // Should not throw even with invalid data
       await expect(
-        apiKeyService.logAuditEvent(null, null, null, null)
+        serviceInstance.logAuditEvent(null, null, null, null)
       ).resolves.not.toThrow();
     });
   });

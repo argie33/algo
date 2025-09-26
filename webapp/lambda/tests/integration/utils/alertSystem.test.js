@@ -18,7 +18,7 @@ describe("Alert System Integration Tests", () => {
 
   afterAll(async () => {
     if (alertSystem) {
-      alertSystem.stop();
+      alertSystem.stopMonitoring();
     }
     await closeDatabase();
   });

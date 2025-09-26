@@ -68,8 +68,8 @@ describe("Malformed Request Integration", () => {
         // Should always return JSON response format
         expect(response.headers["content-type"]).toMatch(/application\/json/);
 
-        // Error should not expose the malformed content
-        if (response.body?.error) {
+        // Error should not expose the malformed content (excluding empty body case)
+        if (response.body?.error && test.body.trim().length > 0) {
           expect(response.body.error).not.toContain(test.body);
         }
       }
@@ -112,8 +112,8 @@ describe("Malformed Request Integration", () => {
           .set("Content-Type", "application/json")
           .send(test.body);
 
-        // Should handle safely
-        expect([200, 404]).toContain(response.status);
+        // Should handle safely (either process successfully or reject with error)
+        expect([200, 400, 404, 422]).toContain(response.status);
 
         if (response.status >= 400) {
           expect(response.body).toHaveProperty("success", false);

@@ -1,0 +1,3588 @@
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/strategyBuilder.integration.test.js
+  Strategy Builder Routes
+    POST /api/strategies/ai-generate
+      ✓ should require authentication (13 ms)
+      ✓ should require prompt parameter (8 ms)
+      ✓ should require symbols parameter (3 ms)
+      ✓ should validate prompt length (3 ms)
+      ✓ should handle valid AI generation request (18 ms)
+      ✓ should handle empty symbols array (5 ms)
+      ✓ should handle preferences parameter (6 ms)
+    POST /api/strategies/validate
+--
+    POST /api/strategies/run-ai-strategy
+      ✓ should require authentication (2 ms)
+      ✓ should run AI strategy backtest successfully (5 ms)
+      ✓ should require strategy parameter (3 ms)
+      ✓ should require strategy code (3 ms)
+      ✕ should handle config parameters (5 ms)
+      ✕ should handle missing symbols (5 ms)
+    POST /api/strategies/deploy-hft
+      ✓ should require authentication (1 ms)
+      ✕ should return 501 not implemented (7 ms)
+      ✓ should require strategy and backtest results (5 ms)
+      ✓ should validate HFT qualification requirements (3 ms)
+      ✕ should handle qualifying strategy (4 ms)
+      ✕ should handle edge case qualification values (5 ms)
+    GET /api/strategies/available-symbols
+      ✓ should require authentication (1 ms)
+      ✓ should return available symbols (6 ms)
+      ✓ should handle database connection issues (4 ms)
+    GET /api/strategies/list
+      ✓ should require authentication (1 ms)
+      ✓ should return 501 not implemented (8 ms)
+      ✕ should handle query parameters (7 ms)
+      ✓ should handle boolean query parameters (6 ms)
+    GET /api/strategies/templates
+      ✓ should require authentication (1 ms)
+      ✓ should return strategy templates (3 ms)
+      ✓ should handle empty templates (3 ms)
+    Authentication and Error Handling
+      ✓ should handle invalid authentication tokens (20 ms)
+      ✓ should handle missing authorization header (1 ms)
+      ✓ should handle malformed request bodies (3 ms)
+      ✓ should handle empty request bodies (3 ms)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/insider.integration.test.js
+  Insider Trading API
+    Insider Trades
+      ✓ should return insider trades data (may be empty) (10 ms)
+      ✓ should handle different symbols correctly (5 ms)
+    Error handling
+      ✕ should handle invalid symbols (6 ms)
+      ✕ should handle server errors gracefully (4 ms)
+
+  ● Insider Trading API › Error handling › should handle invalid symbols
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 200
+    Received array: [400, 401, 404, 422, 500]
+
+      37 |       const response = await request(app).get("/api/insider/trades/INVALID123");
+      38 |
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/recommendations.integration.test.js
+  Recommendations Routes
+    GET /api/recommendations
+      ✓ should fetch stock recommendations successfully (12 ms)
+      ✓ should handle symbol parameter (6 ms)
+      ✓ should handle category parameter (6 ms)
+      ✓ should handle analyst parameter (6 ms)
+      ✓ should handle limit parameter (7 ms)
+      ✓ should handle timeframe parameter (7 ms)
+      ✓ should handle multiple parameters (5 ms)
+      ✓ should use default values for missing parameters (6 ms)
+--
+      ✓ should include analyst coverage response structure (6 ms)
+      ✓ should have valid timestamp (5 ms)
+      ✓ should handle numeric symbols (4 ms)
+      ✓ should handle malformed limit parameter (5 ms)
+      ✓ should handle negative limit parameter (6 ms)
+      ✕ should handle extremely large limit (7 ms)
+    Authentication
+      ✓ should require authentication for recommendations (1 ms)
+      ✓ should require authentication for analyst coverage (1 ms)
+      ✓ should handle invalid authentication (4 ms)
+    Error Handling
+      ✕ should handle malformed URLs gracefully (6 ms)
+      ✕ should handle empty parameters (6 ms)
+      ✕ should handle URL encoded parameters (4 ms)
+    Response Structure Validation
+      ✕ should have consistent error response structure (5 ms)
+      ✕ should have consistent analyst coverage response structure (5 ms)
+    Performance
+      ✕ should respond within reasonable time (5 ms)
+      ✕ should handle concurrent requests (19 ms)
+    Required Setup Documentation
+      ✕ should document required setup for recommendations (5 ms)
+      ✕ should document required setup for analyst coverage (6 ms)
+
+  ● Recommendations Routes › GET /api/recommendations/analysts/:symbol › should handle extremely large limit
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 200
+    Received array: [400, 401, 404, 422, 500]
+
+      278 |         .set("Authorization", "Bearer dev-bypass-token");
+      279 |
+--
+    JWT verification failed in test mode: jwt malformed
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at getUserApiKey (/home/stocks/algo/webapp/lambda/routes/trades.js:432:10)
+        at /home/stocks/algo/webapp/lambda/routes/trades.js:797:27
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+--
+    JWT verification failed in test mode: jwt malformed
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at getUserApiKey (/home/stocks/algo/webapp/lambda/routes/trades.js:432:10)
+        at /home/stocks/algo/webapp/lambda/routes/trades.js:797:27
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+--
+    JWT verification failed in test mode: jwt malformed
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at getUserApiKey (/home/stocks/algo/webapp/lambda/routes/trades.js:432:10)
+        at /home/stocks/algo/webapp/lambda/routes/trades.js:797:27
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+      942 |
+--
+    JWT verification failed in test mode: jwt malformed
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at getUserApiKey (/home/stocks/algo/webapp/lambda/routes/trades.js:432:10)
+        at /home/stocks/algo/webapp/lambda/routes/trades.js:1899:27
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/trades.test.js
+  Trades Routes - Testing Your Actual Site
+    GET /trades/health - Health check
+      ✓ should return trade service health status (10 ms)
+    GET /trades/ - Root endpoint
+      ✓ should return trade API ready message (1 ms)
+    GET /trades/import/status - Trade import status
+      ✓ should return import status information (7 ms)
+    GET /trades/history - Trade history
+      ✕ should return user trade history with pagination
+      ✕ should handle date range filtering (1 ms)
+      ✕ should filter by symbol
+      ✕ should support pagination parameters
+    GET /trades/analytics - Trade analytics
+      ✕ should return trade performance analytics
+      ✕ should handle time period filters
+      ✕ should include benchmark comparison
+    POST /trades/import - Import trades
+      ✕ should import trades from CSV data
+      ✓ should validate required fields (38 ms)
+      ✕ should handle duplicate trades
+      ✕ should handle invalid data formats (6 ms)
+    GET /trades/export - Export trades
+      ✕ should export trades in CSV format
+      ✕ should export trades in JSON format
+      ✕ should handle date range for export
+    GET /trades/brokers - Broker integration status
+      ✕ should return connected brokers status
+    POST /trades/sync/:broker - Sync trades from broker
+      ✕ should sync trades from Alpaca
+      ✕ should handle unsupported broker (2 ms)
+      ✕ should validate date parameters (2 ms)
+    GET /trades/performance - Performance analysis
+      ✕ should return detailed performance metrics
+      ✕ should include benchmark comparison
+      ✕ should support different time periods
+    GET /trades/performance/attribution - Performance attribution
+      ✕ should return performance attribution analysis
+    GET /trades/stats - Trade statistics
+      ✕ should return comprehensive trade statistics
+      ✕ should filter stats by date range
+      ✕ should group stats by time period
+    POST /trades/validate - Trade validation
+      ✕ should validate trade data before import (2 ms)
+      ✕ should identify invalid trade data (1 ms)
+    POST /trades/search - Advanced trade search
+      ✕ should search trades by multiple criteria
+      ✕ should handle empty search criteria (1 ms)
+    Error handling
+      ✕ should handle database connection errors
+      ✕ should handle transaction rollback on import errors
+      ✓ should handle malformed request data (7 ms)
+      ✕ should handle missing authentication (1 ms)
+      ✕ should handle various error scenarios
+      ✕ should validate request parameters (10 ms)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/history - Trade history › should return user trade history with pagination
+
+    TypeError: query.mockResolvedValue is not a function
+
+      132 |       ];
+      133 |
+    > 134 |       query.mockResolvedValue({ rows: mockTrades });
+          |             ^
+      135 |
+      136 |       const response = await request(app).get("/trades/history").expect(200);
+      137 |
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:134:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/history - Trade history › should handle date range filtering
+
+    TypeError: query.mockResolvedValue is not a function
+
+      152 |
+      153 |     test("should handle date range filtering", async () => {
+    > 154 |       query.mockResolvedValue({ rows: [] });
+          |             ^
+      155 |
+      156 |       const response = await request(app)
+      157 |         .get("/trades/history?start_date=2024-01-01&end_date=2024-01-31")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:154:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/history - Trade history › should filter by symbol
+
+    TypeError: query.mockResolvedValue is not a function
+
+      163 |
+      164 |     test("should filter by symbol", async () => {
+    > 165 |       query.mockResolvedValue({ rows: [] });
+          |             ^
+      166 |
+      167 |       const response = await request(app)
+      168 |         .get("/trades/history?symbol=AAPL")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:165:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/history - Trade history › should support pagination parameters
+
+    TypeError: query.mockResolvedValue is not a function
+
+      174 |
+      175 |     test("should support pagination parameters", async () => {
+    > 176 |       query.mockResolvedValue({ rows: [] });
+          |             ^
+      177 |
+      178 |       const response = await request(app)
+      179 |         .get("/trades/history?page=2&limit=25")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:176:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/analytics - Trade analytics › should return trade performance analytics
+
+    TypeError: query.mockResolvedValue is not a function
+
+      201 |       };
+      202 |
+    > 203 |       query.mockResolvedValue({ rows: [mockAnalytics] });
+          |             ^
+      204 |
+      205 |       const response = await request(app).get("/trades/analytics").expect(200);
+      206 |
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:203:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/analytics - Trade analytics › should handle time period filters
+
+    TypeError: query.mockResolvedValue is not a function
+
+      217 |
+      218 |     test("should handle time period filters", async () => {
+    > 219 |       query.mockResolvedValue({ rows: [{}] });
+          |             ^
+      220 |
+      221 |       const response = await request(app)
+      222 |         .get("/trades/analytics?period=30d")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:219:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/analytics - Trade analytics › should include benchmark comparison
+
+    TypeError: query.mockResolvedValue is not a function
+
+      228 |
+      229 |     test("should include benchmark comparison", async () => {
+    > 230 |       query.mockResolvedValue({ rows: [{}] });
+          |             ^
+      231 |
+      232 |       const response = await request(app)
+      233 |         .get("/trades/analytics?benchmark=SPY")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:230:13)
+
+  ● Trades Routes - Testing Your Actual Site › POST /trades/import - Import trades › should import trades from CSV data
+
+    TypeError: query.mockResolvedValue is not a function
+
+      249 | MSFT,sell,50,300.00,2024-01-16`;
+      250 |
+    > 251 |       query.mockResolvedValue({ rows: [{ imported: 2 }] });
+          |             ^
+      252 |       _transaction.mockImplementation(async (callback) => {
+      253 |         return await callback({ query });
+      254 |       });
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:251:13)
+
+  ● Trades Routes - Testing Your Actual Site › POST /trades/import - Import trades › should handle duplicate trades
+
+    TypeError: query.mockResolvedValue is not a function
+
+      291 |       };
+      292 |
+    > 293 |       query.mockResolvedValue({ rows: [{ imported: 0, duplicates: 1 }] });
+          |             ^
+      294 |       _transaction.mockImplementation(async (callback) => {
+      295 |         return await callback({ query });
+      296 |       });
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:293:13)
+--
+
+      at Object.toContain (tests/unit/routes/trades.test.js:314:35)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/export - Export trades › should export trades in CSV format
+
+    TypeError: query.mockResolvedValue is not a function
+
+      328 |       ];
+      329 |
+    > 330 |       query.mockResolvedValue({ rows: mockTrades });
+          |             ^
+      331 |
+      332 |       const response = await request(app)
+      333 |         .get("/trades/export?format=csv")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:330:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/export - Export trades › should export trades in JSON format
+
+    TypeError: query.mockResolvedValue is not a function
+
+      351 |       ];
+      352 |
+    > 353 |       query.mockResolvedValue({ rows: mockTrades });
+          |             ^
+      354 |
+      355 |       const response = await request(app)
+      356 |         .get("/trades/export?format=json")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:353:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/export - Export trades › should handle date range for export
+
+    TypeError: query.mockResolvedValue is not a function
+
+      363 |
+      364 |     test("should handle date range for export", async () => {
+    > 365 |       query.mockResolvedValue({ rows: [] });
+          |             ^
+      366 |
+      367 |       const response = await request(app)
+      368 |         .get(
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:365:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/brokers - Broker integration status › should return connected brokers status
+
+    TypeError: query.mockResolvedValue is not a function
+
+      397 |       ];
+      398 |
+    > 399 |       query.mockResolvedValue({ rows: mockBrokers });
+          |             ^
+      400 |
+      401 |       const response = await request(app).get("/trades/brokers").expect(200);
+      402 |
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:399:13)
+
+  ● Trades Routes - Testing Your Actual Site › POST /trades/sync/:broker - Sync trades from broker › should sync trades from Alpaca
+
+    TypeError: query.mockResolvedValue is not a function
+
+      425 |       };
+      426 |
+    > 427 |       query.mockResolvedValue({ rows: [mockSyncResult] });
+          |             ^
+      428 |       _transaction.mockImplementation(async (callback) => {
+      429 |         return await callback({ query });
+      430 |       });
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:427:13)
+--
+      at Test.assert (node_modules/supertest/lib/test.js:164:23)
+      at Server.localAssert (node_modules/supertest/lib/test.js:120:14)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/performance - Performance analysis › should return detailed performance metrics
+
+    TypeError: query.mockResolvedValue is not a function
+
+      481 |       };
+      482 |
+    > 483 |       query.mockResolvedValue({ rows: [mockPerformance] });
+          |             ^
+      484 |
+      485 |       const response = await request(app)
+      486 |         .get("/trades/performance")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:483:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/performance - Performance analysis › should include benchmark comparison
+
+    TypeError: query.mockResolvedValue is not a function
+
+      499 |
+      500 |     test("should include benchmark comparison", async () => {
+    > 501 |       query.mockResolvedValue({ rows: [{}] });
+          |             ^
+      502 |
+      503 |       const response = await request(app)
+      504 |         .get("/trades/performance?benchmark=SPY")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:501:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/performance - Performance analysis › should support different time periods
+
+    TypeError: query.mockResolvedValue is not a function
+
+      513 |
+      514 |     test("should support different time periods", async () => {
+    > 515 |       query.mockResolvedValue({ rows: [{}] });
+          |             ^
+      516 |
+      517 |       const response = await request(app)
+      518 |         .get("/trades/performance?period=1y")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:515:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/performance/attribution - Performance attribution › should return performance attribution analysis
+
+    TypeError: query.mockResolvedValue is not a function
+
+      544 |       };
+      545 |
+    > 546 |       query.mockResolvedValue({ rows: [mockAttribution] });
+          |             ^
+      547 |
+      548 |       const response = await request(app)
+      549 |         .get("/trades/performance/attribution")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:546:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/stats - Trade statistics › should return comprehensive trade statistics
+
+    TypeError: query.mockResolvedValue is not a function
+
+      580 |       };
+      581 |
+    > 582 |       query.mockResolvedValue({ rows: [mockStats] });
+          |             ^
+      583 |
+      584 |       const response = await request(app).get("/trades/stats").expect(200);
+      585 |
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:582:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/stats - Trade statistics › should filter stats by date range
+
+    TypeError: query.mockResolvedValue is not a function
+
+      596 |
+      597 |     test("should filter stats by date range", async () => {
+    > 598 |       query.mockResolvedValue({ rows: [{}] });
+          |             ^
+      599 |
+      600 |       const response = await request(app)
+      601 |         .get("/trades/stats?start_date=2024-01-01&end_date=2024-01-31")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:598:13)
+
+  ● Trades Routes - Testing Your Actual Site › GET /trades/stats - Trade statistics › should group stats by time period
+
+    TypeError: query.mockResolvedValue is not a function
+
+      607 |
+      608 |     test("should group stats by time period", async () => {
+    > 609 |       query.mockResolvedValue({ rows: [] });
+          |             ^
+      610 |
+      611 |       const response = await request(app)
+      612 |         .get("/trades/stats?group_by=month")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:609:13)
+--
+      at Test.assert (node_modules/supertest/lib/test.js:164:23)
+      at Server.localAssert (node_modules/supertest/lib/test.js:120:14)
+
+  ● Trades Routes - Testing Your Actual Site › POST /trades/search - Advanced trade search › should search trades by multiple criteria
+
+    TypeError: query.mockResolvedValue is not a function
+
+      683 |       };
+      684 |
+    > 685 |       query.mockResolvedValue({ rows: [] });
+          |             ^
+      686 |
+      687 |       const response = await request(app)
+      688 |         .post("/trades/search")
+
+      at Object.mockResolvedValue (tests/unit/routes/trades.test.js:685:13)
+--
+      at Test.assert (node_modules/supertest/lib/test.js:164:23)
+      at Server.localAssert (node_modules/supertest/lib/test.js:120:14)
+
+  ● Trades Routes - Testing Your Actual Site › Error handling › should handle database connection errors
+
+    TypeError: query.mockRejectedValue is not a function
+
+      714 |   describe("Error handling", () => {
+      715 |     test("should handle database connection errors", async () => {
+    > 716 |       query.mockRejectedValue(new Error("Connection timeout"));
+          |             ^
+      717 |
+      718 |       const response = await request(app).get("/trades/history").expect(500);
+      719 |
+
+      at Object.mockRejectedValue (tests/unit/routes/trades.test.js:716:13)
+
+  ● Trades Routes - Testing Your Actual Site › Error handling › should handle transaction rollback on import errors
+
+    ReferenceError: _transaction is not defined
+
+      723 |
+      724 |     test("should handle transaction rollback on import errors", async () => {
+    > 725 |       _transaction.mockRejectedValue(new Error("Transaction failed"));
+          |       ^
+      726 |
+      727 |       const response = await request(app)
+      728 |         .post("/trades/import")
+
+      at Object._transaction (tests/unit/routes/trades.test.js:725:7)
+
+  ● Trades Routes - Testing Your Actual Site › Error handling › should handle missing authentication
+
+    TypeError: authenticateToken.mockImplementation is not a function
+
+      744 |
+      745 |     test("should handle missing authentication", async () => {
+    > 746 |       authenticateToken.mockImplementation((req, res, _next) => {
+          |                         ^
+      747 |         res.status(401).json({ success: false, error: "Unauthorized" });
+      748 |       });
+      749 |
+
+      at Object.mockImplementation (tests/unit/routes/trades.test.js:746:25)
+
+  ● Trades Routes - Testing Your Actual Site › Error handling › should handle various error scenarios
+
+    TypeError: query.mockImplementation is not a function
+
+      756 |     test("should handle various error scenarios", async () => {
+      757 |       // Test that the route handles different types of errors
+    > 758 |       query.mockImplementation(() => {
+          |             ^
+      759 |         throw new Error("Database error");
+      760 |       });
+      761 |
+
+      at Object.mockImplementation (tests/unit/routes/trades.test.js:758:13)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/orders.integration.test.js
+  Orders Routes Integration Tests
+    GET /api/orders (List Orders)
+      ✓ should return user orders (18 ms)
+      ✓ should handle status filter (9 ms)
+      ✓ should handle side filter (6 ms)
+      ✓ should handle pagination parameters (6 ms)
+      ✓ should require authentication (2 ms)
+    GET /api/orders/:orderId (Get Specific Order)
+      ✕ should handle order lookup (5 ms)
+      ✓ should return 404 for non-existent order (4 ms)
+      ✓ should require authentication (1 ms)
+    POST /api/orders (Create Order)
+      ✓ should create new order with valid data (7 ms)
+      ✓ should validate required fields (3 ms)
+      ✓ should validate quantity is positive (3 ms)
+      ✓ should validate order types (3 ms)
+      ✓ should require authentication (1 ms)
+    PUT /api/orders/:orderId (Update Order)
+      ✓ should update order (3 ms)
+      ✓ should validate numeric fields (3 ms)
+      ✓ should require authentication (1 ms)
+    DELETE /api/orders/:orderId (Cancel Order)
+      ✕ should cancel order (5 ms)
+      ✕ should return 404 for non-existent order (5 ms)
+      ✓ should require authentication (1 ms)
+    GET /api/orders/history (Order History)
+      ✓ should return order history (6 ms)
+      ✓ should handle date filtering (5 ms)
+      ✓ should include performance summary (4 ms)
+      ✓ should require authentication (1 ms)
+    Performance and Edge Cases
+      ✓ should handle concurrent requests (15 ms)
+      ✓ should handle invalid parameters gracefully (20 ms)
+      ✓ should maintain response time consistency (6 ms)
+      ✕ should handle SQL injection attempts safely (5 ms)
+      ✓ should validate response content types (10 ms)
+      ✓ should handle database connection issues gracefully (7 ms)
+    Authentication and Trading Mode
+      ✓ should respect trading mode restrictions (6 ms)
+      ✓ should handle malformed authorization headers (1 ms)
+      ✓ should handle empty authorization headers (2 ms)
+    GET /api/orders/recent (Recent Orders)
+      ✓ should return recent orders with sample data (21 ms)
+      ✓ should handle query parameters for recent orders (8 ms)
+
+--
+    JWT verification failed in test mode: jwt malformed
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    Provider listing error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.listProviders (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1216:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at listProviders (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1429:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:398:23
+
+      1254 |     } catch (error) {
+      1255 |       this.recordFailure(error);
+    > 1256 |       console.error("Provider listing error:", error);
+           |               ^
+      1257 |       throw error; // Re-throw error so wrapper can handle it
+--
+    JWT verification failed in test mode: jwt malformed
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    Provider listing error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.listProviders (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1216:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at listProviders (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1429:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:398:23
+
+      1254 |     } catch (error) {
+      1255 |       this.recordFailure(error);
+    > 1256 |       console.error("Provider listing error:", error);
+           |               ^
+      1257 |       throw error; // Re-throw error so wrapper can handle it
+--
+    JWT verification failed in test mode: jwt malformed
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:421:24
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+      942 |
+--
+    JWT verification failed in test mode: jwt malformed
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:536:26
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+      942 |
+--
+      at ApiKeyService.recordFailure (utils/apiKeyService.js:1255:12)
+      at listProviders (utils/apiKeyService.js:1429:14)
+      at routes/settings.js:398:23
+
+  console.error
+    Provider listing error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.listProviders (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1216:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at listProviders (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1429:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:398:23
+
+      1254 |     } catch (error) {
+      1255 |       this.recordFailure(error);
+    > 1256 |       console.error("Provider listing error:", error);
+           |               ^
+      1257 |       throw error; // Re-throw error so wrapper can handle it
+--
+      at ApiKeyService.recordFailure [as getApiKey] (utils/apiKeyService.js:940:12)
+      at getApiKey (utils/apiKeyService.js:1404:14)
+      at routes/settings.js:421:24
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:421:24
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+      942 |
+--
+      at ApiKeyService.recordFailure [as getApiKey] (utils/apiKeyService.js:940:12)
+      at getApiKey (utils/apiKeyService.js:1404:14)
+      at routes/settings.js:421:24
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:421:24
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+      942 |
+--
+      at ApiKeyService.recordFailure [as getApiKey] (utils/apiKeyService.js:940:12)
+      at getApiKey (utils/apiKeyService.js:1404:14)
+      at routes/settings.js:421:24
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:421:24
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+      942 |
+--
+      at ApiKeyService.recordFailure [as getApiKey] (utils/apiKeyService.js:940:12)
+      at getApiKey (utils/apiKeyService.js:1404:14)
+      at routes/settings.js:421:24
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:421:24
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+      942 |
+--
+      at ApiKeyService.recordFailure [as getApiKey] (utils/apiKeyService.js:940:12)
+      at getApiKey (utils/apiKeyService.js:1404:14)
+      at routes/settings.js:421:24
+
+  console.error
+    API key retrieval error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:831:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at getApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1404:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:421:24
+
+      939 |     } catch (error) {
+      940 |       this.recordFailure(error);
+    > 941 |       console.error("API key retrieval error:", error);
+          |               ^
+      942 |
+--
+      at ApiKeyService.recordFailure (utils/apiKeyService.js:1255:12)
+      at listProviders (utils/apiKeyService.js:1429:14)
+      at routes/settings.js:398:23
+
+  console.error
+    Provider listing error: Error: JWT validation failed: JWT string does not consist of exactly 3 parts (header, payload, signature)
+        at ApiKeyService.listProviders (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1216:15)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at listProviders (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1429:14)
+        at /home/stocks/algo/webapp/lambda/routes/settings.js:398:23
+
+      1254 |     } catch (error) {
+      1255 |       this.recordFailure(error);
+    > 1256 |       console.error("Provider listing error:", error);
+           |               ^
+      1257 |       throw error; // Re-throw error so wrapper can handle it
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/settings.integration.test.js
+  Settings Routes Integration Tests
+    GET /api/settings (Root Endpoint)
+      ✓ should return settings API information (6 ms)
+      ✓ should require authentication (2 ms)
+    GET /api/settings/dashboard (Dashboard Settings)
+      ✓ should return dashboard settings (11 ms)
+      ✓ should handle database connection issues (7 ms)
+      ✓ should require authentication (1 ms)
+    GET /api/settings/trading-mode (Trading Mode)
+      ✓ should return current trading mode (4 ms)
+--
+    POST /api/settings/trading-mode (Toggle Trading Mode)
+      ✓ should toggle trading mode (7 ms)
+      ✓ should validate trading mode values (2 ms)
+      ✓ should require authentication (1 ms)
+    GET /api/settings/api-keys (API Keys)
+      ✕ should return user API keys (32 ms)
+      ✓ should mask sensitive API key data (4 ms)
+      ✓ should require authentication (2 ms)
+    POST /api/settings/api-keys (Create API Key)
+      ✓ should create new API key (2 ms)
+      ✓ should validate required fields (2 ms)
+      ✓ should validate provider types (2 ms)
+      ✓ should require authentication (1 ms)
+    GET /api/settings/api-keys/:provider (Get Specific API Key)
+      ✕ should return specific provider API key status (4 ms)
+      ✓ should require authentication (1 ms)
+    PUT /api/settings/api-keys/:provider (Update API Key)
+      ✓ should update API key (7 ms)
+      ✓ should require authentication (1 ms)
+    DELETE /api/settings/api-keys/:provider (Delete API Key)
+      ✕ should delete API key (4 ms)
+      ✓ should require authentication (1 ms)
+    Performance and Edge Cases
+      ✓ should handle concurrent requests to settings endpoints (17 ms)
+      ✓ should maintain response time consistency (5 ms)
+      ✓ should handle invalid parameters gracefully (9 ms)
+      ✓ should handle SQL injection attempts safely (22 ms)
+      ✓ should validate response content types (16 ms)
+      ✓ should handle database connection issues gracefully (6 ms)
+    Authentication Edge Cases
+      ✓ should handle malformed authorization headers (1 ms)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/positioning.integration.test.js
+  Positioning Routes
+    GET /api/positioning/stocks
+      ✓ should return stock positioning data (14 ms)
+      ✓ should support symbol parameter (4 ms)
+      ✓ should support timeframe parameter (3 ms)
+      ✓ should support pagination parameters (3 ms)
+      ✓ should handle pagination with different page numbers (3 ms)
+      ✓ should validate response structure when data exists (7 ms)
+      ✓ should handle mixed case symbol parameter (3 ms)
+      ✓ should handle special characters in symbol (3 ms)
+--
+      ✓ should return positioning summary (14 ms)
+      ✓ should include valid positioning values (3 ms)
+      ✓ should have valid timestamp format (6 ms)
+    Authentication
+      ✓ should require authentication for stock positioning (7 ms)
+      ✕ should require authentication for positioning summary (3 ms)
+      ✓ should handle invalid authentication (7 ms)
+    Error Handling
+      ✓ should handle database errors gracefully (5 ms)
+      ✓ should handle malformed parameters (3 ms)
+      ✓ should handle extremely large limit values (3 ms)
+      ✓ should handle negative pagination values (3 ms)
+    Data Validation
+      ✓ should return consistent data structure (3 ms)
+      ✓ should include data freshness indicators (2 ms)
+    Performance
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/calendar.integration.test.js
+  Calendar Routes
+    GET /api/calendar
+      ✓ should return calendar endpoints (5 ms)
+    GET /api/calendar/earnings
+      ✓ should return comprehensive earnings calendar data (9 ms)
+      ✓ should handle date range parameters (5 ms)
+      ✓ should handle symbol parameter (6 ms)
+      ✓ should handle days_ahead parameter (3 ms)
+      ✓ should handle limit parameter (3 ms)
+      ✓ should handle multiple parameters together (3 ms)
+      ✓ should return valid response structure for empty results (2 ms)
+      ✕ should handle invalid dates gracefully (1 ms)
+    GET /api/calendar/dividends
+      ✓ should return dividend calendar data (4 ms)
+      ✓ should handle symbol parameter in dividend calendar (3 ms)
+    GET /api/calendar/economic
+      ✕ should return economic calendar data (4 ms)
+      ✕ should handle country parameter in 501 response (6 ms)
+    GET /api/calendar/upcoming
+      ✕ should return 501 not implemented (3 ms)
+      ✕ should handle days parameter in 501 response (3 ms)
+      ✕ should handle multiple parameters in 501 response (3 ms)
+    GET /api/calendar/health
+      ✓ should return health status (1 ms)
+    GET /api/calendar/debug
+      ✓ should return debug information (6 ms)
+      ✓ should include table information when table exists (4 ms)
+    GET /api/calendar/test
+      ✓ should return test data (3 ms)
+    GET /api/calendar/events
+      ✓ should handle database errors gracefully (3 ms)
+      ✓ should handle page parameter (3 ms)
+--
+      ✓ should handle database dependencies gracefully (6 ms)
+      ✓ should handle pagination parameters (2 ms)
+    GET /api/calendar/earnings-history
+      ✓ should handle database dependencies gracefully (2 ms)
+    GET /api/calendar/earnings-metrics
+      ✕ should handle database dependencies gracefully (17 ms)
+
+  ● Calendar Routes › GET /api/calendar/earnings › should handle invalid dates gracefully
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      126 |       );
+      127 |
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/commodities.integration.test.js
+  Commodities Routes Integration Tests
+    GET /api/commodities (Root Endpoint)
+      ✓ should return commodities system information (4 ms)
+      ✓ should include expected endpoint information (2 ms)
+    GET /api/commodities/health (Health Check)
+      ✓ should return health status (2 ms)
+    GET /api/commodities/categories (Commodity Categories)
+      ✓ should return commodity categories (2 ms)
+      ✓ should validate category performance data (2 ms)
+      ✓ should include major commodity categories (4 ms)
+    GET /api/commodities/prices (Current Prices)
+      ✓ should return current commodity prices (2 ms)
+      ✕ should handle limit parameter (2 ms)
+      ✓ should handle category filter (5 ms)
+    GET /api/commodities/market-summary (Market Summary)
+      ✓ should return market summary data (2 ms)
+      ✓ should validate market overview structure (1 ms)
+      ✓ should validate top gainers and losers (1 ms)
+    GET /api/commodities/correlations (Price Correlations)
+      ✓ should return correlation analysis (2 ms)
+      ✓ should handle timeframe parameter (5 ms)
+      ✕ should validate correlation strength classifications (1 ms)
+    GET /api/commodities/news (Commodity News)
+      ✕ should return commodity-related news (3 ms)
+      ✕ should handle category filter for news (4 ms)
+      ✕ should handle limit parameter for news (2 ms)
+      ✕ should validate news article timestamps (2 ms)
+    Performance and Edge Cases
+      ✓ should handle concurrent requests to commodity endpoints (4 ms)
+      ✓ should maintain response time consistency (1 ms)
+      ✓ should handle invalid parameters gracefully (4 ms)
+      ✓ should validate numeric data integrity (3 ms)
+      ✓ should handle memory pressure with large data requests (3 ms)
+      ✓ should validate response content types (5 ms)
+      ✓ should handle database connection issues gracefully (1 ms)
+      ✓ should handle SQL injection attempts safely (3 ms)
+
+--
+
+      at Object.toHaveProperty (tests/integration/routes/commodities.integration.test.js:314:36)
+
+  ● Commodities Routes Integration Tests › GET /api/commodities/news (Commodity News) › should handle category filter for news
+
+    TypeError: Cannot read properties of undefined (reading 'length')
+
+      339 |         expect([200, 400].includes(response.status)).toBe(true);
+      340 |
+    > 341 |         if (response.status === 200 && response.body.data.articles.length > 0) {
+          |                                                                    ^
+      342 |           response.body.data.articles.forEach((article) => {
+      343 |             expect(article.category.toLowerCase()).toBe(category.toLowerCase());
+      344 |           });
+
+      at Object.length (tests/integration/routes/commodities.integration.test.js:341:68)
+
+  ● Commodities Routes Integration Tests › GET /api/commodities/news (Commodity News) › should handle limit parameter for news
+
+    TypeError: Cannot read properties of undefined (reading 'length')
+
+      353 |
+      354 |       if (response.status === 200) {
+    > 355 |         expect(response.body.data.articles.length).toBeLessThanOrEqual(5);
+          |                                            ^
+      356 |       }
+      357 |     });
+      358 |
+
+      at Object.length (tests/integration/routes/commodities.integration.test.js:355:44)
+
+  ● Commodities Routes Integration Tests › GET /api/commodities/news (Commodity News) › should validate news article timestamps
+
+    TypeError: Cannot read properties of undefined (reading 'length')
+
+      360 |       const response = await request(app).get("/api/commodities/news");
+      361 |
+    > 362 |       if (response.status === 200 && response.body.data.articles.length > 0) {
+          |                                                                  ^
+      363 |         response.body.data.articles.forEach((article) => {
+      364 |           if (article.published_at) {
+      365 |             expect(new Date(article.published_at)).toBeInstanceOf(Date);
+
+      at Object.length (tests/integration/routes/commodities.integration.test.js:362:66)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/scoring.integration.test.js
+  Scoring Analysis API
+    Scoring Overview
+      ✓ should retrieve scoring endpoints (6 ms)
+    Scoring Factors
+      ✓ should retrieve scoring factors analysis (11 ms)
+      ✕ should filter scoring factors by category (9 ms)
+    Symbol Scoring
+      ✕ should calculate scoring metrics for symbol (3 ms)
+      ✕ should provide factor-based scoring breakdown (3 ms)
+    Score Comparison
+      ✕ should compare scores between multiple symbols (3 ms)
+    Sector Scoring
+      ✕ should provide sector-based scoring analysis (3 ms)
+
+  ● Scoring Analysis API › Scoring Factors › should filter scoring factors by category
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      52 |       if (response.status === 200) {
+      53 |         expect(response.body).toHaveProperty("success", true);
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/sectors.integration.test.js
+  Sectors Routes
+    GET /api/sectors
+      ✓ should return sector performance data (2 ms)
+    GET /api/sectors/performance
+      ✓ should return detailed sector performance (9 ms)
+      ✕ should handle period parameter (3 ms)
+    GET /api/sectors/leaders
+      ✕ should return sector leaders (4 ms)
+    GET /api/sectors/rotation
+      ✕ should return sector rotation analysis (3 ms)
+    GET /api/sectors/:sector
+      ✕ should return specific sector data (1 ms)
+    GET /api/sectors/:sector/stocks
+      ✓ should return stocks in sector (4 ms)
+      ✓ should handle limit parameter (3 ms)
+    GET /api/sectors/heatmap
+      ✕ should return sector heatmap data (1 ms)
+
+  ● Sectors Routes › GET /api/sectors/performance › should handle period parameter
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      47 |       );
+      48 |
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/strategyBuilder.test.js
+  Strategy Builder Routes
+    POST /api/strategies/ai-generate
+      ✓ should return 400 for short prompt (13 ms)
+      ✓ should return error when no symbols provided (2 ms)
+      ✓ should handle empty prompt (2 ms)
+      ✓ should use default symbols array when not provided (2 ms)
+      ○ skipped should generate strategy successfully (skipped - AI service mock hanging)
+      ○ skipped should handle AI generation failure (skipped - AI service mock hanging)
+      ○ skipped should handle AI generation service error (skipped - AI service mock hanging)
+    POST /api/strategies/validate
+      ✕ should validate strategy successfully (2 ms)
+      ✓ should return 400 when strategy is missing (1 ms)
+      ✓ should return 400 when strategy code is missing (4 ms)
+      ✓ should handle validation service error (2 ms)
+      ✕ should handle validation with errors and warnings (1 ms)
+    POST /api/strategies/run-ai-strategy
+      ✕ should return 501 for backtest (not implemented) (3 ms)
+      ✓ should return 400 when strategy is missing (1 ms)
+      ✓ should return 400 when strategy code is missing (1 ms)
+      ✕ should handle missing symbols (1 ms)
+    POST /api/strategies/deploy-hft
+      ✕ should return 501 for HFT deployment (not implemented) (2 ms)
+      ✓ should return 400 when strategy is missing (1 ms)
+      ✓ should return 400 when backtest results are missing (1 ms)
+      ✓ should reject strategy that doesn't meet HFT requirements (1 ms)
+      ✓ should format requirement failures correctly (1 ms)
+    GET /api/strategies/available-symbols
+      ✕ should return available symbols successfully (2 ms)
+      ✕ should handle database error (3 ms)
+      ✕ should handle null database result (1 ms)
+      ✓ should handle empty symbol result (2 ms)
+    GET /api/strategies/list
+      ✕ should return 501 for user strategies list (not implemented) (2 ms)
+      ✕ should handle query parameters (1 ms)
+    GET /api/strategies/templates
+      ✓ should return strategy templates successfully (2 ms)
+      ✕ should handle missing strategy templates (2 ms)
+    Error handling and middleware
+      ✓ should handle authentication errors gracefully (3 ms)
+      ✓ should handle malformed JSON gracefully (4 ms)
+      ✕ should log user actions properly (3 ms)
+    Response format consistency
+      ✓ should maintain consistent success response format (1 ms)
+      ✓ should maintain consistent error response format (2 ms)
+      ✓ should handle all route parameter combinations (3 ms)
+
+  ● Strategy Builder Routes › POST /api/strategies/validate › should validate strategy successfully
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+      215 |         .post("/api/strategies/validate")
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/auth.integration.test.js
+  Authentication Routes Integration
+    POST /auth/register
+      ✓ should register new user successfully (9 ms)
+      ✓ should reject duplicate email registration (3 ms)
+      ✓ should validate required fields (2 ms)
+      ✓ should validate email format (3 ms)
+      ✓ should validate password strength (2 ms)
+    POST /auth/login
+      ✓ should login user with valid credentials (6 ms)
+      ✓ should reject missing credentials (2 ms)
+      ✓ should reject invalid credentials (2 ms)
+    GET /auth/me
+      ✓ should return user profile with dev bypass token (4 ms)
+      ✕ should require valid token (4 ms)
+      ✓ should reject invalid token (8 ms)
+    POST /auth/confirm
+      ✓ should confirm user registration (5 ms)
+      ✓ should require confirmation parameters (3 ms)
+    POST /auth/forgot-password
+      ✓ should initiate password reset (5 ms)
+      ✓ should require username (2 ms)
+    POST /auth/reset-password
+      ✓ should reset password with valid code (3 ms)
+      ✓ should require all parameters (3 ms)
+--
+    Economic data endpoint called with limit: 50
+
+      at log (routes/economic.js:224:13)
+
+  console.error
+    Error fetching economic data: Error: Query timeout
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/economic.test.js:326:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/economic.test.js
+  Economic Routes Unit Tests
+    GET /economic
+      ✓ should return economic data with pagination (3 ms)
+      ✓ should handle pagination parameters (2 ms)
+      ✓ should filter by series parameter (1 ms)
+      ✓ should handle database unavailable gracefully (4 ms)
+      ✓ should return 404 when no economic data found (1 ms)
+      ✓ should return 404 when null economic data result (1 ms)
+      ✕ should handle database errors (2 ms)
+      ✓ should handle count query returning empty result (2 ms)
+    GET /economic/data
+      ✓ should return economic data for DataValidation page (2 ms)
+      ✓ should handle limit parameter with maximum cap (5 ms)
+      ✓ should handle small limit parameter (2 ms)
+      ✓ should use default limit when not provided (1 ms)
+      ✓ should return 404 when no data found (2 ms)
+      ✓ should return 404 when null result (2 ms)
+      ✓ should return 404 when undefined rows (2 ms)
+      ✕ should handle database errors (3 ms)
+      ✓ should include timestamp in ISO format (2 ms)
+    Edge cases and error handling
+      ✕ should handle invalid page numbers (1 ms)
+      ✕ should handle negative page and limit (1 ms)
+      ✕ should handle very large page numbers (2 ms)
+      ✓ should handle special characters in series parameter (1 ms)
+      ✕ should handle empty series parameter (2 ms)
+      ✓ should handle invalid limit in data endpoint (2 ms)
+    Response format validation
+      ✓ should return consistent JSON response format (1 ms)
+      ✓ should maintain consistent error response format (1 ms)
+      ✕ should return proper data structure (2 ms)
+    Data integrity tests
+      ✓ should preserve numeric values correctly (1 ms)
+      ✓ should handle large datasets (2 ms)
+      ✓ should calculate pagination correctly (4 ms)
+
+  ● Economic Routes Unit Tests › GET /economic › should handle database errors
+
+    expect(received).toHaveProperty(path, value)
+
+    Expected path: "error"
+--
+
+      at Object.toHaveProperty (tests/unit/routes/economic.test.js:332:29)
+
+  ● Economic Routes Unit Tests › Edge cases and error handling › should handle invalid page numbers
+
+    TypeError: Cannot read properties of undefined (reading 'limit')
+
+      367 |
+      368 |       expect(response.body.pagination?.page || 1).toBe(1); // Default page
+    > 369 |       expect(response.body.pagination.limit).toBe(25); // Default limit
+          |                                       ^
+      370 |     });
+      371 |
+      372 |     test("should handle negative page and limit", async () => {
+
+      at Object.limit (tests/unit/routes/economic.test.js:369:39)
+
+  ● Economic Routes Unit Tests › Edge cases and error handling › should handle negative page and limit
+
+    TypeError: Cannot read properties of undefined (reading 'limit')
+
+      383 |
+      384 |       expect(response.body.pagination?.page || 1).toBe(1); // Defaults to 1
+    > 385 |       expect(response.body.pagination.limit).toBe(25); // Defaults to 25
+          |                                       ^
+      386 |     });
+      387 |
+      388 |     test("should handle very large page numbers", async () => {
+
+      at Object.limit (tests/unit/routes/economic.test.js:385:39)
+--
+    💰 Current price requested for AAPL
+
+      at log (routes/price.js:64:13)
+
+  console.error
+    Price error for AAPL: ReferenceError: priceData is not defined
+        at priceData (/home/stocks/algo/webapp/lambda/routes/price.js:128:16)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+      139 |     });
+      140 |   } catch (error) {
+    > 141 |     console.error(`Price error for ${req.params.symbol}:`, error);
+          |             ^
+      142 |     return res.status(500).json({
+      143 |       success: false,
+      144 |       error: "Failed to fetch price data",
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/price.integration.test.js
+  Price Routes
+    GET /api/price/:symbol
+      ✕ should return current price for symbol (33 ms)
+      ✓ should handle invalid symbol (5 ms)
+    GET /api/price/:symbol/history
+      ✓ should return price history (4 ms)
+      ✓ should handle period parameter (4 ms)
+    GET /api/price/:symbol/intraday
+      ✓ should return intraday prices (6 ms)
+      ✓ should handle interval parameter (3 ms)
+    POST /api/price/batch
+      ✓ should return prices for multiple symbols (4 ms)
+      ✓ should validate symbols array (1 ms)
+    GET /api/price/alerts
+      ✕ should return price alerts (4 ms)
+    POST /api/price/alerts
+      ✓ should create price alert (1 ms)
+
+  ● Price Routes › GET /api/price/:symbol › should return current price for symbol
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/screener.integration.test.js
+  Screener Routes
+    GET /api/screener
+      ✕ should return screener endpoints (2 ms)
+    GET /api/screener/screen
+      ✕ should screen stocks with basic criteria (1 ms)
+      ✕ should handle multiple criteria (1 ms)
+      ✕ should handle sector filter (1 ms)
+    GET /api/screener/presets
+      ✕ should return screening presets (1 ms)
+    GET /api/screener/presets/:presetName
+      ✕ should return specific preset (1 ms)
+    GET /api/screener/growth
+      ✕ should return growth stocks (1 ms)
+      ✕ should handle timeframe parameter (1 ms)
+      ✕ should return growth stocks (1 ms)
+    GET /api/screener/value
+      ✕ should return value stocks (1 ms)
+    GET /api/screener/dividend
+      ✓ should return dividend stocks (13 ms)
+      ✓ should handle minimum yield parameter (3 ms)
+    GET /api/screener/technical
+      ✕ should return technical screening results (1 ms)
+    POST /api/screener/custom
+      ✓ should create custom screen (2 ms)
+      ✓ should validate criteria (2 ms)
+    GET /api/screener/backtest
+      ✕ should return backtesting results (1 ms)
+      ✕ should require strategy parameter (1 ms)
+    GET /api/screener/export
+      ✕ should export screening results (1 ms)
+
+  ● Screener Routes › GET /api/screener › should return screener endpoints
+
+    expect(received).toHaveProperty(path)
+
+    Expected path: "message"
+    Received path: []
+
+    Received value: {"data": {"available_endpoints": ["GET /screener/screen - Main stock screening with filters", "GET /screener/ai-scan - AI-powered market scanner", "GET /screener/ai-strategies - Available AI scanning strategies", "GET /screener/templates - Pre-built screening templates", "GET /screener/factors - Available screening factors"], "status": "operational", "system": "Stock Screener API", "timestamp": "2025-09-26T12:02:16.842Z", "version": "1.0.0"}, "success": true}
+
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/earnings.integration.test.js
+  Earnings Data Integration
+    Earnings Calendar (Delegated)
+      ✓ should delegate to calendar earnings endpoint (10 ms)
+      ✕ should delegate symbol-specific requests to calendar (5 ms)
+      ✓ should handle query parameters for delegation (7 ms)
+    Direct Calendar Earnings Access
+      ✕ should access earnings via calendar route directly (5 ms)
+      ✓ should access earnings history via calendar route (8 ms)
+      ✓ should access earnings estimates via calendar route (4 ms)
+    Error Handling
+      ✓ should handle delegation errors gracefully (5 ms)
+
+  ● Earnings Data Integration › Earnings Calendar (Delegated) › should delegate symbol-specific requests to calendar
+
+    expect(received).toHaveProperty(path)
+
+    Expected path: "earnings"
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/watchlist.integration.test.js
+  Watchlist Routes
+    GET /api/watchlist
+      ✓ should return user watchlist (5 ms)
+    POST /api/watchlist
+      ✓ should return validation error for missing name (4 ms)
+      ✓ should validate required symbol (2 ms)
+    DELETE /api/watchlist/:id
+      ✓ should return validation error for invalid ID format (3 ms)
+    GET /api/watchlist/:listId
+      ✓ should return specific watchlist (4 ms)
+    PUT /api/watchlist/:id
+      ✓ should return validation error for invalid ID format (6 ms)
+    GET /api/watchlist/performance
+      ✕ should return watchlist performance (11 ms)
+    GET /api/watchlist/alerts
+      ✕ should return price alerts (4 ms)
+    POST /api/watchlist/import
+      ✕ should import watchlist from CSV (7 ms)
+    GET /api/watchlist/export
+      ✕ should export watchlist to CSV (3 ms)
+
+  ● Watchlist Routes › GET /api/watchlist/performance › should return watchlist performance
+
+    expect(received).toHaveProperty(path)
+
+    Matcher error: received value must not be null nor undefined
+
+    Received has value: undefined
+
+      109 |       if (response.status === 200) {
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/insider.test.js
+  Insider Routes
+    GET /api/insider/trades/:symbol
+      ✕ should return 501 status for not implemented endpoint (7 ms)
+      ✕ should convert symbol to uppercase (2 ms)
+      ✕ should log the request with symbol (3 ms)
+      ✕ should include valid ISO timestamp (2 ms)
+      ✕ should handle symbols with special characters (2 ms)
+      ✕ should handle long symbol names (2 ms)
+      ✕ should handle empty symbol gracefully (2 ms)
+      ✕ should handle route error and return 500 (2 ms)
+      ✕ should maintain consistent response structure for different symbols (7 ms)
+      ✕ should have consistent error message structure (1 ms)
+      ✕ should handle numeric symbol inputs (2 ms)
+
+  ● Insider Routes › GET /api/insider/trades/:symbol › should return 501 status for not implemented endpoint
+
+    expected 501 "Not Implemented", got 200 "OK"
+
+      24 |       const response = await request(app)
+      25 |         .get("/api/insider/trades/AAPL")
+    > 26 |         .expect(501);
+         |          ^
+      27 |
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/routes/analytics.integration.test.js
+  Analytics Routes
+    GET /api/analytics
+      ✓ should return analytics endpoints (6 ms)
+    GET /api/analytics/performance
+      ✕ should return performance analytics (1 ms)
+    GET /api/analytics/risk
+      ✕ should return risk analytics (1 ms)
+    GET /api/analytics/allocation
+      ✕ should return allocation analytics (1 ms)
+    GET /api/analytics/returns
+      ✕ should return returns analysis (2 ms)
+    GET /api/analytics/sectors
+      ✓ should return sector analysis (13 ms)
+    GET /api/analytics/correlation
+      ✓ should return correlation analysis (17 ms)
+    GET /api/analytics/volatility
+      ✕ should return volatility analysis (2 ms)
+    GET /api/analytics/trends
+      ✕ should return trend analysis (1 ms)
+    POST /api/analytics/custom
+      ✕ should handle custom analytics request (3 ms)
+
+  ● Analytics Routes › GET /api/analytics/performance › should return performance analytics
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 401
+
+      34 |       const response = await request(app).get("/api/analytics/performance");
+      35 |
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/sentiment.test.js
+  Sentiment Routes Unit Tests
+    GET /sentiment/health
+      ✓ should return health status without authentication (4 ms)
+    GET /sentiment
+      ✓ should return sentiment API information without authentication (2 ms)
+    GET /sentiment/analysis
+      ✓ should require symbol parameter (13 ms)
+      ✕ should return sentiment analysis with valid symbol (7 ms)
+      ✕ should handle default period parameter (8 ms)
+      ✕ should handle different period parameters (5 ms)
+      ✕ should handle invalid period gracefully (4 ms)
+      ✓ should handle lowercase symbol conversion (5 ms)
+      ✓ should handle empty sentiment data (7 ms)
+      ✓ should handle database query errors (5 ms)
+    GET /sentiment/history
+      ✕ should return sentiment history for symbol (4 ms)
+      ✕ should handle history limit parameter (3 ms)
+    GET /sentiment/social
+      ✓ should return social sentiment analysis with proper structure (2 ms)
+      ✓ should handle timeframe parameter for social sentiment (2 ms)
+      ✓ should handle invalid symbol for social sentiment (2 ms)
+    GET /sentiment/trending
+      ✓ should return trending sentiment analysis with proper structure (2 ms)
+      ✓ should handle limit parameter for trending sentiment (2 ms)
+      ✓ should handle timeframe parameter for trending sentiment (2 ms)
+      ✓ should handle sorting for trending sentiment (2 ms)
+      ✓ should handle sector filter for trending sentiment (2 ms)
+      ✓ should handle minimum trending score filter (1 ms)
+    GET /sentiment/market
+      ✕ should return overall market sentiment (2 ms)
+      ✕ should handle empty market sentiment data (2 ms)
+    Parameter validation
+      ✕ should sanitize symbol parameter (9 ms)
+      ✕ should handle invalid symbol format (5 ms)
+      ✕ should handle extremely long symbol parameter (4 ms)
+    Authentication handling
+      ✓ should allow public access to health endpoint (2 ms)
+      ✓ should allow public access to root endpoint (1 ms)
+      ✕ should allow public access to analysis endpoint (5 ms)
+    Error handling
+      ✕ should handle database connection timeout (6 ms)
+      ✕ should handle malformed database results (6 ms)
+      ✕ should handle sentiment calculation errors (8 ms)
+    Response format
+      ✓ should return consistent JSON response format (1 ms)
+      ✓ should include metadata in sentiment responses (4 ms)
+      ✕ should include analysis metadata (6 ms)
+
+  ● Sentiment Routes Unit Tests › GET /sentiment/analysis › should return sentiment analysis with valid symbol
+
+    expect(received).toHaveProperty(path, value)
+
+    Expected path: "sentiment_score"
+
+    Expected value: 0.75
+    Received value: 0
+
+--
+    Stock screening with filters: { marketCapMin: '1000000000', marketCapMax: '100000000000' }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    Stock screening with filters: { volumeMin: '1000000' }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    Stock screening with filters: { sector: 'Technology' }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    Stock screening with filters: { dividendYieldMin: '2', dividendYieldMax: '8' }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    Stock screening with filters: { page: '3', limit: '100' }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    Stock screening with filters: { priceMin: '10000' }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    Stock screening with filters: {}
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    Stock screening with filters: {}
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+    Stock screening with filters: { page: '2', limit: '50' }
+
+      at log (routes/screener.js:119:13)
+
+  console.warn
+    Error checking table existence for stocks: TypeError: Cannot read properties of undefined (reading 'exists')
+        at exists (/home/stocks/algo/webapp/lambda/routes/screener.js:20:27)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at /home/stocks/algo/webapp/lambda/routes/screener.js:122:26
+
+      20 |     return result.rows[0].exists;
+      21 |   } catch (error) {
+    > 22 |     console.warn(`Error checking table existence for ${tableName}:`, error);
+         |             ^
+      23 |     return false;
+      24 |   }
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/screener.test.js
+  Screener Routes Unit Tests
+    GET /screener
+      ✓ should return screener API overview without authentication (5 ms)
+    GET /screener/screen (authenticated)
+      ✕ should screen stocks with default parameters (4 ms)
+      ✕ should handle price filter parameters (4 ms)
+      ✕ should handle market cap filter parameters (14 ms)
+      ✕ should handle volume filter parameters (7 ms)
+      ✕ should handle sector filter (4 ms)
+      ✕ should handle PE ratio filters (3 ms)
+      ✕ should handle dividend yield filters (4 ms)
+      ✕ should handle pagination parameters (3 ms)
+      ✕ should cap limit at 500 (2 ms)
+      ✕ should handle multiple filters combined (3 ms)
+      ✓ should handle invalid numeric parameters gracefully (2 ms)
+      ✕ should handle empty results (3 ms)
+      ✕ should handle database query errors (3 ms)
+    GET /screener/templates (authenticated)
+      ○ skipped should return pre-built screening templates
+      ○ skipped should filter templates by category
+      ○ skipped should handle empty templates
+    GET /screener/factors (authenticated)
+      ○ skipped should return available screening factors
+    Authentication
+      ✓ should allow public access to root endpoint (5 ms)
+      ✓ should require authentication for screening endpoint (1 ms)
+    Parameter validation
+      ✕ should sanitize SQL injection attempts (3 ms)
+      ✓ should handle extreme numeric values (2 ms)
+    Error handling
+      ✕ should handle database timeout errors (3 ms)
+      ○ skipped should handle factor scoring engine errors
+    Response format
+      ✓ should return consistent JSON response format (1 ms)
+      ✕ should include pagination metadata (3 ms)
+
+  ● Screener Routes Unit Tests › GET /screener/screen (authenticated) › should screen stocks with default parameters
+
+    expect(received).toHaveProperty(path)
+
+    Expected path: "stocks"
+    Received path: []
+
+    Received value: []
+
+--
+    🔍 [PATTERNS] Analyzing patterns for AAPL on 1D timeframe
+
+      at log (routes/technical.js:2239:11)
+
+  console.error
+    Error getting price data for patterns: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/technical.test.js:804:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+      at error (routes/technical.js:2580:13)
+      at analyzePatterns (routes/technical.js:2282:23)
+      at routes/technical.js:2245:29
+
+  console.error
+    Error in technical overview endpoint: Error: Connection timeout
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/technical.test.js:829:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/utils/database.integration.test.js
+  Database Real Site Functionality Tests
+    Real Database Query Operations
+      ✓ should execute basic SELECT queries against real database (1 ms)
+      ✓ should handle parameterized queries correctly (4 ms)
+      ✓ should prevent SQL injection attacks with parameterized queries (1 ms)
+      ✕ should handle database errors gracefully (3 ms)
+      ✕ should handle syntax errors gracefully (8 ms)
+      ✓ should work with complex JOIN queries on real tables (8 ms)
+      ✓ should handle aggregate functions and calculations (6 ms)
+      ✓ should handle date/time operations (1 ms)
+    Database Initialization and Schema
+      ✓ should initialize database and create required tables (1 ms)
+      ✓ should verify database connection and schema integrity (3 ms)
+      ✓ should handle database configuration from environment variables (1 ms)
+    Real Database Schema Operations
+      ✓ should initialize and verify schema tables (17 ms)
+      ✓ should handle table creation and constraints (3 ms)
+--
+      ✓ should execute transactions with commit (4 ms)
+      ✓ should rollback transactions on error (4 ms)
+      ✓ should handle nested transaction operations (4 ms)
+    Real-World Data Operations
+      ✓ should handle bulk data insertions efficiently (9 ms)
+      ✕ should handle complex analytical queries (11 ms)
+      ✓ should handle time-based queries with proper indexing performance (13 ms)
+    Advanced Transaction Integration Scenarios
+      ✓ should handle concurrent transactions without conflicts (5 ms)
+      ✓ should handle transaction rollback with concurrent access (1 ms)
+      ✓ should handle cross-table transaction consistency (2 ms)
+      ✓ should handle transaction isolation levels (105 ms)
+      ✓ should handle large transaction data volumes (26 ms)
+
+  ● Database Real Site Functionality Tests › Real Database Query Operations › should handle database errors gracefully
+
+--
+    JWT decode failed in dev mode, trying other token patterns: Cannot read properties of undefined (reading 'sub')
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:197:23)
+
+  console.error
+    API key storage error: Error: API key data exceeds maximum length limits
+        at ApiKeyService.storeApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:686:15)
+        at storeApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1397:34)
+        at Object.storeApiKey (/home/stocks/algo/webapp/lambda/tests/unit/utils/apiKeyService.test.js:197:28)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+--
+    JWT verification failed in test mode: Invalid token
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    API key storage error: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/utils/apiKeyService.test.js:226:23)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+    JWT verification failed in test mode: Invalid token
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:172:19)
+
+  console.error
+    API key deletion error: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/utils/apiKeyService.test.js:431:23)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+      at ApiKeyService.recordFailure [as storeApiKey] (utils/apiKeyService.js:810:12)
+      at storeApiKey (utils/apiKeyService.js:1397:14)
+      at Object.<anonymous> (tests/unit/utils/apiKeyService.test.js:601:22)
+
+  console.error
+    API key storage error: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/utils/apiKeyService.test.js:595:23)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+      at ApiKeyService.recordFailure [as storeApiKey] (utils/apiKeyService.js:810:12)
+      at storeApiKey (utils/apiKeyService.js:1397:34)
+      at Object.storeApiKey (tests/unit/utils/apiKeyService.test.js:681:28)
+
+  console.error
+    API key storage error: Error: API key data exceeds maximum length limits
+        at ApiKeyService.storeApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:686:15)
+        at storeApiKey (/home/stocks/algo/webapp/lambda/utils/apiKeyService.js:1397:34)
+        at Object.storeApiKey (/home/stocks/algo/webapp/lambda/tests/unit/utils/apiKeyService.test.js:681:28)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+--
+    JWT decode failed in dev mode, trying other token patterns: Cannot read properties of undefined (reading 'sub')
+
+      at ApiKeyService.log [as validateJwtToken] (utils/apiKeyService.js:197:23)
+
+  console.error
+    Audit logging error: Error: Audit log failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/utils/apiKeyService.test.js:953:32)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/utils/apiKeyService.test.js
+  API Key Service
+    validateJwtToken
+      ✕ should validate JWT token in test environment (1 ms)
+      ✕ should reject invalid JWT tokens (1 ms)
+      ✓ should handle empty or invalid token input (1 ms)
+      ✕ should accept dev-bypass-token in development (1 ms)
+    storeApiKey
+      ✓ should store API key successfully (1 ms)
+      ✓ should validate input parameters
+      ✓ should validate provider name for SQL injection
+      ✓ should validate required fields (1 ms)
+      ✓ should validate field lengths (12 ms)
+      ✕ should handle JWT validation failure (1 ms)
+      ✓ should handle database errors (1 ms)
+    getApiKey
+      ✓ should retrieve API key successfully (1 ms)
+      ✓ should return null for non-existent keys
+      ✓ should handle JWT validation failure (1 ms)
+      ✓ should update last used timestamp (1 ms)
+    validateApiKey
+      ✓ should validate API key successfully
+      ✓ should handle API key not configured
+      ✕ should handle JWT validation failure (1 ms)
+      ✓ should test connection when requested
+    deleteApiKey
+      ✓ should delete API key successfully
+      ✓ should handle deletion of non-existent key (1 ms)
+      ✕ should handle JWT validation failure gracefully (1 ms)
+      ✓ should handle database errors (1 ms)
+    listProviders
+      ✕ should return list of configured providers
+      ✕ should return empty array for no providers (1 ms)
+      ✕ should handle JWT validation failure (1 ms)
+      ✕ should handle database unavailable gracefully (1 ms)
+    getDecryptedApiKey
+      ✓ should retrieve API key by user ID
+      ✓ should return null for non-existent key
+    cache management
+      ✓ should invalidate session cache (1 ms)
+      ✓ should clear all caches
+    health status
+      ✓ should return health status
+    circuit breaker functionality
+      ✓ should handle circuit breaker failures (5 ms)
+      ✕ should test JWT circuit breaker functionality (1 ms)
+    security features
+      ✓ should sanitize log output
+      ✓ should validate input lengths (2 ms)
+      ○ skipped should use different salts for different users
+    encryption and decryption
+      ✓ should handle production encryption mode (1 ms)
+      ✓ should handle encryption key from environment (1 ms)
+      ✓ should handle secrets manager errors
+    production JWT verification
+      ✓ should handle Cognito JWT verification (1 ms)
+      ✓ should handle Cognito JWT verification failure (1 ms)
+      ✕ should use cached JWT session (1 ms)
+    edge cases and error handling
+      ✓ should handle database null result (1 ms)
+      ✓ should handle missing required fields for provider
+      ✓ should handle connection test for alpaca (1 ms)
+    audit logging
+      ✓ should log audit events
+      ✓ should handle audit logging errors gracefully (2 ms)
+    development mode features
+      ✕ should handle development bypass token (1 ms)
+      ✓ should reset circuit breaker in development
+    provider specific functionality
+      ✓ should handle different provider required fields (1 ms)
+      ✓ should handle unknown provider gracefully
+
+  ● API Key Service › validateJwtToken › should validate JWT token in test environment
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "dev-bypass@example.com"
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/utils/schemaValidator.test.js
+  Schema Validator
+    validateData
+      ✓ should validate valid company profile data successfully (1 ms)
+      ✕ should fail validation for missing required fields
+      ✓ should fail validation for unknown table
+      ✓ should fail validation for unknown field (1 ms)
+      ✓ should validate VARCHAR field with max length constraint
+      ✓ should validate INTEGER field constraints
+      ✓ should validate DECIMAL precision constraints
+      ✓ should validate BOOLEAN field types (1 ms)
+      ✓ should validate DATE field format
+      ✓ should allow null values for non-required fields (1 ms)
+    validateTableStructure
+      ✓ should validate existing table with correct structure
+--
+      ✓ should detect type mismatches (1 ms)
+      ✓ should handle unknown table schema
+      ✓ should handle database errors (1 ms)
+    validateIndexes
+      ✓ should validate indexes successfully
+      ✕ should return valid for table without indexes
+      ✕ should handle database errors
+    safeQuery
+      ✕ should execute query successfully
+      ✕ should return null on database error and log warning (1 ms)
+      ✓ should truncate long query text in logs
+    field sanitization
+      ✓ should sanitize VARCHAR fields
+      ✓ should convert string numbers to proper types
+      ✓ should handle boolean conversion edge cases (1 ms)
+      ✓ should convert date strings to ISO format
+    edge cases and error scenarios
+      ✓ should handle empty data object
+      ✓ should validate complex table with multiple constraints
+      ✕ should handle very long strings gracefully
+    schemas export
+      ✓ should export schemas object
+
+  ● Schema Validator › validateData › should fail validation for missing required fields
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 2
+    Received length: 1
+    Received array:  [{"code": "REQUIRED_FIELD_MISSING", "field": "ticker", "message": "Required field \"ticker\" is missing"}]
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/signals.test.js
+  Signals Route - Unit Tests
+    GET /api/signals/buy
+      ✓ should get buy signals with default parameters (23 ms)
+      ✓ should handle different timeframes (6 ms)
+      ✓ should validate timeframe parameter (1 ms)
+      ✓ should apply limit and pagination (4 ms)
+      ✓ should handle database errors gracefully (4 ms)
+    GET /api/signals/sell
+      ✓ should get sell signals (5 ms)
+      ✓ should handle empty sell signals (5 ms)
+--
+    GET /api/signals/sector-rotation
+      ✓ should return sector rotation signals (2 ms)
+      ✓ should filter by rotation strength (2 ms)
+      ✓ should handle specific sector filtering (2 ms)
+    POST /api/signals/custom
+      ✕ should create custom signal with valid criteria (3 ms)
+      ✕ should validate required fields (1 ms)
+      ✕ should validate criteria format (1 ms)
+    GET /api/signals/history
+      ✓ should return signal history (2 ms)
+      ✓ should filter by date range (2 ms)
+      ✓ should filter by signal type (3 ms)
+      ✓ should include performance metrics (2 ms)
+    GET /api/signals/alerts
+      ✓ should return active signal alerts (4 ms)
+      ✓ should filter alerts by status (8 ms)
+    POST /api/signals/alerts
+      ✕ should create new signal alert (2 ms)
+    GET /api/signals/performance
+      ✓ should return signal performance analytics (4 ms)
+      ✓ should break down performance by signal type (5 ms)
+      ✓ should handle time period analysis (4 ms)
+    Error Handling
+      ✓ should handle invalid query parameters gracefully (4 ms)
+      ✓ should handle database connection errors (4 ms)
+      ✓ should validate signal type parameters (5 ms)
+      ✓ should handle large limit values (4 ms)
+      ✕ should handle malformed request bodies (1 ms)
+      ✕ should handle authentication edge cases (4 ms)
+      ✓ should handle valid requests (6 ms)
+
+  ● Signals Route - Unit Tests › POST /api/signals/custom › should create custom signal with valid criteria
+
+    expected 201 "Created", got 401 "Unauthorized"
+
+      562 |         .post("/api/signals/custom")
+      563 |         .send(customSignal)
+    > 564 |         .expect(201);
+          |          ^
+--
+
+      at warn (routes/analysts.js:20:15)
+      at routes/analysts.js:135:11
+
+  console.warn
+    Error checking table existence for sentiment_analysis: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/analysts.test.js:219:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+    ✅ [GROWTH] Calculated growth estimates for AAPL: Revenue 0%, EPS 0%
+
+      at log (routes/analysts.js:601:13)
+
+  console.error
+    Analyst overview fetch error: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/analysts.test.js:350:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+    📊 Analyst recommendations requested for AAPL
+
+      at log (routes/analysts.js:851:13)
+
+  console.error
+    Analyst recommendations error: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/analysts.test.js:475:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+
+      at warn (routes/analysts.js:20:15)
+      at routes/analysts.js:135:11
+
+  console.warn
+    Error checking table existence for analyst_upgrade_downgrade: Error: Test error
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/analysts.test.js:822:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/analysts.test.js
+  Analysts Route - Comprehensive Unit Tests
+    GET /api/analysts/
+      ✓ should return API overview with all endpoints (11 ms)
+    GET /api/analysts/upgrades
+      ✓ should return analyst upgrades with proper structure (8 ms)
+      ✓ should handle pagination parameters correctly (2 ms)
+    GET /api/analysts/:ticker/earnings-estimates
+      ✓ should return earnings estimates for valid ticker (6 ms)
+      ✓ should handle case insensitive ticker symbols (2 ms)
+    GET /api/analysts/:ticker/revenue-estimates
+      ✕ should get revenue estimates for valid ticker (2 ms)
+    GET /api/analysts/:ticker/earnings-history
+      ✓ should get earnings history for valid ticker (1 ms)
+    GET /api/analysts/:ticker/eps-revisions
+      ✕ should get EPS revisions for valid ticker (1 ms)
+      ✕ should handle database errors for EPS revisions (2 ms)
+    GET /api/analysts/:ticker/eps-trend
+      ✓ should get EPS trend for valid ticker (1 ms)
+    GET /api/analysts/:ticker/growth-estimates
+      ✕ should get growth estimates for valid ticker (5 ms)
+    GET /api/analysts/:ticker/overview
+      ✓ should get comprehensive analyst overview (1 ms)
+      ✓ should handle database errors for overview (2 ms)
+    GET /api/analysts/recent-actions
+      ✕ should get recent analyst actions (1 ms)
+      ✕ should handle no recent actions found (1 ms)
+      ✕ should handle limit parameter (1 ms)
+    GET /api/analysts/recommendations/:symbol
+      ✕ should get analyst recommendations for valid symbol (7 ms)
+      ✓ should handle no recommendations found (2 ms)
+      ✓ should handle database errors for recommendations (2 ms)
+    GET /api/analysts/targets/:symbol
+      ✓ should get price targets (placeholder implementation) (2 ms)
+    GET /api/analysts/downgrades
+      ✕ should return analyst downgrades with default parameters (1 ms)
+      ✕ should support filtering by symbol (1 ms)
+      ✕ should support filtering by analyst firm (1 ms)
+      ✕ should support filtering by severity (2 ms)
+      ✕ should support minimum price impact filtering (1 ms)
+      ✕ should support different timeframe options (1 ms)
+      ✕ should handle errors gracefully (1 ms)
+    GET /api/analysts/consensus/:symbol
+      ✓ should get consensus analysis (placeholder implementation) (2 ms)
+    Edge Cases and Error Handling
+      ✓ should handle invalid ticker symbols gracefully (2 ms)
+      ✕ should handle special characters in ticker symbols (2 ms)
+      ✕ should handle very large page numbers (1 ms)
+      ✓ should handle zero or negative page numbers (1 ms)
+      ✓ should handle null database results gracefully (1 ms)
+    Performance Testing
+      ✓ should handle multiple concurrent requests (28 ms)
+      ✕ should handle large dataset responses efficiently (2 ms)
+    Response Format Validation
+      ✓ should return consistent JSON response format (1 ms)
+      ✓ should include timestamp in ISO format (1 ms)
+      ✕ should maintain consistent error response format (2 ms)
+
+  ● Analysts Route - Comprehensive Unit Tests › GET /api/analysts/:ticker/revenue-estimates › should get revenue estimates for valid ticker
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: StringContaining "er.revenue as actual", ["AAPL"]
+    Received
+           1
+              "
+          SELECT EXISTS (
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/database/cross-service-transaction.integration.test.js
+  Cross-Service Transaction Integration
+    Service Coordination Patterns
+      ✓ should coordinate portfolio and order service transactions (8 ms)
+      ✕ should handle cross-service transaction failure and rollback (3 ms)
+    Service Dependency Management
+      ✓ should handle service dependency chain transactions (13 ms)
+      ✓ should handle circular dependency resolution (8 ms)
+    Distributed Transaction Patterns
+      ✓ should implement saga pattern for long-running transactions (10 ms)
+
+  ● Cross-Service Transaction Integration › Service Coordination Patterns › should handle cross-service transaction failure and rollback
+
+    error: column "name" of relation "market_data" does not exist
+
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/utils/alpacaService.test.js
+  AlpacaService
+    constructor
+      ✓ should create AlpacaService instance with valid credentials (1 ms)
+      ✓ should throw error when API key is missing (15 ms)
+      ✓ should throw error when API secret is missing (1 ms)
+      ✓ should default to paper trading
+      ✓ should support live trading mode
+    checkRateLimit
+      ✓ should allow requests under rate limit
+      ✓ should throw error when rate limit exceeded (1 ms)
+--
+      ✓ should return empty array when no bars data available
+      ✓ should return empty array on API error
+      ✓ should use default options when none provided
+    getMarketClock
+      ✓ should fetch market clock successfully
+      ✕ should return fallback data on API error
+    createOrder
+      ✓ should create market order successfully
+      ✓ should create limit order successfully
+      ✓ should validate required parameters (1 ms)
+      ✓ should handle order creation failure
+      ✓ should handle undefined order_type in response (1 ms)
+
+  ● AlpacaService › getMarketClock › should return fallback data on API error
+
+    API error
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/utils/riskEngine.test.js
+  Risk Engine Integration Tests
+    Portfolio Risk Assessment with Database Integration
+      ✕ should calculate portfolio-wide risk metrics from database (1 ms)
+      ✕ should identify concentration risk
+      ✕ should calculate sector allocation risk
+    Historical Volatility Analysis
+      ✕ should calculate volatility from historical price data
+      ✕ should handle insufficient data gracefully
+      ✕ should calculate beta relative to market
+    Value at Risk (VaR) Calculations
+      ✕ should calculate portfolio VaR using historical method
+      ✕ should calculate VaR for different confidence levels
+      ✕ should calculate parametric VaR
+    Position Sizing and Risk Management
+      ✕ should recommend optimal position sizes
+      ✕ should validate position size against risk limits
+    Correlation and Covariance Analysis
+      ✕ should calculate correlation matrix for portfolio
+      ✕ should identify highly correlated positions
+    Stress Testing and Scenario Analysis
+      ✕ should perform market crash stress test
+      ✕ should perform custom scenario analysis
+    Risk Monitoring and Alerts
+      ✕ should monitor portfolio risk limits
+      ✕ should generate risk alerts for violations
+    Performance and Scalability
+      ✕ should handle large portfolios efficiently
+      ✕ should maintain accuracy with concurrent calculations
+    Error Handling and Edge Cases
+      ✕ should handle empty portfolio gracefully
+      ✕ should handle database connection errors
+      ✕ should handle invalid risk parameters
+
+  ● Risk Engine Integration Tests › Portfolio Risk Assessment with Database Integration › should calculate portfolio-wide risk metrics from database
+
+    error: column "cost_basis" of relation "portfolio_holdings" does not exist
+
+      1306 |     });
+      1307 |
+    > 1308 |     const result = await Promise.race([
+           |                    ^
+      1309 |       pool.query(text, params),
+--
+    🚨 Alert system integration initialized
+
+      at LiveDataManager.log [as initializeAlertSystem] (utils/liveDataManager.js:1307:15)
+
+  console.error
+    Error: SyntaxError: Unexpected token 'j', "{"incomplete": json" is not valid JSON
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 135 "-" "-"
+  console.error
+    Error: SyntaxError: Expected property name or '}' in JSON at position 1
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 135 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected token '}', ..."omplete": }" is not valid JSON
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+
+      at log (middleware/auth.js:66:15)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 140 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected non-whitespace character after JSON at position 18
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 135 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected non-whitespace character after JSON at position 27
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+
+      at log (middleware/auth.js:66:15)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 200 349 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected token 'n', "not json content" is not valid JSON
+        at JSON.parse (<anonymous>)
+        at createStrictSyntaxError (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:169:10)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:86:15)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+
+      at log (middleware/auth.js:66:15)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 200 348 "-" "-"
+  console.error
+    Error: UnsupportedMediaTypeError: unsupported charset "ISO-8859-1"
+        at jsonParser (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:130:12)
+        at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+        at trim_prefix (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:328:13)
+        at /home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:286:9
+        at Function.process_params (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:346:12)
+        at next (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:280:10)
+        at logger (/home/stocks/algo/webapp/lambda/node_modules/morgan/index.js:144:5)
+        at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+        at trim_prefix (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:328:13)
+        at /home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:286:9
+--
+      type: 'charset.unsupported'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at Function.handle (node_modules/express/lib/application.js:181:10)
+      at Server.app (node_modules/express/lib/express.js:39:9)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 415 101 "-" "-"
+  console.error
+    Error: SyntaxError: Expected ',' or '}' after property value in JSON at position 30
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+
+      at log (middleware/auth.js:66:15)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 140 "-" "-"
+  console.error
+    Error: SyntaxError: Unterminated string in JSON at position 20
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 135 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected token 'u', ..."nction": function() "... is not valid JSON
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 135 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected token 'u', ..."defined": undefined}" is not valid JSON
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:36 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 135 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected end of JSON input
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+    Starting health check with database...
+
+      at log (routes/health.js:36:13)
+
+  console.error
+    Error: SyntaxError: Unexpected end of JSON input
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/errors/malformed-request.integration.test.js
+  Malformed Request Integration
+    JSON Parsing Error Scenarios
+      ✕ should handle malformed JSON gracefully (44 ms)
+      ✕ should handle JSON with dangerous characters (16 ms)
+      ✕ should handle deeply nested JSON structures (5 ms)
+    HTTP Header Malformation
+      ✕ should handle malformed authorization headers
+      ✕ should handle malformed content-type headers (1 ms)
+      ✕ should handle custom header injection attempts (19 ms)
+    URL and Path Malformation
+      ✕ should handle malformed URLs and paths (15 ms)
+      ✕ should handle malformed query parameters (10 ms)
+    Request Body Malformation
+      ✓ should handle oversized request bodies (7 ms)
+      ✓ should handle binary data in JSON fields (6 ms)
+      ✕ should handle mismatched content-type and body (7 ms)
+    Character Encoding Issues
+      ✓ should handle invalid UTF-8 sequences (6 ms)
+      ✕ should handle different character encodings (6 ms)
+    Security and Sanitization
+      ✓ should sanitize error messages containing malformed input (14 ms)
+      ✓ should not expose stack traces in malformed request errors (6 ms)
+    Error Response Consistency
+      ✕ should maintain consistent error format for all malformed requests (2 ms)
+      ✓ should handle malformed requests without service disruption (17 ms)
+
+  ● Malformed Request Integration › JSON Parsing Error Scenarios › should handle malformed JSON gracefully
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not ""
+    Received string:        "Invalid symbols array"
+
+      71 |         // Error should not expose the malformed content
+--
+
+      at Object.toContain (tests/integration/errors/malformed-request.integration.test.js:148:26)
+
+  ● Malformed Request Integration › HTTP Header Malformation › should handle malformed authorization headers
+
+    TypeError: Invalid character in header content ["Authorization"]
+
+      at Test.setHeader [as request] (node_modules/superagent/src/node/index.js:851:39)
+      at Test.request [as end] (node_modules/superagent/src/node/index.js:986:8)
+      at Test.end (node_modules/supertest/lib/test.js:118:11)
+      at end (node_modules/superagent/src/request-base.js:285:12)
+      at Test.Object.<anonymous>.RequestBase.then (node_modules/superagent/src/request-base.js:267:31)
+
+  ● Malformed Request Integration › HTTP Header Malformation › should handle malformed content-type headers
+
+    TypeError: Invalid character in header content ["Content-Type"]
+
+      at Test.setHeader [as request] (node_modules/superagent/src/node/index.js:851:39)
+      at Test.request [as end] (node_modules/superagent/src/node/index.js:986:8)
+      at Test.end (node_modules/supertest/lib/test.js:118:11)
+      at end (node_modules/superagent/src/request-base.js:285:12)
+      at Test.Object.<anonymous>.RequestBase.then (node_modules/superagent/src/request-base.js:267:31)
+
+  ● Malformed Request Integration › HTTP Header Malformation › should handle custom header injection attempts
+
+    expect(received).toMatch(expected)
+--
+
+      at Object.toMatch (tests/integration/errors/malformed-request.integration.test.js:338:33)
+
+  ● Malformed Request Integration › URL and Path Malformation › should handle malformed query parameters
+
+    TypeError: Request path contains unescaped characters
+
+      at Test.request (node_modules/superagent/src/node/index.js:808:22)
+      at Test.request [as end] (node_modules/superagent/src/node/index.js:986:8)
+      at Test.end (node_modules/supertest/lib/test.js:118:11)
+      at end (node_modules/superagent/src/request-base.js:285:12)
+      at Test.Object.<anonymous>.RequestBase.then (node_modules/superagent/src/request-base.js:267:31)
+
+  ● Malformed Request Integration › Request Body Malformation › should handle mismatched content-type and body
+
+    expect(received).toContain(expected) // indexOf
+--
+
+      at Object.toContain (tests/integration/errors/malformed-request.integration.test.js:540:28)
+
+  ● Malformed Request Integration › Error Response Consistency › should maintain consistent error format for all malformed requests
+
+    TypeError: Invalid character in header content ["Authorization"]
+
+      at Test.setHeader [as request] (node_modules/superagent/src/node/index.js:851:39)
+      at Test.request [as end] (node_modules/superagent/src/node/index.js:986:8)
+      at Test.end (node_modules/supertest/lib/test.js:118:11)
+      at end (node_modules/superagent/src/request-base.js:285:12)
+      at Test.Object.<anonymous>.RequestBase.then (node_modules/superagent/src/request-base.js:267:31)
+
+  console.log
+    Using database config from environment variables
+
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/utils/performanceMonitor.test.js
+  Performance Monitor Integration Tests
+    Performance Timing
+      ✓ should measure operation duration accurately
+      ✕ should handle multiple concurrent timers
+      ✓ should handle invalid timer IDs gracefully (6 ms)
+    Metrics Recording
+      ✕ should record custom metrics (1 ms)
+      ✓ should record metrics with different categories
+      ✕ should handle metrics with metadata
+    Performance Analytics
+      ✕ should calculate average response times (1 ms)
+      ✓ should handle empty metrics gracefully
+      ✓ should calculate metrics for different time ranges
+    System Health Monitoring
+      ✕ should collect system health metrics
+      ✕ should include database health in system metrics
+      ✕ should detect system health status accurately (1 ms)
+    Anomaly Detection
+      ✓ should detect performance anomalies (1 ms)
+      ✓ should handle normal data without false positives
+      ✕ should detect trend-based anomalies
+    Performance Reporting
+      ✕ should generate comprehensive performance report (2 ms)
+      ✕ should include performance recommendations (1 ms)
+      ✓ should filter report by categories (1 ms)
+    Performance Benchmarking
+      ✕ should benchmark database operations (6 ms)
+      ✕ should benchmark API response times (270 ms)
+      ✕ should compare performance across time periods
+    Error Handling and Edge Cases
+      ✓ should handle database connection issues gracefully
+      ✓ should handle invalid time ranges
+      ✕ should handle very large metric values
+      ✕ should handle concurrent metric recording (1 ms)
+
+  ● Performance Monitor Integration Tests › Performance Timing › should handle multiple concurrent timers
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      169 |       const duration3 = endTimer(timer3);
+      170 |
+--
+    🚨 Alert system integration initialized
+
+      at LiveDataManager.log [as initializeAlertSystem] (utils/liveDataManager.js:1307:15)
+
+  console.error
+    Error: SyntaxError: Unexpected end of JSON input
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:39 +0000] "POST /api/portfolio/analyze HTTP/1.1" 400 135 "-" "-"
+  console.error
+    Error: SyntaxError: Expected property name or '}' in JSON at position 1
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:39 +0000] "GET /api/market/overview HTTP/1.1" 200 1514 "-" "-"
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:39 +0000] "GET /api/nonexistent HTTP/1.1" 404 121 "-" "-"
+::ffff:127.0.0.1 - - [26/Sep/2025:12:02:39 +0000] "GET /api/portfolio HTTP/1.1" 401 74 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected end of JSON input
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/commodities.test.js
+  Commodities Routes
+    GET /api/commodities/health
+      ✓ should return health status (9 ms)
+      ✓ should not require authentication (1 ms)
+    GET /api/commodities/
+      ✕ should return commodities API overview (1 ms)
+      ✓ should return all expected endpoints (1 ms)
+    GET /api/commodities/categories
+      ✓ should return commodity categories (1 ms)
+      ✓ should include energy category with correct structure (1 ms)
+      ✓ should include precious metals category (1 ms)
+      ✓ should include base metals category (2 ms)
+      ✓ should include agriculture category (1 ms)
+      ✓ should calculate total weight correctly (1 ms)
+      ✓ should include performance data for all time periods (2 ms)
+    GET /api/commodities/prices
+--
+      ✓ should include correlation matrix (1 ms)
+      ✓ should include correlation insights (1 ms)
+      ✓ should filter correlations by minimum threshold (1 ms)
+    GET /api/commodities/news
+      ✓ should return commodity news (2 ms)
+      ✕ should include required news fields (1 ms)
+      ✓ should filter by category when provided (2 ms)
+      ✓ should respect limit parameter (1 ms)
+    Response Format Validation
+      ✓ should return consistent JSON response format (5 ms)
+      ✓ should include timestamps in ISO format where applicable (6 ms)
+      ✓ should use consistent success field for API responses (3 ms)
+    Edge Cases and Error Handling
+      ✓ should handle malformed query parameters gracefully (1 ms)
+      ✓ should handle very large limit values (1 ms)
+      ✕ should handle negative limit values (13 ms)
+    Performance and Caching
+      ✓ should respond quickly to health checks (1 ms)
+      ✓ should handle concurrent requests (2 ms)
+
+  ● Commodities Routes › GET /api/commodities/ › should return commodities API overview
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 1
+--
+    🚨 Alert system integration initialized
+
+      at LiveDataManager.log [as initializeAlertSystem] (utils/liveDataManager.js:1307:15)
+
+  console.error
+    Failed to add connection : Error: Connection ID is required
+        at LiveDataManager._addConnectionInternal (/home/stocks/algo/webapp/lambda/utils/liveDataManager.js:303:15)
+        at LiveDataManager._addConnectionInternal [as addConnection] (/home/stocks/algo/webapp/lambda/utils/liveDataManager.js:292:17)
+        at Object.addConnection (/home/stocks/algo/webapp/lambda/tests/integration/utils/liveDataManager.test.js:556:38)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+--
+      at LiveDataManager.error [as _addConnectionInternal] (utils/liveDataManager.js:372:15)
+      at LiveDataManager._addConnectionInternal [as addConnection] (utils/liveDataManager.js:292:17)
+      at Object.addConnection (tests/integration/utils/liveDataManager.test.js:556:38)
+
+  console.error
+    Failed to add subscription for symbol , user : Error: Symbol, provider, connectionId, and userId are required
+        at LiveDataManager.addSubscription (/home/stocks/algo/webapp/lambda/utils/liveDataManager.js:547:15)
+        at Object.addSubscription (/home/stocks/algo/webapp/lambda/tests/integration/utils/liveDataManager.test.js:564:38)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+    📈 ETF holdings requested for SPY
+
+      at log (routes/etf.js:20:13)
+
+  console.error
+    ETF holdings database error: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/etf.test.js:215:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/unit/routes/etf.test.js
+  ETF Route - Comprehensive Unit Tests
+    GET /api/etf/:symbol/holdings
+      ✕ should get ETF holdings for valid symbol (13 ms)
+      ✓ should handle case insensitive symbol lookup (2 ms)
+      ✓ should handle limit parameter correctly (2 ms)
+      ✓ should handle missing symbol parameter (2 ms)
+      ✓ should handle ETF not found (2 ms)
+      ✕ should handle null database results gracefully (2 ms)
+      ✕ should handle database table not found error (7 ms)
+      ✓ should handle general database errors (2 ms)
+      ✕ should handle empty sector data gracefully (2 ms)
+      ✓ should handle missing fund metrics gracefully (2 ms)
+      ✓ should handle special characters in ETF symbol (2 ms)
+      ✕ should parse numeric values correctly (2 ms)
+      ✕ should handle sector name transformation correctly (2 ms)
+    Edge Cases and Error Handling
+      ✕ should handle very large limit parameter (1 ms)
+      ✕ should handle non-numeric limit parameter (2 ms)
+      ✕ should handle negative limit parameter (2 ms)
+      ✕ should handle malformed database response (1 ms)
+    Performance Testing
+      ✓ should handle concurrent requests efficiently (9 ms)
+      ✕ should handle large holdings dataset efficiently (3 ms)
+    Response Format Validation
+      ✓ should return consistent JSON response format (3 ms)
+      ✓ should include timestamp in ISO format (2 ms)
+      ✕ should maintain consistent error response format (2 ms)
+
+  ● ETF Route - Comprehensive Unit Tests › GET /api/etf/:symbol/holdings › should get ETF holdings for valid symbol
+
+    expect(received).toHaveProperty(path, value)
+
+    Expected path: "technology"
+    Received path: []
+
+    Expected value: 28.5
+    Received value: [{"percentage": 28.5, "sector": "Technology", "total_weight": 28.5, "weight": 28.5}, {"percentage": 13.2, "sector": "Healthcare", "total_weight": 13.2, "weight": 13.2}]
+--
+::ffff:127.0.0.1 - - [26/Sep/2025:12:03:05 +0000] "POST /api/websocket/subscribe/market HTTP/1.1" 404 136 "-" "-"
+::ffff:127.0.0.1 - - [26/Sep/2025:12:03:05 +0000] "POST /api/websocket/subscribe/market HTTP/1.1" 404 136 "-" "-"
+::ffff:127.0.0.1 - - [26/Sep/2025:12:03:05 +0000] "POST /api/websocket/subscribe/market HTTP/1.1" 404 136 "-" "-"
+::ffff:127.0.0.1 - - [26/Sep/2025:12:03:05 +0000] "GET /api/websocket/invalid HTTP/1.1" 404 127 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected token 'n', "not json" is not valid JSON
+        at JSON.parse (<anonymous>)
+        at createStrictSyntaxError (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:169:10)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:86:15)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+
+::ffff:127.0.0.1 - - [26/Sep/2025:12:03:05 +0000] "POST /api/websocket/validate-message HTTP/1.1" 400 135 "-" "-"
+  console.error
+    Error: SyntaxError: Unexpected token '}', "{"incomplete": }" is not valid JSON
+        at JSON.parse (<anonymous>)
+        at parse (/home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/types/json.js:92:19)
+        at /home/stocks/algo/webapp/lambda/node_modules/body-parser/lib/read.js:128:18
+        at AsyncResource.runInAsyncScope (node:async_hooks:206:9)
+        at invokeCallback (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:238:16)
+        at done (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:227:7)
+        at IncomingMessage.onEnd (/home/stocks/algo/webapp/lambda/node_modules/raw-body/index.js:287:7)
+        at IncomingMessage.emit (node:events:524:28)
+        at endReadableNT (node:internal/streams/readable:1698:12)
+        at processTicksAndRejections (node:internal/process/task_queues:82:21) {
+--
+      type: 'entity.parse.failed'
+    }
+
+      242 | app.use((err, req, res, _next) => {
+      243 |   try {
+    > 244 |     console.error("Error:", err);
+          |             ^
+      245 |   } catch (e) {
+      246 |     // Ignore console logging errors
+      247 |   }
+
+      at error (server.js:244:13)
+      at Layer.handle_error (node_modules/express/lib/router/layer.js:71:5)
+      at trim_prefix (node_modules/express/lib/router/index.js:326:13)
+      at node_modules/express/lib/router/index.js:286:9
+      at Function.process_params (node_modules/express/lib/router/index.js:346:12)
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/websocket/websocket.integration.test.js
+  WebSocket Integration
+    WebSocket Connection Establishment
+      ✕ should handle WebSocket upgrade requests (10 ms)
+      ✓ should handle WebSocket connection info requests (2 ms)
+      ✕ should validate WebSocket authentication requirements (12 ms)
+    WebSocket Message Handling
+      ✓ should handle WebSocket message format validation (14 ms)
+      ✕ should handle invalid WebSocket message formats (3 ms)
+    WebSocket Subscription Management
+      ✓ should handle market data subscriptions (2 ms)
+      ✓ should handle portfolio subscriptions (4 ms)
+      ✓ should handle subscription limits (16 ms)
+    WebSocket Error Scenarios
+      ✕ should handle connection errors gracefully (2 ms)
+      ✕ should handle malformed WebSocket messages (12 ms)
+      ✓ should handle WebSocket security issues (79 ms)
+    WebSocket Performance and Scalability
+      ✕ should handle concurrent WebSocket requests (6 ms)
+      ✓ should handle high-frequency message validation (13 ms)
+      ✓ should maintain performance under load (9 ms)
+    WebSocket Integration with Authentication
+      ✕ should handle WebSocket authentication flow (4 ms)
+      ✓ should handle WebSocket session management (4 ms)
+    WebSocket Data Consistency
+      ✓ should maintain consistent WebSocket message ordering (5 ms)
+
+  ● WebSocket Integration › WebSocket Connection Establishment › should handle WebSocket upgrade requests
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 200
+    Received array: [404, 500]
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/auth/auth-flow.integration.test.js
+  Authentication Flow Integration
+    Token-Based Authentication Flow
+      ✓ should handle dev bypass token authentication (10 ms)
+      ✓ should reject invalid tokens (11 ms)
+      ✕ should handle missing authorization header (8 ms)
+    Authorization Header Validation
+      ✓ should validate Bearer token format (11 ms)
+      ✓ should handle case sensitivity in authorization (17 ms)
+    Authentication Context Propagation
+      ✓ should maintain authentication context across request pipeline (26 ms)
+      ✓ should handle authentication in POST/PUT requests (8 ms)
+    Multi-Request Authentication Sessions
+      ✓ should handle multiple sequential authenticated requests (21 ms)
+      ✓ should handle concurrent authenticated requests (27 ms)
+    Authentication Error Handling
+--
+  console.log
+    ✅ Test cleanup complete
+
+      at Object.log (tests/setup.js:36:13)
+
+FAIL tests/integration/risk-management-workflow.integration.test.js
+  Risk Management Workflow Integration Tests
+    Complete Risk Management Workflow
+      ✕ should execute full risk management lifecycle (9 ms)
+      ✕ should handle empty portfolio risk analysis (4 ms)
+      ✕ should handle multiple rapid position closes (1 ms)
+      ✕ should maintain data consistency across concurrent operations (6 ms)
+    Risk Limit Compliance Checking
+      ✕ should detect and report risk limit violations (7 ms)
+
+  ● Risk Management Workflow Integration Tests › Complete Risk Management Workflow › should execute full risk management lifecycle
+
+    expected 200 "OK", got 401 "Unauthorized"
+
+      76 |         .post("/api/trading/risk/limits")
+      77 |         .send(riskLimits)
+    > 78 |         .expect(200);
+         |          ^
+      79 |
+--
+      at Test.assert (node_modules/supertest/lib/test.js:164:23)
+      at Server.localAssert (node_modules/supertest/lib/test.js:120:14)
+
+  ● Risk Management Workflow Integration Tests › Complete Risk Management Workflow › should handle empty portfolio risk analysis
+
+    TypeError: Cannot read properties of undefined (reading 'totalPositions')
+
+      385 |
+      386 |       expect(response.body.success).toBe(true);
+    > 387 |       expect(response.body.data.portfolioSummary.totalPositions).toBe(0);
+          |                                                  ^
+      388 |       expect(response.body.data.portfolioSummary.totalValue).toBe(0);
+      389 |       expect(response.body.data.riskMetrics.riskLevel).toBe("low");
+      390 |       expect(response.body.data.recommendations).toContain(
+
+      at Object.totalPositions (tests/integration/risk-management-workflow.integration.test.js:387:50)
+--
+    📊 Data API info requested
+
+      at log (routes/data.js:18:13)
+
+  console.error
+    ❌ Data API info error: Error: Unexpected error
+        at console.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/data.test.js:74:15)
+        at /home/stocks/algo/webapp/lambda/node_modules/jest-mock/build/index.js:397:39
+        at console.<anonymous> (/home/stocks/algo/webapp/lambda/node_modules/jest-mock/build/index.js:404:13)
+        at console.mockConstructor [as log] (/home/stocks/algo/webapp/lambda/node_modules/jest-mock/build/index.js:148:19)
+        at log (/home/stocks/algo/webapp/lambda/routes/data.js:18:13)
+        at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+        at next (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/route.js:149:13)
+        at Route.dispatch (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/route.js:119:3)
+        at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+        at /home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:284:15
+--
+    📊 [DATA] Fetching comprehensive data for AAPL
+
+      at log (routes/data.js:233:15)
+
+  console.error
+    ❌ [DATA] Error fetching data for AAPL: Error: Database connection failed
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/data.test.js:203:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+    📊 [DATA] Fetching historical data for AAPL
+
+      at log (routes/data.js:330:13)
+
+  console.error
+    ❌ [DATA] Error fetching historical data for AAPL: Error: Query timeout
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/data.test.js:323:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+    📊 [DATA] Fetching real-time data for AAPL
+
+      at log (routes/data.js:412:13)
+
+  console.error
+    ❌ [DATA] Error fetching real-time data for AAPL: Error: Connection lost
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/data.test.js:393:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+    📊 [DATA] Fetching bulk data for 2 symbols
+
+      at log (routes/data.js:67:13)
+
+  console.error
+    ❌ [DATA] Error fetching bulk data: Error: Database timeout
+        at Object.<anonymous> (/home/stocks/algo/webapp/lambda/tests/unit/routes/data.test.js:492:35)
+        at Promise.then.completed (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:298:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/utils.js:231:10)
+        at _callCircusTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:316:40)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at _runTest (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:252:3)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:126:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+        at _runTestsForDescribeBlock (/home/stocks/algo/webapp/lambda/node_modules/jest-circus/build/run.js:121:9)
+--
+  console.log
+    ✅ Test c

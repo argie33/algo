@@ -1,0 +1,9 @@
+
+> financial-dashboard-lambda@1.0.0 test
+> jest --coverage --coverageReporters=text --coverageReporters=html --coverageReporters=lcov
+
+🔧 Global Setup: Loading real database schema from setup_test_database.sql...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+✅ Real database schema loaded successfully - no mocks or demo data

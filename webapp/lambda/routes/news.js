@@ -1513,6 +1513,326 @@ router.get("/latest", async (req, res) => {
   }
 });
 
+// News search endpoint
+router.get("/search", async (req, res) => {
+  try {
+    const {
+      query: searchQuery,
+      q,
+      limit = 20,
+      category = "all",
+      sentiment = "all",
+      timeframe = "30d",
+      source = "all",
+      symbol = null,
+    } = req.query;
+
+    // Support both 'query' and 'q' parameters
+    const actualSearchQuery = searchQuery || q;
+
+    console.log(`🔍 News search requested: "${actualSearchQuery}"`);
+
+    if (!actualSearchQuery || actualSearchQuery.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Search query is required",
+        message: "Please provide a search query using the 'query' parameter",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build search query
+    let whereClause = "WHERE 1=1";
+    const params = [];
+    let paramIndex = 1;
+
+    // Parse timeframe to SQL interval
+    const timeframeMap = {
+      "1d": "1 day",
+      "3d": "3 days",
+      "7d": "7 days",
+      "14d": "14 days",
+      "30d": "30 days",
+      "3m": "3 months",
+      "6m": "6 months",
+      "1y": "1 year",
+    };
+
+    const intervalClause = timeframeMap[timeframe] || "30 days";
+    whereClause += ` AND published_at >= NOW() - INTERVAL '${intervalClause}'`;
+
+    // Full-text search across title, summary, and content
+    const searchTerms = actualSearchQuery
+      .trim()
+      .split(/\s+/)
+      .map((term) => term.toLowerCase());
+    const searchConditions = searchTerms.map((term) => {
+      const condition = `(
+        LOWER(headline) LIKE $${paramIndex} OR
+        LOWER(summary) LIKE $${paramIndex + 1} OR
+        LOWER(url) LIKE $${paramIndex + 2}
+      )`;
+      params.push(`%${term}%`, `%${term}%`, `%${term}%`);
+      paramIndex += 3;
+      return condition;
+    });
+
+    whereClause += ` AND (${searchConditions.join(" OR ")})`;
+
+    // Add category filter
+    if (category !== "all") {
+      whereClause += ` AND category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+
+    // Add symbol filter
+    if (symbol) {
+      whereClause += ` AND (symbol = $${paramIndex} OR headline ILIKE $${paramIndex + 1})`;
+      params.push(symbol.toUpperCase(), `%${symbol}%`);
+      paramIndex += 2;
+    }
+
+    // Add sentiment filter
+    if (sentiment !== "all") {
+      // Convert sentiment labels to numeric ranges
+      let sentimentCondition;
+      if (sentiment === "positive") {
+        sentimentCondition = ` AND sentiment > 0.1`;
+      } else if (sentiment === "negative") {
+        sentimentCondition = ` AND sentiment < -0.1`;
+      } else if (sentiment === "neutral") {
+        sentimentCondition = ` AND sentiment >= -0.1 AND sentiment <= 0.1`;
+      } else if (!isNaN(parseFloat(sentiment))) {
+        // If sentiment is numeric, use it directly
+        whereClause += ` AND sentiment = $${paramIndex}`;
+        params.push(parseFloat(sentiment));
+        paramIndex++;
+      }
+      if (sentimentCondition) {
+        whereClause += sentimentCondition;
+      }
+    }
+
+    // Add source filter
+    if (source !== "all") {
+      whereClause += ` AND LOWER(source) LIKE $${paramIndex}`;
+      params.push(`%${source.toLowerCase()}%`);
+      paramIndex++;
+    }
+
+    const searchSQL = `
+      SELECT
+        id,
+        headline,
+        summary,
+        url,
+        source,
+        category,
+        symbol,
+        published_at,
+        sentiment,
+        relevance_score,
+        -- Calculate search relevance score
+        (
+          CASE WHEN LOWER(headline) LIKE $${paramIndex} THEN 10 ELSE 0 END +
+          CASE WHEN LOWER(summary) LIKE $${paramIndex + 1} THEN 5 ELSE 0 END +
+          CASE WHEN symbol = $${paramIndex + 2} THEN 8 ELSE 0 END +
+          COALESCE(relevance_score * 3, 0)
+        ) as search_relevance_score,
+        -- Extract matching text snippets
+        SUBSTRING(
+          CASE
+            WHEN LOWER(headline) LIKE $${paramIndex} THEN headline
+            WHEN LOWER(summary) LIKE $${paramIndex + 1} THEN summary
+            ELSE headline
+          END, 1, 200
+        ) as matching_snippet
+      FROM news
+      ${whereClause}
+      ORDER BY search_relevance_score DESC, published_at DESC
+      LIMIT $${paramIndex + 3}
+    `;
+
+    // Add final parameters for relevance calculation and limit
+    params.push(
+      `%${actualSearchQuery.toLowerCase()}%`, // headline match
+      `%${actualSearchQuery.toLowerCase()}%`, // summary match
+      symbol ? symbol.toUpperCase() : "", // symbol match
+      parseInt(limit)
+    );
+
+    const result = await query(searchSQL, params);
+
+    // Get search statistics
+    const statsSQL = `
+      SELECT
+        COUNT(*) as total_matches,
+        COUNT(CASE WHEN sentiment > 0.1 THEN 1 END) as positive_count,
+        COUNT(CASE WHEN sentiment < -0.1 THEN 1 END) as negative_count,
+        COUNT(CASE WHEN sentiment >= -0.1 AND sentiment <= 0.1 THEN 1 END) as neutral_count,
+        COUNT(DISTINCT category) as unique_categories,
+        COUNT(DISTINCT source) as unique_sources,
+        AVG(relevance_score) as avg_relevance
+      FROM news
+      ${whereClause}
+    `;
+
+    const statsResult = await query(statsSQL, params.slice(0, -4)); // Remove relevance calc params
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          articles: [],
+          total_results: 0,
+          search_metadata: {
+            query: actualSearchQuery,
+            suggestions: [
+              "Try broader search terms",
+              "Check spelling and try synonyms",
+              "Remove filters to expand results",
+              "Try searching company names or ticker symbols",
+            ],
+          },
+        },
+        filters: {
+          query: actualSearchQuery,
+          category,
+          sentiment,
+          timeframe,
+          source,
+          symbol,
+          limit: parseInt(limit),
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process search results
+    const articles = result.rows.map((row) => ({
+      id: row.id,
+      headline: row.headline,
+      summary: row.summary,
+      url: row.url,
+      source: row.source,
+      category: row.category,
+      symbol: row.symbol,
+      published_at: row.published_at,
+      sentiment: convertScoreToLabel(row.sentiment),
+      sentiment_score: convertSentimentToScore(row.sentiment),
+      relevance_score: parseFloat(row.relevance_score || 0),
+      search_relevance_score: parseFloat(row.search_relevance_score || 0),
+      matching_snippet: row.matching_snippet,
+      time_ago: getTimeAgo(row.published_at),
+    }));
+
+    const stats = statsResult.rows[0];
+
+    // Generate search suggestions based on results
+    const generateSuggestions = (query, results) => {
+      const suggestions = [];
+      const topCategories = [
+        ...new Set(results.slice(0, 10).map((r) => r.category)),
+      ];
+      const topSymbols = [
+        ...new Set(
+          results
+            .slice(0, 10)
+            .map((r) => r.symbol)
+            .filter(Boolean)
+        ),
+      ];
+
+      if (topCategories.length > 0) {
+        suggestions.push(
+          `Try filtering by category: ${topCategories.slice(0, 3).join(", ")}`
+        );
+      }
+      if (topSymbols.length > 0) {
+        suggestions.push(
+          `Related symbols: ${topSymbols.slice(0, 3).join(", ")}`
+        );
+      }
+      if (results.length >= parseInt(limit)) {
+        suggestions.push(
+          "More results available - increase limit or add filters"
+        );
+      }
+
+      return suggestions;
+    };
+
+    res.json({
+      success: true,
+      data: {
+        articles,
+        total_results: articles.length,
+        estimated_total: parseInt(stats.total_matches || 0),
+        search_metadata: {
+          query: actualSearchQuery,
+          relevance_scores: {
+            min: Math.min(...articles.map((a) => a.search_relevance_score)),
+            max: Math.max(...articles.map((a) => a.search_relevance_score)),
+            avg:
+              articles.reduce((sum, a) => sum + a.search_relevance_score, 0) /
+              articles.length,
+          },
+          suggestions: generateSuggestions(actualSearchQuery, articles),
+        },
+        search_statistics: {
+          total_matches: parseInt(stats.total_matches || 0),
+          sentiment_distribution: {
+            positive: parseInt(stats.positive_count || 0),
+            negative: parseInt(stats.negative_count || 0),
+            neutral: parseInt(stats.neutral_count || 0),
+          },
+          unique_categories: parseInt(stats.unique_categories || 0),
+          unique_sources: parseInt(stats.unique_sources || 0),
+          average_relevance: parseFloat(stats.avg_relevance || 0),
+        },
+      },
+      filters: {
+        query: actualSearchQuery,
+        category,
+        sentiment,
+        timeframe,
+        source,
+        symbol,
+        limit: parseInt(limit),
+      },
+      methodology: {
+        search_algorithm: "Multi-field text matching with relevance scoring",
+        relevance_factors:
+          "Headline match (10pts), summary match (5pts), symbol match (8pts), content relevance (3x)",
+        ranking: "Search relevance score + recency + content relevance",
+        text_matching:
+          "Case-insensitive partial matching across headline, summary, and URL",
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("News search error:", error);
+
+    if (error.message.includes('relation "news" does not exist')) {
+      return res.status(503).json({
+        success: false,
+        error: "News search service not available",
+        message:
+          "News database not configured. Please run the news data loader script.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: "Failed to search news",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // News for specific symbol
 router.get("/:symbol", async (req, res) => {
   try {
@@ -2039,306 +2359,5 @@ router.get("/trending", async (req, res) => {
   }
 });
 
-// News search endpoint
-router.get("/search", async (req, res) => {
-  try {
-    const {
-      query: searchQuery,
-      limit = 20,
-      category = "all",
-      sentiment = "all",
-      timeframe = "30d",
-      source = "all",
-      symbol = null,
-    } = req.query;
-
-    console.log(`🔍 News search requested: "${searchQuery}"`);
-
-    if (!searchQuery || searchQuery.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Search query is required",
-        message: "Please provide a search query using the 'query' parameter",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Build search query
-    let whereClause = "WHERE 1=1";
-    const params = [];
-    let paramIndex = 1;
-
-    // Parse timeframe to SQL interval
-    const timeframeMap = {
-      "1d": "1 day",
-      "3d": "3 days",
-      "7d": "7 days",
-      "14d": "14 days",
-      "30d": "30 days",
-      "3m": "3 months",
-      "6m": "6 months",
-      "1y": "1 year",
-    };
-
-    const intervalClause = timeframeMap[timeframe] || "30 days";
-    whereClause += ` AND published_at >= NOW() - INTERVAL '${intervalClause}'`;
-
-    // Full-text search across title, summary, and content
-    const searchTerms = searchQuery
-      .trim()
-      .split(/\s+/)
-      .map((term) => term.toLowerCase());
-    const searchConditions = searchTerms.map((term) => {
-      const condition = `(
-        LOWER(headline) LIKE $${paramIndex} OR 
-        LOWER(summary) LIKE $${paramIndex + 1} OR
-        LOWER(url) LIKE $${paramIndex + 2}
-      )`;
-      params.push(`%${term}%`, `%${term}%`, `%${term}%`);
-      paramIndex += 3;
-      return condition;
-    });
-
-    whereClause += ` AND (${searchConditions.join(" OR ")})`;
-
-    // Add category filter
-    if (category !== "all") {
-      whereClause += ` AND category = $${paramIndex}`;
-      params.push(category);
-      paramIndex++;
-    }
-
-    // Add symbol filter
-    if (symbol) {
-      whereClause += ` AND (symbol = $${paramIndex} OR headline ILIKE $${paramIndex + 1})`;
-      params.push(symbol.toUpperCase(), `%${symbol}%`);
-      paramIndex += 2;
-    }
-
-    // Add sentiment filter
-    if (sentiment !== "all") {
-      whereClause += ` AND sentiment = $${paramIndex}`;
-      params.push(sentiment);
-      paramIndex++;
-    }
-
-    // Add source filter
-    if (source !== "all") {
-      whereClause += ` AND LOWER(source) LIKE $${paramIndex}`;
-      params.push(`%${source.toLowerCase()}%`);
-      paramIndex++;
-    }
-
-    const searchSQL = `
-      SELECT 
-        id,
-        headline,
-        summary,
-        url,
-        source,
-        category,
-        symbol,
-        published_at,
-        sentiment,
-        relevance_score,
-        -- Calculate search relevance score
-        (
-          CASE WHEN LOWER(headline) LIKE $${paramIndex} THEN 10 ELSE 0 END +
-          CASE WHEN LOWER(summary) LIKE $${paramIndex + 1} THEN 5 ELSE 0 END +
-          CASE WHEN symbol = $${paramIndex + 2} THEN 8 ELSE 0 END +
-          COALESCE(relevance_score * 3, 0)
-        ) as search_relevance_score,
-        -- Extract matching text snippets
-        SUBSTRING(
-          CASE 
-            WHEN LOWER(headline) LIKE $${paramIndex} THEN headline
-            WHEN LOWER(summary) LIKE $${paramIndex + 1} THEN summary
-            ELSE headline
-          END, 1, 200
-        ) as matching_snippet
-      FROM news 
-      ${whereClause}
-      ORDER BY search_relevance_score DESC, published_at DESC
-      LIMIT $${paramIndex + 3}
-    `;
-
-    // Add final parameters for relevance calculation and limit
-    params.push(
-      `%${searchQuery.toLowerCase()}%`, // headline match
-      `%${searchQuery.toLowerCase()}%`, // summary match
-      symbol ? symbol.toUpperCase() : "", // symbol match
-      parseInt(limit)
-    );
-
-    const result = await query(searchSQL, params);
-
-    // Get search statistics
-    const statsSQL = `
-      SELECT 
-        COUNT(*) as total_matches,
-        COUNT(CASE WHEN sentiment = 'positive' THEN 1 END) as positive_count,
-        COUNT(CASE WHEN sentiment = 'negative' THEN 1 END) as negative_count,
-        COUNT(CASE WHEN sentiment = 'neutral' THEN 1 END) as neutral_count,
-        COUNT(DISTINCT category) as unique_categories,
-        COUNT(DISTINCT source) as unique_sources,
-        AVG(relevance_score) as avg_relevance
-      FROM news 
-      ${whereClause}
-    `;
-
-    const statsResult = await query(statsSQL, params.slice(0, -4)); // Remove relevance calc params
-
-    if (result.rows.length === 0) {
-      return res.json({
-        success: true,
-        data: {
-          articles: [],
-          total_results: 0,
-          search_metadata: {
-            query: searchQuery,
-            suggestions: [
-              "Try broader search terms",
-              "Check spelling and try synonyms",
-              "Remove filters to expand results",
-              "Try searching company names or ticker symbols",
-            ],
-          },
-        },
-        filters: {
-          query: searchQuery,
-          category,
-          sentiment,
-          timeframe,
-          source,
-          symbol,
-          limit: parseInt(limit),
-        },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Process search results
-    const articles = result.rows.map((row) => ({
-      id: row.id,
-      headline: row.headline,
-      summary: row.summary,
-      url: row.url,
-      source: row.source,
-      category: row.category,
-      symbol: row.symbol,
-      published_at: row.published_at,
-      sentiment: convertScoreToLabel(row.sentiment),
-      sentiment_score: convertSentimentToScore(row.sentiment),
-      relevance_score: parseFloat(row.relevance_score || 0),
-      search_relevance_score: parseFloat(row.search_relevance_score || 0),
-      matching_snippet: row.matching_snippet,
-      time_ago: getTimeAgo(row.published_at),
-    }));
-
-    const stats = statsResult.rows[0];
-
-    // Generate search suggestions based on results
-    const generateSuggestions = (query, results) => {
-      const suggestions = [];
-      const topCategories = [
-        ...new Set(results.slice(0, 10).map((r) => r.category)),
-      ];
-      const topSymbols = [
-        ...new Set(
-          results
-            .slice(0, 10)
-            .map((r) => r.symbol)
-            .filter(Boolean)
-        ),
-      ];
-
-      if (topCategories.length > 0) {
-        suggestions.push(
-          `Try filtering by category: ${topCategories.slice(0, 3).join(", ")}`
-        );
-      }
-      if (topSymbols.length > 0) {
-        suggestions.push(
-          `Related symbols: ${topSymbols.slice(0, 3).join(", ")}`
-        );
-      }
-      if (results.length >= parseInt(limit)) {
-        suggestions.push(
-          "More results available - increase limit or add filters"
-        );
-      }
-
-      return suggestions;
-    };
-
-    res.json({
-      success: true,
-      data: {
-        articles,
-        total_results: articles.length,
-        estimated_total: parseInt(stats.total_matches || 0),
-        search_metadata: {
-          query: searchQuery,
-          relevance_scores: {
-            min: Math.min(...articles.map((a) => a.search_relevance_score)),
-            max: Math.max(...articles.map((a) => a.search_relevance_score)),
-            avg:
-              articles.reduce((sum, a) => sum + a.search_relevance_score, 0) /
-              articles.length,
-          },
-          suggestions: generateSuggestions(searchQuery, articles),
-        },
-        search_statistics: {
-          total_matches: parseInt(stats.total_matches || 0),
-          sentiment_distribution: {
-            positive: parseInt(stats.positive_count || 0),
-            negative: parseInt(stats.negative_count || 0),
-            neutral: parseInt(stats.neutral_count || 0),
-          },
-          unique_categories: parseInt(stats.unique_categories || 0),
-          unique_sources: parseInt(stats.unique_sources || 0),
-          average_relevance: parseFloat(stats.avg_relevance || 0),
-        },
-      },
-      filters: {
-        query: searchQuery,
-        category,
-        sentiment,
-        timeframe,
-        source,
-        symbol,
-        limit: parseInt(limit),
-      },
-      methodology: {
-        search_algorithm: "Multi-field text matching with relevance scoring",
-        relevance_factors:
-          "Headline match (10pts), summary match (5pts), symbol match (8pts), content relevance (3x)",
-        ranking: "Search relevance score + recency + content relevance",
-        text_matching:
-          "Case-insensitive partial matching across headline, summary, and URL",
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("News search error:", error);
-
-    if (error.message.includes('relation "news" does not exist')) {
-      return res.status(503).json({
-        success: false,
-        error: "News search service not available",
-        message:
-          "News database not configured. Please run the news data loader script.",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: "Failed to search news",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 module.exports = router;

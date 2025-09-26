@@ -277,8 +277,10 @@ describe("Recommendations Routes", () => {
         .get("/api/recommendations/analysts/AAPL?limit=99999")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body.limit).toBe(99999);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("symbol", "AAPL");
+      expect(response.body).toHaveProperty("analysts");
     });
   });
 
@@ -314,7 +316,10 @@ describe("Recommendations Routes", () => {
         .get("/api/recommendations?symbol=%20invalid%20")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([501, 500].includes(response.status)).toBe(true);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("recommendations");
+      expect(Array.isArray(response.body.recommendations)).toBe(true);
     });
 
     test("should handle empty parameters", async () => {
@@ -322,7 +327,8 @@ describe("Recommendations Routes", () => {
         .get("/api/recommendations?symbol=&category=&analyst=")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
     });
 
     test("should handle URL encoded parameters", async () => {
@@ -330,29 +336,29 @@ describe("Recommendations Routes", () => {
         .get("/api/recommendations?symbol=BRK%2EA")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body.symbol).toBe("BRK.A");
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.filters.symbol).toBe("BRK.A");
     });
   });
 
   describe("Response Structure Validation", () => {
-    test("should have consistent error response structure", async () => {
+    test("should have consistent response structure", async () => {
       const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body).toHaveProperty("details");
-      expect(response.body).toHaveProperty("troubleshooting");
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("recommendations");
+      expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("filters");
       expect(response.body).toHaveProperty("timestamp");
 
-      // Validate troubleshooting structure
-      expect(response.body.troubleshooting).toHaveProperty("suggestion");
-      expect(response.body.troubleshooting).toHaveProperty("required_setup");
-      expect(response.body.troubleshooting).toHaveProperty("status");
+      // Validate filters structure
+      expect(response.body.filters).toHaveProperty("category");
+      expect(response.body.filters).toHaveProperty("analyst");
+      expect(response.body.filters).toHaveProperty("timeframe");
 
       // Validate filters structure
       expect(response.body.filters).toHaveProperty("category");
@@ -366,12 +372,11 @@ describe("Recommendations Routes", () => {
         .get("/api/recommendations/analysts/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body).toHaveProperty("details");
-      expect(response.body).toHaveProperty("troubleshooting");
-      expect(response.body).toHaveProperty("symbol");
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("symbol", "AAPL");
+      expect(response.body).toHaveProperty("analysts");
+      expect(Array.isArray(response.body.analysts)).toBe(true);
       expect(response.body).toHaveProperty("limit");
       expect(response.body).toHaveProperty("timestamp");
     });
@@ -388,7 +393,8 @@ describe("Recommendations Routes", () => {
       const responseTime = Date.now() - startTime;
 
       expect(responseTime).toBeLessThan(3000);
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
     });
 
     test("should handle concurrent requests", async () => {
@@ -407,50 +413,50 @@ describe("Recommendations Routes", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response) => {
-        expect([400, 401, 404, 422, 500]).toContain(response.status);
+        expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
       });
     });
   });
 
   describe("Required Setup Documentation", () => {
-    test("should document required setup for recommendations", async () => {
+    test("should return recommendations data successfully", async () => {
       const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      const setup = response.body.troubleshooting.required_setup;
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("recommendations");
+      expect(Array.isArray(response.body.recommendations)).toBe(true);
 
-      // Should include key requirements
-      expect(setup.some((item) => item.toLowerCase().includes("analyst"))).toBe(
-        true
-      );
-      expect(
-        setup.some((item) => item.toLowerCase().includes("recommendation"))
-      ).toBe(true);
-      expect(setup.some((item) => item.toLowerCase().includes("data"))).toBe(
-        true
-      );
+      // Should include recommendations with analyst data
+      if (response.body.recommendations.length > 0) {
+        const recommendation = response.body.recommendations[0];
+        expect(recommendation).toHaveProperty("analyst_firm");
+        expect(recommendation).toHaveProperty("rating");
+        expect(recommendation).toHaveProperty("recommendation_type");
+      }
     });
 
-    test("should document required setup for analyst coverage", async () => {
+    test("should return analyst coverage data successfully", async () => {
       const response = await request(app)
         .get("/api/recommendations/analysts/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      const setup = response.body.troubleshooting.required_setup;
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("symbol", "AAPL");
+      expect(response.body).toHaveProperty("coverage");
+      expect(Array.isArray(response.body.coverage)).toBe(true);
 
-      // Should include key requirements
-      expect(setup.some((item) => item.toLowerCase().includes("analyst"))).toBe(
-        true
-      );
-      expect(
-        setup.some((item) => item.toLowerCase().includes("coverage"))
-      ).toBe(true);
-      expect(
-        setup.some((item) => item.toLowerCase().includes("track record"))
-      ).toBe(true);
+      // Should include analyst coverage data
+      if (response.body.coverage.length > 0) {
+        const coverage = response.body.coverage[0];
+        expect(coverage).toHaveProperty("analyst_firm");
+        expect(coverage).toHaveProperty("rating");
+        expect(coverage).toHaveProperty("recommendation_type");
+      }
     });
   });
 });

@@ -283,11 +283,11 @@ async function populateLoaderTestData() {
     try {
       // Use only columns that exist in the actual market_data table schema
       await query(`
-        INSERT INTO market_data (ticker, regular_market_price, previous_close) VALUES
-        ('AAPL', 175.50, 174.25),
-        ('MSFT', 420.75, 419.50),
-        ('GOOGL', 143.50, 142.75)
-        ON CONFLICT (ticker) DO NOTHING
+        INSERT INTO market_data (symbol, date, regular_market_price, previous_close) VALUES
+        ('AAPL', CURRENT_DATE, 175.50, 174.25),
+        ('MSFT', CURRENT_DATE, 420.75, 419.50),
+        ('GOOGL', CURRENT_DATE, 143.50, 142.75)
+        ON CONFLICT DO NOTHING
       `);
     } catch (error) {
       console.warn('Could not insert market_data test data:', error.message);

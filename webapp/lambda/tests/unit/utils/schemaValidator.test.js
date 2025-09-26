@@ -67,7 +67,7 @@ describe("Schema Validator", () => {
       expect(result.valid).toBe(false);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain('Required field "ticker" is missing');
-      expect(result.errorDetails).toHaveLength(2);
+      expect(result.errorDetails).toHaveLength(1);
     });
 
     test("should fail validation for unknown table", () => {

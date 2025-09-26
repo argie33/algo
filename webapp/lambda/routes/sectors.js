@@ -680,7 +680,7 @@ router.get("/allocation", async (req, res) => {
         AVG(ph.average_cost) as avg_cost_basis,
         SUM(ph.quantity * COALESCE(pd.close, ph.average_cost)) - SUM(ph.quantity * ph.average_cost) as unrealized_pnl
       FROM portfolio_holdings ph
-      LEFT JOIN stocks fm ON ph.symbol = s.symbol
+      LEFT JOIN stocks s ON ph.symbol = s.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, date
@@ -957,6 +957,78 @@ router.get("/laggards", async (req, res) => {
       success: false,
       error: "Failed to fetch sector laggards",
       message: error.message,
+    });
+  }
+});
+
+/**
+ * GET /sectors/heatmap
+ * Get sector heatmap data for visualization
+ */
+router.get("/heatmap", authenticateToken, async (req, res) => {
+  try {
+    console.log("📊 Fetching sector heatmap data");
+
+    // Add timeout wrapper
+    const executeQueryWithTimeout = (queryPromise, name) => {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`${name} query timeout after 3 seconds`)), 3000)
+      );
+      return Promise.race([queryPromise, timeoutPromise]);
+    };
+
+    // Get sector performance data for heatmap
+    const heatmapQuery = `
+      SELECT
+        COALESCE(sector, 'Other') as sector,
+        COUNT(*) as stock_count,
+        AVG(current_price) as avg_price,
+        AVG(volume) as avg_volume,
+        AVG(market_cap) as avg_market_cap,
+        SUM(market_cap) as total_market_cap
+      FROM stocks
+      WHERE sector IS NOT NULL
+        AND current_price IS NOT NULL
+        AND market_cap IS NOT NULL
+      GROUP BY sector
+      ORDER BY total_market_cap DESC
+    `;
+
+    const heatmapData = await executeQueryWithTimeout(
+      query(heatmapQuery),
+      "sector heatmap"
+    );
+
+    // Format data for heatmap visualization
+    const formattedData = heatmapData.map(sector => ({
+      sector: sector.sector,
+      stockCount: parseInt(sector.stock_count),
+      averagePrice: parseFloat(sector.avg_price || 0).toFixed(2),
+      averageVolume: parseInt(sector.avg_volume || 0),
+      averageMarketCap: parseFloat(sector.avg_market_cap || 0),
+      totalMarketCap: parseFloat(sector.total_market_cap || 0),
+      weight: parseFloat(sector.total_market_cap || 0) /
+              Math.max(1, heatmapData.reduce((sum, s) => sum + parseFloat(s.total_market_cap || 0), 0))
+    }));
+
+    res.json({
+      success: true,
+      data: formattedData,
+      metadata: {
+        totalSectors: formattedData.length,
+        totalStocks: formattedData.reduce((sum, s) => sum + s.stockCount, 0),
+        totalMarketCap: formattedData.reduce((sum, s) => sum + s.totalMarketCap, 0)
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("Sector heatmap error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sector heatmap",
+      message: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });

@@ -99,7 +99,7 @@ describe("Economic Routes Integration Tests", () => {
       for (const params of invalidParams) {
         const response = await request(app).get(`/api/economic?${params}`);
 
-        expect([200, 400, 500, 503].includes(response.status)).toBe(true);
+        expect([200, 400, 404, 500, 503].includes(response.status)).toBe(true);
       }
     });
   });
@@ -176,8 +176,8 @@ describe("Economic Routes Integration Tests", () => {
 
       if (response.status === 200 && response.body.data.length > 0) {
         response.body.data.forEach((event) => {
-          expect(event).toHaveProperty("date");
-          expect(event).toHaveProperty("event");
+          expect(event).toHaveProperty("event_date");
+          expect(event).toHaveProperty("event_name");
           expect(event).toHaveProperty("importance");
         });
       }
@@ -453,7 +453,7 @@ describe("Economic Routes Integration Tests", () => {
         `/api/economic?series=${encodeURIComponent(maliciousSeries)}`
       );
 
-      expect([200, 400].includes(response.status)).toBe(true);
+      expect([200, 400, 404].includes(response.status)).toBe(true);
     });
 
     test("should handle memory pressure with large datasets", async () => {

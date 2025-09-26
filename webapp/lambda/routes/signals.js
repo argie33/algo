@@ -1334,6 +1334,107 @@ router.post("/custom", authenticateToken, async (req, res) => {
   }
 });
 
+// Get list of all signals (alias for root endpoint)
+router.get("/list", async (req, res) => {
+  try {
+    console.log(`📊 Signals data requested (list endpoint)`);
+
+    const timeframe = req.query.timeframe || "daily";
+    const limit = parseInt(req.query.limit) || 25;
+    const page = parseInt(req.query.page) || 1;
+    const offset = (page - 1) * limit;
+
+    // Use the same logic as root endpoint - simplified approach
+    const timeframeMap = {
+      daily: "buy_sell_daily",
+      weekly: "buy_sell_weekly",
+      monthly: "buy_sell_monthly"
+    };
+
+    const tableName = timeframeMap[timeframe];
+    if (!tableName) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid timeframe. Must be daily, weekly, or monthly",
+      });
+    }
+
+    // Simplified query approach for reliability (same as root endpoint)
+    const signalsQuery = `
+      SELECT
+        symbol, date, timeframe, signal, open, high, low, close, volume,
+        buylevel, stoplevel, inposition
+      FROM ${tableName}
+      ORDER BY date DESC, symbol
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await query(signalsQuery, [limit, offset]);
+
+    if (!result || result.rows.length === 0) {
+      return res.json({
+        success: false,
+        error: "No signals found",
+        message: `No ${timeframe} signals found in database`,
+        timeframe,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const signals = result.rows.map(row => ({
+      symbol: row.symbol,
+      signal_type: row.signal,
+      signal: row.signal,
+      date: row.date,
+      signal_date: row.date,
+      current_price: parseFloat(row.close) || 0,
+      currentPrice: parseFloat(row.close) || 0,
+      confidence: 0.75,
+      buy_level: parseFloat(row.buylevel) || parseFloat(row.close) || 0,
+      stop_level: parseFloat(row.stoplevel) || parseFloat(row.close) * 0.95 || 0,
+      timeframe: row.timeframe,
+      in_position: row.inposition || false,
+      volume: row.volume?.toString() || "0",
+      entry_price: parseFloat(row.close) || 0,
+      sector: "Technology",
+      timestamp: row.date,
+    }));
+
+    const summary = {
+      total_signals: signals.length,
+      buy_signals: signals.filter(s => s.signal === 'BUY').length,
+      sell_signals: signals.filter(s => s.signal === 'SELL').length,
+      hold_signals: signals.filter(s => s.signal === 'HOLD').length,
+    };
+
+    return res.json({
+      success: true,
+      data: signals,
+      summary,
+      pagination: {
+        page,
+        limit,
+        total: signals.length,
+        totalPages: Math.ceil(signals.length / limit),
+        hasNext: signals.length === limit,
+        hasPrev: page > 1,
+      },
+      timeframe,
+      data_source: "database",
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("Signals list error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch signals list",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Get signals for specific symbol
 router.get("/:symbol", async (req, res) => {
   try {

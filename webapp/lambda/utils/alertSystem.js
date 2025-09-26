@@ -402,7 +402,7 @@ class AlertSystem extends EventEmitter {
     // Send notifications
     this.sendNotifications(alert);
 
-    console.log(`🚨 Alert created: [${severity.toUpperCase()}] ${title}`);
+    console.log(`🚨 Alert created: [${severity ? severity.toUpperCase() : 'UNKNOWN'}] ${title || 'Untitled'}`);
   }
 
   /**
@@ -947,6 +947,20 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
 
     await this.sendNotifications(testAlert);
     console.log("🧪 Test notifications sent");
+  }
+
+  // Test helper methods
+  clearHistory() {
+    if (process.env.NODE_ENV === "test") {
+      this.alertHistory = [];
+    }
+  }
+
+  clearSubscriptions() {
+    if (process.env.NODE_ENV === "test") {
+      this.activeAlerts.clear();
+      this.lastNotificationTime.clear();
+    }
   }
 }
 

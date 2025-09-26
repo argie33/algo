@@ -33,7 +33,19 @@ const endpoints = [
 
 function makeRequest(url) {
   return new Promise((resolve) => {
-    const req = https.get(url, (res) => {
+    const urlObj = new URL(url);
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port,
+      path: urlObj.pathname + urlObj.search,
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer dev-bypass-token',
+        'Content-Type': 'application/json'
+      }
+    };
+
+    const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -74,6 +86,8 @@ function makeRequest(url) {
         data: null
       });
     });
+
+    req.end();
   });
 }
 

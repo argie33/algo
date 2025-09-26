@@ -244,11 +244,11 @@ router.get("/:symbol", async (req, res) => {
       LIMIT 1
     `;
 
-    // Get latest technical data - updated to match test expectations
+    // Get latest technical data - updated to match actual schema
     const technicalQuery = `
       SELECT symbol, date, rsi, macd, macd_signal, macd_hist,
-             sma_20, sma_50, sma_200, ema_9, ema_21,
-             bbands_upper, bbands_lower, bbands_middle, adx, atr,
+             sma_20, sma_50, sma_200, ema_20 as ema_9, ema_50 as ema_21,
+             bb_upper as bbands_upper, bb_lower as bbands_lower, bb_middle as bbands_middle, adx, atr,
              price_vs_sma_200, volume, price
       FROM technical_data_daily
       WHERE symbol = $1

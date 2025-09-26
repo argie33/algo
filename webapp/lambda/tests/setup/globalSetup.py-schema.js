@@ -195,23 +195,19 @@ module.exports = async () => {
       )
     `);
 
-    // Create user_api_keys table exactly matching Python setup_database_with_real_data.py
-    await query(`DROP TABLE IF EXISTS user_api_keys CASCADE`);
+    // Create api_keys table exactly matching Python setup_database_with_real_data.py
+    await query(`DROP TABLE IF EXISTS api_keys CASCADE`);
     await query(`
-      CREATE TABLE user_api_keys (
+      CREATE TABLE api_keys (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
-        broker_name VARCHAR(100) NOT NULL,
-        encrypted_api_key TEXT NOT NULL,
-        encrypted_api_secret TEXT,
-        key_iv TEXT NOT NULL,
-        key_auth_tag TEXT NOT NULL,
-        secret_iv TEXT,
-        secret_auth_tag TEXT,
+        provider VARCHAR(100) NOT NULL,
+        api_key VARCHAR(500) NOT NULL,
+        api_secret VARCHAR(500),
         is_sandbox BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, broker_name)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, provider)
       )
     `);
 
@@ -222,11 +218,16 @@ module.exports = async () => {
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255),
         strategy_name VARCHAR(255) NOT NULL,
+        strategy_type VARCHAR(50) NOT NULL,
+        description TEXT,
         strategy_description TEXT,
         strategy_code TEXT,
         backtest_id VARCHAR(255),
-        status VARCHAR(50) DEFAULT 'inactive',
+        risk_settings JSONB,
+        hft_config JSONB,
+        deployment_status VARCHAR(50) DEFAULT 'draft',
         parameters JSONB DEFAULT '{}',
+        status VARCHAR(20) DEFAULT 'active',
         performance_metrics JSONB DEFAULT '{}',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

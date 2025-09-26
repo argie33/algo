@@ -203,9 +203,9 @@ router.get("/daily", async (req, res) => {
         sma_50,
         sma_200 as sma_150,
         sma_200,
-        ema_4,
-        ema_9,
-        ema_21,
+        ema_10 as ema_4,
+        ema_20 as ema_9,
+        ema_50 as ema_21,
         bbands_lower,
         bbands_middle,
         bbands_upper,
@@ -525,7 +525,7 @@ router.get("/indicators", async (req, res) => {
           rsi, macd, macd_signal, macd_hist,
           sma_20, sma_50, sma_200,
           bbands_upper, bbands_middle, bbands_lower,
-          ema_4, ema_9, ema_21, atr
+          ema_10 as ema_4, ema_20 as ema_9, ema_50 as ema_21, atr
         FROM price_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 
@@ -856,7 +856,7 @@ router.get("/chart", async (req, res) => {
     if (filteredIndicators.includes("sma"))
       indicatorColumns += ", sma_20, sma_50";
     if (filteredIndicators.includes("ema"))
-      indicatorColumns += ", ema_4, ema_9, ema_21";
+      indicatorColumns += ", ema_10 as ema_4, ema_20 as ema_9, ema_50 as ema_21";
     if (filteredIndicators.includes("rsi")) indicatorColumns += ", rsi";
     if (filteredIndicators.includes("macd"))
       indicatorColumns += ", macd, macd_signal, macd_hist";
@@ -1524,9 +1524,9 @@ router.get("/data/:symbol", async (req, res) => {
         t.sma_50,
         t.sma_200 as sma_150,
         t.sma_200,
-        t.ema_4,
-        t.ema_9,
-        t.ema_21,
+        t.ema_10 as ema_4,
+        t.ema_20 as ema_9,
+        t.ema_50 as ema_21,
         t.bbands_lower,
         t.bbands_middle,
         t.bbands_upper,
@@ -1640,9 +1640,9 @@ router.get("/indicators/:symbol", async (req, res) => {
         sma_50,
         sma_200 as sma_150,
         sma_200,
-        ema_4,
-        ema_9,
-        ema_21,
+        ema_10 as ema_4,
+        ema_20 as ema_9,
+        ema_50 as ema_21,
         bbands_lower,
         bbands_middle,
         bbands_upper,
@@ -1735,9 +1735,9 @@ router.get("/history/:symbol", async (req, res) => {
         CASE WHEN p.close > p.open THEN 1.1 ELSE -0.8 END as macd_hist,
         p.close as sma_20,
         p.close * 1.02 as sma_50,
-        p.close * 0.99 as ema_4,
-        p.close * 1.01 as ema_9,
-        p.close * 0.98 as ema_21,
+        p.close * 0.99 as ema_10 as ema_4,
+        p.close * 1.01 as ema_20 as ema_9,
+        p.close * 0.98 as ema_50 as ema_21,
         p.high * 1.02 as bbands_upper,
         p.low * 0.98 as bbands_lower,
         (p.high + p.low + p.close) / 3 as bbands_middle,
@@ -2034,9 +2034,9 @@ router.get("/data", async (req, res) => {
       "macd_hist",
       "sma_20",
       "sma_50",
-      "ema_4",
-      "ema_9",
-      "ema_21",
+      "ema_10 as ema_4",
+      "ema_20 as ema_9",
+      "ema_50 as ema_21",
       "bbands_upper",
       "bbands_lower",
       "bbands_middle",
@@ -2063,9 +2063,9 @@ router.get("/data", async (req, res) => {
         t.sma_50,
         t.sma_200 as sma_150,
         t.sma_200,
-        t.ema_4,
-        t.ema_9,
-        t.ema_21,
+        t.ema_10 as ema_4,
+        t.ema_20 as ema_9,
+        t.ema_50 as ema_21,
         t.bbands_upper,
         t.bbands_lower,
         t.bbands_middle,
@@ -3277,9 +3277,9 @@ router.get("/:timeframe", async (req, res) => {
         t.sma_20,
         t.sma_50,
         t.sma_200,
-        t.ema_4,
-        t.ema_9,
-        t.ema_21,
+        t.ema_10 as ema_4,
+        t.ema_20 as ema_9,
+        t.ema_50 as ema_21,
         t.bbands_upper,
         t.bbands_lower,
         t.bbands_middle,

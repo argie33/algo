@@ -438,7 +438,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      performance: result.rows[0],
+      performance: (result && result.rows && result.rows[0]) || {},
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -735,7 +735,7 @@ router.post("/", authenticateToken, async (req, res) => {
 
     res.status(201).json({
       success: true,
-      data: result.rows[0],
+      data: (result && result.rows && result.rows[0]) || {},
     });
   } catch (error) {
     console.error("Error creating watchlist:", error);
@@ -821,7 +821,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      data: result.rows[0],
+      data: (result && result.rows && result.rows[0]) || {},
     });
   } catch (error) {
     console.error("Error updating watchlist:", error);
@@ -967,7 +967,7 @@ router.post("/:id/items", authenticateToken, async (req, res) => {
 
     res.status(201).json({
       success: true,
-      data: result.rows[0],
+      data: (result && result.rows && result.rows[0]) || {},
     });
   } catch (error) {
     console.error("Error adding item to watchlist:", error);
