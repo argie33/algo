@@ -1,21 +1,31 @@
 [
   {
-    "name": "Test A 1758929097322",
+    "name": "Test A 1758929501475",
     "value": 123,
-    "id": "1758929097322"
+    "id": "1758929501475"
   },
   {
-    "name": "Test B 1758929097322",
+    "name": "Test B 1758929501475",
     "value": "string",
-    "id": "1758929097324"
+    "id": "1758929501478"
   },
   {
-    "name": "Test C 1758929097322",
+    "name": "Test C 1758929501475",
     "value": [
       1,
       2,
       3
     ],
-    "id": "1758929097326"
+    "id": "1758929501480"
+  },
+  "test-backtest-1758929527990",
+  "test-backtest-1758929527994",
+  "test-backtest-1758929527996",
+  "test-backtest-1758929528005",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1758929528048"
   }
 ]
