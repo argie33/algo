@@ -15,10 +15,10 @@ module.exports = {
   ],
   testMatch: ["**/tests/**/*.test.js", "**/tests/**/*.spec.js"],
   setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
-  testTimeout: 15000, // 15 seconds timeout - faster execution
+  testTimeout: 8000, // 8 seconds timeout - prevent hanging
   maxWorkers: 1, // Run tests serially to avoid conflicts
   forceExit: true, // Force exit after tests complete
-  detectOpenHandles: false, // Disable for better performance
+  detectOpenHandles: true, // Enable to detect hanging handles
   verbose: true, // Show test details for debugging
   silent: false,
   bail: false, // Don't stop on first failure

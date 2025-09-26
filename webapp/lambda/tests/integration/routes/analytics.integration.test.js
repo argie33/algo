@@ -31,7 +31,9 @@ describe("Analytics Routes", () => {
 
   describe("GET /api/analytics/performance", () => {
     test("should return performance analytics", async () => {
-      const response = await request(app).get("/api/analytics/performance");
+      const response = await request(app)
+        .get("/api/analytics/performance")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
 
@@ -44,7 +46,9 @@ describe("Analytics Routes", () => {
 
   describe("GET /api/analytics/risk", () => {
     test("should return risk analytics", async () => {
-      const response = await request(app).get("/api/analytics/risk");
+      const response = await request(app)
+        .get("/api/analytics/risk")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
 
@@ -57,7 +61,9 @@ describe("Analytics Routes", () => {
 
   describe("GET /api/analytics/allocation", () => {
     test("should return allocation analytics", async () => {
-      const response = await request(app).get("/api/analytics/allocation");
+      const response = await request(app)
+        .get("/api/analytics/allocation")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
 
@@ -70,7 +76,9 @@ describe("Analytics Routes", () => {
 
   describe("GET /api/analytics/returns", () => {
     test("should return returns analysis", async () => {
-      const response = await request(app).get("/api/analytics/returns");
+      const response = await request(app)
+        .get("/api/analytics/returns")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
 
@@ -111,7 +119,9 @@ describe("Analytics Routes", () => {
 
   describe("GET /api/analytics/volatility", () => {
     test("should return volatility analysis", async () => {
-      const response = await request(app).get("/api/analytics/volatility");
+      const response = await request(app)
+        .get("/api/analytics/volatility")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
 
@@ -124,7 +134,9 @@ describe("Analytics Routes", () => {
 
   describe("GET /api/analytics/trends", () => {
     test("should return trend analysis", async () => {
-      const response = await request(app).get("/api/analytics/trends");
+      const response = await request(app)
+        .get("/api/analytics/trends")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
 
@@ -138,13 +150,17 @@ describe("Analytics Routes", () => {
   describe("POST /api/analytics/custom", () => {
     test("should handle custom analytics request", async () => {
       const analyticsRequest = {
-        metrics: ["returns", "sharpe_ratio"],
-        period: "1Y",
+        analysis_type: "custom_portfolio",
+        parameters: {
+          metrics: ["returns", "sharpe_ratio"],
+          period: "1Y"
+        },
         symbols: ["AAPL", "MSFT"],
       };
 
       const response = await request(app)
         .post("/api/analytics/custom")
+        .set("Authorization", "Bearer dev-bypass-token")
         .send(analyticsRequest);
 
       expect(response.status).toBe(200);
