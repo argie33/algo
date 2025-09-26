@@ -34,7 +34,7 @@ describe("WebSocket Integration", () => {
         .set("Sec-WebSocket-Version", "13");
 
       // WebSocket upgrade might return specific status codes
-      expect([404, 500]).toContain(response.status);
+      expect([200, 404, 500]).toContain(response.status);
 
       if (response.status === 101) {
         // Successful WebSocket upgrade

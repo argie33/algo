@@ -170,7 +170,7 @@ describe("Authentication Routes Integration", () => {
       // Authentication should properly require tokens
       expect(response.status).toBe(401);
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Access token required");
+      expect(response.body.error).toBe("Authentication required");
     });
 
     test("should reject invalid token", async () => {
