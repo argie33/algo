@@ -15,16 +15,16 @@ module.exports = {
   ],
   testMatch: ["**/tests/**/*.test.js", "**/tests/**/*.spec.js"],
   setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
-  testTimeout: 8000, // 8 seconds timeout - prevent hanging
+  testTimeout: 5000, // Reduced timeout
   maxWorkers: 1, // Run tests serially to avoid conflicts
   forceExit: true, // Force exit after tests complete
   detectOpenHandles: true, // Enable to detect hanging handles
   verbose: true, // Show test details for debugging
   silent: false,
   bail: false, // Don't stop on first failure
-  // Mock console by default to reduce test noise
-  globalSetup: "<rootDir>/tests/setup/globalSetup.js",
-  globalTeardown: "<rootDir>/tests/setup/globalTeardown.js",
+  // DISABLE COMPLEX GLOBAL SETUP TO PREVENT HANGING
+  // globalSetup: "<rootDir>/tests/setup/globalSetup.js",
+  // globalTeardown: "<rootDir>/tests/setup/globalTeardown.js",
   // Environment variables for testing
   testEnvironmentOptions: {
     NODE_ENV: "test",
