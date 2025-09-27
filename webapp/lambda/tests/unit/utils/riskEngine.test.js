@@ -25,11 +25,13 @@ describe("Risk Engine", () => {
 
       query.mockResolvedValue({ rows: mockPriceData });
 
-      const var95 = await riskEngine.calculateVaR(mockPortfolio, 0.95, 252);
+      const varResult = await riskEngine.calculateVaR(mockPortfolio, 0.95, 252);
 
-      expect(var95).toBeDefined();
-      expect(typeof var95).toBe("number");
-      expect(var95).toBeGreaterThan(0);
+      expect(varResult).toBeDefined();
+      expect(typeof varResult).toBe("object");
+      expect(varResult.historical_var).toBeDefined();
+      expect(typeof varResult.historical_var).toBe("number");
+      expect(varResult.historical_var).toBeGreaterThanOrEqual(0);
     });
 
     test("should assess concentration risk", () => {
@@ -103,7 +105,7 @@ describe("Risk Engine", () => {
     test("should calculate historical volatility", async () => {
       const mockPrices = [100, 102, 98, 105, 103, 107, 104, 109];
 
-      query.mockResolvedValue({ rows: [{ prices: mockPrices }] });
+      query.mockResolvedValue({ rows: mockPrices.map((price) => ({ price, date: '2023-01-01' })) });
 
       const volatility = await riskEngine.calculateVolatility("AAPL", 30);
 

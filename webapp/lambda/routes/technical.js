@@ -866,7 +866,7 @@ router.get("/chart", async (req, res) => {
       indicatorColumns += ", adx, plus_di, minus_di";
 
     const chartQuery = `
-      SELECT t.date, p.open_price as open, p.high_price as high, p.low_price as low,
+      SELECT t.date, p.open_price as open, p.high_price as high, p.low as low,
              p.close_price as close, p.volume${indicatorColumns}
       FROM ${tableName} t
       JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
@@ -2791,6 +2791,141 @@ router.get("/signals/:symbol", async (req, res) => {
   }
 });
 
+// Technical indicators calculation endpoint (POST)
+router.post("/indicators", async (req, res) => {
+  try {
+    const { symbols, indicators, timeframe } = req.body;
+
+    // Validate required fields
+    if (!symbols || !indicators) {
+      return res.status(400).json({
+        success: false,
+        error: "Required fields missing",
+        message: "symbols and indicators are required",
+      });
+    }
+
+    // Validate symbols array
+    if (!Array.isArray(symbols) || symbols.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid symbols",
+        message: "symbols must be a non-empty array",
+      });
+    }
+
+    // Validate indicators array
+    if (!Array.isArray(indicators) || indicators.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid indicators",
+        message: "indicators must be a non-empty array",
+      });
+    }
+
+    // Validate indicator types
+    const validIndicators = ["RSI", "MACD", "SMA", "EMA", "BOLLINGER", "VOLUME"];
+    const invalidIndicators = indicators.filter(
+      ind => !validIndicators.includes(ind.toUpperCase())
+    );
+
+    if (invalidIndicators.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid indicators",
+        message: `Invalid indicators: ${invalidIndicators.join(", ")}. Valid indicators: ${validIndicators.join(", ")}`,
+      });
+    }
+
+    // Process each symbol and calculate requested indicators
+    const results = {};
+
+    for (const symbol of symbols) {
+      try {
+        // Get recent price data for calculations
+        const priceQuery = `
+          SELECT price, volume, created_at
+          FROM stock_prices
+          WHERE symbol = $1
+          ORDER BY created_at DESC
+          LIMIT 100
+        `;
+
+        const priceResult = await query(priceQuery, [symbol.toUpperCase()]);
+
+        if (priceResult.rows.length < 10) {
+          results[symbol] = {
+            error: "Insufficient price data for calculations",
+            message: "Need at least 10 data points for technical indicators"
+          };
+          continue;
+        }
+
+        const prices = priceResult.rows.map(row => parseFloat(row.price));
+        const volumes = priceResult.rows.map(row => parseFloat(row.volume) || 0);
+
+        const symbolResults = {};
+
+        // Calculate requested indicators
+        for (const indicator of indicators) {
+          switch (indicator.toUpperCase()) {
+            case 'RSI':
+              symbolResults.RSI = calculateRSI(prices);
+              break;
+            case 'MACD':
+              symbolResults.MACD = calculateMACD(prices);
+              break;
+            case 'SMA':
+              symbolResults.SMA = calculateSMA(prices, 14);
+              break;
+            case 'EMA':
+              symbolResults.EMA = calculateEMA(prices, 14);
+              break;
+            case 'BOLLINGER':
+              symbolResults.BOLLINGER = calculateBollingerBands(prices);
+              break;
+            case 'VOLUME':
+              symbolResults.VOLUME = {
+                current: volumes[0],
+                avg_volume: volumes.slice(0, 20).reduce((a, b) => a + b, 0) / Math.min(20, volumes.length)
+              };
+              break;
+          }
+        }
+
+        results[symbol] = symbolResults;
+
+      } catch (symbolError) {
+        console.error(`Error calculating indicators for ${symbol}:`, symbolError);
+        results[symbol] = {
+          error: "Calculation failed",
+          message: symbolError.message
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Technical indicators calculated successfully",
+      data: {
+        symbols: results,
+        timeframe: timeframe || "1D",
+        indicators: indicators,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error("Technical indicators calculation error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to calculate technical indicators",
+      message: error.message,
+    });
+  }
+});
+
+
 // Technical alerts endpoints
 router.post("/alerts", async (req, res) => {
   try {
@@ -4196,13 +4331,11 @@ function detectSupportResistanceBreakout(priceData) {
 // Helper Functions
 
 function calculateSMA(data, period) {
-  if (data.length < period) return [];
-
   const sma = [];
   for (let i = period - 1; i < data.length; i++) {
-    const sum = data
-      .slice(i - period + 1, i + 1)
-      .reduce((acc, item) => acc + parseFloat(item.close), 0);
+    const sum = data.slice(i - period + 1, i + 1).reduce((acc, item) => {
+      return acc + parseFloat(item.close);
+    }, 0);
     sma.push(sum / period);
   }
   return sma;
@@ -4211,33 +4344,39 @@ function calculateSMA(data, period) {
 function calculateRSI(data, period = 14) {
   if (data.length < period + 1) return [];
 
-  const rsi = [];
-  let gains = 0;
-  let losses = 0;
+  const gains = [];
+  const losses = [];
 
-  // Calculate initial average gain and loss
-  for (let i = 1; i <= period; i++) {
+  for (let i = 1; i < data.length; i++) {
     const change = parseFloat(data[i].close) - parseFloat(data[i - 1].close);
-    if (change > 0) gains += change;
-    else losses -= change;
+    gains.push(change > 0 ? change : 0);
+    losses.push(change < 0 ? Math.abs(change) : 0);
   }
 
-  let avgGain = gains / period;
-  let avgLoss = losses / period;
+  const avgGains = [];
+  const avgLosses = [];
+  const rsi = [];
 
-  rsi.push(100 - 100 / (1 + avgGain / avgLoss));
+  // Calculate initial averages
+  let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
 
-  // Calculate RSI for remaining periods
-  for (let i = period + 1; i < data.length; i++) {
-    const change = parseFloat(data[i].close) - parseFloat(data[i - 1].close);
-    const gain = change > 0 ? change : 0;
-    const loss = change < 0 ? -change : 0;
+  avgGains.push(avgGain);
+  avgLosses.push(avgLoss);
 
-    avgGain = (avgGain * (period - 1) + gain) / period;
-    avgLoss = (avgLoss * (period - 1) + loss) / period;
+  let rs = avgGain / avgLoss;
+  rsi.push(100 - (100 / (1 + rs)));
 
-    const rs = avgGain / avgLoss;
-    rsi.push(100 - 100 / (1 + rs));
+  // Calculate subsequent values
+  for (let i = period; i < gains.length; i++) {
+    avgGain = (avgGain * (period - 1) + gains[i]) / period;
+    avgLoss = (avgLoss * (period - 1) + losses[i]) / period;
+
+    avgGains.push(avgGain);
+    avgLosses.push(avgLoss);
+
+    rs = avgGain / avgLoss;
+    rsi.push(100 - (100 / (1 + rs)));
   }
 
   return rsi;

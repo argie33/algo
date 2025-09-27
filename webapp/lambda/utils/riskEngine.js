@@ -1214,8 +1214,11 @@ class RiskEngine {
       if (!symbol || !days) return null;
 
       const returns = await this.getStockReturns(symbol, days);
-      if (!returns || returns.length < 10) {
-        return 0.2; // Default volatility of 20%
+      if (!returns) {
+        return null; // No data available
+      }
+      if (returns.length < 10) {
+        return 0.2; // Default volatility of 20% when insufficient data
       }
 
       // Calculate standard deviation of returns

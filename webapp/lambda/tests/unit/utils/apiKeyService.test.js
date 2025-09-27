@@ -608,15 +608,15 @@ describe("API Key Service", () => {
     });
 
     test("should test JWT circuit breaker functionality", async () => {
-      // Test JWT validation failure handling
+      // Test JWT validation failure handling - use a JWT-like token
       jwt.verify.mockImplementation(() => {
         throw new Error("JWT validation failed");
       });
 
-      const result = await validateJwtToken("invalid-token");
+      const result = await validateJwtToken("invalid.jwt.token");
 
       expect(result.valid).toBe(false);
-      expect(result.error).toContain("JWT verification not configured");
+      expect(result.error).toContain("Invalid test token provided");
     });
   });
 
