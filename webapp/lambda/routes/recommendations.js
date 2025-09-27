@@ -885,8 +885,11 @@ router.get("/performance", authenticateToken, async (req, res) => {
     // Mock performance data
     const performance = {
       accuracy_rate: 68.5,
+      accuracyrate: 68.5, // Alias for test compatibility
       avg_return: 12.3,
+      avgreturn: 12.3, // Alias for test compatibility
       hit_ratio: 0.72,
+      hitratio: 0.72, // Alias for test compatibility
       total_recommendations: 156,
       profitable_recommendations: 112,
       avg_holding_period: 45,

@@ -201,12 +201,11 @@ describe("Recommendations API", () => {
         expect(response.body).toHaveProperty("success", true);
 
         const performance = response.body.data;
-        const perfFields = ["accuracy_rate", "avg_return", "hit_ratio"];
-        const hasPerfData = perfFields.some((field) =>
-          Object.keys(performance).some((key) =>
-            key.toLowerCase().includes(field.replace("_", ""))
-          )
-        );
+        // Check for expected performance fields
+        const hasAccuracy = performance.hasOwnProperty("accuracy_rate") || performance.hasOwnProperty("accuracyrate");
+        const hasReturn = performance.hasOwnProperty("avg_return") || performance.hasOwnProperty("avgreturn");
+        const hasRatio = performance.hasOwnProperty("hit_ratio") || performance.hasOwnProperty("hitratio");
+        const hasPerfData = hasAccuracy && hasReturn && hasRatio;
 
         expect(hasPerfData).toBe(true);
       }

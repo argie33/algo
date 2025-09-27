@@ -3,7 +3,11 @@ const express = require("express");
 
 const metricsRoutes = require("../../../routes/metrics");
 
-// Real database for integration
+// Mock database module
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+}));
+
 const { query } = require("../../../utils/database");
 
 describe("Metrics Routes", () => {
@@ -20,7 +24,47 @@ describe("Metrics Routes", () => {
     app.use("/metrics", metricsRoutes);
   });
 
-  // No mocks to clear - using real database
+  beforeEach(() => {
+    // Reset mocks
+    jest.clearAllMocks();
+
+    // Set up default mock responses for database queries
+    query.mockImplementation((sql) => {
+      // Basic connection test
+      if (sql.includes("SELECT 1 as test")) {
+        return Promise.resolve({ rows: [{ test: 1 }] });
+      }
+
+      // Main metrics query
+      if (sql.includes("SELECT s.symbol")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: "AAPL",
+              rsi: 65.5,
+              macd: 1.23,
+              sma_20: 150.25,
+              current_price: 155.00,
+              sector: "Technology",
+              total_count: "1"
+            },
+            {
+              symbol: "GOOGL",
+              rsi: 70.2,
+              macd: 2.15,
+              sma_20: 2800.50,
+              current_price: 2850.00,
+              sector: "Technology",
+              total_count: "2"
+            }
+          ]
+        });
+      }
+
+      // Default fallback
+      return Promise.resolve({ rows: [] });
+    });
+  });
 
   describe("GET /metrics/ping", () => {
     test("should return ping status", async () => {

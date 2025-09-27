@@ -16,7 +16,16 @@ describe("AIStrategyGenerator Service", () => {
 
   beforeEach(() => {
     generator = new AIStrategyGenerator();
-    mockLogger = generator.logger;
+
+    // Ensure logger is properly mocked
+    mockLogger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    };
+    generator.logger = mockLogger;
+
     jest.clearAllMocks();
   });
 
