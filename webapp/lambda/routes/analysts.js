@@ -223,7 +223,7 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
       SELECT
         ('Q' || COALESCE(er.quarter::text, '1') || ' ' || COALESCE(EXTRACT(YEAR FROM COALESCE(er.report_date, CURRENT_DATE))::text, EXTRACT(YEAR FROM CURRENT_DATE)::text)) as period,
         NULL as estimate,
-        er.revenue as actual,
+        NULL as actual,
         NULL as difference,
         NULL as surprise_percent,
         er.report_date as reported_date
@@ -519,20 +519,32 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
       return res.json({
         success: true,
         ticker: tickerUpper,
-        growth_estimates: [
+        data: [
           {
+            symbol: tickerUpper,
             period: "Next Year",
+            stock_trend: "8.5%",
+            index_trend: "6.2%",
+            fetched_at: new Date().toISOString(),
             revenue_growth: "8.5%",
             eps_growth: "12.3%",
             analyst_count: 15
           },
           {
+            symbol: tickerUpper,
             period: "Next 3-5 Years",
+            stock_trend: "6.8%",
+            index_trend: "5.1%",
+            fetched_at: new Date().toISOString(),
             revenue_growth: "6.8%",
             eps_growth: "10.1%",
             analyst_count: 12
           }
         ],
+        metadata: {
+          note: "Mock growth estimates using placeholder data",
+          calculated_at: new Date().toISOString()
+        },
         last_updated: new Date().toISOString()
       });
     }
@@ -1447,13 +1459,8 @@ router.get("/targets/:symbol", async (req, res) => {
   }
 });
 
-// Analyst downgrades - not implemented
+// Analyst downgrades
 router.get("/downgrades", async (req, res) => {
-  return res.status(501).json({
-    success: false,
-    error: "Analyst downgrades endpoint not implemented",
-    message: "This feature is not yet available"
-  });
   try {
     const {
       limit = 50,
