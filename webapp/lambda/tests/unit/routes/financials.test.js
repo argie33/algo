@@ -501,6 +501,122 @@ describe("Financials Routes Unit Tests", () => {
     });
   });
 
+  describe("GET /financials/:ticker/key-metrics", () => {
+    test("should return key metrics data with proper structure", async () => {
+      // Mock YFinance key_metrics table data
+      const mockKeyMetricsData = {
+        rows: [
+          {
+            symbol: "AAPL",
+            pe: 28.5,
+            forwardPE: 26.2,
+            pb: 5.8,
+            bookValue: 4.32,
+            priceToSales: 7.2,
+            pegRatio: 2.1,
+            enterpriseValue: 2800000000000,
+            evToRevenue: 7.1,
+            evToEbitda: 19.5,
+            profitMargin: 0.253,
+            grossMargin: 0.433,
+            ebitdaMargin: 0.311,
+            operatingMargin: 0.298,
+            returnOnAssets: 0.204,
+            returnOnEquity: 0.564,
+            currentRatio: 1.06,
+            quickRatio: 0.83,
+            debtToEquity: 186.6,
+            totalDebt: 125000000000,
+            eps: 6.05,
+            forwardEPS: 6.84,
+            epsCurrentYear: 6.16,
+            priceEpsCurrentYear: 28.1,
+            totalCash: 67100000000,
+            cashPerShare: 4.31,
+            operatingCashflow: 109200000000,
+            freeCashflow: 84700000000,
+            ebitda: 123300000000,
+            totalRevenue: 394300000000,
+            netIncome: 99800000000,
+            grossProfit: 170800000000,
+            earningsGrowth: 0.135,
+            revenueGrowth: -0.027,
+            earningsGrowthQuarterly: 0.036,
+            dividendYield: 0.0055,
+            dividendRate: 0.96,
+            payoutRatio: 0.158,
+            fiveYearAvgDividendYield: 0.78,
+            trailingAnnualDividendRate: 0.95,
+            trailingAnnualDividendYield: 0.54,
+            lastUpdated: new Date().toISOString(),
+            dataSource: "yfinance"
+          }
+        ]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockKeyMetricsData);
+
+      const response = await request(app).get("/financials/AAPL/key-metrics");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("metadata");
+
+      // Check organized categories structure
+      const data = response.body.data;
+      expect(data).toHaveProperty("valuation");
+      expect(data).toHaveProperty("profitability");
+      expect(data).toHaveProperty("liquidity");
+      expect(data).toHaveProperty("earnings");
+      expect(data).toHaveProperty("cash");
+      expect(data).toHaveProperty("financial");
+      expect(data).toHaveProperty("growth");
+      expect(data).toHaveProperty("dividend");
+
+      // Check valuation metrics
+      expect(data.valuation).toHaveProperty("title", "Valuation Metrics");
+      expect(data.valuation.metrics).toHaveProperty("P/E Ratio (Trailing)", 28.5);
+      expect(data.valuation.metrics).toHaveProperty("P/E Ratio (Forward)", 26.2);
+      expect(data.valuation.metrics).toHaveProperty("Price/Book Ratio", 5.8);
+
+      // Check metadata
+      expect(response.body.metadata).toHaveProperty("ticker", "AAPL");
+      expect(response.body.metadata).toHaveProperty("source", "YFinance via key_metrics table");
+      expect(response.body.metadata).toHaveProperty("dataSource", "yfinance");
+      expect(response.body.metadata).toHaveProperty("lastUpdated");
+
+      // Verify database query was called correctly
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining("SELECT"),
+        ["AAPL"]
+      );
+    });
+
+    test("should handle missing key metrics data", async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app).get("/financials/MSFT/key-metrics");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error", "No key metrics data found");
+      expect(response.body).toHaveProperty("data", null);
+      expect(response.body.metadata).toHaveProperty("ticker", "MSFT");
+    });
+
+    test("should handle database errors gracefully", async () => {
+      mockQuery.mockRejectedValueOnce(new Error("Database connection failed"));
+
+      const response = await request(app).get("/financials/GOOGL/key-metrics");
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error", "Failed to fetch key metrics data");
+      expect(response.body).toHaveProperty("message", "Database connection failed");
+    });
+  });
+
   describe("Response format", () => {
     test("should return consistent JSON response format", async () => {
       const response = await request(app).get("/financials/ping");

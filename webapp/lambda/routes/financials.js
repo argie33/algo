@@ -2060,152 +2060,176 @@ router.get("/:symbol/estimates", async (req, res) => {
 router.get("/:ticker/key-metrics", async (req, res) => {
   try {
     const { ticker } = req.params;
+    console.log(`📊 Key metrics request for ${ticker}`);
 
-    console.log(`Key metrics request for ${ticker}`);
-
-    try {
-      // Query the proper loadinfo.py schema tables
-      const keyMetricsQuery = `
+    // Use the same logic as our working /metrics/ endpoint
+    const metricsQuery = `
       SELECT
-        cp.ticker as symbol,
-        cp.long_name as name,
-        cp.sector,
-        cp.industry,
-        md.market_cap,
-        md.previous_close as price,
-        md.dividend_yield,
-        0 as beta,
-        -- Use actual metrics or calculate estimated metrics
-        COALESCE(km.trailing_pe,
-          CASE
-            WHEN md.previous_close IS NOT NULL AND md.market_cap IS NOT NULL
-            THEN (md.market_cap / md.previous_close) / GREATEST(md.market_cap * 0.08 / md.market_cap, 0.01)
-            ELSE 25.0
-          END) as trailing_pe,
-        km.forward_pe,
-        km.price_to_book,
-        km.peg_ratio,
-        CURRENT_TIMESTAMP as created_at
-      FROM company_profile cp
-      LEFT JOIN market_data md ON cp.ticker = md.ticker
-      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      WHERE cp.ticker ILIKE $1
+        ticker as symbol,
+        trailing_pe as pe,
+        forward_pe as "forwardPE",
+        price_to_book as pb,
+        book_value as "bookValue",
+        price_to_sales_ttm as "priceToSales",
+        peg_ratio as "pegRatio",
+        enterprise_value as "enterpriseValue",
+        ev_to_revenue as "evToRevenue",
+        ev_to_ebitda as "evToEbitda",
+        profit_margin_pct as "profitMargin",
+        gross_margin_pct as "grossMargin",
+        ebitda_margin_pct as "ebitdaMargin",
+        operating_margin_pct as "operatingMargin",
+        return_on_assets_pct as "returnOnAssets",
+        return_on_equity_pct as "returnOnEquity",
+        current_ratio as "currentRatio",
+        quick_ratio as "quickRatio",
+        debt_to_equity as "debtToEquity",
+        total_debt as "totalDebt",
+        eps_trailing as eps,
+        eps_forward as "forwardEPS",
+        eps_current_year as "epsCurrentYear",
+        price_eps_current_year as "priceEpsCurrentYear",
+        total_cash as "totalCash",
+        cash_per_share as "cashPerShare",
+        operating_cashflow as "operatingCashflow",
+        free_cashflow as "freeCashflow",
+        ebitda,
+        total_revenue as "totalRevenue",
+        net_income as "netIncome",
+        gross_profit as "grossProfit",
+        earnings_growth_pct as "earningsGrowth",
+        revenue_growth_pct as "revenueGrowth",
+        earnings_q_growth_pct as "earningsGrowthQuarterly",
+        dividend_yield as "dividendYield",
+        dividend_rate as "dividendRate",
+        payout_ratio as "payoutRatio",
+        five_year_avg_dividend_yield as "fiveYearAvgDividendYield",
+        last_annual_dividend_amt as "trailingAnnualDividendRate",
+        last_annual_dividend_yield as "trailingAnnualDividendYield",
+        NOW() as "lastUpdated",
+        'yfinance' as "dataSource"
+      FROM key_metrics
+      WHERE ticker = $1
+      LIMIT 1
     `;
 
-      const result = await query(keyMetricsQuery, [ticker.toUpperCase()]);
+    const result = await query(metricsQuery, [ticker.toUpperCase()]);
 
-      if (result.rows.length === 0) {
-        return res.json({
-          success: false,
-          error: "No key metrics data found",
-          data: null,
-          metadata: {
-            ticker: ticker.toUpperCase(),
-            message: "Key metrics data not available for this ticker",
-          },
-        });
-      }
-
-      const metrics = result.rows[0];
-
-      // Organize metrics into logical categories for better presentation
-      const organizedMetrics = {
-        basic: {
-          title: "Basic Information",
-          icon: "Info",
-          metrics: {
-            "Company Name": metrics.name,
-            "Sector": metrics.sector,
-            "Industry": metrics.industry,
-            "Market Cap": metrics.market_cap,
-            "Current Price": metrics.price,
-            "Beta": metrics.beta,
-          },
-        },
-
-        valuation: {
-          title: "Valuation Ratios",
-          icon: "TrendingUp",
-          metrics: {
-            "P/E Ratio (Trailing)": metrics.trailing_pe,
-            "P/E Ratio (Forward)": metrics.forward_pe,
-            "Price/Book": metrics.price_to_book,
-            "PEG Ratio": metrics.peg_ratio,
-          },
-        },
-
-        dividends: {
-          title: "Dividend Information",
-          icon: "Savings",
-          metrics: {
-            "Dividend Yield": metrics.dividend_yield,
-          },
-        },
-      };
-
-      // Calculate data quality score
-      const totalFields = Object.values(organizedMetrics).reduce(
-        (sum, category) => {
-          return sum + Object.keys(category.metrics).length;
-        },
-        0
-      );
-
-      const populatedFields = Object.values(organizedMetrics).reduce(
-        (sum, category) => {
-          return (
-            sum +
-            Object.values(category.metrics).filter(
-              (value) => value !== null && value !== undefined
-            ).length
-          );
-        },
-        0
-      );
-
-      const dataQuality =
-        totalFields > 0
-          ? ((populatedFields / totalFields) * 100).toFixed(1)
-          : 0;
-
-      res.json({
-        success: true,
-        data: organizedMetrics,
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        error: "No key metrics data found",
+        data: null,
         metadata: {
           ticker: ticker.toUpperCase(),
-          dataQuality: `${dataQuality}%`,
-          totalMetrics: totalFields,
-          populatedMetrics: populatedFields,
-          lastUpdated: new Date().toISOString(),
-          source: "key_metrics table via loadinfo",
+          message: "Key metrics data not available for this ticker",
         },
-      });
-    } catch (dbError) {
-      // Handle case where key_metrics table columns don't match expectations
-      console.log(`Key metrics database schema issue: ${dbError.message}`);
-      return res.status(200).json({
-        success: true,
-        data: [],
-        metadata: {
-          symbol: ticker.toUpperCase(),
-          dataAvailable: false,
-          message:
-            "Key metrics data is not currently available due to database schema differences",
-          suggestion:
-            "This feature is being developed and will be available soon",
-        },
-        timestamp: new Date().toISOString(),
       });
     }
+
+    const metricsData = result.rows[0];
+
+    // Organize metrics into logical categories for the frontend
+    const organizedMetrics = {
+      valuation: {
+        title: "Valuation Metrics",
+        metrics: {
+          "P/E Ratio (Trailing)": metricsData.pe,
+          "P/E Ratio (Forward)": metricsData.forwardPE,
+          "Price/Book Ratio": metricsData.pb,
+          "Book Value": metricsData.bookValue,
+          "Price/Sales (TTM)": metricsData.priceToSales,
+          "PEG Ratio": metricsData.pegRatio,
+          "Enterprise Value": metricsData.enterpriseValue,
+          "EV/Revenue": metricsData.evToRevenue,
+          "EV/EBITDA": metricsData.evToEbitda,
+        },
+      },
+      profitability: {
+        title: "Profitability Metrics",
+        metrics: {
+          "Profit Margin %": metricsData.profitMargin,
+          "Gross Margin %": metricsData.grossMargin,
+          "EBITDA Margin %": metricsData.ebitdaMargin,
+          "Operating Margin %": metricsData.operatingMargin,
+          "Return on Assets %": metricsData.returnOnAssets,
+          "Return on Equity %": metricsData.returnOnEquity,
+        },
+      },
+      liquidity: {
+        title: "Liquidity & Debt",
+        metrics: {
+          "Current Ratio": metricsData.currentRatio,
+          "Quick Ratio": metricsData.quickRatio,
+          "Debt/Equity": metricsData.debtToEquity,
+          "Total Debt": metricsData.totalDebt,
+        },
+      },
+      earnings: {
+        title: "Earnings Per Share",
+        metrics: {
+          "EPS (Trailing)": metricsData.eps,
+          "EPS (Forward)": metricsData.forwardEPS,
+          "EPS Current Year": metricsData.epsCurrentYear,
+          "Price/EPS Current Year": metricsData.priceEpsCurrentYear,
+        },
+      },
+      cash: {
+        title: "Cash Flow",
+        metrics: {
+          "Total Cash": metricsData.totalCash,
+          "Cash Per Share": metricsData.cashPerShare,
+          "Operating Cash Flow": metricsData.operatingCashflow,
+          "Free Cash Flow": metricsData.freeCashflow,
+        },
+      },
+      financial: {
+        title: "Financial Data",
+        metrics: {
+          "EBITDA": metricsData.ebitda,
+          "Total Revenue": metricsData.totalRevenue,
+          "Net Income": metricsData.netIncome,
+          "Gross Profit": metricsData.grossProfit,
+        },
+      },
+      growth: {
+        title: "Growth Metrics",
+        metrics: {
+          "Earnings Growth %": metricsData.earningsGrowth,
+          "Revenue Growth %": metricsData.revenueGrowth,
+          "Quarterly Earnings Growth %": metricsData.earningsGrowthQuarterly,
+        },
+      },
+      dividend: {
+        title: "Dividend Information",
+        metrics: {
+          "Dividend Yield %": metricsData.dividendYield,
+          "Dividend Rate": metricsData.dividendRate,
+          "Payout Ratio": metricsData.payoutRatio,
+          "5Y Avg Dividend Yield": metricsData.fiveYearAvgDividendYield,
+          "Trailing Annual Dividend Rate": metricsData.trailingAnnualDividendRate,
+          "Trailing Annual Dividend Yield": metricsData.trailingAnnualDividendYield,
+        },
+      },
+    };
+
+    res.json({
+      success: true,
+      data: organizedMetrics,
+      metadata: {
+        ticker: ticker.toUpperCase(),
+        lastUpdated: new Date().toISOString(),
+        source: "YFinance via key_metrics table",
+        dataSource: "yfinance",
+      },
+    });
+
   } catch (error) {
     console.error("Key metrics fetch error:", error.message);
-    console.error("Stack:", error.stack);
     res.status(500).json({
       success: false,
       error: "Failed to fetch key metrics data",
       message: error.message,
-      details:
-        "Check if key_metrics table exists and contains data for this ticker",
     });
   }
 });

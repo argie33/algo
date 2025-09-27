@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Loads analyst upgrade/downgrade data from yfinance - triggered to run in AWS
 import gc
 import json
 import logging
