@@ -188,33 +188,13 @@ router.get("/:ticker/revenue-estimates", async (req, res) => {
   try {
     const { ticker } = req.params;
 
-    // Always check if earnings_reports table exists and provide fallback
+    // Check if earnings_reports table exists
     const hasTable = await tableExists("earnings_reports");
     if (!hasTable) {
-      // Return mock data when table doesn't exist
-      const mockEstimates = [
-        {
-          period: "Q3 2024",
-          estimate: 89500000000,
-          actual: 94930000000,
-          difference: 5430000000,
-          surprise_percent: 6.1,
-          reported_date: "2024-11-01"
-        },
-        {
-          period: "Q2 2024",
-          estimate: 84200000000,
-          actual: 85777000000,
-          difference: 1577000000,
-          surprise_percent: 1.9,
-          reported_date: "2024-08-01"
-        }
-      ];
-
-      return res.json({
-        success: true,
-        ticker: ticker.toUpperCase(),
-        estimates: mockEstimates,
+      return res.status(503).json({
+        success: false,
+        error: "Revenue estimates service unavailable",
+        message: "Database table missing: earnings_reports",
         timestamp: new Date().toISOString(),
       });
     }
@@ -439,37 +419,11 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
 
     // Check if earnings_reports table exists
     if (!(await tableExists("earnings_reports"))) {
-      // Return mock growth estimates
-      return res.json({
-        success: true,
-        ticker: tickerUpper,
-        data: [
-          {
-            symbol: tickerUpper,
-            period: "Next Year",
-            stock_trend: "8.5%",
-            index_trend: "6.2%",
-            fetched_at: new Date().toISOString(),
-            revenue_growth: "8.5%",
-            eps_growth: "12.3%",
-            analyst_count: 15
-          },
-          {
-            symbol: tickerUpper,
-            period: "Next 3-5 Years",
-            stock_trend: "6.8%",
-            index_trend: "5.1%",
-            fetched_at: new Date().toISOString(),
-            revenue_growth: "6.8%",
-            eps_growth: "10.1%",
-            analyst_count: 12
-          }
-        ],
-        metadata: {
-          note: "Mock growth estimates using placeholder data",
-          calculated_at: new Date().toISOString()
-        },
-        last_updated: new Date().toISOString()
+      return res.status(503).json({
+        success: false,
+        error: "Growth estimates service unavailable",
+        message: "Database table missing: earnings_reports",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -515,37 +469,12 @@ router.get("/:ticker/growth-estimates", async (req, res) => {
     const earningsData = (earningsResult && earningsResult.rows) ? earningsResult.rows : [];
 
     if (financialData.length === 0 && earningsData.length === 0) {
-      console.log(`❌ [GROWTH] No financial data found for ${tickerUpper}, returning mock data`);
-      return res.json({
-        success: true,
-        ticker: tickerUpper,
-        data: [
-          {
-            symbol: tickerUpper,
-            period: "Next Year",
-            stock_trend: "8.5%",
-            index_trend: "6.2%",
-            fetched_at: new Date().toISOString(),
-            revenue_growth: "8.5%",
-            eps_growth: "12.3%",
-            analyst_count: 15
-          },
-          {
-            symbol: tickerUpper,
-            period: "Next 3-5 Years",
-            stock_trend: "6.8%",
-            index_trend: "5.1%",
-            fetched_at: new Date().toISOString(),
-            revenue_growth: "6.8%",
-            eps_growth: "10.1%",
-            analyst_count: 12
-          }
-        ],
-        metadata: {
-          note: "Mock growth estimates using placeholder data",
-          calculated_at: new Date().toISOString()
-        },
-        last_updated: new Date().toISOString()
+      console.log(`❌ [GROWTH] No financial data found for ${tickerUpper}`);
+      return res.status(404).json({
+        success: false,
+        error: "No financial data available",
+        message: `No earnings or financial data found for ${tickerUpper}`,
+        timestamp: new Date().toISOString(),
       });
     }
 

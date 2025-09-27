@@ -1478,9 +1478,9 @@ router.get("/data/:symbol", async (req, res) => {
     const tableExists = await query(
       `
       SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'price_daily'
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'technical_data_daily'
       );
     `,
       []

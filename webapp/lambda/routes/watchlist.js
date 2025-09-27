@@ -385,20 +385,12 @@ router.get("/performance", authenticateToken, async (req, res) => {
     const tableExists = await query(tableCheckQuery, []);
 
     if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
-      console.log("Watchlist performance table does not exist, returning mock data");
-      return res.json({
-        success: true,
-        data: {
-          performance: {
-            total_return: "8.5%",
-            daily_return: "0.3%",
-            weekly_return: "1.2%",
-            monthly_return: "5.1%",
-            best_performer: "AAPL (+12.3%)",
-            worst_performer: "META (-2.1%)",
-            last_updated: new Date().toISOString()
-          }
-        },
+      console.error("Watchlist performance table does not exist");
+      return res.status(503).json({
+        success: false,
+        error: "Watchlist performance service not available",
+        message: "Database table missing: watchlist_performance",
+        details: "watchlist_performance table does not exist in database schema",
         timestamp: new Date().toISOString(),
       });
     }
@@ -518,12 +510,43 @@ router.post("/import", authenticateToken, async (req, res) => {
 // Export watchlist data
 router.get("/export", authenticateToken, async (req, res) => {
   try {
+    const userId = req.user?.sub;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
+    // Query user's watchlist data from database
+    const watchlistQuery = `
+      SELECT w.name as watchlist_name, wi.symbol, s.company_name, s.current_price, s.change_amount, s.change_percent
+      FROM watchlists w
+      LEFT JOIN watchlist_items wi ON w.id = wi.watchlist_id
+      LEFT JOIN stocks s ON wi.symbol = s.symbol
+      WHERE w.user_id = $1
+      ORDER BY w.name, wi.symbol
+    `;
+
+    const result = await query(watchlistQuery, [userId]);
+
+    if (!result || !result.rows) {
+      return res.status(404).json({
+        success: false,
+        error: "No watchlist data found",
+      });
+    }
+
     // Set CSV content type for export
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="watchlist.csv"');
 
-    // Mock CSV data for watchlist export
-    const csvData = "Symbol,Name,Price,Change,Percent_Change\nAAPL,Apple Inc.,150.00,+2.50,+1.69%\nMSFT,Microsoft Corp.,300.00,+5.00,+1.69%";
+    // Generate CSV from real data
+    let csvData = "Watchlist,Symbol,Company,Price,Change,Percent_Change\n";
+    result.rows.forEach(row => {
+      csvData += `${row.watchlist_name || 'Default'},${row.symbol || ''},${row.company_name || ''},${row.current_price || ''},${row.change_amount || ''},${row.change_percent || ''}\n`;
+    });
 
     res.send(csvData);
   } catch (error) {
