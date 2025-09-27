@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: Buy sell monthly loader for AWS deployment
+# Updated: Buy sell monthly loader for AWS deployment - trigger run Sep 27 2025
 import json
 import logging
 import os
