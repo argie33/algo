@@ -397,10 +397,13 @@ router.get("/api-keys", async (req, res) => {
   try {
     const providers = await listProviders(req.token);
 
+    // Handle both array and object responses from listProviders
+    const providersArray = Array.isArray(providers) ? providers : (providers.providers || []);
+
     res.json({
       success: true,
-      apiKeys: providers.providers || [],
-      providers: providers.providers || [],
+      apiKeys: providersArray,
+      providers: providersArray,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -487,8 +490,8 @@ router.post("/api-keys", async (req, res) => {
 
   try {
     const apiKeyData = {
-      keyId: apiKey.trim(),
-      secret: apiSecret?.trim(),
+      apiKey: apiKey.trim(),
+      apiSecret: apiSecret?.trim(),
       isSandbox: Boolean(isSandbox),
       description: description?.trim(),
       createdAt: new Date().toISOString(),
@@ -545,8 +548,8 @@ router.put("/api-keys/:provider", async (req, res) => {
 
     // Merge with new data
     const updatedData = {
-      keyId: apiKey?.trim() || existingData.keyId,
-      secret: apiSecret?.trim() || existingData.secret,
+      apiKey: apiKey?.trim() || existingData.apiKey,
+      apiSecret: apiSecret?.trim() || existingData.apiSecret,
       isSandbox:
         isSandbox !== undefined ? Boolean(isSandbox) : existingData.isSandbox,
       description: description?.trim() || existingData.description,
@@ -784,15 +787,21 @@ router.get("/onboarding-status", async (req, res) => {
       onboardingCompleted = false;
     }
 
+    const onboardingResponse = {
+      completed: onboardingCompleted,
+      hasApiKeys: hasApiKeys,
+      configuredProviders: providers.length,
+      nextStep: !hasApiKeys ? "configure-api-keys" : "complete",
+    };
+
+    // Only include fallback property if userResult is null/undefined (indicating fallback mode)
+    if (!userResult) {
+      onboardingResponse.fallback = true;
+    }
+
     res.json({
       success: true,
-      onboarding: {
-        completed: onboardingCompleted,
-        hasApiKeys: hasApiKeys,
-        configuredProviders: providers.length,
-        nextStep: !hasApiKeys ? "configure-api-keys" : "complete",
-        fallback: !userResult ? true : false,
-      },
+      onboarding: onboardingResponse,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

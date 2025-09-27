@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0.76% </span>
+                <span class="strong">0.74% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>2/261</span>
+                <span class='fraction'>2/268</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/154</span>
+                <span class='fraction'>0/158</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0.82% </span>
+                <span class="strong">0.8% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>2/243</span>
+                <span class='fraction'>2/250</span>
             </div>
         
             
@@ -1053,7 +1053,22 @@
 <a name='L988'></a><a href='#L988'>988</a>
 <a name='L989'></a><a href='#L989'>989</a>
 <a name='L990'></a><a href='#L990'>990</a>
-<a name='L991'></a><a href='#L991'>991</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
+<a name='L991'></a><a href='#L991'>991</a>
+<a name='L992'></a><a href='#L992'>992</a>
+<a name='L993'></a><a href='#L993'>993</a>
+<a name='L994'></a><a href='#L994'>994</a>
+<a name='L995'></a><a href='#L995'>995</a>
+<a name='L996'></a><a href='#L996'>996</a>
+<a name='L997'></a><a href='#L997'>997</a>
+<a name='L998'></a><a href='#L998'>998</a>
+<a name='L999'></a><a href='#L999'>999</a>
+<a name='L1000'></a><a href='#L1000'>1000</a>
+<a name='L1001'></a><a href='#L1001'>1001</a>
+<a name='L1002'></a><a href='#L1002'>1002</a>
+<a name='L1003'></a><a href='#L1003'>1003</a>
+<a name='L1004'></a><a href='#L1004'>1004</a>
+<a name='L1005'></a><a href='#L1005'>1005</a>
+<a name='L1006'></a><a href='#L1006'>1006</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1746,6 +1761,21 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2042,7 +2072,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const Alpaca = require("@alpacahq/alpaca-trade-api");
 &nbsp;
 /**
@@ -2728,13 +2758,28 @@ class AlpacaService {
    * Create trading order (market or limit)
    */
 <span class="fstat-no" title="function not covered" >  as</span>ync createOrder(
-    symbol,
+    symbolOrParams,
     quantity,
     side,
     type = <span class="branch-0 cbranch-no" title="branch not covered" >"market",</span>
     limitPrice = <span class="branch-0 cbranch-no" title="branch not covered" >null</span>
   ) {
 <span class="cstat-no" title="statement not covered" >    try {</span>
+      // Handle both object and individual parameter calling conventions
+      let symbol, qty, orderSide, orderType, orderLimitPrice;
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      if (typeof symbolOrParams === 'object') {</span>
+        // Object-based parameters
+<span class="cstat-no" title="statement not covered" >        ({ symbol, qty, side: orderSide, type: orderType, limit_price: orderLimitPrice } = symbolOrParams);</span>
+<span class="cstat-no" title="statement not covered" >        quantity = qty;</span>
+<span class="cstat-no" title="statement not covered" >        side = orderSide;</span>
+<span class="cstat-no" title="statement not covered" >        type = orderType || "market";</span>
+<span class="cstat-no" title="statement not covered" >        limitPrice = orderLimitPrice;</span>
+      } else {
+        // Individual parameters
+<span class="cstat-no" title="statement not covered" >        symbol = symbolOrParams;</span>
+      }
+&nbsp;
       // Validate required parameters
 <span class="cstat-no" title="statement not covered" >      if (!symbol) {</span>
 <span class="cstat-no" title="statement not covered" >        throw new Error("Symbol is required");</span>
@@ -3040,7 +3085,7 @@ module.exports = AlpacaService;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-26T23:49:36.099Z
+                at 2025-09-27T08:01:37.345Z
             </div>
         <script src="../prettify.js"></script>
         <script>

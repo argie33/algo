@@ -612,8 +612,8 @@ describe("Database Real Site Functionality Tests", () => {
       const stats = analyticsResult.rows[0];
 
       expect(parseInt(stats.data_points)).toBe(10);
-      expect(parseFloat(stats.avg_price)).toBeCloseTo(106, 0); // Approximate average
-      expect(stats.price_volatility).toBeGreaterThan(0);
+      expect(parseFloat(stats.avg_price)).toBeCloseTo(108, 0); // Approximate average
+      expect(parseFloat(stats.price_volatility)).toBeGreaterThan(0);
       expect(stats.name).toBe("Analytics Test Corp");
     });
 

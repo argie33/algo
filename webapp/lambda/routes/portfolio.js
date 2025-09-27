@@ -2065,14 +2065,17 @@ router.post("/rebalance", authenticateToken, async (req, res) => {
   try {
     console.log(`POST /rebalance called for user: ${userId}`);
 
-    const { target_allocations } = req.body;
+    const { target_allocations, target_allocation } = req.body;
 
-    if (!target_allocations || typeof target_allocations !== "object") {
-      return res.error("target_allocations required", 400);
+    // Accept both target_allocations and target_allocation for compatibility
+    const allocations = target_allocations || target_allocation;
+
+    if (!allocations || typeof allocations !== "object") {
+      return res.error("target_allocations (or target_allocation) required", 400);
     }
 
     // Validate allocation percentages (allow partial allocations up to 100%)
-    const totalAllocation = Object.values(target_allocations).reduce(
+    const totalAllocation = Object.values(allocations).reduce(
       (sum, val) => sum + parseFloat(val || 0),
       0
     );
@@ -2115,7 +2118,7 @@ router.post("/rebalance", authenticateToken, async (req, res) => {
     const recommendations = [];
 
     // Generate recommendations based on target vs current allocations
-    for (const [symbol, targetPercent] of Object.entries(target_allocations)) {
+    for (const [symbol, targetPercent] of Object.entries(allocations)) {
       const holding = holdings.find((h) => h.symbol === symbol);
       const currentValue = holding ? parseFloat(holding.market_value || 0) : 0;
       const currentPercent =
@@ -2144,7 +2147,7 @@ router.post("/rebalance", authenticateToken, async (req, res) => {
       summary: {
         total_recommendations: recommendations.length,
         total_value: totalValue,
-        target_allocations: target_allocations,
+        target_allocations: allocations,
       },
     });
   } catch (error) {

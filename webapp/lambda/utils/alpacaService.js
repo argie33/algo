@@ -683,13 +683,28 @@ class AlpacaService {
    * Create trading order (market or limit)
    */
   async createOrder(
-    symbol,
+    symbolOrParams,
     quantity,
     side,
     type = "market",
     limitPrice = null
   ) {
     try {
+      // Handle both object and individual parameter calling conventions
+      let symbol, qty, orderSide, orderType, orderLimitPrice;
+
+      if (typeof symbolOrParams === 'object') {
+        // Object-based parameters
+        ({ symbol, qty, side: orderSide, type: orderType, limit_price: orderLimitPrice } = symbolOrParams);
+        quantity = qty;
+        side = orderSide;
+        type = orderType || "market";
+        limitPrice = orderLimitPrice;
+      } else {
+        // Individual parameters
+        symbol = symbolOrParams;
+      }
+
       // Validate required parameters
       if (!symbol) {
         throw new Error("Symbol is required");

@@ -236,6 +236,15 @@ router.post("/ai-generate", authenticateToken, async (req, res) => {
  */
 router.post("/validate", authenticateToken, async (req, res) => {
   try {
+    // Check if AI generator is available first
+    if (!aiGenerator) {
+      return res.status(503).json({
+        success: false,
+        error: "AI strategy services are currently unavailable",
+        details: "Strategy validation service is not loaded"
+      });
+    }
+
     const { strategy } = req.body;
     const userId = req.user.id;
 
@@ -264,7 +273,7 @@ router.post("/validate", authenticateToken, async (req, res) => {
     res.json({
       success: true,
       validation: {
-        isValid: validation.valid,
+        isValid: validation.isValid || validation.valid,
         errors: validation.errors,
         warnings: validation.warnings,
         suggestions: validation.suggestions

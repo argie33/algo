@@ -775,6 +775,81 @@ router.get("/presets", (req, res) => {
   });
 });
 
+// Get specific preset
+router.get("/presets/:presetName", (req, res) => {
+  const { presetName } = req.params;
+
+  const presets = [
+    {
+      id: "value_stocks",
+      name: "Value Stocks",
+      description: "Low P/E, P/B ratios with decent profitability",
+      filters: {
+        peRatioMax: 15,
+        pbRatioMax: 1.5,
+        roeMin: 10,
+        debtToEquityMax: 0.5,
+        marketCapMin: 1000000000,
+      },
+    },
+    {
+      id: "growth_stocks",
+      name: "Growth Stocks",
+      description: "High revenue and earnings growth",
+      filters: {
+        revenueGrowthMin: 15,
+        earningsGrowthMin: 20,
+        pegRatioMax: 2,
+        marketCapMin: 2000000000,
+      },
+    },
+    {
+      id: "dividend_stocks",
+      name: "Dividend Stocks",
+      description: "High dividend yield with sustainable payout",
+      filters: {
+        dividendYieldMin: 3,
+        payoutRatioMax: 60,
+        debtToEquityMax: 0.8,
+        marketCapMin: 5000000000,
+      },
+    },
+    {
+      id: "momentum_stocks",
+      name: "Momentum Stocks",
+      description: "Strong price momentum and technical indicators",
+      filters: {
+        priceMomentum3mMin: 5,
+        priceMomentum12mMin: 10,
+        rsiMin: 50,
+        rsiMax: 80,
+        volumeMin: 500000,
+      },
+    },
+  ];
+
+  // Find preset by name or id (with flexible matching)
+  const preset = presets.find(p =>
+    p.name.toLowerCase().replace(/\s+/g, '_') === presetName.toLowerCase() ||
+    p.id === presetName.toLowerCase() ||
+    p.id.includes(presetName.toLowerCase()) ||
+    presetName.toLowerCase().includes(p.name.split(' ')[0].toLowerCase())
+  );
+
+  if (!preset) {
+    return res.status(404).json({
+      success: false,
+      error: "Preset not found",
+      message: `Preset '${presetName}' not found`,
+    });
+  }
+
+  res.json({
+    success: true,
+    data: preset,
+  });
+});
+
 // Templates endpoint (alias for presets)
 router.get("/templates", (req, res) => {
   const templates = [

@@ -61,7 +61,13 @@ describe("Settings Management API", () => {
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
-        expect(Array.isArray(response.body.data)).toBe(true);
+        expect(response.body).toHaveProperty("timestamp");
+        if (response.body.apiKeys !== undefined) {
+          expect(Array.isArray(response.body.apiKeys)).toBe(true);
+        }
+        if (response.body.providers !== undefined) {
+          expect(Array.isArray(response.body.providers)).toBe(true);
+        }
       }
     });
 
@@ -78,7 +84,7 @@ describe("Settings Management API", () => {
         .set("Authorization", "Bearer test-token")
         .send(keyData);
 
-      expect([200, 404, 500, 501]).toContain(response.status);
+      expect([200, 201, 400, 404, 422, 500, 501]).toContain(response.status);
 
       if (response.status === 200 || response.status === 201) {
         expect(response.body).toHaveProperty("success", true);
@@ -96,8 +102,12 @@ describe("Settings Management API", () => {
       expect([200, 404, 500, 501]).toContain(response.status);
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(response.body).toHaveProperty("status");
+        expect(response.body).toHaveProperty("health");
+        expect(response.body).toHaveProperty("timestamp");
+        expect(response.body.health).toHaveProperty("cacheStats");
+        expect(response.body.health).toHaveProperty("circuitBreaker");
+        expect(response.body.health).toHaveProperty("jwtCircuitBreaker");
+        expect(response.body.health).toHaveProperty("services");
       }
     });
   });

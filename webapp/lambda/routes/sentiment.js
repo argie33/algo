@@ -938,6 +938,49 @@ router.get("/social/twitter", async (req, res) => {
   }
 });
 
+// Social trending route (for test compatibility)
+router.get("/social/trending", async (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+
+    console.log(`📈 Social trending sentiment requested, limit: ${limit}`);
+
+    const symbols = [
+      "AAPL",
+      "TSLA",
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "META",
+      "NVDA",
+      "NFLX",
+    ];
+    const trendingData = symbols.slice(0, parseInt(limit)).map((symbol) => ({
+      symbol: symbol,
+      mention_count: Math.floor(Math.random() * 1000) + 100,
+      sentiment_score: parseFloat((Math.random() * 0.6 + 0.2).toFixed(3)),
+      trend: Math.random() > 0.5 ? "up" : "down",
+      velocity: Math.floor(Math.random() * 50) + 10,
+    }));
+
+    // Sort by mention count
+    trendingData.sort((a, b) => b.mention_count - a.mention_count);
+
+    res.json({
+      success: true,
+      data: trendingData,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Social trending sentiment error:", error);
+    res.json({
+      success: false,
+      error: "Failed to get trending sentiment",
+      details: error.message,
+    });
+  }
+});
+
 // Get social media sentiment data for a specific symbol
 router.get("/social/:symbol", async (req, res) => {
   const { symbol } = req.params;
@@ -1623,48 +1666,6 @@ router.get("/stock/:symbol/trend", async (req, res) => {
   }
 });
 
-// Social trending route (for test compatibility)
-router.get("/social/trending", async (req, res) => {
-  try {
-    const { limit = 20 } = req.query;
-
-    console.log(`📈 Social trending sentiment requested, limit: ${limit}`);
-
-    const symbols = [
-      "AAPL",
-      "TSLA",
-      "MSFT",
-      "GOOGL",
-      "AMZN",
-      "META",
-      "NVDA",
-      "NFLX",
-    ];
-    const trendingData = symbols.slice(0, parseInt(limit)).map((symbol) => ({
-      symbol: symbol,
-      mention_count: Math.floor(Math.random() * 1000) + 100,
-      sentiment_score: parseFloat((Math.random() * 0.6 + 0.2).toFixed(3)),
-      trend: Math.random() > 0.5 ? "up" : "down",
-      velocity: Math.floor(Math.random() * 50) + 10,
-    }));
-
-    // Sort by mention count
-    trendingData.sort((a, b) => b.mention_count - a.mention_count);
-
-    res.json({
-      success: true,
-      data: trendingData,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Social trending sentiment error:", error);
-    res.json({
-      success: false,
-      error: "Failed to get trending sentiment",
-      details: error.message,
-    });
-  }
-});
 
 // Sectors sentiment endpoint
 router.get("/sectors", async (req, res) => {

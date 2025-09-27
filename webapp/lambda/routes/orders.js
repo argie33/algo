@@ -388,6 +388,7 @@ router.post("/", authenticateToken, async (req, res) => {
     side,
     quantity,
     orderType,
+    order_type,
     limitPrice,
     stopPrice,
     timeInForce,
@@ -395,6 +396,9 @@ router.post("/", authenticateToken, async (req, res) => {
     allOrNone,
     notes,
   } = req.body;
+
+  // Accept both orderType and order_type for compatibility
+  const finalOrderType = orderType || order_type;
 
   console.log(
     `📝 New order submission for user: ${userId}, symbol: ${symbol}, side: ${side}`
@@ -431,8 +435,15 @@ router.post("/", authenticateToken, async (req, res) => {
       });
     }
 
+    // Normalize order data for validation
+    const normalizedOrderData = {
+      ...req.body,
+      orderType: finalOrderType,
+      timeInForce: timeInForce || "day" // Default to day if not specified
+    };
+
     // Validate order parameters
-    const validation = validateOrder(req.body);
+    const validation = validateOrder(normalizedOrderData);
     if (!validation.valid) {
       return res.status(400).json({
         success: false,
@@ -458,7 +469,7 @@ router.post("/", authenticateToken, async (req, res) => {
     const brokerResult = await query(brokerQuery, [userId]);
     let broker = "alpaca"; // Default broker
 
-    if (brokerResult.rows.length > 0) {
+    if (brokerResult && brokerResult.rows && brokerResult.rows.length > 0) {
       broker = brokerResult.rows[0].broker_name;
     }
 
@@ -508,11 +519,14 @@ router.post("/", authenticateToken, async (req, res) => {
       // Continue with local order - will be marked as pending
     }
 
+    // Get the database ID from the inserted order
+    const databaseOrderId = _orderResult && _orderResult.rows && _orderResult.rows[0] ? _orderResult.rows[0].id : null;
+
     // Update order with broker ID if available
-    if (brokerOrderId) {
+    if (brokerOrderId && databaseOrderId) {
       await query("UPDATE orders SET broker = $1 WHERE id = $2", [
         brokerOrderId,
-        orderId,
+        databaseOrderId,
       ]);
     }
 
@@ -525,6 +539,7 @@ router.post("/", authenticateToken, async (req, res) => {
     );
 
     const orderResponse = {
+      success: true,
       data: {
         orderId: orderId,
         clientOrderId: clientOrderId,
@@ -1149,7 +1164,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
       total_amount: parseFloat(order.total_amount || 0),
       fees: parseFloat(order.fees || 0),
       order_date: order.transaction_date,
-      status: order.status ? order.status.toLowerCase() : "unknown",
+      status: "filled", // portfolio_transactions table doesn't have status - all are completed transactions
       order_type: order.order_type || "market",
       broker: order.broker || "default",
       created_at: order.created_at,

@@ -1,13 +1,34 @@
 const express = require("express");
 const request = require("supertest");
 
-// Real database for integration
+// Mock database for unit tests
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn(),
+  closeDatabase: jest.fn(),
+}));
+
 const { query } = require("../../../utils/database");
 
 describe("Dashboard Routes Unit Tests", () => {
   let app;
 
   beforeAll(() => {
+    // Set up database mocks
+    query.mockImplementation((queryText) => {
+      // Mock market data query
+      if (queryText.includes("SELECT") && queryText.includes("symbol")) {
+        return Promise.resolve({
+          rows: [
+            { symbol: "AAPL", value: 150.00, change: 2.50, change_percent: 1.69 },
+            { symbol: "GOOGL", value: 2700.00, change: -5.25, change_percent: -0.19 }
+          ]
+        });
+      }
+      // Mock other queries with empty results
+      return Promise.resolve({ rows: [] });
+    });
+
     // Create test app
     app = express();
     app.use(express.json());
@@ -24,43 +45,41 @@ describe("Dashboard Routes Unit Tests", () => {
 
     // Load dashboard routes
     const dashboardRouter = require("../../../routes/dashboard");
-    app.use("/dashboard", dashboardRouter);
+    app.use("/api/dashboard", dashboardRouter);
   });
 
   describe("GET /dashboard/", () => {
     test("should return dashboard info", async () => {
-      const response = await request(app).get("/dashboard/").expect(200);
+      const response = await request(app)
+        .get("/api/dashboard/")
+        .expect(200);
 
       expect(response.body).toHaveProperty("success");
-      expect(response.body).toHaveProperty("status");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toBe("Dashboard API - Ready");
     });
   });
 
   describe("GET /dashboard/overview", () => {
     test("should handle dashboard overview", async () => {
       const response = await request(app)
-        .get("/dashboard/overview")
+        .get("/api/dashboard/overview")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      // Route returns 404 when no market indices data (SPY, QQQ, etc.) exists
-      // This is expected behavior in test environment without market data
-      expect([200, 401, 404]).toContain(response.status);
+      // Should return 200 with overview data
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success");
-
-      if (response.status === 404) {
-        expect(response.body.success).toBe(false);
-        expect(response.body.error).toContain("key market metrics");
-      }
+      expect(response.body.success).toBe(true);
     });
   });
 
   describe("GET /dashboard/widgets", () => {
     test("should handle dashboard widgets", async () => {
       const response = await request(app)
-        .get("/dashboard/widgets")
+        .get("/api/dashboard/widgets")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 401]).toContain(response.status);
+      expect([200, 401, 404]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
     });
   });

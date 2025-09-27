@@ -13,7 +13,12 @@ class AIStrategyGeneratorStreaming extends AIStrategyGenerator {
     this.logger = createLogger(
       "financial-platform",
       "ai-strategy-generator-streaming"
-    );
+    ) || {
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {}
+    };
     this.activeStreams = new Map();
 
     // Streaming configuration
@@ -36,6 +41,7 @@ class AIStrategyGeneratorStreaming extends AIStrategyGenerator {
   ) {
     const streamId = this.generateStreamId();
     const startTime = Date.now();
+    let timeoutHandle;
 
     try {
       this.logger.info("Starting streaming strategy generation", {
@@ -73,7 +79,7 @@ class AIStrategyGeneratorStreaming extends AIStrategyGenerator {
 
       // Check for timeout
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+        timeoutHandle = setTimeout(() => {
           reject(new Error("Stream timeout exceeded"));
         }, this.streamingConfig.timeout);
       });
@@ -87,10 +93,16 @@ class AIStrategyGeneratorStreaming extends AIStrategyGenerator {
       );
 
       const result = await Promise.race([generationPromise, timeoutPromise]);
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
 
       this.activeStreams.delete(streamId);
       return result;
     } catch (error) {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
       this.activeStreams.delete(streamId);
       this.logger.error("Streaming strategy generation failed", {
         streamId,
@@ -302,53 +314,20 @@ class AIStrategyGeneratorStreaming extends AIStrategyGenerator {
       // Since AWS services are not available, return mock streaming response
       // This simulates a stream with chunks
 
-      // Handle empty symbols by providing default symbols or allowing empty
+      // Handle empty symbols by providing default symbols
       const effectiveSymbols =
         availableSymbols && availableSymbols.length > 0 ? availableSymbols : [];
-      // In test environment, respect explicitly passed empty arrays - never substitute defaults
-      const isExplicitEmptyArray =
-        Array.isArray(availableSymbols) && availableSymbols.length === 0;
 
-      let mockResponse;
-      if (isExplicitEmptyArray) {
-        // For empty arrays, create a minimal mock response to avoid base class error
-        let strategyName = "EmptySymbolsStrategy";
-        // Handle momentum strategy naming for empty symbols case too
-        if (
-          userPrompt.includes("momentum") ||
-          systemPrompt.includes("momentum") ||
-          originalPrompt.toLowerCase().includes("momentum")
-        ) {
-          strategyName = "Momentum-" + strategyName;
-        }
+      const symbolsForGeneration =
+        effectiveSymbols.length === 0
+          ? ["AAPL", "GOOGL", "MSFT", "SPY", "QQQ"]
+          : effectiveSymbols;
 
-        mockResponse = {
-          success: true,
-          strategy: {
-            name: strategyName,
-            description: "Strategy with no symbols",
-            code: 'import pandas as pd\n\n# No symbols provided\nprint("No symbols to analyze")',
-            language: "python",
-            symbols: [],
-            strategyType: "custom",
-            riskLevel: "low",
-            estimatedPerformance: { return: 0, volatility: 0 },
-            aiGenerated: false,
-            prompt: userPrompt,
-            generatedAt: new Date().toISOString(),
-          },
-        };
-      } else {
-        const symbolsForGeneration =
-          effectiveSymbols.length === 0
-            ? ["AAPL", "GOOGL", "MSFT", "SPY", "QQQ"]
-            : effectiveSymbols;
-        mockResponse = await this.generateFromNaturalLanguage(
-          userPrompt.replace(systemPrompt, ""),
-          symbolsForGeneration,
-          {}
-        );
-      }
+      const mockResponse = await this.generateFromNaturalLanguage(
+        userPrompt.replace(systemPrompt, ""),
+        symbolsForGeneration,
+        {}
+      );
 
       if (mockResponse && mockResponse.success) {
         // Ensure momentum strategies have "Momentum" in the name

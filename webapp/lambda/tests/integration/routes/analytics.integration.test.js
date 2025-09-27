@@ -163,14 +163,8 @@ describe("Analytics Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .send(analyticsRequest);
 
-      expect([200, 201, 404, 500, 501]).toContain(response.status);
-
-      if (response.status === 200 || response.status === 201) {
-        expect(response.body.success).toBe(true);
-      } else if (response.status >= 400) {
-        expect(response.body.success).toBe(false);
-        expect(response.body).toHaveProperty("error");
-      }
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
     });
   });
 });

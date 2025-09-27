@@ -307,6 +307,7 @@ describe("Authentication Middleware", () => {
 
       expect(req.user).toEqual({
         sub: "dev-user-bypass",
+        id: "dev-user-bypass",
         email: "dev-bypass@example.com",
         username: "dev-bypass-user",
         role: "admin",

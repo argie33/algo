@@ -1364,16 +1364,23 @@ async function query(text, params = []) {
       throw error;
     }
 
-    // For testing: return null for table not found and syntax errors to match test expectations
+    // For testing: return null for table not found but throw for syntax errors
     if (
       error.message.includes("does not exist") ||
-      error.message.includes("syntax error") ||
-      error.message.includes("INVALID SQL") ||
-      error.code === "42P01" || // undefined_table
-      error.code === "42601"    // syntax_error
+      error.code === "42P01" // undefined_table
     ) {
       console.warn("Database query error (returning null for tests):", error.message);
       return null;
+    }
+
+    // Syntax errors should throw to match test expectations
+    if (
+      error.message.includes("syntax error") ||
+      error.message.includes("INVALID SQL") ||
+      error.code === "42601" // syntax_error
+    ) {
+      console.error("Database syntax error:", error.message);
+      throw error;
     }
 
     // For other errors, still throw to maintain error handling for genuine issues

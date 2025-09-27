@@ -650,7 +650,7 @@ router.get("/quotes", async (req, res) => {
           p.symbol,
           p.close_price as close,
           p.high_price as high,
-          p.low_price as low,
+          p.low as low,
           p.open_price as open,
           p.volume,
           p.change_percent,

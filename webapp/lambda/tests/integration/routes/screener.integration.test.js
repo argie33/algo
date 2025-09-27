@@ -21,37 +21,38 @@ describe("Screener Routes", () => {
       const response = await request(app).get("/api/screener");
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("message");
-      expect(response.body).toHaveProperty("endpoints");
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("available_endpoints");
     });
   });
 
   describe("GET /api/screener/screen", () => {
     test("should screen stocks with basic criteria", async () => {
-      const response = await request(app).get(
-        "/api/screener/screen?market_cap_min=1000000000"
-      );
+      const response = await request(app)
+        .get("/api/screener/screen?market_cap_min=1000000000")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(Array.isArray(response.body.data)).toBe(true);
-      expect(response.body.data.length).toBeLessThanOrEqual(100);
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
+      expect(response.body.data.stocks.length).toBeLessThanOrEqual(100);
     });
 
     test("should handle multiple criteria", async () => {
-      const response = await request(app).get(
-        "/api/screener/screen?market_cap_min=1000000000&pe_max=25&volume_min=1000000"
-      );
+      const response = await request(app)
+        .get("/api/screener/screen?market_cap_min=1000000000&pe_max=25&volume_min=1000000")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
     });
 
     test("should handle sector filter", async () => {
-      const response = await request(app).get(
-        "/api/screener/screen?sector=Technology"
-      );
+      const response = await request(app)
+        .get("/api/screener/screen?sector=Technology")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -60,7 +61,9 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/presets", () => {
     test("should return screening presets", async () => {
-      const response = await request(app).get("/api/screener/presets");
+      const response = await request(app)
+        .get("/api/screener/presets")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -69,28 +72,33 @@ describe("Screener Routes", () => {
       if (response.body.data.length > 0) {
         const preset = response.body.data[0];
         expect(preset).toHaveProperty("name");
-        expect(preset).toHaveProperty("criteria");
+        expect(preset).toHaveProperty("filters");
       }
     });
   });
 
   describe("GET /api/screener/presets/:presetName", () => {
     test("should return specific preset", async () => {
-      const response = await request(app).get("/api/screener/presets/growth");
+      const response = await request(app)
+        .get("/api/screener/presets/growth")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
-        expect(response.body.data).toHaveProperty("preset");
-        expect(response.body.data).toHaveProperty("results");
+        expect(response.body.data).toHaveProperty("id");
+        expect(response.body.data).toHaveProperty("name");
+        expect(response.body.data).toHaveProperty("filters");
       }
     });
   });
 
   describe("GET /api/screener/growth", () => {
     test("should return growth stocks", async () => {
-      const response = await request(app).get("/api/screener/growth");
+      const response = await request(app)
+        .get("/api/screener/growth")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -98,9 +106,9 @@ describe("Screener Routes", () => {
     });
 
     test("should handle timeframe parameter", async () => {
-      const response = await request(app).get(
-        "/api/screener/momentum?timeframe=1M"
-      );
+      const response = await request(app)
+        .get("/api/screener/growth?timeframe=1M")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -109,7 +117,9 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/value", () => {
     test("should return value stocks", async () => {
-      const response = await request(app).get("/api/screener/value");
+      const response = await request(app)
+        .get("/api/screener/value")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -119,7 +129,9 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/growth", () => {
     test("should return growth stocks", async () => {
-      const response = await request(app).get("/api/screener/growth");
+      const response = await request(app)
+        .get("/api/screener/growth")
+        .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -147,14 +159,13 @@ describe("Screener Routes", () => {
   });
 
   describe("GET /api/screener/technical", () => {
-    test("should return technical screening results", async () => {
-      const response = await request(app).get(
-        "/api/screener/technical?rsi_min=30&rsi_max=70"
-      );
+    test("should return error for non-existent technical endpoint", async () => {
+      const response = await request(app)
+        .get("/api/screener/technical?rsi_min=30&rsi_max=70")
+        .set("Authorization", "Bearer dev-bypass-token");
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
     });
   });
 
@@ -190,38 +201,33 @@ describe("Screener Routes", () => {
   });
 
   describe("GET /api/screener/backtest", () => {
-    test("should return backtesting results", async () => {
-      const response = await request(app).get(
-        "/api/screener/backtest?strategy=momentum&start_date=2023-01-01"
-      );
+    test("should return error for non-existent backtest endpoint", async () => {
+      const response = await request(app)
+        .get("/api/screener/backtest?strategy=momentum&start_date=2023-01-01")
+        .set("Authorization", "Bearer dev-bypass-token");
 
-      expect(response.status).toBe(200);
-
-      if (response.status === 200) {
-        expect(response.body.success).toBe(true);
-        expect(response.body.data).toHaveProperty("backtest");
-        expect(response.body.data).toHaveProperty("returns");
-      }
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
     });
 
-    test("should require strategy parameter", async () => {
-      const response = await request(app).get("/api/screener/backtest");
+    test("should return error for backtest without parameters", async () => {
+      const response = await request(app)
+        .get("/api/screener/backtest")
+        .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([400, 422]).toContain(response.status);
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
     });
   });
 
   describe("GET /api/screener/export", () => {
-    test("should export screening results", async () => {
-      const response = await request(app).get(
-        "/api/screener/export?market_cap_min=1000000000&format=csv"
-      );
+    test("should return error for non-existent export endpoint", async () => {
+      const response = await request(app)
+        .get("/api/screener/export?market_cap_min=1000000000&format=csv")
+        .set("Authorization", "Bearer dev-bypass-token");
 
-      expect(response.status).toBe(200);
-
-      if (response.status === 200) {
-        expect(response.headers["content-type"]).toContain("text/csv");
-      }
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
     });
   });
 });

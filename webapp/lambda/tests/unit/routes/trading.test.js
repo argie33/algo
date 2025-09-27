@@ -99,7 +99,9 @@ describe("Trading Routes Unit Tests", () => {
       expect([200, 401, 500]).toContain(response.status);
       if (response.body.success) {
         expect(response.body).toHaveProperty("data");
-        expect(response.body).toHaveProperty("trading_mode");
+        expect(response.body).toHaveProperty("count");
+        expect(response.body).toHaveProperty("timestamp");
+        expect(Array.isArray(response.body.data)).toBe(true);
       } else {
         expect(response.body).toHaveProperty("error");
       }

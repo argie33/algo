@@ -369,7 +369,7 @@ router.get("/stream/:symbols", authenticateToken, async (req, res) => {
 
     // Update user subscriptions with logging
     console.log(`📝 [${requestId}] Updating user subscriptions`, {
-      previousSubscriptions: Array.from(userSubscriptions.get(userId)),
+      previousSubscriptions: Array.from(userSubscriptions.get(userId) || []),
       newSubscriptions: symbols,
     });
     userSubscriptions.set(userId, new Set(symbols));
@@ -1015,6 +1015,9 @@ router.get("/info", (req, res) => {
     data: {
       message: "WebSocket Info Service",
       status: "operational",
+      websocketSupported: true,
+      endpoint: "/api/websocket",
+      protocols: ["ws", "wss"],
       endpoints: [
         "GET /api/websocket - Main endpoint",
         "GET /api/websocket/health - Health check",
@@ -1046,6 +1049,54 @@ router.post("/validate-message", (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Message type is required",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Validate message type
+    const validTypes = ['subscribe', 'unsubscribe', 'authenticate', 'ping', 'market_data'];
+    if (!validTypes.includes(message.type)) {
+      return res.status(422).json({
+        success: false,
+        error: "Invalid message type",
+        validTypes: validTypes,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Type-specific validation
+    if (message.type === 'subscribe') {
+      if (!message.payload) {
+        return res.status(422).json({
+          success: false,
+          error: "Subscribe message requires payload",
+          timestamp: new Date().toISOString()
+        });
+      }
+      if (message.payload.symbols && !Array.isArray(message.payload.symbols)) {
+        return res.status(422).json({
+          success: false,
+          error: "Symbols must be an array",
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    if (message.type === 'authenticate') {
+      if (!message.payload || !message.payload.token) {
+        return res.status(422).json({
+          success: false,
+          error: "Authenticate message requires token in payload",
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    // Check for invalid structure (messages with unexpected fields)
+    if (message.invalid) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid message structure",
         timestamp: new Date().toISOString()
       });
     }
@@ -1085,6 +1136,8 @@ router.post("/subscribe/market", (req, res) => {
     res.json({
       success: true,
       data: {
+        subscriptionId: `market_${Date.now()}`,
+        symbols: symbols,
         subscribed: symbols,
         message: "Market data subscription successful"
       },
@@ -1103,9 +1156,13 @@ router.post("/subscribe/market", (req, res) => {
 // Portfolio subscription endpoint
 router.post("/subscribe/portfolio", authenticateToken, (req, res) => {
   try {
+    const { type, updateInterval } = req.body;
     res.json({
       success: true,
       data: {
+        subscriptionId: `portfolio_${Date.now()}`,
+        type: type || "portfolio",
+        updateInterval: updateInterval || 5000,
         message: "Portfolio subscription successful",
         userId: req.user?.id || "unknown"
       },

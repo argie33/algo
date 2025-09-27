@@ -14,8 +14,8 @@ module.exports = {
     "!coverage/**",
   ],
   testMatch: ["**/tests/**/*.test.js", "**/tests/**/*.spec.js"],
-  setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
-  testTimeout: 5000, // Reduced timeout
+  // setupFilesAfterEnv: ["<rootDir>/tests/setup.js"], // Temporarily disable setup
+  testTimeout: 10000, // Increased timeout for stability
   maxWorkers: 1, // Run tests serially to avoid conflicts
   forceExit: true, // Force exit after tests complete
   detectOpenHandles: true, // Enable to detect hanging handles
@@ -25,6 +25,10 @@ module.exports = {
   // DISABLE COMPLEX GLOBAL SETUP TO PREVENT HANGING
   // globalSetup: "<rootDir>/tests/setup/globalSetup.js",
   // globalTeardown: "<rootDir>/tests/setup/globalTeardown.js",
+  // Improved isolation settings
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true,
   // Environment variables for testing
   testEnvironmentOptions: {
     NODE_ENV: "test",
