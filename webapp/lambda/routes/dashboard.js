@@ -81,25 +81,52 @@ router.get("/data", authenticateToken, async (req, res) => {
       });
     }
 
-    // Get dashboard data with portfolio, market, watchlists, and alerts
+    // Get real dashboard data from database
+    const [portfolioResult, watchlistResult, alertResult] = await Promise.all([
+      // Get portfolio data
+      query(`
+        SELECT
+          COALESCE(SUM(quantity * current_price), 0) as total_value,
+          COUNT(*) as total_positions,
+          COALESCE(SUM((current_price - average_cost) * quantity), 0) as total_gain_loss
+        FROM portfolio_holdings
+        WHERE user_id = $1
+      `, [userId]).catch(() => ({ rows: [{ total_value: 0, total_positions: 0, total_gain_loss: 0 }] })),
+
+      // Get watchlist data
+      query(`
+        SELECT COUNT(wi.symbol) as total_items
+        FROM watchlists w
+        LEFT JOIN watchlist_items wi ON w.id = wi.watchlist_id
+        WHERE w.user_id = $1
+      `, [userId]).catch(() => ({ rows: [{ total_items: 0 }] })),
+
+      // Get alerts data
+      query(`
+        SELECT COUNT(*) as active_alerts
+        FROM alerts
+        WHERE user_id = $1 AND is_active = true
+      `, [userId]).catch(() => ({ rows: [{ active_alerts: 0 }] }))
+    ]);
+
+    const portfolio = portfolioResult.rows[0] || { total_value: 0, total_positions: 0, total_gain_loss: 0 };
+    const portfolioValue = parseFloat(portfolio.total_value) || 0;
+    const gainLoss = parseFloat(portfolio.total_gain_loss) || 0;
+    const gainLossPercent = portfolioValue > 0 ? (gainLoss / (portfolioValue - gainLoss)) * 100 : 0;
+
     const dashboardData = {
       portfolio: {
-        total_value: 50000,
-        total_positions: 8,
-        total_gain_loss: 2500,
-        gain_loss_percent: 5.25
-      },
-      market: {
-        indices: [],
-        movers: [],
-        sector_performance: []
+        total_value: portfolioValue,
+        total_positions: parseInt(portfolio.total_positions) || 0,
+        total_gain_loss: gainLoss,
+        gain_loss_percent: Math.round(gainLossPercent * 100) / 100
       },
       watchlists: {
-        total_items: 15,
+        total_items: parseInt(watchlistResult.rows[0]?.total_items) || 0,
         performance: []
       },
       alerts: {
-        active_alerts: 3,
+        active_alerts: parseInt(alertResult.rows[0]?.active_alerts) || 0,
         recent_alerts: []
       },
       timestamp: new Date().toISOString()
@@ -120,9 +147,9 @@ router.get("/data", authenticateToken, async (req, res) => {
 
 /**
  * GET /api/dashboard/summary
- * Get comprehensive dashboard summary data
+ * Get comprehensive dashboard summary data (requires authentication)
  */
-router.get("/summary", async (req, res) => {
+router.get("/summary", authenticateToken, async (req, res) => {
   try {
     console.log("📊 Dashboard summary request received");
 
@@ -965,9 +992,9 @@ router.get("/market-data", async (req, res) => {
 
 /**
  * GET /api/dashboard/overview
- * Get dashboard overview with market data
+ * Get dashboard overview with market data (requires authentication)
  */
-router.get("/overview", async (req, res) => {
+router.get("/overview", authenticateToken, async (req, res) => {
   try {
     console.log("📊 Dashboard overview requested");
 
@@ -1222,7 +1249,7 @@ router.get("/debug", async (req, res) => {
 });
 
 // Dashboard analytics endpoint
-router.get("/analytics", async (req, res) => {
+router.get("/analytics", authenticateToken, async (req, res) => {
   try {
     const {
       period = "30d",
@@ -1464,7 +1491,7 @@ function generateDashboardInsights(portfolio, trades, sectors) {
  * GET /api/dashboard/metrics
  * Get key dashboard metrics
  */
-router.get("/metrics", async (req, res) => {
+router.get("/metrics", authenticateToken, async (req, res) => {
   try {
     console.log("📊 Dashboard metrics request received");
 
@@ -1538,7 +1565,7 @@ router.get("/metrics", async (req, res) => {
  * GET /api/dashboard/widgets
  * Dashboard widgets configuration endpoint
  */
-router.get("/widgets", async (req, res) => {
+router.get("/widgets", authenticateToken, async (req, res) => {
   try {
     console.log("🧩 Dashboard widgets requested");
 

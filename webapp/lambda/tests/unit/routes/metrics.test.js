@@ -35,27 +35,52 @@ describe("Metrics Routes", () => {
         return Promise.resolve({ rows: [{ test: 1 }] });
       }
 
-      // Main metrics query
-      if (sql.includes("SELECT s.symbol")) {
+      // Main metrics query - mock data matching loader key_metrics table structure
+      if (sql.includes("SELECT") && sql.includes("km.ticker")) {
         return Promise.resolve({
           rows: [
             {
               symbol: "AAPL",
-              rsi: 65.5,
-              macd: 1.23,
-              sma_20: 150.25,
-              current_price: 155.00,
-              sector: "Technology",
-              total_count: "1"
-            },
-            {
-              symbol: "GOOGL",
-              rsi: 70.2,
-              macd: 2.15,
-              sma_20: 2800.50,
-              current_price: 2850.00,
-              sector: "Technology",
-              total_count: "2"
+              trailing_pe: 28.5,
+              forward_pe: 26.2,
+              price_to_book: 5.8,
+              book_value: 4.32,
+              price_to_sales_ttm: 7.2,
+              peg_ratio: 2.1,
+              enterprise_value: 2800000000000,
+              ev_to_revenue: 7.1,
+              ev_to_ebitda: 19.5,
+              profit_margin_pct: 0.253,
+              gross_margin_pct: 0.433,
+              ebitda_margin_pct: 0.311,
+              operating_margin_pct: 0.298,
+              return_on_assets_pct: 0.204,
+              return_on_equity_pct: 0.564,
+              current_ratio: 1.06,
+              quick_ratio: 0.83,
+              debt_to_equity: 186.6,
+              eps_trailing: 6.05,
+              eps_forward: 6.84,
+              eps_current_year: 6.16,
+              price_eps_current_year: 28.1,
+              total_cash: 67100000000,
+              cash_per_share: 4.31,
+              operating_cashflow: 109200000000,
+              free_cashflow: 84700000000,
+              total_debt: 125000000000,
+              ebitda: 123300000000,
+              total_revenue: 394300000000,
+              net_income: 99800000000,
+              gross_profit: 170800000000,
+              earnings_q_growth_pct: 0.036,
+              revenue_growth_pct: -0.027,
+              earnings_growth_pct: 0.135,
+              dividend_rate: 0.96,
+              dividend_yield: 0.0055,
+              five_year_avg_dividend_yield: 0.78,
+              last_annual_dividend_amt: 0.95,
+              last_annual_dividend_yield: 0.54,
+              payout_ratio: 0.158
             }
           ]
         });
@@ -91,49 +116,88 @@ describe("Metrics Routes", () => {
         total: expect.any(Number),
       });
 
-      // If we have stocks in the response, verify the loader table structure
-      if (response.body.metrics && response.body.metrics.stocks.length > 0) {
-        const firstStock = response.body.metrics.stocks[0];
+      // Verify comprehensive yfinance key metrics data structure
+      if (response.body.data && response.body.data.length > 0) {
+        const firstStock = response.body.data[0];
 
-        // Verify company_profile table fields (from loadinfo.py)
+        // Basic required fields
         expect(firstStock).toHaveProperty("symbol");
-        expect(firstStock).toHaveProperty("companyName"); // maps to short_name
-        expect(firstStock).toHaveProperty("sector");
-        expect(firstStock).toHaveProperty("industry");
+        expect(typeof firstStock.symbol).toBe("string");
 
-        // Verify market_data table fields (from loadinfo.py)
-        expect(firstStock).toHaveProperty("marketCap");
-        expect(firstStock).toHaveProperty("currentPrice");
-
-        // Verify key_metrics table fields (from loadinfo.py)
+        // Valuation metrics from yfinance
         expect(firstStock).toHaveProperty("pe"); // trailing_pe
+        expect(firstStock).toHaveProperty("forwardPE"); // forward_pe
         expect(firstStock).toHaveProperty("pb"); // price_to_book
+        expect(firstStock).toHaveProperty("bookValue");
+        expect(firstStock).toHaveProperty("priceToSales");
+        expect(firstStock).toHaveProperty("pegRatio");
 
-        // Verify stock_scores derived metrics structure
-        expect(firstStock).toHaveProperty("metrics");
-        expect(firstStock.metrics).toHaveProperty("composite");
-        expect(firstStock.metrics).toHaveProperty("quality");
-        expect(firstStock.metrics).toHaveProperty("value");
-        expect(firstStock.metrics).toHaveProperty("growth");
+        // Enterprise value metrics
+        expect(firstStock).toHaveProperty("enterpriseValue");
+        expect(firstStock).toHaveProperty("evToRevenue");
+        expect(firstStock).toHaveProperty("evToEbitda");
 
-        // Verify breakdown structures match loader data expectations
-        expect(firstStock).toHaveProperty("qualityBreakdown");
-        expect(firstStock.qualityBreakdown).toHaveProperty("overall");
-        expect(firstStock.qualityBreakdown).toHaveProperty("piotrosiScore");
-        expect(firstStock.qualityBreakdown).toHaveProperty("altmanZScore");
+        // Profitability margins
+        expect(firstStock).toHaveProperty("profitMargin");
+        expect(firstStock).toHaveProperty("grossMargin");
+        expect(firstStock).toHaveProperty("ebitdaMargin");
+        expect(firstStock).toHaveProperty("operatingMargin");
 
-        expect(firstStock).toHaveProperty("valueBreakdown");
-        expect(firstStock.valueBreakdown).toHaveProperty("intrinsicValue");
-        expect(firstStock.valueBreakdown).toHaveProperty("marginOfSafety");
+        // Returns
+        expect(firstStock).toHaveProperty("returnOnAssets");
+        expect(firstStock).toHaveProperty("returnOnEquity");
 
-        expect(firstStock).toHaveProperty("growthBreakdown");
-        expect(firstStock.growthBreakdown).toHaveProperty("revenue");
-        expect(firstStock.growthBreakdown).toHaveProperty("earnings");
+        // Liquidity ratios
+        expect(firstStock).toHaveProperty("currentRatio");
+        expect(firstStock).toHaveProperty("quickRatio");
 
-        // Verify metadata from loader timestamps
-        expect(firstStock).toHaveProperty("metadata");
-        expect(firstStock.metadata).toHaveProperty("metricDate");
-        expect(firstStock.metadata).toHaveProperty("lastUpdated");
+        // Debt metrics
+        expect(firstStock).toHaveProperty("debtToEquity");
+        expect(firstStock).toHaveProperty("totalDebt");
+
+        // EPS metrics
+        expect(firstStock).toHaveProperty("eps");
+        expect(firstStock).toHaveProperty("forwardEPS");
+        expect(firstStock).toHaveProperty("epsCurrentYear");
+        expect(firstStock).toHaveProperty("priceEpsCurrentYear");
+
+        // Cash metrics
+        expect(firstStock).toHaveProperty("totalCash");
+        expect(firstStock).toHaveProperty("cashPerShare");
+        expect(firstStock).toHaveProperty("operatingCashflow");
+        expect(firstStock).toHaveProperty("freeCashflow");
+
+        // Financial data
+        expect(firstStock).toHaveProperty("ebitda");
+        expect(firstStock).toHaveProperty("totalRevenue");
+        expect(firstStock).toHaveProperty("netIncome");
+        expect(firstStock).toHaveProperty("grossProfit");
+
+        // Growth metrics
+        expect(firstStock).toHaveProperty("earningsGrowth");
+        expect(firstStock).toHaveProperty("revenueGrowth");
+        expect(firstStock).toHaveProperty("earningsGrowthQuarterly");
+
+        // Dividend metrics
+        expect(firstStock).toHaveProperty("dividendYield");
+        expect(firstStock).toHaveProperty("dividendRate");
+        expect(firstStock).toHaveProperty("payoutRatio");
+        expect(firstStock).toHaveProperty("fiveYearAvgDividendYield");
+        expect(firstStock).toHaveProperty("trailingAnnualDividendRate");
+        expect(firstStock).toHaveProperty("trailingAnnualDividendYield");
+
+        // Metadata
+        expect(firstStock).toHaveProperty("lastUpdated");
+        expect(firstStock).toHaveProperty("dataSource");
+        expect(firstStock.dataSource).toBe("yfinance");
+        expect(typeof firstStock.lastUpdated).toBe("string");
+
+        // Verify numeric fields are numbers or null (not strings)
+        if (firstStock.pe !== null) expect(typeof firstStock.pe).toBe("number");
+        if (firstStock.pb !== null) expect(typeof firstStock.pb).toBe("number");
+        if (firstStock.returnOnEquity !== null) expect(typeof firstStock.returnOnEquity).toBe("number");
+        if (firstStock.debtToEquity !== null) expect(typeof firstStock.debtToEquity).toBe("number");
+        if (firstStock.currentRatio !== null) expect(typeof firstStock.currentRatio).toBe("number");
       }
     });
 

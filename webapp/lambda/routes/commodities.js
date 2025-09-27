@@ -790,44 +790,11 @@ router.get("/news", async (req, res) => {
     });
   } catch (error) {
     console.error("Commodities news error:", error);
-
-    // Return mock data instead of 500 error for test compatibility
-    const categoryFilter = req.query.category;
-    let mockNews = [
-      {
-        id: 1,
-        title: "Gold Prices Surge Amid Market Volatility",
-        summary: "Gold prices surge amid market volatility",
-        source: "Commodity News",
-        url: "https://example.com/news/1",
-        published_at: new Date().toISOString(),
-        category: "precious_metals",
-        symbol: "GOLD"
-      },
-      {
-        id: 2,
-        title: "Oil Prices Rise on Supply Concerns",
-        summary: "Oil prices rise on supply concerns",
-        source: "Energy Daily",
-        url: "https://example.com/news/2",
-        published_at: new Date().toISOString(),
-        category: "energy",
-        symbol: "OIL"
-      }
-    ];
-
-    // Filter mock data by category if specified
-    if (categoryFilter) {
-      mockNews = mockNews.filter(item => item.category === categoryFilter);
-    }
-
-    res.status(200).json({
-      success: true,
-      data: mockNews,
-      total: mockNews.length,
-      filtered_by: req.query.category || "all_commodities",
+    res.status(503).json({
+      success: false,
+      error: "Commodities news service unavailable",
+      message: "Database query failed",
       timestamp: new Date().toISOString(),
-      source: "mock_fallback"
     });
   }
 });

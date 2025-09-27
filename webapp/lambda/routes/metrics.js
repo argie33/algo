@@ -158,56 +158,91 @@ router.get("/", async (req, res) => {
     const sortBy = req.query.sortBy || "symbol";
     const sortOrder = req.query.sortOrder || "asc";
 
-    // Build the query with proper search handling
+    // Validate sort column to prevent SQL injection
+    const validSortColumns = ["symbol", "ticker", "trailing_pe", "forward_pe", "price_to_book", "return_on_equity_pct", "debt_to_equity", "current_ratio", "enterprise_value", "profit_margin_pct"];
+    const safeSort = validSortColumns.includes(sortBy) ? (sortBy === "symbol" ? "km.ticker" : `km.${sortBy}`) : "km.ticker";
+    const safeOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
+
+    // Query comprehensive metrics from key_metrics table
     let whereConditions = [];
     const queryParams = [];
     let paramIndex = 1;
 
     // Add search condition if provided
     if (search) {
-      whereConditions.push(`s.symbol ILIKE $${paramIndex}`);
+      whereConditions.push(`km.ticker ILIKE $${paramIndex}`);
       queryParams.push(`%${search.toUpperCase()}%`);
       paramIndex++;
     }
 
-    // Validate sort column to prevent SQL injection
-    const validSortColumns = ["symbol", "rsi", "macd", "sma_20", "current_price"];
-    const safeSort = validSortColumns.includes(sortBy) ? sortBy : "symbol";
-    const safeOrder = sortOrder.toLowerCase() === "asc" ? "ASC" : "DESC";
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    // Test basic database connection
-    const stocksQuery = `SELECT 1 as test`;
+    const metricsQuery = `
+      SELECT
+        km.ticker as symbol,
+        km.trailing_pe,
+        km.forward_pe,
+        km.price_to_book,
+        km.book_value,
+        km.price_to_sales_ttm,
+        km.enterprise_value,
+        km.ev_to_revenue,
+        km.ev_to_ebitda,
+        km.profit_margin_pct,
+        km.gross_margin_pct,
+        km.ebitda_margin_pct,
+        km.operating_margin_pct,
+        km.return_on_assets_pct,
+        km.return_on_equity_pct,
+        km.current_ratio,
+        km.quick_ratio,
+        km.debt_to_equity,
+        km.eps_trailing,
+        km.eps_forward,
+        km.eps_current_year,
+        km.price_eps_current_year,
+        km.dividend_yield,
+        km.payout_ratio,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        km.total_debt,
+        km.ebitda,
+        km.total_revenue,
+        km.net_income,
+        km.gross_profit,
+        km.earnings_q_growth_pct,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        km.dividend_rate,
+        km.five_year_avg_dividend_yield,
+        km.last_annual_dividend_amt,
+        km.last_annual_dividend_yield,
+        km.peg_ratio
+      FROM key_metrics km
+      ${whereClause}
+      ORDER BY ${safeSort} ${safeOrder}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
 
-    let stocksResult;
+    queryParams.push(limit, offset);
+
+    let metricsResult;
     try {
-      stocksResult = await query(stocksQuery);
+      metricsResult = await query(metricsQuery, queryParams);
     } catch (error) {
       console.error("Metrics database query error:", error.message);
-
-      // Show actual error for debugging - bypass specific handlers
-
-      // Handle other database errors - show actual error for debugging
       return res.status(500).json({
         success: false,
         error: "Database query failed",
         message: "Unable to retrieve metrics due to database error",
-        details: error.message, // Show actual error for AWS debugging
+        details: error.message,
         timestamp: new Date().toISOString(),
       });
     }
 
-    // Handle database connection failure gracefully
-    if (!stocksResult) {
-      console.error("📊 Database not available");
-      return res.status(500).json({
-        success: false,
-        error: "Database connection failed",
-        message: "Unable to retrieve metrics data",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    if (!stocksResult.rows) {
+    if (!metricsResult || !metricsResult.rows) {
       return res.status(500).json({
         success: false,
         error: "Failed to fetch metrics",
@@ -217,35 +252,91 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Test response for debugging
-    const stocks = [{
-      symbol: "TEST",
-      currentPrice: 100.0,
-      volume: 1000000,
-      momentumMetric: 0.5,
-      trendMetric: 0.5,
-      qualityMetric: 0.5,
-      valueMetric: 0.5,
-      growthMetric: 0.5,
-      overallScore: 0.5,
-      rsi: 50,
-      macd: 0,
-      sma20: 100,
+    // Transform database results to comprehensive metrics format
+    const stocks = metricsResult.rows.map(row => ({
+      symbol: row.symbol,
+
+      // Valuation metrics
+      pe: parseFloat(row.trailing_pe) || null,
+      forwardPE: parseFloat(row.forward_pe) || null,
+      pb: parseFloat(row.price_to_book) || null,
+      bookValue: parseFloat(row.book_value) || null,
+      priceToSales: parseFloat(row.price_to_sales_ttm) || null,
+      pegRatio: parseFloat(row.peg_ratio) || null,
+
+      // Enterprise value metrics
+      enterpriseValue: parseInt(row.enterprise_value) || null,
+      evToRevenue: parseFloat(row.ev_to_revenue) || null,
+      evToEbitda: parseFloat(row.ev_to_ebitda) || null,
+
+      // Profitability margins
+      profitMargin: parseFloat(row.profit_margin_pct) || null,
+      grossMargin: parseFloat(row.gross_margin_pct) || null,
+      ebitdaMargin: parseFloat(row.ebitda_margin_pct) || null,
+      operatingMargin: parseFloat(row.operating_margin_pct) || null,
+
+      // Returns
+      returnOnAssets: parseFloat(row.return_on_assets_pct) || null,
+      returnOnEquity: parseFloat(row.return_on_equity_pct) || null,
+
+      // Liquidity ratios
+      currentRatio: parseFloat(row.current_ratio) || null,
+      quickRatio: parseFloat(row.quick_ratio) || null,
+
+      // Debt metrics
+      debtToEquity: parseFloat(row.debt_to_equity) || null,
+      totalDebt: parseInt(row.total_debt) || null,
+
+      // EPS metrics
+      eps: parseFloat(row.eps_trailing) || null,
+      forwardEPS: parseFloat(row.eps_forward) || null,
+      epsCurrentYear: parseFloat(row.eps_current_year) || null,
+      priceEpsCurrentYear: parseFloat(row.price_eps_current_year) || null,
+
+      // Cash metrics
+      totalCash: parseInt(row.total_cash) || null,
+      cashPerShare: parseFloat(row.cash_per_share) || null,
+      operatingCashflow: parseInt(row.operating_cashflow) || null,
+      freeCashflow: parseInt(row.free_cashflow) || null,
+
+      // Financial data
+      ebitda: parseInt(row.ebitda) || null,
+      totalRevenue: parseInt(row.total_revenue) || null,
+      netIncome: parseInt(row.net_income) || null,
+      grossProfit: parseInt(row.gross_profit) || null,
+
+      // Growth metrics
+      earningsGrowth: parseFloat(row.earnings_q_growth_pct) || null,
+      revenueGrowth: parseFloat(row.revenue_growth_pct) || null,
+      earningsGrowthQuarterly: parseFloat(row.earnings_q_growth_pct) || null,
+
+      // Dividend metrics
+      dividendYield: parseFloat(row.dividend_yield) || null,
+      dividendRate: parseFloat(row.dividend_rate) || null,
+      payoutRatio: parseFloat(row.payout_ratio) || null,
+      fiveYearAvgDividendYield: parseFloat(row.five_year_avg_dividend_yield) || null,
+      trailingAnnualDividendRate: parseFloat(row.last_annual_dividend_amt) || null,
+      trailingAnnualDividendYield: parseFloat(row.last_annual_dividend_yield) || null,
+
+      // Metadata
       lastUpdated: new Date().toISOString(),
-    }];
+      dataSource: "yfinance"
+    }));
 
-    // Simple count query with proper parameter handling
-    const countParams = [];
-    let countParamIndex = 1;
-    let countWhereCondition = '';
+    // Get total count for pagination
+    const countQuery = `SELECT COUNT(*) as total FROM key_metrics km ${whereClause}`;
+    const countParams = whereConditions.length > 0 ? [queryParams[0]] : [];
 
-    if (search) {
-      countWhereCondition = `WHERE s.symbol ILIKE $${countParamIndex}`;
-      countParams.push(`%${search.toUpperCase()}%`);
+    let countResult;
+    try {
+      countResult = await query(countQuery, countParams);
+    } catch (error) {
+      console.error("Count query error:", error.message);
+      // Use fallback count
+      countResult = { rows: [{ total: stocks.length }] };
     }
 
-    // Simple test count
-    const total = 1;
+    const total = parseInt(countResult.rows[0]?.total) || stocks.length;
     const totalPages = Math.ceil(total / limit);
 
     res.json({

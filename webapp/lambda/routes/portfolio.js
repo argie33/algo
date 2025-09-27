@@ -5641,27 +5641,12 @@ router.get("/transactions", async (req, res) => {
       queryParams.push(parseInt(limit), parseInt(offset));
       queryResult = await query(transactionQuery, queryParams);
     } catch (error) {
-      console.log('Database query failed:', error.message);
-      // Provide fallback mock data when database query fails
-      queryResult = {
-        rows: [
-          {
-            transaction_id: 1,
-            symbol: 'AAPL',
-            transaction_type: 'BUY',
-            quantity: 10,
-            price: 150.00,
-            amount: 1500.00,
-            commission: 1.00,
-            transaction_date: new Date().toISOString(),
-            settlement_date: new Date().toISOString(),
-            description: 'Sample transaction',
-            account_id: userId,
-            broker: 'manual',
-            created_at: new Date().toISOString()
-          }
-        ]
-      };
+      console.error('Database query failed:', error.message);
+      return res.status(503).json({
+        success: false,
+        error: 'Database connection error',
+        details: 'Unable to retrieve transaction data'
+      });
     }
 
     // queryResult is already set in the try-catch above

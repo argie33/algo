@@ -763,19 +763,10 @@ describe("AlpacaService", () => {
       });
     });
 
-    it("should return fallback data on API error", async () => {
+    it("should throw error on API failure", async () => {
       mockClient.getClock.mockRejectedValue(new Error("API error"));
 
-      const result = await alpacaService.getMarketClock();
-
-      expect(result).toEqual({
-        timestamp: expect.any(String),
-        isOpen: false,
-        nextOpen: null,
-        nextClose: null,
-        timezone: "America/New_York",
-        error: "Failed to fetch market status",
-      });
+      await expect(alpacaService.getMarketClock()).rejects.toThrow("API error");
     });
   });
 

@@ -41,27 +41,27 @@ test.describe("Scores Dashboard Page E2E Tests", () => {
       });
       await page.waitForTimeout(3000);
 
-      // Check for MUI Tabs errors specifically
-      const muiTabsErrors = consoleErrors.filter(
+      // Check for critical errors (ignore minor warnings)
+      const criticalErrors = consoleErrors.filter(
         (error) =>
-          error.includes("MUI:") &&
-          error.includes("Tabs") &&
-          error.includes("value")
+          !error.includes("Warning:") &&
+          !error.includes("DevTools") &&
+          error.includes("Error")
       );
 
       console.log(
-        `📊 Scores Dashboard: ${consoleErrors.length} total errors, ${muiTabsErrors.length} MUI Tabs errors`
+        `📊 Scores Dashboard: ${consoleErrors.length} total console messages, ${criticalErrors.length} critical errors`
       );
 
-      if (muiTabsErrors.length > 0) {
-        console.log("❌ MUI Tabs errors on Scores Dashboard:");
-        muiTabsErrors.forEach((error) => console.log(`   - ${error}`));
+      if (criticalErrors.length > 0) {
+        console.log("❌ Critical errors on Scores Dashboard:");
+        criticalErrors.forEach((error) => console.log(`   - ${error}`));
       }
 
-      // Should not have MUI Tabs errors on Scores Dashboard page
+      // Should not have critical errors on Scores Dashboard page
       expect(
-        muiTabsErrors.length,
-        "Scores Dashboard should not have MUI Tabs errors"
+        criticalErrors.length,
+        "Scores Dashboard should not have critical errors"
       ).toBe(0);
 
       // Verify page loaded successfully
@@ -79,7 +79,7 @@ test.describe("Scores Dashboard Page E2E Tests", () => {
     }
   });
 
-  test("should display scores dashboard elements", async ({ page }) => {
+  test("should display scores dashboard with list view and search", async ({ page }) => {
     await page.goto("/scores", {
       waitUntil: "domcontentloaded",
       timeout: 15000,
@@ -87,29 +87,120 @@ test.describe("Scores Dashboard Page E2E Tests", () => {
     await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(2000);
 
-    // Look for common scores dashboard elements
-    const scoresSelectors = [
-      '[data-testid*="score"]',
-      '[class*="score"]',
-      '[class*="dashboard"]',
-      '[class*="rating"]',
-      'table', // Scores table
-      'canvas', // Charts
-      'svg', // SVG charts
-      '.MuiCard-root', // Card components
-    ];
+    // Check for dashboard title
+    const titleElement = page.locator('text=/Stock Scores Dashboard/i');
+    await expect(titleElement).toBeVisible();
 
-    let hasScoresElements = false;
-    for (const selector of scoresSelectors) {
-      const elements = page.locator(selector);
-      const count = await elements.count();
-      if (count > 0) {
-        hasScoresElements = true;
-        break;
-      }
+    // Check for search functionality
+    const searchInput = page.locator('input[placeholder*="Search"]');
+    await expect(searchInput).toBeVisible();
+
+    // Check for summary statistics
+    const totalStocks = page.locator('text=/Total Stocks/i');
+    await expect(totalStocks).toBeVisible();
+
+    // Check for stocks list (should be accordion format, not dropdown)
+    const stocksList = page.locator('.MuiAccordion-root');
+    await expect(stocksList.first()).toBeVisible();
+
+    // Verify no dropdown/autocomplete present
+    const autocomplete = page.locator('.MuiAutocomplete-root');
+    await expect(autocomplete).toHaveCount(0);
+
+    // Verify no methodology tab
+    const methodologyTab = page.locator('text=/Methodology/i');
+    await expect(methodologyTab).toHaveCount(0);
+  });
+
+  test("should expand accordion and show factor details", async ({ page }) => {
+    await page.goto("/scores", {
+      waitUntil: "domcontentloaded",
+      timeout: 15000,
+    });
+    await page.waitForSelector("#root", { timeout: 10000 });
+    await page.waitForTimeout(3000);
+
+    // Wait for stocks to load
+    const firstAccordion = page.locator('.MuiAccordion-root').first();
+    await expect(firstAccordion).toBeVisible();
+
+    // Click to expand first accordion
+    const accordionSummary = firstAccordion.locator('.MuiAccordionSummary-root');
+    await accordionSummary.click();
+
+    // Wait for expansion
+    await page.waitForTimeout(1000);
+
+    // Check for factor analysis content
+    const factorAnalysis = page.locator('text=/Factor Analysis/i');
+    await expect(factorAnalysis).toBeVisible();
+
+    // Check for individual factors
+    const momentumFactor = page.locator('text=/Momentum/i');
+    const trendFactor = page.locator('text=/Trend/i');
+    const valueFactor = page.locator('text=/Value/i');
+    const qualityFactor = page.locator('text=/Quality/i');
+    const technicalFactor = page.locator('text=/Technical/i');
+    const riskFactor = page.locator('text=/Risk/i');
+
+    await expect(momentumFactor).toBeVisible();
+    await expect(trendFactor).toBeVisible();
+    await expect(valueFactor).toBeVisible();
+    await expect(qualityFactor).toBeVisible();
+    await expect(technicalFactor).toBeVisible();
+    await expect(riskFactor).toBeVisible();
+  });
+
+  test("should filter stocks with search functionality", async ({ page }) => {
+    await page.goto("/scores", {
+      waitUntil: "domcontentloaded",
+      timeout: 15000,
+    });
+    await page.waitForSelector("#root", { timeout: 10000 });
+    await page.waitForTimeout(3000);
+
+    // Wait for stocks to load
+    const stocksList = page.locator('.MuiAccordion-root');
+    const initialCount = await stocksList.count();
+
+    if (initialCount > 0) {
+      // Use search functionality
+      const searchInput = page.locator('input[placeholder*="Search"]');
+      await searchInput.fill('AAPL');
+      await page.waitForTimeout(1000);
+
+      // Check filtered results
+      const filteredCount = await stocksList.count();
+      expect(filteredCount).toBeLessThanOrEqual(initialCount);
+
+      // Clear search
+      await searchInput.fill('');
+      await page.waitForTimeout(1000);
+
+      // Should show all stocks again
+      const restoredCount = await stocksList.count();
+      expect(restoredCount).toBe(initialCount);
     }
+  });
 
-    // Page should have some scores dashboard UI elements
-    expect(hasScoresElements).toBe(true);
+  test("should not display peer comparison or methodology sections", async ({ page }) => {
+    await page.goto("/scores", {
+      waitUntil: "domcontentloaded",
+      timeout: 15000,
+    });
+    await page.waitForSelector("#root", { timeout: 10000 });
+    await page.waitForTimeout(3000);
+
+    // Verify no peer comparison
+    const peerComparison = page.locator('text=/Peer Comparison/i');
+    await expect(peerComparison).toHaveCount(0);
+
+    // Verify no methodology tab or section
+    const methodology = page.locator('text=/Methodology/i');
+    await expect(methodology).toHaveCount(0);
+
+    // Verify no tabs structure (since we removed tabs)
+    const tabsContainer = page.locator('.MuiTabs-root');
+    await expect(tabsContainer).toHaveCount(0);
   });
 });

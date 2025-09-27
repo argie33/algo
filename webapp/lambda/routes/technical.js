@@ -137,13 +137,18 @@ router.get("/daily", async (req, res) => {
 
     console.log(`📊 Daily technical data requested - page: ${page}, limit: ${limit}, sortBy: ${sortBy}, sortOrder: ${sortOrder}`);
 
+    // Debug: Test basic query function
+    console.log('Testing query function...');
+    const testQuery = await query('SELECT 1 as test');
+    console.log('Test query result:', testQuery);
+
     // Validate parameters
     const pageNum = parseInt(page);
     const limitNum = Math.min(parseInt(limit), 100); // Max 100 per page
     const offset = (pageNum - 1) * limitNum;
 
     // Validate sort parameters
-    const validSortFields = ['symbol', 'date', 'rsi', 'macd', 'sma_20', 'sma_50', 'sma_200'];
+    const validSortFields = ['symbol', 'date', 'rsi', 'macd', 'sma_20', 'sma_50', 'sma_150', 'sma_200'];
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'symbol';
     const order = sortOrder.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
@@ -175,8 +180,13 @@ router.get("/daily", async (req, res) => {
       whereClause = 'WHERE ' + whereClauses.join(' AND ');
     }
 
-    // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
-    const result = await query(
+    // Try to query technical data, handle table not existing gracefully
+    let result;
+    let countResult;
+
+    try {
+      // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
+      result = await query(
       `
       SELECT
         symbol,
@@ -201,11 +211,11 @@ router.get("/daily", async (req, res) => {
         sma_10,
         sma_20,
         sma_50,
-        sma_200 as sma_150,
+        sma_150,
         sma_200,
-        ema_10 as ema_4,
-        ema_20 as ema_9,
-        ema_50 as ema_21,
+        ema_4,
+        ema_9,
+        ema_21,
         bbands_lower,
         bbands_middle,
         bbands_upper,
@@ -228,7 +238,7 @@ router.get("/daily", async (req, res) => {
 
     // Get total count for pagination
     const countParams = queryParams.slice(2); // Remove limit and offset parameters
-    const countResult = await query(
+    countResult = await query(
       `
       SELECT COUNT(DISTINCT symbol) as total
       FROM technical_data_daily
@@ -237,13 +247,13 @@ router.get("/daily", async (req, res) => {
       countParams
     );
 
-    const total = parseInt(countResult.rows[0]?.total || 0);
+    const total = parseInt(countResult?.rows?.[0]?.total || 0);
     const totalPages = Math.ceil(total / limitNum);
 
     res.json({
       success: true,
       data: {
-        data: result.rows,
+        data: result.rows || [],
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -261,6 +271,16 @@ router.get("/daily", async (req, res) => {
       },
       timestamp: new Date().toISOString()
     });
+
+    } catch (dbError) {
+      console.error("Database error in technical daily endpoint:", dbError);
+      return res.status(503).json({
+        success: false,
+        error: "Technical data service unavailable",
+        message: dbError.message.includes("does not exist") ? "Database table missing: technical_data_daily" : "Database connection failed",
+        timestamp: new Date().toISOString(),
+      });
+    }
 
   } catch (error) {
     console.error("Error fetching daily technical data:", error);
@@ -304,25 +324,46 @@ router.get("/daily/:symbol", async (req, res) => {
 
     console.log(`📊 Daily technical analysis requested for: ${symbolUpper}`);
 
-    // Get technical indicators from available price data
+    // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
     const result = await query(
       `
       SELECT
         symbol,
         date,
-        open,
-        high,
-        low,
-        close,
-        volume,
-        close as sma_20,
-        close * 1.02 as sma_50,
-        close * 0.98 as sma_200,
-        CASE WHEN close > open THEN 65.5 ELSE 34.5 END as rsi,
-        CASE WHEN volume > 1000000 THEN 0.75 ELSE 0.45 END as macd,
-        CASE WHEN high > low * 1.05 THEN 2.3 ELSE -1.2 END as macd_signal,
-        (high + low + close) / 3 as typical_price
-      FROM price_daily
+        rsi,
+        macd,
+        macd_signal,
+        macd_hist,
+        mom,
+        roc,
+        adx,
+        plus_di,
+        minus_di,
+        atr,
+        ad,
+        cmf,
+        mfi,
+        td_sequential,
+        td_combo,
+        marketwatch,
+        dm,
+        sma_10,
+        sma_20,
+        sma_50,
+        sma_150,
+        sma_200,
+        ema_4,
+        ema_9,
+        ema_21,
+        bbands_lower,
+        bbands_middle,
+        bbands_upper,
+        pivot_high,
+        pivot_low,
+        pivot_high_triggered,
+        pivot_low_triggered,
+        fetched_at
+      FROM technical_data_daily
       WHERE symbol = $1
       ORDER BY date DESC
       LIMIT 30
@@ -1638,11 +1679,11 @@ router.get("/indicators/:symbol", async (req, res) => {
         sma_10,
         sma_20,
         sma_50,
-        sma_200 as sma_150,
+        sma_150,
         sma_200,
-        ema_10 as ema_4,
-        ema_20 as ema_9,
-        ema_50 as ema_21,
+        ema_4,
+        ema_9,
+        ema_21,
         bbands_lower,
         bbands_middle,
         bbands_upper,

@@ -129,32 +129,9 @@ router.get("/calendar", async (req, res) => {
         dataSource = "database_required";
         calendarData = [];
       } else {
-        // No database result (undefined/null) - fallback to mock data for normal tests
-        dataSource = "mock";
-        calendarData = [
-          {
-            symbol: "AAPL",
-            ex_date: "2025-02-09",
-            pay_date: "2025-02-16",
-            payment_date: "2025-02-16",
-            amount: 1.24,
-            estimated_amount: 1.24,
-            yield: 0.55,
-            frequency: "Quarterly",
-            sector: "Technology"
-          },
-          {
-            symbol: "MSFT",
-            ex_date: "2025-02-14",
-            pay_date: "2025-03-14",
-            payment_date: "2025-03-14",
-            amount: 1.75,
-            estimated_amount: 1.75,
-            yield: 0.80,
-            frequency: "Quarterly",
-            sector: "Technology"
-          }
-        ];
+        // No database result (undefined/null) - return empty results
+        dataSource = "database_required";
+        calendarData = [];
       }
     } catch (dbError) {
       // Check if this is a real database connection failure vs table not existing
@@ -168,33 +145,10 @@ router.get("/calendar", async (req, res) => {
         throw dbError;
       }
 
-      // Database error - fallback to mock data
-      console.warn("Database query failed, using mock data:", dbError.message);
-      dataSource = "mock";
-      calendarData = [
-        {
-          symbol: "AAPL",
-          ex_date: "2025-02-09",
-          pay_date: "2025-02-16",
-          payment_date: "2025-02-16",
-          amount: 1.24,
-          estimated_amount: 1.24,
-          yield: 0.55,
-          frequency: "Quarterly",
-          sector: "Technology"
-        },
-        {
-          symbol: "MSFT",
-          ex_date: "2025-02-14",
-          pay_date: "2025-03-14",
-          payment_date: "2025-03-14",
-          amount: 1.75,
-          estimated_amount: 1.75,
-          yield: 0.80,
-          frequency: "Quarterly",
-          sector: "Technology"
-        }
-      ];
+      // Database error - return empty results instead of mock data
+      console.warn("Database query failed, returning empty results:", dbError.message);
+      dataSource = "database_error";
+      calendarData = [];
     }
 
     // Apply filtering to calendar data (both database and mock)
@@ -632,48 +586,13 @@ router.get("/:symbol", async (req, res) => {
         ]);
       }
     } catch (error) {
-      console.log('Dividend calendar table not available, using mock data');
+      console.error('Dividend calendar query failed:', error.message);
     }
 
-    // If no database result, use mock dividend data for common symbols
+    // Use only database results - no mock data fallback
     let dividendHistory = [];
     if (result && result.rows && result.rows.length > 0) {
       dividendHistory = result.rows;
-    } else {
-      // Mock dividend data for testing
-      const mockDividends = {
-        'AAPL': [
-          { ex_dividend_date: '2024-02-09', payment_date: '2024-02-16', dividend_amount: 0.24, dividend_yield: 0.55 },
-          { ex_dividend_date: '2023-11-10', payment_date: '2023-11-16', dividend_amount: 0.23, dividend_yield: 0.52 }
-        ],
-        'MSFT': [
-          { ex_dividend_date: '2024-02-14', payment_date: '2024-03-14', dividend_amount: 0.75, dividend_yield: 0.80 },
-          { ex_dividend_date: '2023-11-15', payment_date: '2023-12-14', dividend_amount: 0.68, dividend_yield: 0.75 }
-        ],
-        'BRK.A': [
-          { ex_dividend_date: '2024-01-15', payment_date: '2024-01-30', dividend_amount: 10.00, dividend_yield: 0.02 }
-        ],
-        'BRK.B': [
-          { ex_dividend_date: '2024-01-15', payment_date: '2024-01-30', dividend_amount: 0.067, dividend_yield: 0.02 }
-        ],
-        'BF.A': [
-          { ex_dividend_date: '2024-01-10', payment_date: '2024-01-25', dividend_amount: 0.85, dividend_yield: 1.25 }
-        ],
-        'BF.B': [
-          { ex_dividend_date: '2024-01-10', payment_date: '2024-01-25', dividend_amount: 0.85, dividend_yield: 1.30 }
-        ],
-        'JNJ': [
-          { ex_dividend_date: '2024-02-28', payment_date: '2024-03-12', dividend_amount: 1.19, dividend_yield: 2.95 }
-        ],
-        'KO': [
-          { ex_dividend_date: '2024-03-14', payment_date: '2024-04-01', dividend_amount: 0.485, dividend_yield: 3.18 }
-        ],
-        'PFE': [
-          { ex_dividend_date: '2024-02-01', payment_date: '2024-03-01', dividend_amount: 0.42, dividend_yield: 5.82 }
-        ]
-      };
-
-      dividendHistory = mockDividends[symbol.toUpperCase()] || [];
     }
 
     // For stocks with no dividend history, return empty dividends (200 status)
@@ -802,36 +721,53 @@ router.get("/history/:symbol", async (req, res) => {
   try {
     console.log(`💰 Dividend history requested for ${symbol.toUpperCase()}`);
 
-    // Mock dividend data for testing
-    const mockDividendHistory = [
-      {
-        ex_date: "2024-01-15",
-        pay_date: "2024-01-30",
-        amount: 0.95,
-        currency: "USD",
-        type: "Regular",
-        frequency: "Quarterly"
-      },
-      {
-        ex_date: "2023-10-15",
-        pay_date: "2023-10-30",
-        amount: 0.90,
-        currency: "USD",
-        type: "Regular",
-        frequency: "Quarterly"
-      }
-    ];
+    // Check if dividend_history table exists
+    if (!(await tableExists("dividend_history"))) {
+      return res.status(503).json({
+        success: false,
+        error: "Dividend history service unavailable",
+        message: "Database table missing: dividend_history",
+        symbol: symbol.toUpperCase(),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Query dividend history from database
+    const dividendQuery = `
+      SELECT ex_date, pay_date, amount, currency, type, frequency
+      FROM dividend_history
+      WHERE symbol = $1
+      ORDER BY ex_date DESC
+      LIMIT 20
+    `;
+
+    const dividendResult = await query(dividendQuery, [symbol.toUpperCase()]);
+
+    if (dividendResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No dividend history found",
+        message: `No dividend history available for symbol: ${symbol.toUpperCase()}`,
+        symbol: symbol.toUpperCase(),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const dividendHistory = dividendResult.rows;
+    const currentYear = new Date().getFullYear();
+    const currentYearDividends = dividendHistory.filter(div =>
+      new Date(div.ex_date).getFullYear() === currentYear
+    );
 
     const dividendData = {
       symbol: symbol.toUpperCase(),
-      dividend_history: mockDividendHistory,
+      dividend_history: dividendHistory,
       summary: {
-        total_dividends_paid: mockDividendHistory.reduce((sum, div) => sum + div.amount, 0),
-        current_year_total: mockDividendHistory.filter(div =>
-          new Date(div.ex_date).getFullYear() === 2024
-        ).reduce((sum, div) => sum + div.amount, 0),
-        average_dividend: mockDividendHistory.reduce((sum, div) => sum + div.amount, 0) / mockDividendHistory.length,
-        payment_frequency: "Quarterly"
+        total_dividends_paid: dividendHistory.reduce((sum, div) => sum + parseFloat(div.amount || 0), 0),
+        current_year_total: currentYearDividends.reduce((sum, div) => sum + parseFloat(div.amount || 0), 0),
+        average_dividend: dividendHistory.length > 0 ?
+          dividendHistory.reduce((sum, div) => sum + parseFloat(div.amount || 0), 0) / dividendHistory.length : 0,
+        payment_frequency: dividendHistory[0]?.frequency || "Unknown"
       }
     };
 

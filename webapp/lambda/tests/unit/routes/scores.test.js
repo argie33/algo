@@ -3,6 +3,9 @@
  * Tests scores route logic with real database
  */
 
+// Load environment variables first
+require('dotenv').config();
+
 const express = require("express");
 const request = require("supertest");
 
@@ -47,9 +50,13 @@ describe("Scores Routes Unit Tests", () => {
     test("should return scores data from stock_scores table", async () => {
       const response = await request(app)
         .get("/scores")
-        .set("Authorization", "Bearer dev-bypass-token")
-        .expect(200);
+        .set("Authorization", "Bearer dev-bypass-token");
 
+      if (response.status !== 200) {
+        console.log("Error response:", response.status, response.body);
+      }
+
+      expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("stocks");

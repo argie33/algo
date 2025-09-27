@@ -464,7 +464,7 @@ describe("News Routes", () => {
       }
     });
 
-    test("should return fallback data on error", async () => {
+    test("should return error response on failure", async () => {
       // Force an error by causing the route to fail
       const originalConsole = console.error;
       console.error = jest.fn();
@@ -482,7 +482,11 @@ describe("News Routes", () => {
         .query({ category: "technology" })
         ;
 
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      // Should return error status instead of fake data
+      expect([400, 500, 503]).toContain(response.status);
+      if (response.body.success !== undefined) {
+        expect(response.body.success).toBe(false);
+      }
 
       // Restore original functions
       Math.random = originalMathRandom;

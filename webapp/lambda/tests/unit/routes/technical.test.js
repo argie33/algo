@@ -347,26 +347,17 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       });
     });
 
-    test("should return fallback summary when table doesn't exist", async () => {
+    test("should return error when table doesn't exist", async () => {
       const mockTableExists = { rows: [{ exists: false }] };
 
       query.mockResolvedValueOnce(mockTableExists);
 
       const response = await request(app)
-        .get("/technical/weekly/summary")
-        .expect(200);
+        .get("/technical/weekly/summary");
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          timeframe: "weekly",
-          symbol: "SUMMARY",
-          count: expect.any(Number),
-          indicators: expect.arrayContaining([
-            expect.objectContaining({ exists: false }),
-          ]),
-        }),
-      });
+      expect([404, 503]).toContain(response.status);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBeDefined();
     });
   });
 
@@ -440,7 +431,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       });
     });
 
-    test("should return fallback data when table missing", async () => {
+    test("should return error when table missing", async () => {
       const mockTableExists = { rows: [{ exists: false }] };
 
       query.mockResolvedValueOnce(mockTableExists);
@@ -743,32 +734,20 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       }
     });
 
-    test("should return fallback patterns on database errors", async () => {
+    test("should return error on database failures", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
 
       const response = await request(app)
-        .get("/technical/patterns/AAPL")
-        .expect(200);
+        .get("/technical/patterns/AAPL");
 
-      expect(response.body).toMatchObject({
-        success: true,
-        data: expect.objectContaining({
-          symbol: "AAPL",
-          timeframe: "1D",
-          patterns: expect.any(Array),
-          summary: expect.objectContaining({
-            market_sentiment: expect.stringMatching(/^(bullish|bearish|neutral)$/),
-            total_patterns: expect.any(Number),
-          }),
-          confidence_score: expect.any(Number),
-          last_updated: expect.any(String),
-        }),
-      });
+      expect([500, 503]).toContain(response.status);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBeDefined();
     });
   });
 
   describe("Error handling - Your site's error patterns", () => {
-    test("should handle database errors gracefully with fallback data", async () => {
+    test("should handle database errors with proper error responses", async () => {
       query.mockRejectedValueOnce(new Error("Connection timeout"));
 
       const response = await request(app).get("/technical/").expect(500);
@@ -961,7 +940,7 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
 
       expect(response.body.data).toHaveProperty("records_count");
       expect(response.body.data).toHaveProperty("source");
-      expect(response.body.data.source).toBe("price_daily_table");
+      expect(response.body.data.source).toBe("technical_data_daily_table");
       expect(response.body.data.records_count).toBe(1);
     });
 

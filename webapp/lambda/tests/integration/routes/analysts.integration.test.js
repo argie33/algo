@@ -743,22 +743,19 @@ describe("Analysts Routes", () => {
   });
 
   describe("GET /api/analysts/downgrades", () => {
-    test("should return 501 not implemented", async () => {
+    test("should return analyst downgrades successfully", async () => {
       const response = await request(app).get("/api/analysts/downgrades");
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty(
-        "error",
-        "Analyst downgrades not implemented"
-      );
-      expect(response.body).toHaveProperty("message");
-      expect(response.body).toHaveProperty("troubleshooting");
-      expect(response.body.troubleshooting).toHaveProperty("suggestion");
-      expect(response.body.troubleshooting).toHaveProperty("required_tables");
-      expect(Array.isArray(response.body.troubleshooting.required_tables)).toBe(
-        true
-      );
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("downgrades");
+      expect(Array.isArray(response.body.data.downgrades)).toBe(true);
+      expect(response.body.data).toHaveProperty("analytics");
+      expect(response.body.data.analytics).toHaveProperty("total_downgrades");
+      expect(response.body.data.analytics).toHaveProperty("severity_distribution");
+      expect(response.body.data.analytics).toHaveProperty("average_price_impact");
+      expect(response.body.data).toHaveProperty("summary");
     });
 
     test("should handle limit parameter", async () => {
@@ -766,7 +763,7 @@ describe("Analysts Routes", () => {
         "/api/analysts/downgrades?limit=15"
       );
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect(response.status).toBe(200);
     });
   });
 

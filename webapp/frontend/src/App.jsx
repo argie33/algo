@@ -625,9 +625,9 @@ function App() {
         <Toolbar />
         <Container maxWidth="xl">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/realtime" element={<RealTimeDashboard />} />
+            <Route path="/" element={<MarketOverview />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/realtime" element={<ProtectedRoute><RealTimeDashboard /></ProtectedRoute>} />
             <Route path="/portfolio" element={<ProtectedRoute><PortfolioHoldings /></ProtectedRoute>} />
             <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />

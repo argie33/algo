@@ -914,10 +914,10 @@ router.get("/coverage/:symbol", async (req, res) => {
     // Query real analyst coverage data from database
     const coverageQuery = `
       SELECT
-        firm, rating, price_target, date_updated
+        analyst_firm, analyst_name, coverage_started, coverage_status
       FROM analyst_coverage
       WHERE symbol = $1
-      ORDER BY date_updated DESC
+      ORDER BY coverage_started DESC
     `;
 
     const result = await query(coverageQuery, [symbolUpper]);
@@ -930,28 +930,17 @@ router.get("/coverage/:symbol", async (req, res) => {
       });
     }
 
-    // Calculate summary statistics
-    const coverage = result.rows;
-    const totalAnalysts = coverage.length;
-    const buyRatings = coverage.filter(c => c.rating?.toLowerCase().includes('buy')).length;
-    const holdRatings = coverage.filter(c => c.rating?.toLowerCase().includes('hold')).length;
-    const sellRatings = coverage.filter(c => c.rating?.toLowerCase().includes('sell')).length;
-    const avgPriceTarget = coverage.reduce((sum, c) => sum + (parseFloat(c.price_target) || 0), 0) / totalAnalysts;
+    // Process analyst coverage data
 
     res.json({
       success: true,
       data: {
         symbol: symbolUpper,
-        total_analysts: totalAnalysts,
-        buy_ratings: buyRatings,
-        hold_ratings: holdRatings,
-        sell_ratings: sellRatings,
-        average_price_target: Math.round(avgPriceTarget * 100) / 100,
-        coverage_firms: coverage.map(c => ({
-          firm: c.firm,
-          rating: c.rating,
-          price_target: parseFloat(c.price_target),
-          date_updated: c.date_updated
+        analysts: result.rows.map(row => ({
+          analyst_firm: row.analyst_firm,
+          analyst_name: row.analyst_name,
+          coverage_started: row.coverage_started,
+          coverage_status: row.coverage_status
         }))
       },
       timestamp: new Date().toISOString()
@@ -984,10 +973,10 @@ router.get("/price-targets/:symbol", async (req, res) => {
     // Query real price targets from database
     const priceTargetsQuery = `
       SELECT
-        firm, price_target, date_updated, action
+        analyst_firm, target_price, target_date, previous_target_price
       FROM analyst_price_targets
       WHERE symbol = $1
-      ORDER BY date_updated DESC
+      ORDER BY target_date DESC
     `;
 
     const result = await query(priceTargetsQuery, [symbolUpper]);
@@ -1021,15 +1010,15 @@ router.get("/price-targets/:symbol", async (req, res) => {
 
     // Calculate statistics
     const priceTargets = result.rows.map(row => ({
-      firm: row.firm,
-      price_target: parseFloat(row.price_target),
-      date_updated: row.date_updated,
-      action: row.action
+      analyst_firm: row.analyst_firm,
+      target_price: parseFloat(row.target_price),
+      target_date: row.target_date,
+      previous_target_price: parseFloat(row.previous_target_price) || null
     }));
 
-    const avgTarget = priceTargets.reduce((sum, pt) => sum + pt.price_target, 0) / priceTargets.length;
-    const highestTarget = Math.max(...priceTargets.map(pt => pt.price_target));
-    const lowestTarget = Math.min(...priceTargets.map(pt => pt.price_target));
+    const avgTarget = priceTargets.reduce((sum, pt) => sum + pt.target_price, 0) / priceTargets.length;
+    const highestTarget = Math.max(...priceTargets.map(pt => pt.target_price));
+    const lowestTarget = Math.min(...priceTargets.map(pt => pt.target_price));
 
     let upsidePotential = "N/A";
     if (currentPrice > 0) {
@@ -1067,25 +1056,11 @@ router.get("/recommendations/:symbol", async (req, res) => {
 
     // Check if analyst_recommendations table exists
     if (!(await tableExists("analyst_recommendations"))) {
-      return res.json({
-        success: true,
-        data: {
-          symbol: symbol.toUpperCase(),
-          total_analysts: 0,
-          rating_distribution: {
-            strong_buy: 0,
-            buy: 0,
-            hold: 0,
-            sell: 0,
-            strong_sell: 0,
-          },
-          consensus_rating: null,
-          average_price_target: null,
-          recent_changes: [],
-          last_updated: new Date().toISOString(),
-          data_source: "database",
-        },
-        recent_changes: [],
+      return res.status(404).json({
+        success: false,
+        error: "Analyst recommendations table not found",
+        message: "Please ensure the analyst recommendations data has been loaded",
+        symbol: symbol.toUpperCase(),
         timestamp: new Date().toISOString(),
       });
     }
@@ -1097,25 +1072,11 @@ router.get("/recommendations/:symbol", async (req, res) => {
     );
 
     if (!result.rows || result.rows.length === 0) {
-      return res.json({
-        success: true,
-        data: {
-          symbol: symbol.toUpperCase(),
-          total_analysts: 0,
-          rating_distribution: {
-            strong_buy: 0,
-            buy: 0,
-            hold: 0,
-            sell: 0,
-            strong_sell: 0,
-          },
-          consensus_rating: null,
-          average_price_target: null,
-          recent_changes: [],
-          last_updated: new Date().toISOString(),
-          data_source: "database",
-        },
-        recent_changes: [],
+      return res.status(404).json({
+        success: false,
+        error: "No analyst recommendations found",
+        message: `No analyst recommendations available for ${symbol.toUpperCase()}`,
+        symbol: symbol.toUpperCase(),
         timestamp: new Date().toISOString(),
       });
     }
@@ -1906,31 +1867,54 @@ router.get("/downgrades-DISABLED", async (req, res) => {
 router.get("/consensus/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
-    console.log(`🤝 Analyst consensus requested for ${symbol}`);
+    const symbolUpper = symbol.toUpperCase();
+    console.log(`🤝 Analyst consensus requested for ${symbolUpper}`);
 
-    const consensusData = {
-      symbol: symbol.toUpperCase(),
+    // Check if analyst_estimates table exists
+    if (!(await tableExists("analyst_estimates"))) {
+      return res.status(503).json({
+        success: false,
+        error: "Consensus service unavailable",
+        message: "Database table missing: analyst_estimates",
+        timestamp: new Date().toISOString(),
+      });
+    }
 
-      consensus_metrics: {
-        avg_rating: 0,
-        total_analysts: 15,
-        rating_strength: 0,
-        revision_trend: "NEUTRAL",
-      },
+    // Query real consensus data from database
+    const consensusQuery = `
+      SELECT
+        ticker, target_high_price, target_low_price, target_mean_price,
+        target_median_price, recommendation_key, recommendation_mean,
+        analyst_opinion_count, average_analyst_rating
+      FROM analyst_estimates
+      WHERE ticker = $1
+    `;
 
-      estimate_revisions: {
-        upgrades_last_30d: 0,
-        downgrades_last_30d: 0,
-        target_increases: 0,
-        target_decreases: 0,
-      },
+    const result = await query(consensusQuery, [symbolUpper]);
 
-      last_updated: new Date().toISOString(),
-    };
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No consensus data found",
+        message: `No consensus data available for ${symbolUpper}`
+      });
+    }
+
+    const consensus = result.rows[0];
 
     res.json({
       success: true,
-      data: consensusData,
+      data: {
+        symbol: symbolUpper,
+        target_high_price: parseFloat(consensus.target_high_price) || 0,
+        target_low_price: parseFloat(consensus.target_low_price) || 0,
+        target_mean_price: parseFloat(consensus.target_mean_price) || 0,
+        target_median_price: parseFloat(consensus.target_median_price) || 0,
+        recommendation_key: consensus.recommendation_key,
+        recommendation_mean: parseFloat(consensus.recommendation_mean) || 0,
+        analyst_opinion_count: parseInt(consensus.analyst_opinion_count) || 0,
+        average_analyst_rating: parseFloat(consensus.average_analyst_rating) || 0
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -1951,55 +1935,35 @@ router.get("/:ticker/coverage", async (req, res) => {
 
     // Check if analyst_coverage table exists
     if (!(await tableExists("analyst_coverage"))) {
-      return res.json({
-        success: true,
-        ticker: tickerUpper,
-        data: {
-          total_analysts: 0,
-          buy_ratings: 0,
-          hold_ratings: 0,
-          sell_ratings: 0,
-          coverage_firms: [],
-          avg_price_target: "0.00",
-          last_updated: new Date().toISOString(),
-        }
+      return res.status(503).json({
+        success: false,
+        error: "Analyst coverage service unavailable",
+        message: "Database table missing: analyst_coverage",
+        timestamp: new Date().toISOString(),
       });
     }
 
     // Query real analyst coverage data from database
     const coverageQuery = `
       SELECT
-        firm, rating, price_target, date_updated
+        analyst_firm, analyst_name, coverage_started, coverage_status
       FROM analyst_coverage
       WHERE symbol = $1
-      ORDER BY date_updated DESC
+      ORDER BY coverage_started DESC
     `;
 
     const result = await query(coverageQuery, [tickerUpper]);
 
     if (result.rows.length === 0) {
-      return res.json({
-        success: true,
-        ticker: tickerUpper,
-        data: {
-          total_analysts: 0,
-          buy_ratings: 0,
-          hold_ratings: 0,
-          sell_ratings: 0,
-          coverage_firms: [],
-          avg_price_target: "0.00",
-          last_updated: new Date().toISOString(),
-        }
+      return res.status(404).json({
+        success: false,
+        error: "No analyst coverage found",
+        message: `No analyst coverage available for symbol: ${tickerUpper}`,
+        timestamp: new Date().toISOString(),
       });
     }
 
-    // Calculate summary statistics
-    const coverage = result.rows;
-    const totalAnalysts = coverage.length;
-    const buyRatings = coverage.filter(c => c.rating?.toLowerCase().includes('buy')).length;
-    const holdRatings = coverage.filter(c => c.rating?.toLowerCase().includes('hold')).length;
-    const sellRatings = coverage.filter(c => c.rating?.toLowerCase().includes('sell')).length;
-    const avgPriceTarget = coverage.reduce((sum, c) => sum + (parseFloat(c.price_target) || 0), 0) / totalAnalysts;
+    // Process analyst coverage data
 
     res.json({
       success: true,
@@ -2048,10 +2012,10 @@ router.get("/:ticker/price-targets", async (req, res) => {
     // Query real price targets from database
     const priceTargetsQuery = `
       SELECT
-        firm, price_target, date_updated, action
+        analyst_firm, target_price, target_date, previous_target_price
       FROM analyst_price_targets
       WHERE symbol = $1
-      ORDER BY date_updated DESC
+      ORDER BY target_date DESC
     `;
 
     const result = await query(priceTargetsQuery, [tickerUpper]);
@@ -2104,10 +2068,10 @@ router.get("/:ticker/price-targets", async (req, res) => {
         median_target: medianTarget.toFixed(2),
         upside_potential: upsidePotential.toFixed(2),
         price_targets: result.rows.map(row => ({
-          firm: row.firm,
-          target: parseFloat(row.price_target) || 0,
-          date: row.date_updated,
-          action: row.action,
+          analyst_firm: row.analyst_firm,
+          target_price: parseFloat(row.target_price) || 0,
+          target_date: row.target_date,
+          previous_target_price: parseFloat(row.previous_target_price) || null,
         })),
         target_distribution: distribution,
         last_updated: new Date().toISOString(),
@@ -2145,8 +2109,8 @@ router.get("/research", async (req, res) => {
     // Query real research reports from database
     let researchQuery = `
       SELECT
-        id, symbol, firm, title, rating, price_target,
-        published_date, analyst, summary
+        id, symbol, analyst_firm, report_title, report_summary,
+        report_url, report_date
       FROM research_reports
       WHERE 1=1
     `;
@@ -2161,17 +2125,17 @@ router.get("/research", async (req, res) => {
 
     if (firm) {
       paramCount++;
-      researchQuery += ` AND firm = $${paramCount}`;
-      queryParams.push(firm);
+      researchQuery += ` AND analyst_firm ILIKE $${paramCount}`;
+      queryParams.push(`%${firm}%`);
     }
 
     paramCount++;
-    researchQuery += ` ORDER BY published_date DESC LIMIT $${paramCount}`;
+    researchQuery += ` ORDER BY report_date DESC LIMIT $${paramCount}`;
     queryParams.push(parseInt(limit));
 
     const result = await query(researchQuery, queryParams);
 
-    if (result.rows.length === 0) {
+    if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No research reports found",
@@ -2181,16 +2145,14 @@ router.get("/research", async (req, res) => {
 
     res.json({
       success: true,
-      data: result.rows.map(row => ({
+      data: (result?.rows || []).map(row => ({
         id: row.id,
         symbol: row.symbol,
-        firm: row.firm,
-        title: row.title,
-        rating: row.rating,
-        price_target: parseFloat(row.price_target) || 0,
-        published_date: row.published_date,
-        analyst: row.analyst,
-        summary: row.summary,
+        analyst_firm: row.analyst_firm,
+        report_title: row.report_title,
+        report_summary: row.report_summary,
+        report_url: row.report_url,
+        report_date: row.report_date,
       })),
       metadata: {
         total_reports: result.rows.length,

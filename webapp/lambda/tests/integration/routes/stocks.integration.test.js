@@ -97,11 +97,11 @@ describe("Stocks Routes Integration Tests", () => {
         .get("/api/stocks/search?q=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 401].includes(response.status)).toBe(true);
-
-      if (response.status === 200) {
-        expect(response.body).toBeDefined();
-      }
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("results");
+      expect(Array.isArray(response.body.data.results)).toBe(true);
     });
 
     test("should require query parameter", async () => {
@@ -143,7 +143,10 @@ describe("Stocks Routes Integration Tests", () => {
         .get("/api/stocks/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 401].includes(response.status)).toBe(true);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("symbol", "AAPL");
     });
 
     test("should handle invalid stock symbols", async () => {
@@ -151,7 +154,9 @@ describe("Stocks Routes Integration Tests", () => {
         .get("/api/stocks/INVALID")
         .set("Authorization", "Bearer dev-bypass-token");
 
-      expect([200, 400, 401, 404].includes(response.status)).toBe(true);
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
     });
 
     test("should handle very long symbol names", async () => {

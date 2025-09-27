@@ -35,6 +35,15 @@ describe("Sentiment Routes Unit Tests", () => {
     const { query } = require("../../../utils/database");
     mockQuery = query;
 
+    // Mock table existence checks to always return true
+    mockQuery.mockImplementation((sql, params) => {
+      if (sql.includes('information_schema.tables')) {
+        return Promise.resolve({ rows: [{ exists: true }] });
+      }
+      // Default to empty result for other queries unless specifically mocked
+      return Promise.resolve({ rows: [] });
+    });
+
     // Create test app
     app = express();
     app.use(express.json());
@@ -148,13 +157,16 @@ describe("Sentiment Routes Unit Tests", () => {
     });
 
     test("should handle default period parameter", async () => {
-      mockQuery.mockResolvedValueOnce({ rows: [] });
+      // Mock sentiment query to return no data found
+      mockQuery.mockResolvedValueOnce({ rows: [] }); // No data found
 
       const response = await request(app)
         .get("/sentiment/analysis")
         .query({ symbol: "AAPL" });
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404); // No data found should return 404
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe("No sentiment data found");
       // Should use default period of 7 days
       expect(mockQuery).toHaveBeenCalledWith(
         expect.any(String),
@@ -168,13 +180,32 @@ describe("Sentiment Routes Unit Tests", () => {
 
       for (let i = 0; i < periods.length; i++) {
         mockQuery.mockClear();
-        mockQuery.mockResolvedValueOnce({ rows: [] });
+        // Mock table existence first, then data with actual sentiment data
+        const mockSentimentData = [{
+          symbol: "AAPL",
+          sentiment: 0.75,
+          recommendation_mean: 2.1,
+          price_target_vs_current: 5.5,
+          reddit_sentiment_score: 0.68,
+          search_volume_index: 85,
+          news_article_count: 152,
+          title: "AAPL Strong Performance",
+          source: "Financial News",
+          published_at: new Date().toISOString()
+        }];
+
+        mockQuery
+          .mockResolvedValueOnce({ rows: [{ exists: true }] }) // Table exists
+          .mockResolvedValueOnce({ rows: mockSentimentData }); // Return actual data
 
         const response = await request(app)
           .get("/sentiment/analysis")
           .query({ symbol: "AAPL", period: periods[i] });
 
         expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.data).toHaveProperty("symbol", "AAPL");
+        expect(response.body.data).toHaveProperty("sentiment_score");
         expect(mockQuery).toHaveBeenCalledWith(
           expect.any(String),
           expect.arrayContaining(["AAPL", expectedDays[i]])
@@ -183,13 +214,31 @@ describe("Sentiment Routes Unit Tests", () => {
     });
 
     test("should handle invalid period gracefully", async () => {
-      mockQuery.mockResolvedValueOnce({ rows: [] });
+      // Mock table existence first, then data with actual sentiment data
+      const mockSentimentData = [{
+        symbol: "AAPL",
+        sentiment: 0.75,
+        recommendation_mean: 2.1,
+        price_target_vs_current: 5.5,
+        reddit_sentiment_score: 0.68,
+        search_volume_index: 85,
+        news_article_count: 152,
+        title: "AAPL Strong Performance",
+        source: "Financial News",
+        published_at: new Date().toISOString()
+      }];
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // Table exists
+        .mockResolvedValueOnce({ rows: mockSentimentData }); // Return actual data
 
       const response = await request(app)
         .get("/sentiment/analysis")
         .query({ symbol: "AAPL", period: "invalid_period" });
 
       expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveProperty("symbol", "AAPL");
       // Should default to 7 days for invalid period
       expect(mockQuery).toHaveBeenCalledWith(
         expect.any(String),
@@ -209,17 +258,19 @@ describe("Sentiment Routes Unit Tests", () => {
     });
 
     test("should handle empty sentiment data", async () => {
-      mockQuery.mockResolvedValueOnce({ rows: [] });
+      // Mock table existence first, then empty data
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ exists: true }] }) // Table exists
+        .mockResolvedValueOnce({ rows: [] }); // No data found
 
       const response = await request(app)
         .get("/sentiment/analysis")
         .query({ symbol: "INVALID" });
 
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body.data).toHaveProperty("sentiment_score");
-      expect(typeof response.body.data.sentiment_score).toBe("number");
-      expect(response.body.data.sentiment_score).toBeGreaterThanOrEqual(0);
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error", "No sentiment data found");
+      expect(response.body).toHaveProperty("message", "No sentiment data available for symbol: INVALID");
     });
 
     test("should handle database query errors", async () => {

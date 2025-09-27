@@ -101,85 +101,35 @@ router.get("/analysis", async (req, res) => {
         });
       }
 
-      console.log('📦 Using fallback mock data instead');
-
-      // Return mock data for tests when tables don't exist properly
-      sentimentResult = {
-        _isMockData: true,
-        rows: [
-          {
-            symbol: targetSymbol.toUpperCase(),
-            date: new Date(),
-            recommendation_mean: 2.1,
-            price_target_vs_current: 5.5,
-            sentiment: 0.75,
-            reddit_sentiment_score: 0.68,
-            search_volume_index: 85,
-            news_article_count: 152,
-            title: `${targetSymbol.toUpperCase()} Shows Strong Performance`,
-            source: 'Financial News Today',
-            published_at: new Date()
-          },
-          {
-            symbol: targetSymbol.toUpperCase(),
-            date: new Date(Date.now() - 24 * 60 * 60 * 1000),
-            recommendation_mean: 2.0,
-            price_target_vs_current: 4.8,
-            sentiment: 0.72,
-            reddit_sentiment_score: 0.65,
-            search_volume_index: 82,
-            news_article_count: 148,
-            title: `Analysts Bullish on ${targetSymbol.toUpperCase()}`,
-            source: 'Market Analytics',
-            published_at: new Date(Date.now() - 24 * 60 * 60 * 1000)
-          }
-        ]
-      };
+      // Return error response - no mock data fallbacks
+      return res.status(503).json({
+        success: false,
+        error: 'Sentiment analysis service unavailable',
+        message: 'Database table missing or query failed',
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // Calculate sentiment metrics from actual sentiment data
     // Ensure sentimentResult exists and has rows property
     if (!sentimentResult || !sentimentResult.rows) {
-      console.log('⚠️ No sentiment result, using empty array');
-      sentimentResult = { rows: [], _isMockData: true };
+      return res.status(503).json({
+        success: false,
+        error: 'Sentiment service unavailable',
+        message: 'Database query failed or returned invalid result',
+        timestamp: new Date().toISOString(),
+      });
     }
     let sentimentData = sentimentResult.rows;
 
-    // If no sentiment data found from database, provide mock data for testing
-    if (sentimentData.length === 0 && !sentimentResult._isMockData) {
-      console.log('📦 No data found, using mock sentiment data instead');
-      sentimentResult = {
-        _isMockData: true,
-        rows: [
-          {
-            symbol: targetSymbol.toUpperCase(),
-            date: new Date(),
-            recommendation_mean: 2.1,
-            price_target_vs_current: 5.5,
-            sentiment: 0.75,
-            reddit_sentiment_score: 0.68,
-            search_volume_index: 85,
-            news_article_count: 152,
-            title: `${targetSymbol.toUpperCase()} Shows Strong Performance`,
-            source: 'Financial News Today',
-            published_at: new Date()
-          },
-          {
-            symbol: targetSymbol.toUpperCase(),
-            date: new Date(Date.now() - 24 * 60 * 60 * 1000),
-            recommendation_mean: 2.0,
-            price_target_vs_current: 4.8,
-            sentiment: 0.72,
-            reddit_sentiment_score: 0.65,
-            search_volume_index: 82,
-            news_article_count: 148,
-            title: `Analysts Bullish on ${targetSymbol.toUpperCase()}`,
-            source: 'Market Analytics',
-            published_at: new Date(Date.now() - 24 * 60 * 60 * 1000)
-          }
-        ]
-      };
-      sentimentData = sentimentResult.rows;
+    // If no sentiment data found from database, return error
+    if (sentimentData.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No sentiment data found',
+        message: `No sentiment data available for symbol: ${targetSymbol}`,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // Debug: log the actual data structure
@@ -220,12 +170,12 @@ router.get("/analysis", async (req, res) => {
     console.log(`Validation results: ${invalidItems.length} invalid items out of ${sentimentData.length} total items`);
 
     if (invalidItems.length > 0 && invalidItems.length === sentimentData.length) {
-      // If ALL items are invalid, use fallback data instead of throwing error
-      console.error('Data validation failed. All items have invalid data structure, using fallback mock data');
-      console.log('Mock data will be used to ensure tests pass');
-
-      // Don't throw error - instead use the mock data that was already created
-      // The fallback data in the catch block should have been used already if query failed
+      return res.status(503).json({
+        success: false,
+        error: 'Sentiment data validation failed',
+        message: 'All sentiment data has invalid structure - database may be corrupted',
+        timestamp: new Date().toISOString(),
+      });
     } else if (invalidItems.length > 0) {
       console.error('Data validation failed. Some items have invalid data structure:', invalidItems.slice(0, 3));
       // Filter out invalid items and continue with valid ones only
@@ -1943,25 +1893,25 @@ router.get("/market", async (req, res) => {
         'SELECT overall_sentiment, bullish_stocks, bearish_stocks, neutral_stocks, market_mood, fear_greed_index, updated_at FROM market_sentiment ORDER BY updated_at DESC LIMIT 1'
       );
     } catch (e) {
-      console.log('📦 Market sentiment query failed, using mock data');
-      marketResult = { rows: [] };
+      console.error('Market sentiment query failed:', e.message);
+      return res.status(503).json({
+        success: false,
+        error: 'Market sentiment service unavailable',
+        message: 'Database query failed',
+        timestamp: new Date().toISOString(),
+      });
     }
 
     let marketSentiment;
     if (marketResult.rows.length > 0) {
       marketSentiment = marketResult.rows[0];
     } else {
-      // Fallback mock data
-      marketSentiment = {
-        overall_sentiment: parseFloat((Math.random() * 0.6 + 0.2).toFixed(3)),
-        bullish_stocks: Math.floor(Math.random() * 200 + 50),
-        bearish_stocks: Math.floor(Math.random() * 100 + 30),
-        neutral_stocks: Math.floor(Math.random() * 150 + 40),
-        market_mood: "cautiously_optimistic",
-        fear_greed_index: Math.floor(Math.random() * 100),
-        vix_level: parseFloat((Math.random() * 30 + 10).toFixed(2)),
-        updated_at: new Date().toISOString(),
-      };
+      return res.status(404).json({
+        success: false,
+        error: 'Market sentiment data not available',
+        message: 'No market sentiment data found in database',
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // Add period to response

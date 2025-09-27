@@ -763,18 +763,11 @@ router.get("/sectors/performance", async (req, res) => {
     );
 
     if (!tableExists.rows[0].price_daily_exists || !tableExists.rows[0].company_profile_exists) {
-      console.log("Required tables not found, returning mock sector performance");
-      return res.status(200).json({
-        success: true,
-        data: [
-          { sector: "Technology", stock_count: 45, avg_change: 2.3, total_volume: 125000000, avg_market_cap: 85000000000 },
-          { sector: "Healthcare", stock_count: 32, avg_change: 1.8, total_volume: 89000000, avg_market_cap: 42000000000 },
-          { sector: "Financial", stock_count: 28, avg_change: 1.2, total_volume: 156000000, avg_market_cap: 67000000000 },
-          { sector: "Consumer Discretionary", stock_count: 22, avg_change: 0.9, total_volume: 95000000, avg_market_cap: 38000000000 },
-          { sector: "Energy", stock_count: 18, avg_change: -0.5, total_volume: 78000000, avg_market_cap: 45000000000 }
-        ],
-        source: "mock_data",
-        timestamp: new Date().toISOString()
+      return res.status(503).json({
+        success: false,
+        error: "Sector performance service unavailable",
+        message: "Required database tables missing: price_daily or company_profile",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -810,18 +803,11 @@ router.get("/sectors/performance", async (req, res) => {
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.log("No sector data found, returning mock data instead of 404");
-      return res.status(200).json({
-        success: true,
-        data: [
-          { sector: "Technology", stock_count: 45, avg_change: 2.3, total_volume: 125000000, avg_market_cap: 85000000000 },
-          { sector: "Healthcare", stock_count: 32, avg_change: 1.8, total_volume: 89000000, avg_market_cap: 42000000000 },
-          { sector: "Financial", stock_count: 28, avg_change: 1.2, total_volume: 156000000, avg_market_cap: 67000000000 },
-          { sector: "Consumer Discretionary", stock_count: 22, avg_change: 0.9, total_volume: 95000000, avg_market_cap: 38000000000 },
-          { sector: "Energy", stock_count: 18, avg_change: -0.5, total_volume: 78000000, avg_market_cap: 45000000000 }
-        ],
-        source: "mock_data_fallback",
-        timestamp: new Date().toISOString()
+      return res.status(404).json({
+        success: false,
+        error: "No sector data found",
+        message: "No sector performance data available",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1345,23 +1331,11 @@ router.get("/breadth", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log("Market data table not found, returning mock breadth data");
-      return res.status(200).json({
-        success: true,
-        data: {
-          advancing: 1245,
-          declining: 987,
-          unchanged: 68,
-          total: 2300,
-          advance_decline_ratio: 1.26,
-          new_highs: 89,
-          new_lows: 23,
-          up_volume: 2850000000,
-          down_volume: 1950000000,
-          breadth_thrust: 64.2
-        },
-        source: "mock_data",
-        timestamp: new Date().toISOString()
+      return res.status(503).json({
+        success: false,
+        error: "Market breadth service unavailable",
+        message: "Database table missing: price_daily",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1405,22 +1379,11 @@ router.get("/breadth", async (req, res) => {
       !result.rows[0].total_stocks ||
       result.rows[0].total_stocks == 0
     ) {
-      console.log("No market breadth data found in database, using fallback data");
-      return res.status(200).json({
-        success: true,
-        data: {
-          total_stocks: 2500,
-          advancing: 1350,
-          declining: 980,
-          unchanged: 170,
-          strong_advancing: 650,
-          strong_declining: 320,
-          advance_decline_ratio: "1.38",
-          avg_change: "0.85",
-          avg_volume: 125000000
-        },
-        source: "fallback_data",
-        timestamp: new Date().toISOString()
+      return res.status(404).json({
+        success: false,
+        error: "No market breadth data found",
+        message: "No market breadth data available for calculation",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1433,21 +1396,11 @@ router.get("/breadth", async (req, res) => {
     }
 
     if (!breadth) {
-      return res.json({
-        success: true,
-        data: {
-          total_stocks: 2500,
-          advancing: 1350,
-          declining: 980,
-          unchanged: 170,
-          strong_advancing: 650,
-          strong_declining: 320,
-          advance_decline_ratio: "1.38",
-          avg_change: "0.85",
-          avg_volume: 125000000
-        },
-        source: "fallback_data",
-        timestamp: new Date().toISOString()
+      return res.status(404).json({
+        success: false,
+        error: "No market breadth data found",
+        message: "No market breadth data available",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1471,22 +1424,11 @@ router.get("/breadth", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching market breadth:", error);
-    return res.status(200).json({
-      success: true,
-      data: {
-        total_stocks: 2500,
-        advancing: 1350,
-        declining: 980,
-        unchanged: 170,
-        strong_advancing: 650,
-        strong_declining: 320,
-        advance_decline_ratio: "1.38",
-        avg_change: "0.85",
-        avg_volume: 125000000
-      },
-      source: "fallback_data_error",
+    return res.status(503).json({
+      success: false,
+      error: "Market breadth service unavailable",
+      message: "Database query failed",
       timestamp: new Date().toISOString(),
-      note: "Database error occurred, using fallback data"
     });
   }
 });
@@ -1536,20 +1478,10 @@ router.get("/economic", async (req, res) => {
     }
 
     if (!tableExists.rows[0].exists) {
-      console.log("Economic data table does not exist, returning mock data");
-      return res.status(200).json({
-        success: true,
-        data: {
-          indicators: [
-            { id: "GDP", name: "Gross Domestic Product", value: 21.43, unit: "trillion USD" },
-            { id: "UNEMPLOYMENT", name: "Unemployment Rate", value: 3.7, unit: "percent" },
-            { id: "INFLATION", name: "Inflation Rate", value: 2.1, unit: "percent" },
-            { id: "INTEREST_RATE", name: "Federal Funds Rate", value: 5.25, unit: "percent" }
-          ],
-          period: days,
-          source: "mock_data"
-        },
-        message: "Economic indicators service (mock data)",
+      return res.status(503).json({
+        success: false,
+        error: "Economic indicators service unavailable",
+        message: "Database table missing: economic_data",
         timestamp: new Date().toISOString(),
       });
     }

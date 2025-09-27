@@ -610,15 +610,8 @@ class AlpacaService {
         errorCode: error.code,
       });
 
-      // Return fallback data when API fails
-      return {
-        timestamp: new Date().toISOString(),
-        isOpen: false,
-        nextOpen: null,
-        nextClose: null,
-        timezone: "America/New_York",
-        error: "Failed to fetch market status",
-      };
+      // Throw error instead of returning fallback data
+      throw new Error(`Failed to fetch market status: ${error.message}`);
     }
   }
 

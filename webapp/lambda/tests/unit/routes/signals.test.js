@@ -6,6 +6,15 @@
 const request = require("supertest");
 const express = require("express");
 
+// Mock the database module
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn(),
+  closeDatabase: jest.fn(),
+}));
+
+const { query } = require("../../../utils/database");
+
 describe("Signals Route - Unit Tests", () => {
   let app;
   let signalsRouter;
@@ -28,6 +37,62 @@ describe("Signals Route - Unit Tests", () => {
   };
 
   beforeAll(() => {
+    // Setup database mocks
+    query.mockImplementation((queryStr, params) => {
+      // Mock column information queries for any table
+      if (queryStr.includes("information_schema.columns") && queryStr.includes("table_name = $1")) {
+        // Return columns for buy_sell tables
+        return Promise.resolve({
+          rows: [
+            { column_name: "symbol" },
+            { column_name: "date" },
+            { column_name: "timeframe" },
+            { column_name: "signal" },
+            { column_name: "open" },
+            { column_name: "high" },
+            { column_name: "low" },
+            { column_name: "close" },
+            { column_name: "volume" },
+            { column_name: "buylevel" },
+            { column_name: "stoplevel" },
+            { column_name: "inposition" }
+          ]
+        });
+      }
+
+      // Mock buy signals data
+      if (queryStr.includes("buy_sell_")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: "AAPL",
+              date: "2023-12-01",
+              timeframe: "daily",
+              signal: "BUY",
+              open: 190.00,
+              high: 195.00,
+              low: 189.00,
+              close: 194.00,
+              volume: 1000000,
+              buylevel: 192.00,
+              stoplevel: 185.00,
+              inposition: true
+            }
+          ]
+        });
+      }
+
+      // Mock count queries
+      if (queryStr.includes("COUNT(*)")) {
+        return Promise.resolve({
+          rows: [{ count: "1" }]
+        });
+      }
+
+      // Default empty response
+      return Promise.resolve({ rows: [] });
+    });
+
     // Create test app
     app = express();
     app.use(express.json());

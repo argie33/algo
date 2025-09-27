@@ -136,7 +136,7 @@ function TradingSignals() {
         if (showRecentOnly) {
           params.append("latest_only", "true");
         }
-        const url = `${API_BASE}/api/trading/signals/${timeframe}?${params}`;
+        const url = `${API_BASE}/api/signals/${timeframe}?${params}`;
         logger.info("fetchTradingSignals - Request started", {
           url,
           signalType,
@@ -236,7 +236,7 @@ function TradingSignals() {
       if (!selectedSymbol) return null;
       try {
         const response = await fetch(
-          `${API_BASE}/api/trading/signals/daily?symbol=${selectedSymbol}&limit=50`
+          `${API_BASE}/api/signals/daily?symbol=${selectedSymbol}&limit=50`
         );
         if (!response.ok) throw new Error("Failed to fetch historical data");
         return await response.json();
@@ -718,7 +718,7 @@ function TradingSignals() {
               error={{
                 ...signalsError,
                 context: {
-                  endpoint: `${API_BASE}/api/trading/signals/${timeframe}`,
+                  endpoint: `${API_BASE}/api/signals/${timeframe}`,
                   debugEndpoint: `${API_BASE}/api/trading/debug`,
                   filters: { signalType, showRecentOnly, timeframe },
                   component: "TradingSignals",
@@ -738,7 +738,7 @@ function TradingSignals() {
                 error={{
                   message: "No trading signals data found",
                   context: {
-                    endpoint: `${API_BASE}/api/trading/signals/${timeframe}`,
+                    endpoint: `${API_BASE}/api/signals/${timeframe}`,
                     filters: { signalType, showRecentOnly },
                     response: signalsData,
                   },
