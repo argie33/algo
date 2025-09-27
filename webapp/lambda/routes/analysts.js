@@ -281,26 +281,11 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
 
     // Check if analyst sentiment table exists
     if (!isTestMode && !(await tableExists("sentiment_analysis"))) {
-      // Return mock data when table doesn't exist (for tests)
-      const mockData = [{
-        symbol: ticker.toUpperCase(),
-        period: "0q",
-        up_last7days: 0,
-        up_last30days: 3,
-        down_last30days: 1,
-        down_last7days: 0,
-        fetched_at: new Date().toISOString(),
-      }];
-
-      return res.json({
-        success: true,
-        ticker: ticker.toUpperCase(),
-        data: mockData,
-        metadata: {
-          count: mockData.length,
-          timestamp: new Date().toISOString(),
-          message: "EPS revision data not available - using mock data",
-        },
+      return res.status(503).json({
+        success: false,
+        error: "EPS revision data unavailable",
+        message: "Database table missing: sentiment_analysis",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -341,27 +326,13 @@ router.get("/:ticker/eps-revisions", async (req, res) => {
       });
     }
 
-    // For real errors, still try to return mock data gracefully
+    // Return error response - no mock data fallback
     console.error("EPS revisions fetch error:", error);
-    const mockData = [{
-      symbol: ticker.toUpperCase(),
-      period: "0q",
-      up_last7days: 0,
-      up_last30days: 3,
-      down_last30days: 1,
-      down_last7days: 0,
-      fetched_at: new Date().toISOString(),
-    }];
-
-    return res.json({
-      success: true,
-      ticker: ticker.toUpperCase(),
-      data: mockData,
-      metadata: {
-        count: mockData.length,
-        timestamp: new Date().toISOString(),
-        message: "EPS revision data not available - using mock data due to error",
-      },
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch EPS revisions",
+      message: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -831,32 +802,11 @@ router.get("/recent-actions", async (req, res) => {
     const isTestMode = process.env.NODE_ENV === 'test';
 
     if (!isTestMode && !(await tableExists("analyst_upgrade_downgrade"))) {
-      // Return mock data for testing when table doesn't exist
-      const mockActions = [{
-        symbol: "AAPL",
-        company_name: "Apple Inc.",
-        from_grade: null,
-        to_grade: null,
-        action: "Upgrade",
-        firm: "Analyst Consensus",
-        date: "2024-01-15",
-        details: "Recent activity: 3 upgrades, 1 downgrades",
-        action_type: "upgrade",
-      }];
-
-      return res.json({
-        data: mockActions,
-        summary: {
-          date: "2024-01-15",
-          total_actions: 1,
-          upgrades: 1,
-          downgrades: 0,
-          neutrals: 0,
-        },
-        message: "Analyst data not yet loaded - using mock data",
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
+      return res.status(503).json({
+        success: false,
+        error: "Analyst actions service unavailable",
+        message: "Database table missing: analyst_upgrade_downgrade",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -953,40 +903,11 @@ router.get("/coverage/:symbol", async (req, res) => {
 
     // Check if analyst_coverage table exists
     if (!(await tableExists("analyst_coverage"))) {
-      // Return mock data when table doesn't exist (for tests)
-      const mockCoverage = [
-        {
-          firm: "Goldman Sachs",
-          rating: "Buy",
-          price_target: 185.50,
-          date_updated: new Date().toISOString().split('T')[0]
-        },
-        {
-          firm: "Morgan Stanley",
-          rating: "Hold",
-          price_target: 175.00,
-          date_updated: new Date().toISOString().split('T')[0]
-        },
-        {
-          firm: "JPMorgan",
-          rating: "Buy",
-          price_target: 190.00,
-          date_updated: new Date().toISOString().split('T')[0]
-        }
-      ];
-
-      return res.json({
-        success: true,
-        data: {
-          symbol: symbolUpper,
-          total_analysts: 3,
-          buy_ratings: 2,
-          hold_ratings: 1,
-          sell_ratings: 0,
-          average_price_target: 183.50,
-          coverage_firms: mockCoverage
-        },
-        timestamp: new Date().toISOString()
+      return res.status(503).json({
+        success: false,
+        error: "Analyst coverage service unavailable",
+        message: "Database table missing: analyst_coverage",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1052,40 +973,11 @@ router.get("/price-targets/:symbol", async (req, res) => {
 
     // Check if analyst_price_targets table exists
     if (!(await tableExists("analyst_price_targets"))) {
-      // Return mock data when table doesn't exist (for tests)
-      const mockPriceTargets = [
-        {
-          firm: "Goldman Sachs",
-          price_target: 185.50,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Raised"
-        },
-        {
-          firm: "Morgan Stanley",
-          price_target: 175.00,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Maintained"
-        },
-        {
-          firm: "JPMorgan",
-          price_target: 190.00,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Raised"
-        }
-      ];
-
-      return res.json({
-        success: true,
-        data: {
-          symbol: symbolUpper,
-          current_price: 180.25,
-          average_target: 183.50,
-          highest_target: 190.00,
-          lowest_target: 175.00,
-          upside_potential: "1.8%",
-          price_targets: mockPriceTargets
-        },
-        timestamp: new Date().toISOString()
+      return res.status(503).json({
+        success: false,
+        error: "Price targets service unavailable",
+        message: "Database table missing: analyst_price_targets",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -1175,44 +1067,25 @@ router.get("/recommendations/:symbol", async (req, res) => {
 
     // Check if analyst_recommendations table exists
     if (!(await tableExists("analyst_recommendations"))) {
-      // Return mock data when table doesn't exist (for tests)
-      const mockData = {
-        symbol: symbol.toUpperCase(),
-        total_analysts: 15,
-        rating_distribution: {
-          strong_buy: 3,
-          buy: 7,
-          hold: 4,
-          sell: 1,
-          strong_sell: 0
-        },
-        consensus_rating: 2.2,
-        average_price_target: 185.50,
-        recent_changes: [{
-          analyst: "Goldman Sachs",
-          rating: "Buy",
-          analyst_name: "Goldman Sachs",
-          analyst_firm: "Goldman Sachs & Co.",
-          price_target: 185.50,
-          target_price: 185.50,
-          date: new Date().toISOString().split('T')[0],
-          date_published: new Date().toISOString().split('T')[0],
-          rating_prior: "Hold",
-          previous_rating: "Hold",
-          rating_current: "Buy",
-          action: "Upgrade",
-          notes: "Increased price target due to strong fundamentals"
-        }],
-        last_updated: new Date().toISOString(),
-        data_source: "database"
-      };
-
       return res.json({
         success: true,
-        data: mockData,
-        recent_changes: mockData.recent_changes,
-        total: 1,
-        symbol: symbol.toUpperCase(),
+        data: {
+          symbol: symbol.toUpperCase(),
+          total_analysts: 0,
+          rating_distribution: {
+            strong_buy: 0,
+            buy: 0,
+            hold: 0,
+            sell: 0,
+            strong_sell: 0,
+          },
+          consensus_rating: null,
+          average_price_target: null,
+          recent_changes: [],
+          last_updated: new Date().toISOString(),
+          data_source: "database",
+        },
+        recent_changes: [],
         timestamp: new Date().toISOString(),
       });
     }
@@ -1224,33 +1097,25 @@ router.get("/recommendations/:symbol", async (req, res) => {
     );
 
     if (!result.rows || result.rows.length === 0) {
-      // Return mock data when no results found (for tests)
-      const mockData = {
-        symbol: symbol.toUpperCase(),
-        recommendation: "Buy",
-        analyst: "Goldman Sachs",
-        rating: "Buy",
-        analyst_name: "Goldman Sachs",
-        analyst_firm: "Goldman Sachs & Co.",
-        price_target: 185.50,
-        target_price: 185.50,
-        date: new Date().toISOString().split('T')[0],
-        date_published: new Date().toISOString().split('T')[0],
-        rating_prior: "Hold",
-        previous_rating: "Hold",
-        rating_current: "Buy",
-        action: "Upgrade",
-        notes: "Increased price target due to strong fundamentals",
-        accuracy_score: 85.2,
-        track_record: "Strong"
-      };
-
       return res.json({
         success: true,
-        data: mockData,
-        recent_changes: [mockData],
-        total: 1,
-        symbol: symbol.toUpperCase(),
+        data: {
+          symbol: symbol.toUpperCase(),
+          total_analysts: 0,
+          rating_distribution: {
+            strong_buy: 0,
+            buy: 0,
+            hold: 0,
+            sell: 0,
+            strong_sell: 0,
+          },
+          consensus_rating: null,
+          average_price_target: null,
+          recent_changes: [],
+          last_updated: new Date().toISOString(),
+          data_source: "database",
+        },
+        recent_changes: [],
         timestamp: new Date().toISOString(),
       });
     }
@@ -2086,40 +1951,18 @@ router.get("/:ticker/coverage", async (req, res) => {
 
     // Check if analyst_coverage table exists
     if (!(await tableExists("analyst_coverage"))) {
-      // Return mock data when table doesn't exist (for tests)
-      const mockCoverage = [
-        {
-          firm: "Goldman Sachs",
-          rating: "Buy",
-          price_target: 185.50,
-          date_updated: new Date().toISOString().split('T')[0]
-        },
-        {
-          firm: "Morgan Stanley",
-          rating: "Hold",
-          price_target: 175.00,
-          date_updated: new Date().toISOString().split('T')[0]
-        },
-        {
-          firm: "JPMorgan",
-          rating: "Buy",
-          price_target: 190.00,
-          date_updated: new Date().toISOString().split('T')[0]
-        }
-      ];
-
       return res.json({
         success: true,
+        ticker: tickerUpper,
         data: {
-          symbol: tickerUpper,
-          total_analysts: 3,
-          buy_ratings: 2,
-          hold_ratings: 1,
+          total_analysts: 0,
+          buy_ratings: 0,
+          hold_ratings: 0,
           sell_ratings: 0,
-          average_price_target: 183.50,
-          coverage_firms: mockCoverage
-        },
-        timestamp: new Date().toISOString()
+          coverage_firms: [],
+          avg_price_target: "0.00",
+          last_updated: new Date().toISOString(),
+        }
       });
     }
 
@@ -2135,40 +1978,18 @@ router.get("/:ticker/coverage", async (req, res) => {
     const result = await query(coverageQuery, [tickerUpper]);
 
     if (result.rows.length === 0) {
-      // Return mock data when no results found (for tests)
-      const mockCoverage = [
-        {
-          firm: "Goldman Sachs",
-          rating: "Buy",
-          price_target: 185.50,
-          date_updated: new Date().toISOString().split('T')[0]
-        },
-        {
-          firm: "Morgan Stanley",
-          rating: "Hold",
-          price_target: 175.00,
-          date_updated: new Date().toISOString().split('T')[0]
-        },
-        {
-          firm: "JPMorgan",
-          rating: "Buy",
-          price_target: 190.00,
-          date_updated: new Date().toISOString().split('T')[0]
-        }
-      ];
-
       return res.json({
         success: true,
+        ticker: tickerUpper,
         data: {
-          symbol: tickerUpper,
-          total_analysts: 3,
-          buy_ratings: 2,
-          hold_ratings: 1,
+          total_analysts: 0,
+          buy_ratings: 0,
+          hold_ratings: 0,
           sell_ratings: 0,
-          average_price_target: 183.50,
-          coverage_firms: mockCoverage
-        },
-        timestamp: new Date().toISOString()
+          coverage_firms: [],
+          avg_price_target: "0.00",
+          last_updated: new Date().toISOString(),
+        }
       });
     }
 
@@ -2216,40 +2037,11 @@ router.get("/:ticker/price-targets", async (req, res) => {
 
     // Check if analyst_price_targets table exists
     if (!(await tableExists("analyst_price_targets"))) {
-      // Return mock data when table doesn't exist (for tests)
-      const mockPriceTargets = [
-        {
-          firm: "Goldman Sachs",
-          price_target: 185.50,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Raised"
-        },
-        {
-          firm: "Morgan Stanley",
-          price_target: 175.00,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Maintained"
-        },
-        {
-          firm: "JPMorgan",
-          price_target: 190.00,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Raised"
-        }
-      ];
-
-      return res.json({
-        success: true,
-        data: {
-          symbol: tickerUpper,
-          current_price: 180.25,
-          average_target: 183.50,
-          highest_target: 190.00,
-          lowest_target: 175.00,
-          upside_potential: "1.8%",
-          price_targets: mockPriceTargets
-        },
-        timestamp: new Date().toISOString()
+      return res.status(503).json({
+        success: false,
+        error: "Price targets service unavailable",
+        message: "Database table missing: analyst_price_targets",
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -2265,40 +2057,11 @@ router.get("/:ticker/price-targets", async (req, res) => {
     const result = await query(priceTargetsQuery, [tickerUpper]);
 
     if (result.rows.length === 0) {
-      // Return mock data when no results found (for tests)
-      const mockPriceTargets = [
-        {
-          firm: "Goldman Sachs",
-          price_target: 185.50,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Raised"
-        },
-        {
-          firm: "Morgan Stanley",
-          price_target: 175.00,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Maintained"
-        },
-        {
-          firm: "JPMorgan",
-          price_target: 190.00,
-          date_updated: new Date().toISOString().split('T')[0],
-          action: "Raised"
-        }
-      ];
-
-      return res.json({
-        success: true,
-        data: {
-          symbol: tickerUpper,
-          current_price: 180.25,
-          average_target: 183.50,
-          highest_target: 190.00,
-          lowest_target: 175.00,
-          upside_potential: "1.8%",
-          price_targets: mockPriceTargets
-        },
-        timestamp: new Date().toISOString()
+      return res.status(404).json({
+        success: false,
+        error: "No price targets found",
+        message: `No analyst price targets available for symbol: ${tickerUpper}`,
+        timestamp: new Date().toISOString(),
       });
     }
 
