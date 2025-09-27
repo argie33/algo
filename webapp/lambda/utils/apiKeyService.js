@@ -1518,4 +1518,11 @@ module.exports = {
   __getServiceInstance: () => {
     return apiKeyService;
   },
+
+  // Direct encryption/decryption methods for testing
+  encryptApiKey: (data, userSalt) => apiKeyService.encryptApiKey(data, userSalt),
+  decryptApiKey: (encryptedData, userSalt) => apiKeyService.decryptApiKey(encryptedData, userSalt),
+  getEncryptionKey: () => apiKeyService.getEncryptionKey(),
+  checkCircuitBreaker: () => apiKeyService.checkCircuitBreaker(),
+  checkJwtCircuitBreaker: () => apiKeyService.checkJwtCircuitBreaker(),
 };

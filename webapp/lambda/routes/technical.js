@@ -3214,8 +3214,28 @@ router.get("/:symbol", async (req, res) => {
   try {
     console.log(`📊 Technical data requested for ${symbol.toUpperCase()}, timeframe: ${timeframe}`);
 
-    // Redirect to daily endpoint with the symbol
     const tableName = "technical_data_daily";
+
+    // Check if table exists
+    const tableExists = await query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = $1
+      )`,
+      [tableName]
+    );
+
+    if (!tableExists.rows[0].exists) {
+      console.log(`Technical data table not found for ${symbol.toUpperCase()}`);
+      return res.status(404).json({
+        success: false,
+        error: "Technical data table not found",
+        message: "Please ensure the technical data has been loaded",
+        symbol: symbol.toUpperCase(),
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     const result = await query(
       `SELECT * FROM ${tableName}

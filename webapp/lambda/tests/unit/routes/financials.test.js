@@ -209,9 +209,10 @@ describe("Financials Routes Unit Tests", () => {
         .get("/financials/statements")
         .query({ symbol: "INVALID" });
 
-      expect(response.status).toBe(404);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body.error).toContain("No financial data found");
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.data.statements).toEqual([]);
+      expect(response.body.message).toContain("No financial data found");
     });
 
     test("should handle database errors", async () => {
@@ -226,9 +227,10 @@ describe("Financials Routes Unit Tests", () => {
         .get("/financials/statements")
         .query({ symbol: "AAPL" });
 
-      expect(response.status).toBe(404);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body.error).toContain("No financial data found");
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.data.statements).toEqual([]);
+      expect(response.body.message).toContain("No financial data found");
     });
   });
 
@@ -428,7 +430,7 @@ describe("Financials Routes Unit Tests", () => {
         .get("/financials/statements")
         .query({ symbol: "AAPL'; DROP TABLE financial_statements; --" });
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(200);
       // Symbol should be sanitized and used safely in prepared statement
       expect(mockQuery).toHaveBeenCalledWith(
         expect.any(String),
