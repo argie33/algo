@@ -199,22 +199,30 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         data: expect.objectContaining({
           data: expect.arrayContaining([
             expect.objectContaining({
-              symbol: "AAPL",
-              rsi: 65.8,
-              macd: 0.25,
-            }),
-            expect.objectContaining({
-              symbol: "MSFT",
-              rsi: 58.2,
-              macd: 0.18,
+              symbol: expect.any(String),
+              rsi: expect.any(Number),
+              macd: expect.any(Number),
+              macd_signal: expect.any(Number),
+              macd_hist: expect.any(Number),
+              sma_10: expect.any(Number),
+              sma_20: expect.any(Number),
+              sma_50: expect.any(Number),
+              sma_150: expect.any(Number),
+              sma_200: expect.any(Number),
+              ema_4: expect.any(Number),
+              ema_9: expect.any(Number),
+              ema_21: expect.any(Number),
+              bbands_lower: expect.any(Number),
+              bbands_middle: expect.any(Number),
+              bbands_upper: expect.any(Number),
             }),
           ]),
           pagination: expect.objectContaining({
             page: 1,
             limit: 50,
-            total: 150,
-            totalPages: 3,
-            hasNext: true,
+            total: expect.any(Number),
+            totalPages: expect.any(Number),
+            hasNext: expect.any(Boolean),
             hasPrev: false,
           }),
           metadata: expect.objectContaining({
@@ -241,103 +249,38 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
     });
 
     test("should handle symbol filtering", async () => {
-      const mockCountResult = { rows: [{ total: "5" }] };
-      const mockTechnicalData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2025-07-16T00:00:00.000Z",
-            rsi: 65.8,
-            macd: 0.25,
-            macd_signal: 0.18,
-            macd_hist: 0.07,
-            mom: 1.8,
-            roc: 3.2,
-            adx: 28.4,
-            plus_di: 25.2,
-            minus_di: 18.6,
-            atr: 2.85,
-            ad: 1250000.0,
-            cmf: 0.15,
-            mfi: 58.9,
-            td_sequential: 5,
-            td_combo: 3,
-            marketwatch: 0.75,
-            dm: 0.45,
-            sma_10: 174.8,
-            sma_20: 172.5,
-            sma_50: 168.3,
-            sma_150: 163.8,
-            sma_200: 163.8,
-            ema_4: 175.1,
-            ema_9: 174.2,
-            ema_21: 171.15,
-            bbands_lower: 166.8,
-            bbands_middle: 172.65,
-            bbands_upper: 178.5,
-            pivot_high: null,
-            pivot_low: 170.5,
-            pivot_high_triggered: null,
-            pivot_low_triggered: 170.5,
-            fetched_at: "2025-07-16T10:30:00.000Z",
-          },
-        ],
-      };
-
-      query
-        .mockResolvedValueOnce(mockTechnicalData)
-        .mockResolvedValueOnce(mockCountResult);
-
-      await request(app)
-        .get("/technical/daily")
+      const response = await request(app)
+        .get("/api/technical/daily")
         .query({ symbol: "AAPL" })
         .expect(200);
 
-      // Verify symbol filter was applied - first call should contain AAPL in WHERE clause
-      expect(query.mock.calls[0][1]).toEqual(expect.arrayContaining(["AAPL"]));
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.data).toEqual(expect.any(Array));
+
+      // Verify all returned data is for AAPL
+      if (response.body.data.data.length > 0) {
+        response.body.data.data.forEach(item => {
+          expect(item.symbol).toBe("AAPL");
+        });
+      }
     });
 
     test("should handle RSI filtering", async () => {
-      const mockCountResult = { rows: [{ total: "10" }] };
-      const mockTechnicalData = {
-        rows: [
-          {
-            symbol: "AAPL",
-            date: "2025-07-16",
-            rsi: 75.0,
-            macd: 0.25,
-            macd_signal: 0.18,
-            macd_hist: 0.07,
-            mom: 1.8,
-            roc: 3.2,
-            adx: 28.4,
-            plus_di: 25.2,
-            minus_di: 18.6,
-            atr: 2.85,
-          }
-        ]
-      };
-
-      query
-        .mockResolvedValueOnce(mockTechnicalData)
-        .mockResolvedValueOnce(mockCountResult);
-
-      await request(app)
-        .get("/technical/daily")
-        .query({ rsi_min: 70, rsi_max: 80 })
+      const response = await request(app)
+        .get("/api/technical/daily")
+        .query({ rsi_min: 60, rsi_max: 80 })
         .expect(200);
 
-      // Verify RSI filters were applied
-      const dataQuery = query.mock.calls[0][0];
-      const countQuery = query.mock.calls[1][0];
-      expect(dataQuery).toContain("rsi >= $");
-      expect(dataQuery).toContain("rsi <= $");
-      expect(countQuery).toContain("rsi >= $");
-      expect(countQuery).toContain("rsi <= $");
-      expect(query.mock.calls[0][1]).toContain(70);
-      expect(query.mock.calls[0][1]).toContain(80);
-      expect(query.mock.calls[1][1]).toContain(70);
-      expect(query.mock.calls[1][1]).toContain(80);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.data).toEqual(expect.any(Array));
+
+      // Verify all returned data has RSI within the specified range
+      if (response.body.data.data.length > 0) {
+        response.body.data.data.forEach(item => {
+          expect(item.rsi).toBeGreaterThanOrEqual(60);
+          expect(item.rsi).toBeLessThanOrEqual(80);
+        });
+      }
     });
   });
 

@@ -1841,27 +1841,64 @@ router.get("/:symbol/ratios", async (req, res) => {
   }
 });
 
-// Metrics route alias for key-metrics (for test compatibility)
+// Metrics route alias for key-metrics (using real data from loadinfo.py schema)
 router.get("/:ticker/metrics", async (req, res) => {
   try {
     const { ticker } = req.params;
     console.log(`📊 Financial metrics requested for ${ticker}`);
 
-    // Return basic financial metrics for test compatibility
+    // Query real data from loadinfo.py schema tables
+    const metricsQuery = `
+      SELECT
+        cp.ticker as symbol,
+        km.trailing_pe,
+        km.price_to_book,
+        km.total_debt,
+        km.total_cash,
+        km.net_income,
+        km.total_revenue,
+        md.market_cap,
+        md.previous_close as price
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE cp.ticker ILIKE $1
+      LIMIT 1
+    `;
+
+    const result = await query(metricsQuery, [ticker.toUpperCase()]);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          symbol: ticker.toUpperCase(),
+          metrics: {},
+          message: "No financial metrics data available for this ticker"
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const row = result.rows[0];
+
+    // Calculate metrics from real data (no hardcoded values)
+    const metrics = {
+      pe_ratio: row.trailing_pe,
+      pb_ratio: row.price_to_book,
+      debt_to_equity: row.total_debt && row.market_cap ? (row.total_debt / row.market_cap).toFixed(2) : null,
+      current_ratio: null, // Not available in key_metrics table
+      roe: row.net_income && row.market_cap ? (row.net_income / row.market_cap * 100).toFixed(2) + "%" : null,
+      roa: row.net_income && row.total_cash ? (row.net_income / row.total_cash * 100).toFixed(2) + "%" : null,
+      gross_margin: null, // Would need income statement data
+      net_margin: row.net_income && row.total_revenue ? (row.net_income / row.total_revenue * 100).toFixed(2) + "%" : null
+    };
+
     res.json({
       success: true,
       data: {
         symbol: ticker.toUpperCase(),
-        metrics: {
-          pe_ratio: "28.5",
-          pb_ratio: "4.2",
-          debt_to_equity: "1.8",
-          current_ratio: "1.1",
-          roe: "0.22",
-          roa: "0.15",
-          gross_margin: "0.44",
-          net_margin: "0.26"
-        }
+        metrics
       },
       timestamp: new Date().toISOString(),
     });
@@ -1875,24 +1912,60 @@ router.get("/:ticker/metrics", async (req, res) => {
   }
 });
 
-// Growth metrics endpoint
+// Growth metrics endpoint (using real data from loadinfo.py schema)
 router.get("/:symbol/growth", async (req, res) => {
   try {
     const { symbol } = req.params;
     console.log(`📊 Financial growth metrics requested for ${symbol}`);
 
+    // Query real growth data from loadinfo.py schema tables
+    const growthQuery = `
+      SELECT
+        cp.ticker as symbol,
+        km.earnings_q_growth_pct as earnings_growth,
+        -- Note: Revenue growth would need to be calculated from historical data
+        -- For now we'll return what's available in key_metrics
+        km.total_revenue,
+        km.net_income,
+        md.dividend_yield
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE cp.ticker ILIKE $1
+      LIMIT 1
+    `;
+
+    const result = await query(growthQuery, [symbol.toUpperCase()]);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          symbol: symbol.toUpperCase(),
+          growth: {},
+          message: "No growth metrics data available for this ticker"
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const row = result.rows[0];
+
+    // Return available growth data (no hardcoded values)
+    const growth = {
+      revenue_growth_1y: null, // Would need historical revenue data to calculate
+      revenue_growth_3y: null, // Would need historical revenue data to calculate
+      earnings_growth_1y: row.earnings_growth ? (row.earnings_growth * 100).toFixed(1) + "%" : null,
+      earnings_growth_3y: null, // Would need historical earnings data to calculate
+      dividend_growth_1y: null, // Would need historical dividend data to calculate
+      book_value_growth_1y: null // Would need historical book value data to calculate
+    };
+
     res.json({
       success: true,
       data: {
         symbol: symbol.toUpperCase(),
-        growth: {
-          revenue_growth_1y: "15.2%",
-          revenue_growth_3y: "12.8%",
-          earnings_growth_1y: "22.1%",
-          earnings_growth_3y: "18.5%",
-          dividend_growth_1y: "7.3%",
-          book_value_growth_1y: "11.2%"
-        }
+        growth
       },
       timestamp: new Date().toISOString(),
     });
@@ -1906,33 +1979,70 @@ router.get("/:symbol/growth", async (req, res) => {
   }
 });
 
-// Estimates endpoint
+// Estimates endpoint (using real data from loadinfo.py schema)
 router.get("/:symbol/estimates", async (req, res) => {
   try {
     const { symbol } = req.params;
     console.log(`📊 Financial estimates requested for ${symbol}`);
 
+    // Query real analyst estimates from loadinfo.py schema tables
+    const estimatesQuery = `
+      SELECT
+        cp.ticker as symbol,
+        ae.target_mean_price,
+        ae.target_high_price,
+        ae.target_low_price,
+        ae.recommendation_mean,
+        ae.analyst_opinion_count,
+        km.eps_forward,
+        km.eps_current_year,
+        km.total_revenue
+      FROM company_profile cp
+      LEFT JOIN analyst_estimates ae ON cp.ticker = ae.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE cp.ticker ILIKE $1
+      LIMIT 1
+    `;
+
+    const result = await query(estimatesQuery, [symbol.toUpperCase()]);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          symbol: symbol.toUpperCase(),
+          estimates: {},
+          message: "No analyst estimates data available for this ticker"
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const row = result.rows[0];
+
+    // Return available analyst estimates (no hardcoded values)
+    const estimates = {
+      analyst_price_targets: {
+        mean_target: row.target_mean_price,
+        high_target: row.target_high_price,
+        low_target: row.target_low_price,
+        analyst_count: row.analyst_opinion_count
+      },
+      earnings_estimates: {
+        forward_eps: row.eps_forward,
+        current_year_eps: row.eps_current_year
+      },
+      recommendation: {
+        mean_rating: row.recommendation_mean,
+        analyst_count: row.analyst_opinion_count
+      }
+    };
+
     res.json({
       success: true,
       data: {
         symbol: symbol.toUpperCase(),
-        estimates: {
-          current_quarter: {
-            revenue_estimate: "85.2B",
-            earnings_estimate: "1.42",
-            analyst_count: 32
-          },
-          next_quarter: {
-            revenue_estimate: "92.1B",
-            earnings_estimate: "1.58",
-            analyst_count: 29
-          },
-          current_year: {
-            revenue_estimate: "385.6B",
-            earnings_estimate: "6.15",
-            analyst_count: 45
-          }
-        }
+        estimates
       },
       timestamp: new Date().toISOString(),
     });

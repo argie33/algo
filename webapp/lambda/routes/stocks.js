@@ -440,47 +440,40 @@ router.get("/movers", async (req, res) => {
 
     console.log(`Fetching ${type} movers for timeframe ${timeframe}`);
 
-    // Return mock data for movers - this would typically come from market data table
-    const mockMovers = {
-      gainers: [
-        {
-          symbol: "AAPL",
-          name: "Apple Inc.",
-          price: 175.50,
-          change: 5.25,
-          changePercent: 3.08,
-          volume: 55000000
-        },
-        {
-          symbol: "GOOGL",
-          name: "Alphabet Inc.",
-          price: 2850.75,
-          change: 45.30,
-          changePercent: 1.61,
-          volume: 1200000
-        }
-      ],
-      losers: [
-        {
-          symbol: "META",
-          name: "Meta Platforms Inc.",
-          price: 320.25,
-          change: -8.75,
-          changePercent: -2.66,
-          volume: 18000000
-        },
-        {
-          symbol: "NFLX",
-          name: "Netflix Inc.",
-          price: 445.20,
-          change: -12.30,
-          changePercent: -2.69,
-          volume: 3500000
-        }
-      ]
-    };
+    // Query database for market movers
+    let movers = [];
+    try {
+      const sortOrder = type === "losers" ? "ASC" : "DESC";
+      const moversQuery = `
+        SELECT
+          pd.symbol,
+          cp.short_name as name,
+          pd.close as price,
+          (pd.close - prev.close) as change,
+          CASE
+            WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
+            ELSE 0
+          END as changePercent,
+          pd.volume
+        FROM price_daily pd
+        LEFT JOIN price_daily prev ON pd.symbol = prev.symbol
+          AND prev.date = (SELECT MAX(date) FROM price_daily p2 WHERE p2.symbol = pd.symbol AND p2.date < pd.date)
+        LEFT JOIN company_profile cp ON pd.symbol = cp.ticker
+        WHERE pd.date = (SELECT MAX(date) FROM price_daily p3 WHERE p3.symbol = pd.symbol)
+          AND pd.close IS NOT NULL
+          AND prev.close IS NOT NULL
+          AND prev.close > 0
+        ORDER BY changePercent ${sortOrder}
+        LIMIT $1
+      `;
 
-    const movers = type === "losers" ? mockMovers.losers : mockMovers.gainers;
+      const result = await query(moversQuery, [parseInt(limit)]);
+      movers = result.rows || [];
+    } catch (error) {
+      console.error("Error fetching market movers:", error);
+      // Return empty results instead of mock data
+      movers = [];
+    }
 
     res.json({
       success: true,
@@ -509,46 +502,81 @@ router.get("/stats", async (req, res) => {
   try {
     console.log("Fetching market statistics");
 
-    // Return mock market statistics
+    // Query real market data from loadinfo.py schema tables
+    const marketStatsQueries = [
+      // Get total market cap from available data
+      `SELECT
+         COUNT(*) as total_companies,
+         SUM(md.market_cap) as total_market_cap,
+         AVG(md.market_cap) as avg_market_cap
+       FROM market_data md
+       WHERE md.market_cap IS NOT NULL AND md.market_cap > 0`,
+
+      // Get sector breakdown
+      `SELECT
+         cp.sector,
+         COUNT(*) as company_count,
+         SUM(md.market_cap) as sector_market_cap
+       FROM company_profile cp
+       LEFT JOIN market_data md ON cp.ticker = md.ticker
+       WHERE cp.sector IS NOT NULL AND md.market_cap IS NOT NULL AND md.market_cap > 0
+       GROUP BY cp.sector
+       ORDER BY sector_market_cap DESC`,
+
+      // Get volume statistics
+      `SELECT
+         COUNT(*) as total_stocks,
+         SUM(md.volume) as total_volume,
+         AVG(md.volume) as avg_volume
+       FROM market_data md
+       WHERE md.volume IS NOT NULL AND md.volume > 0`
+    ];
+
+    const [marketCapResult, sectorResult, volumeResult] = await Promise.all([
+      query(marketStatsQueries[0]),
+      query(marketStatsQueries[1]),
+      query(marketStatsQueries[2])
+    ]);
+
+    // Process results
+    const marketCapData = marketCapResult.rows[0] || {};
+    const sectorData = sectorResult.rows || [];
+    const volumeData = volumeResult.rows[0] || {};
+
+    // Build sectors object from real data
+    const sectors = {};
+    sectorData.forEach(sector => {
+      if (sector.sector && sector.sector_market_cap) {
+        sectors[sector.sector.toLowerCase().replace(/\s+/g, '')] = sector.sector_market_cap;
+      }
+    });
+
     const marketStats = {
       marketCap: {
-        total: 45000000000000, // $45T
-        sectors: {
-          technology: 12000000000000,
-          healthcare: 8500000000000,
-          financials: 7200000000000,
-          consumerDiscretionary: 5800000000000,
-          industrials: 4200000000000,
-          other: 7300000000000
-        }
+        total: marketCapData.total_market_cap || null,
+        average: marketCapData.avg_market_cap || null,
+        company_count: marketCapData.total_companies || null,
+        sectors: sectors
       },
       indices: {
-        sp500: {
-          value: 4550.25,
-          change: 15.75,
-          changePercent: 0.35
-        },
-        nasdaq: {
-          value: 14250.80,
-          change: -45.20,
-          changePercent: -0.32
-        },
-        dow: {
-          value: 35100.50,
-          change: 125.30,
-          changePercent: 0.36
-        }
+        // Note: Index data not available in loadinfo.py schema
+        // Would need to be added to Python loader for real index tracking
+        sp500: { value: null, change: null, changePercent: null },
+        nasdaq: { value: null, change: null, changePercent: null },
+        dow: { value: null, change: null, changePercent: null }
       },
       volume: {
-        totalShares: 12500000000,
-        totalValue: 580000000000,
-        averagePerStock: 25000000
+        totalVolume: volumeData.total_volume || null,
+        averageVolume: volumeData.avg_volume || null,
+        stockCount: volumeData.total_stocks || null
       },
       breadth: {
-        advancers: 1850,
-        decliners: 1650,
-        unchanged: 500,
-        advanceDeclineRatio: 1.12
+        // Note: Market breadth data not available in current schema
+        // Would need to be calculated from price_daily table if available
+        advancers: null,
+        decliners: null,
+        unchanged: null,
+        advanceDeclineRatio: null
       }
     };
 
@@ -556,7 +584,7 @@ router.get("/stats", async (req, res) => {
       success: true,
       data: marketStats,
       timestamp: new Date().toISOString(),
-      source: "market_data_aggregation"
+      source: "real_database_aggregation"
     });
   } catch (error) {
     console.error("Stats endpoint error:", error);
@@ -4610,22 +4638,54 @@ router.get("/:symbol/key-metrics", async (req, res) => {
   try {
     const { symbol } = req.params;
 
-    res.json({
-      success: true,
-      data: [
-        {
-          symbol: symbol.toUpperCase(),
-          pe_ratio: 28.5,
-          dividend_yield: 0.0052,
-          book_value: 15.67,
-          roe: 0.175,
-          roa: 0.283,
-          revenue_growth: 0.078,
-          eps_growth: 0.092,
-        },
-      ],
-    });
+    // Query real data from loadinfo.py schema tables
+    const keyMetricsQuery = `
+      SELECT
+        cp.ticker as symbol,
+        km.trailing_pe as pe_ratio,
+        md.dividend_yield,
+        km.book_value,
+        km.return_on_equity as roe,
+        km.return_on_assets as roa,
+        km.revenue_growth,
+        km.earnings_growth as eps_growth
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE cp.ticker ILIKE $1
+      LIMIT 1
+    `;
+
+    const result = await query(keyMetricsQuery, [symbol]);
+
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0];
+
+      const keyMetrics = {
+        symbol: row.symbol ? row.symbol.toUpperCase() : symbol.toUpperCase(),
+        pe_ratio: row.pe_ratio || null,
+        dividend_yield: row.dividend_yield || null,
+        book_value: row.book_value || null,
+        roe: row.roe || null,
+        roa: row.roa || null,
+        revenue_growth: row.revenue_growth || null,
+        eps_growth: row.eps_growth || null,
+      };
+
+      res.json({
+        success: true,
+        data: [keyMetrics],
+      });
+    } else {
+      // No data found for symbol
+      res.json({
+        success: true,
+        data: [],
+        message: `No key metrics data found for symbol: ${symbol.toUpperCase()}`
+      });
+    }
   } catch (error) {
+    console.error("Error fetching key metrics:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch key metrics",
@@ -4638,22 +4698,54 @@ router.get("/:symbol/profile", async (req, res) => {
   try {
     const { symbol } = req.params;
 
-    res.json({
-      success: true,
-      data: [
-        {
-          symbol: symbol.toUpperCase(),
-          company_name: `${symbol.toUpperCase()} Inc.`,
-          sector: "Technology",
-          industry: "Consumer Electronics",
-          description: `${symbol.toUpperCase()} Inc. designs, manufactures, and markets smartphones...`,
-          country: "US",
-          website: `https://www.${symbol.toLowerCase()}.com`,
-          employees: 154000,
-        },
-      ],
-    });
+    // Query real data from loadinfo.py schema tables
+    const profileQuery = `
+      SELECT
+        cp.ticker as symbol,
+        cp.short_name as company_name,
+        cp.long_name,
+        cp.sector,
+        cp.industry,
+        cp.summary as description,
+        cp.country,
+        cp.website,
+        cp.employees
+      FROM company_profile cp
+      WHERE cp.ticker ILIKE $1
+      LIMIT 1
+    `;
+
+    const result = await query(profileQuery, [symbol]);
+
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0];
+
+      const profile = {
+        symbol: row.symbol ? row.symbol.toUpperCase() : symbol.toUpperCase(),
+        company_name: row.company_name || row.long_name || null,
+        long_name: row.long_name || null,
+        sector: row.sector || null,
+        industry: row.industry || null,
+        description: row.description || null,
+        country: row.country || null,
+        website: row.website || null,
+        employees: row.employees || null,
+      };
+
+      res.json({
+        success: true,
+        data: [profile],
+      });
+    } else {
+      // No data found for symbol
+      res.json({
+        success: true,
+        data: [],
+        message: `No profile data found for symbol: ${symbol.toUpperCase()}`
+      });
+    }
   } catch (error) {
+    console.error("Error fetching stock profile:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch stock profile",
@@ -4664,24 +4756,66 @@ router.get("/:symbol/profile", async (req, res) => {
 
 router.get("/:symbol/analyst-recommendations", async (req, res) => {
   try {
-    res.json({
-      success: true,
-      data: [
+    const { symbol } = req.params;
+
+    // Query real data from loadinfo.py schema tables
+    const recommendationsQuery = `
+      SELECT
+        ae.ticker as symbol,
+        ae.target_mean_price,
+        ae.target_high_price,
+        ae.target_low_price,
+        ae.recommendation_mean,
+        ae.analyst_opinion_count,
+        ae.updated_at
+      FROM analyst_estimates ae
+      WHERE ae.ticker ILIKE $1
+      ORDER BY ae.updated_at DESC
+      LIMIT 1
+    `;
+
+    const result = await query(recommendationsQuery, [symbol]);
+
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0];
+
+      // Convert recommendation_mean to rating text
+      const getRatingText = (mean) => {
+        if (!mean) return "N/A";
+        if (mean <= 1.5) return "Strong Buy";
+        if (mean <= 2.5) return "Buy";
+        if (mean <= 3.5) return "Hold";
+        if (mean <= 4.5) return "Sell";
+        return "Strong Sell";
+      };
+
+      const recommendations = [
         {
-          analyst: "Goldman Sachs",
-          rating: "Buy",
-          target: 185.0,
-          date: "2024-01-15",
+          symbol: row.symbol ? row.symbol.toUpperCase() : symbol.toUpperCase(),
+          rating: getRatingText(row.recommendation_mean),
+          rating_score: row.recommendation_mean,
+          target_mean: row.target_mean_price,
+          target_high: row.target_high_price,
+          target_low: row.target_low_price,
+          analyst_count: row.analyst_opinion_count,
+          date: row.updated_at || null,
         },
-        {
-          analyst: "Morgan Stanley",
-          rating: "Hold",
-          target: 175.0,
-          date: "2024-01-14",
-        },
-      ],
-    });
+      ];
+
+      res.json({
+        success: true,
+        data: recommendations,
+      });
+    } else {
+      // No data found for symbol
+      res.json({
+        success: true,
+        data: [],
+        message: `No analyst recommendations found for symbol: ${symbol.toUpperCase()}`
+      });
+    }
   } catch (error) {
+    console.error("Error fetching analyst recommendations:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch analyst recommendations",
@@ -4692,19 +4826,55 @@ router.get("/:symbol/analyst-recommendations", async (req, res) => {
 
 router.get("/:symbol/balance-sheet", async (req, res) => {
   try {
-    res.json({
-      success: true,
-      data: [
-        {
-          total_assets: 352755000000,
-          total_liabilities: 290437000000,
-          stockholder_equity: 62318000000,
-          cash_and_equivalents: 51355000000,
-          total_debt: 123000000000,
-        },
-      ],
-    });
+    const { symbol } = req.params;
+
+    // Query real data from loadinfo.py schema tables
+    const balanceSheetQuery = `
+      SELECT
+        km.ticker as symbol,
+        km.total_cash,
+        km.total_debt,
+        km.total_revenue,
+        km.net_income,
+        km.book_value
+      FROM key_metrics km
+      WHERE km.ticker ILIKE $1
+      LIMIT 1
+    `;
+
+    const result = await query(balanceSheetQuery, [symbol]);
+
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0];
+
+      const balanceSheet = {
+        symbol: row.symbol ? row.symbol.toUpperCase() : symbol.toUpperCase(),
+        total_cash: row.total_cash || null,
+        total_debt: row.total_debt || null,
+        total_revenue: row.total_revenue || null,
+        net_income: row.net_income || null,
+        book_value: row.book_value || null,
+        // Note: loadinfo.py schema doesn't include total_assets, total_liabilities, stockholder_equity
+        // These would need to be added to the Python loader if needed
+        total_assets: null,
+        total_liabilities: null,
+        stockholder_equity: null,
+      };
+
+      res.json({
+        success: true,
+        data: [balanceSheet],
+      });
+    } else {
+      // No data found for symbol
+      res.json({
+        success: true,
+        data: [],
+        message: `No balance sheet data found for symbol: ${symbol.toUpperCase()}`
+      });
+    }
   } catch (error) {
+    console.error("Error fetching balance sheet:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch balance sheet",
@@ -4715,20 +4885,51 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
 
 router.get("/:symbol/income-statement", async (req, res) => {
   try {
-    res.json({
-      success: true,
-      data: [
-        {
-          revenue: 394328000000,
-          cost_of_revenue: 223546000000,
-          gross_profit: 170782000000,
-          operating_expenses: 55013000000,
-          operating_income: 115769000000,
-          net_income: 99803000000,
-        },
-      ],
-    });
+    const { symbol } = req.params;
+
+    // Query real data from loadinfo.py schema tables
+    const incomeStatementQuery = `
+      SELECT
+        km.ticker as symbol,
+        km.total_revenue as revenue,
+        km.net_income,
+        km.gross_profit
+      FROM key_metrics km
+      WHERE km.ticker ILIKE $1
+      LIMIT 1
+    `;
+
+    const result = await query(incomeStatementQuery, [symbol]);
+
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0];
+
+      const incomeStatement = {
+        symbol: row.symbol ? row.symbol.toUpperCase() : symbol.toUpperCase(),
+        revenue: row.revenue || null,
+        net_income: row.net_income || null,
+        gross_profit: row.gross_profit || null,
+        // Note: loadinfo.py schema doesn't include detailed income statement fields
+        // These would need to be added to the Python loader if needed
+        cost_of_revenue: null,
+        operating_expenses: null,
+        operating_income: null,
+      };
+
+      res.json({
+        success: true,
+        data: [incomeStatement],
+      });
+    } else {
+      // No data found for symbol
+      res.json({
+        success: true,
+        data: [],
+        message: `No income statement data found for symbol: ${symbol.toUpperCase()}`
+      });
+    }
   } catch (error) {
+    console.error("Error fetching income statement:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch income statement",
@@ -4739,19 +4940,51 @@ router.get("/:symbol/income-statement", async (req, res) => {
 
 router.get("/:symbol/cash-flow", async (req, res) => {
   try {
-    res.json({
-      success: true,
-      data: [
-        {
-          operating_cash_flow: 122151000000,
-          investing_cash_flow: -10635000000,
-          financing_cash_flow: -108488000000,
-          free_cash_flow: 84726000000,
-          capital_expenditures: -7309000000,
-        },
-      ],
-    });
+    const { symbol } = req.params;
+
+    // Query real data from loadinfo.py schema tables
+    const cashFlowQuery = `
+      SELECT
+        km.ticker as symbol,
+        km.total_cash,
+        km.operating_cash_flow,
+        km.free_cash_flow
+      FROM key_metrics km
+      WHERE km.ticker ILIKE $1
+      LIMIT 1
+    `;
+
+    const result = await query(cashFlowQuery, [symbol]);
+
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0];
+
+      const cashFlow = {
+        symbol: row.symbol ? row.symbol.toUpperCase() : symbol.toUpperCase(),
+        total_cash: row.total_cash || null,
+        operating_cash_flow: row.operating_cash_flow || null,
+        free_cash_flow: row.free_cash_flow || null,
+        // Note: loadinfo.py schema doesn't include detailed cash flow fields
+        // These would need to be added to the Python loader if needed
+        investing_cash_flow: null,
+        financing_cash_flow: null,
+        capital_expenditures: null,
+      };
+
+      res.json({
+        success: true,
+        data: [cashFlow],
+      });
+    } else {
+      // No data found for symbol
+      res.json({
+        success: true,
+        data: [],
+        message: `No cash flow data found for symbol: ${symbol.toUpperCase()}`
+      });
+    }
   } catch (error) {
+    console.error("Error fetching cash flow statement:", error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch cash flow statement",

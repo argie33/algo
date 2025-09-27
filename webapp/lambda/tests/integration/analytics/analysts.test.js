@@ -14,27 +14,29 @@ describe("Analysts API", () => {
         "/api/analysts/recommendations/AAPL"
       );
 
+      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.data).toBeDefined();
 
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(Array.isArray(response.body.data)).toBe(true);
+      // Verify expected data structure with real data
+      expect(response.body.data).toHaveProperty("symbol", "AAPL");
+      expect(response.body.data).toHaveProperty("total_analysts");
+      expect(typeof response.body.data.total_analysts).toBe("number");
+      expect(response.body.data.total_analysts).toBeGreaterThan(0);
 
-        if (response.body.data.length > 0) {
-          const recommendation = response.body.data[0];
-          expect(recommendation).toHaveProperty("analyst");
-          expect(recommendation).toHaveProperty("rating");
+      expect(response.body.data).toHaveProperty("rating_distribution");
+      expect(response.body.data).toHaveProperty("recent_changes");
+      expect(Array.isArray(response.body.data.recent_changes)).toBe(true);
+      expect(response.body.data.recent_changes.length).toBeGreaterThan(0);
 
-          const recFields = ["target_price", "date", "previous_rating"];
-          const hasRecData = recFields.some((field) =>
-            Object.keys(recommendation).some((key) =>
-              key.toLowerCase().includes(field.replace("_", ""))
-            )
-          );
-
-          expect(hasRecData).toBe(true);
-        }
-      }
+      // Verify first recommendation structure
+      const recommendation = response.body.data.recent_changes[0];
+      expect(recommendation).toHaveProperty("firm");
+      expect(recommendation).toHaveProperty("rating");
+      expect(recommendation).toHaveProperty("date");
+      expect(typeof recommendation.firm).toBe("string");
+      expect(typeof recommendation.rating).toBe("string");
     });
 
     test("should handle invalid stock symbols", async () => {
@@ -42,7 +44,10 @@ describe("Analysts API", () => {
         "/api/analysts/recommendations/INVALID123"
       );
 
-      expect([404, 400, 500, 501]).toContain(response.status);
+      // Should return 404 for invalid symbols
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
     });
   });
 
@@ -50,26 +55,27 @@ describe("Analysts API", () => {
     test("should retrieve analyst coverage for stock", async () => {
       const response = await request(app).get("/api/analysts/coverage/AAPL");
 
+      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.data).toBeDefined();
 
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
+      // Verify expected data structure with real data
+      const coverage = response.body.data;
+      expect(coverage).toHaveProperty("symbol", "AAPL");
+      expect(coverage).toHaveProperty("analysts");
+      expect(Array.isArray(coverage.analysts)).toBe(true);
+      expect(coverage.analysts.length).toBeGreaterThan(0);
 
-        const coverage = response.body.data;
-        const coverageFields = [
-          "analyst_count",
-          "buy_count",
-          "hold_count",
-          "sell_count",
-        ];
-        const hasCoverageData = coverageFields.some((field) =>
-          Object.keys(coverage).some((key) =>
-            key.toLowerCase().includes(field.replace("_", ""))
-          )
-        );
-
-        expect(hasCoverageData).toBe(true);
-      }
+      // Verify first analyst structure
+      const analyst = coverage.analysts[0];
+      expect(analyst).toHaveProperty("analyst_firm");
+      expect(analyst).toHaveProperty("analyst_name");
+      expect(analyst).toHaveProperty("coverage_started");
+      expect(analyst).toHaveProperty("coverage_status");
+      expect(typeof analyst.analyst_firm).toBe("string");
+      expect(typeof analyst.analyst_name).toBe("string");
+      expect(analyst.coverage_status).toBe("active");
     });
   });
 
@@ -79,44 +85,49 @@ describe("Analysts API", () => {
         "/api/analysts/price-targets/AAPL"
       );
 
+      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.data).toBeDefined();
 
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(Array.isArray(response.body.data)).toBe(true);
+      // Verify expected data structure with real data
+      expect(response.body.data).toHaveProperty("symbol", "AAPL");
+      expect(response.body.data).toHaveProperty("price_targets");
+      expect(Array.isArray(response.body.data.price_targets)).toBe(true);
+      expect(response.body.data.price_targets.length).toBeGreaterThan(0);
 
-        if (response.body.data.length > 0) {
-          const target = response.body.data[0];
-          expect(target).toHaveProperty("analyst");
-          expect(target).toHaveProperty("target_price");
-          expect(target).toHaveProperty("date");
-        }
-      }
+      // Verify first price target structure
+      const target = response.body.data.price_targets[0];
+      expect(target).toHaveProperty("analyst_firm");
+      expect(target).toHaveProperty("target_price");
+      expect(target).toHaveProperty("target_date");
+      expect(typeof target.analyst_firm).toBe("string");
+      expect(typeof target.target_price).toBe("number");
+      expect(target.target_price).toBeGreaterThan(0);
     });
 
     test("should provide consensus price targets", async () => {
       const response = await request(app).get("/api/analysts/consensus/AAPL");
 
+      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.data).toBeDefined();
 
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
+      // Verify expected data structure with real data
+      const consensus = response.body.data;
+      expect(consensus).toHaveProperty("symbol", "AAPL");
+      expect(consensus).toHaveProperty("target_high_price");
+      expect(consensus).toHaveProperty("target_low_price");
+      expect(consensus).toHaveProperty("target_mean_price");
+      expect(consensus).toHaveProperty("recommendation_key");
+      expect(consensus).toHaveProperty("analyst_opinion_count");
 
-        const consensus = response.body.data;
-        const consensusFields = [
-          "mean_target",
-          "median_target",
-          "high_target",
-          "low_target",
-        ];
-        const hasConsensusData = consensusFields.some((field) =>
-          Object.keys(consensus).some((key) =>
-            key.toLowerCase().includes(field.replace("_", ""))
-          )
-        );
-
-        expect(hasConsensusData).toBe(true);
-      }
+      expect(typeof consensus.target_high_price).toBe("number");
+      expect(typeof consensus.target_low_price).toBe("number");
+      expect(typeof consensus.target_mean_price).toBe("number");
+      expect(typeof consensus.analyst_opinion_count).toBe("number");
+      expect(consensus.target_high_price).toBeGreaterThan(consensus.target_low_price);
     });
   });
 
@@ -126,19 +137,22 @@ describe("Analysts API", () => {
         "/api/analysts/research?symbol=AAPL&limit=10"
       );
 
+      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data.length).toBeGreaterThan(0);
 
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(Array.isArray(response.body.data)).toBe(true);
-
-        if (response.body.data.length > 0) {
-          const research = response.body.data[0];
-          expect(research).toHaveProperty("title");
-          expect(research).toHaveProperty("analyst");
-          expect(research).toHaveProperty("date");
-        }
-      }
+      // Verify first research report structure
+      const research = response.body.data[0];
+      expect(research).toHaveProperty("symbol", "AAPL");
+      expect(research).toHaveProperty("analyst_firm");
+      expect(research).toHaveProperty("report_title");
+      expect(research).toHaveProperty("report_summary");
+      expect(research).toHaveProperty("report_date");
+      expect(typeof research.analyst_firm).toBe("string");
+      expect(typeof research.report_title).toBe("string");
+      expect(typeof research.report_summary).toBe("string");
     });
 
     test("should filter research by analyst firm", async () => {
@@ -146,11 +160,16 @@ describe("Analysts API", () => {
         "/api/analysts/research?firm=Goldman&limit=5"
       );
 
+      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(Array.isArray(response.body.data)).toBe(true);
 
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(Array.isArray(response.body.data)).toBe(true);
+      // If data exists, verify it's filtered by Goldman
+      if (response.body.data.length > 0) {
+        response.body.data.forEach((report) => {
+          expect(report.analyst_firm).toContain("Goldman");
+        });
       }
     });
   });
