@@ -50,6 +50,7 @@ describe("Commodities Routes", () => {
       const response = await request(app).get("/api/commodities/").expect(200);
 
       expect(response.body).toEqual({
+        success: true,
         data: {
           system: "Commodities API",
           version: "1.0.0",

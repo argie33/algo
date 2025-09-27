@@ -858,4 +858,44 @@ INSERT INTO api_keys (user_id, provider, api_key, api_secret, is_sandbox) VALUES
 ('test-user-123', 'interactive_brokers', 'test_ib_key', 'test_ib_secret', false)
 ON CONFLICT (user_id, provider) DO NOTHING;
 
+-- Dividend calendar table for dividend API endpoints
+CREATE TABLE IF NOT EXISTS dividend_calendar (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(10) NOT NULL,
+    ex_dividend_date DATE NOT NULL,
+    payment_date DATE,
+    record_date DATE,
+    dividend_amount DECIMAL(10,4) NOT NULL,
+    dividend_yield DECIMAL(10,4),
+    frequency VARCHAR(20),
+    dividend_type VARCHAR(20) DEFAULT 'cash',
+    announcement_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, ex_dividend_date)
+);
+
+-- Add company_name column if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'dividend_calendar'
+        AND column_name = 'company_name'
+    ) THEN
+        ALTER TABLE dividend_calendar ADD COLUMN company_name VARCHAR(255);
+    END IF;
+END $$;
+
+-- Insert test dividend calendar data
+INSERT INTO dividend_calendar (symbol, company_name, ex_dividend_date, payment_date, dividend_amount, dividend_yield, frequency) VALUES
+('AAPL', 'Apple Inc.', '2025-02-08', '2025-02-13', 0.25, 0.48, 'quarterly'),
+('MSFT', 'Microsoft Corporation', '2025-02-20', '2025-03-12', 0.83, 0.75, 'quarterly'),
+('JNJ', 'Johnson & Johnson', '2025-03-05', '2025-03-20', 1.19, 2.85, 'quarterly'),
+('KO', 'The Coca-Cola Company', '2025-03-15', '2025-03-30', 0.46, 3.12, 'quarterly'),
+('PG', 'Procter & Gamble', '2025-01-25', '2025-02-10', 0.91, 2.34, 'quarterly')
+ON CONFLICT (symbol, ex_dividend_date) DO NOTHING;
+
+-- Create index for performance
+CREATE INDEX IF NOT EXISTS idx_dividend_calendar_symbol_date ON dividend_calendar(symbol, ex_dividend_date);
+
 COMMIT;

@@ -143,7 +143,7 @@ describe("Dividend Routes Integration Tests", () => {
           const event = response.body.data[0];
           expect(event).toHaveProperty("symbol");
           expect(event).toHaveProperty("ex_date");
-          expect(event).toHaveProperty("estimated_amount");
+          expect(event).toHaveProperty("amount");
         }
       }
     });
@@ -173,8 +173,8 @@ describe("Dividend Routes Integration Tests", () => {
 
       if (response.status === 200 && response.body.data.length > 0) {
         response.body.data.forEach((event) => {
-          if (event.estimated_amount !== null) {
-            expect(event.estimated_amount).toBeGreaterThanOrEqual(1.0);
+          if (event.amount !== null) {
+            expect(event.amount).toBeGreaterThanOrEqual(1.0);
           }
         });
       }

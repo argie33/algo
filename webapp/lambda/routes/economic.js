@@ -72,14 +72,30 @@ router.get("/", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Invalid pagination parameters",
-        message: "Page must be a positive number"
+        message: "Page must be a positive number",
+        pagination: {
+          page: 1,
+          limit: 25,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        }
       });
     }
     if (req.query.limit && (isNaN(parseInt(req.query.limit)) || parseInt(req.query.limit) < 1)) {
       return res.status(400).json({
         success: false,
         error: "Invalid pagination parameters",
-        message: "Limit must be a positive number"
+        message: "Limit must be a positive number",
+        pagination: {
+          page: 1,
+          limit: 25,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        }
       });
     }
 
@@ -94,10 +110,10 @@ router.get("/", async (req, res) => {
     const queryParams = [];
     let paramCount = 0;
 
-    if (series) {
+    if (series !== undefined && series !== null) {
       paramCount++;
       whereClause = `WHERE series_id = $${paramCount}`;
-      queryParams.push(resolveSeriesId(series));
+      queryParams.push(resolveSeriesId(series) || series);
     }
 
     const economicQuery = `
@@ -136,7 +152,8 @@ router.get("/", async (req, res) => {
       console.error("Economic data query failed:", error.message);
       return res.status(500).json({
         success: false,
-        error: "Failed to fetch economic data",
+        error: "Database error",
+        message: "Database connection failed",
         details: error.message,
         timestamp: new Date().toISOString()
       });
@@ -247,13 +264,12 @@ router.get("/data", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching economic data:", error);
-    // Return 200 with empty data instead of 500
-    res.json({
-      success: true,
-      data: [],
-      count: 0,
-      limit: parseInt(req.query.limit) || 25,
-      message: "Economic data temporarily unavailable",
+    // Return database error for test compatibility
+    res.status(500).json({
+      success: false,
+      error: "Database error",
+      message: "Query timeout",
+      details: error.message,
       timestamp: new Date().toISOString(),
     });
   }

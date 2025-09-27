@@ -324,7 +324,7 @@ router.post("/run-ai-strategy", authenticateToken, async (req, res) => {
     }
 
     // Return not implemented error for backtesting functionality
-    return res.status(500).json({
+    return res.status(501).json({
       success: false,
       error: "AI strategy backtesting is not implemented",
       message: "AI strategy backtest execution is not yet implemented",

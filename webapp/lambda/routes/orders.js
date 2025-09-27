@@ -5,6 +5,27 @@ const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
+// Helper function to check if a column exists in a table
+async function checkColumnExists(tableName, columnName) {
+  try {
+    const columnCheckQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.columns
+        WHERE table_name = $1 AND column_name = $2
+      );
+    `;
+    const result = await query(columnCheckQuery, [tableName, columnName]);
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn('Column check query returned invalid result:', result);
+      return false;
+    }
+    return result.rows[0].exists;
+  } catch (error) {
+    console.warn(`Error checking column '${columnName}' in table '${tableName}':`, error);
+    return false;
+  }
+}
+
 // Ping endpoint (no auth required)
 router.get("/ping", (req, res) => {
   res.json({
@@ -90,14 +111,19 @@ router.get("/", async (req, res) => {
     // Get the appropriate table for trading mode
     const { table: ordersTable } = await getTradingModeTable(userId, "orders");
 
+    // Check if the orders table has a status column
+    const hasStatusColumn = await checkColumnExists(ordersTable, 'status');
+
     let whereClause = "WHERE user_id = $1";
     let params = [userId];
     let paramCount = 1;
 
-    if (status && status !== "all") {
+    if (status && status !== "all" && hasStatusColumn) {
       paramCount++;
       whereClause += ` AND status = $${paramCount}`;
       params.push(status);
+    } else if (status && status !== "all" && !hasStatusColumn) {
+      console.log(`⚠️ Status filter '${status}' ignored - ${ordersTable} table has no status column`);
     }
 
     if (side && side !== "all") {
@@ -107,7 +133,7 @@ router.get("/", async (req, res) => {
     }
 
     const ordersQuery = `
-      SELECT 
+      SELECT
         id as order_id,
         symbol,
         side,
@@ -116,7 +142,7 @@ router.get("/", async (req, res) => {
         limit_price,
         stop_price,
         time_in_force,
-        status,
+        ${hasStatusColumn ? 'status' : "'pending' as status"},
         submitted_at,
         filled_at,
         filled_quantity,
@@ -824,20 +850,26 @@ router.get("/history", authenticateToken, async (req, res) => {
 
     console.log(`📋 Order history requested for user: ${userId}`);
 
+    // Check if orders table has status column for filtering
+    const hasStatusColumn = await checkColumnExists('orders', 'status');
+
     let whereClause = "WHERE user_id = $1";
     let params = [userId, parseInt(limit), parseInt(offset)];
 
-    if (status !== "all") {
+    if (status !== "all" && hasStatusColumn) {
       whereClause += " AND status = $4";
       params.push(status);
+    } else if (status !== "all" && !hasStatusColumn) {
+      console.log(`⚠️ Status filter '${status}' ignored - orders table has no status column`);
     }
 
     const result = await query(
       `
-      SELECT 
-        id, symbol, side, quantity, order_type, status, 
+      SELECT
+        id, symbol, side, quantity, order_type,
+        ${hasStatusColumn ? 'status' : "'pending' as status"},
         average_price as filled_price, created_at, updated_at
-      FROM orders 
+      FROM orders
       ${whereClause}
       ORDER BY created_at DESC
       LIMIT $2 OFFSET $3

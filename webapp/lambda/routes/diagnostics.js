@@ -9,7 +9,13 @@ router.get("/", async (req, res) => {
   try {
     const diagnostics = {
       success: true,
+      message: "System diagnostics completed successfully",
       timestamp: new Date().toISOString(),
+      endpoints: [
+        "GET /api/diagnostics - System diagnostics overview",
+        "GET /api/diagnostics/database - Database connectivity test",
+        "GET /api/diagnostics/database-connectivity - Database connectivity test"
+      ],
       system: {
         nodejs: process.version,
         uptime: process.uptime(),
@@ -68,10 +74,12 @@ router.get("/database-connectivity", async (req, res) => {
 
     res.json({
       success: true,
-      database: {
-        ...dbHealth,
+      results: {
         connectivity_test: testQuery.rows[0].test === 1 ? "passed" : "failed",
         endpoint: "database-connectivity",
+        database: {
+          ...dbHealth,
+        }
       },
       timestamp: new Date().toISOString(),
     });
