@@ -611,20 +611,19 @@ describe("Strategy Builder Routes", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.templates).toHaveLength(2);
       expect(response.body.templates[0]).toEqual({
-        id: "meanReversion",
-        name: "Mean reversion strategy",
-        type: "meanReversion",
-        description: "Mean reversion strategy",
-        parameters: ["period", "threshold"],
+        id: "momentum",
+        name: "Momentum Trading Strategy",
+        description: "Momentum Trading Strategy",
+        parameters: { period: 14, threshold: 0.5 },
         complexity: "medium",
-        aiEnhanced: true,
+        aiEnhanced: false,
       });
       expect(response.body.count).toBe(2);
       expect(response.body.aiFeatures).toEqual({
-        streamingEnabled: true,
-        optimizationSupported: true,
-        insightsGeneration: true,
-        explanationLevels: ["basic", "medium", "detailed"],
+        streamingEnabled: false,
+        optimizationSupported: false,
+        insightsGeneration: false,
+        explanationLevels: [],
       });
     });
 

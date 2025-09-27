@@ -1098,7 +1098,7 @@ describe("Schema Validator", () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors).toContain(
-        'Field "ticker" exceeds maximum length of 10 characters'
+        'Field "symbol" exceeds maximum length of 10 characters'
       );
     });
   });
