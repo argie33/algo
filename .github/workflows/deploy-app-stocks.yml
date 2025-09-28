@@ -433,8 +433,24 @@ jobs:
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
           
-          # Get task definition ARN pattern
-          TASK_DEF_NAME=$(echo "${{ matrix.loader }}" | sed 's/./\U&/g')TaskDefArn
+          # Get task definition ARN pattern with proper case conversion
+          # Convert buyselldaily -> BuySellDaily, buysellweekly -> BuySellWeekly, etc.
+          LOADER_NAME="${{ matrix.loader }}"
+          case "$LOADER_NAME" in
+            "buyselldaily")
+              TASK_DEF_NAME="BuySellDailyTaskDefArn"
+              ;;
+            "buysellweekly")
+              TASK_DEF_NAME="BuySellWeeklyTaskDefArn"
+              ;;
+            "buysellmonthly")
+              TASK_DEF_NAME="BuySellMonthlyTaskDefArn"
+              ;;
+            *)
+              # Default case: convert to proper case (first letter uppercase, rest lowercase)
+              TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
+              ;;
+          esac
           TASK_DEF_ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
             --query "Stacks[0].Outputs[?OutputKey=='${TASK_DEF_NAME}'].OutputValue" \
