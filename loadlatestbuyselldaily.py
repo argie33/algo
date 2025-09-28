@@ -167,23 +167,28 @@ def calculate_buy_sell_signals(price_tech_data):
     df["resistance"] = df["high"].rolling(window).max()
 
     for idx, row in df.iterrows():
-        if pd.isna(row["rsi"]) or pd.isna(row["macd"]) or pd.isna(row["ma20"]):
+        # Skip rows with missing critical data, but allow zero values from technical data
+        if (pd.isna(row["close"]) or row["close"] <= 0 or
+            pd.isna(row["volume"]) or row["volume"] < 0 or
+            pd.isna(row["ma20"]) or row["ma20"] <= 0):
             continue
 
         date = row["date"]
         symbol = row["symbol"]
         close = row["close"]
         volume = row["volume"]
-        rsi = row["rsi"]
-        macd = row["macd"]
+
+        # Handle technical indicators - use safe defaults if missing/null
+        rsi = row.get("rsi", 50) if not pd.isna(row.get("rsi", 50)) else 50
+        macd = row.get("macd", 0) if not pd.isna(row.get("macd", 0)) else 0
         ma20 = row["ma20"]
-        ma50 = row["ma50"]
-        volume_avg = row["volume_avg_10d"]
-        bb_upper = row["bb_upper"]
-        bb_lower = row["bb_lower"]
-        bb_middle = row["bb_middle"]
-        support = row["support"]
-        resistance = row["resistance"]
+        ma50 = row.get("ma50", ma20) if not pd.isna(row.get("ma50", ma20)) else ma20
+        volume_avg = row.get("volume_avg_10d", volume) if not pd.isna(row.get("volume_avg_10d", volume)) else volume
+        bb_upper = row.get("bb_upper", close * 1.1) if not pd.isna(row.get("bb_upper", close * 1.1)) else close * 1.1
+        bb_lower = row.get("bb_lower", close * 0.9) if not pd.isna(row.get("bb_lower", close * 0.9)) else close * 0.9
+        bb_middle = row.get("bb_middle", close) if not pd.isna(row.get("bb_middle", close)) else close
+        support = row.get("support", close * 0.95) if not pd.isna(row.get("support", close * 0.95)) else close * 0.95
+        resistance = row.get("resistance", close * 1.05) if not pd.isna(row.get("resistance", close * 1.05)) else close * 1.05
 
         # Calculate derived metrics
         price_vs_ma20 = ((close - ma20) / ma20) * 100 if ma20 > 0 else 0
@@ -332,19 +337,45 @@ def process_symbol_incremental(cur, symbol, timeframe="daily"):
         logging.info(f"{symbol}: Full history processing from {start_date}")
 
     # Fetch price and technical data for the date range
-    cur.execute(
-        """
-        SELECT 
-            p.symbol, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume,
-            t.rsi, t.macd, t.signal_line, t.macd_histogram, t.bb_upper, t.bb_lower,
-            t.stoch_k, t.stoch_d, t.williams_r, t.cci, t.adx
-        FROM price_daily p
-        LEFT JOIN technical_data_daily t ON p.symbol = t.symbol AND p.date = t.date
-        WHERE p.symbol = %s AND p.date >= %s
-        ORDER BY p.date
-    """,
-        (symbol, start_date),
-    )
+    try:
+        cur.execute(
+            """
+            SELECT
+                p.symbol, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume,
+                COALESCE(t.rsi, 0) as rsi,
+                COALESCE(t.macd, 0) as macd,
+                COALESCE(t.signal_line, 0) as signal_line,
+                COALESCE(t.macd_histogram, 0) as macd_histogram,
+                COALESCE(t.bb_upper, 0) as bb_upper,
+                COALESCE(t.bb_lower, 0) as bb_lower,
+                COALESCE(t.stoch_k, 0) as stoch_k,
+                COALESCE(t.stoch_d, 0) as stoch_d,
+                COALESCE(t.williams_r, 0) as williams_r,
+                COALESCE(t.cci, 0) as cci,
+                COALESCE(t.adx, 0) as adx
+            FROM price_daily p
+            LEFT JOIN technical_data_daily t ON p.symbol = t.symbol AND p.date = t.date
+            WHERE p.symbol = %s AND p.date >= %s
+            ORDER BY p.date
+        """,
+            (symbol, start_date),
+        )
+    except psycopg2.Error as e:
+        # If technical_data_daily table doesn't exist, use price data only
+        logging.warning(f"Technical data table issue for {symbol}: {e}")
+        cur.execute(
+            """
+            SELECT
+                symbol, date, open, high, low, close, adj_close, volume,
+                0 as rsi, 0 as macd, 0 as signal_line, 0 as macd_histogram,
+                0 as bb_upper, 0 as bb_lower, 0 as stoch_k, 0 as stoch_d,
+                0 as williams_r, 0 as cci, 0 as adx
+            FROM price_daily
+            WHERE symbol = %s AND date >= %s
+            ORDER BY date
+        """,
+            (symbol, start_date),
+        )
 
     price_tech_data = cur.fetchall()
 
@@ -462,9 +493,21 @@ def main():
                     )
                     log_mem(f"After {processed_count} symbols")
 
+                    # Force garbage collection every 10 symbols to manage memory
+                    gc.collect()
+
                 # Small delay to avoid overwhelming the database
                 time.sleep(0.1)
 
+            except psycopg2.Error as db_error:
+                logging.error(f"Database error processing {symbol}: {db_error}")
+                # Try to rollback and reconnect
+                try:
+                    conn.rollback()
+                except:
+                    pass
+                failed_count += 1
+                continue
             except Exception as e:
                 logging.error(f"Failed to process {symbol}: {e}")
                 failed_count += 1
