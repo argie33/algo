@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import TradingSignal from "../components/TradingSignal";
 import {
   Alert,
   Badge,
@@ -109,6 +110,7 @@ import {
   getApiKeys,
   getPortfolioData,
 } from "../services/api";
+import api from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
@@ -188,6 +190,9 @@ const Portfolio = () => {
   // Export functionality
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
 
+  // Trading signals state
+  const [holdingsSignals, setHoldingsSignals] = useState({});
+
   // Portfolio notifications
   const [notifications, setNotifications] = useState([
     {
@@ -246,7 +251,44 @@ const Portfolio = () => {
     factorConstraints: true,
   });
 
-  // Load portfolio data function - using useCallback to fix hoisting issue
+  // Load trading signals for portfolio holdings - moved before loadUserPortfolio to fix hoisting issue
+  const loadSignalsForHoldings = useCallback(async (holdings) => {
+    if (!holdings || holdings.length === 0) return;
+
+    try {
+      const signalsPromises = holdings.map(async (holding) => {
+        try {
+          const response = await api.get(`/api/signals/${holding.symbol}?timeframe=daily&limit=1`);
+          const signalData = response?.data?.data?.[0];
+          return {
+            symbol: holding.symbol,
+            signal: signalData?.signal || null,
+            confidence: signalData?.confidence || 0.75,
+            date: signalData?.date || null,
+          };
+        } catch (error) {
+          console.warn(`Failed to load signal for ${holding.symbol}:`, error);
+          return {
+            symbol: holding.symbol,
+            signal: null,
+            confidence: 0.75,
+            date: null,
+          };
+        }
+      });
+
+      const signalsResults = await Promise.all(signalsPromises);
+      const signalsMap = {};
+      signalsResults.forEach((result) => {
+        signalsMap[result.symbol] = result;
+      });
+      setHoldingsSignals(signalsMap);
+    } catch (error) {
+      console.error("Error loading signals for holdings:", error);
+    }
+  }, []);
+
+  // Load portfolio data function
   const loadUserPortfolio = useCallback(async () => {
     try {
       setLoading(true);
@@ -260,8 +302,9 @@ const Portfolio = () => {
       }
 
       // Use real portfolio data from database
+      const holdings = portfolioResponse.data?.holdings || portfolioResponse.holdings || [];
       setPortfolioData({
-        holdings: portfolioResponse.data?.holdings || portfolioResponse.holdings || [],
+        holdings,
         summary: portfolioResponse.data?.summary || portfolioResponse.summary || {
           totalValue: 0,
           totalCost: 0,
@@ -281,13 +324,16 @@ const Portfolio = () => {
           investmentStyle: "growth",
         },
       });
+
+      // Load trading signals for portfolio holdings
+      await loadSignalsForHoldings(holdings);
     } catch (error) {
       console.error("Error loading portfolio:", error);
       setError("Failed to load portfolio data");
     } finally {
       setLoading(false);
     }
-  }, [user?.userId, user?.username]);
+  }, [user?.userId, user?.username, loadSignalsForHoldings]);
 
   // Load available API connections
   const loadAvailableConnections = useCallback(async () => {
@@ -296,7 +342,7 @@ const Portfolio = () => {
       const connections = response?.data?.apiKeys || response?.apiKeys || [];
       setAvailableConnections(
         connections.filter((conn) =>
-          ["alpaca", "robinhood"].includes(conn.brokerName.toLowerCase())
+          ["alpaca"].includes(conn.brokerName.toLowerCase())
         )
       );
     } catch (error) {
@@ -1881,6 +1927,7 @@ const Portfolio = () => {
                             Allocation
                           </TableSortLabel>
                         </TableCell>
+                        <TableCell align="center">Signal</TableCell>
                         <TableCell align="center">Actions</TableCell>
                       </TableRow>
                     </TableHead>
@@ -1961,6 +2008,21 @@ const Portfolio = () => {
                                   aria-label={`Allocation: ${(holding.allocation || 0).toFixed(1)}%`}
                                 />
                               </Box>
+                            </TableCell>
+                            <TableCell align="center">
+                              {holdingsSignals[holding.symbol] ? (
+                                <TradingSignal
+                                  signal={holdingsSignals[holding.symbol].signal}
+                                  confidence={holdingsSignals[holding.symbol].confidence}
+                                  size="small"
+                                  variant="chip"
+                                  showConfidence={false}
+                                />
+                              ) : (
+                                <Typography variant="caption" color="text.secondary">
+                                  Loading...
+                                </Typography>
+                              )}
                             </TableCell>
                             <TableCell align="center">
                               <IconButton

@@ -90,18 +90,36 @@ describe("TradingSignals", () => {
     vi.clearAllMocks();
     // useDocumentTitle mock is set up in vi.mock above
 
-    // Mock successful API response - match TradingSignals component expected structure
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
-        data: mockSignalsData,  // Component expects data to be array, not signals
-        metadata: {
-          total: 2,
-          lastUpdated: "2024-01-15T10:30:00Z",
-          marketStatus: "OPEN",
-        },
-      }),
+    // Mock successful API responses - handle both signals and performance endpoints
+    global.fetch.mockImplementation((url) => {
+      if (url.includes('/api/signals')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: mockSignalsData,  // Component expects data to be array, not signals
+            metadata: {
+              total: 2,
+              lastUpdated: "2024-01-15T10:30:00Z",
+              marketStatus: "OPEN",
+            },
+          }),
+        });
+      } else if (url.includes('/api/trading/performance')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              totalSignals: 100,
+              successRate: 65.5,
+              avgReturn: 12.3,
+              totalReturn: 1234.56,
+            },
+          }),
+        });
+      }
+      return Promise.reject(new Error('Unknown endpoint'));
     });
   });
 
@@ -132,15 +150,61 @@ describe("TradingSignals", () => {
   });
 
   describe("Data Loading", () => {
-    it("should fetch trading signals data", async () => {
+    it("should fetch trading signals data with correct query parameters", async () => {
       render(<TradingSignals />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/signals"),
-          expect.any(Object)
+          expect.stringMatching(/\/api\/signals\?.*timeframe=daily/)
         );
       });
+    });
+
+    it("should NOT use path parameters for timeframe", async () => {
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        // Ensure we're NOT calling the wrong pattern like /api/signals/daily
+        expect(global.fetch).not.toHaveBeenCalledWith(
+          expect.stringMatching(/\/api\/signals\/(daily|weekly|monthly)/)
+        );
+      });
+    });
+
+    it("should include pagination parameters in API call", async () => {
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringMatching(/\/api\/signals\?.*page=1.*limit=25/)
+        );
+      });
+    });
+
+    it("should use correct API pattern for historical data", async () => {
+      const user = userEvent.setup();
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+      });
+
+      // Mock clicking on a symbol to trigger historical data fetch
+      const symbolButton = screen.getByText("AAPL");
+      if (symbolButton && symbolButton.closest("button")) {
+        await user.click(symbolButton.closest("button"));
+
+        await waitFor(() => {
+          // Should call correct pattern: /api/signals?timeframe=daily&symbol=AAPL
+          expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringMatching(/\/api\/signals\?timeframe=daily.*symbol=AAPL/)
+          );
+          // Should NOT call wrong pattern: /api/signals/daily?symbol=AAPL
+          expect(global.fetch).not.toHaveBeenCalledWith(
+            expect.stringMatching(/\/api\/signals\/daily\?symbol=AAPL/)
+          );
+        });
+      }
     });
 
     it("should display signals after loading", async () => {
@@ -153,28 +217,64 @@ describe("TradingSignals", () => {
     });
 
     it("should handle loading errors gracefully", async () => {
-      global.fetch.mockRejectedValue(new Error("API Error"));
+      global.fetch.mockImplementation((url) => {
+        if (url.includes('/api/signals')) {
+          return Promise.reject(new Error("Failed to load trading signals"));
+        } else if (url.includes('/api/trading/performance')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              success: true,
+              data: {
+                totalSignals: 0,
+                successRate: 0,
+                avgReturn: 0,
+                totalReturn: 0,
+              },
+            }),
+          });
+        }
+        return Promise.reject(new Error('Unknown endpoint'));
+      });
 
       render(<TradingSignals />, { wrapper: TestWrapper });
 
       await waitFor(() => {
-        expect(screen.getByText(/error/i)).toBeInTheDocument();
+        expect(screen.getByText(/failed to load trading signals/i)).toBeInTheDocument();
       });
     });
 
     it("should handle empty signals data", async () => {
-      global.fetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          signals: [],
-          metadata: { total: 0 },
-        }),
+      global.fetch.mockImplementation((url) => {
+        if (url.includes('/api/signals')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              data: [],
+              metadata: { total: 0 },
+            }),
+          });
+        } else if (url.includes('/api/trading/performance')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              success: true,
+              data: {
+                totalSignals: 0,
+                successRate: 0,
+                avgReturn: 0,
+                totalReturn: 0,
+              },
+            }),
+          });
+        }
+        return Promise.reject(new Error('Unknown endpoint'));
       });
 
       render(<TradingSignals />, { wrapper: TestWrapper });
 
       await waitFor(() => {
-        expect(screen.getByText(/no signals/i)).toBeInTheDocument();
+        expect(screen.getByText(/no trading signals data found/i)).toBeInTheDocument();
       });
     });
   });
@@ -578,6 +678,35 @@ describe("TradingSignals", () => {
           expect(buyChip).toHaveClass(expect.stringContaining("success"));
           expect(sellChip).toHaveClass(expect.stringContaining("error"));
         }
+      });
+    });
+  });
+
+  describe("Signal Performance Tracking", () => {
+    it("should display signal performance tracker when signals are available", async () => {
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("Signal Performance Tracking")).toBeInTheDocument();
+        expect(screen.getByText("Total Signals")).toBeInTheDocument();
+        expect(screen.getByText("Profitable")).toBeInTheDocument();
+        expect(screen.getByText("Avg Return")).toBeInTheDocument();
+        expect(screen.getByText("Win Rate")).toBeInTheDocument();
+      });
+    });
+
+    it("should display signal performance details table", async () => {
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("Signal Performance Details")).toBeInTheDocument();
+        expect(screen.getByText("Symbol")).toBeInTheDocument();
+        expect(screen.getByText("Signal")).toBeInTheDocument();
+        expect(screen.getByText("Confidence")).toBeInTheDocument();
+        expect(screen.getByText("Signal Date")).toBeInTheDocument();
+        expect(screen.getByText("Days Held")).toBeInTheDocument();
+        expect(screen.getByText("Current Return")).toBeInTheDocument();
+        expect(screen.getByText("Performance")).toBeInTheDocument();
       });
     });
   });

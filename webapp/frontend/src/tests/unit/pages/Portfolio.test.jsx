@@ -43,8 +43,53 @@ describe("Portfolio", () => {
     return renderWithProviders(<Portfolio />);
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Restore the getPortfolioData mock after clearing
+    const mockApi = await import("../../mocks/apiMock.js");
+    mockApi.getPortfolioData.mockResolvedValue({
+      success: true,
+      data: {
+        holdings: [
+          {
+            symbol: "AAPL",
+            name: "Apple Inc.",
+            quantity: 100,
+            avgPrice: 150,
+            currentPrice: 191.25,
+            marketValue: 19125,
+            totalValue: 19125,
+            totalCost: 15000,
+            unrealizedPnl: 4125,
+            gainLoss: 4125,
+            unrealizedPnlPercent: 27.5,
+            gainLossPercent: 27.5,
+            dayChange: 0,
+            dayChangePercent: 0,
+            weight: 4.68,
+            sector: "Technology",
+            assetClass: "equity",
+            broker: "manual",
+            volume: 0,
+            lastUpdated: "2025-09-04T20:31:40.570Z"
+          }
+        ],
+        summary: {
+          totalValue: 1250000,
+          totalCost: 850000,
+          totalPnl: 400000,
+          totalPnlPercent: 47.1,
+          dayPnl: 15000,
+          dayPnlPercent: 1.2,
+          positions: 5
+        },
+        performance: {
+          totalReturn: 400000,
+          totalReturnPercent: 47.1,
+        },
+      },
+    });
   });
 
   describe("Basic Rendering", () => {
@@ -254,5 +299,115 @@ describe("Portfolio", () => {
     //   renderPortfolio();
     //   expect(mockUseDocumentTitle).toHaveBeenCalled();
     // });
+  });
+
+  describe("Portfolio Signals Integration", () => {
+    test("loads and displays trading signals for portfolio holdings", async () => {
+      // Mock portfolio data with holdings using named import
+      const mockApi = await import("../../mocks/apiMock.js");
+
+      // Mock portfolio data with holdings
+      const mockHoldings = [
+        { symbol: "AAPL", shares: 100, costBasis: 150 },
+        { symbol: "GOOGL", shares: 50, costBasis: 2500 },
+      ];
+
+      // Update API mocks to return portfolio with holdings
+      mockApi.getPortfolioData.mockResolvedValue({
+        data: {
+          holdings: mockHoldings,
+          summary: {
+            totalValue: 25000,
+            totalPnL: 2500,
+            totalPnLPercent: 11.11,
+          },
+        },
+      });
+
+      // Mock signals API responses
+      mockApi.default.get.mockImplementation((url) => {
+        if (url.includes('/api/signals/AAPL')) {
+          return Promise.resolve({
+            data: {
+              data: [{
+                symbol: 'AAPL',
+                signal: 'BUY',
+                confidence: 0.85,
+                date: '2025-01-15',
+              }]
+            }
+          });
+        }
+        if (url.includes('/api/signals/GOOGL')) {
+          return Promise.resolve({
+            data: {
+              data: [{
+                symbol: 'GOOGL',
+                signal: 'HOLD',
+                confidence: 0.70,
+                date: '2025-01-15',
+              }]
+            }
+          });
+        }
+        return Promise.resolve({ data: {} });
+      });
+
+      renderPortfolio();
+
+      // Wait for portfolio and signals to load
+      await waitFor(() => {
+        expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      }, { timeout: 5000 });
+
+      // Check if signals are integrated into the portfolio display
+      // The signals should appear in the holdings table
+      await waitFor(() => {
+        const buySignal = screen.queryByText("BUY");
+        const holdSignal = screen.queryByText("HOLD");
+
+        // At least one signal should be displayed
+        expect(buySignal || holdSignal).toBeTruthy();
+      }, { timeout: 3000 });
+    });
+
+    test("handles signal loading errors gracefully", async () => {
+      // Mock portfolio data with holdings
+      const mockApi = await import("../../mocks/apiMock.js");
+
+      const mockHoldings = [
+        { symbol: "FAIL", shares: 100, costBasis: 150 },
+      ];
+
+      mockApi.getPortfolioData.mockResolvedValue({
+        data: {
+          holdings: mockHoldings,
+          summary: {
+            totalValue: 15000,
+            totalPnL: 0,
+            totalPnLPercent: 0,
+          },
+        },
+      });
+
+      // Mock signals API to fail
+      mockApi.default.get.mockImplementation((url) => {
+        if (url.includes('/api/signals/')) {
+          return Promise.reject(new Error('Signal API error'));
+        }
+        return Promise.resolve({ data: {} });
+      });
+
+      renderPortfolio();
+
+      // Wait for portfolio to load
+      await waitFor(() => {
+        expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      }, { timeout: 5000 });
+
+      // Portfolio should still render even if signals fail
+      // Should not crash the component
+      expect(screen.getByText(/portfolio/i)).toBeInTheDocument();
+    });
   });
 });

@@ -39,13 +39,14 @@ import {
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
 } from "recharts";
-import { Add, Delete, Edit, FilterList, Refresh } from "@mui/icons-material";
+import { Add, Delete, Edit, FilterList, Refresh, CloudDownload } from "@mui/icons-material";
 import {
   getPortfolioHoldings,
   addHolding,
   updateHolding,
   deleteHolding,
   getStockPrices,
+  importPortfolioFromBroker,
 } from "../services/api";
 
 const PortfolioHoldings = () => {
@@ -71,7 +72,9 @@ const PortfolioHoldings = () => {
   // Dialogs
   const [addHoldingDialog, setAddHoldingDialog] = useState(false);
   const [editHoldingDialog, setEditHoldingDialog] = useState(false);
+  const [importDialog, setImportDialog] = useState(false);
   const [selectedHolding, setSelectedHolding] = useState(null);
+  const [selectedBroker, setSelectedBroker] = useState("");
 
   // Form state
   const [holdingForm, setHoldingForm] = useState({
@@ -188,6 +191,30 @@ const PortfolioHoldings = () => {
     }
   };
 
+  const handleImportPortfolio = async () => {
+    if (!selectedBroker) {
+      setError("Please select a broker");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await importPortfolioFromBroker(selectedBroker);
+      if (response.success) {
+        setImportDialog(false);
+        setSelectedBroker("");
+        loadPortfolioData(); // Reload data to show imported positions
+      } else {
+        throw new Error(response.message || "Failed to import portfolio");
+      }
+    } catch (err) {
+      setError(err.message || "Failed to import portfolio. Please check your API credentials and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Sorting and pagination
   const sortedHoldings = useMemo(() => {
     if (!holdings?.length) return [];
@@ -295,6 +322,15 @@ const PortfolioHoldings = () => {
                   aria-label="refresh"
                 >
                   Refresh
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<CloudDownload />}
+                  onClick={() => setImportDialog(true)}
+                  disabled={loading}
+                  data-testid="import-portfolio-button"
+                >
+                  Import Portfolio
                 </Button>
                 <Button
                   variant="contained"
@@ -735,6 +771,50 @@ const PortfolioHoldings = () => {
           <Button onClick={() => setEditHoldingDialog(false)}>Cancel</Button>
           <Button onClick={handleUpdateHolding} variant="contained">
             Update Holding
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Import Portfolio Dialog */}
+      <Dialog
+        open={importDialog}
+        onClose={() => setImportDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        data-testid="import-portfolio-dialog"
+      >
+        <DialogTitle>Import Portfolio from Broker</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Import your portfolio positions from your connected broker account.
+            Make sure you have configured your API keys in the Settings page.
+          </Typography>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Select Broker</InputLabel>
+            <Select
+              value={selectedBroker}
+              onChange={(e) => setSelectedBroker(e.target.value)}
+              label="Select Broker"
+              data-testid="broker-select"
+            >
+              <MenuItem value="alpaca">Alpaca</MenuItem>
+            </Select>
+          </FormControl>
+          {error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {error}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportDialog(false)}>Cancel</Button>
+          <Button
+            onClick={handleImportPortfolio}
+            variant="contained"
+            disabled={!selectedBroker || loading}
+            data-testid="import-confirm-button"
+          >
+            {loading ? "Importing..." : "Import Portfolio"}
           </Button>
         </DialogActions>
       </Dialog>

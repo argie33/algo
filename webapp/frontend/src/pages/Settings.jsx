@@ -1663,12 +1663,6 @@ const Settings = () => {
                   <MenuItem value="polygon" data-provider="polygon">
                     Polygon
                   </MenuItem>
-                  <MenuItem value="robinhood" data-provider="robinhood">
-                    Robinhood
-                  </MenuItem>
-                  <MenuItem value="td_ameritrade" data-provider="td_ameritrade">
-                    TD Ameritrade
-                  </MenuItem>
                 </Select>
               </FormControl>
             </Grid>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import ErrorBoundary from "../components/ErrorBoundary";
+import TradingSignal from "../components/TradingSignal";
 import {
   Alert,
   Autocomplete,
@@ -210,10 +211,6 @@ const mockCalendar = [
   { event: "Nonfarm Payrolls", date: "2025-07-05", impact: "High" },
 ];
 
-const mockSignals = [
-  { symbol: "AAPL", action: "Buy", confidence: 0.92, type: "Technical" },
-  { symbol: "TSLA", action: "Sell", confidence: 0.87, type: "Momentum" },
-];
 
 const mockNews = [
   {
@@ -382,25 +379,25 @@ function usePortfolioData(enabled = true) {
     queryKey: ["portfolio-data"],
     enabled,
     queryFn: async () => {
-      if (!isAuthenticated) return mockPortfolio;
+      if (!isAuthenticated) return null;
       try {
         const result = await getPortfolioAnalytics();
         if (result?.data) {
           // Transform API data to match expected structure
           return {
-            value: result.data.total_value || result.data.value || mockPortfolio.value,
+            value: result.data.total_value || result.data.value,
             pnl: {
-              daily: result.data.daily_change || result.data.pnl?.daily || mockPortfolio.pnl.daily,
-              mtd: result.data.mtd_change || result.data.pnl?.mtd || mockPortfolio.pnl.mtd,
-              ytd: result.data.ytd_change || result.data.pnl?.ytd || mockPortfolio.pnl.ytd,
+              daily: result.data.daily_change || result.data.pnl?.daily,
+              mtd: result.data.mtd_change || result.data.pnl?.mtd,
+              ytd: result.data.ytd_change || result.data.pnl?.ytd,
             },
-            allocation: result.data.allocation || mockPortfolio.allocation,
+            allocation: result.data.allocation,
           };
         }
-        return mockPortfolio;
+        return null;
       } catch (err) {
         console.error("Portfolio API failed:", err);
-        return mockPortfolio;
+        return null;
       }
     },
     staleTime: 2 * 60 * 1000,
@@ -504,10 +501,12 @@ function TechnicalSignalsWidget({ enabled = true }) {
                     <TableRow key={sig.symbol + sig.date + idx}>
                       <TableCell>{sig.symbol}</TableCell>
                       <TableCell>
-                        <Chip
-                          label={sig.signal}
-                          color={sig.signal === "Buy" ? "success" : "error"}
+                        <TradingSignal
+                          signal={sig.signal}
+                          confidence={sig.confidence || 0.75}
                           size="small"
+                          variant="chip"
+                          showConfidence={false}
                         />
                       </TableCell>
                       <TableCell align="right">
@@ -543,7 +542,7 @@ function TechnicalSignalsWidget({ enabled = true }) {
 // --- ENHANCED WIDGETS ---
 function MarketSentimentWidget() {
   const { data: marketData, isLoading: _isLoading } = useMarketOverview();
-  const sentiment = marketData?.data?.sentiment || mockMarketSentiment;
+  const sentiment = marketData?.data?.sentiment;
 
   const getSentimentColor = (value) => {
     if (value > 75) return "success";
@@ -631,7 +630,7 @@ function MarketSentimentWidget() {
 
 function SectorPerformanceWidget() {
   const { data: marketData, isLoading: _isLoading2 } = useMarketOverview();
-  const sectors = marketData?.data?.sectors || mockSectorPerformance;
+  const sectors = marketData?.data?.sectors;
 
   return (
     <Card sx={{ height: "100%" }}>
@@ -666,7 +665,7 @@ function SectorPerformanceWidget() {
 
 function TopStocksWidget() {
   const { data: stocksData, isLoading: _isLoading3 } = useTopStocks();
-  const stocks = stocksData?.data || mockTopStocks;
+  const stocks = stocksData?.data;
 
   return (
     <Card sx={{ height: "100%" }}>
@@ -725,7 +724,7 @@ function TopStocksWidget() {
 
 function EconomicIndicatorsWidget() {
   const { data: marketData, isLoading: _isLoading4 } = useMarketOverview();
-  const indicators = marketData?.data?.economic || mockEconomicIndicators;
+  const indicators = marketData?.data?.economic;
 
   const getTrendIcon = (trend) => {
     if (trend === "up")
@@ -898,20 +897,20 @@ const Dashboard = () => {
         }));
       } catch (err) {
         console.error("Trading signals API failed:", err);
-        return mockSignals; // Fallback to mock only if API fails
+        return []; // Return empty array if API fails
       }
     },
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
-  // Use real data or fallback to mock
-  const safePortfolio = portfolioData || mockPortfolio;
-  const safeWatchlist = mockWatchlist; // TODO: Replace with real API
-  const safeNews = mockNews; // TODO: Replace with real API
-  const safeActivity = mockActivity; // TODO: Replace with real API
-  const safeCalendar = mockCalendar; // TODO: Replace with real API
-  const safeSignals = technicalSignalsQuery.data || mockSignals;
+  // Use real data only, no mock fallbacks
+  const safePortfolio = portfolioData;
+  const safeWatchlist = []; // No mock fallback
+  const safeNews = []; // No mock fallback
+  const safeActivity = []; // No mock fallback
+  const safeCalendar = []; // No mock fallback
+  const safeSignals = technicalSignalsQuery.data || [];
 
   const _chartData = priceData?.data
     ? priceData?.data

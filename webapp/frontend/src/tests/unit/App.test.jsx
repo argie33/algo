@@ -19,6 +19,10 @@ vi.mock("../../pages/MarketOverview", () => ({
   default: () => <div data-testid="market-overview-page">Market Overview</div>,
 }));
 
+vi.mock("../../components/RootRedirect", () => ({
+  default: () => <div data-testid="market-overview-page">Market Overview</div>,
+}));
+
 vi.mock("../../pages/PortfolioHoldings", () => ({
   default: () => <div data-testid="portfolio-page">Portfolio</div>,
 }));
@@ -134,10 +138,10 @@ describe("App", () => {
   });
 
   describe("Navigation", () => {
-    test("renders default dashboard route", () => {
+    test("renders default route as market overview", () => {
       renderApp("/");
 
-      expect(screen.getByTestId("dashboard-page")).toBeInTheDocument();
+      expect(screen.getByTestId("market-overview-page")).toBeInTheDocument();
     });
 
     test("renders dashboard route", () => {

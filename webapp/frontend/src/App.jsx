@@ -66,6 +66,7 @@ import PortfolioOptimization from "./pages/PortfolioOptimization";
 import TradeHistory from "./pages/TradeHistory";
 import OrderManagement from "./pages/OrderManagement";
 import SentimentAnalysis from "./pages/SentimentAnalysis";
+import AnalystInsights from "./pages/AnalystInsights";
 import NewsAnalysis from "./pages/NewsAnalysis";
 import PatternRecognition from "./pages/PatternRecognition";
 import EconomicModeling from "./pages/EconomicModeling";
@@ -75,6 +76,7 @@ import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
+import RootRedirect from "./components/RootRedirect";
 import Watchlist from "./pages/Watchlist";
 import SectorAnalysis from "./pages/SectorAnalysis";
 import RealTimeDashboard from "./pages/RealTimeDashboard";
@@ -85,8 +87,8 @@ import AdvancedPortfolioAnalytics from "./pages/AdvancedPortfolioAnalytics";
 const drawerWidth = 240;
 
 const menuItems = [
-  // Dashboard Section
-  { text: "Dashboard", icon: <DashboardIcon />, path: "/", category: "main" },
+  // Dashboard Section - Protected route for authenticated users
+  { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard", category: "main" },
 
   // Markets Section
   {
@@ -135,9 +137,9 @@ const menuItems = [
     category: "stocks",
   },
   {
-    text: "Watchlist",
-    icon: <TimelineIcon />,
-    path: "/watchlist",
+    text: "Trading Signals",
+    icon: <TrendingUpIcon />,
+    path: "/trading-signals",
     category: "stocks",
   },
   {
@@ -212,6 +214,12 @@ const menuItems = [
   },
 
   // Tools Section
+  {
+    text: "Watchlist",
+    icon: <TimelineIcon />,
+    path: "/watchlist",
+    category: "tools",
+  },
   {
     text: "Real-Time Data",
     icon: <PlayArrow />,
@@ -321,8 +329,12 @@ function App() {
   };
 
   const handleNavigation = (path) => {
-    // All features are now available - no premium restrictions
-    navigate(path);
+    // Handle Dashboard access - redirect to market if not authenticated
+    if (path === "/dashboard" && !isAuthenticated) {
+      navigate("/market");
+    } else {
+      navigate(path);
+    }
     if (isMobile) {
       setMobileOpen(false);
     }
@@ -335,13 +347,21 @@ function App() {
     }));
   };
 
-  const groupedMenuItems = menuItems.reduce((acc, item) => {
-    if (!acc[item.category]) {
-      acc[item.category] = [];
-    }
-    acc[item.category].push(item);
-    return acc;
-  }, {});
+  const groupedMenuItems = menuItems
+    .filter(item => {
+      // Hide Dashboard menu item if user is not authenticated
+      if (item.path === "/dashboard" && !isAuthenticated) {
+        return false;
+      }
+      return true;
+    })
+    .reduce((acc, item) => {
+      if (!acc[item.category]) {
+        acc[item.category] = [];
+      }
+      acc[item.category].push(item);
+      return acc;
+    }, {});
 
   const sectionTitles = {
     main: "Dashboard",
@@ -625,7 +645,7 @@ function App() {
         <Toolbar />
         <Container maxWidth="xl">
           <Routes>
-            <Route path="/" element={<MarketOverview />} />
+            <Route path="/" element={<RootRedirect />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/realtime" element={<ProtectedRoute><RealTimeDashboard /></ProtectedRoute>} />
             <Route path="/portfolio" element={<ProtectedRoute><PortfolioHoldings /></ProtectedRoute>} />
@@ -668,6 +688,7 @@ function App() {
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment/social" element={<SentimentAnalysis />} />
             <Route path="/sentiment/news" element={<NewsAnalysis />} />
+            <Route path="/sentiment/analysts" element={<AnalystInsights />} />
             <Route path="/tools/patterns" element={<PatternRecognition />} />
             <Route path="/tools/ai" element={<AIAssistant />} />
           </Routes>

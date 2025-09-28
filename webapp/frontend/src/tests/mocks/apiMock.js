@@ -455,7 +455,28 @@ const createMockApiFunction = (name) => vi.fn().mockImplementation(async (..._ar
 // Default export mock
 const mockApi = {
   // Core HTTP methods
-  get: vi.fn().mockResolvedValue({ data: {} }),
+  get: vi.fn().mockImplementation((url) => {
+    // Handle signals API requests
+    if (url.includes('/api/signals/')) {
+      const symbol = url.split('/api/signals/')[1].split('?')[0];
+      return Promise.resolve({
+        data: {
+          success: true,
+          data: [
+            {
+              symbol: symbol,
+              signal: ['BUY', 'SELL', 'HOLD'][Math.floor(Math.random() * 3)],
+              confidence: 0.7 + Math.random() * 0.3,
+              date: new Date().toISOString().split('T')[0],
+              current_price: 100 + Math.random() * 100,
+            }
+          ]
+        }
+      });
+    }
+    // Default response for other requests
+    return Promise.resolve({ data: {} });
+  }),
   post: vi.fn().mockResolvedValue({ data: {} }),
   put: vi.fn().mockResolvedValue({ data: {} }),
   delete: vi.fn().mockResolvedValue({ data: {} }),

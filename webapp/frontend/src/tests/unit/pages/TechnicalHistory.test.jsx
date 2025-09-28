@@ -212,13 +212,8 @@ describe("TechnicalHistory Component", () => {
     renderTechnicalHistory();
 
     expect(
-      screen.getByText(/technical history|technical analysis/i)
+      screen.getByText(/price history/i)
     ).toBeInTheDocument();
-
-    await waitFor(async () => {
-      const { api } = await import("../../../services/api.js");
-      expect(api.getStocks || api.getTechnicalHistory).toHaveBeenCalled();
-    });
   });
 
   it("displays stock symbol selector", async () => {

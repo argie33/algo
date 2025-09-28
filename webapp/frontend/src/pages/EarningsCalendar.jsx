@@ -159,6 +159,22 @@ function EarningsCalendar() {
     staleTime: 60000,
   });
 
+  // Revenue Estimates fetch (YFinance data)
+  const {
+    data: revenueEstimatesData,
+    isLoading: revenueEstimatesLoading,
+    error: revenueEstimatesError,
+  } = useQuery({
+    queryKey: ["revenueEstimates", page, rowsPerPage],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE}/api/analysts/revenue-estimates`);
+      if (!response.ok) throw new Error("Failed to fetch revenue estimates");
+      return response.json();
+    },
+    enabled: activeTab === 5,
+    refetchInterval: 300000,
+  });
+
   // Earnings Metrics fetch
   const {
     data: earningsMetricsData,
@@ -177,7 +193,7 @@ function EarningsCalendar() {
       if (!response.ok) throw new Error("Failed to fetch earnings metrics");
       return response.json();
     },
-    enabled: activeTab === 5 && !!epsSymbol,
+    enabled: activeTab === 6 && !!epsSymbol,
     staleTime: 60000,
   });
 
@@ -236,7 +252,7 @@ function EarningsCalendar() {
           </TableRow>
         </TableHead>
         <TableBody>
-          {calendarData?.data?.data?.map((event, index) => (
+          {(calendarData?.data?.data ?? calendarData?.data ?? [])?.map((event, index) => (
             <TableRow key={`${event.symbol}-${index}`} hover>
               <TableCell>
                 <Typography variant="body2" fontWeight="bold">
@@ -455,13 +471,23 @@ function EarningsCalendar() {
     </Card>
   );
 
+  const formatCurrencyValue = (value) => {
+    if (!value) return 'N/A';
+    const num = parseFloat(value);
+    if (num >= 1e9) return `$${(num / 1e9).toFixed(1)}B`;
+    if (num >= 1e6) return `$${(num / 1e6).toFixed(1)}M`;
+    if (num >= 1e3) return `$${(num / 1e3).toFixed(1)}K`;
+    return `$${num.toFixed(2)}`;
+  };
+
   const isLoading =
     calendarLoading ||
     (activeTab === 1 && estimatesLoading) ||
     (activeTab === 2 && historyLoading) ||
     (activeTab === 3 && epsRevisionsLoading) ||
     (activeTab === 4 && epsTrendLoading) ||
-    (activeTab === 5 && earningsMetricsLoading);
+    (activeTab === 5 && revenueEstimatesLoading) ||
+    (activeTab === 6 && earningsMetricsLoading);
 
   if (isLoading && !calendarData && !estimatesData && !historyData) {
     return (
@@ -542,7 +568,8 @@ function EarningsCalendar() {
           <Tab value={2} label="Earnings History" icon={<Analytics />} />
           <Tab value={3} label="EPS Revisions" icon={<TrendingUp />} />
           <Tab value={4} label="EPS Trend" icon={<TrendingDown />} />
-          <Tab value={5} label="Earnings Metrics" icon={<HorizontalRule />} />
+          <Tab value={5} label="Revenue Estimates" icon={<AttachMoney />} />
+          <Tab value={6} label="Earnings Metrics" icon={<HorizontalRule />} />
         </Tabs>
       </Box>
 
@@ -765,6 +792,93 @@ function EarningsCalendar() {
           {activeTab === 5 && (
             <>
               <Typography variant="h6" gutterBottom>
+                Revenue Estimates (YFinance Data)
+              </Typography>
+              {revenueEstimatesLoading ? (
+                <Box display="flex" justifyContent="center" my={3}>
+                  <CircularProgress size={28} />
+                </Box>
+              ) : revenueEstimatesError ? (
+                <Alert severity="error">
+                  Failed to load revenue estimates: {revenueEstimatesError.message}
+                </Alert>
+              ) : revenueEstimatesData?.data?.length ? (
+                <TableContainer component={Paper} sx={{ mt: 2 }}>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: "grey.50" }}>
+                        <TableCell>Symbol</TableCell>
+                        <TableCell>Period</TableCell>
+                        <TableCell align="right">Avg Estimate</TableCell>
+                        <TableCell align="right">Low Estimate</TableCell>
+                        <TableCell align="right">High Estimate</TableCell>
+                        <TableCell align="right">Analysts</TableCell>
+                        <TableCell align="right">Growth</TableCell>
+                        <TableCell align="right">Fetched At</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(revenueEstimatesData.data || []).map((estimate, idx) => (
+                        <TableRow key={`${estimate.symbol}-${estimate.period}-${idx}`} hover>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">
+                              {estimate.symbol}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={estimate.period}
+                              size="small"
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2" fontWeight="bold">
+                              {formatCurrencyValue(estimate.avg_estimate)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatCurrencyValue(estimate.low_estimate)}
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatCurrencyValue(estimate.high_estimate)}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2">
+                              {estimate.number_of_analysts}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: estimate.growth >= 0 ? "success.main" : "error.main",
+                                fontWeight: "medium"
+                              }}
+                            >
+                              {estimate.growth ? `${(estimate.growth * 100).toFixed(1)}%` : 'N/A'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2" color="text.secondary">
+                              {estimate.fetched_at ? new Date(estimate.fetched_at).toLocaleString() : 'N/A'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography variant="body2" color="text.secondary" mt={2}>
+                  No revenue estimates data available.
+                </Typography>
+              )}
+            </>
+          )}
+          {activeTab === 6 && (
+            <>
+              <Typography variant="h6" gutterBottom>
                 Earnings Metrics Lookup
               </Typography>
               <Box display="flex" alignItems="center" gap={2} mb={2}>
@@ -907,7 +1021,9 @@ function EarningsCalendar() {
                       ? epsRevisionsData?.pagination?.total || 0
                       : activeTab === 4
                         ? epsTrendData?.pagination?.total || 0
-                        : earningsMetricsData?.pagination?.total || 0
+                        : activeTab === 5
+                          ? revenueEstimatesData?.count || 0
+                          : earningsMetricsData?.pagination?.total || 0
             }
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}

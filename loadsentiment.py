@@ -375,10 +375,10 @@ class SocialSentimentCollector:
 
         except Exception as e:
             logging.warning(f"Error collecting Google Trends for {self.symbol}: {e}")
-            # Fallback to mock data
-            data["search_volume_index"] = np.random.randint(0, 50)
-            data["search_trend_7d"] = np.random.normal(0.0, 0.05)
-            data["search_trend_30d"] = np.random.normal(0.0, 0.1)
+            # Set default values when Google Trends is unavailable
+            data["search_volume_index"] = 0
+            data["search_trend_7d"] = 0.0
+            data["search_trend_30d"] = 0.0
 
         return data
 

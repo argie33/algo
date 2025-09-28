@@ -10,13 +10,18 @@ import {
   CircularProgress,
   Container,
   Divider,
+  FormControl,
   Grid,
+  InputLabel,
   LinearProgress,
+  MenuItem,
   Paper,
+  Select,
   TextField,
   Typography,
   alpha,
   useTheme,
+  Tooltip,
 } from "@mui/material";
 import {
   ExpandMore,
@@ -25,11 +30,107 @@ import {
   Assessment,
   Speed,
   Psychology,
-  Groups,
   Stars,
   AccountBalance,
   Security,
+  ShowChart,
+  SignalCellularAlt,
 } from "@mui/icons-material";
+
+// Trading Signal Component
+const TradingSignal = ({ signal, confidence = 0.75, size = "medium", showConfidence = false }) => {
+  const theme = useTheme();
+
+  const getSignalConfig = (signalType) => {
+    switch (signalType?.toUpperCase()) {
+      case 'BUY':
+        return {
+          color: theme.palette.success.main,
+          bgColor: alpha(theme.palette.success.main, 0.1),
+          icon: <TrendingUp sx={{ fontSize: size === 'small' ? 16 : 20 }} />,
+          label: 'BUY',
+          textColor: theme.palette.success.dark
+        };
+      case 'SELL':
+        return {
+          color: theme.palette.error.main,
+          bgColor: alpha(theme.palette.error.main, 0.1),
+          icon: <TrendingDown sx={{ fontSize: size === 'small' ? 16 : 20 }} />,
+          label: 'SELL',
+          textColor: theme.palette.error.dark
+        };
+      case 'HOLD':
+        return {
+          color: theme.palette.warning.main,
+          bgColor: alpha(theme.palette.warning.main, 0.1),
+          icon: <ShowChart sx={{ fontSize: size === 'small' ? 16 : 20 }} />,
+          label: 'HOLD',
+          textColor: theme.palette.warning.dark
+        };
+      default:
+        return {
+          color: theme.palette.grey[500],
+          bgColor: alpha(theme.palette.grey[500], 0.1),
+          icon: <SignalCellularAlt sx={{ fontSize: size === 'small' ? 16 : 20 }} />,
+          label: 'N/A',
+          textColor: theme.palette.grey[600]
+        };
+    }
+  };
+
+  const config = getSignalConfig(signal);
+  const confidencePercent = Math.round(confidence * 100);
+
+  return (
+    <Tooltip title={showConfidence ? `Signal: ${config.label} (${confidencePercent}% confidence)` : `Trading Signal: ${config.label}`}>
+      <Box
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 0.5,
+          px: size === 'small' ? 1 : 1.5,
+          py: size === 'small' ? 0.25 : 0.5,
+          borderRadius: 2,
+          backgroundColor: config.bgColor,
+          border: `1px solid ${alpha(config.color, 0.3)}`,
+          minWidth: size === 'small' ? 60 : 80,
+          justifyContent: 'center',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease-in-out',
+          '&:hover': {
+            backgroundColor: alpha(config.color, 0.15),
+            borderColor: alpha(config.color, 0.5),
+            transform: 'translateY(-1px)',
+          },
+        }}
+      >
+        {config.icon}
+        <Typography
+          variant={size === 'small' ? 'caption' : 'body2'}
+          sx={{
+            color: config.textColor,
+            fontWeight: 600,
+            fontSize: size === 'small' ? '0.65rem' : '0.75rem',
+          }}
+        >
+          {config.label}
+        </Typography>
+        {showConfidence && (
+          <Typography
+            variant="caption"
+            sx={{
+              color: alpha(config.textColor, 0.7),
+              fontSize: '0.6rem',
+              ml: 0.5,
+            }}
+          >
+            {confidencePercent}%
+          </Typography>
+        )}
+      </Box>
+    </Tooltip>
+  );
+};
 
 // Custom styled components
 const ScoreGauge = ({ score, size = 80, showGrade = false }) => {
@@ -111,11 +212,22 @@ const ScoresDashboard = () => {
   const [scores, setScores] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedStock, setExpandedStock] = useState(null);
+  const [signals, setSignals] = useState({});
+  const [signalsLoading, setSignalsLoading] = useState(false);
+  const [sortBy, setSortBy] = useState("score");
+  const [sortOrder, setSortOrder] = useState("desc");
 
   // Load all scores on component mount
   useEffect(() => {
     loadAllScores();
   }, []);
+
+  // Load signals for visible stocks
+  useEffect(() => {
+    if (scores.length > 0) {
+      loadSignalsForStocks(scores.slice(0, 20)); // Load signals for first 20 stocks
+    }
+  }, [scores]);
 
   const loadAllScores = async () => {
     setLoading(true);
@@ -140,10 +252,86 @@ const ScoresDashboard = () => {
     }
   };
 
-  // Filter scores based on search term
-  const filteredScores = scores.filter((stock) =>
-    stock.symbol.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Load trading signals for multiple stocks
+  const loadSignalsForStocks = async (stockList) => {
+    if (signalsLoading || stockList.length === 0) return;
+
+    setSignalsLoading(true);
+    try {
+      const { default: api } = await import("../services/api");
+
+      // Get latest signals for each stock symbol
+      const signalPromises = stockList.map(async (stock) => {
+        try {
+          const response = await api.get(`/signals/${stock.symbol}?timeframe=daily&limit=1`);
+          if (response?.data?.success && response.data.data?.length > 0) {
+            return {
+              symbol: stock.symbol,
+              signal: response.data.data[0].signal,
+              confidence: response.data.data[0].confidence || 0.75,
+              date: response.data.data[0].date
+            };
+          }
+        } catch (err) {
+          console.log(`No signal data for ${stock.symbol}`);
+        }
+        return null;
+      });
+
+      const signalResults = await Promise.all(signalPromises);
+      const signalsMap = {};
+
+      signalResults.forEach(result => {
+        if (result) {
+          signalsMap[result.symbol] = result;
+        }
+      });
+
+      setSignals(prev => ({ ...prev, ...signalsMap }));
+    } catch (error) {
+      console.error("Error loading signals:", error);
+    } finally {
+      setSignalsLoading(false);
+    }
+  };
+
+  // Filter and sort scores based on search term and sort options
+  const filteredAndSortedScores = scores
+    .filter((stock) => {
+      // Search term filter
+      return stock.symbol.toLowerCase().includes(searchTerm.toLowerCase());
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case "score":
+          comparison = b.compositeScore - a.compositeScore;
+          break;
+        case "symbol":
+          comparison = a.symbol.localeCompare(b.symbol);
+          break;
+        case "price":
+          comparison = b.currentPrice - a.currentPrice;
+          break;
+        case "signal": {
+          const aSignal = signals[a.symbol]?.signal || "None";
+          const bSignal = signals[b.symbol]?.signal || "None";
+          comparison = aSignal.localeCompare(bSignal);
+          break;
+        }
+        case "confidence": {
+          const aConfidence = signals[a.symbol]?.confidence || 0;
+          const bConfidence = signals[b.symbol]?.confidence || 0;
+          comparison = bConfidence - aConfidence;
+          break;
+        }
+        default:
+          comparison = b.compositeScore - a.compositeScore;
+      }
+
+      return sortOrder === "desc" ? comparison : -comparison;
+    });
 
   const handleAccordionChange = (symbol) => (event, isExpanded) => {
     setExpandedStock(isExpanded ? symbol : null);
@@ -217,16 +405,43 @@ const ScoresDashboard = () => {
         </Box>
       </Box>
 
-      {/* Search */}
-      <Box sx={{ mb: 3 }}>
+      {/* Search and Filter Controls */}
+      <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
         <TextField
-          fullWidth
           variant="outlined"
           placeholder="Search stocks by symbol..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ maxWidth: 400 }}
+          sx={{ minWidth: 250 }}
         />
+
+
+        <FormControl variant="outlined" sx={{ minWidth: 120 }}>
+          <InputLabel>Sort By</InputLabel>
+          <Select
+            value={sortBy}
+            label="Sort By"
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <MenuItem value="score">Score</MenuItem>
+            <MenuItem value="symbol">Symbol</MenuItem>
+            <MenuItem value="price">Price</MenuItem>
+            <MenuItem value="signal">Signal</MenuItem>
+            <MenuItem value="confidence">Confidence</MenuItem>
+          </Select>
+        </FormControl>
+
+        <FormControl variant="outlined" sx={{ minWidth: 100 }}>
+          <InputLabel>Order</InputLabel>
+          <Select
+            value={sortOrder}
+            label="Order"
+            onChange={(e) => setSortOrder(e.target.value)}
+          >
+            <MenuItem value="desc">High to Low</MenuItem>
+            <MenuItem value="asc">Low to High</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
 
       {/* Summary Stats */}
@@ -234,7 +449,7 @@ const ScoresDashboard = () => {
         <Grid item xs={12} md={3}>
           <Paper sx={{ p: 2, textAlign: "center" }}>
             <Typography variant="h4" color="primary" fontWeight={700}>
-              {filteredScores.length}
+              {filteredAndSortedScores.length}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Total Stocks
@@ -244,7 +459,7 @@ const ScoresDashboard = () => {
         <Grid item xs={12} md={3}>
           <Paper sx={{ p: 2, textAlign: "center" }}>
             <Typography variant="h4" color="success.main" fontWeight={700}>
-              {filteredScores.length > 0 ? Math.max(...filteredScores.map(s => s.compositeScore)).toFixed(1) : 0}
+              {filteredAndSortedScores.length > 0 ? Math.max(...filteredAndSortedScores.map(s => s.compositeScore)).toFixed(1) : 0}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Top Score
@@ -254,7 +469,7 @@ const ScoresDashboard = () => {
         <Grid item xs={12} md={3}>
           <Paper sx={{ p: 2, textAlign: "center" }}>
             <Typography variant="h4" color="info.main" fontWeight={700}>
-              {filteredScores.length > 0 ? (filteredScores.reduce((sum, s) => sum + s.compositeScore, 0) / filteredScores.length).toFixed(1) : 0}
+              {filteredAndSortedScores.length > 0 ? (filteredAndSortedScores.reduce((sum, s) => sum + s.compositeScore, 0) / filteredAndSortedScores.length).toFixed(1) : 0}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Average Score
@@ -264,7 +479,7 @@ const ScoresDashboard = () => {
         <Grid item xs={12} md={3}>
           <Paper sx={{ p: 2, textAlign: "center" }}>
             <Typography variant="h4" color="warning.main" fontWeight={700}>
-              {filteredScores.filter(s => s.compositeScore >= 80).length}
+              {filteredAndSortedScores.filter(s => s.compositeScore >= 80).length}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               High Quality (80+)
@@ -275,10 +490,10 @@ const ScoresDashboard = () => {
 
       {/* Stocks List */}
       <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
-        All Stocks ({filteredScores.length})
+        All Stocks ({filteredAndSortedScores.length})
       </Typography>
 
-      {filteredScores.length === 0 ? (
+      {filteredAndSortedScores.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: "center" }}>
           <Typography variant="h6" color="text.secondary">
             No stocks found
@@ -286,7 +501,7 @@ const ScoresDashboard = () => {
         </Paper>
       ) : (
         <Box>
-          {filteredScores.map((stock) => (
+          {filteredAndSortedScores.map((stock) => (
             <Accordion
               key={stock.symbol}
               expanded={expandedStock === stock.symbol}
@@ -298,10 +513,19 @@ const ScoresDashboard = () => {
                   <Grid item xs={12} sm={3}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <ScoreGauge score={Math.round(stock.compositeScore)} size={70} />
-                      <Box>
-                        <Typography variant="h5" fontWeight={700}>
-                          {stock.symbol}
-                        </Typography>
+                      <Box sx={{ flex: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                          <Typography variant="h5" fontWeight={700}>
+                            {stock.symbol}
+                          </Typography>
+                          {signals[stock.symbol] && (
+                            <TradingSignal
+                              signal={signals[stock.symbol].signal}
+                              confidence={signals[stock.symbol].confidence}
+                              size="small"
+                            />
+                          )}
+                        </Box>
                         <Typography variant="h6" color="primary" fontWeight={600}>
                           Score: {stock.compositeScore.toFixed(1)}
                         </Typography>
@@ -366,6 +590,11 @@ const ScoresDashboard = () => {
                       <Typography variant="body2" color="text.secondary">
                         Volume: {(stock.volume / 1e6).toFixed(1)}M
                       </Typography>
+                      {signals[stock.symbol] && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          Signal: {new Date(signals[stock.symbol].date).toLocaleDateString()}
+                        </Typography>
+                      )}
                       <Typography variant="caption" color="text.secondary">
                         Updated: {new Date(stock.lastUpdated).toLocaleDateString()}
                       </Typography>
@@ -557,6 +786,7 @@ const ScoresDashboard = () => {
           ))}
         </Box>
       )}
+
     </Container>
   );
 };

@@ -46,12 +46,12 @@ import {
   Timeline,
   Search,
   Clear,
-  ShowChart,
   HorizontalRule,
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
 import { getApiConfig } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
+import SignalPerformanceTracker from "../components/SignalPerformanceTracker";
 
 // Use console logger for now
 const logger = {
@@ -89,7 +89,6 @@ function TradingSignals() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [showRecentOnly, setShowRecentOnly] = useState(false); // Changed to false to show all data by default
-  const [showHistoricalView, setShowHistoricalView] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState(null);
   const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState("");
@@ -128,6 +127,7 @@ function TradingSignals() {
         if (signalType !== "all") {
           params.append("signal_type", signalType);
         }
+        params.append("timeframe", timeframe);
         params.append("page", page + 1);
         params.append("limit", rowsPerPage);
         if (symbolFilter) {
@@ -136,7 +136,7 @@ function TradingSignals() {
         if (showRecentOnly) {
           params.append("latest_only", "true");
         }
-        const url = `${API_BASE}/api/signals/${timeframe}?${params}`;
+        const url = `${API_BASE}/api/signals?${params}`;
         logger.info("fetchTradingSignals - Request started", {
           url,
           signalType,
@@ -236,7 +236,7 @@ function TradingSignals() {
       if (!selectedSymbol) return null;
       try {
         const response = await fetch(
-          `${API_BASE}/api/signals/daily?symbol=${selectedSymbol}&limit=50`
+          `${API_BASE}/api/signals?timeframe=daily&symbol=${selectedSymbol}&limit=50`
         );
         if (!response.ok) throw new Error("Failed to fetch historical data");
         return await response.json();
@@ -555,15 +555,6 @@ function TradingSignals() {
         justifyContent="space-between"
         mb={4}
       >
-        <Box display="flex" gap={2}>
-          <Button
-            variant="outlined"
-            startIcon={<ShowChart />}
-            onClick={() => setShowHistoricalView(!showHistoricalView)}
-          >
-            {showHistoricalView ? "Simple View" : "Advanced View"}
-          </Button>
-        </Box>
       </Box>
 
       {/* Enhanced Performance Summary */}
@@ -698,15 +689,6 @@ function TradingSignals() {
                 label="Latest Only"
                 sx={{ mb: 1 }}
               />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showHistoricalView}
-                    onChange={(e) => setShowHistoricalView(e.target.checked)}
-                  />
-                }
-                label="Historical View"
-              />
             </CardContent>
           </Card>
         </Grid>
@@ -718,7 +700,7 @@ function TradingSignals() {
               error={{
                 ...signalsError,
                 context: {
-                  endpoint: `${API_BASE}/api/signals/${timeframe}`,
+                  endpoint: `${API_BASE}/api/signals?timeframe=${timeframe}`,
                   debugEndpoint: `${API_BASE}/api/trading/debug`,
                   filters: { signalType, showRecentOnly, timeframe },
                   component: "TradingSignals",
@@ -738,7 +720,7 @@ function TradingSignals() {
                 error={{
                   message: "No trading signals data found",
                   context: {
-                    endpoint: `${API_BASE}/api/signals/${timeframe}`,
+                    endpoint: `${API_BASE}/api/signals?timeframe=${timeframe}`,
                     filters: { signalType, showRecentOnly },
                     response: signalsData,
                   },
@@ -769,6 +751,19 @@ function TradingSignals() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Signal Performance Tracking */}
+      {filteredSignals?.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
+            Signal Performance Tracking
+          </Typography>
+          <SignalPerformanceTracker
+            symbols={filteredSignals.map(signal => signal.symbol)}
+            timeframe="7d"
+          />
+        </Box>
+      )}
 
       {/* Historical Data Dialog */}
       <Dialog

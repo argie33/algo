@@ -220,8 +220,9 @@ describe("Dashboard Page", () => {
       await waitFor(() => {
         // Component should render without crashing
         expect(document.body.textContent).toBeTruthy();
-        // Should still show the dashboard title
-        expect(screen.getByText(/ProTrade Analytics/i)).toBeTruthy();
+        // Should still show the dashboard title (handle multiple instances)
+        const titleElements = screen.getAllByText(/ProTrade Analytics/i);
+        expect(titleElements.length).toBeGreaterThan(0);
       });
     });
   });

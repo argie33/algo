@@ -28,6 +28,13 @@ vi.mock("../../services/api", () => ({
   getApiKeys: vi.fn(),
   testApiConnection: vi.fn(),
   importPortfolioFromBroker: vi.fn(),
+  getPortfolioData: vi.fn(),
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
 }));
 
 // Mock useAuth hook
@@ -70,6 +77,30 @@ const TestWrapper = ({ children }) => {
 describe("API Key and Portfolio Import Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Mock Portfolio API functions
+    api.getPortfolioData.mockResolvedValue({
+      data: {
+        holdings: [],
+        summary: {
+          totalValue: 0,
+          totalPnL: 0,
+          totalPnLPercent: 0,
+        },
+      },
+    });
+
+    // Mock signals API
+    api.default.get.mockImplementation((url) => {
+      if (url.includes('/api/signals/')) {
+        return Promise.resolve({
+          data: {
+            data: [],
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
 
     // Mock successful API responses by default with immediate resolution
     global.fetch.mockImplementation(async (url) => {
@@ -419,7 +450,6 @@ describe("API Key and Portfolio Import Integration", () => {
       api.getApiKeys.mockResolvedValue({
         apiKeys: [
           { brokerName: "alpaca", status: "active" },
-          { brokerName: "robinhood", status: "active" },
           { brokerName: "unsupported-broker", status: "active" },
         ],
       });
@@ -434,7 +464,6 @@ describe("API Key and Portfolio Import Integration", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Alpaca")).toBeInTheDocument();
-        expect(screen.getByText("Robinhood")).toBeInTheDocument();
         expect(
           screen.queryByText("Unsupported-broker")
         ).not.toBeInTheDocument();
