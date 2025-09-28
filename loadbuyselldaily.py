@@ -199,12 +199,16 @@ def fetch_symbol_from_db(symbol, timeframe):
         sql = f"""
           SELECT
             p.date, p.open, p.high, p.low, p.close, p.volume,
-            t.rsi, t.atr, t.adx, t.plus_di, t.minus_di,
-            t.sma_50,
-            t.pivot_high,
-            t.pivot_low
+            COALESCE(t.rsi, 50) as rsi,
+            COALESCE(t.atr, 0) as atr,
+            COALESCE(t.adx, 0) as adx,
+            COALESCE(t.plus_di, 0) as plus_di,
+            COALESCE(t.minus_di, 0) as minus_di,
+            COALESCE(t.sma_50, p.close) as sma_50,
+            COALESCE(t.pivot_high, 0) as pivot_high,
+            COALESCE(t.pivot_low, 0) as pivot_low
           FROM {price_table} p
-          JOIN {tech_table}  t
+          LEFT JOIN {tech_table}  t
             ON p.symbol = t.symbol AND p.date = t.date
           WHERE p.symbol = %s
           ORDER BY p.date ASC;
@@ -215,6 +219,25 @@ def fetch_symbol_from_db(symbol, timeframe):
         logging.info(
             f"[fetch_symbol_from_db] Got {len(rows)} rows for {symbol} {timeframe}"
         )
+    except psycopg2.Error as e:
+        logging.warning(f"[fetch_symbol_from_db] Technical data table issue for {symbol} {timeframe}: {e}")
+        # Fallback query with only price data
+        try:
+            sql = f"""
+              SELECT
+                date, open, high, low, close, volume,
+                50 as rsi, 0 as atr, 0 as adx, 0 as plus_di, 0 as minus_di,
+                close as sma_50, 0 as pivot_high, 0 as pivot_low
+              FROM {price_table}
+              WHERE symbol = %s
+              ORDER BY date ASC;
+            """
+            cur.execute(sql, (symbol,))
+            rows = cur.fetchall()
+            logging.info(f"[fetch_symbol_from_db] Fallback query got {len(rows)} rows for {symbol} {timeframe}")
+        except Exception as fallback_e:
+            logging.error(f"[fetch_symbol_from_db] Fallback SQL error for {symbol} {timeframe}: {fallback_e}")
+            rows = []
     except Exception as e:
         logging.error(f"[fetch_symbol_from_db] SQL error for {symbol} {timeframe}: {e}")
         rows = []

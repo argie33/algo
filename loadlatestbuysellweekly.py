@@ -322,45 +322,19 @@ def process_symbol_incremental(cur, symbol, timeframe="weekly"):
         logging.info(f"{symbol}: Weekly full history processing from {start_date}")
 
     # Fetch weekly price and technical data
-    try:
-        cur.execute(
-            """
-            SELECT
-                p.symbol, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume,
-                COALESCE(t.rsi, 0) as rsi,
-                COALESCE(t.macd, 0) as macd,
-                COALESCE(t.signal_line, 0) as signal_line,
-                COALESCE(t.macd_histogram, 0) as macd_histogram,
-                COALESCE(t.bb_upper, 0) as bb_upper,
-                COALESCE(t.bb_lower, 0) as bb_lower,
-                COALESCE(t.stoch_k, 0) as stoch_k,
-                COALESCE(t.stoch_d, 0) as stoch_d,
-                COALESCE(t.williams_r, 0) as williams_r,
-                COALESCE(t.cci, 0) as cci,
-                COALESCE(t.adx, 0) as adx
-            FROM price_weekly p
-            LEFT JOIN technical_data_weekly t ON p.symbol = t.symbol AND p.date = t.date
-            WHERE p.symbol = %s AND p.date >= %s
-            ORDER BY p.date
-        """,
-            (symbol, start_date),
-        )
-    except psycopg2.Error as e:
-        # If technical_data_weekly table doesn't exist, use price data only
-        logging.warning(f"Weekly technical data table issue for {symbol}: {e}")
-        cur.execute(
-            """
-            SELECT
-                symbol, date, open, high, low, close, adj_close, volume,
-                0 as rsi, 0 as macd, 0 as signal_line, 0 as macd_histogram,
-                0 as bb_upper, 0 as bb_lower, 0 as stoch_k, 0 as stoch_d,
-                0 as williams_r, 0 as cci, 0 as adx
-            FROM price_weekly
-            WHERE symbol = %s AND date >= %s
-            ORDER BY date
-        """,
-            (symbol, start_date),
-        )
+    cur.execute(
+        """
+        SELECT 
+            p.symbol, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume,
+            t.rsi, t.macd, t.signal_line, t.macd_histogram, t.bb_upper, t.bb_lower,
+            t.stoch_k, t.stoch_d, t.williams_r, t.cci, t.adx
+        FROM price_weekly p
+        LEFT JOIN technical_data_weekly t ON p.symbol = t.symbol AND p.date = t.date
+        WHERE p.symbol = %s AND p.date >= %s
+        ORDER BY p.date
+    """,
+        (symbol, start_date),
+    )
 
     price_tech_data = cur.fetchall()
 
