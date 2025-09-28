@@ -6,6 +6,12 @@
 const request = require("supertest");
 const express = require("express");
 
+// Mock database queries
+const mockQuery = jest.fn();
+jest.mock("../../../utils/database", () => ({
+  query: mockQuery,
+}));
+
 // Create test app
 const app = express();
 app.use(express.json());
@@ -17,6 +23,40 @@ app.use("/api/commodities", commoditiesRouter);
 describe("Commodities Routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Setup default mock responses for database queries
+    mockQuery.mockImplementation((sql, params) => {
+      // Mock news queries
+      if (sql.includes("SELECT") && (sql.includes("news") || sql.includes("title"))) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: 1,
+              title: "Gold Prices Rise on Market Uncertainty",
+              summary: "Gold futures climbed as investors sought safe-haven assets",
+              source: "Commodity News Network",
+              publish_date: new Date().toISOString(),
+              category: "precious_metals",
+              sentiment_score: 0.2,
+              impact_score: 7.5
+            },
+            {
+              id: 2,
+              title: "Oil Inventory Report Shows Decline",
+              summary: "Crude oil inventories fell by 2.1 million barrels",
+              source: "Energy Weekly",
+              publish_date: new Date().toISOString(),
+              category: "energy",
+              sentiment_score: 0.5,
+              impact_score: 8.2
+            }
+          ]
+        });
+      }
+
+      // Default empty response
+      return Promise.resolve({ rows: [] });
+    });
   });
 
   describe("GET /api/commodities/health", () => {
@@ -426,7 +466,8 @@ describe("Commodities Routes", () => {
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
-        expect(Array.isArray(response.body.data)).toBe(true);
+        expect(response.body.data).toHaveProperty("articles");
+        expect(Array.isArray(response.body.data.articles)).toBe(true);
       }
     });
 
@@ -435,8 +476,8 @@ describe("Commodities Routes", () => {
 
       expect(response.status).toBe(200);
 
-      if (response.status === 200 && response.body.data?.length > 0) {
-        const newsItem = response.body.data[0];
+      if (response.status === 200 && response.body.data?.articles?.length > 0) {
+        const newsItem = response.body.data.articles[0];
         expect(newsItem).toHaveProperty("title");
         expect(newsItem).toHaveProperty("summary");
       }
@@ -462,8 +503,8 @@ describe("Commodities Routes", () => {
       expect(response.status).toBe(200);
 
       if (response.status === 200) {
-        if (response.body.data) {
-          expect(response.body.data.length).toBeLessThanOrEqual(5);
+        if (response.body.data && response.body.data.articles) {
+          expect(response.body.data.articles.length).toBeLessThanOrEqual(5);
         }
       }
     });
@@ -575,7 +616,9 @@ describe("Commodities Routes", () => {
       if (response.status === 200) {
         // Should use default limit
         expect(response.body.success).toBe(true);
-        expect(response.body.data.length).toBeGreaterThanOrEqual(0);
+        if (response.body.data && response.body.data.articles) {
+          expect(response.body.data.articles.length).toBeGreaterThanOrEqual(0);
+        }
       } else {
         // Endpoint may not exist or may return error - that's acceptable
         expect(response.body).toBeTruthy();
