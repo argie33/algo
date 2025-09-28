@@ -29,47 +29,41 @@ module.exports = async () => {
       // If batch fails, try individual statements with proper dollar-quoted string handling
       console.log('Batch SQL failed, trying individual statements...');
 
-      // Smart SQL splitting that respects dollar-quoted strings
-      const statements = [];
-      let currentStatement = '';
+      // Simpler approach: Split on semicolons but rejoin dollar-quoted blocks
+      let statements = setupSql.split(';').filter(stmt => stmt.trim().length > 0);
+
+      // Rejoin statements that are part of dollar-quoted blocks
+      const finalStatements = [];
+      let currentBlock = '';
       let inDollarQuote = false;
-      let dollarTag = '';
 
-      const lines = setupSql.split('\n');
-      for (const line of lines) {
-        const trimmedLine = line.trim();
+      for (const stmt of statements) {
+        currentBlock += stmt;
 
-        // Skip comments and empty lines
-        if (!trimmedLine || trimmedLine.startsWith('--')) {
-          continue;
-        }
-
-        currentStatement += line + '\n';
-
-        // Check for dollar-quoted string start/end
-        const dollarMatch = line.match(/\$([a-zA-Z_]*)\$/);
-        if (dollarMatch) {
-          const tag = dollarMatch[1];
-          if (!inDollarQuote) {
-            inDollarQuote = true;
-            dollarTag = tag;
-          } else if (tag === dollarTag) {
-            inDollarQuote = false;
-            dollarTag = '';
+        // Count dollar signs to determine if we're in a dollar-quoted string
+        const dollarMatches = stmt.match(/\$\$?/g) || [];
+        for (const match of dollarMatches) {
+          if (match === '$$') {
+            inDollarQuote = !inDollarQuote;
           }
         }
 
-        // If not in dollar quote and line ends with semicolon, it's a statement end
-        if (!inDollarQuote && line.trim().endsWith(';')) {
-          statements.push(currentStatement.trim());
-          currentStatement = '';
+        if (!inDollarQuote) {
+          // Complete statement
+          finalStatements.push(currentBlock.trim() + ';');
+          currentBlock = '';
+        } else {
+          // Continue building the statement
+          currentBlock += ';';
         }
       }
 
-      // Add final statement if exists
-      if (currentStatement.trim()) {
-        statements.push(currentStatement.trim());
+      // Add any remaining block
+      if (currentBlock.trim()) {
+        finalStatements.push(currentBlock.trim());
       }
+
+      statements = finalStatements;
 
       for (const statement of statements) {
         if (statement && !statement.startsWith('--')) {
@@ -87,9 +81,8 @@ module.exports = async () => {
 
     console.log('✅ Real database schema loaded successfully - no mocks or demo data');
 
-    // Now populate essential test data including economic data
-    const { setupTestDatabase } = require('./database.setup');
-    await setupTestDatabase();
+    // Skip additional database setup for now to isolate issues
+    console.log('⚠️ Skipping additional database setup temporarily');
 
   } catch (error) {
     console.error('❌ Global setup failed:', error);

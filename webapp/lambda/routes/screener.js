@@ -17,6 +17,13 @@ async function tableExists(tableName) {
       );
     `;
     const result = await query(tableCheckQuery, [tableName]);
+
+    // Handle case where query returns null (database error)
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.warn(`Table check query returned invalid result for ${tableName}`);
+      return false;
+    }
+
     return result.rows[0].exists;
   } catch (error) {
     console.warn(`Error checking table existence for ${tableName}:`, error);

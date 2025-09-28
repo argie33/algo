@@ -1,6 +1,12 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+let query;
+try {
+  ({ query } = require("../utils/database"));
+} catch (error) {
+  console.log("Database service not available in analytics routes:", error.message);
+  query = null;
+}
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -144,6 +150,15 @@ router.get("/overview", async (req, res) => {
 // Performance analytics endpoint
 router.get("/performance", async (req, res) => {
   try {
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Performance analytics service requires database connection"
+      });
+    }
+
     const userId = req.user ? req.user.sub : "anonymous";
     const { period = "1m", benchmark = "SPY" } = req.query;
 
@@ -382,6 +397,15 @@ router.get("/performance", async (req, res) => {
 // Risk analytics endpoint
 router.get("/risk", async (req, res) => {
   try {
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Risk analytics service requires database connection"
+      });
+    }
+
     const userId = req.user?.sub || "test-user-123";
     const { timeframe = "1m" } = req.query;
     console.log(
@@ -753,6 +777,15 @@ router.get("/correlation", async (req, res) => {
 // Asset allocation analytics endpoint
 router.get("/allocation", async (req, res) => {
   try {
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Asset allocation analytics service requires database connection"
+      });
+    }
+
     const userId = req.user ? req.user.sub : "anonymous";
     const { period = "current" } = req.query;
     console.log(

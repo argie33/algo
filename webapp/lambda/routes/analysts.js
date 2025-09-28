@@ -82,6 +82,68 @@ router.get("/upgrades", async (req, res) => {
   }
 });
 
+// GET /downgrades - Legacy endpoint for downgrades specifically (redirect to upgrades with filter)
+router.get("/downgrades", async (req, res) => {
+  try {
+    console.log("📉 Analyst downgrades endpoint called - real database data only");
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = (page - 1) * limit;
+
+    // Get real downgrade data from database
+    const downgradesQuery = `
+      SELECT
+        id, symbol, firm, action, from_grade, to_grade, date, details, analyst_name, fetched_at
+      FROM analyst_upgrade_downgrade
+      WHERE action ILIKE '%downgrade%' OR action ILIKE '%sell%' OR action ILIKE '%reduce%'
+      ORDER BY date DESC, fetched_at DESC
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await query(downgradesQuery, [limit, offset]);
+
+    if (!result) {
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed for downgrades"
+      });
+    }
+
+    // Count total downgrade records
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM analyst_upgrade_downgrade
+      WHERE action ILIKE '%downgrade%' OR action ILIKE '%sell%' OR action ILIKE '%reduce%'
+    `;
+    const countResult = await query(countQuery);
+    const total = parseInt(countResult?.rows[0]?.total) || 0;
+
+    res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page < Math.ceil(total / limit)
+      },
+      filter: "downgrade actions only",
+      source: "YFinance via loadanalystupgradedowngrade.py",
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Analyst downgrades error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch analyst downgrades",
+      details: error.message
+    });
+  }
+});
+
 // GET /revenue-estimates - Revenue estimates with analyst data from YFinance
 router.get("/revenue-estimates", async (req, res) => {
   try {

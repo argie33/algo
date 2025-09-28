@@ -12,7 +12,7 @@ jest.mock("crypto", () => mockCrypto);
 
 // Clear module cache to ensure logger uses the mock
 delete require.cache[require.resolve("../../../utils/logger")];
-const logger = require("../../../utils/logger");
+let logger; // Will be initialized in beforeEach
 
 describe("Logger", () => {
   let originalEnv;
@@ -20,6 +20,11 @@ describe("Logger", () => {
 
   beforeEach(() => {
     originalEnv = { ...process.env };
+
+    // Set LOG_LEVEL to DEBUG to ensure all logging works
+    process.env.LOG_LEVEL = "DEBUG";
+    process.env.NODE_ENV = "development"; // Use development mode for console output
+
     consoleSpy = jest.spyOn(console, "log").mockImplementation();
     jest.clearAllMocks();
     // Ensure mock is reset for each test
@@ -27,6 +32,9 @@ describe("Logger", () => {
 
     // Clear the logger module cache so it re-reads environment variables
     delete require.cache[require.resolve("../../../utils/logger")];
+
+    // Reinitialize logger with fresh environment
+    logger = require("../../../utils/logger");
   });
 
   afterEach(() => {

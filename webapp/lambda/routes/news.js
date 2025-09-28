@@ -2,7 +2,13 @@ const express = require("express");
 
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
-const { query } = require("../utils/database");
+let query;
+try {
+  ({ query } = require("../utils/database"));
+} catch (error) {
+  console.log("Database service not available in news routes:", error.message);
+  query = null;
+}
 const newsAnalyzer = require("../utils/newsAnalyzer");
 const sentimentEngine = require("../utils/sentimentEngine");
 
@@ -814,9 +820,18 @@ router.get("/feed", async (req, res) => {
       paramIndex++;
     }
 
+    // Check database availability
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "News service requires database connection"
+      });
+    }
+
     // Query news articles from database
     const newsQuery = `
-      SELECT 
+      SELECT
         id,
         headline,
         summary,
@@ -827,7 +842,7 @@ router.get("/feed", async (req, res) => {
         published_at,
         sentiment,
         relevance_score
-      FROM news 
+      FROM news
       WHERE published_at >= CURRENT_DATE - INTERVAL '7 days'
       ${categoryFilter}
       ORDER BY published_at DESC, relevance_score DESC
@@ -936,6 +951,15 @@ router.get("/economic-calendar", async (req, res) => {
       paramIndex++;
     }
 
+    // Check database availability
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Economic calendar service requires database connection"
+      });
+    }
+
     // Parse date range
     const days =
       date_range === "1d"
@@ -948,7 +972,7 @@ router.get("/economic-calendar", async (req, res) => {
 
     // Query economic events
     const eventsQuery = `
-        SELECT 
+        SELECT
           id,
           event_name,
           country,
@@ -961,8 +985,8 @@ router.get("/economic-calendar", async (req, res) => {
           impact,
           description,
           source
-        FROM economic_events 
-        WHERE event_time >= CURRENT_DATE 
+        FROM economic_events
+        WHERE event_time >= CURRENT_DATE
         AND event_time <= CURRENT_DATE + INTERVAL '${days} days'
         ${importanceFilter}
         ${countryFilter}
