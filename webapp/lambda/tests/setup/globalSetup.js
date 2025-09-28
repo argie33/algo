@@ -26,18 +26,55 @@ module.exports = async () => {
     try {
       await query(setupSql);
     } catch (error) {
-      // If batch fails, try individual statements
+      // If batch fails, try individual statements with proper dollar-quoted string handling
       console.log('Batch SQL failed, trying individual statements...');
-      const statements = setupSql.split(';').filter(stmt => {
-        const trimmed = stmt.trim();
-        return trimmed.length > 0 && !trimmed.startsWith('--');
-      });
+
+      // Smart SQL splitting that respects dollar-quoted strings
+      const statements = [];
+      let currentStatement = '';
+      let inDollarQuote = false;
+      let dollarTag = '';
+
+      const lines = setupSql.split('\n');
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+
+        // Skip comments and empty lines
+        if (!trimmedLine || trimmedLine.startsWith('--')) {
+          continue;
+        }
+
+        currentStatement += line + '\n';
+
+        // Check for dollar-quoted string start/end
+        const dollarMatch = line.match(/\$([a-zA-Z_]*)\$/);
+        if (dollarMatch) {
+          const tag = dollarMatch[1];
+          if (!inDollarQuote) {
+            inDollarQuote = true;
+            dollarTag = tag;
+          } else if (tag === dollarTag) {
+            inDollarQuote = false;
+            dollarTag = '';
+          }
+        }
+
+        // If not in dollar quote and line ends with semicolon, it's a statement end
+        if (!inDollarQuote && line.trim().endsWith(';')) {
+          statements.push(currentStatement.trim());
+          currentStatement = '';
+        }
+      }
+
+      // Add final statement if exists
+      if (currentStatement.trim()) {
+        statements.push(currentStatement.trim());
+      }
 
       for (const statement of statements) {
-        const trimmed = statement.trim();
-        if (trimmed && !trimmed.startsWith('--')) {
+        if (statement && !statement.startsWith('--')) {
           try {
-            await query(trimmed + ';');
+            await query(statement);
           } catch (err) {
             // Ignore table exists errors
             if (!err.message.includes('already exists') && !err.message.includes('duplicate key')) {
