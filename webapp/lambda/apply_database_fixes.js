@@ -1,4 +1,5 @@
 const { query } = require('./utils/database');
+
 const fs = require('fs').promises;
 
 async function applyDatabaseFixes() {

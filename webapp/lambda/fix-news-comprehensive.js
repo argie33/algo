@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 const fs = require('fs');
 
 console.log('🔧 Comprehensive fix for all news test failures...');

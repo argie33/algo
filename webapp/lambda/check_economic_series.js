@@ -1,5 +1,16 @@
 const { query } = require('./utils/database');
 
+function resolveSeriesId(input) {
+  if (!input) return input;
+  const SERIES_MAPPING = {
+    'GDP': 'GDPC1',
+    'CPI': 'CPIAUCSL',
+    'UNEMPLOYMENT': 'UNRATE',
+  };
+  const upperInput = input.toUpperCase();
+  return SERIES_MAPPING[upperInput] || input;
+}
+
 async function checkEconomicSeries() {
   try {
     console.log('🔍 Checking available economic series in database...');
@@ -16,17 +27,6 @@ async function checkEconomicSeries() {
 
     // Test if GDP resolves correctly
     console.log('\n🔍 Testing series resolution:');
-    const SERIES_MAPPING = {
-      'GDP': 'GDPC1',
-      'CPI': 'CPIAUCSL',
-      'UNEMPLOYMENT': 'UNRATE',
-    };
-
-    function resolveSeriesId(input) {
-      if (!input) return input;
-      const upperInput = input.toUpperCase();
-      return SERIES_MAPPING[upperInput] || input;
-    }
 
     const testCases = ['GDP', 'CPI', 'UNRATE'];
     for (const testCase of testCases) {

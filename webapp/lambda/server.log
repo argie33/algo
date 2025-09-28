@@ -1,249 +1,35 @@
-
-> financial-dashboard-lambda@1.0.0 start
-> node index.js
-
 JWT verifier initialized successfully
 🚨 Alert System initialized
 🔍 Alert monitoring started
 🚨 Alert system integration initialized
 📊 Monitoring started
 🎛️ Live Data Manager initialized
-Financial Dashboard API server running on port 3001 (local mode)
-Health check: http://localhost:3001/health
-Stocks: http://localhost:3001/stocks
-Technical: http://localhost:3001/technical/daily
-🔌 WebSocket endpoint: ws://localhost:3001/ws
-Processing request: GET /health
-Endpoint does not require database connection
-Starting health check with database...
-Database not initialized, initializing now...
 Initializing database connection pool...
 Using database config from environment variables
 Database config loaded from environment: localhost:5432/stocks
-✅ Database connection pool initialized successfully
-::1 - - [26/Sep/2025:12:18:44 +0000] "GET /health HTTP/1.1" 200 345 "-" "curl/8.5.0"
-Processing request: GET /api/sentiment/analysis
-Initializing database connection...
-Database connection established successfully
-Database connection verified for database-dependent endpoint
-😊 Sentiment analysis endpoint accessed
-Request params: symbol=BRK.A, period=7d
-😊 Sentiment analysis requested for symbol: BRK.A, period: 7d
-🔍 Attempting sentiment query for BRK.A, period: 7 days
-📊 Query successful, got 0 rows
-📦 No data found, using mock sentiment data instead
-Sentiment data structure: [
-  {
-    "symbol": "BRK.A",
-    "date": "2025-09-26T12:18:52.465Z",
-    "recommendation_mean": 2.1,
-    "price_target_vs_current": 5.5,
-    "sentiment": 0.75,
-    "reddit_sentiment_score": 0.68,
-    "search_volume_index": 85,
-    "news_article_count": 152,
-    "title": "BRK.A Shows Strong Performance",
-    "source": "Financial News Today",
-    "published_at": "2025-09-26T12:18:52.465Z"
-  }
-]
-Number of sentiment data rows: 2
-Validation results: 0 invalid items out of 2 total items
-::1 - - [26/Sep/2025:12:18:52 +0000] "GET /api/sentiment/analysis?symbol=BRK.A HTTP/1.1" 200 744 "-" "curl/8.5.0"
-Processing request: GET /api/recommendations
-Database connection verified for database-dependent endpoint
-📊 Stock recommendations requested - symbol: all, category: all
-::1 - - [26/Sep/2025:12:19:26 +0000] "GET /api/recommendations HTTP/1.1" 200 2011 "-" "curl/8.5.0"
-Processing request: GET /api/recommendations/analysts/AAPL
-Database connection verified for database-dependent endpoint
-👨‍💼 Analyst coverage requested for AAPL
-::1 - - [26/Sep/2025:12:20:20 +0000] "GET /api/recommendations/analysts/AAPL HTTP/1.1" 200 2412 "-" "curl/8.5.0"
-Processing request: GET /api/orders/recent
-Database connection verified for database-dependent endpoint
-📋 Recent orders requested - limit: 10' OR '1'='1, days: 7, status: all
-Database query error: {
-  error: 'column o.status does not exist',
-  query: '\n' +
-    '      SELECT \n' +
-    '        o.*,\n' +
-    '        CASE \n' +
-    '          WHEN p.close IS NOT NULL THEN p.close\n' +
-    '          ...',
-  params: '2 parameters',
-  code: '42703'
+node:events:502
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/stocks/algo/webapp/lambda/node_modules/express/lib/application.js:635:24)
+    at Object.<anonymous> (/home/stocks/algo/webapp/lambda/server.js:301:7)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1944:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
 }
-Recent orders error: error: column o.status does not exist
-    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
-    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:1308:20)
-    at async /home/stocks/algo/webapp/lambda/routes/orders.js:1112:20 {
-  length: 107,
-  severity: 'ERROR',
-  code: '42703',
-  detail: undefined,
-  hint: undefined,
-  position: '316',
-  internalPosition: undefined,
-  internalQuery: undefined,
-  where: undefined,
-  schema: undefined,
-  table: undefined,
-  column: undefined,
-  dataType: undefined,
-  constraint: undefined,
-  file: 'parse_relation.c',
-  line: '3722',
-  routine: 'errorMissingColumn'
-}
-::1 - - [26/Sep/2025:12:21:58 +0000] "GET /api/orders/recent?limit=10%27%20OR%20%271%27=%271 HTTP/1.1" 200 221 "-" "curl/8.5.0"
-Processing request: GET /api/orders/recent
-Database connection verified for database-dependent endpoint
-📋 Recent orders requested - limit: 10, days: 7, status: all
-Database query error: {
-  error: 'column o.status does not exist',
-  query: '\n' +
-    '      SELECT \n' +
-    '        o.*,\n' +
-    '        CASE \n' +
-    '          WHEN p.close IS NOT NULL THEN p.close\n' +
-    '          ...',
-  params: '2 parameters',
-  code: '42703'
-}
-Recent orders error: error: column o.status does not exist
-    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
-    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:1308:20)
-    at async /home/stocks/algo/webapp/lambda/routes/orders.js:1112:20 {
-  length: 107,
-  severity: 'ERROR',
-  code: '42703',
-  detail: undefined,
-  hint: undefined,
-  position: '316',
-  internalPosition: undefined,
-  internalQuery: undefined,
-  where: undefined,
-  schema: undefined,
-  table: undefined,
-  column: undefined,
-  dataType: undefined,
-  constraint: undefined,
-  file: 'parse_relation.c',
-  line: '3722',
-  routine: 'errorMissingColumn'
-}
-::1 - - [26/Sep/2025:12:24:12 +0000] "GET /api/orders/recent?limit=10 HTTP/1.1" 200 221 "-" "curl/8.5.0"
-Processing request: GET /api/orders/recent
-Database connection verified for database-dependent endpoint
-📋 Recent orders requested - limit: 20, days: 7, status: all
-Database query error: {
-  error: 'column o.status does not exist',
-  query: '\n' +
-    '      SELECT \n' +
-    '        o.*,\n' +
-    '        CASE \n' +
-    '          WHEN p.close IS NOT NULL THEN p.close\n' +
-    '          ...',
-  params: '2 parameters',
-  code: '42703'
-}
-Recent orders error: error: column o.status does not exist
-    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
-    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:1308:20)
-    at async /home/stocks/algo/webapp/lambda/routes/orders.js:1112:20 {
-  length: 107,
-  severity: 'ERROR',
-  code: '42703',
-  detail: undefined,
-  hint: undefined,
-  position: '316',
-  internalPosition: undefined,
-  internalQuery: undefined,
-  where: undefined,
-  schema: undefined,
-  table: undefined,
-  column: undefined,
-  dataType: undefined,
-  constraint: undefined,
-  file: 'parse_relation.c',
-  line: '3722',
-  routine: 'errorMissingColumn'
-}
-::1 - - [26/Sep/2025:12:24:20 +0000] "GET /api/orders/recent HTTP/1.1" 200 221 "-" "curl/8.5.0"
-Processing request: GET /api/orders/1
-Database connection verified for database-dependent endpoint
-Order details request for user: dev_user, order: 1
-::1 - - [26/Sep/2025:12:29:13 +0000] "GET /api/orders/1 HTTP/1.1" 404 147 "-" "curl/8.5.0"
-Processing request: GET /api/orders/1
-Database connection verified for database-dependent endpoint
-Order details request for user: dev_user, order: 1
-::1 - - [26/Sep/2025:12:29:20 +0000] "GET /api/orders/1 HTTP/1.1" 404 147 "-" "curl/8.5.0"
-Processing request: DELETE /api/orders/test-order-123
-Database connection verified for database-dependent endpoint
-Delete order request for user: dev_user, order: test-order-123
-::1 - - [26/Sep/2025:12:31:43 +0000] "DELETE /api/orders/test-order-123 HTTP/1.1" 400 163 "-" "curl/8.5.0"
-Processing request: GET /scores/ping
-Database connection verified for database-dependent endpoint
-::1 - - [26/Sep/2025:17:08:01 +0000] "GET /scores/ping HTTP/1.1" 200 74 "-" "curl/8.5.0"
-Processing request: GET /scores
-Database connection verified for database-dependent endpoint
-📊 Scores endpoint called - using precomputed table
-📊 Scores query result: 1 rows from stock_scores table
-::1 - - [26/Sep/2025:17:08:12 +0000] "GET /scores?limit=1 HTTP/1.1" 200 686 "-" "curl/8.5.0"
-Processing request: GET /scores
-Database connection verified for database-dependent endpoint
-📊 Scores endpoint called - using precomputed table
-📊 Scores query result: 1 rows from stock_scores table
-::1 - - [26/Sep/2025:17:08:12 +0000] "GET /scores?limit=1 HTTP/1.1" 200 686 "-" "curl/8.5.0"
-Processing request: GET /scores/ping
-Database connection verified for database-dependent endpoint
-::1 - - [26/Sep/2025:17:52:51 +0000] "GET /scores/ping HTTP/1.1" 200 74 "-" "curl/8.5.0"
-Processing request: GET /scores
-Database connection verified for database-dependent endpoint
-📊 Scores endpoint called - using precomputed table
-📊 Scores query result: 2 rows from stock_scores table
-::1 - - [26/Sep/2025:17:52:57 +0000] "GET /scores?limit=2 HTTP/1.1" 200 1086 "-" "curl/8.5.0"
-Processing request: GET /api/orders/history
-Database connection verified for database-dependent endpoint
-📋 Order history requested for user: dev_user
-::1 - - [26/Sep/2025:18:13:23 +0000] "GET /api/orders/history HTTP/1.1" 200 139 "-" "curl/8.5.0"
-Processing request: GET /api/orders/recent
-Database connection verified for database-dependent endpoint
-📋 Recent orders requested - limit: 20, days: 7, status: all
-Database query error: {
-  error: 'column o.status does not exist',
-  query: '\n' +
-    '      SELECT \n' +
-    '        o.*,\n' +
-    '        CASE \n' +
-    '          WHEN p.close IS NOT NULL THEN p.close\n' +
-    '          ...',
-  params: '2 parameters',
-  code: '42703'
-}
-Recent orders error: error: column o.status does not exist
-    at /home/stocks/algo/webapp/lambda/node_modules/pg-pool/index.js:45:11
-    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at async query (/home/stocks/algo/webapp/lambda/utils/database.js:1308:20)
-    at async /home/stocks/algo/webapp/lambda/routes/orders.js:1112:20 {
-  length: 107,
-  severity: 'ERROR',
-  code: '42703',
-  detail: undefined,
-  hint: undefined,
-  position: '316',
-  internalPosition: undefined,
-  internalQuery: undefined,
-  where: undefined,
-  schema: undefined,
-  table: undefined,
-  column: undefined,
-  dataType: undefined,
-  constraint: undefined,
-  file: 'parse_relation.c',
-  line: '3722',
-  routine: 'errorMissingColumn'
-}
-::1 - - [26/Sep/2025:18:13:32 +0000] "GET /api/orders/recent HTTP/1.1" 200 221 "-" "curl/8.5.0"
+
+Node.js v20.19.4

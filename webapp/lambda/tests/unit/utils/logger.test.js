@@ -3,12 +3,16 @@
  * Tests for comprehensive logging utility
  */
 
-const logger = require("../../../utils/logger");
-
-// Mock crypto
-jest.mock("crypto", () => ({
+// Mock crypto before requiring logger
+const mockCrypto = {
   randomUUID: jest.fn(() => "12345678-1234-1234-1234-123456789012"),
-}));
+};
+
+jest.mock("crypto", () => mockCrypto);
+
+// Clear module cache to ensure logger uses the mock
+delete require.cache[require.resolve("../../../utils/logger")];
+const logger = require("../../../utils/logger");
 
 describe("Logger", () => {
   let originalEnv;
@@ -18,6 +22,11 @@ describe("Logger", () => {
     originalEnv = { ...process.env };
     consoleSpy = jest.spyOn(console, "log").mockImplementation();
     jest.clearAllMocks();
+    // Ensure mock is reset for each test
+    mockCrypto.randomUUID.mockReturnValue("12345678-1234-1234-1234-123456789012");
+
+    // Clear the logger module cache so it re-reads environment variables
+    delete require.cache[require.resolve("../../../utils/logger")];
   });
 
   afterEach(() => {
@@ -120,6 +129,7 @@ describe("Logger", () => {
   describe("Output Formatting", () => {
     test("should format output for development environment", () => {
       process.env.NODE_ENV = "development";
+      const freshLogger = require("../../../utils/logger");
 
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
@@ -129,7 +139,7 @@ describe("Logger", () => {
         extra: "data",
       };
 
-      logger.output(logEntry);
+      freshLogger.output(logEntry);
 
       expect(consoleSpy).toHaveBeenCalledTimes(2);
       expect(consoleSpy).toHaveBeenNthCalledWith(
@@ -160,6 +170,7 @@ describe("Logger", () => {
 
     test("should handle development output without extra context", () => {
       process.env.NODE_ENV = "development";
+      const freshLogger = require("../../../utils/logger");
 
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
@@ -168,7 +179,7 @@ describe("Logger", () => {
         correlationId: "12345",
       };
 
-      logger.output(logEntry);
+      freshLogger.output(logEntry);
 
       expect(consoleSpy).toHaveBeenCalledTimes(1);
       expect(consoleSpy).toHaveBeenCalledWith(

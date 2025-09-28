@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Comprehensive AWS API Test
  * Tests all API endpoints against the deployed AWS instance

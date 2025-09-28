@@ -232,7 +232,7 @@ router.get("/:symbol", async (req, res) => {
 
     const result = await query(symbolQuery, [symbol.toUpperCase()]);
 
-    if (!result.rows || result.rows.length === 0) {
+    if (!result || !result.rows || result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Symbol not found in stock_scores table",

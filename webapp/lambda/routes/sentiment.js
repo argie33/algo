@@ -49,7 +49,7 @@ router.get("/analysis", async (req, res) => {
       `😊 Sentiment analysis requested for symbol: ${symbol}, period: ${period}`
     );
 
-    const targetSymbol = symbol;
+    const targetSymbol = symbol.trim().toUpperCase();
 
     // Convert period to days for calculation
     const periodDays = {
@@ -85,7 +85,7 @@ router.get("/analysis", async (req, res) => {
         ORDER BY a.date DESC
         LIMIT 50
         `,
-        [targetSymbol.toUpperCase(), days]
+        [targetSymbol, days]
       );
       console.log(`📊 Query successful, got ${sentimentResult?.rows?.length || 0} rows`);
     } catch (e) {
@@ -303,7 +303,7 @@ router.get("/analysis", async (req, res) => {
     res.json({
       success: true,
       data: {
-        symbol: targetSymbol.toUpperCase(),
+        symbol: targetSymbol,
         period: period,
         sentiment_score: parseFloat(sentimentScore),
         sentiment_grade: getSentimentGrade(parseFloat(sentimentScore)),
@@ -759,7 +759,7 @@ router.get("/social/twitter", async (req, res) => {
     // Generate Twitter-specific sentiment data
     const generateTwitterSentiment = (targetSymbol, maxResults, sortBy) => {
       const symbols = targetSymbol
-        ? [targetSymbol.toUpperCase()]
+        ? [targetSymbol]
         : ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "META", "AMZN", "NFLX"];
 
       const tweets = [];

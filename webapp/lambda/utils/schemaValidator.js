@@ -1660,7 +1660,7 @@ module.exports = {
   validateIndexes: (tableName) => schemaValidator.validateIndexes(tableName),
   safeQuery: (queryText, params) =>
     schemaValidator.safeQuery(queryText, params),
-  validate: (data, schemaName) => {
+  validateForTests: (data, schemaName) => {
     // Simple validation function for test compatibility
     try {
       if (!data || typeof data !== 'object') {

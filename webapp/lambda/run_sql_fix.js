@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 // Script to execute SQL fixes using the application's database connection
 const fs = require('fs');

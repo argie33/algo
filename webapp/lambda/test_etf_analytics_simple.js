@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 // Simple test to check ETF analytics route
 const request = require('supertest');

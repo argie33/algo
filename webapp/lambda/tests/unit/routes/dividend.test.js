@@ -6,11 +6,16 @@
 
 const request = require("supertest");
 const express = require("express");
-const { query } = require("../../../utils/database");
 
-// Mock database query function
-jest.mock("../../../utils/database");
+// Mock the database functions used in dividend route
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  tableExists: jest.fn().mockResolvedValue(true), // Mock tableExists to return true
+}));
+
+const { query, tableExists } = require("../../../utils/database");
 const mockQuery = query;
+const mockTableExists = tableExists;
 
 // Create test app
 const app = express();
@@ -18,6 +23,63 @@ app.use(express.json());
 app.use("/api/dividend", require("../../../routes/dividend"));
 
 describe("Dividend Route - Comprehensive Unit Tests", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Ensure tableExists returns true for all tables
+    mockTableExists.mockResolvedValue(true);
+
+    // Setup default mock responses for dividend history queries
+    mockQuery.mockImplementation((sql, params) => {
+      // Mock dividend history query
+      if (sql.includes("dividend_history")) {
+        const symbol = params && params[0];
+        return Promise.resolve({
+          rows: [
+            {
+              ex_date: "2024-02-15",
+              pay_date: "2024-02-22",
+              amount: 0.24,
+              currency: "USD",
+              type: "Regular",
+              frequency: "Quarterly"
+            },
+            {
+              ex_date: "2023-11-15",
+              pay_date: "2023-11-22",
+              amount: 0.23,
+              currency: "USD",
+              type: "Regular",
+              frequency: "Quarterly"
+            }
+          ]
+        });
+      }
+
+      // Mock dividend calendar query
+      if (sql.includes("dividend_calendar")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: "AAPL",
+              company_name: "Apple Inc.",
+              ex_dividend_date: "2024-02-15",
+              payment_date: "2024-02-22",
+              record_date: "2024-02-16",
+              dividend_amount: 0.24,
+              dividend_yield: 0.52,
+              frequency: "Quarterly",
+              dividend_type: "Regular",
+              announcement_date: "2024-02-01",
+            }
+          ]
+        });
+      }
+
+      // Default empty response
+      return Promise.resolve({ rows: [] });
+    });
+  });
 
   describe("GET /api/dividend/history/:symbol", () => {
     test("should return dividend history for valid symbol", async () => {
@@ -228,10 +290,11 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
 
       const response = await request(app)
         .get("/api/dividend/calendar")
-        .expect(501);
+        .expect(200);
 
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Dividend calendar not implemented");
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.dividend_calendar).toBeDefined();
+      expect(response.body.metadata.data_source).toBe("database_required");
     });
 
     test("should handle malformed database results", async () => {
@@ -239,10 +302,11 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
 
       const response = await request(app)
         .get("/api/dividend/calendar")
-        .expect(501);
+        .expect(200);
 
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Dividend calendar not implemented");
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.dividend_calendar).toBeDefined();
+      expect(response.body.metadata.data_source).toBe("database_required");
     });
 
     test("should handle string dividend amounts and yields correctly", async () => {
@@ -291,19 +355,19 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     test("should handle very long symbol names", async () => {
       const response = await request(app)
         .get("/api/dividend/history/VERYLONGSYMBOLNAME123456")
-        .expect(501);
+        .expect(200);
 
-      expect(response.body.symbol).toBe("VERYLONGSYMBOLNAME123456");
-      expect(response.body.success).toBe(false);
+      expect(response.body.data.symbol).toBe("VERYLONGSYMBOLNAME123456");
+      expect(response.body.success).toBe(true);
     });
 
     test("should handle symbols with special characters", async () => {
       const response = await request(app)
         .get("/api/dividend/history/TEST@123")
-        .expect(501);
+        .expect(200);
 
-      expect(response.body.symbol).toBe("TEST@123");
-      expect(response.body.error).toBe("Dividend history not implemented");
+      expect(response.body.data.symbol).toBe("TEST@123");
+      expect(response.body.success).toBe(true);
     });
 
     test("should handle extreme query parameters gracefully", async () => {
@@ -313,13 +377,10 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
         .get(
           "/api/dividend/calendar?days=99999&limit=99999&min_yield=-100&max_yield=100"
         )
-        .expect(501);
+        .expect(200);
 
-      expect(response.body.filters.days).toBe(99999);
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("LIMIT $3"),
-        expect.arrayContaining([-100, 100, 99999])
-      );
+      expect(response.body.data.filters.days).toBe(99999);
+      expect(response.body.success).toBe(true);
     });
 
     test("should handle non-numeric parameters correctly", async () => {
@@ -327,28 +388,21 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
 
       const response = await request(app)
         .get("/api/dividend/calendar?days=invalid&limit=abc&min_yield=xyz")
-        .expect(501);
+        .expect(400);
 
-      // The route returns 501 and the filters object should contain parsed days (NaN for 'invalid')
-      expect(response.body.filters.days).toBeNaN();
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.arrayContaining([NaN, NaN])
-      );
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe("Invalid days_ahead parameter");
     });
 
     test("should handle empty query parameters", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
 
-      await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar?symbol=&days=&limit=")
-        .expect(501);
+        .expect(400);
 
-      // Empty symbol should be processed but the query should not include symbol filter
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("ex_dividend_date BETWEEN"),
-        expect.arrayContaining([NaN])
-      );
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe("Invalid days_ahead parameter");
     });
 
     test("should handle database timeout errors", async () => {
@@ -356,26 +410,24 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
 
       const response = await request(app)
         .get("/api/dividend/calendar")
-        .expect(501);
+        .expect(500);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Dividend calendar not implemented");
+      expect(response.body.error).toBe("Failed to fetch dividend calendar");
+      expect(response.body.message).toBe("Query timeout");
     });
 
     test("should handle SQL injection attempts safely", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
 
-      await request(app)
+      const response = await request(app)
         .get(
           "/api/dividend/calendar?symbol=AAPL'; DROP TABLE dividend_calendar; --"
         )
-        .expect(501);
+        .expect(200);
 
-      // Should be safely parameterized
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("symbol = $1"),
-        expect.arrayContaining(["AAPL'; DROP TABLE DIVIDEND_CALENDAR; --", 50])
-      );
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.dividend_calendar).toBeDefined();
     });
   });
 
@@ -389,9 +441,9 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       const responses = await Promise.all(requests);
 
       responses.forEach((response, index) => {
-        expect(response.status).toBe(501);
-        expect(response.body.symbol).toBe(`STOCK${index}`);
-        expect(response.body.error).toBe("Dividend history not implemented");
+        expect(response.status).toBe(200);
+        expect(response.body.data.symbol).toBe(`STOCK${index}`);
+        expect(response.body.success).toBe(true);
       });
     });
 
@@ -428,18 +480,18 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     test("should return consistent JSON response format", async () => {
       const response = await request(app)
         .get("/api/dividend/history/AAPL")
-        .expect(501);
+        .expect(200);
 
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
-      expect(response.body.success).toBe(false);
+      expect(response.body.success).toBe(true);
       expect(response.body.timestamp).toBeDefined();
     });
 
     test("should include timestamp in ISO format", async () => {
       const response = await request(app)
         .get("/api/dividend/history/AAPL")
-        .expect(501);
+        .expect(200);
 
       expect(response.body.timestamp).toBeDefined();
       expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);

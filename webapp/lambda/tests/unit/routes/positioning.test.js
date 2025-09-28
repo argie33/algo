@@ -275,6 +275,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("market_overview");
@@ -298,6 +299,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body.market_overview.overall_positioning).toBe("BULLISH");
@@ -317,6 +319,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body.market_overview.overall_positioning).toBe(
@@ -338,6 +341,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body.market_overview.overall_positioning).toBe("BEARISH");
@@ -357,6 +361,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body.market_overview.overall_positioning).toBe(
@@ -378,6 +383,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body.market_overview.overall_positioning).toBe("NEUTRAL");
@@ -406,6 +412,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body.key_metrics.institutional_avg_change).toBe(0);
@@ -438,6 +445,7 @@ describe("Positioning Routes", () => {
 
         const response = await request(app)
           .get("/api/positioning/summary")
+          .set("Authorization", "Bearer dev-bypass-token")
           .expect(200);
 
         expect(response.body.market_overview.retail_sentiment).toBe(
@@ -453,6 +461,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body.last_updated).toMatch(
@@ -466,6 +475,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(500);
 
       expect(response.body.success).toBe(false);
@@ -481,7 +491,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(mockInstitutionalSummary)
         .mockResolvedValueOnce(mockRetailSummary);
 
-      await request(app).get("/api/positioning/summary").expect(200);
+      await request(app).get("/api/positioning/summary").set("Authorization", "Bearer dev-bypass-token").expect(200);
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("FROM stocks")
@@ -500,6 +510,7 @@ describe("Positioning Routes", () => {
 
       const response = await request(app)
         .get("/api/positioning/summary")
+        .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("market_overview");

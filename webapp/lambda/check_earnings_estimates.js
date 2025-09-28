@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 const { query } = require('./utils/database');
 

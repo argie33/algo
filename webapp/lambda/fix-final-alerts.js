@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 const fs = require('fs');
 
 console.log('🔧 Fixing final alerts test failures...');

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 // Script to check current table structures
 process.env.NODE_ENV = "test";

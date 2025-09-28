@@ -42,13 +42,7 @@ async function initializeWebappTables() {
     // Add update triggers
     await createTriggers();
 
-    // Insert initial data only in local/test environments
-    const environment = process.env.ENVIRONMENT || 'local';
-    if (environment !== 'prod' && environment !== 'staging') {
-      await insertInitialData();
-    } else {
-      console.log("🏭 Production environment - skipping initial data insertion");
-    }
+    console.log("✅ Database schema creation completed - no data insertion in init script");
 
     console.log("✅ Webapp database initialization completed successfully!");
     return true;
@@ -137,45 +131,38 @@ async function createPortfolioTables() {
 
   const tables = [
     {
-      name: "portfolio_holdings",
-      sql: `CREATE TABLE IF NOT EXISTS portfolio_holdings (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(20) NOT NULL,
-        quantity DECIMAL(15,8) NOT NULL DEFAULT 0,
-        avg_cost DECIMAL(15,4),
-        current_price DECIMAL(15,4),
-        market_value DECIMAL(15,2),
-        unrealized_pnl DECIMAL(15,2),
-        unrealized_pnl_percent DECIMAL(8,4),
-        day_change DECIMAL(15,2),
-        day_change_percent DECIMAL(8,4),
+      name: "portfolio_transactions",
+      sql: `CREATE TABLE IF NOT EXISTS portfolio_transactions (
+        transaction_id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        transaction_type VARCHAR(20) NOT NULL,
+        quantity DECIMAL(15,4) NOT NULL,
+        price DECIMAL(15,4) NOT NULL,
+        total_amount DECIMAL(15,4) NOT NULL,
+        commission DECIMAL(10,4) DEFAULT 0.00,
+        transaction_date TIMESTAMP NOT NULL,
+        settlement_date TIMESTAMP,
+        notes TEXT,
+        user_id VARCHAR(50) NOT NULL,
         broker VARCHAR(50) DEFAULT 'manual',
-        account_id VARCHAR(100),
-        position_id VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_synced TIMESTAMP,
-        UNIQUE(user_id, symbol, broker)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`
     },
     {
-      name: "portfolio_transactions",
-      sql: `CREATE TABLE IF NOT EXISTS portfolio_transactions (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
-        symbol VARCHAR(20) NOT NULL,
-        transaction_type VARCHAR(20) NOT NULL,
-        quantity DECIMAL(15,8) NOT NULL,
-        price DECIMAL(15,4) NOT NULL,
-        total_amount DECIMAL(15,2) NOT NULL,
-        fees DECIMAL(10,2) DEFAULT 0,
-        broker VARCHAR(50) DEFAULT 'manual',
-        broker_transaction_id VARCHAR(100),
-        trade_date DATE NOT NULL,
-        settlement_date DATE,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      name: "portfolio_holdings",
+      sql: `CREATE TABLE IF NOT EXISTS portfolio_holdings (
+        holding_id SERIAL PRIMARY KEY,
+        user_id VARCHAR(50) NOT NULL,
+        symbol VARCHAR(10) NOT NULL,
+        quantity DECIMAL(15,4) NOT NULL,
+        average_cost DECIMAL(15,4) NOT NULL,
+        current_price DECIMAL(15,4) DEFAULT 0,
+        market_value DECIMAL(15,4) DEFAULT 0,
+        unrealized_pnl DECIMAL(15,4) DEFAULT 0,
+        unrealized_pnl_percent DECIMAL(10,4) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, symbol)
       )`
     },
     {
@@ -497,12 +484,9 @@ async function createIndexes() {
   const indexes = [
     "CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles(email)",
-    "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_id ON portfolio_holdings(user_id)",
-    "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_symbol ON portfolio_holdings(symbol)",
-    "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user_symbol ON portfolio_holdings(user_id, symbol)",
-    "CREATE INDEX IF NOT EXISTS idx_portfolio_transactions_user_id ON portfolio_transactions(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_portfolio_transactions_user ON portfolio_transactions(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_portfolio_transactions_symbol ON portfolio_transactions(symbol)",
-    "CREATE INDEX IF NOT EXISTS idx_portfolio_transactions_date ON portfolio_transactions(trade_date)",
+    "CREATE INDEX IF NOT EXISTS idx_portfolio_holdings_user ON portfolio_holdings(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_portfolio_performance_user_date ON portfolio_performance(user_id, date)",
     "CREATE INDEX IF NOT EXISTS idx_watchlists_user_id ON watchlists(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_watchlist_items_watchlist_id ON watchlist_items(watchlist_id)",
@@ -582,21 +566,6 @@ async function createTriggers() {
   }
 }
 
-async function insertInitialData() {
-  console.log("📄 Inserting initial data...");
-
-  try {
-    // Insert default risk limits
-    await query(`
-      INSERT INTO user_risk_limits (user_id, max_position_size_percent, max_sector_allocation_percent, max_daily_loss_percent, max_portfolio_var, stop_loss_percent)
-      VALUES ('default', 10.00, 25.00, 5.00, 10.00, 10.00)
-      ON CONFLICT (user_id) DO NOTHING
-    `);
-    console.log("  ✅ Inserted default risk limits");
-  } catch (error) {
-    console.warn(`  ⚠️ Initial data warning: ${error.message}`);
-  }
-}
 
 module.exports = {
   initializeWebappTables

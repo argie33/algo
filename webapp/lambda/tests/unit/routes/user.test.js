@@ -77,6 +77,17 @@ describe("User Routes - 2FA Functionality", () => {
     });
 
     it("should handle database errors gracefully during setup", async () => {
+      // Ensure speakeasy mock is working for this test
+      const speakeasy = require("speakeasy");
+      speakeasy.generateSecret.mockReturnValueOnce({
+        base32: "JBSWY3DPEHPK3PXP",
+        otpauth_url: "otpauth://totp/FinancialPlatform%20(test%40example.com)?secret=JBSWY3DPEHPK3PXP&issuer=Financial%20Trading%20Platform",
+      });
+
+      // Ensure qrcode mock is working for this test
+      const qrcode = require("qrcode");
+      qrcode.toDataURL.mockResolvedValueOnce("data:image/png;base64,mockqrcode");
+
       mockQuery.mockRejectedValueOnce(new Error("Database connection failed"));
 
       const response = await request(app)

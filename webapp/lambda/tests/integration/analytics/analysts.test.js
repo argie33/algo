@@ -52,30 +52,16 @@ describe("Analysts API", () => {
   });
 
   describe("Analyst Coverage", () => {
-    test("should retrieve analyst coverage for stock", async () => {
+    test("should return error for individual analyst coverage (not available from yfinance)", async () => {
       const response = await request(app).get("/api/analysts/coverage/AAPL");
 
-      // With real test data loaded, should return 200
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body.data).toBeDefined();
-
-      // Verify expected data structure with real data
-      const coverage = response.body.data;
-      expect(coverage).toHaveProperty("symbol", "AAPL");
-      expect(coverage).toHaveProperty("analysts");
-      expect(Array.isArray(coverage.analysts)).toBe(true);
-      expect(coverage.analysts.length).toBeGreaterThan(0);
-
-      // Verify first analyst structure
-      const analyst = coverage.analysts[0];
-      expect(analyst).toHaveProperty("analyst_firm");
-      expect(analyst).toHaveProperty("analyst_name");
-      expect(analyst).toHaveProperty("coverage_started");
-      expect(analyst).toHaveProperty("coverage_status");
-      expect(typeof analyst.analyst_firm).toBe("string");
-      expect(typeof analyst.analyst_name).toBe("string");
-      expect(analyst.coverage_status).toBe("active");
+      // Individual analyst coverage data is not available from yfinance
+      expect(response.status).toBe(501);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error", "Analyst coverage data not available");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("Individual analyst coverage data is not available from yfinance");
+      expect(response.body).toHaveProperty("timestamp");
     });
   });
 

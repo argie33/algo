@@ -139,6 +139,9 @@ describe("Database Utilities - Unit Tests", () => {
       process.env.DB_PASSWORD = "test";
       process.env.DB_NAME = "test";
 
+      // Initialize the database first
+      await initializeDatabase();
+
       const result = await query("SELECT * FROM test WHERE id = $1", [1]);
 
       expect(mockPool.query).toHaveBeenCalledWith(
@@ -148,13 +151,14 @@ describe("Database Utilities - Unit Tests", () => {
       expect(result).toEqual(mockResult);
     });
 
-    test("should return null when database is not initialized", async () => {
+    test("should throw error when database is not initialized", async () => {
       delete process.env.DB_HOST;
       delete process.env.DB_SECRET_ARN;
 
-      const result = await query("SELECT 1");
+      // Close any existing connections to ensure uninitialized state
+      await closeDatabase();
 
-      expect(result).toBeNull();
+      await expect(query("SELECT 1")).rejects.toThrow("Database connection failed - no fallback available");
     });
 
     test("should handle connection errors gracefully", async () => {
@@ -165,9 +169,10 @@ describe("Database Utilities - Unit Tests", () => {
       process.env.DB_PASSWORD = "test";
       process.env.DB_NAME = "test";
 
-      const result = await query("SELECT 1");
+      // Initialize the database first
+      await initializeDatabase();
 
-      expect(result).toBeNull();
+      await expect(query("SELECT 1")).rejects.toThrow("ECONNREFUSED");
     });
 
     test("should handle non-connection errors by throwing", async () => {
@@ -177,6 +182,9 @@ describe("Database Utilities - Unit Tests", () => {
       process.env.DB_USER = "test";
       process.env.DB_PASSWORD = "test";
       process.env.DB_NAME = "test";
+
+      // Initialize the database first
+      await initializeDatabase();
 
       await expect(query("INVALID SQL")).rejects.toThrow("syntax error");
     });

@@ -924,51 +924,6 @@ class PerformanceMonitor {
     };
   }
 
-  /**
-   * Detect performance anomalies
-   */
-  detectAnomalies(category) {
-    const categoryMetrics = this.performanceHistory.filter(
-      (m) => m.category === category
-    );
-
-    if (categoryMetrics.length < 10) {
-      return [];
-    }
-
-    // Calculate mean and standard deviation
-    const durations = categoryMetrics.map((m) => m.duration);
-    const mean = durations.reduce((a, b) => a + b, 0) / durations.length;
-    const variance =
-      durations.reduce(
-        (sum, duration) => sum + Math.pow(duration - mean, 2),
-        0
-      ) / durations.length;
-    const stdDev = Math.sqrt(variance);
-
-    // Find anomalies (more than 3 standard deviations from mean)
-    const anomalies = [];
-    const threshold = mean + 3 * stdDev;
-
-    categoryMetrics.forEach((metric) => {
-      if (metric.duration > threshold) {
-        const deviation = (metric.duration - mean) / stdDev;
-        anomalies.push({
-          operationId: metric.id,
-          category: metric.category,
-          duration: metric.duration,
-          value: metric.duration, // Add value field for test compatibility
-          mean,
-          threshold,
-          deviation,
-          type: "outlier", // Add type field for test compatibility
-          severity: metric.duration > mean + 4 * stdDev ? "high" : "medium",
-        });
-      }
-    });
-
-    return anomalies;
-  }
 
   /**
    * Get real-time dashboard data

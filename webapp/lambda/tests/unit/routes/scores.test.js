@@ -1,20 +1,21 @@
 /**
  * Scores Routes Unit Tests
- * Tests scores route logic with real database
+ * Tests scores route logic with mocked database
  */
-
-// Load environment variables first
-require('dotenv').config();
 
 const express = require("express");
 const request = require("supertest");
 
-// Real database for integration
+// Mock database for unit tests
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+}));
+
 const { query } = require("../../../utils/database");
+const scoresRouter = require("../../../routes/scores");
 
 describe("Scores Routes Unit Tests", () => {
   let app;
-  let scoresRouter;
 
   beforeAll(() => {
     // Create test app
@@ -32,8 +33,42 @@ describe("Scores Routes Unit Tests", () => {
     app.use(responseFormatter);
 
     // Load the route module
-    scoresRouter = require("../../../routes/scores");
     app.use("/scores", scoresRouter);
+  });
+
+  beforeEach(() => {
+    // Reset all mocks before each test
+    jest.clearAllMocks();
+
+    // Set up default mock responses for all tests
+    query.mockImplementation(() => {
+      return Promise.resolve({
+        rows: [
+          {
+            symbol: "AAPL",
+            composite_score: 85.5,
+            momentum_score: 75.2,
+            trend_score: 90.1,
+            value_score: 88.7,
+            quality_score: 70.3,
+            rsi: 65.4,
+            macd: 2.34,
+            sma_20: 150.25,
+            sma_50: 145.80,
+            volume_avg_30d: 50000000,
+            current_price: 155.32,
+            price_change_1d: 2.1,
+            price_change_5d: 5.3,
+            price_change_30d: 12.5,
+            volatility_30d: 28.4,
+            market_cap: 2500000000000,
+            pe_ratio: 25.8,
+            score_date: "2025-01-27",
+            last_updated: "2025-01-27T10:00:00Z"
+          }
+        ]
+      });
+    });
   });
 
   describe("GET /scores/ping", () => {
@@ -48,6 +83,38 @@ describe("Scores Routes Unit Tests", () => {
 
   describe("GET /scores", () => {
     test("should return scores data from stock_scores table", async () => {
+      // Mock database responses with correct schema matching stock_scores table
+      query
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              symbol: "AAPL",
+              composite_score: 85.5,
+              momentum_score: 75.2,
+              trend_score: 90.1,
+              value_score: 88.7,
+              quality_score: 70.3,
+              rsi: 65.4,
+              macd: 2.34,
+              sma_20: 150.25,
+              sma_50: 145.80,
+              volume_avg_30d: 50000000,
+              current_price: 155.32,
+              price_change_1d: 2.1,
+              price_change_5d: 5.3,
+              price_change_30d: 12.5,
+              volatility_30d: 28.4,
+              market_cap: 2500000000000,
+              pe_ratio: 25.8,
+              score_date: "2025-01-27",
+              last_updated: "2025-01-27T10:00:00Z"
+            }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [{ total: 1 }] // Count query response
+        });
+
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token");
@@ -288,6 +355,11 @@ describe("Scores Routes Unit Tests", () => {
     });
 
     test("should return 404 for non-existent symbol", async () => {
+      // Mock empty response for non-existent symbol
+      query.mockResolvedValueOnce({
+        rows: [] // No results found
+      });
+
       const response = await request(app)
         .get("/scores/NONEXISTENT")
         .set("Authorization", "Bearer dev-bypass-token")

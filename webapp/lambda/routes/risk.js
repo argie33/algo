@@ -1362,56 +1362,6 @@ router.get("/monitoring/status", async (req, res) => {
   }
 });
 
-// Portfolio risk analysis
-router.get("/portfolio", async (req, res) => {
-  try {
-    const { timeframe = "1y", confidence = "95" } = req.query;
-    console.log(
-      `📊 Portfolio risk analysis requested, timeframe: ${timeframe}`
-    );
-
-    const riskData = {
-      timeframe: timeframe,
-      confidence_level: parseFloat(confidence),
-
-      value_at_risk: {
-        var_1d: 0,
-        var_5d: 0,
-        var_30d: 0,
-        currency: "USD",
-      },
-
-      risk_metrics: {
-        portfolio_beta: 0,
-        volatility: 0,
-        sharpe_ratio: 0,
-        max_drawdown: 0,
-        tracking_error: 0,
-      },
-
-      risk_attribution: {
-        systematic_risk: 0,
-        idiosyncratic_risk: 0,
-        concentration_risk: 0,
-      },
-
-      last_updated: new Date().toISOString(),
-    };
-
-    res.json({
-      success: true,
-      data: riskData,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Portfolio risk error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch portfolio risk",
-      message: error.message,
-    });
-  }
-});
 
 // Value at Risk (VaR) analysis
 router.get("/var", async (req, res) => {

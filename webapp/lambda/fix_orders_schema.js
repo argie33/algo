@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 const { initializeDatabase, query, closeDatabase } = require('./utils/database');
 

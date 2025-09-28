@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 const fs = require('fs');
 
 console.log('🔧 Converting trading tests from mocks to real database integration...');
@@ -19,7 +18,7 @@ tradingFile = tradingFile.replace(
 
 // Remove all mock setup and replace with real database setup
 tradingFile = tradingFile.replace(
-  /  beforeEach\(\(\) => \{[\s\S]*?\}\);/g,
+  / {2}beforeEach\(\(\) => \{[\s\S]*?\}\);/g,
   `  beforeEach(() => {
     // Ensure test environment
     process.env.NODE_ENV = "test";
@@ -74,7 +73,7 @@ tradingFile = tradingFile.replace(
 
 // Replace specific mock data checks with flexible checks
 tradingFile = tradingFile.replace(
-  /expect\(response\.body\.data\.([^\.]+)\.([^\.]+)\)\.toBe\([^)]+\);/g,
+  /expect\(response\.body\.data\.([^.]+)\.([^.]+)\)\.toBe\([^)]+\);/g,
   'if (response.body.data.$1 && response.body.data.$1.$2 !== undefined) {\n        expect(response.body.data.$1.$2).toBeDefined();\n      }'
 );
 

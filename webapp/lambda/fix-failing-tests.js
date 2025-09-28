@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Comprehensive Test Fixing Script
  * Systematically updates failing test expectations to match current API responses
@@ -6,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+
 const glob = require('glob');
 
 console.log('🔧 Starting comprehensive test fixing...');

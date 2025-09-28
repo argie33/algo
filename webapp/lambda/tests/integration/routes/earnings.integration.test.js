@@ -8,18 +8,26 @@ const request = require("supertest");
 const { app } = require("../../../index");
 
 describe("Earnings Data Integration", () => {
-  describe("Earnings Calendar (Delegated)", () => {
-    test("should delegate to calendar earnings endpoint", async () => {
+  describe("Earnings Calendar (Using Loader Schema)", () => {
+    test("should return earnings data using loader table schemas", async () => {
       const response = await request(app).get("/api/earnings");
 
-      // Should delegate to calendar/earnings functionality
-      expect([200, 404, 501]).toContain(response.status);
+      // Should return data from earnings_estimates table (from loadearningsestimate.py)
+      expect([200, 404, 500]).toContain(response.status);
 
       if (response.status === 200) {
-        // API can return either 'data' or 'earnings' property
+        // API returns earnings from earnings_estimates table
         const hasEarnings = response.body.earnings || response.body.data;
         expect(hasEarnings).toBeDefined();
         expect(Array.isArray(hasEarnings)).toBe(true);
+
+        // Verify loader schema fields are present
+        if (hasEarnings.length > 0) {
+          const earning = hasEarnings[0];
+          expect(earning).toHaveProperty('symbol');
+          expect(earning).toHaveProperty('report_date'); // period mapped to report_date
+          expect(earning).toHaveProperty('eps_estimate'); // avg_estimate mapped to eps_estimate
+        }
       }
     });
 

@@ -1,7 +1,11 @@
 const express = require("express");
 const request = require("supertest");
 
-// Real database for integration
+// Mock database for unit tests
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+}));
+
 const { query } = require("../../../utils/database");
 
 describe("Calendar Routes Unit Tests", () => {
@@ -27,6 +31,11 @@ describe("Calendar Routes Unit Tests", () => {
     app.use("/calendar", calendarRouter);
   });
 
+  beforeEach(() => {
+    // Reset all mocks before each test
+    jest.clearAllMocks();
+  });
+
   describe("GET /calendar/", () => {
     test("should return calendar info", async () => {
       const response = await request(app).get("/calendar/").expect(200);
@@ -38,10 +47,43 @@ describe("Calendar Routes Unit Tests", () => {
 
   describe("GET /calendar/earnings", () => {
     test("should return earnings calendar", async () => {
+      // Mock successful database response matching earnings_history table structure
+      query.mockResolvedValue({
+        rows: [
+          {
+            symbol: "AAPL",
+            report_date: "2025-01-30",
+            quarter: "2025-01-30", // This is used as report_date in the query
+            eps_actual: null,
+            eps_estimate: 2.25,
+            eps_difference: null,
+            surprise_percent: null,
+            year: 2025
+          },
+          {
+            symbol: "MSFT",
+            report_date: "2025-02-01",
+            quarter: "2025-02-01",
+            eps_actual: null,
+            eps_estimate: 2.95,
+            eps_difference: null,
+            surprise_percent: null,
+            year: 2025
+          }
+        ]
+      });
+
       const response = await request(app).get("/calendar/earnings").expect(200);
 
-      expect(response.body).toHaveProperty("success");
+      expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("earnings");
+      expect(Array.isArray(response.body.data.earnings)).toBe(true);
+      expect(response.body.data.earnings.length).toBe(2);
+      expect(response.body.data.earnings[0]).toHaveProperty("symbol", "AAPL");
+      expect(response.body.data.earnings[0]).toHaveProperty("date", "2025-01-30");
+      expect(response.body.data).toHaveProperty("summary");
+      expect(response.body.data.summary).toHaveProperty("total_earnings", 2);
     });
   });
 

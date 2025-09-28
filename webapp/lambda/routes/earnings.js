@@ -124,33 +124,32 @@ router.get("/calendar", async (req, res) => {
     let queryParams = [parseInt(limit)];
 
     if (startDate && endDate) {
-      dateFilter = "WHERE date BETWEEN $2 AND $3";
+      dateFilter = "WHERE eh.quarter BETWEEN $2 AND $3";
       queryParams = [parseInt(limit), startDate, endDate];
     } else if (period === "upcoming") {
-      dateFilter = "WHERE date >= CURRENT_DATE";
+      dateFilter = "WHERE eh.quarter >= CURRENT_DATE";
     } else if (period === "past") {
-      dateFilter = "WHERE date < CURRENT_DATE";
+      dateFilter = "WHERE eh.quarter < CURRENT_DATE";
     }
 
     try {
-      // Try earnings_reports table first
+      // Use earnings_history table (from loadearningshistory.py)
       const calendarQuery = `
         SELECT
-          er.symbol,
-          er.date,
-          er.quarter,
-          er.year,
-          er.estimated_eps,
-          er.actual_eps,
-          er.estimated_revenue,
-          er.actual_revenue,
-          cp.company_name,
-          cp.sector,
-          cp.market_cap
-        FROM earnings_reports er
-        LEFT JOIN stocks cp ON er.symbol = cp.symbol
-        ${dateFilter}
-        ORDER BY er.date ASC, er.symbol
+          eh.symbol,
+          eh.quarter as date,
+          EXTRACT(QUARTER FROM eh.quarter) as quarter,
+          EXTRACT(YEAR FROM eh.quarter) as year,
+          eh.eps_estimate as estimated_eps,
+          eh.eps_actual as actual_eps,
+          NULL as estimated_revenue,
+          NULL as actual_revenue,
+          NULL as company_name,
+          NULL as sector,
+          NULL as market_cap
+        FROM earnings_history eh
+        ${dateFilter.replace('er.', 'eh.')}
+        ORDER BY eh.quarter ASC, eh.symbol
         LIMIT $1
       `;
 
@@ -223,47 +222,38 @@ router.get("/surprises", async (req, res) => {
     let queryParams = [parseInt(limit)];
 
     if (symbol) {
-      symbolFilter = "AND er.symbol = $2";
+      symbolFilter = "AND eh.symbol = $2";
       queryParams = [parseInt(limit), symbol.toUpperCase()];
     }
 
     if (minSurprise && parseFloat(minSurprise) > 0) {
       const surpriseIndex = queryParams.length + 1;
-      surpriseFilter = `AND ABS(((er.actual_eps - er.estimated_eps) / NULLIF(ABS(er.estimated_eps), 0)) * 100) >= $${surpriseIndex}`;
+      surpriseFilter = `AND ABS(eh.surprise_percent) >= $${surpriseIndex}`;
       queryParams.push(parseFloat(minSurprise));
     }
 
     try {
-      // Try earnings_reports table with calculated surprises
+      // Use earnings_history table (from loadearningshistory.py) with calculated surprises
       const surprisesQuery = `
         SELECT
-          er.symbol,
-          er.date,
-          er.quarter,
-          er.year,
-          er.estimated_eps,
-          er.actual_eps,
-          er.estimated_revenue,
-          er.actual_revenue,
-          cp.company_name,
-          cp.sector,
-          cp.market_cap,
-          CASE
-            WHEN er.estimated_eps != 0 AND er.actual_eps IS NOT NULL
-            THEN ((er.actual_eps - er.estimated_eps) / ABS(er.estimated_eps)) * 100
-            ELSE 0
-          END as eps_surprise_percent,
-          CASE
-            WHEN er.estimated_revenue != 0 AND er.actual_revenue IS NOT NULL
-            THEN ((er.actual_revenue - er.estimated_revenue) / ABS(er.estimated_revenue)) * 100
-            ELSE 0
-          END as revenue_surprise_percent
-        FROM earnings_reports er
-        LEFT JOIN stocks cp ON er.symbol = cp.symbol
-        WHERE er.actual_eps IS NOT NULL
-        ${symbolFilter}
-        ${surpriseFilter}
-        ORDER BY ABS(((er.actual_eps - er.estimated_eps) / NULLIF(ABS(er.estimated_eps), 0)) * 100) DESC, er.date DESC
+          eh.symbol,
+          eh.quarter as date,
+          EXTRACT(QUARTER FROM eh.quarter) as quarter,
+          EXTRACT(YEAR FROM eh.quarter) as year,
+          eh.eps_estimate as estimated_eps,
+          eh.eps_actual as actual_eps,
+          NULL as estimated_revenue,
+          NULL as actual_revenue,
+          NULL as company_name,
+          NULL as sector,
+          NULL as market_cap,
+          eh.surprise_percent as eps_surprise_percent,
+          NULL as revenue_surprise_percent
+        FROM earnings_history eh
+        WHERE eh.eps_actual IS NOT NULL
+        ${symbolFilter.replace('er.', 'eh.')}
+        ${surpriseFilter.replace('er.eps_actual', 'eh.eps_actual').replace('er.eps_estimate', 'eh.eps_estimate')}
+        ORDER BY ABS(eh.surprise_percent) DESC, eh.quarter DESC
         LIMIT $1
       `;
 
@@ -311,75 +301,6 @@ router.get("/surprises", async (req, res) => {
         details: error.message,
         timestamp: new Date().toISOString(),
       });
-
-      // Fallback to earnings_history if available
-      try {
-        let fallbackSymbolFilter = "";
-        let fallbackParams = [parseInt(limit)];
-
-        if (symbol) {
-          fallbackSymbolFilter = "WHERE symbol = $2";
-          fallbackParams = [parseInt(limit), symbol.toUpperCase()];
-        }
-
-        const fallbackQuery = `
-          SELECT
-            symbol,
-            quarter,
-            eps_actual,
-            eps_estimate,
-            eps_difference,
-            surprise_percent
-          FROM earnings_history
-          ${fallbackSymbolFilter}
-          ORDER BY ABS(surprise_percent) DESC, quarter DESC
-          LIMIT $1
-        `;
-
-        const fallbackResult = await query(fallbackQuery, fallbackParams);
-
-        res.json({
-          success: true,
-          data: {
-            surprises: fallbackResult.rows.map(row => ({
-              symbol: row.symbol,
-              company_name: row.symbol,
-              date: row.quarter,
-              quarter: row.quarter,
-              year: new Date(row.quarter).getFullYear(),
-              earnings: {
-                estimated_eps: parseFloat(row.eps_estimate || 0),
-                actual_eps: parseFloat(row.eps_actual || 0),
-                eps_surprise: parseFloat(row.eps_difference || 0),
-                eps_surprise_percent: parseFloat(row.surprise_percent || 0)
-              },
-              revenue: {
-                estimated_revenue: 0,
-                actual_revenue: 0,
-                revenue_surprise: 0,
-                revenue_surprise_percent: 0
-              },
-              sector: "Unknown",
-              market_cap: 0
-            })),
-            filters: { symbol: symbol || null, period },
-            total: fallbackResult.rows.length
-          },
-          timestamp: new Date().toISOString(),
-        });
-
-      } catch (fallbackError) {
-        res.json({
-          success: true,
-          data: {
-            surprises: [],
-            filters: { symbol: symbol || null, period },
-            total: 0,
-            message: "No earnings surprises data available"
-          },
-          timestamp: new Date().toISOString(),
-        });
-      }
     }
 
   } catch (error) {
@@ -426,36 +347,6 @@ router.get("/:symbol", async (req, res) => {
         details: error.message,
         timestamp: new Date().toISOString(),
       });
-
-      try {
-        // Try to get just basic columns that might exist
-        const fallbackQuery = `
-          SELECT
-            symbol,
-            quarter as report_date,
-            fetched_at as last_updated
-          FROM earnings_history
-          WHERE symbol = $1
-          ORDER BY quarter DESC
-          LIMIT 20
-        `;
-
-        const fallbackResult = await query(fallbackQuery, [symbol.toUpperCase()]);
-
-        // Add missing fields with default values
-        result = {
-          rows: fallbackResult.rows.map(row => ({
-            ...row,
-            eps_actual: 0,
-            eps_estimate: 0,
-            eps_difference: 0,
-            surprise_percent: 0
-          }))
-        };
-      } catch (fallbackError) {
-        // If table doesn't exist at all, return empty data
-        result = { rows: [] };
-      }
     }
 
     if (!result.rows || result.rows.length === 0) {

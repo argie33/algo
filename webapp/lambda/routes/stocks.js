@@ -3107,6 +3107,130 @@ router.get("/:symbol/prices", async (req, res) => {
   const timeframe = req.query.timeframe || "daily";
   const limit = Math.min(parseInt(req.query.limit) || 30, 365); // Increased max to 1 year
 
+  // Check if this is a multi-symbol request (comma-separated)
+  if (ticker.includes(',')) {
+    const symbols = ticker.split(',').map(s => s.trim().toUpperCase()).slice(0, 10); // Limit to 10 symbols
+    console.log(`🚀 MULTI-SYMBOL prices endpoint: ${symbols.join(', ')}, timeframe: ${timeframe}, limit: ${limit}`);
+
+    try {
+      const results = {};
+      const promises = symbols.map(async (symbol) => {
+        const cacheKey = getCacheKey(symbol, timeframe, limit);
+
+        // Check cache first
+        const cached = priceCache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+          return { symbol, data: cached.data.data || [] };
+        }
+
+        // Query database for this symbol
+        const tableName = "price_daily";
+        let pricesQuery;
+
+        if (timeframe === "daily") {
+          pricesQuery = `
+            WITH price_data AS (
+              SELECT
+                date,
+                open::DECIMAL(12,4) as open,
+                high::DECIMAL(12,4) as high,
+                low::DECIMAL(12,4) as low,
+                close::DECIMAL(12,4) as close,
+                close::DECIMAL(12,4) as adjusted_close,
+                volume::BIGINT as volume,
+                LAG(close) OVER (ORDER BY date DESC) as prev_close
+              FROM ${tableName}
+              WHERE symbol = $1
+                AND date >= CURRENT_DATE - INTERVAL '2 years'
+                AND close IS NOT NULL
+              ORDER BY date DESC
+              LIMIT $2
+            )
+            SELECT
+              date,
+              open,
+              high,
+              low,
+              close,
+              adjusted_close,
+              volume,
+              CASE
+                WHEN prev_close IS NOT NULL AND prev_close > 0
+                THEN ROUND((close - prev_close)::DECIMAL, 4)
+                ELSE NULL
+              END as price_change,
+              CASE
+                WHEN prev_close IS NOT NULL AND prev_close > 0
+                THEN ROUND(((close - prev_close) / prev_close * 100)::DECIMAL, 4)
+                ELSE NULL
+              END as price_change_pct
+            FROM price_data
+            ORDER BY date DESC;
+          `;
+        } else {
+          // For non-daily timeframes, use the single symbol logic
+          pricesQuery = `
+            SELECT date, open, high, low, close, adjusted_close, volume
+            FROM ${tableName}
+            WHERE symbol = $1
+              AND date >= CURRENT_DATE - INTERVAL '2 years'
+              AND close IS NOT NULL
+            ORDER BY date DESC
+            LIMIT $2
+          `;
+        }
+
+        try {
+          const result = await query(pricesQuery, [symbol, limit]);
+          const data = result.rows || [];
+
+          // Cache the result
+          priceCache.set(cacheKey, {
+            data: { data },
+            timestamp: Date.now()
+          });
+
+          return { symbol, data };
+        } catch (error) {
+          console.error(`Error fetching prices for ${symbol}:`, error);
+          return { symbol, data: [], error: error.message };
+        }
+      });
+
+      const symbolResults = await Promise.all(promises);
+
+      // Format results
+      symbolResults.forEach(result => {
+        results[result.symbol] = {
+          success: !result.error,
+          data: result.data,
+          error: result.error || null
+        };
+      });
+
+      return res.json({
+        success: true,
+        data: results,
+        symbols: symbols,
+        timeframe,
+        limit,
+        timestamp: new Date().toISOString(),
+        cached: false,
+        execution_time: Date.now() - startTime
+      });
+
+    } catch (error) {
+      console.error('Multi-symbol prices error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch multi-symbol prices',
+        details: error.message,
+        symbols: symbols
+      });
+    }
+  }
+
+  // Single symbol handling (existing logic)
   const symbol = ticker.toUpperCase();
   const cacheKey = getCacheKey(symbol, timeframe, limit);
 

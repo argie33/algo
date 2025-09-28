@@ -571,40 +571,49 @@ router.get("/notifications", async (req, res) => {
   }
 });
 
-// Two-factor authentication toggle endpoint
-router.post("/two-factor/:action", async (req, res) => {
+// Two-factor authentication endpoint
+router.post("/two-factor", async (req, res) => {
   try {
-    const { action } = req.params; // 'enable' or 'disable'
+    const { action, userId } = req.body; // 'enable', 'disable', or 'verify'
 
-    if (!["enable", "disable"].includes(action)) {
+    if (!action) {
       return res.status(400).json({
         success: false,
-        error: "Invalid action. Use 'enable' or 'disable'",
+        error: "Missing required parameters",
         timestamp: new Date().toISOString(),
       });
     }
 
-    const userId = req.user?.sub;
+    if (!userId && !req.user?.sub) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required parameters",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const currentUserId = userId || req.user?.sub;
+
+    if (!["enable", "disable", "verify"].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid action",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const { password, code } = req.body;
 
     console.log(
-      `🔐 Two-factor authentication ${action} request for user: ${userId}`
+      `🔐 Two-factor authentication ${action} request for user: ${currentUserId}`
     );
 
     // Validate input based on action
-    if (action === "enable") {
-      if (!password) {
+    if (action === "disable") {
+      if (!code) {
         return res.status(400).json({
           success: false,
-          error: "Password is required to enable 2FA",
-          timestamp: new Date().toISOString(),
-        });
-      }
-    } else if (action === "disable") {
-      if (!password || !code) {
-        return res.status(400).json({
-          success: false,
-          error: "Password and current 2FA code are required to disable 2FA",
+          error: "Current 2FA code is required to disable 2FA",
           timestamp: new Date().toISOString(),
         });
       }
@@ -617,10 +626,21 @@ router.post("/two-factor/:action", async (req, res) => {
         const qrcode = require("qrcode");
 
         const secret = speakeasy.generateSecret({
-          name: `FinancialPlatform (${req.user?.email || userId})`,
+          name: `FinancialPlatform (${req.user?.email || currentUserId})`,
           issuer: "Financial Trading Platform",
           length: 32,
         });
+
+        // Validate secret generation
+        if (!secret || !secret.base32 || !secret.otpauth_url) {
+          console.error("Secret generation failed:", secret);
+          return res.status(500).json({
+            success: false,
+            error: "2FA setup failed - secret generation error",
+            details: "Unable to generate secure secret",
+            timestamp: new Date().toISOString(),
+          });
+        }
 
         // Save the secret to the database
         const { query } = require("../utils/database");
@@ -629,10 +649,10 @@ router.post("/two-factor/:action", async (req, res) => {
             `
             INSERT INTO user_2fa_secrets (user_id, secret, created_at, is_active)
             VALUES ($1, $2, NOW(), false)
-            ON CONFLICT (user_id) 
+            ON CONFLICT (user_id)
             UPDATE SET secret = $2, created_at = NOW(), is_active = false
           `,
-            [userId, secret.base32]
+            [currentUserId, secret.base32]
           );
         } catch (dbError) {
           console.error("Failed to save 2FA secret to database:", dbError);
@@ -641,7 +661,7 @@ router.post("/two-factor/:action", async (req, res) => {
 
         const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
 
-        console.log(`✅ 2FA secret generated and saved for user: ${userId}`);
+        console.log(`✅ 2FA secret generated and saved for user: ${currentUserId}`);
 
         return res.json({
           success: true,
@@ -681,7 +701,7 @@ router.post("/two-factor/:action", async (req, res) => {
         try {
           const secretResult = await query(
             "SELECT secret FROM user_2fa_secrets WHERE user_id = $1 AND is_active = false",
-            [userId]
+            [currentUserId]
           );
 
           if (!secretResult.rows || secretResult.rows.length === 0) {
@@ -715,16 +735,16 @@ router.post("/two-factor/:action", async (req, res) => {
           // Activate 2FA for this user
           await query(
             "UPDATE user_2fa_secrets SET is_active = true WHERE user_id = $1",
-            [userId]
+            [currentUserId]
           );
 
-          console.log(`✅ 2FA verified and activated for user: ${userId}`);
+          console.log(`✅ 2FA verified and activated for user: ${currentUserId}`);
 
           return res.json({
             success: true,
             message: "Two-factor authentication setup completed successfully",
             data: {
-              userId: userId,
+              userId: currentUserId,
               activated: true,
               activatedAt: new Date().toISOString(),
             },
@@ -756,7 +776,7 @@ router.post("/two-factor/:action", async (req, res) => {
         try {
           const secretResult = await query(
             "SELECT secret FROM user_2fa_secrets WHERE user_id = $1 AND is_active = true",
-            [userId]
+            [currentUserId]
           );
 
           if (!secretResult.rows || secretResult.rows.length === 0) {
@@ -789,10 +809,10 @@ router.post("/two-factor/:action", async (req, res) => {
 
           // Remove 2FA secret from database
           await query("DELETE FROM user_2fa_secrets WHERE user_id = $1", [
-            userId,
+            currentUserId,
           ]);
 
-          console.log(`✅ 2FA disabled for user: ${userId}`);
+          console.log(`✅ 2FA disabled for user: ${currentUserId}`);
         } catch (dbError) {
           console.error("2FA disable database error:", dbError);
           return res.status(500).json({
@@ -806,7 +826,7 @@ router.post("/two-factor/:action", async (req, res) => {
           success: true,
           message: "Two-factor authentication disabled successfully",
           data: {
-            userId: userId,
+            userId: currentUserId,
             disabledAt: new Date().toISOString(),
             securityNote: "Your account is now protected by password only",
           },

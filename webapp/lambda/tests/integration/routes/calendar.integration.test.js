@@ -45,7 +45,7 @@ describe("Calendar Routes", () => {
         const earning = response.body.data.earnings[0];
         expect(earning).toHaveProperty("symbol");
         expect(earning).toHaveProperty("company_name");
-        expect(earning).toHaveProperty("report_date");
+        expect(earning).toHaveProperty("date");
         expect(typeof earning.symbol).toBe("string");
         expect(typeof earning.company_name).toBe("string");
       }

@@ -133,13 +133,17 @@ describe("API Key Service Integration Tests", () => {
       // Should handle invalid tokens gracefully
       const result = await apiKeyService.validateJwtToken(testToken);
       expect(result).toBeDefined();
-      // Invalid token should return null or false
-      expect(result === null || result === false).toBe(true);
+      expect(typeof result).toBe("object");
+      expect(result).toHaveProperty("valid");
+      expect(result.valid).toBe(false);
+      expect(result).toHaveProperty("error");
     });
 
     test("should check JWT circuit breaker", () => {
       const circuitBreakerStatus = apiKeyService.checkJwtCircuitBreaker();
-      expect(typeof circuitBreakerStatus).toBe("boolean");
+      expect(typeof circuitBreakerStatus).toBe("object");
+      expect(circuitBreakerStatus).toHaveProperty("allowed");
+      expect(typeof circuitBreakerStatus.allowed).toBe("boolean");
     });
 
     test("should record JWT success and failure", () => {
@@ -154,7 +158,9 @@ describe("API Key Service Integration Tests", () => {
   describe("Circuit Breaker Functionality", () => {
     test("should check circuit breaker status", () => {
       const status = apiKeyService.checkCircuitBreaker();
-      expect(typeof status).toBe("boolean");
+      expect(typeof status).toBe("object");
+      expect(status).toHaveProperty("allowed");
+      expect(typeof status.allowed).toBe("boolean");
     });
 
     test("should record success and failure", () => {

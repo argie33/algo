@@ -90,7 +90,7 @@ describe("Scoring Routes - Testing Your Actual Site", () => {
 
       // Verify the correct database query was made
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("SELECT * FROM comprehensive_scores"),
+        expect.stringContaining("SELECT * FROM stock_scores"),
         ["AAPL"]
       );
     });

@@ -50,6 +50,10 @@ describe("API Key Service", () => {
     };
     SecretsManagerClient.mockReturnValue(mockSecretsManager);
 
+    // Set the mock on the actual service instance
+    const service = __getServiceInstance();
+    service.secretsManager = mockSecretsManager;
+
     // Mock JWT verifier
     mockJwtVerifier = {
       verify: jest.fn(),
@@ -621,7 +625,7 @@ describe("API Key Service", () => {
   });
 
   describe("security features", () => {
-    test.skip("should use different salts for different users", async () => {
+    test("should use different salts for different users", async () => {
       // Reset crypto mock call count
       crypto.randomBytes.mockClear();
 
@@ -692,6 +696,14 @@ describe("API Key Service", () => {
   describe("encryption and decryption", () => {
     beforeEach(() => {
       jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
+
+      // Reset service instance state for each test
+      const service = __getServiceInstance();
+      service.encryptionKey = null;
+      service.secretsManager = mockSecretsManager;
+
+      // Clear all caches
+      clearCaches();
     });
 
     test("should handle production encryption mode", async () => {
