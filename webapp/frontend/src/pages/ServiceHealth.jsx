@@ -615,7 +615,7 @@ function ServiceHealth() {
       {/* Detailed Health Information */}
       <Grid container spacing={3}>
         {/* API Health */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12}>
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Typography variant="h6">
@@ -706,7 +706,7 @@ function ServiceHealth() {
         </Grid>
 
         {/* Database Health */}
-        <Grid item xs={12} lg={6}>
+        <Grid item xs={12}>
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Typography variant="h6">

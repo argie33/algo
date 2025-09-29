@@ -1650,8 +1650,11 @@ const Settings = () => {
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12}>
               <FormControl fullWidth>
-                <InputLabel>Broker</InputLabel>
+                <InputLabel id="broker-select-label">Broker</InputLabel>
                 <Select
+                  labelId="broker-select-label"
+                  id="broker-select"
+                  label="Broker"
                   value={newApiKey.brokerName}
                   onChange={(e) =>
                     setNewApiKey({ ...newApiKey, brokerName: e.target.value })
