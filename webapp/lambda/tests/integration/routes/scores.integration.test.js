@@ -47,7 +47,7 @@ describe("Scores Routes Integration", () => {
       expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("metadata");
       expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-      expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
+      expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
     });
 
     test("should handle pagination parameters", async () => {
@@ -132,7 +132,7 @@ describe("Scores Routes Integration", () => {
   });
 
   describe("GET /scores/:symbol", () => {
-    test("should return individual symbol data with six factor analysis", async () => {
+    test("should return individual symbol data with seven factor analysis", async () => {
       const response = await request(app).get("/scores/AAPL");
 
       if (response.status === 200) {
@@ -145,13 +145,14 @@ describe("Scores Routes Integration", () => {
         expect(response.body.data).toHaveProperty("performance");
         expect(response.body).toHaveProperty("metadata");
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-        expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
+        expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
 
-        // Check six factor analysis structure
+        // Check seven factor analysis structure
         expect(response.body.data.factors).toHaveProperty("momentum");
         expect(response.body.data.factors).toHaveProperty("trend");
         expect(response.body.data.factors).toHaveProperty("value");
         expect(response.body.data.factors).toHaveProperty("quality");
+        expect(response.body.data.factors).toHaveProperty("growth");
         expect(response.body.data.factors).toHaveProperty("technical");
         expect(response.body.data.factors).toHaveProperty("risk");
 

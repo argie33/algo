@@ -34,6 +34,10 @@ vi.mock("../../services/api", () => ({
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
+    getApiKeys: vi.fn(),
+    getPortfolioData: vi.fn(),
+    testApiConnection: vi.fn(),
+    importPortfolioFromBroker: vi.fn(),
   },
 }));
 
@@ -78,17 +82,46 @@ describe("API Key and Portfolio Import Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Mock Portfolio API functions
-    api.getPortfolioData.mockResolvedValue({
+    // Mock Portfolio API functions - both named exports and default export
+    const portfolioMockData = {
       data: {
-        holdings: [],
+        holdings: [
+          {
+            symbol: "AAPL",
+            shares: 100,
+            currentPrice: 150,
+            totalValue: 15000,
+            pnl: 2000,
+            pnlPercent: 15.0
+          },
+          {
+            symbol: "MSFT",
+            shares: 50,
+            currentPrice: 300,
+            totalValue: 15000,
+            pnl: 1000,
+            pnlPercent: 7.1
+          }
+        ],
         summary: {
-          totalValue: 0,
-          totalPnL: 0,
-          totalPnLPercent: 0,
+          totalValue: 30000,
+          totalPnL: 3000,
+          totalPnLPercent: 11.1,
         },
       },
+    };
+
+    api.getPortfolioData.mockResolvedValue(portfolioMockData);
+
+    // Mock API default export methods
+    api.default.getApiKeys.mockResolvedValue({
+      ok: true,
+      data: {
+        apiKeys: []
+      }
     });
+
+    api.default.getPortfolioData.mockResolvedValue(portfolioMockData);
 
     // Mock signals API
     api.default.get.mockImplementation((url) => {
@@ -131,11 +164,28 @@ describe("API Key and Portfolio Import Integration", () => {
           ok: true,
           json: async () => ({
             data: {
-              holdings: [],
+              holdings: [
+                {
+                  symbol: "AAPL",
+                  shares: 100,
+                  currentPrice: 150,
+                  totalValue: 15000,
+                  pnl: 2000,
+                  pnlPercent: 15.0
+                },
+                {
+                  symbol: "MSFT",
+                  shares: 50,
+                  currentPrice: 300,
+                  totalValue: 15000,
+                  pnl: 1000,
+                  pnlPercent: 7.1
+                }
+              ],
               summary: {
-                totalValue: 0,
-                totalPnL: 0,
-                totalPnLPercent: 0,
+                totalValue: 30000,
+                totalPnL: 3000,
+                totalPnLPercent: 11.1,
               },
             },
           }),
@@ -460,7 +510,12 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText(/import portfolio/i));
+      // Wait for portfolio to load and find import portfolio button
+      await waitFor(() => {
+        expect(screen.getByText("Import Portfolio")).toBeInTheDocument();
+      }, { timeout: 10000 });
+
+      fireEvent.click(screen.getByText("Import Portfolio"));
 
       await waitFor(() => {
         expect(screen.getByText("Alpaca")).toBeInTheDocument();

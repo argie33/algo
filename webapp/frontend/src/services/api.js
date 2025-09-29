@@ -3829,37 +3829,14 @@ export const getTradingSignalsDaily = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams({
       limit: params.limit || 10,
+      timeframe: 'daily',
       ...params,
     }).toString();
 
-    // Try multiple endpoint variations
-    const endpoints = [
-      `/trading/signals/daily?${queryParams}`,
-      `/api/trading/signals/daily?${queryParams}`,
-    ];
-    let response = null;
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`📈 [API] Trying endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
-        console.log(`📈 [API] SUCCESS with endpoint: ${endpoint}`, response);
-        break;
-      } catch (err) {
-        console.log(`📈 [API] FAILED endpoint: ${endpoint}`, err.message);
-        lastError = err;
-        continue;
-      }
-    }
-
-    if (!response) {
-      console.error(
-        "📈 [API] All endpoints failed, throwing last error:",
-        lastError
-      );
-      throw lastError;
-    }
+    const endpoint = `/api/signals?${queryParams}`;
+    console.log(`📈 [API] Using endpoint: ${endpoint}`);
+    const response = await api.get(endpoint);
+    console.log(`📈 [API] SUCCESS with endpoint: ${endpoint}`, response);
 
     console.log("📈 [API] Trading signals daily raw response:", response);
     const result = normalizeApiResponse(response, false);

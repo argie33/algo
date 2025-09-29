@@ -26,17 +26,43 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
 // Mock API service
 vi.mock("../../../services/api.js", () => ({
   default: {
-    get: vi.fn().mockResolvedValue({ data: {} }),
+    get: vi.fn().mockImplementation((url) => {
+      if (url.includes('/api/news/articles')) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: mockNewsData
+          }
+        });
+      }
+      if (url.includes('/api/news/market-sentiment')) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: mockSentimentData
+          }
+        });
+      }
+      if (url.includes('/api/news/sentiment-dashboard')) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: mockDashboardData
+          }
+        });
+      }
+      return Promise.resolve({ data: { success: true, data: [] } });
+    }),
     post: vi.fn().mockResolvedValue({ data: {} }),
-    getNewsAnalysis: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getNewsSentiment: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    getNewsKeywords: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    searchNews: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
+  getNewsAnalysis: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getNewsSentiment: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  getNewsKeywords: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  searchNews: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
@@ -83,24 +109,28 @@ const mockSentimentData = {
   ],
 };
 
+const mockDashboardData = {
+  summary: {
+    totalArticles: 150,
+    overallSentiment: "neutral",
+    sentimentScore: 0.15,
+  },
+  topSources: [
+    { source: "Reuters", count: 25 },
+    { source: "Bloomberg", count: 20 },
+  ],
+  topKeywords: [
+    { keyword: "earnings", count: 15 },
+    { keyword: "market", count: 12 },
+  ],
+};
+
 describe("NewsAnalysis Component", () => {
   let api;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    api = (await import("../../../services/api.js")).default;
-    api.getNewsAnalysis.mockResolvedValue({
-      success: true,
-      data: mockNewsData,
-    });
-    api.getNewsSentiment.mockResolvedValue({
-      success: true,
-      data: mockSentimentData,
-    });
-    api.getNewsKeywords.mockResolvedValue({
-      success: true,
-      data: ["earnings", "market", "inflation"],
-    });
+    // The api object is already mocked at the module level, no need to reassign
   });
 
   it("renders news analysis page", async () => {

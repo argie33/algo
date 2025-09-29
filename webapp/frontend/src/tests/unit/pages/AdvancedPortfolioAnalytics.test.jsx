@@ -6,34 +6,118 @@ import * as api from '../../../services/api';
 
 // Mock the API
 vi.mock('../../../services/api', () => ({
-  getPortfolioAnalytics: vi.fn(),
-  getPortfolioMetrics: vi.fn(),
-  getPortfolioRisk: vi.fn(),
+  getPerformanceAnalytics: vi.fn(),
+  getRiskAnalytics: vi.fn(),
+  getCorrelationAnalytics: vi.fn(),
+  getAllocationAnalytics: vi.fn(),
+  getReturnsAnalytics: vi.fn(),
+  getSectorsAnalytics: vi.fn(),
+  getVolatilityAnalytics: vi.fn(),
+  getTrendsAnalytics: vi.fn(),
+  exportAnalytics: vi.fn(),
 }));
 
-const mockAnalyticsData = {
-  performance: {
-    totalReturn: 12.5,
-    sharpeRatio: 1.2,
-    volatility: 15.2,
-    maxDrawdown: -8.5,
-  },
-  allocation: [
-    { name: 'Stocks', value: 60 },
-    { name: 'Bonds', value: 30 },
-    { name: 'Cash', value: 10 },
-  ],
-  holdings: [
-    { symbol: 'AAPL', weight: 15.5, return: 23.2 },
-    { symbol: 'MSFT', weight: 12.8, return: 18.7 },
-    { symbol: 'GOOGL', weight: 10.2, return: 15.3 },
-  ],
+const mockPerformanceData = {
+  data: {
+    returns: 0.125, // 12.5%
+    volatility: 0.152, // 15.2%
+    sharpe_ratio: 1.2,
+    portfolio_metrics: {
+      total_value: 102500,
+      top_performers: [
+        { symbol: 'AAPL', return_percent: 23.2 },
+        { symbol: 'MSFT', return_percent: 18.7 },
+        { symbol: 'GOOGL', return_percent: 15.3 },
+      ]
+    },
+    performance_timeline: [],
+    benchmark_comparison: { data: [] }
+  }
+};
+
+const mockRiskData = {
+  data: {
+    risk: {
+      risk_assessment: { overall_risk: 'Medium' },
+      portfolio_metrics: {
+        portfolio_volatility: 15.2,
+        max_drawdown: -8.5,
+        value_at_risk_95: -5.2,
+        concentration_risk: 'Low'
+      },
+      position_analysis: {
+        position_breakdown: [
+          { symbol: 'AAPL', position_weight: 15.5, unrealized_return: 23.2 },
+          { symbol: 'MSFT', position_weight: 12.8, unrealized_return: 18.7 }
+        ]
+      }
+    }
+  }
+};
+
+const mockAllocationData = {
+  data: {
+    sectors: [
+      { name: 'Technology', percentage: 60 },
+      { name: 'Healthcare', percentage: 30 },
+      { name: 'Finance', percentage: 10 }
+    ],
+    assets: [
+      { symbol: 'AAPL', percentage: 15.5, shares: 100, sector: 'Technology', value: 15000 },
+      { symbol: 'MSFT', percentage: 12.8, shares: 80, sector: 'Technology', value: 12000 }
+    ]
+  }
+};
+
+const mockCorrelationData = {
+  data: {
+    correlations: {
+      insights: {
+        diversification_score: 8.5,
+        average_correlation: 0.35,
+        assets_analyzed: 10,
+        highest_correlation: { pair: ['AAPL', 'MSFT'], value: 0.85 },
+        lowest_correlation: { pair: ['AAPL', 'GLD'], value: -0.12 }
+      }
+    }
+  }
+};
+
+const mockVolatilityData = {
+  data: {
+    volatility: {
+      annualized_volatility: 15.2,
+      risk_level: 'Medium',
+      returns_data: []
+    }
+  }
+};
+
+const mockTrendsData = {
+  data: {
+    trends: {
+      trend_direction: 'Upward',
+      trend_strength: 'Strong'
+    }
+  }
 };
 
 const TestWrapper = ({ children }) => {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: {
+        retry: false,
+        gcTime: 0,
+        staleTime: 0,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+    logger: {
+      log: () => {},
+      warn: () => {},
+      error: () => {},
     },
   });
   return (
@@ -46,9 +130,15 @@ const TestWrapper = ({ children }) => {
 describe('AdvancedPortfolioAnalytics', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    api.getPortfolioAnalytics.mockResolvedValue(mockAnalyticsData);
-    api.getPortfolioMetrics.mockResolvedValue(mockAnalyticsData.performance);
-    api.getPortfolioRisk.mockResolvedValue({ riskScore: 6.5 });
+    api.getPerformanceAnalytics.mockResolvedValue(mockPerformanceData);
+    api.getRiskAnalytics.mockResolvedValue(mockRiskData);
+    api.getCorrelationAnalytics.mockResolvedValue(mockCorrelationData);
+    api.getAllocationAnalytics.mockResolvedValue(mockAllocationData);
+    api.getReturnsAnalytics.mockResolvedValue({ data: {} });
+    api.getSectorsAnalytics.mockResolvedValue({ data: {} });
+    api.getVolatilityAnalytics.mockResolvedValue(mockVolatilityData);
+    api.getTrendsAnalytics.mockResolvedValue(mockTrendsData);
+    api.exportAnalytics.mockResolvedValue({});
   });
 
   it('renders without crashing', () => {
@@ -91,10 +181,14 @@ describe('AdvancedPortfolioAnalytics', () => {
       </TestWrapper>
     );
 
+    // Click on Asset Allocation tab first
+    const allocationTab = screen.getByText('Asset Allocation');
+    fireEvent.click(allocationTab);
+
     await waitFor(() => {
-      expect(screen.getByText('Stocks')).toBeInTheDocument();
-      expect(screen.getByText('Bonds')).toBeInTheDocument();
-      expect(screen.getByText('Cash')).toBeInTheDocument();
+      expect(screen.getByText('Technology')).toBeInTheDocument();
+      expect(screen.getByText('Healthcare')).toBeInTheDocument();
+      expect(screen.getByText('Finance')).toBeInTheDocument();
     });
   });
 
@@ -131,7 +225,7 @@ describe('AdvancedPortfolioAnalytics', () => {
   });
 
   it('handles API errors gracefully', async () => {
-    api.getPortfolioAnalytics.mockRejectedValueOnce(new Error('API Error'));
+    api.getPerformanceAnalytics.mockRejectedValueOnce(new Error('API Error'));
 
     render(
       <TestWrapper>
@@ -140,7 +234,7 @@ describe('AdvancedPortfolioAnalytics', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/error loading analytics/i)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to load performance data/i)).toBeInTheDocument();
     });
   });
 
@@ -168,11 +262,11 @@ describe('AdvancedPortfolioAnalytics', () => {
       expect(screen.getByText('AAPL')).toBeInTheDocument();
     });
 
-    const refreshButton = screen.getByLabelText(/refresh/i);
+    const refreshButton = screen.getByText(/refresh/i);
     fireEvent.click(refreshButton);
 
     await waitFor(() => {
-      expect(api.getPortfolioAnalytics).toHaveBeenCalledTimes(2);
+      expect(api.getPerformanceAnalytics).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -194,9 +288,7 @@ describe('AdvancedPortfolioAnalytics', () => {
     fireEvent.click(monthOption);
 
     await waitFor(() => {
-      expect(api.getPortfolioAnalytics).toHaveBeenCalledWith(
-        expect.objectContaining({ period: '1M' })
-      );
+      expect(api.getPerformanceAnalytics).toHaveBeenCalledWith('1m', 'SPY');
     });
   });
 });

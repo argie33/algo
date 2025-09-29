@@ -1,20 +1,21 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { vi, describe, test, expect, beforeEach } from 'vitest';
 import RootRedirect from '../../../components/RootRedirect';
 
 // Mock the AuthContext
-const mockUseAuth = jest.fn();
-jest.mock('../../../contexts/AuthContext', () => ({
+const mockUseAuth = vi.fn();
+vi.mock('../../../contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
 // Mock MarketOverview component
-jest.mock('../../../pages/MarketOverview', () => {
-  return function MockMarketOverview() {
+vi.mock('../../../pages/MarketOverview', () => ({
+  default: function MockMarketOverview() {
     return <div data-testid="market-overview">Market Overview Component</div>;
-  };
-});
+  }
+}));
 
 describe('RootRedirect Component', () => {
   const renderWithRouter = (component) => {
@@ -26,7 +27,7 @@ describe('RootRedirect Component', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render MarketOverview for authenticated users', () => {

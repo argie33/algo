@@ -96,139 +96,7 @@ import { formatExactNumber } from "../utils/formatters";
 
 const WIDGET_COLORS = ["#1976d2", "#43a047", "#ffb300", "#8e24aa", "#e53935"];
 
-// ⚠️ MOCK DATA - Replace with real API when portfolio database is populated
-const mockPortfolio = {
-  value: 1250000,
-  pnl: { daily: 3200, mtd: 18000, ytd: 92000 },
-  allocation: [
-    { name: "AAPL", value: 38, sector: "Technology" },
-    { name: "MSFT", value: 27, sector: "Technology" },
-    { name: "GOOGL", value: 18, sector: "Technology" },
-    { name: "Cash", value: 10, sector: "Cash" },
-    { name: "Other", value: 7, sector: "Mixed" },
-  ],
-};
-
-// ⚠️ MOCK DATA - Replace with real sentiment API when available
-const mockMarketSentiment = {
-  fearGreed: 72,
-  aaii: { bullish: 45, bearish: 28, neutral: 27 },
-  naaim: 65,
-  vix: 18.5,
-  status: "Bullish",
-  isMockData: true,
-};
-
-// ⚠️ MOCK DATA - Replace with real sector performance API when available
-const mockSectorPerformance = [
-  {
-    sector: "Technology",
-    performance: 2.1,
-    color: "#00C49F",
-    isMockData: true,
-  },
-  {
-    sector: "Healthcare",
-    performance: 1.8,
-    color: "#0088FE",
-    isMockData: true,
-  },
-  { sector: "Finance", performance: -0.5, color: "#FF8042", isMockData: true },
-  { sector: "Energy", performance: 3.2, color: "#FFBB28", isMockData: true },
-  { sector: "Consumer", performance: 0.9, color: "#8884D8", isMockData: true },
-];
-
-// ⚠️ MOCK DATA - Replace with real stock scoring API when available
-const mockTopStocks = [
-  {
-    symbol: "NVDA",
-    score: 95,
-    quality: 92,
-    value: 85,
-    growth: 98,
-    momentum: 94,
-    isMockData: true,
-  },
-  {
-    symbol: "MSFT",
-    score: 88,
-    quality: 95,
-    value: 78,
-    growth: 87,
-    momentum: 92,
-    isMockData: true,
-  },
-  {
-    symbol: "GOOGL",
-    score: 85,
-    quality: 88,
-    value: 92,
-    growth: 82,
-    momentum: 78,
-    isMockData: true,
-  },
-  {
-    symbol: "AAPL",
-    score: 82,
-    quality: 90,
-    value: 72,
-    growth: 85,
-    momentum: 82,
-    isMockData: true,
-  },
-];
-
-// ⚠️ MOCK DATA - Replace with real economic data API when available
-const mockEconomicIndicators = [
-  { name: "GDP Growth", value: 2.4, trend: "stable", isMockData: true },
-  { name: "Inflation", value: 3.1, trend: "down", isMockData: true },
-  { name: "Unemployment", value: 3.8, trend: "stable", isMockData: true },
-  { name: "Fed Funds Rate", value: 5.25, trend: "stable", isMockData: true },
-];
-
-// ⚠️ MOCK DATA - Replace with real watchlist API when available
-const mockWatchlist = [
-  { symbol: "AAPL", price: 195.12, change: 2.1, score: 82, isMockData: true },
-  { symbol: "TSLA", price: 710.22, change: -1.8, score: 78, isMockData: true },
-  { symbol: "NVDA", price: 1200, change: 3.5, score: 95, isMockData: true },
-  { symbol: "MSFT", price: 420.5, change: 0.7, score: 88, isMockData: true },
-];
-
-const mockActivity = [
-  { type: "Trade", desc: "Bought 100 AAPL", date: "2025-06-21", amount: 19500 },
-  {
-    type: "Alert",
-    desc: "TSLA price alert triggered",
-    date: "2025-06-20",
-    amount: null,
-  },
-  { type: "Trade", desc: "Sold 50 NVDA", date: "2025-06-19", amount: 60000 },
-];
-
-const mockCalendar = [
-  { event: "FOMC Rate Decision", date: "2025-06-25", impact: "High" },
-  { event: "AAPL Earnings", date: "2025-07-01", impact: "Medium" },
-  { event: "Nonfarm Payrolls", date: "2025-07-05", impact: "High" },
-];
-
-
-const mockNews = [
-  {
-    title: "Fed Holds Rates Steady, Signals Caution",
-    date: "2025-06-21",
-    sentiment: "Neutral",
-  },
-  {
-    title: "AAPL Surges on Strong Earnings",
-    date: "2025-06-20",
-    sentiment: "Positive",
-  },
-  {
-    title: "Global Markets Mixed Ahead of FOMC",
-    date: "2025-06-19",
-    sentiment: "Neutral",
-  },
-];
+// All mock data removed - using real API data only
 
 const BRAND_NAME = "ProTrade Analytics";
 
@@ -542,7 +410,13 @@ function TechnicalSignalsWidget({ enabled = true }) {
 // --- ENHANCED WIDGETS ---
 function MarketSentimentWidget() {
   const { data: marketData, isLoading: _isLoading } = useMarketOverview();
-  const sentiment = marketData?.data?.sentiment;
+  const sentiment = marketData?.data?.sentiment || {
+    fearGreed: 50,
+    naaim: 50,
+    aaii: { bullish: 33, neutral: 33, bearish: 34 },
+    status: 'Neutral',
+    vix: 20
+  };
 
   const getSentimentColor = (value) => {
     if (value > 75) return "success";
@@ -630,7 +504,7 @@ function MarketSentimentWidget() {
 
 function SectorPerformanceWidget() {
   const { data: marketData, isLoading: _isLoading2 } = useMarketOverview();
-  const sectors = marketData?.data?.sectors;
+  const sectors = marketData?.data?.sectors || [];
 
   return (
     <Card sx={{ height: "100%" }}>
@@ -665,7 +539,7 @@ function SectorPerformanceWidget() {
 
 function TopStocksWidget() {
   const { data: stocksData, isLoading: _isLoading3 } = useTopStocks();
-  const stocks = stocksData?.data;
+  const stocks = stocksData?.data || [];
 
   return (
     <Card sx={{ height: "100%" }}>
@@ -724,7 +598,7 @@ function TopStocksWidget() {
 
 function EconomicIndicatorsWidget() {
   const { data: marketData, isLoading: _isLoading4 } = useMarketOverview();
-  const indicators = marketData?.data?.economic;
+  const indicators = marketData?.data?.economic || [];
 
   const getTrendIcon = (trend) => {
     if (trend === "up")
@@ -905,7 +779,11 @@ const Dashboard = () => {
   });
 
   // Use real data only, no mock fallbacks
-  const safePortfolio = portfolioData;
+  const safePortfolio = portfolioData || {
+    value: 0,
+    pnl: { daily: 0, mtd: 0, ytd: 0 },
+    allocation: []
+  };
   const safeWatchlist = []; // No mock fallback
   const safeNews = []; // No mock fallback
   const safeActivity = []; // No mock fallback

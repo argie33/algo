@@ -53,6 +53,7 @@ def create_stock_scores_table(conn):
         trend_score DECIMAL(5,2),
         value_score DECIMAL(5,2),
         quality_score DECIMAL(5,2),
+        growth_score DECIMAL(5,2),
         rsi DECIMAL(5,2),
         macd DECIMAL(10,4),
         sma_20 DECIMAL(10,2),
@@ -220,18 +221,20 @@ def get_stock_data_from_database(conn, symbol):
         prices = df['close'].astype(float).values
         volatility_30d = calculate_volatility(prices)
 
-        # Get earnings data for PE ratio calculation
+        # Get earnings data for PE ratio and growth calculation
         cur.execute("""
-            SELECT actual_eps
+            SELECT actual_eps, report_date
             FROM earnings
             WHERE symbol = %s
-            AND report_date >= CURRENT_DATE - INTERVAL '12 months'
+            AND report_date >= CURRENT_DATE - INTERVAL '24 months'
             ORDER BY report_date DESC
-            LIMIT 4
+            LIMIT 8
         """, (symbol,))
 
         earnings_data = cur.fetchall()
         pe_ratio = None
+        earnings_growth = None
+
         if earnings_data:
             # Calculate trailing 12-month EPS
             eps_values = [float(row[0]) for row in earnings_data if row[0] is not None]
@@ -239,6 +242,13 @@ def get_stock_data_from_database(conn, symbol):
                 trailing_eps = sum(eps_values[:4])  # Last 4 quarters
                 if trailing_eps > 0:
                     pe_ratio = current_price / trailing_eps
+
+                # Calculate earnings growth (current year vs previous year)
+                if len(eps_values) >= 8:
+                    current_year_eps = sum(eps_values[:4])  # Last 4 quarters
+                    previous_year_eps = sum(eps_values[4:8])  # Previous 4 quarters
+                    if previous_year_eps > 0:
+                        earnings_growth = ((current_year_eps - previous_year_eps) / abs(previous_year_eps)) * 100
 
         # Market cap placeholder - we don't have this data, so set to None
         market_cap = None
@@ -299,12 +309,35 @@ def get_stock_data_from_database(conn, symbol):
 
         quality_score = max(0, min(100, quality_score))
 
-        # Composite Score (weighted average)
+        # Growth Score (based on earnings growth and price momentum)
+        growth_score = 50  # Default neutral score
+        if earnings_growth is not None:
+            if earnings_growth > 20:
+                growth_score = 90
+            elif earnings_growth > 10:
+                growth_score = 75
+            elif earnings_growth > 0:
+                growth_score = 60
+            elif earnings_growth > -10:
+                growth_score = 40
+            else:
+                growth_score = 20
+
+        # Add price momentum to growth score
+        if price_change_30d > 10:
+            growth_score = min(100, growth_score + 10)
+        elif price_change_30d < -10:
+            growth_score = max(0, growth_score - 10)
+
+        growth_score = max(0, min(100, growth_score))
+
+        # Composite Score (weighted average including growth)
         composite_score = (
-            momentum_score * 0.25 +
-            trend_score * 0.30 +
-            value_score * 0.25 +
-            quality_score * 0.20
+            momentum_score * 0.20 +
+            trend_score * 0.25 +
+            value_score * 0.20 +
+            quality_score * 0.15 +
+            growth_score * 0.20
         )
 
         return {
@@ -314,6 +347,7 @@ def get_stock_data_from_database(conn, symbol):
             'trend_score': float(round(trend_score, 2)),
             'value_score': float(round(value_score, 2)),
             'quality_score': float(round(quality_score, 2)),
+            'growth_score': float(round(growth_score, 2)),
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
@@ -340,12 +374,12 @@ def save_stock_score(conn, score_data):
         # Upsert query
         upsert_sql = """
         INSERT INTO stock_scores (
-            symbol, composite_score, momentum_score, trend_score, value_score, quality_score,
+            symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio, score_date, last_updated
         ) VALUES (
-            %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s,
+            %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s, CURRENT_DATE, CURRENT_TIMESTAMP
@@ -355,6 +389,7 @@ def save_stock_score(conn, score_data):
             trend_score = EXCLUDED.trend_score,
             value_score = EXCLUDED.value_score,
             quality_score = EXCLUDED.quality_score,
+            growth_score = EXCLUDED.growth_score,
             rsi = EXCLUDED.rsi,
             macd = EXCLUDED.macd,
             sma_20 = EXCLUDED.sma_20,
@@ -420,7 +455,7 @@ def main():
                     # Save to database
                     if save_stock_score(conn, score_data):
                         successful += 1
-                        logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}")
+                        logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}, Growth Score = {score_data['growth_score']:.2f}")
                     else:
                         failed += 1
                 else:

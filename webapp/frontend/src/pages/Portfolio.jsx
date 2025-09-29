@@ -883,6 +883,13 @@ const Portfolio = () => {
     ];
   };
 
+  // Load portfolio data when component mounts or user changes
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadUserPortfolio();
+    }
+  }, [isAuthenticated, user, loadUserPortfolio]);
+
   // Show loading state while portfolio data is being loaded
   if (loading) {
     return (

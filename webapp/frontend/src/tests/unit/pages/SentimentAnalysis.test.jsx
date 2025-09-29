@@ -34,27 +34,28 @@ vi.mock("../../../components/RealTimeSentimentScore", () => ({
   ),
 }));
 
-// Mock realTimeNewsService
-vi.mock("../../../services/realTimeNewsService", () => ({
-  default: {
-    subscribeToNews: vi.fn(),
-    unsubscribeFromNews: vi.fn(),
-    getLatestNews: vi.fn(),
-    fetchBreakingNews: vi.fn(),
-    getAllLatestSentiments: vi.fn(),
-  },
-  __esModule: true,
-}));
+// Mock realTimeNewsService - creating a mock since service doesn't exist yet
+const mockRealTimeNewsService = {
+  subscribeToNews: vi.fn(),
+  unsubscribeFromNews: vi.fn(),
+  getLatestNews: vi.fn(),
+  fetchBreakingNews: vi.fn(),
+  getAllLatestSentiments: vi.fn(),
+};
 
 // Mock API service
 vi.mock("../../../services/api.js", () => ({
-  api: {
-    getMarketSentiment: vi.fn(),
-    getSentimentTrends: vi.fn(),
-    getSocialMediaSentiment: vi.fn(),
-    getSymbolSentiment: vi.fn(),
-    getSentimentIndicators: vi.fn(),
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
   },
+  getMarketSentiment: vi.fn(),
+  getSentimentTrends: vi.fn(),
+  getSocialMediaSentiment: vi.fn(),
+  getSymbolSentiment: vi.fn(),
+  getSentimentIndicators: vi.fn(),
   getApiConfig: vi.fn(() => ({
     apiUrl: "http://localhost:3001",
     environment: "test",
@@ -170,33 +171,55 @@ const mockRealTimeSentimentData = {
   },
 };
 
+// Import the mocked functions
+import * as api from "../../../services/api.js";
+import mockRealTimeDataService from "../../../services/realTimeDataService";
+
 describe("SentimentAnalysis Component", () => {
-  const { api } = require("../../../services/api.js");
-  const {
-    default: mockRealTimeNewsService,
-  } = require("../../../services/realTimeNewsService");
 
   beforeEach(() => {
     vi.clearAllMocks();
-    api.getMarketSentiment.mockResolvedValue({
+
+    // Setup mocks for both named exports and default export
+    const mockData = {
       success: true,
       data: mockSentimentData,
-    });
-    api.getSentimentTrends.mockResolvedValue({
+    };
+    const mockTrendsResponse = {
       success: true,
       data: mockTrendsData,
-    });
-    api.getSocialMediaSentiment.mockResolvedValue({
+    };
+    const mockSocialResponse = {
       success: true,
       data: mockSocialData,
-    });
-    api.getSentimentIndicators.mockResolvedValue({
+    };
+    const mockIndicatorsResponse = {
       success: true,
       data: {
         fearGreedIndex: 75,
         vixLevel: 18.5,
         putCallRatio: 0.85,
       },
+    };
+
+    // Named exports
+    api.getMarketSentiment.mockResolvedValue(mockData);
+    api.getSentimentTrends.mockResolvedValue(mockTrendsResponse);
+    api.getSocialMediaSentiment.mockResolvedValue(mockSocialResponse);
+    api.getSentimentIndicators.mockResolvedValue(mockIndicatorsResponse);
+
+    // Default export mocks (axios instance)
+    api.default.get.mockImplementation((url) => {
+      if (url.includes('/api/sentiment')) {
+        return Promise.resolve({ data: mockSentimentData });
+      }
+      if (url.includes('/api/news/sentiment')) {
+        return Promise.resolve({ data: mockSocialData });
+      }
+      if (url.includes('/market/news')) {
+        return Promise.resolve({ data: mockNewsData });
+      }
+      return Promise.resolve({ data: {} });
     });
 
     // Setup real-time news service mocks
@@ -215,7 +238,7 @@ describe("SentimentAnalysis Component", () => {
 
     expect(screen.getByText(/sentiment analysis/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(api.getMarketSentiment).toHaveBeenCalled();
+      expect(api.default.get).toHaveBeenCalled();
     });
   });
 

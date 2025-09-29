@@ -568,6 +568,15 @@ const ScoresDashboard = () => {
                         color={stock.factors.value.score >= 80 ? "success" : stock.factors.value.score >= 60 ? "warning" : "error"}
                         variant="filled"
                       />
+                      {stock.factors.growth && (
+                        <Chip
+                          icon={<Timeline />}
+                          label={`Growth: ${stock.factors.growth.score.toFixed(1)}`}
+                          size="medium"
+                          color={stock.factors.growth.score >= 80 ? "success" : stock.factors.growth.score >= 60 ? "warning" : "error"}
+                          variant="filled"
+                        />
+                      )}
                       <Chip
                         icon={<Psychology />}
                         label={`Technical: ${stock.factors.technical.priceChange30d?.toFixed(1) || 'N/A'}%`}

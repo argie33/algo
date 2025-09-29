@@ -471,18 +471,28 @@ vi.mock("recharts", () => ({
       ...safeProps,
     });
   },
-  XAxis: ({ dataKey, ...props }) =>
-    React.createElement("div", {
+  XAxis: ({ dataKey, tickFormatter, domain, type, ...props }) => {
+    const domProps = { ...props };
+    delete domProps.tickFormatter;
+    delete domProps.domain;
+    delete domProps.type;
+    return React.createElement("div", {
       "data-testid": "x-axis",
       "data-key": dataKey,
-      ...props,
-    }),
-  YAxis: ({ domain, ...props }) =>
-    React.createElement("div", {
+      ...domProps,
+    });
+  },
+  YAxis: ({ domain, tickFormatter, type, ...props }) => {
+    const domProps = { ...props };
+    delete domProps.tickFormatter;
+    delete domProps.domain;
+    delete domProps.type;
+    return React.createElement("div", {
       "data-testid": "y-axis",
       "data-domain": JSON.stringify(domain),
-      ...props,
-    }),
+      ...domProps,
+    });
+  },
   CartesianGrid: (props) =>
     React.createElement("div", { "data-testid": "cartesian-grid", ...props }),
   Tooltip: ({

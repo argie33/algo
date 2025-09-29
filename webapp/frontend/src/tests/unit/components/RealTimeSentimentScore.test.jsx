@@ -4,13 +4,20 @@ import RealTimeSentimentScore from "../../../components/RealTimeSentimentScore";
 
 // Mock the real-time news service
 vi.mock("../../../services/realTimeNewsService", () => ({
+  RealTimeNewsService: vi.fn().mockImplementation(() => ({
+    subscribeToSentiment: vi.fn(),
+    unsubscribeFromSentiment: vi.fn(),
+    getLatestSentiment: vi.fn(),
+    fetchNewsSentiment: vi.fn(),
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  })),
   default: {
     subscribeToSentiment: vi.fn(),
     unsubscribeFromSentiment: vi.fn(),
     getLatestSentiment: vi.fn(),
     fetchNewsSentiment: vi.fn(),
   },
-  __esModule: true,
 }));
 
 // Mock formatters
@@ -37,9 +44,11 @@ const mockSentimentData = {
   isRealTime: true,
 };
 
-const { default: mockRealTimeNewsService } = await import(
-  "../../../services/realTimeNewsService"
-);
+// Get mock references directly from vi.mock
+import * as realTimeNewsServiceMock from "../../../services/realTimeNewsService";
+
+// Alias for easier use in tests
+const mockRealTimeNewsService = realTimeNewsServiceMock.default;
 
 describe("RealTimeSentimentScore", () => {
   beforeEach(() => {

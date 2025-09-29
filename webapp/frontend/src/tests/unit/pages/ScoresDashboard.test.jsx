@@ -105,6 +105,11 @@ vi.mock("../../../services/api", () => {
                     volatility: 18.5,
                     description: "Quality measures stability and consistency"
                   },
+                  growth: {
+                    score: 82.1,
+                    priceChange30d: 8.2,
+                    description: "Growth measures earnings growth and price momentum"
+                  },
                   technical: {
                     priceChange5d: 3.5,
                     priceChange30d: 8.2,
@@ -145,6 +150,11 @@ vi.mock("../../../services/api", () => {
                     score: 91.2,
                     volatility: 22.3,
                     description: "Quality measures stability and consistency"
+                  },
+                  growth: {
+                    score: 89.5,
+                    priceChange30d: 12.1,
+                    description: "Growth measures earnings growth and price momentum"
                   },
                   technical: {
                     priceChange5d: 5.2,
