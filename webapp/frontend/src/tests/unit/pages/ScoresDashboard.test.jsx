@@ -78,95 +78,45 @@ vi.mock("../../../services/api", () => {
             stocks: [
               {
                 symbol: "AAPL",
-                compositeScore: 88.7,
-                currentPrice: 175.5,
-                priceChange1d: 1.2,
-                volume: 45000000,
-                marketCap: 3400000000000,
-                factors: {
-                  momentum: {
-                    score: 85.2,
-                    rsi: 65.4,
-                    description: "Momentum measures price velocity and market sentiment"
-                  },
-                  trend: {
-                    score: 90.1,
-                    sma20: 174.5,
-                    sma50: 170.2,
-                    description: "Trend analyzes price direction relative to moving averages"
-                  },
-                  value: {
-                    score: 78.3,
-                    peRatio: 28.5,
-                    description: "Value assessment based on fundamental metrics"
-                  },
-                  quality: {
-                    score: 88.7,
-                    volatility: 18.5,
-                    description: "Quality measures stability and consistency"
-                  },
-                  growth: {
-                    score: 82.1,
-                    priceChange30d: 8.2,
-                    description: "Growth measures earnings growth and price momentum"
-                  },
-                  technical: {
-                    priceChange5d: 3.5,
-                    priceChange30d: 8.2,
-                    description: "Technical indicators and price momentum"
-                  },
-                  risk: {
-                    volatility30d: 18.5,
-                    description: "Risk assessment based on volatility measures"
-                  }
-                },
-                lastUpdated: "2025-09-27T07:59:12.033Z"
+                composite_score: 88.7,
+                momentum_score: 85.2,
+                trend_score: 90.1,
+                value_score: 78.3,
+                quality_score: 88.7,
+                growth_score: 82.1,
+                current_price: 175.5,
+                price_change_1d: 1.2,
+                price_change_5d: 3.5,
+                price_change_30d: 8.2,
+                volatility_30d: 18.5,
+                market_cap: 3400000000000,
+                volume_avg_30d: 45000000,
+                pe_ratio: 28.5,
+                rsi: 65.4,
+                sma_20: 174.5,
+                sma_50: 170.2,
+                last_updated: "2025-09-27T07:59:12.033Z"
               },
               {
                 symbol: "MSFT",
-                compositeScore: 91.2,
-                currentPrice: 420.75,
-                priceChange1d: 2.1,
-                volume: 25000000,
-                marketCap: 3200000000000,
-                factors: {
-                  momentum: {
-                    score: 88.5,
-                    rsi: 72.1,
-                    description: "Momentum measures price velocity and market sentiment"
-                  },
-                  trend: {
-                    score: 92.8,
-                    sma20: 418.3,
-                    sma50: 415.8,
-                    description: "Trend analyzes price direction relative to moving averages"
-                  },
-                  value: {
-                    score: 85.1,
-                    peRatio: 35.8,
-                    description: "Value assessment based on fundamental metrics"
-                  },
-                  quality: {
-                    score: 91.2,
-                    volatility: 22.3,
-                    description: "Quality measures stability and consistency"
-                  },
-                  growth: {
-                    score: 89.5,
-                    priceChange30d: 12.1,
-                    description: "Growth measures earnings growth and price momentum"
-                  },
-                  technical: {
-                    priceChange5d: 5.2,
-                    priceChange30d: 12.1,
-                    description: "Technical indicators and price momentum"
-                  },
-                  risk: {
-                    volatility30d: 22.3,
-                    description: "Risk assessment based on volatility measures"
-                  }
-                },
-                lastUpdated: "2025-09-27T07:59:12.033Z"
+                composite_score: 91.2,
+                momentum_score: 88.5,
+                trend_score: 92.8,
+                value_score: 85.1,
+                quality_score: 91.2,
+                growth_score: 89.5,
+                current_price: 420.75,
+                price_change_1d: 2.1,
+                price_change_5d: 5.2,
+                price_change_30d: 12.1,
+                volatility_30d: 22.3,
+                market_cap: 3200000000000,
+                volume_avg_30d: 25000000,
+                pe_ratio: 35.8,
+                rsi: 72.1,
+                sma_20: 418.3,
+                sma_50: 415.8,
+                last_updated: "2025-09-27T07:59:12.033Z"
               }
             ]
           }
@@ -336,7 +286,7 @@ describe("ScoresDashboard Page", () => {
 
     await waitFor(() => {
       // Check for factor descriptions (use getAllByText since descriptions appear for both stocks)
-      expect(screen.getAllByText("Momentum measures price velocity and market sentiment").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Momentum score based on RSI and price movement indicators").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("Trend analyzes price direction relative to moving averages").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("Value assessment based on fundamental metrics").length).toBeGreaterThanOrEqual(1);
     }, { timeout: 5000 });
@@ -456,20 +406,24 @@ describe("ScoresDashboard Page", () => {
             stocks: [
               {
                 symbol: "AAPL",
-                compositeScore: 88.7,
-                currentPrice: 175.5,
-                priceChange1d: 1.2,
-                volume: 45000000,
-                marketCap: 3400000000000,
-                factors: {
-                  momentum: { score: 85.2, rsi: 65.4, description: "Test momentum" },
-                  trend: { score: 90.1, sma20: 174.5, sma50: 170.2, description: "Test trend" },
-                  value: { score: 78.3, peRatio: 28.5, description: "Test value" },
-                  quality: { score: 88.7, volatility: 18.5, description: "Test quality" },
-                  technical: { priceChange5d: 3.5, priceChange30d: 8.2, description: "Test technical" },
-                  risk: { volatility30d: 18.5, description: "Test risk" }
-                },
-                lastUpdated: "2025-09-27T07:59:12.033Z"
+                composite_score: 88.7,
+                momentum_score: 85.2,
+                trend_score: 90.1,
+                value_score: 78.3,
+                quality_score: 88.7,
+                growth_score: 82.1,
+                current_price: 175.5,
+                price_change_1d: 1.2,
+                price_change_5d: 3.5,
+                price_change_30d: 8.2,
+                volatility_30d: 18.5,
+                market_cap: 3400000000000,
+                volume_avg_30d: 45000000,
+                pe_ratio: 28.5,
+                rsi: 65.4,
+                sma_20: 174.5,
+                sma_50: 170.2,
+                last_updated: "2025-09-27T07:59:12.033Z"
               }
             ]
           }

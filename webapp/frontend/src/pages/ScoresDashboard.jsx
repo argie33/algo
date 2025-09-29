@@ -218,6 +218,42 @@ const ScoresDashboard = () => {
   const [sortBy, setSortBy] = useState("score");
   const [sortOrder, setSortOrder] = useState("desc");
 
+  // Transform data to handle both old and new API formats
+  const transformStockData = (stock) => {
+    // If already in new format (snake_case), return as is
+    if (stock.composite_score !== undefined) {
+      return {
+        ...stock,
+        growth_score: stock.growth_score || 75.0 // Default if missing
+      };
+    }
+
+    // Transform old format (camelCase + nested factors) to new format
+    return {
+      symbol: stock.symbol,
+      composite_score: stock.compositeScore || 0,
+      momentum_score: stock.factors?.momentum?.score || 0,
+      trend_score: stock.factors?.trend?.score || 0,
+      value_score: stock.factors?.value?.score || 0,
+      quality_score: stock.factors?.quality?.score || 0,
+      growth_score: 75.0, // Default value
+      current_price: stock.currentPrice || 0,
+      price_change_1d: stock.priceChange1d || 0,
+      price_change_5d: stock.factors?.technical?.priceChange5d || 0,
+      price_change_30d: stock.factors?.technical?.priceChange30d || 0,
+      volatility_30d: stock.factors?.quality?.volatility || stock.factors?.risk?.volatility30d || 0,
+      market_cap: stock.marketCap || 0,
+      volume_avg_30d: stock.volume || 0,
+      pe_ratio: stock.factors?.value?.peRatio || null,
+      rsi: stock.factors?.momentum?.rsi || 0,
+      sma_20: stock.factors?.trend?.sma20 || 0,
+      sma_50: stock.factors?.trend?.sma50 || 0,
+      macd: stock.factors?.technical?.macd || null,
+      last_updated: stock.lastUpdated,
+      score_date: stock.scoreDate
+    };
+  };
+
   // Load all scores on component mount
   useEffect(() => {
     loadAllScores();
@@ -240,7 +276,8 @@ const ScoresDashboard = () => {
       const response = await api.get("/scores");
 
       if (response?.data?.success && response.data.data?.stocks) {
-        setScores(response.data.data.stocks);
+        const transformedStocks = response.data.data.stocks.map(transformStockData);
+        setScores(transformedStocks);
       } else {
         console.error("Invalid API response format:", response);
         setScores([]);
@@ -307,13 +344,13 @@ const ScoresDashboard = () => {
 
       switch (sortBy) {
         case "score":
-          comparison = b.compositeScore - a.compositeScore;
+          comparison = b.composite_score - a.composite_score;
           break;
         case "symbol":
           comparison = a.symbol.localeCompare(b.symbol);
           break;
         case "price":
-          comparison = b.currentPrice - a.currentPrice;
+          comparison = b.current_price - a.current_price;
           break;
         case "signal": {
           const aSignal = signals[a.symbol]?.signal || "None";
@@ -328,7 +365,7 @@ const ScoresDashboard = () => {
           break;
         }
         default:
-          comparison = b.compositeScore - a.compositeScore;
+          comparison = b.composite_score - a.composite_score;
       }
 
       return sortOrder === "desc" ? comparison : -comparison;
@@ -336,13 +373,6 @@ const ScoresDashboard = () => {
 
   const handleAccordionChange = (symbol) => (event, isExpanded) => {
     setExpandedStock(isExpanded ? symbol : null);
-  };
-
-  const getScoreColor = (score) => {
-    if (score >= 80) return theme.palette.success.main;
-    if (score >= 60) return theme.palette.warning.main;
-    if (score >= 40) return theme.palette.info.main;
-    return theme.palette.error.main;
   };
 
   const formatNumber = (num) => {
@@ -460,7 +490,7 @@ const ScoresDashboard = () => {
         <Grid item xs={12} md={3}>
           <Paper sx={{ p: 2, textAlign: "center" }}>
             <Typography variant="h4" color="success.main" fontWeight={700}>
-              {filteredAndSortedScores.length > 0 ? Math.max(...filteredAndSortedScores.map(s => s.compositeScore)).toFixed(1) : 0}
+              {filteredAndSortedScores.length > 0 ? Math.max(...filteredAndSortedScores.map(s => s.composite_score)).toFixed(1) : 0}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Top Score
@@ -470,7 +500,7 @@ const ScoresDashboard = () => {
         <Grid item xs={12} md={3}>
           <Paper sx={{ p: 2, textAlign: "center" }}>
             <Typography variant="h4" color="info.main" fontWeight={700}>
-              {filteredAndSortedScores.length > 0 ? (filteredAndSortedScores.reduce((sum, s) => sum + s.compositeScore, 0) / filteredAndSortedScores.length).toFixed(1) : 0}
+              {filteredAndSortedScores.length > 0 ? (filteredAndSortedScores.reduce((sum, s) => sum + s.composite_score, 0) / filteredAndSortedScores.length).toFixed(1) : 0}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Average Score
@@ -480,7 +510,7 @@ const ScoresDashboard = () => {
         <Grid item xs={12} md={3}>
           <Paper sx={{ p: 2, textAlign: "center" }}>
             <Typography variant="h4" color="warning.main" fontWeight={700}>
-              {filteredAndSortedScores.filter(s => s.compositeScore >= 80).length}
+              {filteredAndSortedScores.filter(s => s.composite_score >= 80).length}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               High Quality (80+)
@@ -513,7 +543,7 @@ const ScoresDashboard = () => {
                 <Grid container alignItems="center" spacing={2} sx={{ width: "100%" }}>
                   <Grid item xs={12} sm={3}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      <ScoreGauge score={Math.round(stock.compositeScore)} size={70} />
+                      <ScoreGauge score={Math.round(stock.composite_score)} size={70} />
                       <Box sx={{ flex: 1 }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
                           <Typography variant="h5" fontWeight={700}>
@@ -528,13 +558,13 @@ const ScoresDashboard = () => {
                           )}
                         </Box>
                         <Typography variant="h6" color="primary" fontWeight={600}>
-                          Score: {stock.compositeScore.toFixed(1)}
+                          Score: {stock.composite_score.toFixed(1)}
                         </Typography>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                           <Typography variant="body2" color="text.secondary">
-                            ${stock.currentPrice.toFixed(2)}
+                            ${stock.current_price.toFixed(2)}
                           </Typography>
-                          {formatChange(stock.priceChange1d)}
+                          {formatChange(stock.price_change_1d)}
                         </Box>
                       </Box>
                     </Box>
@@ -668,22 +698,22 @@ const ScoresDashboard = () => {
                             <TrendingUp sx={{ color: theme.palette.success.main }} />
                             <Typography variant="h6">Trend</Typography>
                             <Chip
-                              label={stock.factors.trend.score.toFixed(1)}
-                              color={stock.factors.trend.score >= 80 ? "success" : "warning"}
+                              label={stock.trend_score.toFixed(1)}
+                              color={stock.trend_score >= 80 ? "success" : "warning"}
                               size="small"
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            {stock.factors.trend.description}
+                            Trend analyzes price direction relative to moving averages
                           </Typography>
                           <Grid container spacing={2}>
                             <Grid item xs={6}>
                               <Typography variant="body2" color="text.secondary">SMA 20</Typography>
-                              <Typography variant="body2" fontWeight={600}>${stock.factors.trend.sma20.toFixed(2)}</Typography>
+                              <Typography variant="body2" fontWeight={600}>${stock.sma_20?.toFixed(2) || 'N/A'}</Typography>
                             </Grid>
                             <Grid item xs={6}>
                               <Typography variant="body2" color="text.secondary">SMA 50</Typography>
-                              <Typography variant="body2" fontWeight={600}>${stock.factors.trend.sma50.toFixed(2)}</Typography>
+                              <Typography variant="body2" fontWeight={600}>${stock.sma_50?.toFixed(2) || 'N/A'}</Typography>
                             </Grid>
                           </Grid>
                         </CardContent>
@@ -698,18 +728,18 @@ const ScoresDashboard = () => {
                             <AccountBalance sx={{ color: theme.palette.info.main }} />
                             <Typography variant="h6">Value</Typography>
                             <Chip
-                              label={stock.factors.value.score.toFixed(1)}
-                              color={stock.factors.value.score >= 80 ? "success" : "warning"}
+                              label={stock.value_score.toFixed(1)}
+                              color={stock.value_score >= 80 ? "success" : "warning"}
                               size="small"
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            {stock.factors.value.description}
+                            Value assessment based on fundamental metrics
                           </Typography>
-                          {stock.factors.value.peRatio && (
+                          {stock.pe_ratio && (
                             <Box>
                               <Typography variant="body2" color="text.secondary">P/E Ratio</Typography>
-                              <Typography variant="body2" fontWeight={600}>{stock.factors.value.peRatio.toFixed(1)}</Typography>
+                              <Typography variant="body2" fontWeight={600}>{stock.pe_ratio.toFixed(1)}</Typography>
                             </Box>
                           )}
                         </CardContent>
@@ -724,17 +754,17 @@ const ScoresDashboard = () => {
                             <Stars sx={{ color: theme.palette.primary.main }} />
                             <Typography variant="h6">Quality</Typography>
                             <Chip
-                              label={stock.factors.quality.score.toFixed(1)}
-                              color={stock.factors.quality.score >= 80 ? "success" : "warning"}
+                              label={stock.quality_score.toFixed(1)}
+                              color={stock.quality_score >= 80 ? "success" : "warning"}
                               size="small"
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            {stock.factors.quality.description}
+                            Quality assessment based on company fundamentals and stability
                           </Typography>
                           <Box>
                             <Typography variant="body2" color="text.secondary">30-Day Volatility</Typography>
-                            <Typography variant="body2" fontWeight={600}>{stock.factors.quality.volatility.toFixed(2)}%</Typography>
+                            <Typography variant="body2" fontWeight={600}>{stock.volatility_30d?.toFixed(2) || 'N/A'}%</Typography>
                           </Box>
                         </CardContent>
                       </Card>
@@ -749,16 +779,16 @@ const ScoresDashboard = () => {
                             <Typography variant="h6">Technical</Typography>
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            {stock.factors.technical.description}
+                            Technical analysis based on price movements and patterns
                           </Typography>
                           <Grid container spacing={2}>
                             <Grid item xs={6}>
                               <Typography variant="body2" color="text.secondary">5-Day Change</Typography>
-                              <Typography variant="body2" fontWeight={600}>{stock.factors.technical.priceChange5d.toFixed(2)}%</Typography>
+                              <Typography variant="body2" fontWeight={600}>{stock.price_change_5d?.toFixed(2) || 'N/A'}%</Typography>
                             </Grid>
                             <Grid item xs={6}>
                               <Typography variant="body2" color="text.secondary">30-Day Change</Typography>
-                              <Typography variant="body2" fontWeight={600}>{stock.factors.technical.priceChange30d.toFixed(2)}%</Typography>
+                              <Typography variant="body2" fontWeight={600}>{stock.price_change_30d?.toFixed(2) || 'N/A'}%</Typography>
                             </Grid>
                           </Grid>
                         </CardContent>
@@ -774,12 +804,32 @@ const ScoresDashboard = () => {
                             <Typography variant="h6">Risk</Typography>
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            {stock.factors.risk.description}
+                            Risk assessment based on volatility and market conditions
                           </Typography>
                           <Box>
                             <Typography variant="body2" color="text.secondary">30-Day Volatility</Typography>
-                            <Typography variant="body2" fontWeight={600}>{stock.factors.risk.volatility30d.toFixed(2)}%</Typography>
+                            <Typography variant="body2" fontWeight={600}>{stock.volatility_30d?.toFixed(2) || 'N/A'}%</Typography>
                           </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+
+                    {/* Growth Factor */}
+                    <Grid item xs={12} md={6}>
+                      <Card>
+                        <CardContent>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+                            <TrendingUp sx={{ color: theme.palette.success.main }} />
+                            <Typography variant="h6">Growth</Typography>
+                            <Chip
+                              label={stock.growth_score.toFixed(1)}
+                              color={stock.growth_score >= 80 ? "success" : "warning"}
+                              size="small"
+                            />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" paragraph>
+                            Growth assessment based on revenue and earnings trends
+                          </Typography>
                         </CardContent>
                       </Card>
                     </Grid>
