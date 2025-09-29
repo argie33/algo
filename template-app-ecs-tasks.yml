@@ -2535,7 +2535,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
         - Name: stock-scores-loader
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stock-scores:${StockScoresImageTag}"
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref StockScoresImageTag]]
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
@@ -2544,8 +2544,16 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
           Environment:
-            - Name: NODE_ENV
-              Value: production
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
 
   StockScoresLogGroup:
     Type: AWS::Logs::LogGroup
