@@ -183,7 +183,14 @@ const Watchlist = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
+      <Box
+        display="flex"
+        flexDirection={{ xs: "column", md: "row" }}
+        alignItems={{ xs: "flex-start", md: "center" }}
+        justifyContent="space-between"
+        gap={{ xs: 2, md: 0 }}
+        mb={4}
+      >
         <Box>
           <Typography variant="h3" component="h1" gutterBottom>
             Watchlist
@@ -191,7 +198,7 @@ const Watchlist = () => {
           <Typography variant="body1" color="text.secondary">
             Track your favorite stocks with real-time market data
           </Typography>
-          <Box display="flex" gap={1} mt={1}>
+          <Box display="flex" flexWrap="wrap" gap={1} mt={1}>
             <Chip
               label={`${watchlist?.length || 0} symbols`}
               color="primary"
@@ -212,11 +219,12 @@ const Watchlist = () => {
           </Box>
         </Box>
 
-        <Box display="flex" gap={2}>
+        <Box display="flex" gap={2} flexWrap="wrap">
           <Button
             variant="contained"
             startIcon={<Add />}
             onClick={() => setAddDialogOpen(true)}
+            size="medium"
           >
             Add Symbol
           </Button>
@@ -225,6 +233,7 @@ const Watchlist = () => {
             startIcon={<Refresh />}
             onClick={() => loadMarketData(watchlist)}
             disabled={loading}
+            size="medium"
           >
             Refresh
           </Button>
@@ -264,9 +273,9 @@ const Watchlist = () => {
       {/* Watchlist Table */}
       {!loading && watchlist.length > 0 && (
         <Card>
-          <CardContent>
-            <TableContainer>
-              <Table>
+          <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
+            <TableContainer sx={{ overflowX: "auto" }}>
+              <Table size="small">
                 <TableHead>
                   <TableRow>
                     <TableCell>
@@ -275,19 +284,19 @@ const Watchlist = () => {
                     <TableCell align="right">
                       <strong>Price</strong>
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>
                       <strong>Change</strong>
                     </TableCell>
                     <TableCell align="right">
                       <strong>Change %</strong>
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ display: { xs: "none", md: "table-cell" } }}>
                       <strong>Bid/Ask</strong>
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ display: { xs: "none", md: "table-cell" } }}>
                       <strong>Spread</strong>
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>
                       <strong>Volume</strong>
                     </TableCell>
                     <TableCell align="center">
@@ -324,7 +333,7 @@ const Watchlist = () => {
                           )}
                         </TableCell>
 
-                        <TableCell align="right">
+                        <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>
                           {hasError ? (
                             <Typography color="error">--</Typography>
                           ) : (
@@ -364,7 +373,7 @@ const Watchlist = () => {
                           )}
                         </TableCell>
 
-                        <TableCell align="right">
+                        <TableCell align="right" sx={{ display: { xs: "none", md: "table-cell" } }}>
                           {hasError ? (
                             <Typography color="error">--</Typography>
                           ) : (
@@ -377,7 +386,7 @@ const Watchlist = () => {
                           )}
                         </TableCell>
 
-                        <TableCell align="right">
+                        <TableCell align="right" sx={{ display: { xs: "none", md: "table-cell" } }}>
                           {hasError ? (
                             <Typography color="error">--</Typography>
                           ) : (
@@ -395,7 +404,7 @@ const Watchlist = () => {
                           )}
                         </TableCell>
 
-                        <TableCell align="right">
+                        <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>
                           {hasError ? (
                             <Typography color="error">--</Typography>
                           ) : (

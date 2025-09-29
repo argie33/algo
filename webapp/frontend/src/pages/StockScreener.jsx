@@ -1441,8 +1441,8 @@ function StockScreener() {
               {/* Results Table */}
               {screenResults && !isLoading && (
                 <>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small" stickyHeader>
+                  <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto", maxWidth: "100%" }}>
+                    <Table size="small" stickyHeader sx={{ minWidth: { xs: 350, sm: 750 } }}>
                       <TableHead>
                         <TableRow>
                           {(visibleColumns || []).map((column) => (

@@ -496,7 +496,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Box sx={{ display: "flex" }}>
+      <Box sx={{ display: "flex", width: "100%", overflowX: "hidden" }}>
       <AppBar
         position="fixed"
         sx={{
@@ -636,14 +636,15 @@ function App() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { md: `calc(100% - ${drawerWidth}px)` },
+          p: { xs: 1, sm: 2, md: 3 },
+          width: { xs: "100%", md: `calc(100% - ${drawerWidth}px)` },
           backgroundColor: theme.palette.background.default,
           minHeight: "100vh",
+          overflowX: "hidden",
         }}
       >
         <Toolbar />
-        <Container maxWidth="xl">
+        <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

@@ -1870,9 +1870,9 @@ const Portfolio = () => {
                   />
                 }
               />
-              <CardContent>
-                <TableContainer>
-                  <Table>
+              <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
+                <TableContainer sx={{ overflowX: "auto" }}>
+                  <Table size="small">
                     <TableHead>
                       <TableRow>
                         <TableCell>
@@ -1884,7 +1884,7 @@ const Portfolio = () => {
                             Symbol
                           </TableSortLabel>
                         </TableCell>
-                        <TableCell align="right">
+                        <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>
                           <TableSortLabel
                             active={orderBy === "shares"}
                             direction={orderBy === "shares" ? order : "asc"}
@@ -1893,7 +1893,7 @@ const Portfolio = () => {
                             Shares
                           </TableSortLabel>
                         </TableCell>
-                        <TableCell align="right">
+                        <TableCell align="right" sx={{ display: { xs: "none", md: "table-cell" } }}>
                           <TableSortLabel
                             active={orderBy === "avgCost"}
                             direction={orderBy === "avgCost" ? order : "asc"}
@@ -1902,7 +1902,7 @@ const Portfolio = () => {
                             Avg Cost
                           </TableSortLabel>
                         </TableCell>
-                        <TableCell align="right">Current Price</TableCell>
+                        <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>Current Price</TableCell>
                         <TableCell align="right">
                           <TableSortLabel
                             active={orderBy === "marketValue"}
@@ -1911,7 +1911,7 @@ const Portfolio = () => {
                             }
                             onClick={() => handleSort("marketValue")}
                           >
-                            Market Value
+                            Value
                           </TableSortLabel>
                         </TableCell>
                         <TableCell align="right">
@@ -1925,7 +1925,7 @@ const Portfolio = () => {
                             Gain/Loss
                           </TableSortLabel>
                         </TableCell>
-                        <TableCell align="right">
+                        <TableCell align="right" sx={{ display: { xs: "none", md: "table-cell" } }}>
                           <TableSortLabel
                             active={orderBy === "allocation"}
                             direction={orderBy === "allocation" ? order : "asc"}
@@ -1934,7 +1934,7 @@ const Portfolio = () => {
                             Allocation
                           </TableSortLabel>
                         </TableCell>
-                        <TableCell align="center">Signal</TableCell>
+                        <TableCell align="center" sx={{ display: { xs: "none", sm: "table-cell" } }}>Signal</TableCell>
                         <TableCell align="center">Actions</TableCell>
                       </TableRow>
                     </TableHead>
@@ -1959,18 +1959,19 @@ const Portfolio = () => {
                                 <Typography
                                   variant="caption"
                                   color="text.secondary"
+                                  sx={{ display: { xs: "none", sm: "block" } }}
                                 >
                                   {holding.company}
                                 </Typography>
                               </Box>
                             </TableCell>
-                            <TableCell align="right">
+                            <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>
                               {formatNumber(holding.shares)}
                             </TableCell>
-                            <TableCell align="right">
+                            <TableCell align="right" sx={{ display: { xs: "none", md: "table-cell" } }}>
                               {formatCurrency(holding.avgCost)}
                             </TableCell>
-                            <TableCell align="right">
+                            <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>
                               {formatCurrency(holding.currentPrice)}
                             </TableCell>
                             <TableCell align="right">
@@ -1988,6 +1989,7 @@ const Portfolio = () => {
                                       : "error.main"
                                   }
                                   fontWeight="bold"
+                                  sx={{ display: { xs: "none", sm: "block" } }}
                                 >
                                   {formatCurrency(holding.gainLoss)}
                                 </Typography>
@@ -2003,7 +2005,7 @@ const Portfolio = () => {
                                 />
                               </Box>
                             </TableCell>
-                            <TableCell align="right">
+                            <TableCell align="right" sx={{ display: { xs: "none", md: "table-cell" } }}>
                               <Box>
                                 <Typography variant="body2">
                                   {formatPercentage(holding.allocation)}
@@ -2016,7 +2018,7 @@ const Portfolio = () => {
                                 />
                               </Box>
                             </TableCell>
-                            <TableCell align="center">
+                            <TableCell align="center" sx={{ display: { xs: "none", sm: "table-cell" } }}>
                               {holdingsSignals[holding.symbol] ? (
                                 <TradingSignal
                                   signal={holdingsSignals[holding.symbol].signal}
