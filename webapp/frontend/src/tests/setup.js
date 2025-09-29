@@ -750,8 +750,41 @@ vi.mock("../services/devAuth.js", () => ({
 
 // Mock API service completely for unit tests
 vi.mock("../services/api.js", () => ({
+    default: {
+      get: vi.fn().mockResolvedValue({ data: { success: true, data: { score: 0.5, label: "neutral", confidence: 0 } } }),
+      post: vi.fn().mockResolvedValue({ data: { success: true } }),
+      put: vi.fn().mockResolvedValue({ data: { success: true } }),
+      delete: vi.fn().mockResolvedValue({ data: { success: true } }),
+      // Include common API methods that components might use
+      getMarketOverview: vi.fn().mockResolvedValue({ success: true, data: {} }),
+      getPortfolioData: vi.fn().mockResolvedValue({ success: true, data: [] }),
+      getStockData: vi.fn().mockResolvedValue({ success: true, data: {} }),
+      healthCheck: vi.fn().mockResolvedValue({ success: true }),
+      screenStocks: vi.fn().mockResolvedValue({ success: true, data: { results: [] } }),
+      getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
+      getScores: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          stocks: [
+            {
+              symbol: "AAPL",
+              composite_score: 85,
+              momentum_score: 78,
+              trend_score: 82,
+              value_score: 75,
+              quality_score: 88,
+              growth_score: 79,
+              current_price: 150.25,
+              price_change_30d: 5.2,
+              volatility_30d: 2.1,
+              rsi: 62.5
+            }
+          ]
+        }
+      }),
+    },
     api: {
-      get: vi.fn().mockResolvedValue({ data: { success: true, data: [] } }),
+      get: vi.fn().mockResolvedValue({ data: { success: true, data: { score: 0.5, label: "neutral", confidence: 0 } } }),
       post: vi.fn().mockResolvedValue({ data: { success: true } }),
       put: vi.fn().mockResolvedValue({ data: { success: true } }),
       delete: vi.fn().mockResolvedValue({ data: { success: true } }),
@@ -854,10 +887,36 @@ vi.mock("../services/api.js", () => ({
     }),
     getScores: vi.fn().mockResolvedValue({
       success: true,
-      data: [
-        { symbol: "AAPL", score: 85, category: "Large Cap" },
-        { symbol: "MSFT", score: 92, category: "Large Cap" },
-      ],
+      data: {
+        stocks: [
+          {
+            symbol: "AAPL",
+            composite_score: 85,
+            momentum_score: 78,
+            trend_score: 82,
+            value_score: 75,
+            quality_score: 88,
+            growth_score: 79,
+            current_price: 150.25,
+            price_change_30d: 5.2,
+            volatility_30d: 2.1,
+            rsi: 62.5
+          },
+          {
+            symbol: "MSFT",
+            composite_score: 92,
+            momentum_score: 85,
+            trend_score: 89,
+            value_score: 81,
+            quality_score: 94,
+            growth_score: 87,
+            current_price: 280.75,
+            price_change_30d: 8.3,
+            volatility_30d: 1.8,
+            rsi: 58.2
+          },
+        ]
+      },
     }),
     getPortfolioAnalytics: vi.fn().mockResolvedValue({
       success: true,

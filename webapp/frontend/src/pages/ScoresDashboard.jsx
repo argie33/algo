@@ -35,6 +35,7 @@ import {
   Security,
   ShowChart,
   SignalCellularAlt,
+  Timeline,
 } from "@mui/icons-material";
 
 // Trading Signal Component
@@ -542,50 +543,50 @@ const ScoresDashboard = () => {
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
                       <Chip
                         icon={<Stars />}
-                        label={`Quality: ${stock.factors.quality.score.toFixed(1)}`}
+                        label={`Quality: ${stock.quality_score.toFixed(1)}`}
                         size="medium"
-                        color={stock.factors.quality.score >= 80 ? "success" : stock.factors.quality.score >= 60 ? "warning" : "error"}
+                        color={stock.quality_score >= 80 ? "success" : stock.quality_score >= 60 ? "warning" : "error"}
                         variant="filled"
                       />
                       <Chip
                         icon={<TrendingUp />}
-                        label={`Momentum: ${stock.factors.momentum.score.toFixed(1)}`}
+                        label={`Momentum: ${stock.momentum_score.toFixed(1)}`}
                         size="medium"
-                        color={stock.factors.momentum.score >= 80 ? "success" : stock.factors.momentum.score >= 60 ? "warning" : "error"}
+                        color={stock.momentum_score >= 80 ? "success" : stock.momentum_score >= 60 ? "warning" : "error"}
                         variant="filled"
                       />
                       <Chip
                         icon={<Assessment />}
-                        label={`Trend: ${stock.factors.trend.score.toFixed(1)}`}
+                        label={`Trend: ${stock.trend_score.toFixed(1)}`}
                         size="medium"
-                        color={stock.factors.trend.score >= 80 ? "success" : stock.factors.trend.score >= 60 ? "warning" : "error"}
+                        color={stock.trend_score >= 80 ? "success" : stock.trend_score >= 60 ? "warning" : "error"}
                         variant="filled"
                       />
                       <Chip
                         icon={<AccountBalance />}
-                        label={`Value: ${stock.factors.value.score.toFixed(1)}`}
+                        label={`Value: ${stock.value_score.toFixed(1)}`}
                         size="medium"
-                        color={stock.factors.value.score >= 80 ? "success" : stock.factors.value.score >= 60 ? "warning" : "error"}
+                        color={stock.value_score >= 80 ? "success" : stock.value_score >= 60 ? "warning" : "error"}
                         variant="filled"
                       />
-                      {stock.factors.growth && (
+                      {stock.growth_score && (
                         <Chip
                           icon={<Timeline />}
-                          label={`Growth: ${stock.factors.growth.score.toFixed(1)}`}
+                          label={`Growth: ${stock.growth_score.toFixed(1)}`}
                           size="medium"
-                          color={stock.factors.growth.score >= 80 ? "success" : stock.factors.growth.score >= 60 ? "warning" : "error"}
+                          color={stock.growth_score >= 80 ? "success" : stock.growth_score >= 60 ? "warning" : "error"}
                           variant="filled"
                         />
                       )}
                       <Chip
                         icon={<Psychology />}
-                        label={`Technical: ${stock.factors.technical.priceChange30d?.toFixed(1) || 'N/A'}%`}
+                        label={`Technical: ${stock.price_change_30d?.toFixed(1) || 'N/A'}%`}
                         size="medium"
                         variant="outlined"
                       />
                       <Chip
                         icon={<Security />}
-                        label={`Risk: ${stock.factors.risk.volatility30d?.toFixed(1) || 'N/A'}%`}
+                        label={`Risk: ${stock.volatility_30d?.toFixed(1) || 'N/A'}%`}
                         size="medium"
                         variant="outlined"
                       />
@@ -626,24 +627,24 @@ const ScoresDashboard = () => {
                             <Speed sx={{ color: theme.palette.warning.main }} />
                             <Typography variant="h6">Momentum</Typography>
                             <Chip
-                              label={stock.factors.momentum.score.toFixed(1)}
-                              color={stock.factors.momentum.score >= 80 ? "success" : "warning"}
+                              label={stock.momentum_score.toFixed(1)}
+                              color={stock.momentum_score >= 80 ? "success" : "warning"}
                               size="small"
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            {stock.factors.momentum.description}
+                            Momentum score based on RSI and price movement indicators
                           </Typography>
                           <Box sx={{ mb: 2 }}>
                             <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                               <Typography variant="body2">RSI</Typography>
                               <Typography variant="body2" fontWeight={600}>
-                                {stock.factors.momentum.rsi.toFixed(1)}
+                                {stock.rsi?.toFixed(1) || 'N/A'}
                               </Typography>
                             </Box>
                             <LinearProgress
                               variant="determinate"
-                              value={stock.factors.momentum.rsi}
+                              value={stock.rsi || 0}
                               sx={{
                                 height: 8,
                                 borderRadius: 4,

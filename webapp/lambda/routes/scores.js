@@ -38,6 +38,7 @@ router.get("/", async (req, res) => {
         trend_score,
         value_score,
         quality_score,
+        growth_score,
         rsi,
         macd,
         sma_20,

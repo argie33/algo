@@ -20,6 +20,19 @@ vi.mock("../../../services/realTimeNewsService", () => ({
   },
 }));
 
+// Mock API service specifically for this test
+vi.mock("../../../services/api.js", () => ({
+  default: {
+    get: vi.fn().mockResolvedValue({
+      data: {
+        score: 0.75,
+        label: "positive",
+        confidence: 0.85
+      }
+    }),
+  },
+}));
+
 // Mock formatters
 vi.mock("../../../utils/formatters", () => ({
   formatPercentage: vi.fn((value) => `${value.toFixed(2)}%`),
