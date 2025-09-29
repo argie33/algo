@@ -1,35 +1,100 @@
 JWT verifier initialized successfully
-🚨 Alert System initialized
-🔍 Alert monitoring started
-🚨 Alert system integration initialized
+AlertSystem not available, alert monitoring disabled
 📊 Monitoring started
 🎛️ Live Data Manager initialized
+Financial Dashboard API server running on port 3001 (local mode)
+Health check: http://localhost:3001/health
+Stocks: http://localhost:3001/stocks
+Technical: http://localhost:3001/technical/daily
+🔌 WebSocket endpoint: ws://localhost:3001/ws
+Processing request: GET /api/health
+Initializing database connection...
 Initializing database connection pool...
 Using database config from environment variables
 Database config loaded from environment: localhost:5432/stocks
-node:events:502
-      throw er; // Unhandled 'error' event
-      ^
-
-Error: listen EADDRINUSE: address already in use :::3001
-    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
-    at listenInCluster (node:net:1965:12)
-    at Server.listen (node:net:2067:7)
-    at Function.listen (/home/stocks/algo/webapp/lambda/node_modules/express/lib/application.js:635:24)
-    at Object.<anonymous> (/home/stocks/algo/webapp/lambda/server.js:301:7)
-    at Module._compile (node:internal/modules/cjs/loader:1529:14)
-    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-    at Module.load (node:internal/modules/cjs/loader:1275:32)
-    at Module._load (node:internal/modules/cjs/loader:1096:12)
-    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
-Emitted 'error' event on Server instance at:
-    at emitErrorNT (node:net:1944:8)
-    at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
-  code: 'EADDRINUSE',
-  errno: -98,
-  syscall: 'listen',
-  address: '::',
-  port: 3001
+Processing request: GET /api/health
+✅ Database connection pool initialized successfully
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [29/Sep/2025:13:00:41 +0000] "GET /api/health HTTP/1.1" 200 347 "-" "node"
+::ffff:127.0.0.1 - - [29/Sep/2025:13:00:41 +0000] "GET /api/health HTTP/1.1" 200 346 "-" "node"
+Processing request: GET /api/analytics/performance
+Database connection verified for database-dependent endpoint
+📈 Performance analytics requested for user: dev_user, period: 1m
+Database query error: {
+  error: 'column "symbol" does not exist',
+  query: 'SELECT symbol, shares, avg_cost, current_price,\n' +
+    '                (current_price - avg_cost) / avg_cos...',
+  params: '1 parameters',
+  code: '42703'
 }
-
-Node.js v20.19.4
+Database query error (returning null for tests): column "symbol" does not exist
+Portfolio holdings query failed, using sample data: Cannot read properties of null (reading 'rows')
+::1 - - [29/Sep/2025:13:01:04 +0000] "GET /api/analytics/performance HTTP/1.1" 200 1675 "-" "curl/8.5.0"
+Processing request: GET /api/analytics/performance
+Database connection verified for database-dependent endpoint
+📈 Performance analytics requested for user: dev_user, period: 1m
+Database query error: {
+  error: 'column "symbol" does not exist',
+  query: 'SELECT symbol, shares, avg_cost, current_price,\n' +
+    '                (current_price - avg_cost) / avg_cos...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "symbol" does not exist
+Portfolio holdings query failed, using sample data: Cannot read properties of null (reading 'rows')
+::1 - - [29/Sep/2025:13:01:16 +0000] "GET /api/analytics/performance HTTP/1.1" 200 1676 "-" "curl/8.5.0"
+Processing request: GET /technical
+Database connection verified for database-dependent endpoint
+::1 - - [29/Sep/2025:14:58:28 +0000] "GET /technical HTTP/1.1" 200 4546 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /favicon.ico
+Database connection verified for database-dependent endpoint
+::1 - - [29/Sep/2025:14:58:28 +0000] "GET /favicon.ico HTTP/1.1" 404 599 "http://localhost:3001/technical" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:15:10:04 +0000] "GET /api/scores HTTP/1.1" 200 11808 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:15:14:03 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:15:14:10 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
+Processing request: GET /api/scores/BAC
+Database connection verified for database-dependent endpoint
+📊 Detailed scores requested for symbol: BAC - using real table
+::1 - - [29/Sep/2025:15:14:17 +0000] "GET /api/scores/BAC HTTP/1.1" 200 1563 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:15:14:33 +0000] "GET /api/scores?limit=5 HTTP/1.1" 200 4814 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:15:14:40 +0000] "GET /api/scores?search=BAC HTTP/1.1" 200 1291 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::ffff:127.0.0.1 - - [29/Sep/2025:15:37:56 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "axios/1.12.2"
+Processing request: GET /api/scores/ping
+Database connection verified for database-dependent endpoint
+::1 - - [29/Sep/2025:15:43:04 +0000] "GET /api/scores/ping HTTP/1.1" 200 74 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:15:43:08 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
+Processing request: GET /api/scoring
+Database connection verified for database-dependent endpoint
+::1 - - [29/Sep/2025:15:49:50 +0000] "GET /api/scoring HTTP/1.1" 200 383 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:15:49:55 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
+Processing request: GET /api/scores/ping
+Database connection verified for database-dependent endpoint
+::1 - - [29/Sep/2025:15:54:33 +0000] "GET /api/scores/ping HTTP/1.1" 200 74 "-" "curl/8.5.0"

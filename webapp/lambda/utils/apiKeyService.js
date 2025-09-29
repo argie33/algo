@@ -78,7 +78,9 @@ class ApiKeyService {
           tokenUse: "access",
           clientId: process.env.COGNITO_CLIENT_ID,
         });
-        console.log("JWT verifier initialized successfully");
+        if (process.env.NODE_ENV !== 'test') {
+          console.log("JWT verifier initialized successfully");
+        }
       } else if (process.env.NODE_ENV === "test") {
         // In test environment, use a mock verifier with secure token validation
         this.jwtVerifier = {
@@ -97,11 +99,15 @@ class ApiKeyService {
             throw new Error("Invalid test token provided");
           },
         };
-        console.log("JWT verifier initialized successfully (test mode)");
+        if (process.env.NODE_ENV !== 'test') {
+          console.log("JWT verifier initialized successfully (test mode)");
+        }
       } else {
         // SECURITY FIX: Enable JWT verification with fallback for AWS Lambda deployment
         // For AWS deployment, prefer setting COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID
-        console.log("Setting up JWT verification with AWS Lambda fallback");
+        if (process.env.NODE_ENV !== 'test') {
+          console.log("Setting up JWT verification with AWS Lambda fallback");
+        }
         this.jwtVerifier = {
           verify: async (token) => {
             // Handle test tokens first (not JWT format)
@@ -215,7 +221,9 @@ class ApiKeyService {
             };
           }
           // For other errors, still try fallback patterns
-          console.log("JWT verification failed in test mode:", jwtError.message);
+          if (process.env.NODE_ENV !== 'test') {
+            console.log("JWT verification failed in test mode:", jwtError.message);
+          }
           return {
             valid: false,
             error: "JWT verification not configured",
@@ -244,7 +252,9 @@ class ApiKeyService {
               };
             } catch (jwtError) {
               // For development tokens that aren't properly signed, continue to other checks
-              console.log("JWT decode failed in dev mode, trying other token patterns:", jwtError.message);
+              if (process.env.NODE_ENV !== 'test') {
+                console.log("JWT decode failed in dev mode, trying other token patterns:", jwtError.message);
+              }
 
               // For malformed JWT tokens in development, return a valid dev user instead of failing
               if (jwtError.message.includes("JWT string does not consist of exactly 3 parts") ||
@@ -264,7 +274,9 @@ class ApiKeyService {
             }
           }
         } catch (error) {
-          console.log("JWT library not available or failed:", error.message);
+          if (process.env.NODE_ENV !== 'test') {
+            console.log("JWT library not available or failed:", error.message);
+          }
         }
       }
 
@@ -903,7 +915,9 @@ class ApiKeyService {
       if (!result.valid) {
         // In development mode, be more tolerant of JWT validation failures
         if (process.env.NODE_ENV === "development" || process.env.LOCAL_DEV_MODE === "true") {
-          console.log(`JWT validation failed in dev mode, returning null for API key: ${result.error}`);
+          if (process.env.NODE_ENV !== 'test') {
+            console.log(`JWT validation failed in dev mode, returning null for API key: ${result.error}`);
+          }
           return null; // Return null instead of throwing error
         }
         throw new Error(`JWT validation failed: ${result.error}`);
@@ -1293,7 +1307,9 @@ class ApiKeyService {
       if (!result.valid) {
         // In development mode, be more tolerant of JWT validation failures
         if (process.env.NODE_ENV === "development" || process.env.LOCAL_DEV_MODE === "true") {
-          console.log(`JWT validation failed in dev mode for listProviders, returning empty array: ${result.error}`);
+          if (process.env.NODE_ENV !== 'test') {
+            console.log(`JWT validation failed in dev mode for listProviders, returning empty array: ${result.error}`);
+          }
           return []; // Return empty array instead of throwing error
         }
         throw new Error(`JWT validation failed: ${result.error}`);

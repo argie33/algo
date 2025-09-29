@@ -236,7 +236,7 @@ async function executeWithTradingMode(
         // If mode-specific table doesn't exist, try fallback table
         if (tableError.message.includes("does not exist")) {
           console.log(
-            `Table ${table} not found, using fallback table: ${baseTableName}`
+            `Table ${table} not found, attempting base table: ${baseTableName}`
           );
           const fallbackQuery = sqlQueryOrOperation.replace(
             /\{table\}/g,

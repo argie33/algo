@@ -9,6 +9,15 @@ try {
   console.log("Database service not available in news routes:", error.message);
   query = null;
 }
+
+// Helper function to validate database response
+function validateDbResponse(result, context = "database query") {
+  if (!result || typeof result !== 'object' || !Array.isArray(result.rows)) {
+    throw new Error(`Database response validation failed for ${context}: result is null, undefined, or missing rows array`);
+  }
+  return result;
+}
+
 const newsAnalyzer = require("../utils/newsAnalyzer");
 const sentimentEngine = require("../utils/sentimentEngine");
 
@@ -849,7 +858,7 @@ router.get("/feed", async (req, res) => {
       LIMIT $1
     `;
 
-    const result = await query(newsQuery, queryParams);
+    const result = validateDbResponse(await query(newsQuery, queryParams), "news feed query");
 
     // If no news found, return proper error indicating missing data
     if (result.rows.length === 0) {
@@ -994,7 +1003,7 @@ router.get("/economic-calendar", async (req, res) => {
         LIMIT $1
       `;
 
-    const result = await query(eventsQuery, queryParams);
+    const result = validateDbResponse(await query(eventsQuery, queryParams), "economic calendar query");
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -1540,6 +1549,15 @@ router.get("/latest", async (req, res) => {
 // News search endpoint
 router.get("/search", async (req, res) => {
   try {
+    // Check database availability
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "News search service requires database connection"
+      });
+    }
+
     const {
       query: searchQuery,
       q,
@@ -1686,7 +1704,7 @@ router.get("/search", async (req, res) => {
       parseInt(limit)
     );
 
-    const result = await query(searchSQL, params);
+    const result = validateDbResponse(await query(searchSQL, params), "news search query");
 
     // Get search statistics
     const statsSQL = `
@@ -1702,7 +1720,7 @@ router.get("/search", async (req, res) => {
       ${whereClause}
     `;
 
-    const statsResult = await query(statsSQL, params.slice(0, -4)); // Remove relevance calc params
+    const statsResult = validateDbResponse(await query(statsSQL, params.slice(0, -4)), "news search stats query"); // Remove relevance calc params
 
     if (result.rows.length === 0) {
       return res.json({

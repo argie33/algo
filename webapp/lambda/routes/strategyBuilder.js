@@ -18,7 +18,9 @@ try {
   aiGenerator = new AIStrategyGenerator();
   _aiStreamingGenerator = new AIStrategyGeneratorStreaming();
 } catch (serviceError) {
-  console.warn("Strategy services not available:", serviceError.message);
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn("Strategy services not available:", serviceError.message);
+  }
 }
 
 const router = express.Router();
@@ -164,11 +166,13 @@ router.post("/ai-generate", authenticateToken, async (req, res) => {
     const { prompt, symbols = [], preferences = {} } = req.body;
     const userId = req.user.id;
 
-    console.log("AI strategy generation request", {
-      userId,
-      prompt: prompt?.substring(0, 100),
-      symbolCount: symbols.length,
-    });
+    if (process.env.NODE_ENV !== 'test') {
+      console.log("AI strategy generation request", {
+        userId,
+        prompt: prompt?.substring(0, 100),
+        symbolCount: symbols.length,
+      });
+    }
 
     // Validate input
     if (!prompt || prompt.trim().length < 10) {
@@ -536,7 +540,7 @@ router.get("/list", authenticateToken, async (req, res) => {
       includeDeployments,
     });
 
-    // Return mock data for user strategies list functionality
+    // Return empty data for user strategies list functionality (not implemented)
     res.json({
       success: true,
       data: {

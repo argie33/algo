@@ -158,7 +158,7 @@ describe("Database Utilities - Unit Tests", () => {
       // Close any existing connections to ensure uninitialized state
       await closeDatabase();
 
-      await expect(query("SELECT 1")).rejects.toThrow("Database connection failed - no fallback available");
+      await expect(query("SELECT 1")).rejects.toThrow("Database connection failed");
     });
 
     test("should handle connection errors gracefully", async () => {

@@ -25,8 +25,18 @@ describe("Logger", () => {
     process.env.LOG_LEVEL = "DEBUG";
     process.env.NODE_ENV = "development"; // Use development mode for console output
 
-    consoleSpy = jest.spyOn(console, "log").mockImplementation();
+    // Restore console.log first if it was previously spied on
+    if (consoleSpy) {
+      consoleSpy.mockRestore();
+    }
+
+    // Create fresh spy that tracks calls but still allows output
+    consoleSpy = jest.spyOn(console, "log").mockImplementation((...args) => {
+      // Allow the output to go through for debugging
+      // but still track the calls for testing
+    });
     jest.clearAllMocks();
+
     // Ensure mock is reset for each test
     mockCrypto.randomUUID.mockReturnValue("12345678-1234-1234-1234-123456789012");
 
@@ -45,9 +55,9 @@ describe("Logger", () => {
   describe("Initialization", () => {
     test("should initialize with default values", () => {
       expect(logger.serviceName).toBe("financial-platform-api");
-      expect(logger.environment).toBe("test"); // Set by Jest
+      expect(logger.environment).toBe("development"); // Set in beforeEach
       expect(logger.version).toBe("1.0.0");
-      expect(logger.currentLevel).toBe(2); // INFO level
+      expect(logger.currentLevel).toBe(3); // DEBUG level (set in beforeEach)
     });
 
     test("should initialize with environment variables", () => {
@@ -126,11 +136,11 @@ describe("Logger", () => {
 
   describe("Log Level Checking", () => {
     test("should check if level should be logged", () => {
-      // Default is INFO (level 2)
+      // Current logger has DEBUG level (set in beforeEach)
       expect(logger.shouldLog(0)).toBe(true); // ERROR
       expect(logger.shouldLog(1)).toBe(true); // WARN
       expect(logger.shouldLog(2)).toBe(true); // INFO
-      expect(logger.shouldLog(3)).toBe(false); // DEBUG
+      expect(logger.shouldLog(3)).toBe(true); // DEBUG (enabled in beforeEach)
     });
   });
 
@@ -164,6 +174,11 @@ describe("Logger", () => {
     test("should format output for production environment", () => {
       process.env.NODE_ENV = "production";
 
+      // Reinitialize logger with production environment
+      delete require.cache[require.resolve("../../../utils/logger")];
+      const { Logger } = require("../../../utils/logger");
+      const prodLogger = new Logger();
+
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
         level: "INFO",
@@ -171,7 +186,7 @@ describe("Logger", () => {
         correlationId: "12345",
       };
 
-      logger.output(logEntry);
+      prodLogger.output(logEntry);
 
       expect(consoleSpy).toHaveBeenCalledWith(JSON.stringify(logEntry));
     });
@@ -213,9 +228,9 @@ describe("Logger", () => {
     });
 
     test("should not log error if level too low", () => {
-      process.env.LOG_LEVEL = "NONE";
-      delete require.cache[require.resolve("../../../utils/logger")];
-      const quietLogger = require("../../../utils/logger");
+      // Create a new logger instance instead of modifying the singleton
+      const { Logger } = require("../../../utils/logger");
+      const quietLogger = new Logger();
       quietLogger.currentLevel = -1;
 
       quietLogger.error("Should not log");
@@ -226,6 +241,24 @@ describe("Logger", () => {
 
   describe("Warning Logging", () => {
     test("should log warning messages", () => {
+      // Test exactly what happens step by step
+      expect(logger.currentLevel).toBe(3); // DEBUG level
+      expect(logger.shouldLog(1)).toBe(true); // Should log WARN (1)
+
+      // Directly test the output method with a simple entry
+      logger.output({
+        timestamp: "test",
+        level: "WARN",
+        message: "Direct test",
+        correlationId: "123"
+      });
+
+      expect(consoleSpy).toHaveBeenCalledWith("[test] [WARN] [123] Direct test");
+
+      // Clear spy for the actual test
+      consoleSpy.mockClear();
+
+      // Now test the actual warn method
       logger.warn("Warning message");
 
       expect(consoleSpy).toHaveBeenCalled();
@@ -254,7 +287,19 @@ describe("Logger", () => {
 
   describe("Debug Logging", () => {
     test("should not log debug messages with default level", () => {
-      logger.debug("Debug message");
+      // Create a logger with the actual default level (INFO = 2) by creating a new instance
+      const { Logger } = require("../../../utils/logger");
+      const defaultLogger = new Logger();
+      defaultLogger.currentLevel = 2; // INFO level explicitly
+
+      // Create fresh spy for this test to avoid interference
+      consoleSpy.mockClear();
+
+      // Verify the logger is at INFO level (2) and debug level is 3
+      expect(defaultLogger.currentLevel).toBe(2); // INFO level
+      expect(defaultLogger.shouldLog(3)).toBe(false); // Should NOT log DEBUG (3)
+
+      defaultLogger.debug("Debug message");
 
       expect(consoleSpy).not.toHaveBeenCalled();
     });

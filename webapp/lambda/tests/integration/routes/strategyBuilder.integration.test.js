@@ -251,7 +251,7 @@ describe("Strategy Builder Routes", () => {
           },
         });
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(501);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error", "AI strategy backtesting is not implemented");
       expect(response.body).toHaveProperty("message");
@@ -305,7 +305,7 @@ describe("Strategy Builder Routes", () => {
           symbols: ["AAPL", "MSFT"],
         });
 
-      expect([400, 401, 404, 422, 500]).toContain(response.status);
+      expect([400, 401, 404, 422, 500, 501]).toContain(response.status);
       expect(response.body.error).toContain("AI strategy backtesting is not implemented");
     });
 

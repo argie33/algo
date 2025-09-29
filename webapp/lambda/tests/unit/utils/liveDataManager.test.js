@@ -1,7 +1,4 @@
 const LiveDataManager = require("../../../utils/liveDataManager");
-const { query } = require("../../../utils/database");
-
-jest.mock("../../../utils/database");
 
 describe("Live Data Manager", () => {
   let liveDataManager;
@@ -11,331 +8,333 @@ describe("Live Data Manager", () => {
     jest.clearAllMocks();
   });
 
-  describe("data provider management", () => {
+  describe("initialization", () => {
     test("should initialize with default providers", () => {
       expect(liveDataManager.providers).toBeDefined();
-      expect(liveDataManager.providers.length).toBeGreaterThan(0);
+      expect(liveDataManager.providers.size).toBeGreaterThan(0);
     });
 
-    test("should add new data provider", () => {
-      const provider = {
-        name: "testProvider",
-        endpoint: "https://api.test.com",
-        apiKey: "test-key",
-        rateLimit: 100,
-      };
-
-      const result = liveDataManager.addProvider(provider);
-      expect(result.success).toBe(true);
-      expect(
-        liveDataManager.providers.some((p) => p.name === "testProvider")
-      ).toBe(true);
+    test("should have connection pool", () => {
+      expect(liveDataManager.connectionPool).toBeDefined();
+      expect(liveDataManager.connectionPool).toBeInstanceOf(Map);
     });
 
-    test("should validate provider configuration", () => {
-      const invalidProvider = {
-        name: "",
-        endpoint: "invalid-url",
-      };
-
-      const result = liveDataManager.validateProvider(invalidProvider);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toBeDefined();
-    });
-
-    test("should get provider status", async () => {
-      const result = await liveDataManager.getProviderStatus("alpaca");
-
-      expect(result).toHaveProperty("status");
-      expect(result).toHaveProperty("lastUpdate");
-      expect(result).toHaveProperty("health");
+    test("should have subscriptions tracking", () => {
+      expect(liveDataManager.subscriptions).toBeDefined();
+      expect(liveDataManager.subscriptions).toBeInstanceOf(Map);
     });
   });
 
-  describe("real-time data streaming", () => {
-    test("should start data stream for symbol", async () => {
-      const mockCallback = jest.fn();
-
-      const result = await liveDataManager.startStream("AAPL", mockCallback);
+  describe("connection management", () => {
+    test("should add connection successfully", () => {
+      const result = liveDataManager.addConnection("test-conn-1", "alpaca", ["AAPL"]);
 
       expect(result.success).toBe(true);
-      expect(result.streamId).toBeDefined();
+      expect(result.connectionId).toBe("test-conn-1");
+      expect(liveDataManager.connectionPool.has("test-conn-1")).toBe(true);
     });
 
-    test("should stop data stream", async () => {
-      const mockCallback = jest.fn();
-      const stream = await liveDataManager.startStream("AAPL", mockCallback);
+    test("should get connection status", () => {
+      liveDataManager.addConnection("test-conn-1", "alpaca", ["AAPL"]);
 
-      const result = await liveDataManager.stopStream(stream.streamId);
+      const status = liveDataManager.getConnectionStatus("test-conn-1");
+
+      expect(status).not.toBeNull();
+      expect(status.connectionId).toBe("test-conn-1");
+      expect(status.provider).toBe("alpaca");
+      expect(status.symbols).toContain("AAPL");
+      expect(status.status).toBe("active");
+    });
+
+    test("should remove connection successfully", () => {
+      liveDataManager.addConnection("test-conn-1", "alpaca", ["AAPL"]);
+
+      const result = liveDataManager.removeConnection("test-conn-1");
 
       expect(result.success).toBe(true);
+      expect(liveDataManager.connectionPool.has("test-conn-1")).toBe(false);
     });
 
-    test("should handle multiple symbol streams", async () => {
-      const symbols = ["AAPL", "GOOGL", "TSLA"];
-      const mockCallback = jest.fn();
+    test("should handle connection limit exceeded", () => {
+      // Fill up to the limit (1 connection for alpaca)
+      liveDataManager.addConnection("test-conn-1", "alpaca", ["AAPL"]);
 
-      const results = await Promise.all(
-        symbols.map((symbol) =>
-          liveDataManager.startStream(symbol, mockCallback)
-        )
-      );
+      // Try to add another connection
+      const result = liveDataManager.addConnection("test-conn-2", "alpaca", ["GOOGL"]);
 
-      expect(results.every((r) => r.success)).toBe(true);
-      expect(new Set(results.map((r) => r.streamId)).size).toBe(3);
-    });
-
-    test("should process incoming market data", () => {
-      const marketData = {
-        symbol: "AAPL",
-        price: 150.25,
-        volume: 1000000,
-        timestamp: Date.now(),
-      };
-
-      const result = liveDataManager.processMarketData(marketData);
-
-      expect(result.success).toBe(true);
-      expect(result.processed).toBeDefined();
-    });
-  });
-
-  describe("data caching and storage", () => {
-    test("should cache market data", () => {
-      const data = {
-        symbol: "AAPL",
-        price: 150.25,
-        timestamp: Date.now(),
-      };
-
-      liveDataManager.cacheData("AAPL", data);
-      const cached = liveDataManager.getCachedData("AAPL");
-
-      expect(cached).toMatchObject(data);
-    });
-
-    test("should handle cache expiration", () => {
-      const data = {
-        symbol: "AAPL",
-        price: 150.25,
-        timestamp: Date.now() - 600000, // 10 minutes ago
-      };
-
-      liveDataManager.cacheData("AAPL", data);
-      const cached = liveDataManager.getCachedData("AAPL");
-
-      expect(cached).toBeNull();
-    });
-
-    test("should store data to database", async () => {
-      const data = {
-        symbol: "AAPL",
-        price: 150.25,
-        volume: 1000000,
-        timestamp: Date.now(),
-      };
-
-      query.mockResolvedValue({ rowCount: 1 });
-
-      const result = await liveDataManager.storeData(data);
-
-      expect(result.success).toBe(true);
-      expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("INSERT INTO live_data"),
-        expect.arrayContaining([data.symbol, data.price, data.volume])
-      );
-    });
-  });
-
-  describe("rate limiting and throttling", () => {
-    test("should enforce rate limits", async () => {
-      liveDataManager.setRateLimit("testProvider", 2); // 2 requests per second
-
-      const requests = Array.from({ length: 5 }, () =>
-        liveDataManager.makeRequest("testProvider", "/quote/AAPL")
-      );
-
-      const results = await Promise.all(requests);
-      const rateLimited = results.filter((r) => r.rateLimited);
-
-      expect(rateLimited.length).toBeGreaterThan(0);
-    });
-
-    test("should reset rate limit counters", () => {
-      liveDataManager.setRateLimit("testProvider", 1);
-      liveDataManager.makeRequest("testProvider", "/test");
-
-      liveDataManager.resetRateLimit("testProvider");
-      const result = liveDataManager.makeRequest("testProvider", "/test");
-
-      expect(result.rateLimited).toBe(false);
-    });
-
-    test("should get rate limit status", () => {
-      const status = liveDataManager.getRateLimitStatus("alpaca");
-
-      expect(status).toHaveProperty("remaining");
-      expect(status).toHaveProperty("resetTime");
-      expect(status).toHaveProperty("limit");
-    });
-  });
-
-  describe("data quality and validation", () => {
-    test("should validate market data format", () => {
-      const validData = {
-        symbol: "AAPL",
-        price: 150.25,
-        volume: 1000000,
-        timestamp: Date.now(),
-      };
-
-      const result = liveDataManager.validateData(validData);
-      expect(result.valid).toBe(true);
-    });
-
-    test("should reject invalid market data", () => {
-      const invalidData = {
-        symbol: "",
-        price: "invalid",
-        volume: -1000,
-      };
-
-      const result = liveDataManager.validateData(invalidData);
-      expect(result.valid).toBe(false);
-      expect(result.errors).toBeDefined();
-    });
-
-    test("should detect stale data", () => {
-      const staleData = {
-        symbol: "AAPL",
-        price: 150.25,
-        timestamp: Date.now() - 3600000, // 1 hour ago
-      };
-
-      const result = liveDataManager.isDataStale(staleData);
-      expect(result).toBe(true);
-    });
-
-    test("should calculate data freshness", () => {
-      const data = {
-        timestamp: Date.now() - 60000, // 1 minute ago
-      };
-
-      const freshness = liveDataManager.calculateFreshness(data);
-      expect(freshness).toBeCloseTo(60, -1); // approximately 60 seconds
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("concurrent connection limit");
     });
   });
 
   describe("subscription management", () => {
-    test("should manage symbol subscriptions", () => {
-      liveDataManager.subscribe("AAPL");
-      liveDataManager.subscribe("GOOGL");
+    test("should add subscription successfully", () => {
+      liveDataManager.addConnection("test-conn-1", "alpaca", ["AAPL"]);
 
-      const subscriptions = liveDataManager.getSubscriptions();
-      expect(subscriptions).toContain("AAPL");
-      expect(subscriptions).toContain("GOOGL");
-    });
-
-    test("should unsubscribe from symbols", () => {
-      liveDataManager.subscribe("AAPL");
-      liveDataManager.unsubscribe("AAPL");
-
-      const subscriptions = liveDataManager.getSubscriptions();
-      expect(subscriptions).not.toContain("AAPL");
-    });
-
-    test("should get subscription statistics", () => {
-      liveDataManager.subscribe("AAPL");
-      liveDataManager.subscribe("GOOGL");
-      liveDataManager.subscribe("TSLA");
-
-      const stats = liveDataManager.getSubscriptionStats();
-      expect(stats.total).toBe(3);
-      expect(stats.active).toBeDefined();
-    });
-  });
-
-  describe("error handling and recovery", () => {
-    test("should handle provider connection errors", async () => {
-      const result = await liveDataManager.testConnection("invalidProvider");
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
-    });
-
-    test("should implement retry logic for failed requests", async () => {
-      const mockRetryCallback = jest
-        .fn()
-        .mockRejectedValueOnce(new Error("Network error"))
-        .mockRejectedValueOnce(new Error("Network error"))
-        .mockResolvedValue({ success: true });
-
-      const result = await liveDataManager.retryRequest(mockRetryCallback, 3);
+      const result = liveDataManager.addSubscription("AAPL", "alpaca", "test-conn-1", "user1");
 
       expect(result.success).toBe(true);
-      expect(mockRetryCallback).toHaveBeenCalledTimes(3);
+      expect(result.symbol).toBe("AAPL");
+      expect(result.userId).toBe("user1");
     });
 
-    test("should handle websocket disconnections", () => {
-      const mockWs = { readyState: 3 }; // CLOSED
+    test("should get user subscriptions", () => {
+      liveDataManager.addConnection("test-conn-1", "alpaca", ["AAPL"]);
+      liveDataManager.addSubscription("AAPL", "alpaca", "test-conn-1", "user1");
 
-      const result = liveDataManager.handleWebSocketError(
-        mockWs,
-        new Error("Connection lost")
-      );
+      const subscriptions = liveDataManager.getUserSubscriptions("user1");
 
-      expect(result.reconnecting).toBe(true);
-      expect(result.strategy).toBeDefined();
+      expect(subscriptions).toHaveLength(1);
+      expect(subscriptions[0].symbol).toBe("AAPL");
+      expect(subscriptions[0].provider).toBe("alpaca");
     });
 
-    test("should implement circuit breaker pattern", async () => {
-      // Simulate multiple failures to trigger circuit breaker
-      for (let i = 0; i < 10; i++) {
-        await liveDataManager
-          .makeRequest("failingProvider", "/test")
-          .catch(() => {});
-      }
+    test("should remove subscription successfully", () => {
+      liveDataManager.addConnection("test-conn-1", "alpaca", ["AAPL"]);
+      liveDataManager.addSubscription("AAPL", "alpaca", "test-conn-1", "user1");
 
-      const result = await liveDataManager.makeRequest(
-        "failingProvider",
-        "/test"
-      );
+      const result = liveDataManager.removeSubscription("AAPL", "user1");
 
-      expect(result.circuitOpen).toBe(true);
-      expect(result.error).toContain("Circuit breaker");
+      expect(result.success).toBe(true);
+      expect(liveDataManager.getUserSubscriptions("user1")).toHaveLength(0);
+    });
+
+    test("should remove all user subscriptions", () => {
+      liveDataManager.addConnection("test-conn-1", "alpaca", ["AAPL", "GOOGL"]);
+      liveDataManager.addSubscription("AAPL", "alpaca", "test-conn-1", "user1");
+      liveDataManager.addSubscription("GOOGL", "alpaca", "test-conn-1", "user1");
+
+      const result = liveDataManager.removeSubscriber("user1");
+
+      expect(result.success).toBe(true);
+      expect(result.removedSubscriptions).toBe(2);
+    });
+
+    test("should handle bulk subscription via subscribe method", () => {
+      const result = liveDataManager.subscribe("user1", ["AAPL", "GOOGL", "TSLA"]);
+
+      expect(result.success).toBe(true);
+      expect(result.subscribed).toContain("AAPL");
+      expect(result.subscribed).toContain("GOOGL");
+      expect(result.subscribed).toContain("TSLA");
     });
   });
 
-  describe("performance monitoring", () => {
-    test("should track request latency", async () => {
-      const start = Date.now();
-      await liveDataManager.makeRequest("testProvider", "/quote/AAPL");
+  describe("provider management", () => {
+    test("should get provider status", () => {
+      const status = liveDataManager.getProviderStatus("alpaca");
 
-      const metrics = liveDataManager.getPerformanceMetrics();
-      expect(metrics.averageLatency).toBeDefined();
-      expect(metrics.requestCount).toBeGreaterThan(0);
+      expect(status).not.toBeNull();
+      expect(status.name).toBe("Alpaca Markets");
+      expect(status.status).toBeDefined();
+      expect(status.rateLimits).toBeDefined();
     });
 
-    test("should monitor data throughput", () => {
-      for (let i = 0; i < 10; i++) {
-        liveDataManager.processMarketData({
-          symbol: "AAPL",
-          price: 150 + i,
-          timestamp: Date.now(),
-        });
+    test("should update provider status", () => {
+      liveDataManager.updateProviderStatus("alpaca", "active");
+
+      const status = liveDataManager.getProviderStatus("alpaca");
+      expect(status.status).toBe("active");
+    });
+
+    test("should track provider usage", () => {
+      const result = liveDataManager.trackProviderUsage("alpaca", 10, 0.5);
+
+      expect(result.success).toBe(true);
+      expect(result.providerId).toBe("alpaca");
+      expect(result.updatedUsage).toBeDefined();
+    });
+  });
+
+  describe("rate limiting", () => {
+    test("should set and check rate limits", () => {
+      liveDataManager.setRateLimit("testProvider", 5);
+
+      // Make requests up to the limit
+      for (let i = 0; i < 5; i++) {
+        const result = liveDataManager.makeRequest("testProvider", "/test");
+        expect(result.success).toBe(true);
       }
 
-      const throughput = liveDataManager.getThroughputMetrics();
-      expect(throughput.messagesPerSecond).toBeGreaterThan(0);
+      // Next request should be rate limited
+      const result = liveDataManager.makeRequest("testProvider", "/test");
+      expect(result.rateLimited).toBe(true);
+    });
+
+    test("should reset rate limits", () => {
+      liveDataManager.setRateLimit("testProvider", 1);
+      liveDataManager.makeRequest("testProvider", "/test");
+
+      liveDataManager.resetRateLimit("testProvider");
+
+      const result = liveDataManager.makeRequest("testProvider", "/test");
+      expect(result.rateLimited).toBe(false);
+    });
+  });
+
+  describe("performance tracking", () => {
+    test("should track latency", () => {
+      const result = liveDataManager.trackLatency("alpaca", 150);
+
+      expect(result.success).toBe(true);
+      expect(result.latency).toBe(150);
+    });
+
+    test("should calculate average latency", () => {
+      liveDataManager.trackLatency("alpaca", 100);
+      liveDataManager.trackLatency("alpaca", 200);
+      liveDataManager.trackLatency("alpaca", 150);
+
+      const avgLatency = liveDataManager.calculateAverageLatency("alpaca");
+      expect(avgLatency).toBe(150);
+    });
+
+    test("should track errors", () => {
+      const error = "Connection timeout";
+      const result = liveDataManager.trackError("alpaca", error);
+
+      expect(result.success).toBe(true);
+      expect(result.error).toBe(error);
+      expect(result.totalErrors).toBe(1);
     });
 
     test("should generate performance report", () => {
       const report = liveDataManager.generatePerformanceReport();
 
       expect(report).toHaveProperty("uptime");
-      expect(report).toHaveProperty("dataPoints");
+      expect(report).toHaveProperty("activeConnections");
+      expect(report).toHaveProperty("totalSubscriptions");
       expect(report).toHaveProperty("errorRate");
-      expect(report).toHaveProperty("latencyStats");
+      expect(report).toHaveProperty("avgResponseTime");
+    });
+  });
+
+  describe("dashboard and status", () => {
+    test("should get comprehensive dashboard status", () => {
+      const status = liveDataManager.getDashboardStatus();
+
+      expect(status).toHaveProperty("providers");
+      expect(status).toHaveProperty("global");
+      expect(status).toHaveProperty("limits");
+      expect(status).toHaveProperty("alerts");
+      expect(status).toHaveProperty("recommendations");
+    });
+
+    test("should generate alerts", () => {
+      const alerts = liveDataManager.generateAlerts();
+
+      expect(Array.isArray(alerts)).toBe(true);
+    });
+
+    test("should generate optimization recommendations", () => {
+      const recommendations = liveDataManager.generateOptimizationRecommendations();
+
+      expect(Array.isArray(recommendations)).toBe(true);
+    });
+  });
+
+  describe("analytics and metrics", () => {
+    test("should get subscription trends", () => {
+      liveDataManager.subscribe("user1", ["AAPL", "GOOGL"]);
+
+      const trends = liveDataManager.getSubscriptionTrends();
+
+      expect(trends).toHaveProperty("popular");
+      expect(Array.isArray(trends.popular)).toBe(true);
+    });
+
+    test("should generate analytics report", () => {
+      liveDataManager.subscribe("user1", ["AAPL", "GOOGL"]);
+
+      const report = liveDataManager.generateAnalyticsReport();
+
+      expect(report).toHaveProperty("totalSubscriptions");
+      expect(report).toHaveProperty("totalSymbols");
+      expect(report).toHaveProperty("summary");
+      expect(report).toHaveProperty("providers");
+    });
+
+    test("should get real-time metrics", () => {
+      const metrics = liveDataManager.getRealTimeMetrics();
+
+      expect(metrics).toHaveProperty("totalRequests");
+      expect(metrics).toHaveProperty("activeConnections");
+      expect(metrics).toHaveProperty("systemHealth");
+    });
+  });
+
+  describe("cost management", () => {
+    test("should track cost accumulation", () => {
+      const result = liveDataManager.trackCostAccumulation("alpaca", 5.50);
+
+      expect(result.success).toBe(true);
+      expect(result.totalCost).toBe(5.50);
+    });
+
+    test("should handle cost per request rate limiting", () => {
+      const result = liveDataManager.handleCostPerRequestRateLimit("alpaca", 2.0);
+
+      expect(result.success).toBe(true);
+      expect(result.approved).toBe(true);
+    });
+
+    test("should analyze cost optimization", () => {
+      liveDataManager.recordRequest("alpaca", { cost: 0.10 });
+
+      const analysis = liveDataManager.analyzeCostOptimization();
+
+      expect(analysis).toHaveProperty("alpaca");
+      expect(analysis.alpaca).toHaveProperty("averageCostPerRequest");
+      expect(analysis.alpaca).toHaveProperty("recommendations");
+    });
+  });
+
+  describe("alert system integration", () => {
+    test("should get alert status", () => {
+      const status = liveDataManager.getAlertStatus();
+
+      expect(status).toHaveProperty("active");
+      expect(status).toHaveProperty("resolved");
+    });
+
+    test("should update alert configuration", () => {
+      const result = liveDataManager.updateAlertConfig({ threshold: 90 });
+
+      expect(result.success).toBe(true);
+    });
+
+    test("should force health check", async () => {
+      const result = await liveDataManager.forceHealthCheck();
+
+      expect(result).toHaveProperty("status");
+    });
+
+    test("should test notifications", async () => {
+      const result = await liveDataManager.testNotifications();
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("edge cases and error handling", () => {
+    test("should handle invalid connection ID", () => {
+      const status = liveDataManager.getConnectionStatus("invalid-id");
+      expect(status).toBeNull();
+    });
+
+    test("should handle missing provider", () => {
+      const result = liveDataManager.addConnection("test-conn", "invalidProvider", []);
+      expect(result.success).toBe(false);
+    });
+
+    test("should handle empty subscription removal", () => {
+      const result = liveDataManager.removeSubscription("INVALID", "user1");
+      expect(result.success).toBe(true); // Should succeed even if subscription doesn't exist
+    });
+
+    test("should handle provider efficiency calculation", () => {
+      const efficiency = liveDataManager.calculateProviderEfficiency("nonexistent");
+      expect(efficiency).toBe(0);
     });
   });
 });

@@ -1,0 +1,4 @@
+
+> financial-dashboard-lambda@1.0.0 test
+> jest --coverage --coverageReporters=text --coverageReporters=html --coverageReporters=lcov
+

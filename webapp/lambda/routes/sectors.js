@@ -1,6 +1,21 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+let query;
+try {
+  ({ query } = require("../utils/database"));
+} catch (error) {
+  console.log("Database service not available in sectors routes:", error.message);
+  query = null;
+}
+
+// Helper function to validate database response
+function validateDbResponse(result, context = "database query") {
+  if (!result || typeof result !== 'object' || !Array.isArray(result.rows)) {
+    throw new Error(`Database response validation failed for ${context}: result is null, undefined, or missing rows array`);
+  }
+  return result;
+}
+
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -121,6 +136,15 @@ router.use((req, res, next) => {
  */
 router.get("/analysis", async (req, res) => {
   try {
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Sector analysis service requires database connection"
+      });
+    }
+
     console.log("📊 Fetching sector analysis...");
 
     const { timeframe = "daily" } = req.query;
@@ -253,6 +277,15 @@ router.get("/analysis", async (req, res) => {
  */
 router.get("/list", async (req, res) => {
   try {
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Sectors list service requires database connection"
+      });
+    }
+
     console.log("📋 Fetching sector and industry list...");
 
     const sectorsQuery = `
@@ -482,6 +515,15 @@ router.get("/performance", async (req, res) => {
  */
 router.get("/:sector/details", async (req, res) => {
   try {
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Sector details service requires database connection"
+      });
+    }
+
     const { sector } = req.params;
     const { limit = 50 } = req.query;
 

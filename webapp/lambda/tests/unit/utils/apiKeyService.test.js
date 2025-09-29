@@ -702,8 +702,19 @@ describe("API Key Service", () => {
       service.encryptionKey = null;
       service.secretsManager = mockSecretsManager;
 
+      // Reset circuit breaker state
+      service.circuitBreaker = { failures: 0, lastFailure: null, isOpen: false };
+      service.jwtCircuitBreaker = { failures: 0, lastFailure: null, isOpen: false };
+
       // Clear all caches
       clearCaches();
+    });
+
+    afterEach(() => {
+      // Reset NODE_ENV to test mode after each encryption test
+      process.env.NODE_ENV = "test";
+      delete process.env.API_KEY_ENCRYPTION_SECRET_ARN;
+      delete process.env.API_KEY_ENCRYPTION_SECRET;
     });
 
     test("should handle production encryption mode", async () => {

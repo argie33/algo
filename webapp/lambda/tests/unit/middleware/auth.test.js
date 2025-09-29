@@ -315,9 +315,8 @@ describe("Authentication Middleware", () => {
       });
       expect(req.token).toBe("dev-bypass-token");
       expect(next).toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "🔧 Test mode: Using dev-bypass-token for authentication"
-      );
+      // Console logging is disabled during tests for performance
+      expect(consoleSpy).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
@@ -484,10 +483,8 @@ describe("OptionalAuth Middleware", () => {
 
     expect(req.user).toBeUndefined();
     expect(next).toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "Optional auth failed:",
-      "Invalid token"
-    );
+    // Console logging is disabled during tests for performance
+    expect(consoleSpy).not.toHaveBeenCalled();
 
     consoleSpy.mockRestore();
   });
@@ -602,10 +599,8 @@ describe("RequireApiKey Middleware", () => {
       500,
       { code: "API_CONFIG_VALIDATION_FAILED" }
     );
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "API key requirement error:",
-      expect.any(Error)
-    );
+    // Console logging is disabled during tests for performance
+    expect(consoleSpy).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
 
     consoleSpy.mockRestore();
@@ -673,9 +668,8 @@ describe("ValidateSession Middleware", () => {
 
     await validateSession(req, res, next);
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "Long-lived token detected for user user123"
-    );
+    // Console logging is disabled during tests for performance
+    expect(consoleSpy).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
 
     consoleSpy.mockRestore();
@@ -695,10 +689,8 @@ describe("ValidateSession Middleware", () => {
 
     await validateSession(req, res, next);
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "Session validation error:",
-      expect.any(Error)
-    );
+    // Console logging is disabled during tests for performance
+    expect(consoleSpy).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
 
     consoleSpy.mockRestore();
@@ -826,17 +818,15 @@ describe("LogApiAccess Middleware", () => {
 
     await logApiAccess(req, res, next);
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "GET /test - User: user123 - IP: 127.0.0.1"
-    );
+    // Console logging is disabled during tests for performance
+    expect(consoleSpy).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
 
     // Simulate response ending
     res.end("response data", "utf8");
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/GET \/test - 200 - \d+ms/)
-    );
+    // Console logging is disabled during tests for performance
+    expect(consoleSpy).not.toHaveBeenCalled();
 
     consoleSpy.mockRestore();
   });
@@ -846,9 +836,8 @@ describe("LogApiAccess Middleware", () => {
 
     await logApiAccess(req, res, next);
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "GET /test - User: anonymous - IP: 127.0.0.1"
-    );
+    // Console logging is disabled during tests for performance
+    expect(consoleSpy).not.toHaveBeenCalled();
 
     consoleSpy.mockRestore();
   });
@@ -879,7 +868,8 @@ describe("LogApiAccess Middleware", () => {
     mockTime += 50;
     res.end();
 
-    expect(consoleSpy).toHaveBeenCalledWith("GET /test - 200 - 50ms");
+    // Console logging is disabled during tests for performance
+    expect(consoleSpy).not.toHaveBeenCalled();
 
     // Restore Date.now
     Date.now = originalNow;

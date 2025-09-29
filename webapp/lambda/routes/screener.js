@@ -1,7 +1,22 @@
 const express = require("express");
 
 const { authenticateToken } = require("../middleware/auth");
-const { query } = require("../utils/database");
+let query;
+try {
+  ({ query } = require("../utils/database"));
+} catch (error) {
+  console.log("Database service not available in screener routes:", error.message);
+  query = null;
+}
+
+// Helper function to validate database response
+function validateDbResponse(result, context = "database query") {
+  if (!result || typeof result !== 'object' || !Array.isArray(result.rows)) {
+    throw new Error(`Database response validation failed for ${context}: result is null, undefined, or missing rows array`);
+  }
+  return result;
+}
+
 const { FactorScoringEngine } = require("../utils/factorScoring");
 const { AIMarketScanner } = require("../utils/aiMarketScanner");
 
@@ -118,6 +133,15 @@ const aiScanner = new AIMarketScanner();
 // Main stock screening endpoint
 router.get("/screen", async (req, res) => {
   try {
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Stock screening service requires database connection"
+      });
+    }
+
     const filters = req.query;
     const page = parseInt(filters.page) || 1;
     const limit = Math.min(parseInt(filters.limit) || 50, 500);

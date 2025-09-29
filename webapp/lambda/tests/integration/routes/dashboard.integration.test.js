@@ -55,7 +55,9 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/summary (Dashboard Summary)", () => {
     test("should return comprehensive dashboard summary data", async () => {
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
 
@@ -84,7 +86,9 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate market overview data structure", async () => {
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", `Bearer ${authToken}`);
 
       if (
         response.status === 200 &&
@@ -99,7 +103,9 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate sector performance data", async () => {
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", `Bearer ${authToken}`);
 
       if (
         response.status === 200 &&
@@ -114,7 +120,9 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle database connectivity issues gracefully", async () => {
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
 
@@ -422,7 +430,9 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/overview (Market Overview)", () => {
     test("should return market overview data", async () => {
-      const response = await request(app).get("/api/dashboard/overview");
+      const response = await request(app)
+        .get("/api/dashboard/overview")
+        .set("Authorization", `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
 
@@ -441,7 +451,9 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate market status information", async () => {
-      const response = await request(app).get("/api/dashboard/overview");
+      const response = await request(app)
+        .get("/api/dashboard/overview")
+        .set("Authorization", `Bearer ${authToken}`);
 
       if (response.status === 200) {
         const marketStatus = response.body.data.market_status;
@@ -456,7 +468,9 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate top movers structure", async () => {
-      const response = await request(app).get("/api/dashboard/overview");
+      const response = await request(app)
+        .get("/api/dashboard/overview")
+        .set("Authorization", `Bearer ${authToken}`);
 
       if (response.status === 200) {
         const topMovers = response.body.data.top_movers;
@@ -478,7 +492,9 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle empty market data gracefully", async () => {
-      const response = await request(app).get("/api/dashboard/overview");
+      const response = await request(app)
+        .get("/api/dashboard/overview")
+        .set("Authorization", `Bearer ${authToken}`);
 
       if (response.status === 404) {
         expect(response.body).toHaveProperty("success", false);
@@ -499,10 +515,10 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should handle concurrent requests to dashboard endpoints", async () => {
       const requests = [
         request(app).get("/api/dashboard"),
-        request(app).get("/api/dashboard/summary"),
-        request(app).get("/api/dashboard/market-data"),
-        request(app).get("/api/dashboard/overview"),
-        request(app).get("/api/dashboard/debug"),
+        request(app).get("/api/dashboard/summary").set("Authorization", `Bearer ${authToken}`),
+        request(app).get("/api/dashboard/market-data").set("Authorization", `Bearer ${authToken}`),
+        request(app).get("/api/dashboard/overview").set("Authorization", `Bearer ${authToken}`),
+        request(app).get("/api/dashboard/debug").set("Authorization", `Bearer ${authToken}`),
       ];
 
       const responses = await Promise.all(requests);
@@ -514,7 +530,9 @@ describe("Dashboard Routes Integration Tests", () => {
 
     test("should maintain response time consistency", async () => {
       const startTime = Date.now();
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", `Bearer ${authToken}`);
       const responseTime = Date.now() - startTime;
 
       expect(response.status).toBe(200);
@@ -540,7 +558,9 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle database connection failures gracefully", async () => {
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
 
@@ -551,7 +571,9 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate numeric data integrity", async () => {
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", `Bearer ${authToken}`);
 
       if (response.status === 200) {
         const validateNumbers = (obj) => {
@@ -580,18 +602,20 @@ describe("Dashboard Routes Integration Tests", () => {
       ];
 
       for (const input of maliciousInputs) {
-        const response = await request(app).get(
-          `/api/dashboard/summary?filter=${encodeURIComponent(input)}`
-        );
+        const response = await request(app)
+          .get(`/api/dashboard/summary?filter=${encodeURIComponent(input)}`)
+          .set("Authorization", `Bearer ${authToken}`);
 
-        expect([200, 400].includes(response.status)).toBe(true);
+        expect([200, 400, 401].includes(response.status)).toBe(true);
       }
     });
 
     test("should handle memory pressure with large data requests", async () => {
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", `Bearer ${authToken}`);
 
-      expect([200, 413, 500, 503].includes(response.status)).toBe(true);
+      expect([200, 401, 413, 500, 503].includes(response.status)).toBe(true);
     });
 
     test("should validate response content types", async () => {

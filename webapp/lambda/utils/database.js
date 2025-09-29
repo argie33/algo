@@ -1,3 +1,8 @@
+// Load environment variables if not already loaded
+if (!process.env.DB_HOST && !process.env.DB_SECRET_ARN) {
+  require("dotenv").config();
+}
+
 const {
   SecretsManagerClient,
   GetSecretValueCommand,
@@ -359,7 +364,7 @@ async function query(text, params = []) {
       const result = await initializeDatabase();
       if (!result || !pool) {
         // Database is not available - throw error instead of fallback
-        const error = new Error("Database connection failed - no fallback available");
+        const error = new Error("Database connection failed");
         error.code = "DB_CONNECTION_FAILED";
         throw error;
       }
@@ -367,7 +372,7 @@ async function query(text, params = []) {
 
     // Check if pool is still valid
     if (!pool) {
-      const error = new Error("Database connection pool not available - no fallback");
+      const error = new Error("Database connection pool not available");
       error.code = "DB_POOL_NOT_AVAILABLE";
       throw error;
     }

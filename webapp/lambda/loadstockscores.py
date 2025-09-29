@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script
+Stock Scores Loader Script - AWS ECS Compatible
 Calculates and stores stock scores in the database using existing data.
 Reads from stock_symbols table and calculates metrics from:
 - stock_prices: price data, volume, volatility calculations
 - technical_data_daily: RSI, MACD, moving averages
 - earnings: PE ratios from actual EPS data
 Stores calculated scores in stock_scores table for API consumption.
+
+AWS ECS Integration: Configured for automated daily execution
+Schedule: Daily at 7:00 PM ET (after technical analysis completion)
 """
 
 import os

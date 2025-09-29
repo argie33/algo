@@ -63,7 +63,9 @@ const authenticateToken = (req, res, next) => {
 
     // Check for special bypass tokens in test environment
     if (token === "dev-bypass-token" || token === "test-token" || token === "mock-access-token") {
-      console.log(`🔧 Test mode: Using ${token} for authentication`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`🔧 Test mode: Using ${token} for authentication`);
+      }
       const userId = token === "dev-bypass-token" ? "dev-user-bypass" :
                      token === "mock-access-token" ? "mock-user-123" : "test-user-123";
       req.user = {
@@ -172,7 +174,9 @@ const authenticateTokenAsync = async (req, res, next) => {
     const authHeader = req.headers["authorization"];
 
     if (!authHeader) {
-      console.log("🚨 Authentication required: No authorization header provided");
+      if (process.env.NODE_ENV !== 'test') {
+        console.log("🚨 Authentication required: No authorization header provided");
+      }
       return res.unauthorized("Authentication required", {
         code: "MISSING_AUTHORIZATION",
         suggestion: "Include valid authorization in the Authorization header",
@@ -212,7 +216,9 @@ const authenticateTokenAsync = async (req, res, next) => {
 
     // Check for special bypass tokens (for development and testing)
     if (token === "dev-bypass-token" || token === "test-token" || token === "mock-access-token") {
-      console.log(`🔧 Using bypass token for authentication: ${token}`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`🔧 Using bypass token for authentication: ${token}`);
+      }
       req.user = {
         sub: token === "dev-bypass-token" ? "dev-user-bypass" :
              token === "mock-access-token" ? "mock-user-123" : "test-user-123",
@@ -290,7 +296,9 @@ const authenticateTokenAsync = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("Authentication error:", error);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error("Authentication error:", error);
+    }
 
     // Handle specific error types
     if (error.message.includes("circuit breaker")) {
@@ -426,12 +434,16 @@ const optionalAuth = async (req, res, next) => {
         }
       } catch (error) {
         // Log the error but don't fail the request
-        console.log("Optional auth failed:", error.message);
+        if (process.env.NODE_ENV !== 'test') {
+          console.log("Optional auth failed:", error.message);
+        }
       }
     }
   } catch (error) {
     // Silently continue without authentication
-    console.log("Optional auth error:", error.message);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log("Optional auth error:", error.message);
+    }
   }
 
   next();
@@ -470,7 +482,9 @@ const requireApiKey = (provider) => {
 
       next();
     } catch (error) {
-      console.error("API key requirement error:", error);
+      if (process.env.NODE_ENV !== 'test') {
+        console.error("API key requirement error:", error);
+      }
       return res.error("Could not validate API configuration", 500, {
         code: "API_CONFIG_VALIDATION_FAILED",
       });
@@ -498,12 +512,16 @@ const validateSession = async (req, res, next) => {
     const timeSinceIssue = now - req.user.tokenIssueTime;
     if (timeSinceIssue > 86400) {
       // 24 hours
-      console.warn(`Long-lived token detected for user ${req.user.sub}`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`Long-lived token detected for user ${req.user.sub}`);
+      }
     }
 
     next();
   } catch (error) {
-    console.error("Session validation error:", error);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error("Session validation error:", error);
+    }
     next(); // Continue even if session validation fails
   }
 };
@@ -553,17 +571,21 @@ const logApiAccess = async (req, res, next) => {
   const startTime = Date.now();
 
   // Log request
-  console.log(
-    `${req.method} ${req.path} - User: ${req.user?.sub || "anonymous"} - IP: ${req.ip}`
-  );
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(
+      `${req.method} ${req.path} - User: ${req.user?.sub || "anonymous"} - IP: ${req.ip}`
+    );
+  }
 
   // Override res.end to log response
   const originalEnd = res.end;
   res.end = function (chunk, encoding) {
     const duration = Date.now() - startTime;
-    console.log(
-      `${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`
-    );
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(
+        `${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`
+      );
+    }
 
     // Call the original end method
     originalEnd.call(res, chunk, encoding);

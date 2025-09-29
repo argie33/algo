@@ -405,7 +405,7 @@ const validateUserAuthentication = (req) => {
     console.log("❌ No req.user found");
     // In development mode, provide fallback authentication for testing
     if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
-      console.log("🔧 Development mode: Using fallback authentication");
+      console.log("🔧 Development mode: Using development authentication");
       return "dev-user-fallback";
     }
     throw new Error("User not authenticated");
@@ -419,7 +419,7 @@ const validateUserAuthentication = (req) => {
     console.log("❌ No userId found in req.user.sub or req.user.id");
     // In development mode, provide fallback authentication for testing
     if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
-      console.log("🔧 Development mode: Using fallback authentication for missing userId");
+      console.log("🔧 Development mode: Using development authentication for missing userId");
       return "dev-user-fallback";
     }
     throw new Error("User not authenticated");

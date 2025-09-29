@@ -72,8 +72,8 @@ class Logger {
    * Output log entry
    */
   output(logEntry) {
-    if (this.environment === "development") {
-      // Pretty print for development
+    if (this.environment === "development" || this.environment === "test") {
+      // Pretty print for development and test environments
       const {
         timestamp,
         level,

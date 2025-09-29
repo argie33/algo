@@ -10,6 +10,7 @@
 CREATE TABLE IF NOT EXISTS stock_symbols (
     symbol VARCHAR(10) PRIMARY KEY,
     security_name VARCHAR(255),
+    name VARCHAR(255), -- Alias for security_name, expected by tests
     exchange VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -521,8 +522,12 @@ CREATE TABLE IF NOT EXISTS portfolio_holdings (
     symbol VARCHAR(10) NOT NULL,
     quantity DECIMAL(15,6),
     average_cost DECIMAL(10,2),
+    cost_basis DECIMAL(15,2), -- Add missing cost_basis column
     current_price DECIMAL(10,2),
     market_value DECIMAL(15,2),
+    total_value DECIMAL(15,2), -- Add missing total_value column
+    unrealized_pnl DECIMAL(15,2), -- Add missing unrealized_pnl column
+    unrealized_pnl_percent DECIMAL(10,4), -- Add missing unrealized_pnl_percent column
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, symbol)
 );
@@ -532,6 +537,10 @@ CREATE TABLE IF NOT EXISTS portfolio_performance (
     user_id VARCHAR(255) NOT NULL,
     date DATE NOT NULL,
     total_value DECIMAL(15,2),
+    daily_pnl DECIMAL(15,2), -- Add missing daily_pnl column
+    daily_pnl_percent DECIMAL(10,4), -- Add missing daily_pnl_percent column
+    total_pnl DECIMAL(15,2), -- Add missing total_pnl column
+    total_pnl_percent DECIMAL(10,4), -- Add missing total_pnl_percent column
     daily_return DECIMAL(10,4),
     total_return DECIMAL(10,4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -588,8 +597,7 @@ CREATE INDEX IF NOT EXISTS idx_market_data_market_cap ON market_data(market_cap)
 -- Add additional columns and constraints needed for tests
 ALTER TABLE market_data ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE market_data ADD COLUMN IF NOT EXISTS date DATE;
-ALTER TABLE market_data ADD COLUMN IF NOT EXISTS price NUMERIC;
-ALTER TABLE market_data ADD COLUMN IF NOT EXISTS volume BIGINT;
+ALTER TABLE market_data ADD COLUMN IF NOT EXISTS price NUMERIC(10,2);
 
 -- Create unique constraint needed for ON CONFLICT operations
 CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_symbol_date ON market_data(symbol, date) WHERE symbol IS NOT NULL AND date IS NOT NULL;
@@ -941,5 +949,186 @@ ON CONFLICT (symbol, ex_dividend_date) DO NOTHING;
 
 -- Create index for performance
 CREATE INDEX IF NOT EXISTS idx_dividend_calendar_symbol_date ON dividend_calendar(symbol, ex_dividend_date);
+
+-- Add missing columns to price_daily table for route compatibility
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'price_daily'
+        AND column_name = 'open_price'
+    ) THEN
+        ALTER TABLE price_daily ADD COLUMN open_price DOUBLE PRECISION;
+        UPDATE price_daily SET open_price = open WHERE open_price IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'price_daily'
+        AND column_name = 'high_price'
+    ) THEN
+        ALTER TABLE price_daily ADD COLUMN high_price DOUBLE PRECISION;
+        UPDATE price_daily SET high_price = high WHERE high_price IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'price_daily'
+        AND column_name = 'low_price'
+    ) THEN
+        ALTER TABLE price_daily ADD COLUMN low_price DOUBLE PRECISION;
+        UPDATE price_daily SET low_price = low WHERE low_price IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'price_daily'
+        AND column_name = 'close_price'
+    ) THEN
+        ALTER TABLE price_daily ADD COLUMN close_price DOUBLE PRECISION;
+        UPDATE price_daily SET close_price = close WHERE close_price IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'price_daily'
+        AND column_name = 'adj_close_price'
+    ) THEN
+        ALTER TABLE price_daily ADD COLUMN adj_close_price DOUBLE PRECISION;
+        UPDATE price_daily SET adj_close_price = adj_close WHERE adj_close_price IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'price_daily'
+        AND column_name = 'change_percent'
+    ) THEN
+        ALTER TABLE price_daily ADD COLUMN change_percent DOUBLE PRECISION DEFAULT 0;
+    END IF;
+
+    -- Add price column as alias for close
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'price_daily'
+        AND column_name = 'price'
+    ) THEN
+        ALTER TABLE price_daily ADD COLUMN price DOUBLE PRECISION;
+        UPDATE price_daily SET price = close WHERE price IS NULL;
+    END IF;
+END $$;
+
+-- Force update all the aliased columns after table creation
+UPDATE price_daily SET price = close WHERE price IS NULL OR price != close;
+UPDATE price_daily SET open_price = open WHERE open_price IS NULL OR open_price != open;
+UPDATE price_daily SET high_price = high WHERE high_price IS NULL OR high_price != high;
+UPDATE price_daily SET low_price = low WHERE low_price IS NULL OR low_price != low;
+UPDATE price_daily SET close_price = close WHERE close_price IS NULL OR close_price != close;
+UPDATE price_daily SET adj_close_price = adj_close WHERE adj_close_price IS NULL OR adj_close_price != adj_close;
+
+-- Force update portfolio_holdings columns after table creation
+UPDATE portfolio_holdings SET cost_basis = average_cost * quantity
+WHERE cost_basis IS NULL AND average_cost IS NOT NULL AND quantity IS NOT NULL;
+
+UPDATE portfolio_holdings SET total_value = current_price * quantity
+WHERE total_value IS NULL AND current_price IS NOT NULL AND quantity IS NOT NULL;
+
+UPDATE portfolio_holdings SET unrealized_pnl = (current_price - average_cost) * quantity
+WHERE unrealized_pnl IS NULL AND current_price IS NOT NULL AND average_cost IS NOT NULL AND quantity IS NOT NULL;
+
+UPDATE portfolio_holdings SET unrealized_pnl_percent = ((current_price - average_cost) / average_cost * 100)
+WHERE unrealized_pnl_percent IS NULL AND current_price IS NOT NULL AND average_cost IS NOT NULL AND average_cost > 0;
+
+-- Add missing columns to portfolio_holdings for existing tables
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'portfolio_holdings'
+        AND column_name = 'cost_basis'
+    ) THEN
+        ALTER TABLE portfolio_holdings ADD COLUMN cost_basis DECIMAL(15,2);
+        UPDATE portfolio_holdings SET cost_basis = average_cost * quantity WHERE cost_basis IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'portfolio_holdings'
+        AND column_name = 'total_value'
+    ) THEN
+        ALTER TABLE portfolio_holdings ADD COLUMN total_value DECIMAL(15,2);
+        UPDATE portfolio_holdings SET total_value = current_price * quantity WHERE total_value IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'portfolio_holdings'
+        AND column_name = 'unrealized_pnl'
+    ) THEN
+        ALTER TABLE portfolio_holdings ADD COLUMN unrealized_pnl DECIMAL(15,2);
+        UPDATE portfolio_holdings SET unrealized_pnl = (current_price - average_cost) * quantity WHERE unrealized_pnl IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'portfolio_holdings'
+        AND column_name = 'unrealized_pnl_percent'
+    ) THEN
+        ALTER TABLE portfolio_holdings ADD COLUMN unrealized_pnl_percent DECIMAL(10,4);
+        UPDATE portfolio_holdings SET unrealized_pnl_percent = ((current_price - average_cost) / average_cost * 100) WHERE unrealized_pnl_percent IS NULL AND average_cost > 0;
+    END IF;
+END $$;
+
+-- Add missing columns to analyst_estimates for the "firm" column error
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'analyst_estimates'
+        AND column_name = 'firm'
+    ) THEN
+        ALTER TABLE analyst_estimates ADD COLUMN firm VARCHAR(100);
+        UPDATE analyst_estimates SET firm = 'Unknown' WHERE firm IS NULL;
+    END IF;
+END $$;
+
+-- Add missing columns to portfolio_performance for existing tables
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'portfolio_performance'
+        AND column_name = 'daily_pnl'
+    ) THEN
+        ALTER TABLE portfolio_performance ADD COLUMN daily_pnl DECIMAL(15,2);
+        UPDATE portfolio_performance SET daily_pnl = 0 WHERE daily_pnl IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'portfolio_performance'
+        AND column_name = 'daily_pnl_percent'
+    ) THEN
+        ALTER TABLE portfolio_performance ADD COLUMN daily_pnl_percent DECIMAL(10,4);
+        UPDATE portfolio_performance SET daily_pnl_percent = 0 WHERE daily_pnl_percent IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'portfolio_performance'
+        AND column_name = 'total_pnl'
+    ) THEN
+        ALTER TABLE portfolio_performance ADD COLUMN total_pnl DECIMAL(15,2);
+        UPDATE portfolio_performance SET total_pnl = 0 WHERE total_pnl IS NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'portfolio_performance'
+        AND column_name = 'total_pnl_percent'
+    ) THEN
+        ALTER TABLE portfolio_performance ADD COLUMN total_pnl_percent DECIMAL(10,4);
+        UPDATE portfolio_performance SET total_pnl_percent = 0 WHERE total_pnl_percent IS NULL;
+    END IF;
+END $$;
 
 COMMIT;

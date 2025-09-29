@@ -55,6 +55,11 @@ Parameters:
     Default: "latest"
     Description: "Tag for daily technicals loader image"
 
+  StockScoresImageTag:
+    Type: String
+    Default: "latest"
+    Description: "Tag for stock scores loader image"
+
 Resources:
 
   ########################################
@@ -267,6 +272,28 @@ Resources:
               AwsVpcConfiguration:
                 Subnets: !Ref SubnetIds
                 SecurityGroups: 
+                  - !Ref SecurityGroupId
+                AssignPublicIp: ENABLED
+
+  # Stock Scores Calculation (Daily at 7:00 PM ET)
+  StockScoresRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: calculate-stock-scores
+      Description: "Calculate comprehensive stock scores using database-driven 4-factor model"
+      ScheduleExpression: "cron(0 0 ? * MON-FRI *)"  # 7:00 PM ET, Monday-Friday
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSClusterName}"
+          Id: "StockScoresTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/stock-scores:*"
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref SubnetIds
+                SecurityGroups:
                   - !Ref SecurityGroupId
                 AssignPublicIp: ENABLED
 

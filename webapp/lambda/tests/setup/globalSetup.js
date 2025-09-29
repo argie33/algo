@@ -70,8 +70,11 @@ module.exports = async () => {
           try {
             await query(statement);
           } catch (err) {
-            // Ignore table exists errors
-            if (!err.message.includes('already exists') && !err.message.includes('duplicate key')) {
+            // Ignore table exists errors and column reference errors (which happen during setup)
+            if (!err.message.includes('already exists') &&
+                !err.message.includes('duplicate key') &&
+                !err.message.includes('does not exist') &&
+                !err.code === '42703') {
               console.warn(`SQL Warning: ${err.message.substring(0, 100)}`);
             }
           }

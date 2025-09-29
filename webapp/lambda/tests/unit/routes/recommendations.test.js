@@ -31,6 +31,9 @@ describe("Recommendations Routes Unit Tests", () => {
     const { query } = require("../../../utils/database");
     mockQuery = query;
 
+    // Default mock for all tests - return empty rows
+    mockQuery.mockResolvedValue({ rows: [] });
+
     // Create test app
     app = express();
     app.use(express.json());
@@ -41,6 +44,12 @@ describe("Recommendations Routes Unit Tests", () => {
         res.status(status).json({
           success: false,
           error: message,
+        });
+      res.serverError = (message, details) =>
+        res.status(500).json({
+          success: false,
+          error: message,
+          details,
         });
       next();
     });
@@ -254,20 +263,15 @@ describe("Recommendations Routes Unit Tests", () => {
 
   describe("Error handling", () => {
     test("should handle implementation errors gracefully", async () => {
-      // Test the catch block by mocking console.error to throw
-      const originalConsoleError = console.error;
-      console.error = jest.fn(() => {
-        throw new Error("Logging failed");
-      });
+      // Test the catch block by making the database query fail
+      mockQuery.mockRejectedValue(new Error("Database connection failed"));
 
       const response = await request(app).get("/recommendations");
 
-      // Should still return the success response
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("success", true);
-
-      // Restore console.error
-      console.error = originalConsoleError;
+      // Should return error response when implementation fails
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
     });
 
     test("should handle malformed query parameters", async () => {

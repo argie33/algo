@@ -1,6 +1,20 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+let query;
+try {
+  ({ query } = require("../utils/database"));
+} catch (error) {
+  console.log("Database service not available in financials routes:", error.message);
+  query = null;
+}
+
+// Helper function to validate database response
+function validateDbResponse(result, context = "database query") {
+  if (!result || typeof result !== 'object' || !Array.isArray(result.rows)) {
+    throw new Error(`Database response validation failed for ${context}: result is null, undefined, or missing rows array`);
+  }
+  return result;
+}
 
 const router = express.Router();
 
@@ -42,6 +56,15 @@ router.get("/ping", (req, res) => {
 // Financial statements endpoint - must come before /:symbol route
 router.get("/statements", async (req, res) => {
   try {
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Financial statements service requires database connection"
+      });
+    }
+
     const { symbol, period = "annual", type = "all" } = req.query;
 
     console.log(
@@ -95,9 +118,10 @@ router.get("/statements", async (req, res) => {
             LIMIT 50
           `;
         }
-        const balanceResult = await query(balanceQuery, [
-          targetSymbol.toUpperCase(),
-        ]);
+        const balanceResult = validateDbResponse(
+          await query(balanceQuery, [targetSymbol.toUpperCase()]),
+          "balance sheet query"
+        );
         statements.balance_sheet = balanceResult.rows || [];
       } catch (e) {
         console.warn(`Balance sheet data not available for ${symbol}:`, e.message);
@@ -114,9 +138,10 @@ router.get("/statements", async (req, res) => {
           ORDER BY date DESC, item_name
           LIMIT 50
         `;
-        const incomeResult = await query(incomeQuery, [
-          targetSymbol.toUpperCase(),
-        ]);
+        const incomeResult = validateDbResponse(
+          await query(incomeQuery, [targetSymbol.toUpperCase()]),
+          "income statement query"
+        );
         statements.income_statement = incomeResult.rows || [];
       } catch (e) {
         console.warn(`Income statement data not available for ${symbol}:`, e.message);
@@ -133,9 +158,10 @@ router.get("/statements", async (req, res) => {
           ORDER BY date DESC, item_name
           LIMIT 50
         `;
-        const cashflowResult = await query(cashflowQuery, [
-          targetSymbol.toUpperCase(),
-        ]);
+        const cashflowResult = validateDbResponse(
+          await query(cashflowQuery, [targetSymbol.toUpperCase()]),
+          "cash flow query"
+        );
         statements.cash_flow = cashflowResult.rows || [];
       } catch (e) {
         console.warn(`Cash flow data not available for ${symbol}:`, e.message);

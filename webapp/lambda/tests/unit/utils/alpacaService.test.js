@@ -1,21 +1,29 @@
-const AlpacaService = require("../../../utils/alpacaService");
+// Create mock functions that will be reused
+const mockAlpacaMethods = {
+  getAccount: jest.fn(),
+  getPositions: jest.fn(),
+  getPortfolioHistory: jest.fn(),
+  getActivities: jest.fn(),
+  getCalendar: jest.fn(),
+  getClock: jest.fn(),
+  getAsset: jest.fn(),
+  getLatestQuote: jest.fn(),
+  getLatestTrade: jest.fn(),
+  getBars: jest.fn(),
+  createOrder: jest.fn(),
+};
 
-// Mock the Alpaca SDK
+// Mock the Alpaca SDK - must be at top level before any requires
 jest.mock("@alpacahq/alpaca-trade-api", () => {
-  return jest.fn().mockImplementation(() => ({
-    getAccount: jest.fn(),
-    getPositions: jest.fn(),
-    getPortfolioHistory: jest.fn(),
-    getActivities: jest.fn(),
-    getCalendar: jest.fn(),
-    getClock: jest.fn(),
-    getAsset: jest.fn(),
-    getLatestQuote: jest.fn(),
-    getLatestTrade: jest.fn(),
-    getBars: jest.fn(),
-    createOrder: jest.fn(),
-  }));
+  const mockConstructor = jest.fn().mockImplementation(() => {
+    console.log("Mock Alpaca constructor called");
+    return mockAlpacaMethods;
+  });
+  mockConstructor.mockAlpacaMethods = mockAlpacaMethods; // Expose for debugging
+  return mockConstructor;
 });
+
+const AlpacaService = require("../../../utils/alpacaService");
 
 describe("AlpacaService", () => {
   let alpacaService;
@@ -28,7 +36,7 @@ describe("AlpacaService", () => {
     jest.spyOn(console, "log").mockImplementation();
 
     alpacaService = new AlpacaService("test-key", "test-secret", true);
-    mockClient = alpacaService.client;
+    mockClient = mockAlpacaMethods; // Use the shared mock functions
   });
 
   afterEach(() => {

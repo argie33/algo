@@ -393,6 +393,265 @@ describe("Signals Route - Unit Tests", () => {
     });
   });
 
+  describe("GET /api/signals/performance/:symbol - Business Logic", () => {
+    test("should return performance data for specific symbol", async () => {
+      // Mock schema introspection
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          { column_name: "symbol" },
+          { column_name: "signal" },
+          { column_name: "date" },
+          { column_name: "close" },
+          { column_name: "open" },
+          { column_name: "volume" }
+        ]
+      });
+
+      // Mock performance query
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          symbol: "AAPL",
+          signal: "BUY",
+          date: "2024-01-01",
+          close: 150.0,
+          open: 149.0,
+          volume: 1000000
+        }]
+      });
+
+      const response = await request(app).get("/api/signals/performance/AAPL?timeframe=7d");
+
+      expect(response.status).toBe(200);
+      expect(response.body.symbol).toBe("AAPL");
+      expect(response.body.signal).toBe("BUY");
+      expect(response.body).toHaveProperty("confidence", 0.75);
+      expect(response.body).toHaveProperty("currentReturn");
+      expect(response.body).toHaveProperty("daysHeld");
+      expect(typeof response.body.currentReturn).toBe("number");
+      expect(typeof response.body.daysHeld).toBe("number");
+    });
+
+    test("should handle table not found error gracefully", async () => {
+      mockQuery.mockRejectedValueOnce(new Error("Table buy_sell_daily does not exist"));
+
+      const response = await request(app).get("/api/signals/performance/AAPL");
+
+      expect(response.status).toBe(200);
+      expect(response.body.symbol).toBe("AAPL");
+      expect(response.body.currentReturn).toBe(0);
+      expect(response.body).toHaveProperty("message", "Performance data not available");
+      expect(response.body).toHaveProperty("error_details");
+    });
+
+    test("should handle no data found gracefully", async () => {
+      // Mock schema introspection
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ column_name: "symbol" }]
+      });
+
+      // Mock empty result
+      mockQuery.mockResolvedValueOnce({
+        rows: []
+      });
+
+      const response = await request(app).get("/api/signals/performance/NONEXISTENT");
+
+      expect(response.status).toBe(200);
+      expect(response.body.symbol).toBe("NONEXISTENT");
+      expect(response.body.currentReturn).toBe(0);
+      expect(response.body).toHaveProperty("message", "Performance data not available");
+    });
+
+    test("should validate timeframe parameter", async () => {
+      const response = await request(app).get("/api/signals/performance/AAPL?timeframe=invalid");
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain("Invalid timeframe");
+    });
+
+    test("should handle 7d timeframe alias", async () => {
+      // Mock schema introspection
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ column_name: "symbol" }]
+      });
+
+      // Mock empty result
+      mockQuery.mockResolvedValueOnce({
+        rows: []
+      });
+
+      const response = await request(app).get("/api/signals/performance/META?timeframe=7d");
+
+      expect(response.status).toBe(200);
+      expect(response.body.symbol).toBe("META");
+      expect(response.body.timeframe).toBe("daily");
+    });
+  });
+
+  describe("GET /api/signals/options - Business Logic", () => {
+    test("should return options signals structure", async () => {
+      const response = await request(app).get("/api/signals/options");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("options");
+      expect(response.body.data).toEqual([]);
+    });
+  });
+
+  describe("GET /api/signals/sentiment - Business Logic", () => {
+    test("should return sentiment signals structure", async () => {
+      const response = await request(app).get("/api/signals/sentiment");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("sentiment");
+      expect(response.body.data).toEqual([]);
+    });
+  });
+
+  describe("GET /api/signals/earnings - Business Logic", () => {
+    test("should return earnings signals structure", async () => {
+      const response = await request(app).get("/api/signals/earnings");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("earnings");
+      expect(response.body.data).toEqual([]);
+    });
+  });
+
+  describe("GET /api/signals/crypto - Business Logic", () => {
+    test("should return crypto signals structure", async () => {
+      const response = await request(app).get("/api/signals/crypto");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("crypto");
+      expect(response.body.data).toEqual([]);
+    });
+  });
+
+  describe("GET /api/signals/history - Business Logic", () => {
+    test("should return historical signals with pagination", async () => {
+      const response = await request(app).get("/api/signals/history");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("history");
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("pagination");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
+    test("should handle pagination parameters", async () => {
+      const response = await request(app).get("/api/signals/history?page=2&limit=5");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.pagination.page).toBe(2);
+      expect(response.body.pagination.limit).toBe(5);
+    });
+  });
+
+  describe("GET /api/signals/sector-rotation - Business Logic", () => {
+    test("should return sector rotation signals", async () => {
+      const response = await request(app).get("/api/signals/sector-rotation");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("sector_rotation");
+      expect(response.body.data).toEqual([]);
+    });
+  });
+
+  describe("GET /api/signals/list - Business Logic", () => {
+    test("should return signals list with summary", async () => {
+      // Mock signals query with sample data
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          symbol: "AAPL",
+          date: new Date('2024-01-15'),
+          timeframe: "daily",
+          signal: "BUY",
+          open: 185.50,
+          high: 188.20,
+          low: 184.75,
+          close: 187.80,
+          volume: 50000000,
+          buylevel: 187.80,
+          stoplevel: 178.42,
+          inposition: false
+        }]
+      });
+
+      const response = await request(app).get("/api/signals/list");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("summary");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
+    test("should handle timeframe parameter", async () => {
+      // Mock weekly signals query with sample data
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          symbol: "TSLA",
+          date: new Date('2024-01-15'),
+          timeframe: "weekly",
+          signal: "SELL",
+          open: 245.80,
+          high: 250.30,
+          low: 242.10,
+          close: 247.60,
+          volume: 30000000,
+          buylevel: 247.60,
+          stoplevel: 235.22,
+          inposition: true
+        }]
+      });
+
+      const response = await request(app).get("/api/signals/list?timeframe=weekly");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("timeframe", "weekly");
+    });
+  });
+
+  describe("POST /api/signals/custom - Business Logic", () => {
+    test.skip("should create custom signal alert", async () => {
+      // Skipped - requires auth middleware integration
+      const customSignalData = {
+        name: "Test Custom Signal",
+        criteria: { rsi: { min: 30, max: 70 } },
+        symbols: ["AAPL"]
+      };
+
+      const response = await request(app)
+        .post("/api/signals/custom")
+        .send(customSignalData);
+
+      expect(response.status).toBe(201);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveProperty("signal_id");
+    });
+
+    test.skip("should validate required fields for custom signals", async () => {
+      // Skipped - requires auth middleware integration
+      const response = await request(app)
+        .post("/api/signals/custom")
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain("required");
+    });
+  });
+
   describe("Error Handling", () => {
     test("should handle database connection errors", async () => {
       mockQuery.mockRejectedValueOnce(new Error("Database connection failed"));

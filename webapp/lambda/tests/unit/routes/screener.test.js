@@ -24,11 +24,15 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Mock the factor scoring engine
+const mockCalculateCompositeScore = jest.fn();
+const mockGetAvailableFactors = jest.fn();
+const mockApplyFactorWeights = jest.fn();
+
 jest.mock("../../../utils/factorScoring", () => ({
   FactorScoringEngine: jest.fn().mockImplementation(() => ({
-    calculateCompositeScore: jest.fn(),
-    getAvailableFactors: jest.fn(),
-    applyFactorWeights: jest.fn(),
+    calculateCompositeScore: mockCalculateCompositeScore,
+    getAvailableFactors: mockGetAvailableFactors,
+    applyFactorWeights: mockApplyFactorWeights,
   })),
 }));
 
@@ -47,6 +51,11 @@ describe("Screener Routes Unit Tests", () => {
 
     const { FactorScoringEngine } = require("../../../utils/factorScoring");
     mockFactorEngine = new FactorScoringEngine();
+
+    // Set up the factor engine mock functions
+    mockFactorEngine.calculateCompositeScore = mockCalculateCompositeScore;
+    mockFactorEngine.getAvailableFactors = mockGetAvailableFactors;
+    mockFactorEngine.applyFactorWeights = mockApplyFactorWeights;
 
     // Create test app
     app = express();
@@ -133,6 +142,8 @@ describe("Screener Routes Unit Tests", () => {
         rows: [{ total: "2" }],
       };
 
+      // Mock table existence check first
+      mockQuery.mockResolvedValueOnce({ rows: [{ exists: true }] });
       // Mock both queries - main query and count query
       mockQuery.mockResolvedValueOnce(mockScreenerData);
       mockQuery.mockResolvedValueOnce(mockCountData);

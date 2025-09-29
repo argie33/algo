@@ -336,6 +336,52 @@ describe("Signals Routes - Integration Tests", () => {
     });
   });
 
+  describe("GET /api/signals/performance/:symbol", () => {
+    test("should return performance data for specific symbol", async () => {
+      const response = await request(app).get("/api/signals/performance/AAPL?timeframe=7d");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("symbol", "AAPL");
+      expect(response.body).toHaveProperty("signal");
+      expect(response.body).toHaveProperty("confidence");
+      expect(response.body).toHaveProperty("signalDate");
+      expect(response.body).toHaveProperty("daysHeld");
+      expect(response.body).toHaveProperty("currentReturn");
+      expect(typeof response.body.currentReturn).toBe("number");
+    });
+
+    test("should handle different timeframe formats for symbol performance", async () => {
+      const timeframes = ["7d", "1d", "daily", "weekly"];
+
+      for (const timeframe of timeframes) {
+        const response = await request(app).get(`/api/signals/performance/META?timeframe=${timeframe}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("symbol", "META");
+        expect(response.body).toHaveProperty("timeframe");
+        expect(response.body).toHaveProperty("currentReturn");
+        expect(typeof response.body.currentReturn).toBe("number");
+      }
+    });
+
+    test("should handle invalid timeframes gracefully", async () => {
+      const response = await request(app).get("/api/signals/performance/AAPL?timeframe=invalid");
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain("Invalid timeframe");
+    });
+
+    test("should return data even when no signals found", async () => {
+      const response = await request(app).get("/api/signals/performance/NONEXISTENT?timeframe=7d");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("symbol", "NONEXISTENT");
+      expect(response.body).toHaveProperty("currentReturn", 0);
+      expect(response.body).toHaveProperty("message");
+    });
+  });
+
   describe("DELETE /api/signals/alerts/:alertId - Database Integration", () => {
     test("should delete alert with database persistence", async () => {
       // First create an alert to delete
@@ -372,6 +418,266 @@ describe("Signals Routes - Integration Tests", () => {
 
       expect([404, 500]).toContain(response.status);
       expect(response.body.success).toBe(false);
+    });
+  });
+
+  describe("GET /api/signals/options", () => {
+    test("should return options signals endpoint", async () => {
+      const response = await request(app).get("/api/signals/options");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("options");
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+  });
+
+  describe("GET /api/signals/sentiment", () => {
+    test("should return sentiment signals endpoint", async () => {
+      const response = await request(app).get("/api/signals/sentiment");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("sentiment");
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+  });
+
+  describe("GET /api/signals/earnings", () => {
+    test("should return earnings signals endpoint", async () => {
+      const response = await request(app).get("/api/signals/earnings");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("earnings");
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+  });
+
+  describe("GET /api/signals/crypto", () => {
+    test("should return crypto signals endpoint", async () => {
+      const response = await request(app).get("/api/signals/crypto");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("crypto");
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+  });
+
+  describe("GET /api/signals/history", () => {
+    test("should return historical signals endpoint", async () => {
+      const response = await request(app).get("/api/signals/history");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("history");
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("pagination");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
+    test("should handle pagination parameters", async () => {
+      const response = await request(app).get("/api/signals/history?page=1&limit=5");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
+      expect(response.body.pagination.limit).toBe(5);
+      expect(response.body.pagination.page).toBe(1);
+    });
+  });
+
+  describe("GET /api/signals/sector-rotation", () => {
+    test("should return sector rotation signals endpoint", async () => {
+      const response = await request(app).get("/api/signals/sector-rotation");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.signal_type).toBe("sector_rotation");
+      expect(response.body).toHaveProperty("data");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+  });
+
+  describe("GET /api/signals/list", () => {
+    test("should return signals list endpoint", async () => {
+      const response = await request(app).get("/api/signals/list");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("summary");
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
+    test("should handle timeframe parameter", async () => {
+      const response = await request(app).get("/api/signals/list?timeframe=weekly");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("timeframe", "weekly");
+    });
+
+    test("should handle pagination parameters", async () => {
+      const response = await request(app).get("/api/signals/list?page=1&limit=10");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
+      if (response.body.pagination) {
+        expect(response.body.pagination.limit).toBe(10);
+        expect(response.body.pagination.page).toBe(1);
+      }
+    });
+  });
+
+  describe("POST /api/signals/custom", () => {
+    test("should create custom signal alert", async () => {
+      const customSignalData = {
+        name: "Test Custom Signal",
+        description: "Test custom signal for integration testing",
+        criteria: {
+          rsi: { min: 30, max: 70 },
+          volume: { min: 1000000 }
+        },
+        symbols: ["AAPL", "TSLA"],
+        alert_threshold: 8.5
+      };
+
+      const response = await request(app)
+        .post("/api/signals/custom")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .send(customSignalData);
+
+      expect(response.status).toBe(201);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("signal_id");
+      expect(response.body.data).toHaveProperty("name", "Test Custom Signal");
+      expect(response.body.data).toHaveProperty("criteria");
+      expect(response.body.data.criteria).toEqual(customSignalData.criteria);
+    });
+
+    test("should validate required fields", async () => {
+      const response = await request(app)
+        .post("/api/signals/custom")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain("required");
+    });
+
+    test("should validate criteria format", async () => {
+      const invalidData = {
+        name: "Invalid Signal",
+        criteria: "invalid_criteria_format", // Should be object
+        symbols: ["AAPL"]
+      };
+
+      const response = await request(app)
+        .post("/api/signals/custom")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .send(invalidData);
+
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain("criteria");
+    });
+  });
+
+  describe("GET /api/signals/technical - Advanced", () => {
+    test("should support symbol filtering", async () => {
+      const response = await request(app).get("/api/signals/technical?symbols=AAPL,TSLA");
+
+      if (response.status === 200) {
+        expect(response.body.success).toBe(true);
+        expect(response.body).toHaveProperty("data");
+        expect(Array.isArray(response.body.data)).toBe(true);
+
+        // Check that returned data only contains requested symbols
+        if (response.body.data.length > 0) {
+          const symbols = response.body.data.map(signal => signal.symbol);
+          symbols.forEach(symbol => {
+            expect(["AAPL", "TSLA"].includes(symbol)).toBe(true);
+          });
+        }
+      } else {
+        expect([404, 500]).toContain(response.status);
+      }
+    });
+
+    test("should return technical indicators", async () => {
+      const response = await request(app).get("/api/signals/technical");
+
+      if (response.status === 200) {
+        expect(response.body.success).toBe(true);
+        expect(response.body).toHaveProperty("indicators");
+        expect(Array.isArray(response.body.indicators)).toBe(true);
+        expect(response.body.indicators).toContain("RSI");
+
+        if (response.body.data.length > 0) {
+          const signal = response.body.data[0];
+          expect(signal).toHaveProperty("signal_strength");
+          expect(signal).toHaveProperty("rsi");
+          expect(signal).toHaveProperty("macd");
+        }
+      }
+    });
+  });
+
+  describe("Edge Cases and Error Handling", () => {
+    test("should handle invalid symbol patterns gracefully", async () => {
+      const invalidSymbols = ["", "INVALID_SYMBOL_123456", "!@#$%"];
+
+      for (const symbol of invalidSymbols) {
+        const response = await request(app).get(`/api/signals/${encodeURIComponent(symbol)}`);
+        expect([200, 400, 404]).toContain(response.status);
+        expect(response.body).toHaveProperty("success");
+      }
+    });
+
+    test("should handle extreme pagination values", async () => {
+      const extremeValues = [
+        { page: -1, limit: 10 },
+        { page: 0, limit: -5 },
+        { page: 1, limit: 1000 },
+        { page: 9999, limit: 1 }
+      ];
+
+      for (const params of extremeValues) {
+        const response = await request(app).get(`/api/signals?page=${params.page}&limit=${params.limit}`);
+        expect([200, 400, 500]).toContain(response.status);
+        expect(response.body).toHaveProperty("success");
+      }
+    });
+
+    test("should handle special characters in timeframe", async () => {
+      const specialTimeframes = ["daily!", "week@ly", "month#ly", ""];
+
+      for (const timeframe of specialTimeframes) {
+        const response = await request(app).get(`/api/signals?timeframe=${encodeURIComponent(timeframe)}`);
+        expect([200, 400]).toContain(response.status);
+        expect(response.body).toHaveProperty("success");
+      }
+    });
+
+    test("should handle concurrent requests gracefully", async () => {
+      const concurrentRequests = Array(5).fill(null).map(() =>
+        request(app).get("/api/signals")
+      );
+
+      const responses = await Promise.all(concurrentRequests);
+      responses.forEach(response => {
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+      });
     });
   });
 

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-26T14:50:12.740Z",
+  "timestamp": "2025-09-29T01:56:19.552Z",
   "baseUrl": "https://qda42av7je.execute-api.us-east-1.amazonaws.com/Prod",
   "summary": {
     "total": 20,
@@ -18,7 +18,7 @@
         "success": true,
         "status": "healthy",
         "healthy": true,
-        "timestamp": "2025-09-26T14:50:09.676Z",
+        "timestamp": "2025-09-29T01:56:14.589Z",
         "version": "1.0.0",
         "database": {
           "status": "connected",
@@ -31,13 +31,13 @@
           "environment": "development"
         },
         "memory": {
-          "rss": 85925888,
-          "heapTotal": 31625216,
-          "heapUsed": 28809928,
-          "external": 3029790,
-          "arrayBuffers": 87855
+          "rss": 101670912,
+          "heapTotal": 46391296,
+          "heapUsed": 29698792,
+          "external": 3142367,
+          "arrayBuffers": 199896
         },
-        "uptime": 13.036580921
+        "uptime": 3.898452805
       },
       "error": null
     },
@@ -48,17 +48,475 @@
       "success": true,
       "data": {
         "success": true,
-        "data": [],
-        "total": 0,
-        "message": "No daily signals currently available. Signals will appear after data loading.",
-        "timeframe": "daily",
+        "data": [
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-25T00:00:00.000Z",
+            "signal_date": "2025-07-25T00:00:00.000Z",
+            "current_price": 1.01,
+            "currentPrice": 1.01,
+            "confidence": 0.75,
+            "buy_level": 1.28,
+            "stop_level": 0.7057143,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "153700",
+            "entry_price": 1.01,
+            "sector": "Technology",
+            "timestamp": "2025-07-25T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-25T00:00:00.000Z",
+            "signal_date": "2025-07-25T00:00:00.000Z",
+            "current_price": 11.5,
+            "currentPrice": 11.5,
+            "confidence": 0.75,
+            "buy_level": 12.95,
+            "stop_level": 11.34,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "63396400",
+            "entry_price": 11.5,
+            "sector": "Technology",
+            "timestamp": "2025-07-25T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-25T00:00:00.000Z",
+            "signal_date": "2025-07-25T00:00:00.000Z",
+            "current_price": 2.27,
+            "currentPrice": 2.27,
+            "confidence": 0.75,
+            "buy_level": 2.35,
+            "stop_level": 1.5057143,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "1900",
+            "entry_price": 2.27,
+            "sector": "Technology",
+            "timestamp": "2025-07-25T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-24T00:00:00.000Z",
+            "signal_date": "2025-07-24T00:00:00.000Z",
+            "current_price": 1.08,
+            "currentPrice": 1.08,
+            "confidence": 0.75,
+            "buy_level": 1.28,
+            "stop_level": 0.71000004,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "75400",
+            "entry_price": 1.08,
+            "sector": "Technology",
+            "timestamp": "2025-07-24T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "Sell",
+            "signal": "Sell",
+            "date": "2025-07-24T00:00:00.000Z",
+            "signal_date": "2025-07-24T00:00:00.000Z",
+            "current_price": 11.46,
+            "currentPrice": 11.46,
+            "confidence": 0.75,
+            "buy_level": 12.95,
+            "stop_level": 11.319285,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "120265700",
+            "entry_price": 11.46,
+            "sector": "Technology",
+            "timestamp": "2025-07-24T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-24T00:00:00.000Z",
+            "signal_date": "2025-07-24T00:00:00.000Z",
+            "current_price": 2.27,
+            "currentPrice": 2.27,
+            "confidence": 0.75,
+            "buy_level": 2.35,
+            "stop_level": 1.5114286,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "7800",
+            "entry_price": 2.27,
+            "sector": "Technology",
+            "timestamp": "2025-07-24T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-23T00:00:00.000Z",
+            "signal_date": "2025-07-23T00:00:00.000Z",
+            "current_price": 1,
+            "currentPrice": 1,
+            "confidence": 0.75,
+            "buy_level": 1.28,
+            "stop_level": 0.71571434,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "106400",
+            "entry_price": 1,
+            "sector": "Technology",
+            "timestamp": "2025-07-23T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-23T00:00:00.000Z",
+            "signal_date": "2025-07-23T00:00:00.000Z",
+            "current_price": 12.68,
+            "currentPrice": 12.68,
+            "confidence": 0.75,
+            "buy_level": 12.95,
+            "stop_level": 11.394285,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "75685400",
+            "entry_price": 12.68,
+            "sector": "Technology",
+            "timestamp": "2025-07-23T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-23T00:00:00.000Z",
+            "signal_date": "2025-07-23T00:00:00.000Z",
+            "current_price": 2.25,
+            "currentPrice": 2.25,
+            "confidence": 0.75,
+            "buy_level": 2.35,
+            "stop_level": 1.5092857,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "4700",
+            "entry_price": 2.25,
+            "sector": "Technology",
+            "timestamp": "2025-07-23T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-22T00:00:00.000Z",
+            "signal_date": "2025-07-22T00:00:00.000Z",
+            "current_price": 1.05,
+            "currentPrice": 1.05,
+            "confidence": 0.75,
+            "buy_level": 0.86,
+            "stop_level": 0.7178572,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "338600",
+            "entry_price": 1.05,
+            "sector": "Technology",
+            "timestamp": "2025-07-22T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-22T00:00:00.000Z",
+            "signal_date": "2025-07-22T00:00:00.000Z",
+            "current_price": 12.5,
+            "currentPrice": 12.5,
+            "confidence": 0.75,
+            "buy_level": 12.95,
+            "stop_level": 11.389285,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "54783200",
+            "entry_price": 12.5,
+            "sector": "Technology",
+            "timestamp": "2025-07-22T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "Sell",
+            "signal": "Sell",
+            "date": "2025-07-22T00:00:00.000Z",
+            "signal_date": "2025-07-22T00:00:00.000Z",
+            "current_price": 2.17,
+            "currentPrice": 2.17,
+            "confidence": 0.75,
+            "buy_level": 2.35,
+            "stop_level": 1.4914286,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "5300",
+            "entry_price": 2.17,
+            "sector": "Technology",
+            "timestamp": "2025-07-22T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-21T00:00:00.000Z",
+            "signal_date": "2025-07-21T00:00:00.000Z",
+            "current_price": 1.15,
+            "currentPrice": 1.15,
+            "confidence": 0.75,
+            "buy_level": 0.86,
+            "stop_level": 0.73357147,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "545600",
+            "entry_price": 1.15,
+            "sector": "Technology",
+            "timestamp": "2025-07-21T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-21T00:00:00.000Z",
+            "signal_date": "2025-07-21T00:00:00.000Z",
+            "current_price": 12.32,
+            "currentPrice": 12.32,
+            "confidence": 0.75,
+            "buy_level": 12.95,
+            "stop_level": 11.376429,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "50841000",
+            "entry_price": 12.32,
+            "sector": "Technology",
+            "timestamp": "2025-07-21T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-21T00:00:00.000Z",
+            "signal_date": "2025-07-21T00:00:00.000Z",
+            "current_price": 2.24,
+            "currentPrice": 2.24,
+            "confidence": 0.75,
+            "buy_level": 2.35,
+            "stop_level": 1.4771429,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "4700",
+            "entry_price": 2.24,
+            "sector": "Technology",
+            "timestamp": "2025-07-21T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-18T00:00:00.000Z",
+            "signal_date": "2025-07-18T00:00:00.000Z",
+            "current_price": 0.82,
+            "currentPrice": 0.82,
+            "confidence": 0.75,
+            "buy_level": 0.86,
+            "stop_level": 0.7557143,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "45800",
+            "entry_price": 0.82,
+            "sector": "Technology",
+            "timestamp": "2025-07-18T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-18T00:00:00.000Z",
+            "signal_date": "2025-07-18T00:00:00.000Z",
+            "current_price": 12.51,
+            "currentPrice": 12.51,
+            "confidence": 0.75,
+            "buy_level": 12.95,
+            "stop_level": 11.388572,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "70423500",
+            "entry_price": 12.51,
+            "sector": "Technology",
+            "timestamp": "2025-07-18T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-18T00:00:00.000Z",
+            "signal_date": "2025-07-18T00:00:00.000Z",
+            "current_price": 2.17,
+            "currentPrice": 2.17,
+            "confidence": 0.75,
+            "buy_level": 2.35,
+            "stop_level": 1.4692857,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "6400",
+            "entry_price": 2.17,
+            "sector": "Technology",
+            "timestamp": "2025-07-18T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-17T00:00:00.000Z",
+            "signal_date": "2025-07-17T00:00:00.000Z",
+            "current_price": 0.83,
+            "currentPrice": 0.83,
+            "confidence": 0.75,
+            "buy_level": 0.86,
+            "stop_level": 0.7457143,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "14300",
+            "entry_price": 0.83,
+            "sector": "Technology",
+            "timestamp": "2025-07-17T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-17T00:00:00.000Z",
+            "signal_date": "2025-07-17T00:00:00.000Z",
+            "current_price": 12.45,
+            "currentPrice": 12.45,
+            "confidence": 0.75,
+            "buy_level": 13.18,
+            "stop_level": 11.392857,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "88948400",
+            "entry_price": 12.45,
+            "sector": "Technology",
+            "timestamp": "2025-07-17T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "Buy",
+            "signal": "Buy",
+            "date": "2025-07-17T00:00:00.000Z",
+            "signal_date": "2025-07-17T00:00:00.000Z",
+            "current_price": 2.23,
+            "currentPrice": 2.23,
+            "confidence": 0.75,
+            "buy_level": 2.61,
+            "stop_level": 1.4728571,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "32000",
+            "entry_price": 2.23,
+            "sector": "Technology",
+            "timestamp": "2025-07-17T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-16T00:00:00.000Z",
+            "signal_date": "2025-07-16T00:00:00.000Z",
+            "current_price": 0.86,
+            "currentPrice": 0.86,
+            "confidence": 0.75,
+            "buy_level": 0.86,
+            "stop_level": 0.74785715,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "11100",
+            "entry_price": 0.86,
+            "sector": "Technology",
+            "timestamp": "2025-07-16T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-16T00:00:00.000Z",
+            "signal_date": "2025-07-16T00:00:00.000Z",
+            "current_price": 12.27,
+            "currentPrice": 12.27,
+            "confidence": 0.75,
+            "buy_level": 13.18,
+            "stop_level": 10.905715,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "67256500",
+            "entry_price": 12.27,
+            "sector": "Technology",
+            "timestamp": "2025-07-16T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-16T00:00:00.000Z",
+            "signal_date": "2025-07-16T00:00:00.000Z",
+            "current_price": 1.91,
+            "currentPrice": 1.91,
+            "confidence": 0.75,
+            "buy_level": 2.61,
+            "stop_level": 1.4857143,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "11500",
+            "entry_price": 1.91,
+            "sector": "Technology",
+            "timestamp": "2025-07-16T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-15T00:00:00.000Z",
+            "signal_date": "2025-07-15T00:00:00.000Z",
+            "current_price": 0.9,
+            "currentPrice": 0.9,
+            "confidence": 0.75,
+            "buy_level": 0.86,
+            "stop_level": 0.74928576,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "5700",
+            "entry_price": 0.9,
+            "sector": "Technology",
+            "timestamp": "2025-07-15T00:00:00.000Z"
+          }
+        ],
+        "summary": {
+          "total_signals": 25,
+          "buy_signals": 0,
+          "sell_signals": 0,
+          "hold_signals": 0
+        },
         "pagination": {
           "page": 1,
           "limit": 25,
-          "total": 0,
-          "totalPages": 0
+          "total": 20819,
+          "totalPages": 833,
+          "hasNext": true,
+          "hasPrev": false
         },
-        "timestamp": "2025-09-26T14:50:09.935Z"
+        "timeframe": "daily",
+        "data_source": "database",
+        "timestamp": "2025-09-29T01:56:15.227Z"
       },
       "error": null
     },
@@ -69,17 +527,115 @@
       "success": true,
       "data": {
         "success": true,
-        "data": [],
-        "total": 0,
-        "message": "No daily signals currently available. Signals will appear after data loading.",
-        "timeframe": "daily",
+        "data": [
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-25T00:00:00.000Z",
+            "signal_date": "2025-07-25T00:00:00.000Z",
+            "current_price": 1.01,
+            "currentPrice": 1.01,
+            "confidence": 0.75,
+            "buy_level": 1.28,
+            "stop_level": 0.7057143,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "153700",
+            "entry_price": 1.01,
+            "sector": "Technology",
+            "timestamp": "2025-07-25T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-25T00:00:00.000Z",
+            "signal_date": "2025-07-25T00:00:00.000Z",
+            "current_price": 11.5,
+            "currentPrice": 11.5,
+            "confidence": 0.75,
+            "buy_level": 12.95,
+            "stop_level": 11.34,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "63396400",
+            "entry_price": 11.5,
+            "sector": "Technology",
+            "timestamp": "2025-07-25T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAME",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-25T00:00:00.000Z",
+            "signal_date": "2025-07-25T00:00:00.000Z",
+            "current_price": 2.27,
+            "currentPrice": 2.27,
+            "confidence": 0.75,
+            "buy_level": 2.35,
+            "stop_level": 1.5057143,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "1900",
+            "entry_price": 2.27,
+            "sector": "Technology",
+            "timestamp": "2025-07-25T00:00:00.000Z"
+          },
+          {
+            "symbol": "AACG",
+            "signal_type": "None",
+            "signal": "None",
+            "date": "2025-07-24T00:00:00.000Z",
+            "signal_date": "2025-07-24T00:00:00.000Z",
+            "current_price": 1.08,
+            "currentPrice": 1.08,
+            "confidence": 0.75,
+            "buy_level": 1.28,
+            "stop_level": 0.71000004,
+            "timeframe": "Daily",
+            "in_position": true,
+            "volume": "75400",
+            "entry_price": 1.08,
+            "sector": "Technology",
+            "timestamp": "2025-07-24T00:00:00.000Z"
+          },
+          {
+            "symbol": "AAL",
+            "signal_type": "Sell",
+            "signal": "Sell",
+            "date": "2025-07-24T00:00:00.000Z",
+            "signal_date": "2025-07-24T00:00:00.000Z",
+            "current_price": 11.46,
+            "currentPrice": 11.46,
+            "confidence": 0.75,
+            "buy_level": 12.95,
+            "stop_level": 11.319285,
+            "timeframe": "Daily",
+            "in_position": false,
+            "volume": "120265700",
+            "entry_price": 11.46,
+            "sector": "Technology",
+            "timestamp": "2025-07-24T00:00:00.000Z"
+          }
+        ],
+        "summary": {
+          "total_signals": 5,
+          "buy_signals": 0,
+          "sell_signals": 0,
+          "hold_signals": 0
+        },
         "pagination": {
           "page": 1,
           "limit": 5,
-          "total": 0,
-          "totalPages": 0
+          "total": 20819,
+          "totalPages": 4164,
+          "hasNext": true,
+          "hasPrev": false
         },
-        "timestamp": "2025-09-26T14:50:10.054Z"
+        "timeframe": "daily",
+        "data_source": "database",
+        "timestamp": "2025-09-29T01:56:15.486Z"
       },
       "error": null
     },
@@ -92,7 +648,7 @@
         "success": true,
         "data": [],
         "total": 0,
-        "timestamp": "2025-09-26T14:50:10.194Z"
+        "timestamp": "2025-09-29T01:56:15.628Z"
       },
       "error": null
     },
@@ -121,7 +677,7 @@
           "dividend_yield": null,
           "date": "2025-07-25T00:00:00.000Z"
         },
-        "timestamp": "2025-09-26T14:50:10.297Z"
+        "timestamp": "2025-09-29T01:56:15.776Z"
       },
       "error": null
     },
@@ -6034,7 +6590,7 @@
             "phone_number",
             "currency",
             "market",
-            "full_exchange_name",
+            "exchange",
             "current_price",
             "previous_close",
             "open",
@@ -6122,7 +6678,7 @@
             "leadershipSummary": "/api/stocks/leadership"
           }
         },
-        "timestamp": "2025-09-26T14:50:10.435Z"
+        "timestamp": "2025-09-29T01:56:16.008Z"
       },
       "error": null
     },
@@ -6770,7 +7326,7 @@
             "phone_number",
             "currency",
             "market",
-            "full_exchange_name",
+            "exchange",
             "current_price",
             "previous_close",
             "open",
@@ -6858,7 +7414,7 @@
             "leadershipSummary": "/api/stocks/leadership"
           }
         },
-        "timestamp": "2025-09-26T14:50:10.754Z"
+        "timestamp": "2025-09-29T01:56:16.446Z"
       },
       "error": null
     },
@@ -6925,6 +7481,12 @@
               "timestamp": "2025-07-25T00:00:00.000Z"
             },
             {
+              "name": "T10Y2Y",
+              "value": 0.49,
+              "unit": "Index",
+              "timestamp": "2025-07-25T00:00:00.000Z"
+            },
+            {
               "name": "T5YIFR",
               "value": 2.41,
               "unit": "Index",
@@ -6937,14 +7499,14 @@
               "timestamp": "2025-07-25T00:00:00.000Z"
             },
             {
-              "name": "T10Y2Y",
-              "value": 0.49,
+              "name": "T5YIFR",
+              "value": 2.4,
               "unit": "Index",
-              "timestamp": "2025-07-25T00:00:00.000Z"
+              "timestamp": "2025-07-24T00:00:00.000Z"
             },
             {
-              "name": "T10Y2Y",
-              "value": 0.52,
+              "name": "SP500",
+              "value": 6363.35,
               "unit": "Index",
               "timestamp": "2025-07-24T00:00:00.000Z"
             },
@@ -6953,16 +7515,10 @@
               "value": 6.74,
               "unit": "Index",
               "timestamp": "2025-07-24T00:00:00.000Z"
-            },
-            {
-              "name": "DGS10",
-              "value": 4.43,
-              "unit": "Index",
-              "timestamp": "2025-07-24T00:00:00.000Z"
             }
           ]
         },
-        "timestamp": "2025-09-26T14:50:10.933Z"
+        "timestamp": "2025-09-29T01:56:17.059Z"
       },
       "error": null
     },
@@ -8083,7 +8639,7 @@
           "total": 50,
           "hasMore": true
         },
-        "timestamp": "2025-09-26T14:50:11.043Z"
+        "timestamp": "2025-09-29T01:56:17.247Z"
       },
       "error": null
     },
@@ -8107,7 +8663,7 @@
           "volume": "40219700",
           "date": "2025-07-25T00:00:00.000Z"
         },
-        "timestamp": "2025-09-26T14:50:11.199Z"
+        "timestamp": "2025-09-29T01:56:17.448Z"
       },
       "error": null
     },
@@ -8124,7 +8680,7 @@
           "indicators": [],
           "total": 0
         },
-        "timestamp": "2025-09-26T14:50:11.296Z"
+        "timestamp": "2025-09-29T01:56:17.709Z"
       },
       "error": null
     },
@@ -8171,7 +8727,7 @@
           ],
           "count": 5
         },
-        "timestamp": "2025-09-26T14:50:11.643Z"
+        "timestamp": "2025-09-29T01:56:18.046Z"
       },
       "error": null
     },
@@ -8196,7 +8752,7 @@
         "message": "Sectors API - Ready",
         "status": "operational",
         "data": [],
-        "timestamp": "2025-09-26T14:50:11.837Z"
+        "timestamp": "2025-09-29T01:56:18.581Z"
       },
       "error": null
     },
@@ -8208,7 +8764,7 @@
       "data": {
         "success": true,
         "message": "Portfolio API - Ready",
-        "timestamp": "2025-09-26T14:50:11.979Z",
+        "timestamp": "2025-09-29T01:56:18.806Z",
         "status": "operational",
         "endpoints": [
           "/analytics - Portfolio analytics and metrics",
@@ -8248,184 +8804,184 @@
           },
           "chart_data": [
             {
-              "date": "2025-08-28",
-              "portfolio_value": 100868.92255608989,
-              "benchmark_value": 101799.92260034733,
-              "return_percent": "0.97"
-            },
-            {
-              "date": "2025-08-29",
-              "portfolio_value": 100534.9199986867,
-              "benchmark_value": 99734.49673172389,
-              "return_percent": "1.27"
-            },
-            {
-              "date": "2025-08-30",
-              "portfolio_value": 101930.30557774425,
-              "benchmark_value": 101946.13304601696,
-              "return_percent": "-0.17"
-            },
-            {
               "date": "2025-08-31",
-              "portfolio_value": 101443.69080699765,
-              "benchmark_value": 99892.050634506,
-              "return_percent": "0.20"
+              "portfolio_value": 101216.18386887599,
+              "benchmark_value": 99310.61519308029,
+              "return_percent": "-0.42"
             },
             {
               "date": "2025-09-01",
-              "portfolio_value": 101985.80030437217,
-              "benchmark_value": 98314.11289668665,
-              "return_percent": "-1.48"
-            },
-            {
-              "date": "2025-09-02",
-              "portfolio_value": 98034.47674511636,
-              "benchmark_value": 99327.48767544956,
-              "return_percent": "1.35"
-            },
-            {
-              "date": "2025-09-03",
-              "portfolio_value": 99313.71025293363,
-              "benchmark_value": 98881.69131157061,
-              "return_percent": "-1.93"
-            },
-            {
-              "date": "2025-09-04",
-              "portfolio_value": 102358.47876461507,
-              "benchmark_value": 98548.93773695036,
-              "return_percent": "-1.52"
-            },
-            {
-              "date": "2025-09-05",
-              "portfolio_value": 99348.76286294313,
-              "benchmark_value": 98018.36645880928,
-              "return_percent": "-1.89"
-            },
-            {
-              "date": "2025-09-06",
-              "portfolio_value": 101400.48072105588,
-              "benchmark_value": 101830.95989665388,
-              "return_percent": "0.43"
-            },
-            {
-              "date": "2025-09-07",
-              "portfolio_value": 102498.67413531787,
-              "benchmark_value": 100949.5505553176,
-              "return_percent": "-0.55"
-            },
-            {
-              "date": "2025-09-08",
-              "portfolio_value": 102452.27880230415,
-              "benchmark_value": 98819.90126721392,
-              "return_percent": "1.83"
-            },
-            {
-              "date": "2025-09-09",
-              "portfolio_value": 99574.15174231086,
-              "benchmark_value": 101198.74212492711,
-              "return_percent": "1.80"
-            },
-            {
-              "date": "2025-09-10",
-              "portfolio_value": 101069.96568054798,
-              "benchmark_value": 99231.72619002411,
-              "return_percent": "-1.54"
-            },
-            {
-              "date": "2025-09-11",
-              "portfolio_value": 97739.46307374355,
-              "benchmark_value": 101297.13666969167,
-              "return_percent": "1.94"
-            },
-            {
-              "date": "2025-09-12",
-              "portfolio_value": 100647.91413443617,
-              "benchmark_value": 101434.21530912073,
-              "return_percent": "-0.31"
-            },
-            {
-              "date": "2025-09-13",
-              "portfolio_value": 101280.53214781679,
-              "benchmark_value": 100825.4304504623,
-              "return_percent": "0.98"
-            },
-            {
-              "date": "2025-09-14",
-              "portfolio_value": 101781.40152611346,
-              "benchmark_value": 101122.78539426683,
+              "portfolio_value": 98392.85916512349,
+              "benchmark_value": 101790.8700594365,
               "return_percent": "-0.43"
             },
             {
+              "date": "2025-09-02",
+              "portfolio_value": 99868.28502175196,
+              "benchmark_value": 99202.09184644536,
+              "return_percent": "1.23"
+            },
+            {
+              "date": "2025-09-03",
+              "portfolio_value": 97663.22764146244,
+              "benchmark_value": 98507.10959484758,
+              "return_percent": "0.53"
+            },
+            {
+              "date": "2025-09-04",
+              "portfolio_value": 101927.69967772317,
+              "benchmark_value": 99221.96438439352,
+              "return_percent": "0.45"
+            },
+            {
+              "date": "2025-09-05",
+              "portfolio_value": 99180.68261052483,
+              "benchmark_value": 100865.37527643409,
+              "return_percent": "1.02"
+            },
+            {
+              "date": "2025-09-06",
+              "portfolio_value": 98790.76135708371,
+              "benchmark_value": 100747.60922269613,
+              "return_percent": "-0.17"
+            },
+            {
+              "date": "2025-09-07",
+              "portfolio_value": 100458.22161652362,
+              "benchmark_value": 101276.40590783951,
+              "return_percent": "1.56"
+            },
+            {
+              "date": "2025-09-08",
+              "portfolio_value": 98387.62290569257,
+              "benchmark_value": 100228.96063336136,
+              "return_percent": "-1.76"
+            },
+            {
+              "date": "2025-09-09",
+              "portfolio_value": 101465.12883284742,
+              "benchmark_value": 101776.66149513396,
+              "return_percent": "1.66"
+            },
+            {
+              "date": "2025-09-10",
+              "portfolio_value": 102194.98093200088,
+              "benchmark_value": 101198.68747674442,
+              "return_percent": "-0.22"
+            },
+            {
+              "date": "2025-09-11",
+              "portfolio_value": 101949.71881210161,
+              "benchmark_value": 98022.80882126803,
+              "return_percent": "-1.33"
+            },
+            {
+              "date": "2025-09-12",
+              "portfolio_value": 102117.01796901452,
+              "benchmark_value": 100239.06196662004,
+              "return_percent": "-0.46"
+            },
+            {
+              "date": "2025-09-13",
+              "portfolio_value": 99466.89041636756,
+              "benchmark_value": 98317.23311973133,
+              "return_percent": "-0.78"
+            },
+            {
+              "date": "2025-09-14",
+              "portfolio_value": 101818.1500003329,
+              "benchmark_value": 100901.05255500755,
+              "return_percent": "-0.01"
+            },
+            {
               "date": "2025-09-15",
-              "portfolio_value": 99820.99582788769,
-              "benchmark_value": 99260.22875683193,
-              "return_percent": "0.26"
+              "portfolio_value": 98315.14771966022,
+              "benchmark_value": 98696.70175481918,
+              "return_percent": "-1.31"
             },
             {
               "date": "2025-09-16",
-              "portfolio_value": 98637.42529056297,
-              "benchmark_value": 99034.7504185699,
-              "return_percent": "-1.99"
+              "portfolio_value": 97576.13123278102,
+              "benchmark_value": 100068.50465302168,
+              "return_percent": "0.54"
             },
             {
               "date": "2025-09-17",
-              "portfolio_value": 98477.32510540746,
-              "benchmark_value": 98539.50932663774,
-              "return_percent": "-0.65"
+              "portfolio_value": 98053.86020461199,
+              "benchmark_value": 98718.5428498188,
+              "return_percent": "-1.51"
             },
             {
               "date": "2025-09-18",
-              "portfolio_value": 98348.61360349138,
-              "benchmark_value": 98153.29001130936,
-              "return_percent": "1.84"
+              "portfolio_value": 101957.67154531836,
+              "benchmark_value": 101575.67125456569,
+              "return_percent": "-0.40"
             },
             {
               "date": "2025-09-19",
-              "portfolio_value": 99934.01438224183,
-              "benchmark_value": 99254.74350430095,
-              "return_percent": "-1.72"
+              "portfolio_value": 100479.9277216572,
+              "benchmark_value": 100047.93905679222,
+              "return_percent": "1.38"
             },
             {
               "date": "2025-09-20",
-              "portfolio_value": 99700.82115674563,
-              "benchmark_value": 98876.22754479531,
-              "return_percent": "-1.84"
+              "portfolio_value": 101270.31958330965,
+              "benchmark_value": 101439.05247302739,
+              "return_percent": "-1.56"
             },
             {
               "date": "2025-09-21",
-              "portfolio_value": 101983.06491507831,
-              "benchmark_value": 101783.25324814758,
-              "return_percent": "0.55"
+              "portfolio_value": 100652.62077140712,
+              "benchmark_value": 98950.28806051012,
+              "return_percent": "-0.21"
             },
             {
               "date": "2025-09-22",
-              "portfolio_value": 102179.0032062476,
-              "benchmark_value": 100723.50925709314,
-              "return_percent": "1.11"
+              "portfolio_value": 98120.61448059813,
+              "benchmark_value": 101842.2210681385,
+              "return_percent": "0.83"
             },
             {
               "date": "2025-09-23",
-              "portfolio_value": 100980.058822703,
-              "benchmark_value": 100141.46470356053,
-              "return_percent": "-0.84"
+              "portfolio_value": 101600.06855000279,
+              "benchmark_value": 101527.25387554377,
+              "return_percent": "-0.07"
             },
             {
               "date": "2025-09-24",
-              "portfolio_value": 98464.26841451168,
-              "benchmark_value": 101846.12157444654,
-              "return_percent": "-0.52"
+              "portfolio_value": 98020.95979532474,
+              "benchmark_value": 98566.07450146294,
+              "return_percent": "-0.13"
             },
             {
               "date": "2025-09-25",
-              "portfolio_value": 100806.85794614766,
-              "benchmark_value": 98716.8816828116,
-              "return_percent": "0.74"
+              "portfolio_value": 99715.79202128835,
+              "benchmark_value": 99753.14639244463,
+              "return_percent": "-1.22"
             },
             {
               "date": "2025-09-26",
-              "portfolio_value": 101952.88561662182,
-              "benchmark_value": 99412.8098899184,
-              "return_percent": "-1.78"
+              "portfolio_value": 100906.08115375375,
+              "benchmark_value": 100018.58859748943,
+              "return_percent": "-1.63"
+            },
+            {
+              "date": "2025-09-27",
+              "portfolio_value": 101765.62923061177,
+              "benchmark_value": 98976.02031284168,
+              "return_percent": "0.37"
+            },
+            {
+              "date": "2025-09-28",
+              "portfolio_value": 98297.05685792073,
+              "benchmark_value": 101313.00278699987,
+              "return_percent": "0.39"
+            },
+            {
+              "date": "2025-09-29",
+              "portfolio_value": 98831.6244092188,
+              "benchmark_value": 99833.8573752352,
+              "return_percent": "-0.59"
             }
           ],
           "summary": {
@@ -8436,9 +8992,9 @@
             "worst_day": "-0.8%"
           },
           "data_source": "demo",
-          "timestamp": "2025-09-26T14:50:12.064Z"
+          "timestamp": "2025-09-29T01:56:18.967Z"
         },
-        "timestamp": "2025-09-26T14:50:12.064Z"
+        "timestamp": "2025-09-29T01:56:18.967Z"
       },
       "error": null
     },
@@ -8450,7 +9006,7 @@
       "data": {
         "success": true,
         "data": {
-          "analysis_date": "2025-09-26T14:50:12.151Z",
+          "analysis_date": "2025-09-29T01:56:19.106Z",
           "timeframe": "1m",
           "risk_level_filter": "all",
           "metrics_scope": "basic",
@@ -8596,10 +9152,10 @@
         "metadata": {
           "analysis_type": "comprehensive_portfolio_risk",
           "data_quality": "high_fidelity_simulation",
-          "last_updated": "2025-09-26T14:50:12.151Z",
-          "next_update_recommended": "2025-09-27T14:50:12.151Z"
+          "last_updated": "2025-09-29T01:56:19.107Z",
+          "next_update_recommended": "2025-09-30T01:56:19.107Z"
         },
-        "timestamp": "2025-09-26T14:50:12.151Z"
+        "timestamp": "2025-09-29T01:56:19.107Z"
       },
       "error": null
     },
@@ -8621,7 +9177,7 @@
             "GET /screener/templates - Pre-built screening templates",
             "GET /screener/factors - Available screening factors"
           ],
-          "timestamp": "2025-09-26T14:50:12.253Z"
+          "timestamp": "2025-09-29T01:56:19.279Z"
         }
       },
       "error": null
@@ -8633,6 +9189,7 @@
       "success": true,
       "data": {
         "success": true,
+        "data": [],
         "recommendations": [],
         "summary": {
           "total_recommendations": 0,
@@ -8647,7 +9204,7 @@
           "timeframe": "recent",
           "limit": 20
         },
-        "timestamp": "2025-09-26T14:50:12.354Z"
+        "timestamp": "2025-09-29T01:56:19.446Z"
       },
       "error": null
     },
@@ -8659,7 +9216,7 @@
       "data": {
         "success": true,
         "message": "Economic Calendar API - Ready",
-        "timestamp": "2025-09-26T14:50:12.480Z",
+        "timestamp": "2025-09-29T01:56:19.597Z",
         "status": "operational"
       },
       "error": null

@@ -783,9 +783,9 @@ router.get("/overview", async (req, res) => {
           smallCapWeight: 0.1
         }
       },
-      source: "fallback_data_error",
+      source: "database_error",
       timestamp: new Date().toISOString(),
-      note: "Database error occurred, using fallback data"
+      note: "Database error occurred, returning empty data"
     });
   }
 });
@@ -893,9 +893,9 @@ router.get("/sectors/performance", async (req, res) => {
         }
       },
       count: 4,
-      source: "fallback_data_error",
+      source: "database_error",
       timestamp: new Date().toISOString(),
-      note: "Database error occurred, using fallback data"
+      note: "Database error occurred, returning empty data"
     });
   }
 });

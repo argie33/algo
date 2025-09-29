@@ -20,7 +20,9 @@ router.get("/ping", (req, res) => {
 // Get comprehensive scores for stocks as a list with proper field names
 router.get("/", async (req, res) => {
   try {
-    console.log("📊 Stock Scores List endpoint called - using real stock_scores table");
+    if (process.env.NODE_ENV !== 'test') {
+      console.log("📊 Stock Scores List endpoint called - using real stock_scores table");
+    }
 
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
@@ -202,7 +204,9 @@ router.get("/", async (req, res) => {
 router.get("/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
-    console.log(`📊 Detailed scores requested for symbol: ${symbol.toUpperCase()} - using real table`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📊 Detailed scores requested for symbol: ${symbol.toUpperCase()} - using real table`);
+    }
 
     const symbolQuery = `
       SELECT

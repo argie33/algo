@@ -32,7 +32,9 @@ router.use(responseFormatter);
 // Earnings data - use real earnings tables from loaders
 router.get("/", async (req, res) => {
   try {
-    console.log(`📈 Earnings data requested`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📈 Earnings data requested`);
+    }
 
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
@@ -118,7 +120,9 @@ router.get("/calendar", async (req, res) => {
       limit = 100
     } = req.query;
 
-    console.log(`📅 Earnings calendar requested for period: ${period}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📅 Earnings calendar requested for period: ${period}`);
+    }
 
     let dateFilter = "";
     let queryParams = [parseInt(limit)];
@@ -215,7 +219,9 @@ router.get("/surprises", async (req, res) => {
       minSurprise = 0
     } = req.query;
 
-    console.log(`📊 Earnings surprises requested - Symbol: ${symbol || 'all'}, Period: ${period}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📊 Earnings surprises requested - Symbol: ${symbol || 'all'}, Period: ${period}`);
+    }
 
     let symbolFilter = "";
     let surpriseFilter = "";
@@ -318,7 +324,9 @@ router.get("/surprises", async (req, res) => {
 router.get("/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
-    console.log(`📈 Earnings details requested for symbol: ${symbol.toUpperCase()}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📈 Earnings details requested for symbol: ${symbol.toUpperCase()}`);
+    }
 
     let result;
     try {

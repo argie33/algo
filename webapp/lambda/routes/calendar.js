@@ -1,6 +1,12 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+let query;
+try {
+  ({ query } = require("../utils/database"));
+} catch (error) {
+  console.log("Database service not available in calendar routes:", error.message);
+  query = null;
+}
 
 const router = express.Router();
 
@@ -77,9 +83,11 @@ router.get("/earnings", async (req, res) => {
       });
     }
 
-    console.log(
-      `📅 Earnings calendar requested - symbol: ${symbol || "all"}, days_ahead: ${parsedDaysAhead}`
-    );
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(
+        `📅 Earnings calendar requested - symbol: ${symbol || "all"}, days_ahead: ${parsedDaysAhead}`
+      );
+    }
 
     let whereClause = "WHERE 1=1";
     let params = [];
@@ -876,9 +884,11 @@ router.get("/dividends", async (req, res) => {
       limit: _limit = 50,
     } = req.query;
 
-    console.log(
-      `💰 Dividends calendar requested - symbol: ${symbol || "all"}, days_ahead: ${_days_ahead}`
-    );
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(
+        `💰 Dividends calendar requested - symbol: ${symbol || "all"}, days_ahead: ${_days_ahead}`
+      );
+    }
 
     // Validate days_ahead parameter
     const parsedDaysAhead = parseInt(_days_ahead);
@@ -1156,9 +1166,11 @@ router.get("/economic", async (req, res) => {
       limit: _limit = 30,
     } = req.query;
 
-    console.log(
-      `📊 Economic calendar requested - country: ${country}, importance: ${importance}`
-    );
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(
+        `📊 Economic calendar requested - country: ${country}, importance: ${importance}`
+      );
+    }
 
     // Validate parameters
     const parsedDaysAhead = parseInt(_days_ahead);

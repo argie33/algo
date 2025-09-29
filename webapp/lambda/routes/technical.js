@@ -41,7 +41,9 @@ router.get("/daily/summary", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`Technical data table for ${timeframe} timeframe not found`);
+      }
       return res.status(404).json({
         success: false,
         timeframe,
@@ -135,12 +137,18 @@ router.get("/daily", async (req, res) => {
       rsi_max
     } = req.query;
 
-    console.log(`📊 Daily technical data requested - page: ${page}, limit: ${limit}, sortBy: ${sortBy}, sortOrder: ${sortOrder}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📊 Daily technical data requested - page: ${page}, limit: ${limit}, sortBy: ${sortBy}, sortOrder: ${sortOrder}`);
+    }
 
     // Debug: Test basic query function
-    console.log('Testing query function...');
+    if (process.env.NODE_ENV !== 'test') {
+      console.log('Testing query function...');
+    }
     const testQuery = await query('SELECT 1 as test');
-    console.log('Test query result:', testQuery);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log('Test query result:', testQuery);
+    }
 
     // Validate parameters
     const pageNum = parseInt(page);
@@ -322,7 +330,9 @@ router.get("/daily/:symbol", async (req, res) => {
       });
     }
 
-    console.log(`📊 Daily technical analysis requested for: ${symbolUpper}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📊 Daily technical analysis requested for: ${symbolUpper}`);
+    }
 
     // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
     const result = await query(
@@ -417,7 +427,9 @@ router.get("/weekly/:symbol", async (req, res) => {
     const { symbol } = req.params;
     const symbolUpper = symbol.toUpperCase();
 
-    console.log(`📊 Weekly technical analysis requested for: ${symbolUpper}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📊 Weekly technical analysis requested for: ${symbolUpper}`);
+    }
 
     const result = await query(
       `
@@ -486,7 +498,9 @@ router.get("/monthly/:symbol", async (req, res) => {
     const { symbol } = req.params;
     const symbolUpper = symbol.toUpperCase();
 
-    console.log(`📊 Monthly technical analysis requested for: ${symbolUpper}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📊 Monthly technical analysis requested for: ${symbolUpper}`);
+    }
 
     const result = await query(
       `
@@ -1512,7 +1526,9 @@ router.get("/", async (req, res) => {
 // Get technical data for a specific symbol
 router.get("/data/:symbol", async (req, res) => {
   const { symbol } = req.params;
-  console.log(`📊 [TECHNICAL] Fetching technical data for ${symbol}`);
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`📊 [TECHNICAL] Fetching technical data for ${symbol}`);
+  }
 
   try {
     // Check if table exists
@@ -1528,7 +1544,9 @@ router.get("/data/:symbol", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found for symbol ${symbol}, returning empty data`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`Technical data table not found for symbol ${symbol}, returning empty data`);
+      }
 
       return res.status(404).json({
         success: false,
@@ -1629,7 +1647,9 @@ router.get("/data/:symbol", async (req, res) => {
 // Get technical indicators for a specific symbol
 router.get("/indicators/:symbol", async (req, res) => {
   const { symbol } = req.params;
-  console.log(`📈 [TECHNICAL] Fetching technical indicators for ${symbol}`);
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`📈 [TECHNICAL] Fetching technical indicators for ${symbol}`);
+  }
 
   try {
     // Check if table exists
@@ -1963,16 +1983,18 @@ router.get("/data", async (req, res) => {
     sortOrder = "desc",
   } = req.query;
 
-  console.log(`📊 [TECHNICAL] Fetching technical data with params:`, {
-    symbol,
-    timeframe,
-    limit,
-    page,
-    startDate,
-    endDate,
-    sortBy,
-    sortOrder,
-  });
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`📊 [TECHNICAL] Fetching technical data with params:`, {
+      symbol,
+      timeframe,
+      limit,
+      page,
+      startDate,
+      endDate,
+      sortBy,
+      sortOrder,
+    });
+  }
 
   try {
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -2028,7 +2050,9 @@ router.get("/data", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`Technical data table for ${timeframe} timeframe not found`);
+      }
 
       return res.status(503).json({
         success: false,
@@ -2581,7 +2605,9 @@ async function getPriceDataForPatterns(symbol, _timeframe) {
     `);
 
     if (!tableCheck.rows[0].exists) {
-      console.log("Price data tables not available for pattern analysis");
+      if (process.env.NODE_ENV !== 'test') {
+        console.log("Price data tables not available for pattern analysis");
+      }
       return null;
     }
 
@@ -2753,7 +2779,9 @@ router.get("/signals/:symbol", async (req, res) => {
     const { type, strength, limit = 50 } = req.query;
     const symbolUpper = symbol.toUpperCase();
 
-    console.log(`📊 Technical signals requested for: ${symbolUpper}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📊 Technical signals requested for: ${symbolUpper}`);
+    }
 
     // Query signals from database directly (for integration tests this is mocked)
     try {
@@ -3253,7 +3281,9 @@ router.get("/:symbol", async (req, res) => {
   }
 
   try {
-    console.log(`📊 Technical data requested for ${symbol.toUpperCase()}, timeframe: ${timeframe}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`📊 Technical data requested for ${symbol.toUpperCase()}, timeframe: ${timeframe}`);
+    }
 
     const tableName = "technical_data_daily";
 
@@ -3268,7 +3298,9 @@ router.get("/:symbol", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table not found for ${symbol.toUpperCase()}`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`Technical data table not found for ${symbol.toUpperCase()}`);
+      }
       return res.status(404).json({
         success: false,
         error: "Technical data table not found",
@@ -3592,7 +3624,9 @@ router.get("/:timeframe/summary", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      console.log(`Technical data table for ${timeframe} timeframe not found`);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`Technical data table for ${timeframe} timeframe not found`);
+      }
       return res.error(
         `Technical data table for ${timeframe} timeframe not found`,
         404,

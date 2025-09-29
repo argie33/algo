@@ -285,24 +285,9 @@ class RiskEngine {
         0
       );
 
-      // For tests: generate mock historical returns if no real data available
+      // Calculate historical returns for each position from database - no mock fallbacks
       if (Array.isArray(portfolioIdOrData)) {
-        // Generate mock returns for test portfolio
-        for (const pos of positionsArray) {
-          if (!symbolReturns[pos.symbol]) {
-            symbolReturns[pos.symbol] = {
-              prices: [],
-              returns: [],
-              weight: parseFloat(pos.total_value || 0) / portfolioValue,
-            };
-            // Generate 30 days of mock returns (normal distribution, mean=0.001, std=0.02)
-            const returns = [];
-            for (let i = 0; i < 30; i++) {
-              returns.push((Math.random() - 0.5) * 0.04 + 0.001); // Daily returns between -2% and +2%
-            }
-            symbolReturns[pos.symbol].returns = returns;
-          }
-        }
+        throw new Error("Portfolio VaR calculation requires database connection - array input not supported");
       } else {
         // Calculate historical returns for each position from database
         for (const pos of positionsArray) {
