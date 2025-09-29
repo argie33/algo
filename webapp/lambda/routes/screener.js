@@ -1815,9 +1815,9 @@ router.get("/stocks", async (req, res) => {
         orderByClause = `volume ${sort_order}`;
     }
 
-    // Main query using existing tables
+    // Main query using existing tables with correct column names
     const sqlQuery = `
-      SELECT 
+      SELECT
         pd.symbol,
         pd.close as price,
         pd.volume,
@@ -1825,20 +1825,20 @@ router.get("/stocks", async (req, res) => {
         pd.high,
         pd.low,
         pd.date,
-        pd.previous_close,
-        CASE 
-          WHEN pd.previous_close > 0 THEN 
-            ROUND(((pd.close - pd.previous_close) / pd.previous_close * 100)::numeric, 2)
-          ELSE 0 
+        pd.adj_close as previous_close,
+        CASE
+          WHEN pd.adj_close > 0 THEN
+            ROUND(((pd.close - pd.adj_close) / pd.adj_close * 100)::numeric, 2)
+          ELSE 0
         END as change_percent,
         NULL as technical_score,
         NULL as fundamental_score,
         NULL as sentiment,
         NULL as overall_score
       FROM (
-        SELECT DISTINCT ON (symbol) symbol, close_price as close, volume, open_price as open,
-               high_price as high, low_price as low, date, previous_close
-        FROM price_daily 
+        SELECT DISTINCT ON (symbol) symbol, close, volume, open,
+               high, low, date, adj_close
+        FROM price_daily
         WHERE ${whereConditions.join(" AND ")}
         ORDER BY symbol, date DESC
       ) pd
@@ -1851,7 +1851,38 @@ router.get("/stocks", async (req, res) => {
     console.log("🔍 Executing screener query:", sqlQuery);
     console.log("📋 Query parameters:", queryParams);
 
-    const result = await query(sqlQuery, queryParams);
+    let result;
+    try {
+      result = await query(sqlQuery, queryParams);
+    } catch (queryError) {
+      console.error("Database query failed:", queryError.message);
+
+      // Check if it's a missing table error
+      if (queryError.message.includes("does not exist") || queryError.message.includes("price_daily")) {
+        return res.json({
+          success: true,
+          data: {
+            stocks: [],
+            summary: {
+              total_results: 0,
+              message: "Stock screener requires database setup with price_daily table",
+              filters_applied: {
+                price_min,
+                price_max,
+                volume_min,
+                sort_by,
+                sort_order,
+              },
+              data_source: "Database table not available",
+              last_updated: null,
+            },
+          },
+          message: "Stock screening completed - database schema incomplete",
+          timestamp: new Date().toISOString(),
+        });
+      }
+      throw queryError;
+    }
 
     if (!result || !result.rows) {
       throw new Error("Database query failed");

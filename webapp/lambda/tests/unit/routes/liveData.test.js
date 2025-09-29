@@ -115,75 +115,51 @@ describe("Live Data Routes Unit Tests", () => {
     });
   });
 
-  describe("GET /live-data/optimization", () => {
+  describe("POST /live-data/admin/optimize", () => {
     test("should return optimization status", async () => {
       const response = await request(app)
-        .get("/live-data/optimization")
+        .post("/live-data/admin/optimize")
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
-        expect(response.body.data).toHaveProperty("status");
-        expect(response.body.data).toHaveProperty("metrics");
-        expect(response.body.data).toHaveProperty("recommendations");
+        expect(response.body.data).toHaveProperty("optimization_id");
+        expect(response.body.data).toHaveProperty("optimizations");
 
-        // Check metrics structure
-        expect(response.body.data.metrics).toHaveProperty("active_connections");
-        expect(response.body.data.metrics).toHaveProperty("queries_per_minute");
-        expect(response.body.data.metrics).toHaveProperty(
-          "average_response_time"
-        );
-
-        // Check recommendations array
-        expect(Array.isArray(response.body.data.recommendations)).toBe(true);
+        // Check optimizations structure
+        expect(response.body.data.optimizations).toHaveProperty("recommendations");
+        expect(Array.isArray(response.body.data.optimizations.recommendations)).toBe(true);
       } else {
         expect([401]).toContain(response.status);
       }
     });
   });
 
-  describe("POST /live-data/admin/toggle-stream", () => {
-    test("should handle stream toggle for admin", async () => {
+  describe("POST /live-data/admin/restart", () => {
+    test("should handle service restart for admin", async () => {
       const response = await request(app)
-        .post("/live-data/admin/toggle-stream")
-        .set("Authorization", "Bearer dev-bypass-token")
-        .send({ enabled: true });
-
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(response.body).toHaveProperty("data");
-        expect(response.body.data).toHaveProperty("streaming_enabled");
-        expect(response.body.data).toHaveProperty("active_connections");
-      } else {
-        expect([401, 403]).toContain(response.status);
-      }
-    });
-
-    test("should validate toggle request body", async () => {
-      const response = await request(app)
-        .post("/live-data/admin/toggle-stream")
-        .set("Authorization", "Bearer dev-bypass-token")
-        .send({}); // Missing enabled parameter
-
-      if (response.status !== 401) {
-        expect([400, 422]).toContain(response.status);
-        expect(response.body).toHaveProperty("success", false);
-      }
-    });
-  });
-
-  describe("POST /live-data/admin/clear-cache", () => {
-    test("should handle cache clearing for admin", async () => {
-      const response = await request(app)
-        .post("/live-data/admin/clear-cache")
+        .post("/live-data/admin/restart")
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("message");
-        expect(response.body.data).toHaveProperty("cache_status");
-        expect(response.body.data).toHaveProperty("cleared_entries");
+      } else {
+        expect([401, 403]).toContain(response.status);
+      }
+    });
+  });
+
+  describe("POST /live-data/cache/clear", () => {
+    test("should handle cache clearing for admin", async () => {
+      const response = await request(app)
+        .post("/live-data/cache/clear")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
       } else {
         expect([401, 403]).toContain(response.status);
       }

@@ -408,7 +408,13 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText(/import portfolio/i));
+      // Wait for initial loading to complete
+      await waitFor(() => {
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      }, { timeout: 6000 });
+
+      const importButton = await screen.findByText(/import portfolio/i);
+      fireEvent.click(importButton);
 
       await waitFor(() => {
         expect(screen.getByText("Alpaca")).toBeInTheDocument();
@@ -455,7 +461,13 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText(/import portfolio/i));
+      // Wait for initial loading to complete
+      await waitFor(() => {
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      }, { timeout: 6000 });
+
+      const importButton = await screen.findByText(/import portfolio/i);
+      fireEvent.click(importButton);
 
       await waitFor(() => {
         expect(screen.getByText("Alpaca")).toBeInTheDocument();
@@ -485,7 +497,13 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
-      fireEvent.click(screen.getByText(/import portfolio/i));
+      // Wait for initial loading to complete
+      await waitFor(() => {
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      }, { timeout: 6000 });
+
+      const importButton = await screen.findByText(/import portfolio/i);
+      fireEvent.click(importButton);
 
       await waitFor(() => {
         expect(

@@ -253,8 +253,9 @@ describe("Market Data Contract Tests", () => {
       if (sampleSector) {
         expect(sampleSector).toHaveProperty("sector");
         expect(typeof sampleSector.sector === "string").toBe(true);
-        expect(sampleSector).toHaveProperty("companies");
-        expect(typeof sampleSector.companies === "number").toBe(true);
+        expect(sampleSector).toHaveProperty("metrics");
+        expect(sampleSector.metrics).toHaveProperty("stock_count");
+        expect(typeof sampleSector.metrics.stock_count === "number").toBe(true);
       }
     }
 

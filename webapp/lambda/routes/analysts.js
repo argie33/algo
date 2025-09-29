@@ -382,7 +382,14 @@ router.get("/:symbol/eps-trend", async (req, res) => {
       success: false,
       error: "Failed to fetch EPS trend for symbol",
       symbol: req.params.symbol?.toUpperCase() || null,
-      details: error.message
+      details: error.message,
+      hint: "Check if earnings_estimates table exists and has data for this symbol",
+      debug_info: {
+        symbol_provided: req.params.symbol,
+        symbol_uppercase: symbolUpper,
+        error_code: error.code,
+        error_type: error.name
+      }
     });
   }
 });

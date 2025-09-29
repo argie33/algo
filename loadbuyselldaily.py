@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 from datetime import datetime
-from importlib import import_module
 
 import boto3
 import numpy as np
@@ -439,19 +438,8 @@ def main():
     cur.close()
     conn.close()
 
-    # Weekly
-    try:
-        weekly_mod = import_module("loadbuysellweekly")
-        weekly_mod.main()
-    except Exception as e:
-        logging.error(f"Weekly loader failed: {e}")
-
-    # Monthly
-    try:
-        monthly_mod = import_module("loadbuysellmonthly")
-        monthly_mod.main()
-    except Exception as e:
-        logging.error(f"Monthly loader failed: {e}")
+    # Weekly and Monthly loaders run as separate ECS tasks
+    # No need to import and call them here
 
     logging.info("=========================")
     logging.info(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")

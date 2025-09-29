@@ -53,6 +53,11 @@ const AnalystInsights = () => {
 
       // Fetch upgrades/downgrades
       const upgradesResponse = await fetch(`/api/analysts/upgrades?page=${page}&limit=50`);
+
+      if (!upgradesResponse.ok) {
+        throw new Error(`HTTP error! status: ${upgradesResponse.status}`);
+      }
+
       const upgradesData = await upgradesResponse.json();
 
       if (upgradesData.success) {
@@ -63,6 +68,8 @@ const AnalystInsights = () => {
           );
         }
         setUpgrades(filteredUpgrades);
+      } else {
+        throw new Error(upgradesData.error || 'Failed to fetch analyst data');
       }
 
     } catch (err) {
@@ -262,6 +269,7 @@ const AnalystInsights = () => {
           <InputLabel id="action-filter-label">Action Filter</InputLabel>
           <Select
             labelId="action-filter-label"
+            id="action-filter"
             value={filterAction}
             label="Action Filter"
             onChange={(e) => setFilterAction(e.target.value)}

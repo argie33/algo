@@ -588,7 +588,7 @@ const createTestDatabase = () => {
     ('MSFT', 'Microsoft Corporation', 'Microsoft Corporation', 'EQUITY', 'Technology', 'us_market', 'USD', 'NMS', 'Microsoft Corporation develops, licenses, and supports software, services, devices, and solutions worldwide.'),
     ('TSLA', 'Tesla, Inc.', 'Tesla, Inc.', 'EQUITY', 'Consumer Cyclical', 'us_market', 'USD', 'NMS', 'Tesla, Inc. designs, develops, manufactures, leases, and sells electric vehicles.');
 
-    INSERT INTO market_data (symbol, name, date, price, volume, market_cap, high_52w, low_52w) VALUES
+    INSERT INTO market_data (ticker, name, date, price, volume, market_cap, fifty_two_week_high, fifty_two_week_low) VALUES
     ('AAPL', 'Apple Inc.', '2024-01-02', 152.0, 50000000, 2400000000000, 199.62, 124.17),
     ('GOOGL', 'Alphabet Inc.', '2024-01-02', 2820.0, 25000000, 1800000000000, 3030.93, 2193.62),
     ('MSFT', 'Microsoft Corporation', '2024-01-02', 382.0, 30000000, 2800000000000, 468.35, 309.45),

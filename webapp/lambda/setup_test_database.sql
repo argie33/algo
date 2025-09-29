@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS stock_scores (
     trend_score DECIMAL(5,2),
     value_score DECIMAL(5,2),
     quality_score DECIMAL(5,2),
+    growth_score DECIMAL(5,2),
     rsi DECIMAL(5,2),
     macd DECIMAL(10,4),
     sma_20 DECIMAL(10,2),
@@ -595,12 +596,19 @@ CREATE INDEX IF NOT EXISTS idx_company_profile_sector ON company_profile(sector)
 CREATE INDEX IF NOT EXISTS idx_market_data_market_cap ON market_data(market_cap);
 
 -- Add additional columns and constraints needed for tests
-ALTER TABLE market_data ADD COLUMN IF NOT EXISTS name VARCHAR(255);
-ALTER TABLE market_data ADD COLUMN IF NOT EXISTS date DATE;
-ALTER TABLE market_data ADD COLUMN IF NOT EXISTS price NUMERIC(10,2);
+-- Note: market_data table already has name, date, price columns from loader schema
 
--- Create unique constraint needed for ON CONFLICT operations
-CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_symbol_date ON market_data(symbol, date) WHERE symbol IS NOT NULL AND date IS NOT NULL;
+-- Create unique constraint needed for ON CONFLICT operations using ticker (not symbol)
+-- Note: This index is only created if the date column exists and has data
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'market_data' AND column_name = 'date'
+    ) THEN
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_ticker_date ON market_data(ticker, date) WHERE ticker IS NOT NULL AND date IS NOT NULL;
+    END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_buy_sell_weekly_symbol_date ON buy_sell_weekly(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_buy_sell_monthly_symbol_date ON buy_sell_monthly(symbol, date);
@@ -693,15 +701,15 @@ INSERT INTO technical_data_daily (symbol, date, rsi, macd, macd_signal, macd_his
 ON CONFLICT DO NOTHING;
 
 -- Insert stock_scores test data (matches loadstockscores.py schema)
-INSERT INTO stock_scores (symbol, composite_score, momentum_score, trend_score, value_score, quality_score, rsi, macd, sma_20, sma_50, volume_avg_30d, current_price, price_change_1d, price_change_5d, price_change_30d, volatility_30d, market_cap, pe_ratio, score_date, last_updated) VALUES
-('AAPL', 85.2, 78.5, 92.1, 68.3, 89.7, 65.4, 0.82, 178.50, 175.80, 52000000, 180.25, 2.1, 8.5, 15.2, 18.7, 2750000000000, 28.5, '2024-01-01', '2024-01-01 09:30:00'),
-('MSFT', 82.8, 75.2, 88.9, 71.6, 85.4, 58.2, 1.45, 422.80, 418.50, 28000000, 425.30, 3.2, 12.1, 22.3, 21.2, 3050000000000, 32.1, '2024-01-01', '2024-01-01 09:30:00'),
-('GOOGL', 74.5, 62.8, 69.2, 82.1, 74.9, 42.1, -0.25, 136.20, 134.80, 31000000, 138.45, -1.2, -3.8, 5.4, 26.4, 1680000000000, 22.3, '2024-01-01', '2024-01-01 09:30:00'),
-('TSLA', 91.3, 95.2, 89.8, 76.4, 88.9, 72.8, 2.15, 252.50, 248.80, 67000000, 255.75, 8.2, 25.1, 45.6, 32.1, 780000000000, 45.2, '2024-01-01', '2024-01-01 09:30:00'),
-('AMZN', 77.6, 68.4, 71.8, 74.2, 80.1, 55.6, 0.95, 146.80, 144.50, 35000000, 148.90, 2.8, 9.2, 18.7, 22.8, 1480000000000, 38.7, '2024-01-01', '2024-01-01 09:30:00'),
-('NVDA', 94.8, 98.5, 96.2, 72.1, 91.4, 78.3, 3.25, 865.40, 852.20, 45000000, 875.50, 12.5, 28.9, 67.8, 35.6, 2150000000000, 52.8, '2024-01-01', '2024-01-01 09:30:00'),
-('META', 79.2, 82.1, 78.5, 69.8, 76.4, 61.8, 1.85, 485.20, 478.90, 18000000, 492.30, 5.8, 15.4, 31.2, 28.5, 1250000000000, 24.6, '2024-01-01', '2024-01-01 09:30:00'),
-('NFLX', 71.8, 69.5, 72.3, 65.4, 75.2, 48.6, 0.68, 445.80, 441.20, 8500000, 452.10, 3.4, 8.7, 12.5, 31.8, 195000000000, 28.9, '2024-01-01', '2024-01-01 09:30:00')
+INSERT INTO stock_scores (symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score, rsi, macd, sma_20, sma_50, volume_avg_30d, current_price, price_change_1d, price_change_5d, price_change_30d, volatility_30d, market_cap, pe_ratio, score_date, last_updated) VALUES
+('AAPL', 85.2, 78.5, 92.1, 68.3, 89.7, 82.4, 65.4, 0.82, 178.50, 175.80, 52000000, 180.25, 2.1, 8.5, 15.2, 18.7, 2750000000000, 28.5, '2024-01-01', '2024-01-01 09:30:00'),
+('MSFT', 82.8, 75.2, 88.9, 71.6, 85.4, 79.3, 58.2, 1.45, 422.80, 418.50, 28000000, 425.30, 3.2, 12.1, 22.3, 21.2, 3050000000000, 32.1, '2024-01-01', '2024-01-01 09:30:00'),
+('GOOGL', 74.5, 62.8, 69.2, 82.1, 74.9, 71.5, 42.1, -0.25, 136.20, 134.80, 31000000, 138.45, -1.2, -3.8, 5.4, 26.4, 1680000000000, 22.3, '2024-01-01', '2024-01-01 09:30:00'),
+('TSLA', 91.3, 95.2, 89.8, 76.4, 88.9, 93.8, 72.8, 2.15, 252.50, 248.80, 67000000, 255.75, 8.2, 25.1, 45.6, 32.1, 780000000000, 45.2, '2024-01-01', '2024-01-01 09:30:00'),
+('AMZN', 77.6, 68.4, 71.8, 74.2, 80.1, 75.6, 55.6, 0.95, 146.80, 144.50, 35000000, 148.90, 2.8, 9.2, 18.7, 22.8, 1480000000000, 38.7, '2024-01-01', '2024-01-01 09:30:00'),
+('NVDA', 94.8, 98.5, 96.2, 72.1, 91.4, 96.7, 78.3, 3.25, 865.40, 852.20, 45000000, 875.50, 12.5, 28.9, 67.8, 35.6, 2150000000000, 52.8, '2024-01-01', '2024-01-01 09:30:00'),
+('META', 79.2, 82.1, 78.5, 69.8, 76.4, 77.8, 61.8, 1.85, 485.20, 478.90, 18000000, 492.30, 5.8, 15.4, 31.2, 28.5, 1250000000000, 24.6, '2024-01-01', '2024-01-01 09:30:00'),
+('NFLX', 71.8, 69.5, 72.3, 65.4, 75.2, 68.9, 48.6, 0.68, 445.80, 441.20, 8500000, 452.10, 3.4, 8.7, 12.5, 31.8, 195000000000, 28.9, '2024-01-01', '2024-01-01 09:30:00')
 ON CONFLICT (symbol) DO NOTHING;
 
 -- Drop and recreate portfolio_transactions table with correct structure
@@ -768,7 +776,21 @@ INSERT INTO etf_holdings (etf_symbol, holding_symbol, company_name, weight_perce
 ('SPY', 'AMZN', 'Amazon.com Inc.', 3.15, 65000000, 10500000000, 'Consumer Cyclical')
 ON CONFLICT (etf_symbol, holding_symbol) DO NOTHING;
 
--- User alerts table for alerts functionality
+-- Alerts table for dashboard functionality
+CREATE TABLE IF NOT EXISTS alerts (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    symbol VARCHAR(10) NOT NULL,
+    alert_type VARCHAR(50) NOT NULL,
+    condition_type VARCHAR(20) NOT NULL,
+    threshold_value DECIMAL(10,4),
+    message TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    triggered_at TIMESTAMP
+);
+
+-- User alerts table for alerts functionality (alternative name)
 CREATE TABLE IF NOT EXISTS user_alerts (
     id SERIAL PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
@@ -806,6 +828,14 @@ CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
     details TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Insert test data for alerts table
+INSERT INTO alerts (user_id, symbol, alert_type, condition_type, threshold_value, message, is_active) VALUES
+('dev-user-bypass', 'AAPL', 'price_above', 'threshold', 180.0, 'AAPL price alert', true),
+('dev-user-bypass', 'MSFT', 'price_below', 'threshold', 420.0, 'MSFT price alert', true),
+('test-user-123', 'GOOGL', 'volume_spike', 'percentage', 150.0, 'GOOGL volume alert', true),
+('test-user-123', 'TSLA', 'price_change', 'percentage', 5.0, 'TSLA price change alert', false)
+ON CONFLICT DO NOTHING;
 
 -- Insert test data for analysts
 INSERT INTO analyst_upgrade_downgrade (symbol, action, firm, date, from_grade, to_grade, details) VALUES
@@ -1128,6 +1158,19 @@ BEGIN
     ) THEN
         ALTER TABLE portfolio_performance ADD COLUMN total_pnl_percent DECIMAL(10,4);
         UPDATE portfolio_performance SET total_pnl_percent = 0 WHERE total_pnl_percent IS NULL;
+    END IF;
+END $$;
+
+-- Add missing growth_score column to stock_scores table
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'stock_scores'
+        AND column_name = 'growth_score'
+    ) THEN
+        ALTER TABLE stock_scores ADD COLUMN growth_score DECIMAL(5,2);
+        UPDATE stock_scores SET growth_score = 75.0 WHERE growth_score IS NULL;
     END IF;
 END $$;
 

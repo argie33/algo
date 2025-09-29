@@ -112,7 +112,7 @@ describe("Database Real Site Functionality Tests", () => {
       // Insert test market data
       const testDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
       await query(
-        "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
+        "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
         [testSymbol, "Test Company", testDate, 150.5, 1000000]
       );
 
@@ -143,7 +143,7 @@ describe("Database Real Site Functionality Tests", () => {
           .toISOString()
           .split("T")[0]; // Daily intervals
         await query(
-          "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
+          "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
           [testSymbol2, "Aggregate Test", testDate, prices[i], 10000 * (i + 1)]
         );
       }
@@ -285,7 +285,7 @@ describe("Database Real Site Functionality Tests", () => {
 
       // First insert should succeed
       const firstInsert = await query(
-        "INSERT INTO stock_symbols (symbol, name) VALUES ($1, $2) RETURNING symbol",
+        "INSERT INTO stock_symbols (symbol, name) VALUES ($1, $2) RETURNING ticker",
         [uniqueSymbol, "Unique Test Company"]
       );
 
@@ -294,7 +294,7 @@ describe("Database Real Site Functionality Tests", () => {
 
       // Second insert with same symbol should use ON CONFLICT
       const secondInsert = await query(
-        "INSERT INTO stock_symbols (symbol, name) VALUES ($1, $2) ON CONFLICT (symbol) DO UPDATE SET name = $2 RETURNING symbol",
+        "INSERT INTO stock_symbols (symbol, name) VALUES ($1, $2) ON CONFLICT (symbol) DO UPDATE SET name = $2 RETURNING ticker",
         [uniqueSymbol, "Updated Unique Company"]
       );
 
@@ -383,12 +383,12 @@ describe("Database Real Site Functionality Tests", () => {
         // Insert test data within transaction
         await client.query(
           "INSERT INTO stock_symbols (symbol, name, market_category) VALUES ($1, $2, $3) ON CONFLICT (symbol) DO UPDATE SET name = $2",
-          [`TXN${testId}`, "Transaction Test Co", "Technology"]
+          [`TXN${testId % 1000}`, "Transaction Test Co", "Technology"]
         );
 
         await client.query(
-          "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
-          [`TXN${testId}`, "Transaction Test Co", testDate, 100.0, 50000]
+          "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
+          [`TXN${testId % 1000}`, "Transaction Test Co", testDate, 100.0, 50000]
         );
 
         return "transaction_completed";
@@ -398,8 +398,8 @@ describe("Database Real Site Functionality Tests", () => {
 
       // Verify data was committed
       const verifyResult = await query(
-        "SELECT s.symbol, s.name, m.price FROM stock_symbols s JOIN market_data m ON s.symbol = m.symbol WHERE s.symbol = $1",
-        [`TXN${testId}`]
+        "SELECT s.symbol, s.name, m.price FROM stock_symbols s JOIN market_data m ON s.symbol = m.ticker WHERE s.symbol = $1",
+        [`TXN${testId % 1000}`]
       );
 
       expect(verifyResult.rows.length).toBe(1);
@@ -415,14 +415,14 @@ describe("Database Real Site Functionality Tests", () => {
           // Insert valid data first
           await client.query(
             "INSERT INTO stock_symbols (symbol, name) VALUES ($1, $2) ON CONFLICT (symbol) DO UPDATE SET name = $2",
-            [`ERR${testId}`, "Error Test Co"]
+            [`ERR${testId % 100}`, "Error Test Co"]
           );
 
           // This should cause an error (constraint violation or type error)
           await client.query(
-            "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5)",
             [
-              `ERR${testId}`,
+              `ERR${testId % 100}`,
               "Error Test Co",
               testDate,
               "invalid_price_string",
@@ -437,7 +437,7 @@ describe("Database Real Site Functionality Tests", () => {
       // Verify rollback occurred - data should not exist in market_data
       const rollbackCheck = await query(
         "SELECT * FROM market_data WHERE symbol = $1",
-        [`ERR${testId}`]
+        [`ERR${testId % 100}`]
       );
 
       expect(rollbackCheck.rows.length).toBe(0);
@@ -449,8 +449,8 @@ describe("Database Real Site Functionality Tests", () => {
       const result = await transaction(async (client) => {
         // Multiple operations that should all succeed or fail together
         const symbolInsert = await client.query(
-          "INSERT INTO stock_symbols (symbol, name, market_category) VALUES ($1, $2, $3) ON CONFLICT (symbol) DO UPDATE SET name = $2 RETURNING symbol",
-          [`NEST${testId}`, "Nested Transaction Co", "Finance"]
+          "INSERT INTO stock_symbols (symbol, name, market_category) VALUES ($1, $2, $3) ON CONFLICT (symbol) DO UPDATE SET name = $2 RETURNING ticker",
+          [`NEST${testId % 100}`, "Nested Transaction Co", "Finance"]
         );
 
         const stockSymbol = symbolInsert.rows[0].symbol;
@@ -463,9 +463,9 @@ describe("Database Real Site Functionality Tests", () => {
             .split("T")[0]; // Daily intervals
           marketDataPromises.push(
             client.query(
-              "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
+              "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
               [
-                `NEST${testId}`,
+                `NEST${testId % 100}`,
                 "Nested Transaction Co",
                 testDate,
                 200 + i * 5,
@@ -480,13 +480,13 @@ describe("Database Real Site Functionality Tests", () => {
         return { stockSymbol, recordsInserted: 3 };
       });
 
-      expect(result.stockSymbol).toBe(`NEST${testId}`);
+      expect(result.stockSymbol).toBe(`NEST${testId % 100}`);
       expect(result.recordsInserted).toBe(3);
 
       // Verify all data was committed
       const verification = await query(
         "SELECT COUNT(*) as count FROM market_data WHERE symbol = $1",
-        [`NEST${testId}`]
+        [`NEST${testId % 100}`]
       );
 
       expect(parseInt(verification.rows[0].count)).toBe(3);
@@ -515,7 +515,7 @@ describe("Database Real Site Functionality Tests", () => {
 
         bulkInsertPromises.push(
           query(
-            "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
+            "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
             [
               bulkTestSymbol,
               "Bulk Test Company",
@@ -561,7 +561,7 @@ describe("Database Real Site Functionality Tests", () => {
           .toISOString()
           .split("T")[0];
         await query(
-          "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
+          "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
           [
             analyticsSymbol,
             "Analytics Test Corp",
@@ -636,7 +636,7 @@ describe("Database Real Site Functionality Tests", () => {
           .split("T")[0];
         timeBasedPromises.push(
           query(
-            "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
+            "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
             [
               timeTestSymbol,
               "Time Series Test Co",
@@ -655,17 +655,17 @@ describe("Database Real Site Functionality Tests", () => {
       // Time-based range query (should be fast with proper indexing)
       const timeRangeResult = await query(
         `
-        SELECT 
-          symbol,
+        SELECT
+          ticker as symbol,
           COUNT(*) as records,
           MIN(date) as earliest,
           MAX(date) as latest,
           AVG(price::numeric) as avg_price
-        FROM market_data 
-        WHERE symbol = $1 
-          AND date >= $2 
+        FROM market_data
+        WHERE ticker = $1
+          AND date >= $2
           AND date <= $3
-        GROUP BY symbol
+        GROUP BY ticker
       `,
         [
           timeTestSymbol,
@@ -690,7 +690,7 @@ describe("Database Real Site Functionality Tests", () => {
       // Create 5 concurrent transactions that modify different data
       for (let i = 0; i < 5; i++) {
         const transactionPromise = transaction(async (client) => {
-          const symbol = `CONC${testId}_${i}`;
+          const symbol = `CONC${testId % 10}_${i % 10}`;
 
           // Insert stock symbol
           await client.query(
@@ -700,7 +700,7 @@ describe("Database Real Site Functionality Tests", () => {
 
           // Insert market data
           await client.query(
-            "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
+            "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
             [
               symbol,
               `Concurrent Test ${i}`,
@@ -728,8 +728,8 @@ describe("Database Real Site Functionality Tests", () => {
       // Verify all data was inserted correctly
       for (let i = 0; i < 5; i++) {
         const verification = await query(
-          "SELECT s.symbol, s.name, m.price FROM stock_symbols s JOIN market_data m ON s.symbol = m.symbol WHERE s.symbol = $1",
-          [`CONC${testId}_${i}`]
+          "SELECT s.symbol, s.name, m.price FROM stock_symbols s JOIN market_data m ON s.symbol = m.ticker WHERE s.symbol = $1",
+          [`CONC${testId % 10}_${i % 10}`]
         );
 
         expect(verification.rows.length).toBe(1);
@@ -740,7 +740,7 @@ describe("Database Real Site Functionality Tests", () => {
 
     test("should handle transaction rollback with concurrent access", async () => {
       const testId = Date.now();
-      const symbol = `ROLLBACK${testId}`;
+      const symbol = `RB${testId % 100}`;
 
       // Create initial data
       await query(
@@ -776,18 +776,18 @@ describe("Database Real Site Functionality Tests", () => {
 
     test("should handle cross-table transaction consistency", async () => {
       const testId = Date.now();
-      const symbol = `CROSS${testId}`;
+      const symbol = `CR${testId % 100}`;
       const testDate = new Date().toISOString().split("T")[0];
 
       const result = await transaction(async (client) => {
         // Insert stock symbol and market data in same transaction
         const stockResult = await client.query(
-          "INSERT INTO stock_symbols (symbol, name, market_category) VALUES ($1, $2, $3) ON CONFLICT (symbol) DO UPDATE SET name = $2 RETURNING symbol",
+          "INSERT INTO stock_symbols (symbol, name, market_category) VALUES ($1, $2, $3) ON CONFLICT (symbol) DO UPDATE SET name = $2 RETURNING ticker",
           [symbol, "Cross Table Test", "Finance"]
         );
 
         const marketResult = await client.query(
-          "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4 RETURNING symbol",
+          "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4 RETURNING ticker",
           [symbol, "Cross Table Test", testDate, 150.75, 500000]
         );
 
@@ -815,7 +815,7 @@ describe("Database Real Site Functionality Tests", () => {
 
     test("should handle transaction isolation levels", async () => {
       const testId = Date.now();
-      const symbol = `ISOLATE${testId}`;
+      const symbol = `ISO${testId % 100}`;
 
       // Create initial data
       await query(
@@ -890,7 +890,7 @@ describe("Database Real Site Functionality Tests", () => {
 
         // Insert large batch of data within single transaction
         for (let i = 0; i < batchSize; i++) {
-          const symbol = `BULK${testId}_${i.toString().padStart(3, "0")}`;
+          const symbol = `BLK${(testId % 100)}_${i % 100}`;
           const price = 100 + ((i * 37 + 19) % 50); // deterministic price
           const volume = Math.floor((i * 43 + 29) % 100000) + 10000; // deterministic volume
 
@@ -902,7 +902,7 @@ describe("Database Real Site Functionality Tests", () => {
               )
               .then(() =>
                 client.query(
-                  "INSERT INTO market_data (symbol, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (symbol, date) DO UPDATE SET price = $4",
+                  "INSERT INTO market_data (ticker, name, date, price, volume) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (ticker, date) DO UPDATE SET price = $4",
                   [
                     symbol,
                     `Bulk Test Stock ${i}`,
@@ -920,7 +920,7 @@ describe("Database Real Site Functionality Tests", () => {
         // Verify all data within transaction
         const countResult = await client.query(
           "SELECT COUNT(*) as count FROM stock_symbols WHERE symbol LIKE $1",
-          [`BULK${testId}_%`]
+          [`BLK${testId % 100}_%`]
         );
 
         return parseInt(countResult.rows[0].count);
@@ -931,7 +931,7 @@ describe("Database Real Site Functionality Tests", () => {
       // Verify transaction committed successfully
       const finalCount = await query(
         "SELECT COUNT(*) as count FROM stock_symbols WHERE symbol LIKE $1",
-        [`BULK${testId}_%`]
+        [`BLK${testId % 100}_%`]
       );
 
       expect(parseInt(finalCount.rows[0].count)).toBe(batchSize);

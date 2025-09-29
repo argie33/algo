@@ -7,202 +7,202 @@ Health check: http://localhost:3001/health
 Stocks: http://localhost:3001/stocks
 Technical: http://localhost:3001/technical/daily
 🔌 WebSocket endpoint: ws://localhost:3001/ws
-Processing request: GET /api/health
+Processing request: GET /api/scores
 Initializing database connection...
 Initializing database connection pool...
 Using database config from environment variables
 Database config loaded from environment: localhost:5432/stocks
-Processing request: GET /api/health
 ✅ Database connection pool initialized successfully
 Database connection established successfully
 Database connection verified for database-dependent endpoint
-Starting health check with database...
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:17:59:28 +0000] "GET /api/scores HTTP/1.1" 200 23110 "-" "curl/8.5.0"
+Processing request: GET /api/health
 Database connection verified for database-dependent endpoint
 Starting health check with database...
-::ffff:127.0.0.1 - - [29/Sep/2025:13:00:41 +0000] "GET /api/health HTTP/1.1" 200 347 "-" "node"
-::ffff:127.0.0.1 - - [29/Sep/2025:13:00:41 +0000] "GET /api/health HTTP/1.1" 200 346 "-" "node"
-Processing request: GET /api/analytics/performance
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/health HTTP/1.1" 200 346 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
 Database connection verified for database-dependent endpoint
-📈 Performance analytics requested for user: dev_user, period: 1m
-Database query error: {
-  error: 'column "symbol" does not exist',
-  query: 'SELECT symbol, shares, avg_cost, current_price,\n' +
-    '                (current_price - avg_cost) / avg_cos...',
-  params: '1 parameters',
-  code: '42703'
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/market/overview HTTP/1.1" 200 1514 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 386 "-" "axios/1.12.2"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/health HTTP/1.1" 200 345 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
+Database connection verified for database-dependent endpoint
+📋 Portfolio positions requested for user: dev_user
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio/positions HTTP/1.1" 200 1072 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/performance
+Database connection verified for database-dependent endpoint
+Portfolio performance endpoint called for user: dev_user, timeframe: 1y
+📊 Retrieved 0 performance data points
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio/performance HTTP/1.1" 200 451 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 2ms using real loader tables
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/market/overview HTTP/1.1" 200 1514 "-" "axios/1.12.2"
+Processing request: GET /api/alerts/active
+Database connection verified for database-dependent endpoint
+🔔 Active alerts requested for user: dev_user, status: active
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/alerts/active HTTP/1.1" 200 496 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
+Database connection verified for database-dependent endpoint
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 2178 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/diagnostics HTTP/1.1" 200 819 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 386 "-" "axios/1.12.2"
+Processing request: GET /api/backtest/strategies
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/backtest/strategies HTTP/1.1" 200 472 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/holdings
+Database connection verified for database-dependent endpoint
+Portfolio holdings endpoint called for authenticated user: dev_user
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 1721 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/value
+Database connection verified for database-dependent endpoint
+💰 Portfolio value requested for user: dev_user
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio/value HTTP/1.1" 200 1004 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/analytics
+Database connection verified for database-dependent endpoint
+Portfolio analytics endpoint called for authenticated user: dev_user, timeframe: 1y
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio/analytics HTTP/1.1" 200 1814 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/transactions
+Database connection verified for database-dependent endpoint
+📈 Portfolio transactions requested for user: dev_user, type: all, limit: 50
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio/transactions HTTP/1.1" 200 525 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/summary
+Database connection verified for database-dependent endpoint
+📊 Portfolio summary requested for user: dev_user
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:44 +0000] "GET /api/portfolio/summary HTTP/1.1" 200 668 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/metrics
+Database connection verified for database-dependent endpoint
+Portfolio metrics requested for user: dev_user, period: 30d, include_risk: false
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/portfolio/metrics HTTP/1.1" 200 1232 "-" "axios/1.12.2"
+Processing request: GET /api/market
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/market HTTP/1.1" 200 314 "-" "axios/1.12.2"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: {}
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 13 stocks, 13 estimated total
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/stocks HTTP/1.1" 200 32332 "-" "axios/1.12.2"
+Processing request: GET /api/technical
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/technical HTTP/1.1" 200 4546 "-" "axios/1.12.2"
+Processing request: GET /api/live-data
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/live-data HTTP/1.1" 200 465 "-" "axios/1.12.2"
+Processing request: GET /api/live-data/status
+Database connection verified for database-dependent endpoint
+[2025-09-29T17:59:45.031Z] [INFO] [livedata-status-1759168785031] Processing live data status request
+[2025-09-29T17:59:45.032Z] [INFO] [livedata-status-1759168785031] Live data status request completed
+Context: {
+  "duration": 1,
+  "cacheEntries": 0,
+  "totalConnections": 0
 }
-Database query error (returning null for tests): column "symbol" does not exist
-Portfolio holdings query failed, using sample data: Cannot read properties of null (reading 'rows')
-::1 - - [29/Sep/2025:13:01:04 +0000] "GET /api/analytics/performance HTTP/1.1" 200 1675 "-" "curl/8.5.0"
-Processing request: GET /api/analytics/performance
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/live-data/status HTTP/1.1" 200 3294 "-" "axios/1.12.2"
+Processing request: GET /api/analytics
 Database connection verified for database-dependent endpoint
-📈 Performance analytics requested for user: dev_user, period: 1m
-Database query error: {
-  error: 'column "symbol" does not exist',
-  query: 'SELECT symbol, shares, avg_cost, current_price,\n' +
-    '                (current_price - avg_cost) / avg_cos...',
-  params: '1 parameters',
-  code: '42703'
-}
-Database query error (returning null for tests): column "symbol" does not exist
-Portfolio holdings query failed, using sample data: Cannot read properties of null (reading 'rows')
-::1 - - [29/Sep/2025:13:01:16 +0000] "GET /api/analytics/performance HTTP/1.1" 200 1676 "-" "curl/8.5.0"
-Processing request: GET /technical
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/analytics HTTP/1.1" 200 827 "-" "axios/1.12.2"
+Processing request: GET /api/performance
 Database connection verified for database-dependent endpoint
-::1 - - [29/Sep/2025:14:58:28 +0000] "GET /technical HTTP/1.1" 200 4546 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /favicon.ico
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/performance HTTP/1.1" 200 431 "-" "axios/1.12.2"
+Processing request: GET /api/risk
 Database connection verified for database-dependent endpoint
-::1 - - [29/Sep/2025:14:58:28 +0000] "GET /favicon.ico HTTP/1.1" 404 599 "http://localhost:3001/technical" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /api/scores
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/risk HTTP/1.1" 200 125 "-" "axios/1.12.2"
+Processing request: GET /api/news
 Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:15:10:04 +0000] "GET /api/scores HTTP/1.1" 200 11808 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:15:14:03 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:15:14:10 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
-Processing request: GET /api/scores/BAC
-Database connection verified for database-dependent endpoint
-📊 Detailed scores requested for symbol: BAC - using real table
-::1 - - [29/Sep/2025:15:14:17 +0000] "GET /api/scores/BAC HTTP/1.1" 200 1563 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:15:14:33 +0000] "GET /api/scores?limit=5 HTTP/1.1" 200 4814 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:15:14:40 +0000] "GET /api/scores?search=BAC HTTP/1.1" 200 1291 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::ffff:127.0.0.1 - - [29/Sep/2025:15:37:56 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "axios/1.12.2"
-Processing request: GET /api/scores/ping
-Database connection verified for database-dependent endpoint
-::1 - - [29/Sep/2025:15:43:04 +0000] "GET /api/scores/ping HTTP/1.1" 200 74 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:15:43:08 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
-Processing request: GET /api/scoring
-Database connection verified for database-dependent endpoint
-::1 - - [29/Sep/2025:15:49:50 +0000] "GET /api/scoring HTTP/1.1" 200 383 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:15:49:55 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
-Processing request: GET /api/scores/ping
-Database connection verified for database-dependent endpoint
-::1 - - [29/Sep/2025:15:54:33 +0000] "GET /api/scores/ping HTTP/1.1" 200 74 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:16:02:54 +0000] "GET /api/scores HTTP/1.1" 200 15271 "-" "curl/8.5.0"
-Processing request: GET /api/scores
-Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:16:30:00 +0000] "GET /api/scores HTTP/1.1" 200 23108 "-" "curl/8.5.0"
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/news HTTP/1.1" 200 26 "-" "axios/1.12.2"
 Processing request: GET /api/signals
 Database connection verified for database-dependent endpoint
 📊 Signals data requested (deployment refresh v3)
-📊 Fetching real daily signals from database
-::1 - - [29/Sep/2025:16:37:37 +0000] "GET /api/signals HTTP/1.1" 200 9590 "-" "curl/8.5.0"
-Processing request: GET /api/signals/daily
+📊 Fetching real daily signals from database {}
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/signals HTTP/1.1" 200 9590 "-" "axios/1.12.2"
+Processing request: GET /api/trading
 Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: DAILY
-::1 - - [29/Sep/2025:16:37:45 +0000] "GET /api/signals/daily HTTP/1.1" 400 268 "-" "curl/8.5.0"
-Processing request: GET /api/signals
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/trading HTTP/1.1" 200 193 "-" "axios/1.12.2"
+Processing request: GET /api/orders
 Database connection verified for database-dependent endpoint
-📊 Signals data requested (deployment refresh v3)
-📊 Fetching real daily signals from database
-::1 - - [29/Sep/2025:16:37:54 +0000] "GET /api/signals?timeframe=daily HTTP/1.1" 200 9590 "-" "curl/8.5.0"
-🔄 Global OPTIONS handler for: /scores from origin: http://localhost:5173
-Processing request: GET /scores
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/orders HTTP/1.1" 200 819 "-" "axios/1.12.2"
+Processing request: GET /api/watchlist
 Database connection verified for database-dependent endpoint
-📊 Stock Scores List endpoint called - using real stock_scores table
-🔄 Global OPTIONS handler for: /signals/NVDA from origin: http://localhost:5173
-🔄 Global OPTIONS handler for: /signals/TSLA from origin: http://localhost:5173
-🔄 Global OPTIONS handler for: /signals/AAPL from origin: http://localhost:5173
-Processing request: GET /signals/NVDA
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/watchlist HTTP/1.1" 200 75 "-" "axios/1.12.2"
+Processing request: GET /api/screener
 Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: NVDA
-📊 Fetching real signals for NVDA from buy_sell_daily table
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /scores HTTP/1.1" 200 23108 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /signals/TSLA
-Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: TSLA
-📊 Fetching real signals for TSLA from buy_sell_daily table
-🔄 Global OPTIONS handler for: /signals/MSFT from origin: http://localhost:5173
-🔄 Global OPTIONS handler for: /signals/META from origin: http://localhost:5173
-Processing request: GET /signals/AAPL
-Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: AAPL
-📊 Fetching real signals for AAPL from buy_sell_daily table
-🔄 Global OPTIONS handler for: /signals/AMZN from origin: http://localhost:5173
-Processing request: GET /signals/MSFT
-Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: MSFT
-📊 Fetching real signals for MSFT from buy_sell_daily table
-🔄 Global OPTIONS handler for: /signals/GOOGL from origin: http://localhost:5173
-Processing request: GET /signals/META
-Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: META
-📊 Fetching real signals for META from buy_sell_daily table
-🔄 Global OPTIONS handler for: /signals/NFLX from origin: http://localhost:5173
-Processing request: GET /signals/AMZN
-Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: AMZN
-📊 Fetching real signals for AMZN from buy_sell_daily table
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /signals/TSLA?timeframe=daily&limit=1 HTTP/1.1" 200 441 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /signals/GOOGL
-Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: GOOGL
-📊 Fetching real signals for GOOGL from buy_sell_daily table
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /signals/MSFT?timeframe=daily&limit=1 HTTP/1.1" 200 436 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /signals/META?timeframe=daily&limit=1 HTTP/1.1" 200 442 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /signals/AMZN?timeframe=daily&limit=1 HTTP/1.1" 200 443 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /signals/NFLX
-Database connection verified for database-dependent endpoint
-📊 Signals requested for symbol: NFLX
-📊 Fetching real signals for NFLX from buy_sell_daily table
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /signals/NVDA?timeframe=daily&limit=1 HTTP/1.1" 200 442 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /signals/GOOGL?timeframe=daily&limit=1 HTTP/1.1" 200 439 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /signals/NFLX?timeframe=daily&limit=1 HTTP/1.1" 200 441 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-::1 - - [29/Sep/2025:16:39:55 +0000] "GET /signals/AAPL?timeframe=daily&limit=1 HTTP/1.1" 200 437 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-Processing request: GET /api/signals
-Database connection verified for database-dependent endpoint
-📊 Signals data requested (deployment refresh v3)
-📊 Fetching real daily signals from database
-::1 - - [29/Sep/2025:16:42:53 +0000] "GET /api/signals?timeframe=daily HTTP/1.1" 200 9590 "-" "curl/8.5.0"
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/screener HTTP/1.1" 200 447 "-" "axios/1.12.2"
 Processing request: GET /api/scores
 Database connection verified for database-dependent endpoint
 📊 Stock Scores List endpoint called - using real stock_scores table
-::1 - - [29/Sep/2025:16:43:02 +0000] "GET /api/scores HTTP/1.1" 200 23108 "-" "curl/8.5.0"
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/scores HTTP/1.1" 200 23110 "-" "axios/1.12.2"
+Processing request: GET /api/metrics
+Database connection verified for database-dependent endpoint
+📊 Metrics endpoint called
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/metrics HTTP/1.1" 200 13462 "-" "axios/1.12.2"
+Processing request: GET /api/sectors
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/sectors HTTP/1.1" 200 120 "-" "axios/1.12.2"
+Processing request: GET /api/sentiment
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/sentiment HTTP/1.1" 200 184 "-" "axios/1.12.2"
+Processing request: GET /api/etf
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/etf HTTP/1.1" 200 26 "-" "axios/1.12.2"
 Processing request: GET /api/health
 Database connection verified for database-dependent endpoint
 Starting health check with database...
-::1 - - [29/Sep/2025:16:43:07 +0000] "GET /api/health HTTP/1.1" 200 349 "-" "curl/8.5.0"
-Processing request: GET /api/health
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/health HTTP/1.1" 200 346 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio
 Database connection verified for database-dependent endpoint
-Starting health check with database...
-Processing request: GET /api/health
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/portfolio HTTP/1.1" 200 577 "-" "axios/1.12.2"
+Processing request: GET /api/portfolio/positions
 Database connection verified for database-dependent endpoint
-Starting health check with database...
-::ffff:127.0.0.1 - - [29/Sep/2025:16:48:49 +0000] "GET /api/health HTTP/1.1" 200 349 "-" "node"
-::ffff:127.0.0.1 - - [29/Sep/2025:16:48:49 +0000] "GET /api/health HTTP/1.1" 200 347 "-" "node"
-Processing request: GET /api/health
+📋 Portfolio positions requested for user: dev_user
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/portfolio/positions HTTP/1.1" 200 1072 "-" "axios/1.12.2"
+Processing request: GET /api/market/overview
 Database connection verified for database-dependent endpoint
-Starting health check with database...
-Processing request: GET /api/health
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 2ms using real loader tables
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/market/overview HTTP/1.1" 200 1514 "-" "axios/1.12.2"
+Processing request: GET /api/calendar/earnings
 Database connection verified for database-dependent endpoint
-Starting health check with database...
-::ffff:127.0.0.1 - - [29/Sep/2025:16:48:54 +0000] "GET /api/health HTTP/1.1" 200 348 "-" "node"
-::ffff:127.0.0.1 - - [29/Sep/2025:16:48:54 +0000] "GET /api/health HTTP/1.1" 200 349 "-" "node"
-Processing request: GET /api/health
+📅 Earnings calendar requested - symbol: all, days_ahead: 30
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/calendar/earnings HTTP/1.1" 200 2178 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics/database-connectivity
 Database connection verified for database-dependent endpoint
-Starting health check with database...
-::ffff:127.0.0.1 - - [29/Sep/2025:16:48:54 +0000] "GET /api/health HTTP/1.1" 200 349 "-" "node"
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/diagnostics/database-connectivity HTTP/1.1" 200 386 "-" "axios/1.12.2"
+Processing request: GET /api/diagnostics
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [29/Sep/2025:17:59:45 +0000] "GET /api/diagnostics HTTP/1.1" 200 818 "-" "axios/1.12.2"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:18:50:34 +0000] "GET /api/scores HTTP/1.1" 200 23110 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:18:52:01 +0000] "GET /api/scores HTTP/1.1" 200 23110 "-" "curl/8.5.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [29/Sep/2025:18:52:08 +0000] "GET /api/scores HTTP/1.1" 200 23110 "-" "curl/8.5.0"

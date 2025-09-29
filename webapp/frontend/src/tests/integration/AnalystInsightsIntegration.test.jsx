@@ -190,12 +190,14 @@ describe('AnalystInsights Integration Tests', () => {
 
     await waitFor(() => {
       const upgradeOption = screen.getByRole('option', { name: /upgrades/i });
+      expect(upgradeOption).toBeInTheDocument();
       fireEvent.click(upgradeOption);
     });
 
-    // Verify the filter state changed (component should display filtered data)
+    // Verify filter was applied - dropdown should close after selection
     await waitFor(() => {
-      expect(actionFilterButton).toBeInTheDocument();
+      // After selecting, the dropdown should close (options are no longer in the document)
+      expect(screen.queryByRole('option')).not.toBeInTheDocument();
     });
   });
 
