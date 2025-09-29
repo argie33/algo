@@ -41,7 +41,7 @@ const recommendationsRoutes = require("./routes/recommendations");
 const researchRoutes = require("./routes/research");
 const earningsRoutes = require("./routes/earnings");
 const riskRoutes = require("./routes/risk");
-const scoringRoutes = require("./routes/scoring");
+// const scoringRoutes = require("./routes/scoring"); // DEPRECATED - Use scores system instead
 const scoresRoutes = require("./routes/scores");
 const screenerRoutes = require("./routes/screener");
 const sectorsRoutes = require("./routes/sectors");
@@ -374,7 +374,7 @@ app.use((error, req, res, next) => {
 const nodeEnv = process.env.NODE_ENV || "production";
 const isProduction = nodeEnv === "production" || nodeEnv === "prod";
 
-if (!isProduction) {
+if (!isProduction && nodeEnv !== 'test') {
   app.use(morgan("combined"));
 }
 
@@ -411,7 +411,9 @@ const ensureDatabase = async () => {
     ])
       .then((pool) => {
         __dbAvailable = true;
-        console.log("Database connection established successfully");
+        if (process.env.NODE_ENV !== 'test') {
+          console.log("Database connection established successfully");
+        }
         return pool;
       })
       .catch((err) => {
@@ -426,7 +428,9 @@ const ensureDatabase = async () => {
 
 // Middleware to check database requirement based on endpoint
 app.use(async (req, res, next) => {
-  console.log(`Processing request: ${req.method} ${req.path}`);
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`Processing request: ${req.method} ${req.path}`);
+  }
 
   // Endpoints that don't require database
   const nonDbEndpoints = ["/", "/health"];
@@ -440,7 +444,9 @@ app.use(async (req, res, next) => {
   // For endpoints that need database, try to ensure connection
   try {
     await ensureDatabase();
-    console.log("Database connection verified for database-dependent endpoint");
+    if (process.env.NODE_ENV !== 'test') {
+      console.log("Database connection verified for database-dependent endpoint");
+    }
     next();
   } catch (error) {
     console.error(
@@ -500,7 +506,7 @@ app.use("/signals", signalsRoutes);
 app.use("/backtest", backtestRoutes);
 app.use("/portfolio", portfolioRoutes);
 app.use("/performance", performanceRoutes);
-app.use("/scoring", scoringRoutes);
+// app.use("/scoring", scoringRoutes); // DEPRECATED - Use /scores system instead
 app.use("/price", priceRoutes);
 app.use("/risk", riskRoutes);
 app.use("/sectors", sectorsRoutes);
@@ -547,7 +553,7 @@ app.use("/api/performance", performanceRoutes);
 app.use("/api/recommendations", recommendationsRoutes);
 app.use("/api/research", researchRoutes);
 app.use("/api/earnings", earningsRoutes);
-app.use("/api/scoring", scoringRoutes);
+// app.use("/api/scoring", scoringRoutes); // DEPRECATED - Use /api/scores system instead
 app.use("/api/price", priceRoutes);
 app.use("/api/risk", riskRoutes);
 app.use("/api/sectors", sectorsRoutes);

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
 Stock Scores Loader Script
-Calculates and stores stock scores in the database.
-Reads from stock_symbols table and calculates various metrics.
+Calculates and stores stock scores in the database using existing data.
+Reads from stock_symbols table and calculates metrics from:
+- stock_prices: price data, volume, volatility calculations
+- technical_data_daily: RSI, MACD, moving averages
+- earnings: PE ratios from actual EPS data
+Stores calculated scores in stock_scores table for API consumption.
 """
 
 import os
 import sys
 import psycopg2
-import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -19,13 +22,13 @@ import json
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Database configuration - simplified to work with existing setup
+# Database configuration - matching Node.js config
 DB_CONFIG = {
-    'host': 'localhost',
-    'port': 5432,
-    'user': 'postgres',
-    'password': '',  # No password for local setup
-    'dbname': 'stocks'
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': int(os.getenv('DB_PORT', 5432)),
+    'user': os.getenv('DB_USER', 'postgres'),
+    'password': os.getenv('DB_PASSWORD', 'password'),
+    'dbname': os.getenv('DB_NAME', 'stocks')
 }
 
 def get_db_connection():
@@ -84,20 +87,29 @@ def get_stock_symbols(conn, limit=100):
     """Get stock symbols from stock_symbols table."""
     try:
         cur = conn.cursor()
+        logger.info("🔍 Executing stock symbols query...")
+
         # Get symbols, prioritizing non-ETF stocks and larger symbols
+        # Get symbols with sufficient price data (at least 20 records)
         cur.execute("""
-            SELECT DISTINCT symbol
-            FROM stock_symbols
-            WHERE symbol IS NOT NULL
-                AND length(symbol) <= 5
-                AND symbol NOT LIKE '%.%'
-                AND symbol NOT LIKE '%-%'
-                AND (etf != 'Y' OR etf IS NULL)
+            SELECT symbol
+            FROM stock_prices
+            GROUP BY symbol
+            HAVING COUNT(*) >= 20
             ORDER BY symbol
             LIMIT %s
         """, (limit,))
 
-        symbols = [row[0] for row in cur.fetchall()]
+        logger.info("🔍 Query executed, fetching results...")
+        rows = cur.fetchall()
+        logger.info(f"Query returned {len(rows)} rows")
+
+        if rows:
+            logger.info(f"First row: {rows[0]}")
+            symbols = [row[0] for row in rows]
+        else:
+            symbols = []
+
         cur.close()
         logger.info(f"📊 Retrieved {len(symbols)} stock symbols")
         return symbols
@@ -144,43 +156,91 @@ def calculate_volatility(prices, period=30):
     volatility = np.std(returns) * np.sqrt(252) * 100  # Annualized volatility
     return round(volatility, 2)
 
-def get_stock_data_and_calculate_scores(symbol):
-    """Get stock data from yfinance and calculate all scores."""
+def get_stock_data_from_database(conn, symbol):
+    """Get stock data from database tables and calculate all scores."""
     try:
-        # Download stock data
-        stock = yf.Ticker(symbol)
+        cur = conn.cursor()
 
-        # Get 3 months of historical data for calculations
-        hist = stock.history(period="3mo")
-        if hist.empty or len(hist) < 20:
-            logger.warning(f"⚠️ Insufficient data for {symbol}")
+        # Get price data from stock_prices table (last 90 days for calculations)
+        cur.execute("""
+            SELECT date, open, high, low, close, volume, adjusted_close
+            FROM stock_prices
+            WHERE symbol = %s
+            AND date >= CURRENT_DATE - INTERVAL '90 days'
+            ORDER BY date DESC
+            LIMIT 90
+        """, (symbol,))
+
+        price_data = cur.fetchall()
+        if not price_data or len(price_data) < 20:
+            logger.warning(f"⚠️ Insufficient price data for {symbol}: {len(price_data) if price_data else 0} records")
+            cur.close()
             return None
 
-        # Get basic info
-        info = stock.info
-        current_price = hist['Close'].iloc[-1]
+        # Convert to pandas DataFrame for easier calculations
+        df = pd.DataFrame(price_data, columns=['date', 'open', 'high', 'low', 'close', 'volume', 'adjusted_close'])
+        df = df.sort_values('date')  # Sort chronologically for calculations
+
+        # Get current price (most recent)
+        current_price = float(df['close'].iloc[-1])
 
         # Calculate price changes
-        price_change_1d = ((current_price - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2] * 100) if len(hist) >= 2 else 0
-        price_change_5d = ((current_price - hist['Close'].iloc[-6]) / hist['Close'].iloc[-6] * 100) if len(hist) >= 6 else 0
-        price_change_30d = ((current_price - hist['Close'].iloc[-31]) / hist['Close'].iloc[-31] * 100) if len(hist) >= 31 else 0
+        price_change_1d = ((current_price - float(df['close'].iloc[-2])) / float(df['close'].iloc[-2]) * 100) if len(df) >= 2 else 0
+        price_change_5d = ((current_price - float(df['close'].iloc[-6])) / float(df['close'].iloc[-6]) * 100) if len(df) >= 6 else 0
+        price_change_30d = ((current_price - float(df['close'].iloc[-31])) / float(df['close'].iloc[-31]) * 100) if len(df) >= 31 else 0
 
-        # Calculate moving averages
-        sma_20 = hist['Close'].tail(20).mean() if len(hist) >= 20 else current_price
-        sma_50 = hist['Close'].tail(50).mean() if len(hist) >= 50 else current_price
+        # Calculate volume average (last 30 days)
+        volume_avg_30d = int(df['volume'].tail(30).mean()) if len(df) >= 30 else int(df['volume'].mean())
 
-        # Calculate volume average
-        volume_avg_30d = int(hist['Volume'].tail(30).mean()) if len(hist) >= 30 else int(hist['Volume'].mean())
+        # Get latest technical data
+        cur.execute("""
+            SELECT rsi, macd, sma_20, sma_50, atr
+            FROM technical_data_daily
+            WHERE symbol = %s
+            ORDER BY date DESC
+            LIMIT 1
+        """, (symbol,))
 
-        # Calculate technical indicators
-        prices = hist['Close'].values
-        rsi = calculate_rsi(prices)
-        macd = calculate_macd(prices)
+        tech_data = cur.fetchone()
+        if tech_data and len(tech_data) >= 5:
+            rsi, macd, sma_20, sma_50, atr = tech_data
+        else:
+            # Calculate basic technical indicators from price data
+            prices = df['close'].astype(float).values
+            rsi = calculate_rsi(prices)
+            macd = calculate_macd(prices)
+            sma_20 = df['close'].tail(20).mean() if len(df) >= 20 else current_price
+            sma_50 = df['close'].tail(50).mean() if len(df) >= 50 else current_price
+            atr = None
+
+        # Calculate volatility from price data
+        prices = df['close'].astype(float).values
         volatility_30d = calculate_volatility(prices)
 
-        # Get fundamental data
-        market_cap = info.get('marketCap', 0) or 0
-        pe_ratio = info.get('trailingPE', None)
+        # Get earnings data for PE ratio calculation
+        cur.execute("""
+            SELECT actual_eps
+            FROM earnings
+            WHERE symbol = %s
+            AND report_date >= CURRENT_DATE - INTERVAL '12 months'
+            ORDER BY report_date DESC
+            LIMIT 4
+        """, (symbol,))
+
+        earnings_data = cur.fetchall()
+        pe_ratio = None
+        if earnings_data:
+            # Calculate trailing 12-month EPS
+            eps_values = [float(row[0]) for row in earnings_data if row[0] is not None]
+            if eps_values and len(eps_values) >= 4:
+                trailing_eps = sum(eps_values[:4])  # Last 4 quarters
+                if trailing_eps > 0:
+                    pe_ratio = current_price / trailing_eps
+
+        # Market cap placeholder - we don't have this data, so set to None
+        market_cap = None
+
+        cur.close()
 
         # Calculate individual scores (0-100 scale)
 
@@ -198,10 +258,13 @@ def get_stock_data_and_calculate_scores(symbol):
             momentum_score = 50  # Neutral if no RSI
 
         # Trend Score (based on price relative to moving averages)
-        price_vs_sma20 = (current_price / sma_20 - 1) * 100
-        price_vs_sma50 = (current_price / sma_50 - 1) * 100
-        trend_score = 50 + (price_vs_sma20 * 2) + (price_vs_sma50 * 1)
-        trend_score = max(0, min(100, trend_score))  # Cap between 0-100
+        if sma_20 and sma_50:
+            price_vs_sma20 = (current_price / float(sma_20) - 1) * 100
+            price_vs_sma50 = (current_price / float(sma_50) - 1) * 100
+            trend_score = 50 + (price_vs_sma20 * 2) + (price_vs_sma50 * 1)
+            trend_score = max(0, min(100, trend_score))  # Cap between 0-100
+        else:
+            trend_score = 50  # Neutral if no moving averages
 
         # Value Score (based on PE ratio if available)
         if pe_ratio and pe_ratio > 0:
@@ -243,23 +306,23 @@ def get_stock_data_and_calculate_scores(symbol):
 
         return {
             'symbol': symbol,
-            'composite_score': round(composite_score, 2),
-            'momentum_score': round(momentum_score, 2),
-            'trend_score': round(trend_score, 2),
-            'value_score': round(value_score, 2),
-            'quality_score': round(quality_score, 2),
-            'rsi': rsi,
-            'macd': macd,
-            'sma_20': round(sma_20, 2),
-            'sma_50': round(sma_50, 2),
-            'volume_avg_30d': volume_avg_30d,
-            'current_price': round(current_price, 2),
-            'price_change_1d': round(price_change_1d, 2),
-            'price_change_5d': round(price_change_5d, 2),
-            'price_change_30d': round(price_change_30d, 2),
-            'volatility_30d': volatility_30d,
-            'market_cap': market_cap,
-            'pe_ratio': pe_ratio
+            'composite_score': float(round(composite_score, 2)),
+            'momentum_score': float(round(momentum_score, 2)),
+            'trend_score': float(round(trend_score, 2)),
+            'value_score': float(round(value_score, 2)),
+            'quality_score': float(round(quality_score, 2)),
+            'rsi': float(rsi) if rsi is not None else None,
+            'macd': float(macd) if macd is not None else None,
+            'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
+            'sma_50': float(round(float(sma_50), 2)) if sma_50 else None,
+            'volume_avg_30d': int(volume_avg_30d),
+            'current_price': float(round(current_price, 2)),
+            'price_change_1d': float(round(price_change_1d, 2)),
+            'price_change_5d': float(round(price_change_5d, 2)),
+            'price_change_30d': float(round(price_change_30d, 2)),
+            'volatility_30d': float(volatility_30d) if volatility_30d is not None else None,
+            'market_cap': int(market_cap) if market_cap else None,
+            'pe_ratio': float(round(pe_ratio, 2)) if pe_ratio else None
         }
 
     except Exception as e:
@@ -330,35 +393,42 @@ def main():
             return False
 
         # Get stock symbols
-        symbols = get_stock_symbols(conn, limit=50)  # Limit to 50 for initial load
-        if not symbols:
-            logger.error("❌ No stock symbols found")
+        try:
+            symbols = get_stock_symbols(conn, limit=100)  # Process up to 100 symbols
+            if not symbols:
+                logger.error("❌ No stock symbols found")
+                return False
+            logger.info(f"📊 Processing {len(symbols)} symbols...")
+        except Exception as e:
+            logger.error(f"❌ Error getting stock symbols: {e}")
             return False
-
-        logger.info(f"📊 Processing {len(symbols)} symbols...")
 
         # Process each symbol
         successful = 0
         failed = 0
 
         for i, symbol in enumerate(symbols, 1):
-            logger.info(f"📈 Processing {symbol} ({i}/{len(symbols)})")
+            try:
+                logger.info(f"📈 Processing {symbol} ({i}/{len(symbols)})")
 
-            # Calculate scores
-            score_data = get_stock_data_and_calculate_scores(symbol)
-            if score_data:
-                # Save to database
-                if save_stock_score(conn, score_data):
-                    successful += 1
-                    logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}")
+                # Calculate scores from database
+                score_data = get_stock_data_from_database(conn, symbol)
+                if score_data:
+                    # Save to database
+                    if save_stock_score(conn, score_data):
+                        successful += 1
+                        logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}")
+                    else:
+                        failed += 1
                 else:
                     failed += 1
-            else:
+            except Exception as e:
+                logger.error(f"❌ Error processing {symbol}: {e}")
                 failed += 1
 
-            # Add small delay to be respectful to yfinance
+            # Small delay to avoid overwhelming the database
             import time
-            time.sleep(0.5)
+            time.sleep(0.1)
 
         logger.info(f"🎯 Completed! Successful: {successful}, Failed: {failed}")
         return True
