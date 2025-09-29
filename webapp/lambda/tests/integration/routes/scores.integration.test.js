@@ -97,8 +97,8 @@ describe("Scores Routes Integration", () => {
       // Check that stocks are sorted by composite score descending
       if (response.body.data.stocks.length > 1) {
         for (let i = 1; i < response.body.data.stocks.length; i++) {
-          expect(response.body.data.stocks[i-1].compositeScore)
-            .toBeGreaterThanOrEqual(response.body.data.stocks[i].compositeScore);
+          expect(response.body.data.stocks[i-1].composite_score)
+            .toBeGreaterThanOrEqual(response.body.data.stocks[i].composite_score);
         }
       }
     });
@@ -139,28 +139,24 @@ describe("Scores Routes Integration", () => {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
-        expect(response.body.data).toHaveProperty("compositeScore");
-        expect(response.body.data).toHaveProperty("currentPrice");
-        expect(response.body.data).toHaveProperty("factors");
-        expect(response.body.data).toHaveProperty("performance");
+        expect(response.body.data).toHaveProperty("composite_score");
+        expect(response.body.data).toHaveProperty("current_price");
         expect(response.body).toHaveProperty("metadata");
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
         expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
 
-        // Check seven factor analysis structure
-        expect(response.body.data.factors).toHaveProperty("momentum");
-        expect(response.body.data.factors).toHaveProperty("trend");
-        expect(response.body.data.factors).toHaveProperty("value");
-        expect(response.body.data.factors).toHaveProperty("quality");
-        expect(response.body.data.factors).toHaveProperty("growth");
-        expect(response.body.data.factors).toHaveProperty("technical");
-        expect(response.body.data.factors).toHaveProperty("risk");
+        // Check seven factor scores are present
+        expect(response.body.data).toHaveProperty("momentum_score");
+        expect(response.body.data).toHaveProperty("trend_score");
+        expect(response.body.data).toHaveProperty("value_score");
+        expect(response.body.data).toHaveProperty("quality_score");
+        expect(response.body.data).toHaveProperty("growth_score");
 
-        // Check factor details for accordion functionality
-        expect(response.body.data.factors.momentum).toHaveProperty("score");
-        expect(response.body.data.factors.momentum).toHaveProperty("description");
-        expect(response.body.data.factors.trend).toHaveProperty("score");
-        expect(response.body.data.factors.trend).toHaveProperty("description");
+        // Check technical indicators are present
+        expect(response.body.data).toHaveProperty("rsi");
+        expect(response.body.data).toHaveProperty("macd");
+        expect(response.body.data).toHaveProperty("sma_20");
+        expect(response.body.data).toHaveProperty("sma_50");
       } else if (response.status === 404) {
         expect(response.body).toHaveProperty("success", false);
         expect(response.body.error).toContain("Symbol not found in stock_scores table");

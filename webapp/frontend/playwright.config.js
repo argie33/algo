@@ -161,14 +161,14 @@ export default defineConfig({
   ],
 
   // Start dev server for testing
-  webServer: {
-    command: process.env.CI ? 'npm run dev' : 'npm run dev',
-    url: 'http://localhost:5175',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  // webServer: {
+  //   command: process.env.CI ? 'npm run dev' : 'npm run dev',
+  //   url: 'http://localhost:5175',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120000,
+  //   stdout: 'pipe',
+  //   stderr: 'pipe',
+  // },
 
   // Global test configuration - temporarily disabled for debugging
   // globalSetup: './src/tests/e2e/global-setup.js',

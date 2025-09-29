@@ -367,8 +367,13 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
+      // Wait for Portfolio to finish loading
+      await waitFor(() => {
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      }, { timeout: 6000 });
+
       // Open portfolio import dialog
-      const importButton = screen.getByText(/import portfolio/i);
+      const importButton = await screen.findByText(/import portfolio/i, {}, { timeout: 3000 });
       fireEvent.click(importButton);
 
       // Wait for API keys to load

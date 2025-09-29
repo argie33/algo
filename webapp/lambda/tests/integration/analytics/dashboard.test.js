@@ -45,7 +45,9 @@ describe("Dashboard API", () => {
 
   describe("Market Summary", () => {
     test("should provide market summary for dashboard", async () => {
-      const response = await request(app).get("/api/dashboard/summary");
+      const response = await request(app)
+        .get("/api/dashboard/summary")
+        .set("Authorization", "Bearer test-token");
 
       expect(response.status).toBe(200);
 

@@ -2096,7 +2096,7 @@ function StockDetail() {
               </Grid>
 
               {/* EPS Revisions */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12}>
                 <Card>
                   <CardContent>
                     <Typography variant="h6" gutterBottom>
@@ -2106,7 +2106,7 @@ function StockDetail() {
 
                     {analystOverview?.data?.eps_revisions?.length > 0 ? (
                       <TableContainer>
-                        <Table size="small">
+                        <Table>
                           <TableBody>
                             {(analystOverview?.data.eps_revisions || []).map(
                               (revision) => (
@@ -2123,15 +2123,15 @@ function StockDetail() {
                                             : revision.period}
                                   </TableCell>
                                   <TableCell align="right">
-                                    <Box display="flex" gap={1}>
+                                    <Box display="flex" gap={1} justifyContent="flex-end">
                                       <Chip
-                                        label={`↑${revision.up_last30days || 0}`}
+                                        label={`Upgraded: ${revision.up_last30days || 0}`}
                                         size="small"
                                         color="success"
                                         variant="outlined"
                                       />
                                       <Chip
-                                        label={`↓${revision.down_last30days || 0}`}
+                                        label={`Downgraded: ${revision.down_last30days || 0}`}
                                         size="small"
                                         color="error"
                                         variant="outlined"
@@ -2353,6 +2353,185 @@ function StockDetail() {
                     ) : (
                       <Typography color="text.secondary">
                         No earnings history available
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* EPS Trends */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      EPS Trends
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+
+                    {analystOverview?.data?.eps_trend?.length > 0 ? (
+                      <TableContainer>
+                        <Table>
+                          <TableBody>
+                            {(analystOverview?.data.eps_trend || []).map(
+                              (trend) => (
+                                <TableRow key={trend.period}>
+                                  <TableCell sx={{ fontWeight: "bold" }}>
+                                    {trend.period === "0q"
+                                      ? "Current Quarter"
+                                      : trend.period === "+1q"
+                                        ? "Next Quarter"
+                                        : trend.period === "0y"
+                                          ? "Current Year"
+                                          : trend.period === "+1y"
+                                            ? "Next Year"
+                                            : trend.period}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    Current:{" "}
+                                    {trend.current
+                                      ? formatCurrency(trend.current)
+                                      : "N/A"}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    7 Days Ago:{" "}
+                                    {trend.days_ago_7
+                                      ? formatCurrency(trend.days_ago_7)
+                                      : "N/A"}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    30 Days Ago:{" "}
+                                    {trend.days_ago_30
+                                      ? formatCurrency(trend.days_ago_30)
+                                      : "N/A"}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    60 Days Ago:{" "}
+                                    {trend.days_ago_60
+                                      ? formatCurrency(trend.days_ago_60)
+                                      : "N/A"}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    90 Days Ago:{" "}
+                                    {trend.days_ago_90
+                                      ? formatCurrency(trend.days_ago_90)
+                                      : "N/A"}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography color="text.secondary">
+                        No EPS trends available
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Earnings Metrics */}
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Earnings Metrics
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+
+                    {analystOverview?.data?.earnings_metrics ? (
+                      <TableContainer>
+                        <Table>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: "bold" }}>
+                                Earnings Growth (Quarterly YoY)
+                              </TableCell>
+                              <TableCell align="right">
+                                {analystOverview?.data.earnings_metrics
+                                  .quarterly_earnings_growth
+                                  ? formatPercent(
+                                      analystOverview.data.earnings_metrics
+                                        .quarterly_earnings_growth / 100
+                                    )
+                                  : "N/A"}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: "bold" }}>
+                                Revenue Growth (Quarterly YoY)
+                              </TableCell>
+                              <TableCell align="right">
+                                {analystOverview?.data.earnings_metrics
+                                  .quarterly_revenue_growth
+                                  ? formatPercent(
+                                      analystOverview.data.earnings_metrics
+                                        .quarterly_revenue_growth / 100
+                                    )
+                                  : "N/A"}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: "bold" }}>
+                                Target Mean Price
+                              </TableCell>
+                              <TableCell align="right">
+                                {analystOverview?.data.earnings_metrics
+                                  .target_mean_price
+                                  ? formatCurrency(
+                                      analystOverview.data.earnings_metrics
+                                        .target_mean_price
+                                    )
+                                  : "N/A"}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: "bold" }}>
+                                Target High Price
+                              </TableCell>
+                              <TableCell align="right">
+                                {analystOverview?.data.earnings_metrics
+                                  .target_high_price
+                                  ? formatCurrency(
+                                      analystOverview.data.earnings_metrics
+                                        .target_high_price
+                                    )
+                                  : "N/A"}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: "bold" }}>
+                                Target Low Price
+                              </TableCell>
+                              <TableCell align="right">
+                                {analystOverview?.data.earnings_metrics
+                                  .target_low_price
+                                  ? formatCurrency(
+                                      analystOverview.data.earnings_metrics
+                                        .target_low_price
+                                    )
+                                  : "N/A"}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: "bold" }}>
+                                Number of Analyst Opinions
+                              </TableCell>
+                              <TableCell align="right">
+                                <Chip
+                                  label={`${analystOverview?.data.earnings_metrics.number_of_analyst_opinions || 0} analysts`}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography color="text.secondary">
+                        No earnings metrics available
                       </Typography>
                     )}
                   </CardContent>
