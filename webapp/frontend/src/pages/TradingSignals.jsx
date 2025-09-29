@@ -266,7 +266,7 @@ function TradingSignals() {
     queryKey: ["tradingPerformance"],
     queryFn: async () => {
       try {
-        const url = `${API_BASE}/api/trading/performance`;
+        const url = `${API_BASE}/api/signals/performance`;
         logger.info("fetchTradingPerformance - Request started", { url });
 
         const response = await fetch(url);

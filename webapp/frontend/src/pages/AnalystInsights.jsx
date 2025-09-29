@@ -259,8 +259,9 @@ const AnalystInsights = () => {
         />
 
         <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Action Filter</InputLabel>
+          <InputLabel id="action-filter-label">Action Filter</InputLabel>
           <Select
+            labelId="action-filter-label"
             value={filterAction}
             label="Action Filter"
             onChange={(e) => setFilterAction(e.target.value)}
