@@ -137,6 +137,9 @@ Parameters:
   ValueMetricsImageTag:
     Type: String
     Description: "Tag for value metrics calculator image"
+  StockScoresImageTag:
+    Type: String
+    Description: "Tag for stock scores loader image"
 
 Resources:
 
@@ -2492,6 +2495,59 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+  ########################################
+  # Stock Scores Loader                  #
+  ########################################
+  StockScoresTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: stock-scores
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+      TaskRoleArn: !Ref EcsTaskRole
+      ExecutionRoleArn: !Ref EcsExecutionRole
+      ContainerDefinitions:
+        - Name: stock-scores-loader
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/stock-scores:${StockScoresImageTag}"
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref StockScoresLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+
+  StockScoresLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/ecs/stock-scores-loader"
+      RetentionInDays: 14
+
+  StockScoresService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: stock-scores-service
+      Cluster: !ImportValue StocksCore-EcsClusterId
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref StockScoresTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   #########################################
   # Outputs                               #
   #########################################
@@ -2748,3 +2804,9 @@ Outputs:
     Value: !Ref TechnicalsDailyTaskDefinition
     Export:
       Name: TECHNICALSDAILYTaskDefArn
+
+  StockScoresTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for stock scores loader
+    Value: !Ref StockScoresTaskDefinition
+    Export:
+      Name: StockScoresTaskDefArn
