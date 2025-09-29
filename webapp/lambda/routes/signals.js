@@ -94,6 +94,8 @@ router.get("/", async (req, res) => {
     console.log(`📊 Signals data requested (deployment refresh v3)`);
 
     const timeframe = req.query.timeframe || "daily";
+    const signalType = req.query.signal_type; // Add signal_type filtering
+    const symbolFilter = req.query.symbol; // Add symbol filtering
     const limit = parseInt(req.query.limit) || 25;
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
@@ -114,26 +116,50 @@ router.get("/", async (req, res) => {
     }
 
     // Query real signals data from buy_sell tables
-    console.log(`📊 Fetching real ${timeframe} signals from database`);
+    const filters = {
+      ...(signalType && { signal_type: signalType }),
+      ...(symbolFilter && { symbol: symbolFilter })
+    };
+    console.log(`📊 Fetching real ${timeframe} signals from database`, filters);
 
-    // Simplified query approach for reliability
+    // Build WHERE clause based on filters
+    let whereClause = '';
+    let queryParams = [];
+    let paramIndex = 1;
+
+    if (signalType) {
+      whereClause += `WHERE signal = $${paramIndex}`;
+      queryParams.push(signalType.toUpperCase());
+      paramIndex++;
+    }
+
+    if (symbolFilter) {
+      whereClause += whereClause ? ' AND ' : 'WHERE ';
+      whereClause += `symbol = $${paramIndex}`;
+      queryParams.push(symbolFilter.toUpperCase());
+      paramIndex++;
+    }
+
+    // Build queries with dynamic WHERE clause
     const signalsQuery = `
       SELECT
         symbol, date, timeframe, signal, open, high, low, close, volume,
         buylevel, stoplevel, inposition
       FROM ${tableName}
+      ${whereClause}
       ORDER BY date DESC, symbol
-      LIMIT $1 OFFSET $2
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
       FROM ${tableName}
+      ${whereClause}
     `;
 
     const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, [limit, offset]),
-      query(countQuery, [])
+      query(signalsQuery, [...queryParams, limit, offset]),
+      query(countQuery, queryParams)
     ]);
 
     const total = parseInt(countResult.rows[0].total) || 0;

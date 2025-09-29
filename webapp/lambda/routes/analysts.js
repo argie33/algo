@@ -14,7 +14,8 @@ router.get("/", async (req, res) => {
       "/revenue-estimates - Get revenue estimates with analyst counts",
       "/eps-revisions - Get EPS estimates with analyst counts",
       "/:symbol - Get all analyst data for a specific symbol",
-      "/:symbol/eps-revisions - Get EPS estimates for a specific symbol"
+      "/:symbol/eps-revisions - Get EPS estimates for a specific symbol",
+      "/:symbol/eps-trend - Get EPS trend analysis for a specific symbol"
     ],
     data_sources: {
       upgrades: "analyst_upgrade_downgrade table (from loadanalystupgradedowngrade.py)",
@@ -281,6 +282,105 @@ router.get("/:symbol/eps-revisions", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch EPS estimates for symbol",
+      symbol: req.params.symbol?.toUpperCase() || null,
+      details: error.message
+    });
+  }
+});
+
+// GET /:symbol/eps-trend - Get EPS trend analysis for a specific symbol
+router.get("/:symbol/eps-trend", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const symbolUpper = symbol.toUpperCase();
+
+    // Get historical EPS estimates to show trend over time
+    const epsTrendQuery = `
+      SELECT
+        symbol,
+        period,
+        avg_estimate,
+        low_estimate,
+        high_estimate,
+        number_of_analysts,
+        year_ago_eps,
+        growth,
+        fetched_at
+      FROM earnings_estimates
+      WHERE UPPER(symbol) = $1
+      ORDER BY period ASC
+    `;
+
+    const result = await query(epsTrendQuery, [symbolUpper]);
+
+    if (!result) {
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed"
+      });
+    }
+
+    const data = result.rows;
+
+    // Calculate trend metrics
+    let trend = "neutral";
+    let trendScore = 0;
+    let avgGrowth = 0;
+
+    if (data.length > 1) {
+      // Calculate average growth rate
+      const growthRates = data.filter(row => row.growth !== null).map(row => parseFloat(row.growth) || 0);
+      if (growthRates.length > 0) {
+        avgGrowth = growthRates.reduce((sum, rate) => sum + rate, 0) / growthRates.length;
+
+        // Determine trend based on average growth
+        if (avgGrowth > 10) {
+          trend = "strongly_positive";
+          trendScore = Math.min(100, 50 + avgGrowth * 2);
+        } else if (avgGrowth > 5) {
+          trend = "positive";
+          trendScore = 50 + avgGrowth * 5;
+        } else if (avgGrowth > 0) {
+          trend = "slightly_positive";
+          trendScore = 50 + avgGrowth * 3;
+        } else if (avgGrowth > -5) {
+          trend = "slightly_negative";
+          trendScore = 50 + avgGrowth * 3;
+        } else if (avgGrowth > -10) {
+          trend = "negative";
+          trendScore = Math.max(0, 50 + avgGrowth * 5);
+        } else {
+          trend = "strongly_negative";
+          trendScore = Math.max(0, 50 + avgGrowth * 2);
+        }
+      }
+    }
+
+    // Calculate analyst consensus strength
+    const totalAnalysts = data.reduce((sum, row) => sum + (row.number_of_analysts || 0), 0);
+    const avgAnalysts = totalAnalysts > 0 ? totalAnalysts / data.length : 0;
+
+    res.json({
+      success: true,
+      symbol: symbolUpper,
+      data: data,
+      trend_analysis: {
+        trend,
+        trend_score: Math.round(trendScore),
+        avg_growth_rate: Math.round(avgGrowth * 100) / 100,
+        data_points: data.length,
+        avg_analysts_per_period: Math.round(avgAnalysts),
+        total_analyst_estimates: totalAnalysts
+      },
+      source: "YFinance via loadearningsestimate.py",
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error(`EPS trend error for symbol ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch EPS trend for symbol",
       symbol: req.params.symbol?.toUpperCase() || null,
       details: error.message
     });

@@ -38,7 +38,7 @@ const priceRoutes = require("./routes/price");
 const recommendationsRoutes = require("./routes/recommendations");
 const researchRoutes = require("./routes/research");
 const riskRoutes = require("./routes/risk");
-const scoringRoutes = require("./routes/scoring");
+// const scoringRoutes = require("./routes/scoring"); // Deprecated - use scores routes instead
 const scoresRoutes = require("./routes/scores");
 const screenerRoutes = require("./routes/screener");
 const sectorsRoutes = require("./routes/sectors");
@@ -158,7 +158,7 @@ app.use("/api/price", priceRoutes);
 app.use("/api/recommendations", recommendationsRoutes);
 app.use("/api/research", researchRoutes);
 app.use("/api/risk", riskRoutes);
-app.use("/api/scoring", scoringRoutes);
+// app.use("/api/scoring", scoringRoutes); // Deprecated - use /api/scores instead
 app.use("/api/scores", scoresRoutes);
 app.use("/api/screener", screenerRoutes);
 app.use("/api/sectors", sectorsRoutes);
