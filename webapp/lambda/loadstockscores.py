@@ -11,6 +11,7 @@ Stores calculated scores in stock_scores table for API consumption.
 Production loader for ECS task definition: stock-scores
 Configured for GitHub Actions workflow deployment
 Updated with growth score calculation and CloudFormation IAM role fixes
+Growth score integration completed - v1.1
 """
 
 import os
