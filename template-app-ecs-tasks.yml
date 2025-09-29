@@ -2557,7 +2557,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: stock-scores-service
-      Cluster: !ImportValue StocksCore-EcsClusterId
+      Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref StockScoresTaskDefinition
