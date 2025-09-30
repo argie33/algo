@@ -131,20 +131,24 @@ def create_stock_scores_table(conn):
         logger.error(f"❌ Failed to create stock_scores table: {e}")
         return False
 
-def get_stock_symbols(conn, limit=100):
-    """Get stock symbols from stock_symbols table, fallback to stock_prices."""
+def get_stock_symbols(conn, limit=None):
+    """Get stock symbols from stock_symbols table, fallback to stock_prices.
+    Only returns symbols that have price data available."""
     try:
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Query stock_symbols table (matches loadbuyselldaily.py)
-        cur.execute("""
-            SELECT symbol
-            FROM stock_symbols
-            WHERE exchange IN ('NASDAQ', 'New York Stock Exchange')
-            ORDER BY symbol
-            LIMIT %s
-        """, (limit,))
+        # Query stock_symbols table, but only get symbols with price data
+        # This prevents processing symbols without price data
+        limit_clause = f"LIMIT {limit}" if limit else ""
+        cur.execute(f"""
+            SELECT DISTINCT ss.symbol
+            FROM stock_symbols ss
+            INNER JOIN stock_prices sp ON ss.symbol = sp.symbol
+            WHERE ss.exchange IN ('NASDAQ', 'New York Stock Exchange')
+            ORDER BY ss.symbol
+            {limit_clause}
+        """)
 
         logger.info("🔍 Query executed, fetching results...")
         rows = cur.fetchall()
@@ -475,7 +479,7 @@ def main():
 
         # Get stock symbols
         try:
-            symbols = get_stock_symbols(conn, limit=100)  # Process up to 100 symbols
+            symbols = get_stock_symbols(conn)  # Process all symbols with price data
             if not symbols:
                 logger.error("❌ No stock symbols found")
                 return False
