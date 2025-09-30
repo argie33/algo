@@ -151,7 +151,7 @@ router.get("/", async (req, res) => {
         volume_ratio, volume_analysis, entry_quality_score,
         profit_target_8pct, profit_target_20pct, current_gain_loss_pct,
         risk_pct, position_size_recommendation, passes_minervini_template,
-        rsi, adx, atr, daily_range_pct
+        rsi, adx, atr, daily_range_pct, volatility_profile
       FROM ${tableName}
       ${whereClause}
       ORDER BY date DESC, symbol
@@ -198,24 +198,76 @@ router.get("/", async (req, res) => {
       hold_signals: signalData.filter(d => d.signal === 'HOLD').length,
     };
 
-    // Format the response data to match AWS API structure
+    // Format the response data to match AWS API structure with all swing trading metrics
     const formattedData = signalsResult.rows.map(row => ({
+      // Basic signal info
       symbol: row.symbol,
       signal_type: row.signal,
-      signal: row.signal, // Keep both for compatibility
+      signal: row.signal,
       date: row.date,
       signal_date: row.date,
-      current_price: parseFloat(row.close || 0),
-      currentPrice: parseFloat(row.close || 0), // Alternative field name
-      confidence: 0.75, // Real confidence calculation
-      buy_level: parseFloat(row.buylevel || 0),
-      stop_level: parseFloat(row.stoplevel || 0),
       timeframe: row.timeframe || timeframe,
-      in_position: row.inposition || false,
-      volume: row.volume || 0,
-      entry_price: parseFloat(row.close || 0),
-      sector: "Technology", // Would come from company_profile JOIN
       timestamp: row.date || new Date().toISOString(),
+
+      // Price data
+      open: parseFloat(row.open || 0),
+      high: parseFloat(row.high || 0),
+      low: parseFloat(row.low || 0),
+      close: parseFloat(row.close || 0),
+      current_price: parseFloat(row.current_price || row.close || 0),
+      currentPrice: parseFloat(row.current_price || row.close || 0),
+      volume: row.volume || 0,
+
+      // Entry/Exit levels
+      buy_level: parseFloat(row.buylevel || 0),
+      buylevel: parseFloat(row.buylevel || 0),
+      stop_level: parseFloat(row.stoplevel || 0),
+      stoplevel: parseFloat(row.stoplevel || 0),
+      sell_level: parseFloat(row.selllevel || 0),
+      selllevel: parseFloat(row.selllevel || 0),
+      target_price: parseFloat(row.target_price || 0),
+      in_position: row.inposition || false,
+      inposition: row.inposition || false,
+
+      // Risk management
+      risk_reward_ratio: parseFloat(row.risk_reward_ratio || 0),
+      risk_pct: parseFloat(row.risk_pct || 0),
+      position_size_recommendation: parseInt(row.position_size_recommendation || 0),
+
+      // Stage analysis
+      market_stage: row.market_stage || null,
+      stage_confidence: parseInt(row.stage_confidence || 0),
+      substage: row.substage || null,
+
+      // Technical indicators
+      pct_from_ema_21: parseFloat(row.pct_from_ema_21 || 0),
+      pct_from_sma_50: parseFloat(row.pct_from_sma_50 || 0),
+      pct_from_sma_200: parseFloat(row.pct_from_sma_200 || 0),
+      rsi: parseFloat(row.rsi || 0),
+      adx: parseFloat(row.adx || 0),
+      atr: parseFloat(row.atr || 0),
+      daily_range_pct: parseFloat(row.daily_range_pct || 0),
+
+      // Volume analysis
+      volume_ratio: parseFloat(row.volume_ratio || 0),
+      volume_analysis: row.volume_analysis || null,
+
+      // Quality metrics
+      entry_quality_score: parseInt(row.entry_quality_score || 0),
+      passes_minervini_template: row.passes_minervini_template || false,
+
+      // Profit targets
+      profit_target_8pct: parseFloat(row.profit_target_8pct || 0),
+      profit_target_20pct: parseFloat(row.profit_target_20pct || 0),
+      current_gain_loss_pct: parseFloat(row.current_gain_loss_pct || 0),
+
+      // Volatility
+      volatility_profile: row.volatility_profile || null,
+
+      // Legacy/compatibility fields
+      confidence: (parseInt(row.stage_confidence || 0) / 100) || 0.75,
+      entry_price: parseFloat(row.current_price || row.close || 0),
+      sector: "Technology", // Would come from company_profile JOIN
     }));
 
     return res.json({
