@@ -838,68 +838,6 @@ function TradingSignals() {
         )}
       </Grid>
 
-      {/* Swing Trading Metrics Summary */}
-      {summaryStats && (
-        <Grid container spacing={3} mb={4}>
-          <Grid item xs={12}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              📊 Swing Trading Metrics
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} md={2.4}>
-            <PerformanceCard
-              title="Stage 2 - Advancing"
-              value={summaryStats.stage2Signals}
-              subtitle="Optimal buy zone (Weinstein)"
-              icon={<TrendingUp />}
-              color="#059669"
-              isHighlight={summaryStats.stage2Signals > 0}
-            />
-          </Grid>
-
-          <Grid item xs={12} md={2.4}>
-            <PerformanceCard
-              title="High Quality Setups"
-              value={summaryStats.highQualitySignals}
-              subtitle="Entry quality score ≥60"
-              icon={<Analytics />}
-              color="#3B82F6"
-            />
-          </Grid>
-
-          <Grid item xs={12} md={2.4}>
-            <PerformanceCard
-              title="Pocket Pivots"
-              value={summaryStats.pocketPivots}
-              subtitle="200%+ volume surge"
-              icon={<TrendingUp />}
-              color="#F59E0B"
-            />
-          </Grid>
-
-          <Grid item xs={12} md={2.4}>
-            <PerformanceCard
-              title="Trend Template"
-              value={summaryStats.minerviniCompliant}
-              subtitle="Passes 7-point template"
-              icon={<Analytics />}
-              color="#8B5CF6"
-            />
-          </Grid>
-
-          <Grid item xs={12} md={2.4}>
-            <PerformanceCard
-              title="Currently Holding"
-              value={summaryStats.inPosition}
-              subtitle={`Avg R/R: ${summaryStats.avgRiskReward}:1`}
-              icon={<TrendingUp />}
-              color="#10B981"
-            />
-          </Grid>
-        </Grid>
-      )}
-
 
       {/* Filters and Search */}
       <Grid container spacing={3} mb={4}>
