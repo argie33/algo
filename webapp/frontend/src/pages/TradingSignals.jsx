@@ -445,7 +445,7 @@ function TradingSignals() {
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
               <Tooltip title="Stop loss price (7-8% max risk)">
-                <span>Stop Loss</span>
+                <span>Stop</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
@@ -454,13 +454,48 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="8% first profit target (Minervini)">
+                <span>8% Target</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="20% major profit target (Minervini)">
+                <span>20% Target</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
               <Tooltip title="Reward divided by risk (minimum 2:1)">
                 <span>R/R</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Risk percentage (distance to stop)">
+                <span>Risk %</span>
               </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>
               <Tooltip title="Weinstein Stage: 1=Basing, 2=Advancing (BUY), 3=Topping, 4=Declining">
                 <span>Stage</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell sx={{ fontWeight: "bold" }}>
+              <Tooltip title="O'Neill volume analysis: Pocket Pivot = 200%+ volume surge">
+                <span>Volume</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Distance from 21 EMA (Minervini buy zone: within 1-2%)">
+                <span>21 EMA %</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="RSI (40-55 = pullback in uptrend)">
+                <span>RSI</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="ADX (>25 = strong trend)">
+                <span>ADX</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
@@ -469,8 +504,13 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell align="center" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Passes Minervini 7-point trend template">
+                <span>Minervini</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold" }}>
               <Tooltip title="Currently holding this position">
-                <span>In Position</span>
+                <span>Position</span>
               </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
@@ -548,13 +588,24 @@ function TradingSignals() {
                 {signal.target_price ? formatCurrency(signal.target_price) : "—"}
               </TableCell>
               <TableCell align="right">
+                {signal.profit_target_8pct ? formatCurrency(signal.profit_target_8pct) : "—"}
+              </TableCell>
+              <TableCell align="right">
+                {signal.profit_target_20pct ? formatCurrency(signal.profit_target_20pct) : "—"}
+              </TableCell>
+              <TableCell align="right">
                 {signal.risk_reward_ratio
                   ? `${Number(signal.risk_reward_ratio).toFixed(1)}:1`
                   : "—"}
               </TableCell>
+              <TableCell align="right">
+                {signal.risk_pct
+                  ? `${Number(signal.risk_pct).toFixed(1)}%`
+                  : "—"}
+              </TableCell>
               <TableCell>
                 <Chip
-                  label={signal.market_stage || "Unknown"}
+                  label={signal.market_stage?.replace("Stage ", "S") || "—"}
                   size="small"
                   sx={{
                     backgroundColor:
@@ -570,8 +621,44 @@ function TradingSignals() {
                       signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
                       "#6B7280",
                     fontWeight: "bold",
+                    fontSize: "0.75rem",
                   }}
                 />
+              </TableCell>
+              <TableCell>
+                <Chip
+                  label={signal.volume_analysis || "Normal"}
+                  size="small"
+                  sx={{
+                    backgroundColor:
+                      signal.volume_analysis === "Pocket Pivot" ? "rgba(5, 150, 105, 0.2)" :
+                      signal.volume_analysis === "Volume Surge" ? "rgba(59, 130, 246, 0.2)" :
+                      signal.volume_analysis === "Volume Dry-up" ? "rgba(245, 158, 11, 0.2)" :
+                      "rgba(156, 163, 175, 0.2)",
+                    color:
+                      signal.volume_analysis === "Pocket Pivot" ? "#059669" :
+                      signal.volume_analysis === "Volume Surge" ? "#3B82F6" :
+                      signal.volume_analysis === "Volume Dry-up" ? "#F59E0B" :
+                      "#6B7280",
+                    fontWeight: "bold",
+                    fontSize: "0.7rem",
+                  }}
+                />
+              </TableCell>
+              <TableCell align="right">
+                {signal.pct_from_ema_21
+                  ? `${Number(signal.pct_from_ema_21).toFixed(1)}%`
+                  : "—"}
+              </TableCell>
+              <TableCell align="right">
+                {signal.rsi
+                  ? Number(signal.rsi).toFixed(0)
+                  : "—"}
+              </TableCell>
+              <TableCell align="right">
+                {signal.adx
+                  ? Number(signal.adx).toFixed(0)
+                  : "—"}
               </TableCell>
               <TableCell align="right">
                 <Chip
@@ -591,6 +678,28 @@ function TradingSignals() {
                     fontWeight: "bold",
                   }}
                 />
+              </TableCell>
+              <TableCell align="center">
+                {signal.passes_minervini_template ? (
+                  <Chip
+                    label="✓"
+                    size="small"
+                    sx={{
+                      backgroundColor: "rgba(5, 150, 105, 0.2)",
+                      color: "#059669",
+                      fontWeight: "bold",
+                    }}
+                  />
+                ) : (
+                  <Chip
+                    label="✗"
+                    size="small"
+                    sx={{
+                      backgroundColor: "rgba(156, 163, 175, 0.2)",
+                      color: "#6B7280",
+                    }}
+                  />
+                )}
               </TableCell>
               <TableCell align="center">
                 {signal.inposition ? (
