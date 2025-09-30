@@ -104,18 +104,15 @@ const SectorAnalysis = () => {
             const symbolData = liveData?.data[etfSymbol];
             if (symbolData && !symbolData.error) {
               const midPrice = (symbolData.bidPrice + symbolData.askPrice) / 2;
-              // Default neutral performance when historical data unavailable
-              const mockChange = 0; // Neutral change
-              const mockChangePercent = 0; // Neutral change percentage
 
               return {
                 sector: sectorInfo.name,
                 etfSymbol: etfSymbol,
                 price: midPrice,
-                change: mockChange,
-                changePercent: mockChangePercent,
+                change: symbolData.change || 0,
+                changePercent: symbolData.changePercent || 0,
                 volume: symbolData.bidSize + symbolData.askSize,
-                marketCap: midPrice * 1000000000, // Mock market cap
+                marketCap: symbolData.marketCap || 0,
                 color: sectorInfo.color,
                 dataSource: "live",
                 timestamp: symbolData.timestamp,

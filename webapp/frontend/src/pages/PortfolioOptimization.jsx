@@ -134,13 +134,7 @@ const PortfolioOptimization = () => {
           sharpeRatio: portfolioData?.sharpeRatio || 1.24,
         });
       } else {
-        // Mock data for current portfolio
-        setCurrentPortfolio({
-          totalValue: 100000,
-          expectedReturn: 12.5,
-          risk: 18.5,
-          sharpeRatio: 1.24,
-        });
+        setCurrentPortfolio(null);
       }
 
       // Handle rebalance recommendations
@@ -168,25 +162,7 @@ const PortfolioOptimization = () => {
 
         setRebalanceRecommendations(transformedRecommendations);
       } else {
-        // Mock rebalance recommendations
-        setRebalanceRecommendations([
-          {
-            symbol: "AAPL",
-            currentWeight: 28.5,
-            targetWeight: 20.0,
-            difference: -8.5,
-            action: "SELL",
-            priority: "HIGH",
-          },
-          {
-            symbol: "MSFT",
-            currentWeight: 22.9,
-            targetWeight: 25.0,
-            difference: 2.1,
-            action: "BUY",
-            priority: "MEDIUM",
-          },
-        ]);
+        setRebalanceRecommendations([]);
       }
 
       // Handle risk analysis
@@ -210,43 +186,16 @@ const PortfolioOptimization = () => {
             ],
         });
       } else {
-        // Mock risk analysis
-        setRiskAnalysis({
-          riskScore: 6.2,
-          riskFactors: [
-            {
-              name: "Concentration Risk",
-              severity: "MEDIUM",
-              description:
-                "Portfolio shows moderate concentration in technology sector",
-            },
-            {
-              name: "Market Risk",
-              severity: "LOW",
-              description: "Portfolio beta is within acceptable range",
-            },
-          ],
-        });
+        setRiskAnalysis(null);
       }
     } catch (err) {
       setError("Failed to fetch optimization data");
       if (import.meta.env && import.meta.env.DEV)
         console.error("Optimization data fetch error:", err);
 
-      // Set mock data on error
-      setCurrentPortfolio({
-        totalValue: 100000,
-        expectedReturn: 12.5,
-        risk: 18.5,
-        sharpeRatio: 1.24,
-      });
-
+      setCurrentPortfolio(null);
       setRebalanceRecommendations([]);
-
-      setRiskAnalysis({
-        riskScore: 6.2,
-        riskFactors: [],
-      });
+      setRiskAnalysis(null);
     } finally {
       setLoading(false);
     }
@@ -306,32 +255,8 @@ const PortfolioOptimization = () => {
       if (import.meta.env && import.meta.env.DEV)
         console.error("Optimization error:", err);
 
-      // Show mock optimization results
-      const mockResults = {
-        current: {
-          expectedReturn: 12.5,
-          risk: 18.5,
-          sharpeRatio: 1.24,
-        },
-        optimized: {
-          expectedReturn: 14.2,
-          risk: 16.8,
-          sharpeRatio: 1.45,
-        },
-      };
-
-      setOptimizationResults(mockResults);
-      setOptimizedPortfolio({
-        allocation: [
-          { symbol: "AAPL", weight: 20.0 },
-          { symbol: "MSFT", weight: 25.0 },
-          { symbol: "GOOGL", weight: 15.0 },
-          { symbol: "AMZN", weight: 18.0 },
-          { symbol: "TSLA", weight: 12.0 },
-          { symbol: "JNJ", weight: 10.0 },
-        ],
-      });
-      setShowResultsDialog(true);
+      setOptimizationResults(null);
+      setOptimizedPortfolio(null);
     } finally {
       setOptimizing(false);
     }

@@ -144,38 +144,7 @@ const OrderManagement = () => {
       setOrders(data.orders || []);
     } catch (err) {
       setError(err.message);
-      // Mock data for demo
-      setOrders([
-        {
-          id: "ORD-001",
-          symbol: "AAPL",
-          side: "buy",
-          quantity: 100,
-          orderType: "limit",
-          limitPrice: 185.5,
-          status: "pending",
-          timeInForce: "gtc",
-          submittedAt: new Date().toISOString(),
-          filledQuantity: 0,
-          averagePrice: 0,
-          estimatedValue: 18550,
-          broker: "alpaca",
-        },
-        {
-          id: "ORD-002",
-          symbol: "MSFT",
-          side: "sell",
-          quantity: 50,
-          orderType: "market",
-          status: "filled",
-          timeInForce: "day",
-          submittedAt: new Date(Date.now() - 3600000).toISOString(),
-          filledQuantity: 50,
-          averagePrice: 308.25,
-          estimatedValue: 15412.5,
-          broker: "alpaca",
-        },
-      ]);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -199,17 +168,8 @@ const OrderManagement = () => {
         setAccountInfo(data);
       }
     } catch (err) {
-      // Mock account info
-      setAccountInfo({
-        accountId: "ACC-12345",
-        status: "active",
-        buyingPower: 50000,
-        cash: 25000,
-        portfolioValue: 125000,
-        dayTradingBuyingPower: 100000,
-        dayTrades: 2,
-        patternDayTrader: false,
-      });
+      console.error("Failed to fetch account info:", err);
+      setAccountInfo(null);
     }
   }, [user, isDevelopment]);
 
@@ -494,29 +454,8 @@ const OrderManagement = () => {
       const preview = await response.json();
       return preview;
     } catch (err) {
-      // Mock preview data
-      return {
-        symbol: orderData.symbol,
-        side: orderData.side,
-        quantity: parseFloat(orderData.quantity),
-        estimatedPrice:
-          orderData.orderType === "market"
-            ? marketData[orderData.symbol]?.price || 0
-            : parseFloat(orderData.limitPrice || 0),
-        estimatedValue:
-          parseFloat(orderData.quantity) *
-          (orderData.orderType === "market"
-            ? marketData[orderData.symbol]?.price || 0
-            : parseFloat(orderData.limitPrice || 0)),
-        estimatedCommission: 0,
-        buyingPowerRequired:
-          parseFloat(orderData.quantity) *
-          (orderData.orderType === "market"
-            ? marketData[orderData.symbol]?.price || 0
-            : parseFloat(orderData.limitPrice || 0)),
-        warningMessages: [],
-        riskAssessment: "Low",
-      };
+      console.error("Failed to get order preview:", err);
+      throw err;
     }
   };
 

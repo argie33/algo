@@ -1229,7 +1229,6 @@ function StockDetail() {
 
                     return [
                       {
-                        isMockData: true,
                         factor: "Quality",
                         score: Math.round(qualityScore),
                         color: "primary",
@@ -1261,7 +1260,6 @@ function StockDetail() {
                         ],
                       },
                       {
-                        isMockData: true,
                         factor: "Growth",
                         score: Math.round(growthScore),
                         color: "success",
@@ -1288,7 +1286,6 @@ function StockDetail() {
                         ],
                       },
                       {
-                        isMockData: true,
                         factor: "Value",
                         score: Math.round(valueScore),
                         color: "warning",
@@ -1309,11 +1306,10 @@ function StockDetail() {
                                 stockData.price * 0.3),
                             weight: 0.3,
                           },
-                          { name: "EV/EBITDA", value: 12.5, weight: 0.3 }, // ⚠️ MOCK DATA
+                          { name: "EV/EBITDA", value: currentMetrics.ev_ebitda || 0, weight: 0.3 }
                         ],
                       },
                       {
-                        isMockData: true,
                         factor: "Momentum",
                         score: Math.round(momentumScore),
                         color: "info",
@@ -1336,7 +1332,6 @@ function StockDetail() {
                         ],
                       },
                       {
-                        isMockData: true,
                         factor: "Sentiment",
                         score: Math.round(sentimentScore),
                         color: "secondary",
@@ -1355,7 +1350,6 @@ function StockDetail() {
                         ],
                       },
                       {
-                        isMockData: true,
                         factor: "Positioning",
                         score: Math.round(positioningScore),
                         color: "error",
@@ -1586,15 +1580,12 @@ function StockDetail() {
                 <Divider sx={{ mb: 2 }} />
                 <Box mb={3}>
                   <ResponsiveContainer width="100%" height={200}>
-                    {/* ⚠️ MOCK DATA - Replace with real API when available */}
                     <LineChart
-                      data={[
-                        { year: "2019", revenue: 100, earnings: 100 },
-                        { year: "2020", revenue: 105, earnings: 98 },
-                        { year: "2021", revenue: 112, earnings: 115 },
-                        { year: "2022", revenue: 118, earnings: 125 },
-                        { year: "2023", revenue: 125, earnings: 138 },
-                      ]}
+                      data={
+                        financialHistory?.length > 0
+                          ? financialHistory
+                          : []
+                      }
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="year" />
@@ -1626,7 +1617,7 @@ function StockDetail() {
                             label={
                               currentMetrics.revenue_growth
                                 ? `${formatPercent(currentMetrics.revenue_growth)}`
-                                : "7.2%" /* ⚠️ MOCK DATA */
+                                : "N/A"
                             }
                             color="success"
                             size="small"
@@ -1634,7 +1625,9 @@ function StockDetail() {
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            vs 5% sector avg {/* ⚠️ MOCK DATA */}
+                            {currentMetrics.sector_revenue_avg
+                              ? `vs ${formatPercent(currentMetrics.sector_revenue_avg)} sector avg`
+                              : ""}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1645,7 +1638,7 @@ function StockDetail() {
                             label={
                               currentMetrics.earnings_growth
                                 ? `${formatPercent(currentMetrics.earnings_growth)}`
-                                : "9.8%" /* ⚠️ MOCK DATA */
+                                : "N/A"
                             }
                             color="success"
                             size="small"
@@ -1653,7 +1646,9 @@ function StockDetail() {
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            vs 6% sector avg {/* ⚠️ MOCK DATA */}
+                            {currentMetrics.sector_earnings_avg
+                              ? `vs ${formatPercent(currentMetrics.sector_earnings_avg)} sector avg`
+                              : ""}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1661,14 +1656,20 @@ function StockDetail() {
                         <TableCell>FCF Growth (3Y)</TableCell>
                         <TableCell align="right">
                           <Chip
-                            label="12.5%" // ⚠️ MOCK DATA
+                            label={
+                              currentMetrics.fcf_growth
+                                ? `${formatPercent(currentMetrics.fcf_growth)}`
+                                : "N/A"
+                            }
                             color="success"
                             size="small"
                           />
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            vs 8% sector avg {/* ⚠️ MOCK DATA */}
+                            {currentMetrics.sector_fcf_avg
+                              ? `vs ${formatPercent(currentMetrics.sector_fcf_avg)} sector avg`
+                              : ""}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1807,7 +1808,7 @@ function StockDetail() {
                         {
                           currentMetrics.institutional_ownership
                             ? `${formatPercent(currentMetrics.institutional_ownership)}`
-                            : "68.5%" /* ⚠️ MOCK DATA */
+                            : "N/A"
                         }
                       </Typography>
                       <Typography variant="body1" color="text.secondary" mb={1}>
@@ -1816,8 +1817,7 @@ function StockDetail() {
                       <LinearProgress
                         variant="determinate"
                         value={
-                          (currentMetrics.institutional_ownership ||
-                            0.685) /* ⚠️ MOCK DATA */ * 100
+                          (currentMetrics.institutional_ownership || 0) * 100
                         }
                         color="primary"
                         sx={{ mb: 1 }}
@@ -1838,7 +1838,7 @@ function StockDetail() {
                         {
                           currentMetrics.insider_ownership
                             ? `${formatPercent(currentMetrics.insider_ownership)}`
-                            : "3.2%" /* ⚠️ MOCK DATA */
+                            : "N/A"
                         }
                       </Typography>
                       <Typography variant="body1" color="text.secondary" mb={1}>
@@ -1847,8 +1847,7 @@ function StockDetail() {
                       <LinearProgress
                         variant="determinate"
                         value={
-                          (currentMetrics.insider_ownership ||
-                            0.032) /* ⚠️ MOCK DATA */ *
+                          (currentMetrics.insider_ownership || 0) *
                           100 *
                           10
                         }
@@ -1871,7 +1870,7 @@ function StockDetail() {
                         {
                           currentMetrics.short_interest
                             ? `${formatPercent(currentMetrics.short_interest)}`
-                            : "2.8%" /* ⚠️ MOCK DATA */
+                            : "N/A"
                         }
                       </Typography>
                       <Typography variant="body1" color="text.secondary" mb={1}>
@@ -1880,8 +1879,7 @@ function StockDetail() {
                       <LinearProgress
                         variant="determinate"
                         value={
-                          (currentMetrics.short_interest ||
-                            0.028) /* ⚠️ MOCK DATA */ *
+                          (currentMetrics.short_interest || 0) *
                           100 *
                           5
                         }
@@ -1902,70 +1900,86 @@ function StockDetail() {
                   <TableContainer>
                     <Table size="small">
                       <TableBody>
-                        <TableRow>
-                          <TableCell>Net Institutional Flow</TableCell>
-                          <TableCell align="right">
-                            <Chip label="+$125M" color="success" size="small" />{" "}
-                            {/* ⚠️ MOCK DATA */}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              Net buying activity
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Number of Institutions</TableCell>
-                          <TableCell align="right">
-                            <Chip label="342 (+8)" color="info" size="small" />{" "}
-                            {/* ⚠️ MOCK DATA */}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              Growing institutional base
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Avg Position Size</TableCell>
-                          <TableCell align="right">
-                            <Chip label="0.89%" color="primary" size="small" />{" "}
-                            {/* ⚠️ MOCK DATA */}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              Moderate conviction levels
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell>Days to Cover (Short)</TableCell>
-                          <TableCell align="right">
-                            <Chip
-                              label="1.8 days"
-                              color="success"
-                              size="small"
-                            />{" "}
-                            {/* ⚠️ MOCK DATA */}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              Low short squeeze risk
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
+                        {currentMetrics.net_institutional_flow && (
+                          <TableRow>
+                            <TableCell>Net Institutional Flow</TableCell>
+                            <TableCell align="right">
+                              <Chip
+                                label={`${currentMetrics.net_institutional_flow > 0 ? '+' : ''}$${Math.abs(currentMetrics.net_institutional_flow)}M`}
+                                color={currentMetrics.net_institutional_flow > 0 ? "success" : "error"}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {currentMetrics.net_institutional_flow > 0 ? 'Net buying activity' : 'Net selling activity'}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {currentMetrics.num_institutions && (
+                          <TableRow>
+                            <TableCell>Number of Institutions</TableCell>
+                            <TableCell align="right">
+                              <Chip
+                                label={`${currentMetrics.num_institutions}${currentMetrics.num_institutions_change ? ` (${currentMetrics.num_institutions_change > 0 ? '+' : ''}${currentMetrics.num_institutions_change})` : ''}`}
+                                color="info"
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {currentMetrics.num_institutions_change > 0 ? 'Growing institutional base' : 'Institutional base'}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {currentMetrics.avg_position_size && (
+                          <TableRow>
+                            <TableCell>Avg Position Size</TableCell>
+                            <TableCell align="right">
+                              <Chip
+                                label={`${formatPercent(currentMetrics.avg_position_size)}`}
+                                color="primary"
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Conviction levels
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {currentMetrics.days_to_cover && (
+                          <TableRow>
+                            <TableCell>Days to Cover (Short)</TableCell>
+                            <TableCell align="right">
+                              <Chip
+                                label={`${currentMetrics.days_to_cover} days`}
+                                color={currentMetrics.days_to_cover < 3 ? "success" : "warning"}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {currentMetrics.days_to_cover < 3 ? 'Low short squeeze risk' : 'Elevated short squeeze risk'}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
                   </TableContainer>
