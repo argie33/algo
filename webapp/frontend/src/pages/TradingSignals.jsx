@@ -454,12 +454,12 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="8% first profit target (Minervini)">
+              <Tooltip title="8% first profit target">
                 <span>8% Target</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="20% major profit target (Minervini)">
+              <Tooltip title="20% major profit target">
                 <span>20% Target</span>
               </Tooltip>
             </TableCell>
@@ -479,12 +479,12 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>
-              <Tooltip title="O'Neill volume analysis: Pocket Pivot = 200%+ volume surge">
+              <Tooltip title="Volume analysis: Pocket Pivot = 200%+ volume surge">
                 <span>Volume</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Distance from 21 EMA (Minervini buy zone: within 1-2%)">
+              <Tooltip title="Distance from 21 EMA (buy zone: within 1-2%)">
                 <span>21 EMA %</span>
               </Tooltip>
             </TableCell>
@@ -504,8 +504,8 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell align="center" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Passes Minervini 7-point trend template">
-                <span>Minervini</span>
+              <Tooltip title="Passes 7-point trend template">
+                <span>Template</span>
               </Tooltip>
             </TableCell>
             <TableCell align="center" sx={{ fontWeight: "bold" }}>
@@ -828,7 +828,7 @@ function TradingSignals() {
         <Grid container spacing={3} mb={4}>
           <Grid item xs={12}>
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              📊 Swing Trading Metrics (O'Neill / Minervini)
+              📊 Swing Trading Metrics
             </Typography>
           </Grid>
 
@@ -857,7 +857,7 @@ function TradingSignals() {
             <PerformanceCard
               title="Pocket Pivots"
               value={summaryStats.pocketPivots}
-              subtitle="O'Neill 200%+ volume surge"
+              subtitle="200%+ volume surge"
               icon={<TrendingUp />}
               color="#F59E0B"
             />
@@ -865,9 +865,9 @@ function TradingSignals() {
 
           <Grid item xs={12} md={2.4}>
             <PerformanceCard
-              title="Minervini Template"
+              title="Trend Template"
               value={summaryStats.minerviniCompliant}
-              subtitle="Passes trend template"
+              subtitle="Passes 7-point template"
               icon={<Analytics />}
               color="#8B5CF6"
             />
