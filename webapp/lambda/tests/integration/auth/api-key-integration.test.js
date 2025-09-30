@@ -2,9 +2,9 @@ const request = require('supertest');
 const { app } = require('../../../index');
 
 describe('API Key Integration Tests', () => {
-  // Alpaca API credentials for testing integration
-  const alpacaAccessKey = 'PKKOM54MDSS6W8Y9J17Z';
-  const alpacaSecretKey = 'GcacMH812Y0g3LlPmgAzSVx89OgviJlQ30X5ANy1';
+  // Alpaca API credentials from environment variables
+  const alpacaAccessKey = process.env.ALPACA_API_KEY || '';
+  const alpacaSecretKey = process.env.ALPACA_API_SECRET || '';
 
   // Application authentication tokens for protected endpoints
   const appToken1 = 'dev-bypass-token';
@@ -179,8 +179,13 @@ describe('API Key Integration Tests', () => {
     test('should use provided Alpaca credentials for testing', async () => {
       // This is a placeholder test - the actual Alpaca integration
       // would be tested in the existing Alpaca integration test file
-      expect(alpacaAccessKey).toBe('PKKOM54MDSS6W8Y9J17Z');
-      expect(alpacaSecretKey).toBe('GcacMH812Y0g3LlPmgAzSVx89OgviJlQ30X5ANy1');
+      // Skip if credentials not provided
+      if (!alpacaAccessKey || !alpacaSecretKey) {
+        console.log('⚠️  Alpaca credentials not provided, skipping validation');
+        expect(true).toBe(true);
+        return;
+      }
+
       expect(alpacaAccessKey).toHaveLength(20);
       expect(alpacaSecretKey).toHaveLength(40);
     });

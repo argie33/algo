@@ -20,9 +20,11 @@ class AlpacaService {
     }
 
     this.client = new Alpaca({
-      key: apiKey,
-      secret: apiSecret,
+      keyId: apiKey,
+      secretKey: apiSecret,
       paper: isPaper,
+      baseUrl: isPaper ? 'https://paper-api.alpaca.markets' : 'https://api.alpaca.markets',
+      dataBaseUrl: 'https://data.alpaca.markets',
       usePolygon: false, // Use Alpaca data instead of Polygon
     });
 

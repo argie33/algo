@@ -23,6 +23,7 @@ Testing with updated workflow basename fix - v1.8
 Migration fix for last_updated column - v1.9
 Robust migration with step-by-step table creation - v1.10
 Clean slate - drop and recreate table with correct schema - v1.11
+Use stock_symbols table like other loaders - v1.12
 """
 
 import os
@@ -135,14 +136,18 @@ def get_stock_symbols(conn, limit=100):
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Get symbols, prioritizing non-ETF stocks and larger symbols
-        # Get symbols with sufficient price data (at least 20 records)
+        # Get symbols from stock_symbols table (matches other loaders)
+        # Filter for symbols that have price data
         cur.execute("""
-            SELECT symbol
-            FROM stock_prices
-            GROUP BY symbol
-            HAVING COUNT(*) >= 20
-            ORDER BY symbol
+            SELECT ss.symbol
+            FROM stock_symbols ss
+            WHERE EXISTS (
+                SELECT 1 FROM stock_prices sp
+                WHERE sp.symbol = ss.symbol
+                GROUP BY sp.symbol
+                HAVING COUNT(*) >= 20
+            )
+            ORDER BY ss.symbol
             LIMIT %s
         """, (limit,))
 

@@ -1,201 +1,330 @@
 # Page snapshot
 
 ```yaml
-- generic [ref=e3]:
-  - banner [ref=e4]:
-    - generic [ref=e5]:
-      - generic: Dashboard
-      - button "Sign In" [ref=e6] [cursor=pointer]:
-        - img [ref=e8] [cursor=pointer]
-        - text: Sign In
-  - navigation [ref=e10]:
-    - generic [ref=e12]:
-      - generic [ref=e14]: Financial Platform
-      - list [ref=e15]:
-        - listitem [ref=e16]:
-          - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
-            - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
-            - img [ref=e20] [cursor=pointer]
-        - listitem [ref=e22]:
-          - button "Market Overview" [ref=e23] [cursor=pointer]:
-            - img [ref=e25] [cursor=pointer]
-            - paragraph [ref=e28] [cursor=pointer]: Market Overview
-        - listitem [ref=e29]:
-          - button "Sector Analysis" [ref=e30] [cursor=pointer]:
-            - img [ref=e32] [cursor=pointer]
-            - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
-        - listitem [ref=e36]:
-          - button "Economic Indicators" [ref=e37] [cursor=pointer]:
-            - img [ref=e39] [cursor=pointer]
-            - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
-        - listitem [ref=e43]:
-          - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
-            - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
-            - img [ref=e47] [cursor=pointer]
-        - listitem [ref=e49]:
-          - button "Stock Analysis" [ref=e50] [cursor=pointer]:
-            - img [ref=e52] [cursor=pointer]
-            - paragraph [ref=e55] [cursor=pointer]: Stock Analysis
-        - listitem [ref=e56]:
-          - button "Technical Analysis" [ref=e57] [cursor=pointer]:
-            - img [ref=e59] [cursor=pointer]
-            - paragraph [ref=e62] [cursor=pointer]: Technical Analysis
-        - listitem [ref=e63]:
-          - button "Stock Scores" [ref=e64] [cursor=pointer]:
-            - img [ref=e66] [cursor=pointer]
-            - paragraph [ref=e69] [cursor=pointer]: Stock Scores
-        - listitem [ref=e70]:
-          - button "Earnings Calendar" [ref=e71] [cursor=pointer]:
-            - img [ref=e73] [cursor=pointer]
-            - paragraph [ref=e76] [cursor=pointer]: Earnings Calendar
-        - listitem [ref=e77]:
-          - button "Trading Signals" [ref=e78] [cursor=pointer]:
-            - img [ref=e80] [cursor=pointer]
-            - paragraph [ref=e83] [cursor=pointer]: Trading Signals
-        - listitem [ref=e84]:
-          - button "Financial Data" [ref=e85] [cursor=pointer]:
-            - img [ref=e87] [cursor=pointer]
-            - paragraph [ref=e90] [cursor=pointer]: Financial Data
-        - listitem [ref=e91]:
-          - button "Expand Sentiment Analysis section" [ref=e92] [cursor=pointer]:
-            - heading "Sentiment Analysis" [level=6] [ref=e94] [cursor=pointer]
-            - img [ref=e95] [cursor=pointer]
-        - listitem [ref=e97]:
-          - button "Collapse Portfolio section" [ref=e98] [cursor=pointer]:
-            - heading "Portfolio" [level=6] [ref=e100] [cursor=pointer]
-            - img [ref=e101] [cursor=pointer]
-        - listitem [ref=e103]:
-          - button "Portfolio Holdings" [ref=e104] [cursor=pointer]:
-            - img [ref=e106] [cursor=pointer]
-            - paragraph [ref=e109] [cursor=pointer]: Portfolio Holdings
-        - listitem [ref=e110]:
-          - button "Trade History" [ref=e111] [cursor=pointer]:
-            - img [ref=e113] [cursor=pointer]
-            - paragraph [ref=e116] [cursor=pointer]: Trade History
-        - listitem [ref=e117]:
-          - button "Order Management" [ref=e118] [cursor=pointer]:
-            - img [ref=e120] [cursor=pointer]
-            - paragraph [ref=e123] [cursor=pointer]: Order Management
-        - listitem [ref=e124]:
-          - button "Optimization Tools" [ref=e125] [cursor=pointer]:
-            - img [ref=e127] [cursor=pointer]
-            - paragraph [ref=e130] [cursor=pointer]: Optimization Tools
-        - listitem [ref=e131]:
-          - button "Advanced Analytics" [ref=e132] [cursor=pointer]:
-            - img [ref=e134] [cursor=pointer]
-            - paragraph [ref=e137] [cursor=pointer]: Advanced Analytics
-        - listitem [ref=e138]:
-          - button "Expand Tools section" [ref=e139] [cursor=pointer]:
-            - heading "Tools" [level=6] [ref=e141] [cursor=pointer]
-            - img [ref=e142] [cursor=pointer]
-  - main [ref=e144]:
-    - generic [ref=e147]:
-      - generic [ref=e149]:
-        - generic [ref=e150]:
-          - heading "Market Overview" [level=1] [ref=e151]
-          - heading "Real-time market analysis, sentiment indicators, and institutional-grade research insights" [level=6] [ref=e152]
-        - generic [ref=e154]:
-          - group [ref=e155]:
-            - button "1D" [pressed] [ref=e156] [cursor=pointer]: 1D
-            - button "1W" [ref=e157] [cursor=pointer]: 1W
-            - button "1M" [ref=e158] [cursor=pointer]: 1M
-            - button "3M" [ref=e159] [cursor=pointer]: 3M
-            - button "1Y" [ref=e160] [cursor=pointer]: 1Y
-          - button [ref=e161] [cursor=pointer]:
-            - img [ref=e162] [cursor=pointer]
-          - button [ref=e164] [cursor=pointer]:
-            - img [ref=e165] [cursor=pointer]
-      - generic [ref=e167]:
-        - generic [ref=e171]:
-          - generic [ref=e172]:
-            - generic [ref=e173]:
-              - heading "Fear & Greed Index" [level=6] [ref=e174]
-              - generic [ref=e175]: Market Sentiment Indicator
-            - img [ref=e177]
-          - generic [ref=e180]:
-            - progressbar [ref=e181]:
-              - img [ref=e182]
-            - paragraph [ref=e184]: Loading sentiment data...
-        - generic [ref=e188]:
-          - generic [ref=e189]:
-            - generic [ref=e190]:
-              - heading "AAII Investor Sentiment" [level=6] [ref=e191]
-              - generic [ref=e192]: Retail Investor Survey
-            - img [ref=e194]
-          - generic [ref=e196]:
-            - paragraph [ref=e197]: No AAII data available
-            - generic [ref=e198]: Sentiment indicators are loading...
-        - generic [ref=e202]:
-          - generic [ref=e203]:
-            - generic [ref=e204]:
-              - heading "NAAIM Exposure Index" [level=6] [ref=e205]
-              - generic [ref=e206]: Professional Manager Positioning
-            - img [ref=e208]
-          - generic [ref=e210]:
-            - heading "--" [level=2] [ref=e211]
-            - paragraph [ref=e212]: No NAAIM data available
-      - generic [ref=e213]:
-        - generic [ref=e216]:
-          - heading "Market Breadth" [level=6] [ref=e217]
-          - generic [ref=e218]:
-            - generic [ref=e220]:
-              - heading "N/A" [level=4] [ref=e221]
-              - paragraph [ref=e222]: Advancing
-            - generic [ref=e224]:
-              - heading "N/A" [level=4] [ref=e225]
-              - paragraph [ref=e226]: Declining
-            - generic [ref=e228]:
-              - paragraph [ref=e229]: "Advance/Decline Ratio: N/A"
-              - paragraph [ref=e230]: "Average Change: N/A%"
-        - generic [ref=e233]:
-          - heading "Market Statistics" [level=6] [ref=e234]
-          - generic [ref=e235]:
-            - paragraph [ref=e236]: "Total Stocks:"
-            - paragraph [ref=e237]: N/A
-          - generic [ref=e238]:
-            - paragraph [ref=e239]: "Total Market Cap:"
-            - paragraph [ref=e240]: N/A
-          - generic [ref=e241]:
-            - paragraph [ref=e242]: "Unchanged:"
-            - paragraph [ref=e243]: N/A
-      - generic [ref=e244]:
-        - tablist "market data tabs" [ref=e249]:
-          - tab "Market Overview" [selected] [ref=e250] [cursor=pointer]:
-            - img [ref=e251] [cursor=pointer]
-            - text: Market Overview
-          - tab "Sentiment History" [ref=e253] [cursor=pointer]:
-            - img [ref=e254] [cursor=pointer]
-            - text: Sentiment History
-          - tab "Sector Performance" [ref=e256] [cursor=pointer]:
-            - img [ref=e257] [cursor=pointer]
-            - text: Sector Performance
-          - tab "Market Breadth" [ref=e259] [cursor=pointer]:
-            - img [ref=e260] [cursor=pointer]
-            - text: Market Breadth
-          - tab "Economic Indicators" [ref=e262] [cursor=pointer]:
-            - img [ref=e263] [cursor=pointer]
-            - text: Economic Indicators
-          - tab "Seasonality" [ref=e265] [cursor=pointer]:
-            - img [ref=e266] [cursor=pointer]
-            - text: Seasonality
-          - tab "Research Indicators" [ref=e268] [cursor=pointer]:
-            - img [ref=e269] [cursor=pointer]
-            - text: Research Indicators
-        - tabpanel "Market Overview" [ref=e272]:
-          - generic [ref=e274]:
-            - generic [ref=e277]:
-              - heading "Market Cap Distribution" [level=6] [ref=e278]
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic: Dashboard
+        - button "Sign In" [ref=e6] [cursor=pointer]:
+          - img [ref=e8] [cursor=pointer]
+          - text: Sign In
+    - navigation [ref=e10]:
+      - generic [ref=e12]:
+        - generic [ref=e14]: Financial Platform
+        - list [ref=e15]:
+          - listitem [ref=e16]:
+            - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+              - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
+              - img [ref=e20] [cursor=pointer]
+          - listitem [ref=e22]:
+            - button "Market Overview" [ref=e23] [cursor=pointer]:
+              - img [ref=e25] [cursor=pointer]
+              - paragraph [ref=e28] [cursor=pointer]: Market Overview
+          - listitem [ref=e29]:
+            - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+              - img [ref=e32] [cursor=pointer]
+              - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
+          - listitem [ref=e36]:
+            - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+              - img [ref=e39] [cursor=pointer]
+              - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
+          - listitem [ref=e43]:
+            - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
+              - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
+              - img [ref=e47] [cursor=pointer]
+          - listitem [ref=e49]:
+            - button "Stock Analysis" [ref=e50] [cursor=pointer]:
+              - img [ref=e52] [cursor=pointer]
+              - paragraph [ref=e55] [cursor=pointer]: Stock Analysis
+          - listitem [ref=e56]:
+            - button "Technical Analysis" [ref=e57] [cursor=pointer]:
+              - img [ref=e59] [cursor=pointer]
+              - paragraph [ref=e62] [cursor=pointer]: Technical Analysis
+          - listitem [ref=e63]:
+            - button "Stock Scores" [ref=e64] [cursor=pointer]:
+              - img [ref=e66] [cursor=pointer]
+              - paragraph [ref=e69] [cursor=pointer]: Stock Scores
+          - listitem [ref=e70]:
+            - button "Earnings Calendar" [ref=e71] [cursor=pointer]:
+              - img [ref=e73] [cursor=pointer]
+              - paragraph [ref=e76] [cursor=pointer]: Earnings Calendar
+          - listitem [ref=e77]:
+            - button "Trading Signals" [ref=e78] [cursor=pointer]:
+              - img [ref=e80] [cursor=pointer]
+              - paragraph [ref=e83] [cursor=pointer]: Trading Signals
+          - listitem [ref=e84]:
+            - button "Financial Data" [ref=e85] [cursor=pointer]:
+              - img [ref=e87] [cursor=pointer]
+              - paragraph [ref=e90] [cursor=pointer]: Financial Data
+          - listitem [ref=e91]:
+            - button "Expand Sentiment Analysis section" [ref=e92] [cursor=pointer]:
+              - heading "Sentiment Analysis" [level=6] [ref=e94] [cursor=pointer]
+              - img [ref=e95] [cursor=pointer]
+          - listitem [ref=e97]:
+            - button "Collapse Portfolio section" [ref=e98] [cursor=pointer]:
+              - heading "Portfolio" [level=6] [ref=e100] [cursor=pointer]
+              - img [ref=e101] [cursor=pointer]
+          - listitem [ref=e103]:
+            - button "Portfolio Holdings" [ref=e104] [cursor=pointer]:
+              - img [ref=e106] [cursor=pointer]
+              - paragraph [ref=e109] [cursor=pointer]: Portfolio Holdings
+          - listitem [ref=e110]:
+            - button "Trade History" [ref=e111] [cursor=pointer]:
+              - img [ref=e113] [cursor=pointer]
+              - paragraph [ref=e116] [cursor=pointer]: Trade History
+          - listitem [ref=e117]:
+            - button "Order Management" [ref=e118] [cursor=pointer]:
+              - img [ref=e120] [cursor=pointer]
+              - paragraph [ref=e123] [cursor=pointer]: Order Management
+          - listitem [ref=e124]:
+            - button "Optimization Tools" [ref=e125] [cursor=pointer]:
+              - img [ref=e127] [cursor=pointer]
+              - paragraph [ref=e130] [cursor=pointer]: Optimization Tools
+          - listitem [ref=e131]:
+            - button "Advanced Analytics" [ref=e132] [cursor=pointer]:
+              - img [ref=e134] [cursor=pointer]
+              - paragraph [ref=e137] [cursor=pointer]: Advanced Analytics
+          - listitem [ref=e138]:
+            - button "Expand Tools section" [ref=e139] [cursor=pointer]:
+              - heading "Tools" [level=6] [ref=e141] [cursor=pointer]
+              - img [ref=e142] [cursor=pointer]
+    - main [ref=e144]:
+      - generic [ref=e147]:
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - heading "Market Overview" [level=1] [ref=e151]
+            - heading "Real-time market analysis, sentiment indicators, and institutional-grade research insights" [level=6] [ref=e152]
+          - generic [ref=e154]:
+            - group [ref=e155]:
+              - button "1D" [pressed] [ref=e156] [cursor=pointer]: 1D
+              - button "1W" [ref=e157] [cursor=pointer]: 1W
+              - button "1M" [ref=e158] [cursor=pointer]: 1M
+              - button "3M" [ref=e159] [cursor=pointer]: 3M
+              - button "1Y" [ref=e160] [cursor=pointer]: 1Y
+            - button [ref=e161] [cursor=pointer]:
+              - img [ref=e162] [cursor=pointer]
+            - button [ref=e164] [cursor=pointer]:
+              - img [ref=e165] [cursor=pointer]
+        - generic [ref=e172]:
+          - generic [ref=e173]:
+            - heading "SPY" [level=6] [ref=e174]
+            - paragraph [ref=e175]: SPY
+          - generic [ref=e176]:
+            - heading "$450.00" [level=5] [ref=e177]
+            - paragraph [ref=e178]: 0.00%
+        - generic [ref=e179]:
+          - heading "Economic Indicators" [level=5] [ref=e181]
+          - generic [ref=e186]:
+            - generic [ref=e187]:
+              - heading "CPI" [level=6] [ref=e188]
+              - paragraph
+            - generic [ref=e189]:
+              - heading "307.789" [level=6] [ref=e190]
+              - paragraph
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - heading "UNRATE" [level=6] [ref=e197]
+              - paragraph
+            - generic [ref=e198]:
+              - heading "3.8" [level=6] [ref=e199]
+              - paragraph
+          - generic [ref=e204]:
+            - generic [ref=e205]:
+              - heading "FEDFUNDS" [level=6] [ref=e206]
+              - paragraph
+            - generic [ref=e207]:
+              - heading "5.25" [level=6] [ref=e208]
+              - paragraph
+          - generic [ref=e213]:
+            - generic [ref=e214]:
+              - heading "DGS10" [level=6] [ref=e215]
+              - paragraph
+            - generic [ref=e216]:
+              - heading "4.35" [level=6] [ref=e217]
+              - paragraph
+          - generic [ref=e222]:
+            - generic [ref=e223]:
+              - heading "DGS2" [level=6] [ref=e224]
+              - paragraph
+            - generic [ref=e225]:
+              - heading "4.85" [level=6] [ref=e226]
+              - paragraph
+          - generic [ref=e231]:
+            - generic [ref=e232]:
+              - heading "PAYEMS" [level=6] [ref=e233]
+              - paragraph
+            - generic [ref=e234]:
+              - heading "158450" [level=6] [ref=e235]
+              - paragraph
+        - generic [ref=e236]:
+          - generic [ref=e240]:
+            - generic [ref=e241]:
+              - generic [ref=e242]:
+                - heading "Fear & Greed Index" [level=6] [ref=e243]
+                - generic [ref=e244]: Market Sentiment Indicator
+              - img [ref=e246]
+            - generic [ref=e249]:
+              - generic [ref=e251]:
+                - img [ref=e252]
+                - generic [ref=e255]:
+                  - heading "0" [level=4] [ref=e256]
+                  - generic [ref=e257]: Extreme Fear
+              - generic [ref=e259]:
+                - generic [ref=e260]:
+                  - generic [ref=e261]: Previous
+                  - paragraph [ref=e262]: N/A
+                - generic [ref=e263]:
+                  - generic [ref=e264]: Change
+                  - paragraph [ref=e265]: 0%
+              - generic [ref=e266]: "Updated: 9/13/2025, 12:00:00 AM"
+          - generic [ref=e270]:
+            - generic [ref=e271]:
+              - generic [ref=e272]:
+                - heading "AAII Investor Sentiment" [level=6] [ref=e273]
+                - generic [ref=e274]: Retail Investor Survey
+              - img [ref=e276]
+            - generic [ref=e278]:
               - generic [ref=e279]:
-                - paragraph [ref=e280]: "Large Cap:"
-                - paragraph [ref=e281]: N/A
+                - paragraph [ref=e280]: "Bullish:"
+                - paragraph [ref=e281]: 38.5%
               - generic [ref=e282]:
-                - paragraph [ref=e283]: "Mid Cap:"
-                - paragraph [ref=e284]: N/A
+                - paragraph [ref=e283]: "Neutral:"
+                - paragraph [ref=e284]: 31.2%
               - generic [ref=e285]:
-                - paragraph [ref=e286]: "Small Cap:"
-                - paragraph [ref=e287]: N/A
-              - generic [ref=e288]:
-                - paragraph [ref=e289]: "Total:"
-                - paragraph [ref=e290]: N/A
-            - heading "Latest Economic Indicators" [level=6] [ref=e294]
+                - paragraph [ref=e286]: "Bearish:"
+                - paragraph [ref=e287]: 30.3%
+              - paragraph [ref=e288]: "Week ending: 9/27/2025"
+          - generic [ref=e292]:
+            - generic [ref=e293]:
+              - generic [ref=e294]:
+                - heading "NAAIM Exposure Index" [level=6] [ref=e295]
+                - generic [ref=e296]: Professional Manager Positioning
+              - img [ref=e298]
+            - generic [ref=e300]:
+              - heading "75.2%" [level=2] [ref=e301]
+              - generic [ref=e302]:
+                - paragraph [ref=e303]: "Bullish:"
+                - paragraph [ref=e304]: 68.3%
+              - generic [ref=e305]:
+                - paragraph [ref=e306]: "Bearish:"
+                - paragraph [ref=e307]: 31.7%
+              - paragraph [ref=e308]: "Week ending: 9/27/2025"
+        - generic [ref=e309]:
+          - generic [ref=e312]:
+            - heading "Market Breadth" [level=6] [ref=e313]
+            - generic [ref=e314]:
+              - generic [ref=e316]:
+                - heading "0" [level=4] [ref=e317]
+                - paragraph [ref=e318]: Advancing
+              - generic [ref=e320]:
+                - heading "0" [level=4] [ref=e321]
+                - paragraph [ref=e322]: Declining
+              - generic [ref=e324]:
+                - paragraph [ref=e325]: "Advance/Decline Ratio: N/A"
+                - paragraph [ref=e326]: "Average Change: 0.00%"
+          - generic [ref=e329]:
+            - heading "Market Statistics" [level=6] [ref=e330]
+            - generic [ref=e331]:
+              - paragraph [ref=e332]: "Total Stocks:"
+              - paragraph [ref=e333]: "0"
+            - generic [ref=e334]:
+              - paragraph [ref=e335]: "Total Market Cap:"
+              - paragraph [ref=e336]: $9.90T
+            - generic [ref=e337]:
+              - paragraph [ref=e338]: "Unchanged:"
+              - paragraph [ref=e339]: "0"
+        - generic [ref=e340]:
+          - tablist "market data tabs" [ref=e345]:
+            - tab "Market Overview" [ref=e346] [cursor=pointer]:
+              - img [ref=e347] [cursor=pointer]
+              - text: Market Overview
+            - tab "Sentiment History" [active] [selected] [ref=e349] [cursor=pointer]:
+              - img [ref=e350] [cursor=pointer]
+              - text: Sentiment History
+            - tab "Sector Performance" [ref=e352] [cursor=pointer]:
+              - img [ref=e353] [cursor=pointer]
+              - text: Sector Performance
+            - tab "Market Breadth" [ref=e355] [cursor=pointer]:
+              - img [ref=e356] [cursor=pointer]
+              - text: Market Breadth
+            - tab "Economic Indicators" [ref=e358] [cursor=pointer]:
+              - img [ref=e359] [cursor=pointer]
+              - text: Economic Indicators
+            - tab "Seasonality" [ref=e361] [cursor=pointer]:
+              - img [ref=e362] [cursor=pointer]
+              - text: Seasonality
+            - tab "Research Indicators" [ref=e364] [cursor=pointer]:
+              - img [ref=e365] [cursor=pointer]
+              - text: Research Indicators
+          - tabpanel "Sentiment History" [ref=e368]:
+            - generic [ref=e371]:
+              - generic [ref=e372]:
+                - generic [ref=e375]:
+                  - heading "Fear & Greed Index" [level=6] [ref=e376]
+                  - heading "N/A" [level=5] [ref=e377]
+                  - paragraph
+                  - generic [ref=e378]: Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)
+                - generic [ref=e381]:
+                  - heading "NAAIM Exposure" [level=6] [ref=e382]
+                  - heading "75.20" [level=5] [ref=e383]
+                  - paragraph [ref=e384]: Active manager equity exposure
+                  - generic [ref=e385]: 0 = fully out, 100 = fully in
+                - generic [ref=e388]:
+                  - heading "AAII Sentiment" [level=6] [ref=e389]
+                  - paragraph [ref=e390]:
+                    - text: "Bullish:"
+                    - generic [ref=e391]: 38.5%
+                    - text: "| Neutral:"
+                    - generic [ref=e392]: 31.2%
+                    - text: "| Bearish:"
+                    - generic [ref=e393]: 30.3%
+                  - generic [ref=e394]: "% of retail investors bullish, neutral, or bearish"
+              - generic [ref=e396]:
+                - heading "Sentiment History (Last 30 Days)" [level=6] [ref=e397]
+                - generic [ref=e399]:
+                  - list [ref=e401]:
+                    - listitem [ref=e402]:
+                      - img "AAII Bearish legend icon" [ref=e403]
+                      - generic [ref=e405]: AAII Bearish
+                    - listitem [ref=e406]:
+                      - img "AAII Bullish legend icon" [ref=e407]
+                      - generic [ref=e409]: AAII Bullish
+                    - listitem [ref=e410]:
+                      - img "AAII Neutral legend icon" [ref=e411]
+                      - generic [ref=e413]: AAII Neutral
+                    - listitem [ref=e414]:
+                      - img "Fear & Greed legend icon" [ref=e415]
+                      - generic [ref=e417]: Fear & Greed
+                    - listitem [ref=e418]:
+                      - img "NAAIM Exposure legend icon" [ref=e419]
+                      - generic [ref=e421]: NAAIM Exposure
+                  - application [ref=e422]:
+                    - generic [ref=e427]:
+                      - generic [ref=e430]: 2024-01-01
+                      - generic [ref=e433]: 2025-08-23
+                      - generic [ref=e436]: 2025-08-25
+                      - generic [ref=e439]: 2025-09-01
+                      - generic [ref=e442]: 2025-09-03T05:00:00.000Z
+                      - generic [ref=e445]: 2025-09-08
+                      - generic [ref=e448]: 2025-09-11T05:00:00.000Z
+                      - generic [ref=e451]: 2025-09-13T05:00:00.000Z
+                      - generic [ref=e454]: 2025-09-27T05:00:00.000Z
+                    - generic [ref=e455]:
+                      - generic [ref=e456]:
+                        - generic [ref=e459]: "0"
+                        - generic [ref=e462]: "20"
+                        - generic [ref=e465]: "40"
+                        - generic [ref=e468]: "60"
+                        - generic [ref=e471]: "80"
+                      - generic [ref=e473]: FG/NAAIM
+                    - generic [ref=e474]:
+                      - generic [ref=e475]:
+                        - generic [ref=e478]: "0"
+                        - generic [ref=e481]: "15"
+                        - generic [ref=e484]: "30"
+                        - generic [ref=e487]: "45"
+                        - generic [ref=e490]: "60"
+                      - generic [ref=e492]: AAII %
+  - generic [ref=e501]: "15"
 ```

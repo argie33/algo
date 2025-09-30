@@ -130,9 +130,25 @@ describe("Alpaca Service Integration Tests", () => {
       const mockAccount = {
         id: "test-account-id",
         status: "ACTIVE",
+        currency: "USD",
         cash: "10000.00",
         portfolio_value: "12000.00",
         buying_power: "20000.00",
+        equity: "12000.00",
+        last_equity: "11500.00",
+        daytrade_count: "0",
+        daytrading_buying_power: "20000.00",
+        regt_buying_power: "20000.00",
+        initial_margin: "0",
+        maintenance_margin: "0",
+        long_market_value: "2000.00",
+        short_market_value: "0",
+        multiplier: "2",
+        created_at: "2024-01-01T00:00:00Z",
+        trading_blocked: false,
+        transfers_blocked: false,
+        account_blocked: false,
+        pattern_day_trader: false,
       };
 
       mockClient.getAccount.mockResolvedValueOnce(mockAccount);
@@ -140,7 +156,11 @@ describe("Alpaca Service Integration Tests", () => {
       const account = await alpacaService.getAccount();
 
       expect(mockClient.getAccount).toHaveBeenCalledTimes(1);
-      expect(account).toEqual(mockAccount);
+      expect(account).toHaveProperty("accountId", "test-account-id");
+      expect(account).toHaveProperty("status", "ACTIVE");
+      expect(account).toHaveProperty("buyingPower", 20000);
+      expect(account).toHaveProperty("cash", 10000);
+      expect(account).toHaveProperty("environment", "paper");
     });
 
     test("should handle account fetch errors gracefully", async () => {
@@ -155,20 +175,24 @@ describe("Alpaca Service Integration Tests", () => {
         timestamp: [1640995200, 1641081600],
         equity: [10000, 10500],
         profit_loss: [0, 500],
+        profit_loss_pct: [0, 5],
+        base_value: 10000,
       };
 
       mockClient.getPortfolioHistory.mockResolvedValueOnce(mockHistory);
 
-      const history = await alpacaService.getPortfolioHistory({
-        period: "1D",
-        timeframe: "1Min",
-      });
+      const history = await alpacaService.getPortfolioHistory("1D", "1Min");
 
       expect(mockClient.getPortfolioHistory).toHaveBeenCalledWith({
         period: "1D",
         timeframe: "1Min",
+        extended_hours: true,
       });
-      expect(history).toEqual(mockHistory);
+      expect(Array.isArray(history)).toBe(true);
+      expect(history.length).toBe(2);
+      expect(history[0]).toHaveProperty("date");
+      expect(history[0]).toHaveProperty("equity", 10000);
+      expect(history[0]).toHaveProperty("profitLoss", 0);
     });
   });
 
@@ -204,21 +228,34 @@ describe("Alpaca Service Integration Tests", () => {
     });
 
     test("should fetch position for specific symbol", async () => {
-      const mockPosition = {
-        symbol: "AAPL",
-        qty: "10",
-        side: "long",
-        market_value: "1500.00",
-        cost_basis: "1400.00",
-      };
+      const mockPositions = [
+        {
+          symbol: "AAPL",
+          qty: "10",
+          side: "long",
+          market_value: "1500.00",
+          cost_basis: "1400.00",
+          unrealized_pl: "100.00",
+          unrealized_plpc: "7.14",
+          current_price: "150.00",
+          lastday_price: "140.00",
+          change_today: "10.00",
+        },
+        {
+          symbol: "GOOGL",
+          qty: "5",
+          side: "long",
+          market_value: "750.00",
+          cost_basis: "700.00",
+        },
+      ];
 
-      mockClient.getPosition = jest.fn().mockResolvedValueOnce(mockPosition);
-      alpacaService.client.getPosition = mockClient.getPosition;
+      mockClient.getPositions.mockResolvedValueOnce(mockPositions);
 
       const position = await alpacaService.getPosition("AAPL");
 
-      expect(mockClient.getPosition).toHaveBeenCalledWith("AAPL");
       expect(position.symbol).toBe("AAPL");
+      expect(position.qty).toBe(10);
     });
   });
 
@@ -229,8 +266,11 @@ describe("Alpaca Service Integration Tests", () => {
         symbol: "AAPL",
         qty: "10",
         side: "buy",
-        type: "market",
+        order_type: "market",
         status: "new",
+        time_in_force: "day",
+        submitted_at: "2024-01-01T10:00:00Z",
+        filled_qty: "0",
       };
 
       mockClient.createOrder.mockResolvedValueOnce(mockOrder);
@@ -247,8 +287,11 @@ describe("Alpaca Service Integration Tests", () => {
         qty: 10,
         side: "buy",
         type: "market",
+        time_in_force: "day",
       });
-      expect(order.id).toBe("order-123");
+      expect(order.orderId).toBe("order-123");
+      expect(order.qty).toBe(10);
+      expect(order.type).toBe("market");
     });
 
     test("should place limit sell order", async () => {
@@ -257,9 +300,12 @@ describe("Alpaca Service Integration Tests", () => {
         symbol: "TSLA",
         qty: "5",
         side: "sell",
-        type: "limit",
+        order_type: "limit",
         limit_price: "800.00",
         status: "new",
+        time_in_force: "day",
+        submitted_at: "2024-01-01T10:00:00Z",
+        filled_qty: "0",
       };
 
       mockClient.createOrder.mockResolvedValueOnce(mockOrder);
@@ -278,8 +324,10 @@ describe("Alpaca Service Integration Tests", () => {
         side: "sell",
         type: "limit",
         limit_price: 800.0,
+        time_in_force: "day",
       });
       expect(order.type).toBe("limit");
+      expect(order.orderId).toBe("order-456");
     });
 
     test("should fetch all orders", async () => {
@@ -302,7 +350,8 @@ describe("Alpaca Service Integration Tests", () => {
       const result = await alpacaService.cancelOrder("order-123");
 
       expect(mockClient.cancelOrder).toHaveBeenCalledWith("order-123");
-      expect(result.id).toBe("order-123");
+      expect(result.orderId).toBe("order-123");
+      expect(result.status).toBe("cancelled");
     });
 
     test("should validate order parameters", async () => {
@@ -324,7 +373,7 @@ describe("Alpaca Service Integration Tests", () => {
           side: "buy",
           type: "market",
         })
-      ).rejects.toThrow("Quantity must be greater than 0");
+      ).rejects.toThrow("Quantity must be a positive number");
 
       // Test invalid side
       await expect(
@@ -334,7 +383,7 @@ describe("Alpaca Service Integration Tests", () => {
           side: "invalid",
           type: "market",
         })
-      ).rejects.toThrow("Side must be 'buy' or 'sell'");
+      ).rejects.toThrow("Side must be buy or sell");
     });
   });
 
@@ -377,12 +426,14 @@ describe("Alpaca Service Integration Tests", () => {
       const mockBars = {
         bars: [
           {
-            t: "2023-01-01T09:30:00Z",
-            o: 150.0,
-            h: 155.0,
-            l: 149.0,
-            c: 154.0,
-            v: 1000000,
+            Timestamp: "2023-01-01T09:30:00Z",
+            OpenPrice: 150.0,
+            HighPrice: 155.0,
+            LowPrice: 149.0,
+            ClosePrice: 154.0,
+            Volume: 1000000,
+            TradeCount: 100,
+            VWAP: 152.5,
           },
         ],
       };
@@ -399,8 +450,12 @@ describe("Alpaca Service Integration Tests", () => {
         start: "2023-01-01",
         end: "2023-01-02",
         timeframe: "1Day",
+        limit: 100,
+        asof: null,
+        feed: null,
+        page_token: null,
       });
-      expect(bars.bars).toHaveLength(1);
+      expect(bars).toHaveLength(1);
     });
 
     test("should fetch latest trade data", async () => {

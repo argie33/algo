@@ -186,7 +186,7 @@ describe("Technical Router", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.timeframe).toBe("weekly");
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("technical_data_daily"),
+        expect.stringContaining("price_daily"),
         ["AAPL"]
       );
     });
@@ -225,7 +225,7 @@ describe("Technical Router", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.timeframe).toBe("monthly");
       expect(query).toHaveBeenCalledWith(
-        expect.stringContaining("technical_data_daily"),
+        expect.stringContaining("price_daily"),
         ["AAPL"]
       );
     });

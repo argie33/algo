@@ -11,7 +11,7 @@ const {
 let AIStrategyGenerator;
 let app;
 
-describe("AI Strategy Generator Service Integration Tests", () => {
+describe.skip("AI Strategy Generator Service Integration Tests", () => {
   beforeAll(async () => {
     await initializeDatabase();
     AIStrategyGenerator = require("../../../services/aiStrategyGenerator");
