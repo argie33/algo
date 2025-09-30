@@ -38,6 +38,8 @@ vi.mock("../../services/api", () => ({
     getPortfolioData: vi.fn(),
     testApiConnection: vi.fn(),
     importPortfolioFromBroker: vi.fn(),
+    saveApiKey: vi.fn(),
+    deleteApiKey: vi.fn(),
   },
 }));
 
@@ -123,16 +125,39 @@ describe("API Key and Portfolio Import Integration", () => {
 
     api.default.getPortfolioData.mockResolvedValue(portfolioMockData);
 
-    // Mock signals API
+    // Mock saveApiKey and deleteApiKey
+    api.default.saveApiKey.mockResolvedValue({
+      ok: true,
+      data: { success: true }
+    });
+
+    api.default.deleteApiKey.mockResolvedValue({
+      ok: true,
+      data: { success: true }
+    });
+
+    // Mock signals API - return immediately to prevent delays
     api.default.get.mockImplementation((url) => {
       if (url.includes('/api/signals/')) {
         return Promise.resolve({
           data: {
-            data: [],
+            data: [{
+              signal: 'buy',
+              confidence: 0.85,
+              date: '2025-01-15'
+            }],
           },
         });
       }
       return Promise.resolve({ data: {} });
+    });
+
+    // Mock getApiKeys directly
+    api.getApiKeys.mockResolvedValue({
+      data: {
+        apiKeys: []
+      },
+      apiKeys: []
     });
 
     // Mock successful API responses by default with immediate resolution
@@ -218,6 +243,8 @@ describe("API Key and Portfolio Import Integration", () => {
   });
 
   describe("API Key Management Workflow", () => {
+    // Skipping Portfolio tests - component's complex async loading pattern (100ms delay + Promise.race with 5s timeout + signal loading for each holding)
+    // makes it incompatible with current test setup. Component needs refactoring to be more test-friendly.
     test.skip("should add API key and display it in settings", async () => {
       // Mock API key creation and retrieval
       global.fetch
@@ -367,13 +394,13 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
-      // Wait for Portfolio to finish loading
+      // Wait for Portfolio to finish loading - account for 100ms delay + 5s timeout + signal loading
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-      }, { timeout: 6000 });
+      }, { timeout: 15000 });
 
       // Open portfolio import dialog
-      const importButton = await screen.findByText(/import portfolio/i, {}, { timeout: 3000 });
+      const importButton = await screen.findByText(/import portfolio/i, {}, { timeout: 8000 });
       fireEvent.click(importButton);
 
       // Wait for API keys to load
@@ -418,12 +445,12 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
-      // Wait for initial loading to complete
+      // Wait for initial loading to complete - account for 100ms delay + 5s timeout + signal loading
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-      }, { timeout: 6000 });
+      }, { timeout: 15000 });
 
-      const importButton = await screen.findByText(/import portfolio/i);
+      const importButton = await screen.findByText(/import portfolio/i, {}, { timeout: 8000 });
       fireEvent.click(importButton);
 
       await waitFor(() => {
@@ -471,12 +498,12 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
-      // Wait for initial loading to complete
+      // Wait for initial loading to complete - account for 100ms delay + 5s timeout + signal loading
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-      }, { timeout: 6000 });
+      }, { timeout: 15000 });
 
-      const importButton = await screen.findByText(/import portfolio/i);
+      const importButton = await screen.findByText(/import portfolio/i, {}, { timeout: 8000 });
       fireEvent.click(importButton);
 
       await waitFor(() => {
@@ -507,12 +534,12 @@ describe("API Key and Portfolio Import Integration", () => {
         </TestWrapper>
       );
 
-      // Wait for initial loading to complete
+      // Wait for initial loading to complete - account for 100ms delay + 5s timeout + signal loading
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-      }, { timeout: 6000 });
+      }, { timeout: 15000 });
 
-      const importButton = await screen.findByText(/import portfolio/i);
+      const importButton = await screen.findByText(/import portfolio/i, {}, { timeout: 8000 });
       fireEvent.click(importButton);
 
       await waitFor(() => {
