@@ -15,6 +15,7 @@ Growth score integration completed - v1.1
 Testing GitHub Actions workflow trigger - deployment verification
 Fixed Docker image reference and database environment variables - v1.2
 CloudFormation export name corrected for workflow compatibility - v1.3
+Container name corrected to match workflow expectations - v1.4
 """
 
 import os
