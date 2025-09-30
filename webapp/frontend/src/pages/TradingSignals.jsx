@@ -474,7 +474,7 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Weinstein Stage: 1=Basing, 2=Advancing (BUY), 3=Topping, 4=Declining">
+              <Tooltip title="Weinstein Stage with Confidence Score: 1=Basing, 2=Advancing (BUY), 3=Topping, 4=Declining. Number shows confidence (0-100)">
                 <span>Stage</span>
               </Tooltip>
             </TableCell>
@@ -604,26 +604,41 @@ function TradingSignals() {
                   : "—"}
               </TableCell>
               <TableCell>
-                <Chip
-                  label={signal.market_stage?.replace("Stage ", "S") || "—"}
-                  size="small"
-                  sx={{
-                    backgroundColor:
-                      signal.market_stage === "Stage 2 - Advancing" ? "rgba(5, 150, 105, 0.2)" :
-                      signal.market_stage === "Stage 1 - Basing" ? "rgba(59, 130, 246, 0.2)" :
-                      signal.market_stage === "Stage 3 - Topping" ? "rgba(245, 158, 11, 0.2)" :
-                      signal.market_stage === "Stage 4 - Declining" ? "rgba(220, 38, 38, 0.2)" :
-                      "rgba(156, 163, 175, 0.2)",
-                    color:
-                      signal.market_stage === "Stage 2 - Advancing" ? "#059669" :
-                      signal.market_stage === "Stage 1 - Basing" ? "#3B82F6" :
-                      signal.market_stage === "Stage 3 - Topping" ? "#F59E0B" :
-                      signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
-                      "#6B7280",
-                    fontWeight: "bold",
-                    fontSize: "0.75rem",
-                  }}
-                />
+                <Tooltip title={`${signal.market_stage || "Unknown"}\nConfidence: ${signal.stage_confidence || 0}/100\n${signal.substage || ""}`}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Chip
+                      label={signal.market_stage?.replace("Stage ", "S") || "—"}
+                      size="small"
+                      sx={{
+                        backgroundColor:
+                          signal.market_stage === "Stage 2 - Advancing" ? "rgba(5, 150, 105, 0.2)" :
+                          signal.market_stage === "Stage 1 - Basing" ? "rgba(59, 130, 246, 0.2)" :
+                          signal.market_stage === "Stage 3 - Topping" ? "rgba(245, 158, 11, 0.2)" :
+                          signal.market_stage === "Stage 4 - Declining" ? "rgba(220, 38, 38, 0.2)" :
+                          "rgba(156, 163, 175, 0.2)",
+                        color:
+                          signal.market_stage === "Stage 2 - Advancing" ? "#059669" :
+                          signal.market_stage === "Stage 1 - Basing" ? "#3B82F6" :
+                          signal.market_stage === "Stage 3 - Topping" ? "#F59E0B" :
+                          signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
+                          "#6B7280",
+                        fontWeight: "bold",
+                        fontSize: "0.75rem",
+                      }}
+                    />
+                    {signal.stage_confidence && (
+                      <Typography variant="caption" sx={{
+                        fontSize: "0.65rem",
+                        color: signal.stage_confidence >= 75 ? "#059669" :
+                               signal.stage_confidence >= 60 ? "#3B82F6" :
+                               signal.stage_confidence >= 40 ? "#F59E0B" : "#DC2626",
+                        fontWeight: "bold"
+                      }}>
+                        {signal.stage_confidence}
+                      </Typography>
+                    )}
+                  </Box>
+                </Tooltip>
               </TableCell>
               <TableCell>
                 <Chip
@@ -1135,26 +1150,41 @@ function TradingSignals() {
                           : "—"}
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={signal.market_stage?.replace("Stage ", "S") || "—"}
-                          size="small"
-                          sx={{
-                            backgroundColor:
-                              signal.market_stage === "Stage 2 - Advancing" ? "rgba(5, 150, 105, 0.2)" :
-                              signal.market_stage === "Stage 1 - Basing" ? "rgba(59, 130, 246, 0.2)" :
-                              signal.market_stage === "Stage 3 - Topping" ? "rgba(245, 158, 11, 0.2)" :
-                              signal.market_stage === "Stage 4 - Declining" ? "rgba(220, 38, 38, 0.2)" :
-                              "rgba(156, 163, 175, 0.2)",
-                            color:
-                              signal.market_stage === "Stage 2 - Advancing" ? "#059669" :
-                              signal.market_stage === "Stage 1 - Basing" ? "#3B82F6" :
-                              signal.market_stage === "Stage 3 - Topping" ? "#F59E0B" :
-                              signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
-                              "#6B7280",
-                            fontWeight: "bold",
-                            fontSize: "0.7rem",
-                          }}
-                        />
+                        <Tooltip title={`${signal.market_stage || "Unknown"}\nConfidence: ${signal.stage_confidence || 0}/100\n${signal.substage || ""}`}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <Chip
+                              label={signal.market_stage?.replace("Stage ", "S") || "—"}
+                              size="small"
+                              sx={{
+                                backgroundColor:
+                                  signal.market_stage === "Stage 2 - Advancing" ? "rgba(5, 150, 105, 0.2)" :
+                                  signal.market_stage === "Stage 1 - Basing" ? "rgba(59, 130, 246, 0.2)" :
+                                  signal.market_stage === "Stage 3 - Topping" ? "rgba(245, 158, 11, 0.2)" :
+                                  signal.market_stage === "Stage 4 - Declining" ? "rgba(220, 38, 38, 0.2)" :
+                                  "rgba(156, 163, 175, 0.2)",
+                                color:
+                                  signal.market_stage === "Stage 2 - Advancing" ? "#059669" :
+                                  signal.market_stage === "Stage 1 - Basing" ? "#3B82F6" :
+                                  signal.market_stage === "Stage 3 - Topping" ? "#F59E0B" :
+                                  signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
+                                  "#6B7280",
+                                fontWeight: "bold",
+                                fontSize: "0.7rem",
+                              }}
+                            />
+                            {signal.stage_confidence && (
+                              <Typography variant="caption" sx={{
+                                fontSize: "0.6rem",
+                                color: signal.stage_confidence >= 75 ? "#059669" :
+                                       signal.stage_confidence >= 60 ? "#3B82F6" :
+                                       signal.stage_confidence >= 40 ? "#F59E0B" : "#DC2626",
+                                fontWeight: "bold"
+                              }}>
+                                {signal.stage_confidence}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Tooltip>
                       </TableCell>
                       <TableCell align="right">
                         <Chip

@@ -286,11 +286,56 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ELSE NULL
                 END as risk_reward_ratio,
 
-                -- Market stage
-                calculate_weinstein_stage(
-                    sd.current_price, td.sma_50, td.sma_200, td.sma_50_prev, td.sma_200_prev,
-                    td.adx, sd.volume, vd.volume_avg_50::BIGINT
-                ) as market_stage,
+                -- Market stage (enhanced with confidence and substage)
+                (SELECT stage FROM calculate_enhanced_stage(
+                    sd.current_price,
+                    td.sma_50,
+                    td.sma_200,
+                    td.sma_50_prev,
+                    td.sma_200_prev,
+                    td.adx,
+                    sd.volume,
+                    vd.volume_avg_50::BIGINT,
+                    td.atr,
+                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),  -- daily_range_pct
+                    'Unknown',  -- sector (to be added later)
+                    td.rsi,
+                    -20.0  -- pct_from_52w_high (to be calculated later)
+                )) as market_stage,
+
+                -- Stage confidence score
+                (SELECT confidence FROM calculate_enhanced_stage(
+                    sd.current_price,
+                    td.sma_50,
+                    td.sma_200,
+                    td.sma_50_prev,
+                    td.sma_200_prev,
+                    td.adx,
+                    sd.volume,
+                    vd.volume_avg_50::BIGINT,
+                    td.atr,
+                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                    'Unknown',
+                    td.rsi,
+                    -20.0
+                )) as stage_confidence,
+
+                -- Substage
+                (SELECT substage FROM calculate_enhanced_stage(
+                    sd.current_price,
+                    td.sma_50,
+                    td.sma_200,
+                    td.sma_50_prev,
+                    td.sma_200_prev,
+                    td.adx,
+                    sd.volume,
+                    vd.volume_avg_50::BIGINT,
+                    td.atr,
+                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                    'Unknown',
+                    td.rsi,
+                    -20.0
+                )) as substage,
 
                 -- Distance from MAs
                 ROUND(((sd.current_price - td.ema_21) / NULLIF(td.ema_21, 0) * 100)::NUMERIC, 2) as pct_from_ema_21,
@@ -373,6 +418,8 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             current_price = cm.current_price,
             risk_reward_ratio = cm.risk_reward_ratio,
             market_stage = cm.market_stage,
+            stage_confidence = cm.stage_confidence,
+            substage = cm.substage,
             pct_from_ema_21 = cm.pct_from_ema_21,
             pct_from_sma_50 = cm.pct_from_sma_50,
             pct_from_sma_200 = cm.pct_from_sma_200,
