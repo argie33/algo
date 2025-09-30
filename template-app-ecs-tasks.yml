@@ -2534,7 +2534,7 @@ Resources:
       TaskRoleArn: !GetAtt ECSTaskRole.Arn
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: stock-scores-loader
+        - Name: stockscores-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref StockScoresImageTag]]
           Essential: true
           LogConfiguration:
