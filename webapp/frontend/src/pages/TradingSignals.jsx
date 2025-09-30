@@ -839,18 +839,20 @@ function TradingSignals() {
       </Grid>
 
 
-      {/* Filters and Search */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
-          <Card sx={{ position: "sticky", top: 20 }}>
-            <CardContent>
+      {/* Filters and Search - Horizontal Layout */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12}>
               <Typography variant="h6" gutterBottom>
                 <FilterList sx={{ mr: 1 }} />
                 Filters
               </Typography>
               <Divider sx={{ mb: 2 }} />
+            </Grid>
 
-              {/* Search */}
+            {/* Search */}
+            <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
                 size="small"
@@ -872,20 +874,12 @@ function TradingSignals() {
                     </InputAdornment>
                   ),
                 }}
-                sx={{ mb: 2 }}
               />
+            </Grid>
 
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={handleSearch}
-                sx={{ mb: 3 }}
-              >
-                Search
-              </Button>
-
-              {/* Signal Type Filter */}
-              <FormControl fullWidth sx={{ mb: 2 }}>
+            {/* Signal Type Filter */}
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth size="small">
                 <InputLabel>Signal Type</InputLabel>
                 <Select
                   value={signalType}
@@ -897,9 +891,11 @@ function TradingSignals() {
                   <MenuItem value="sell">Sell Only</MenuItem>
                 </Select>
               </FormControl>
+            </Grid>
 
-              {/* Timeframe Filter */}
-              <FormControl fullWidth sx={{ mb: 2 }}>
+            {/* Timeframe Filter */}
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth size="small">
                 <InputLabel>Timeframe</InputLabel>
                 <Select
                   value={timeframe}
@@ -911,8 +907,10 @@ function TradingSignals() {
                   <MenuItem value="monthly">Monthly</MenuItem>
                 </Select>
               </FormControl>
+            </Grid>
 
-              {/* Toggle Switches */}
+            {/* Toggle Switches */}
+            <Grid item xs={12} md={2}>
               <FormControlLabel
                 control={
                   <Switch
@@ -921,13 +919,26 @@ function TradingSignals() {
                   />
                 }
                 label="Latest Only"
-                sx={{ mb: 1 }}
               />
-            </CardContent>
-          </Card>
-        </Grid>
+            </Grid>
 
-        <Grid item xs={12} md={9}>
+            <Grid item xs={12} md={2}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleSearch}
+                size="medium"
+              >
+                Search
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Main Signals Table - Full Width */}
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
           {/* Standardized Error Handling */}
           {signalsError && (
             <ErrorDisplay
