@@ -132,18 +132,19 @@ def create_stock_scores_table(conn):
         return False
 
 def get_stock_symbols(conn, limit=None):
-    """Get stock symbols directly from price_daily table.
-    Only returns symbols that have price data available."""
+    """Get stock symbols from stock_symbols table.
+    Returns all symbols - price data availability will be checked later."""
     try:
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Get symbols directly from price_daily to ensure we only process symbols with data
-        # No need to join with stock_symbols since we need price data regardless
+        # Get all symbols from stock_symbols table
+        # Price data availability is checked when processing each symbol
         limit_clause = f"LIMIT {limit}" if limit else ""
         cur.execute(f"""
-            SELECT DISTINCT symbol
-            FROM price_daily
+            SELECT symbol
+            FROM stock_symbols
+            WHERE exchange IN ('NASDAQ', 'New York Stock Exchange')
             ORDER BY symbol
             {limit_clause}
         """)
@@ -477,7 +478,7 @@ def main():
 
         # Get stock symbols
         try:
-            symbols = get_stock_symbols(conn)  # Process all symbols with price data
+            symbols = get_stock_symbols(conn)  # Process all symbols
             if not symbols:
                 logger.error("❌ No stock symbols found")
                 return False
