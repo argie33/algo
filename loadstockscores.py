@@ -24,6 +24,7 @@ Migration fix for last_updated column - v1.9
 Robust migration with step-by-step table creation - v1.10
 Clean slate - drop and recreate table with correct schema - v1.11
 Use stock_symbols table like other loaders - v1.12
+Add fallback to stock_prices if stock_symbols is empty - v1.13
 """
 
 import os
@@ -131,13 +132,12 @@ def create_stock_scores_table(conn):
         return False
 
 def get_stock_symbols(conn, limit=100):
-    """Get stock symbols from stock_symbols table."""
+    """Get stock symbols from stock_symbols table, fallback to stock_prices."""
     try:
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Get symbols from stock_symbols table (matches other loaders)
-        # Filter for symbols that have price data
+        # Try stock_symbols table first (matches other loaders)
         cur.execute("""
             SELECT ss.symbol
             FROM stock_symbols ss
@@ -153,13 +153,26 @@ def get_stock_symbols(conn, limit=100):
 
         logger.info("🔍 Query executed, fetching results...")
         rows = cur.fetchall()
-        logger.info(f"Query returned {len(rows)} rows")
+        logger.info(f"Query returned {len(rows)} rows from stock_symbols")
 
         if rows:
             logger.info(f"First row: {rows[0]}")
             symbols = [row[0] for row in rows]
         else:
-            symbols = []
+            # Fallback: If stock_symbols is empty, query stock_prices directly
+            logger.warning("⚠️ stock_symbols table is empty, falling back to stock_prices")
+            cur.execute("""
+                SELECT DISTINCT symbol
+                FROM stock_prices
+                WHERE symbol IS NOT NULL
+                GROUP BY symbol
+                HAVING COUNT(*) >= 20
+                ORDER BY symbol
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
+            logger.info(f"Query returned {len(rows)} rows from stock_prices fallback")
+            symbols = [row[0] for row in rows] if rows else []
 
         cur.close()
         logger.info(f"📊 Retrieved {len(symbols)} stock symbols")
