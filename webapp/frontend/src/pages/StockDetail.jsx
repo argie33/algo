@@ -1581,11 +1581,7 @@ function StockDetail() {
                 <Box mb={3}>
                   <ResponsiveContainer width="100%" height={200}>
                     <LineChart
-                      data={
-                        financialHistory?.length > 0
-                          ? financialHistory
-                          : []
-                      }
+                      data={[]}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="year" />

@@ -449,63 +449,63 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="25% profit target (buys) / 15% profit target (sells)">
-                <span>Target</span>
+              <Tooltip title="25% Target - Sell another 20-25%, let final 25% run with trailing stop">
+                <span>Target (25%)</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="8% first profit target">
+              <Tooltip title="8% Target - Sell 20-25% of position, move stop to breakeven">
                 <span>8% Target</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="20% major profit target">
+              <Tooltip title="20% Target - Sell another 25-30% of position">
                 <span>20% Target</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Reward divided by risk (minimum 2:1)">
+              <Tooltip title="Risk/Reward Ratio - Minimum 2:1 acceptable, 3:1+ excellent">
                 <span>R/R</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Risk percentage (distance to stop)">
+              <Tooltip title="Risk % - Maximum 8% acceptable, avoid trades >10%">
                 <span>Risk %</span>
               </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Weinstein Stage with Confidence Score: 1=Basing, 2=Advancing (BUY), 3=Topping, 4=Declining. Number shows confidence (0-100)">
+              <Tooltip title="Stage & Confidence: Stage 2=BUY zone, confidence 60+ required. Hover to see substage (Early/Mid/Late)">
                 <span>Stage</span>
               </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Volume analysis: Pocket Pivot = 200%+ volume surge">
+              <Tooltip title="Volume: Pocket Pivot (200%+ surge) = STRONG BUY, Volume Surge (150%+) = Good, Normal = OK, Dry-up (<70%) = Wait">
                 <span>Volume</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Distance from 21 EMA (buy zone: within 1-2%)">
+              <Tooltip title="21 EMA Distance: -1% to +2% = perfect pullback entry, >5% = too extended">
                 <span>21 EMA %</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="RSI (40-55 = pullback in uptrend)">
+              <Tooltip title="RSI: 40-55 = BEST buy zone (pullback in uptrend), 55-70 = good, >70 = overbought">
                 <span>RSI</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="ADX (>25 = strong trend)">
+              <Tooltip title="ADX: >30 = very strong trend (best), 25-30 = strong, 20-25 = moderate, <20 = avoid">
                 <span>ADX</span>
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Entry quality score (0-100): 80+ excellent, 60+ good, 40+ average">
+              <Tooltip title="Entry Quality: 80+ = excellent (full position), 60-79 = good, 40-59 = average (half position), <40 = skip">
                 <span>Quality</span>
               </Tooltip>
             </TableCell>
             <TableCell align="center" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Passes 7-point trend template">
-                <span>Template</span>
+              <Tooltip title="Passes 7-point trend template: Price > 50/150/200 SMA, SMAs aligned, Price 0-30% above 200 SMA, 200 SMA rising">
+                <span>Trend ✓</span>
               </Tooltip>
             </TableCell>
             <TableCell align="center" sx={{ fontWeight: "bold" }}>
@@ -1111,7 +1111,7 @@ function TradingSignals() {
                     <TableCell align="right">% from 21 EMA</TableCell>
                     <TableCell align="right">RSI</TableCell>
                     <TableCell align="right">ADX</TableCell>
-                    <TableCell align="center">Minervini</TableCell>
+                    <TableCell align="center">Trend ✓</TableCell>
                     <TableCell align="center">Status</TableCell>
                   </TableRow>
                 </TableHead>
