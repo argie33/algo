@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Updated: 2025-01-17 - Trigger full technical data loading for stock APIs - run now
-# Force technical indicators calculation for all stocks in database
-# CRITICAL FIX attempt 8: Fixed deployment condition logic error - Sep 18 2025 22:31 CDT
+# Updated: 2025-09-30 - Calculate Mansfield RS with SPY benchmark - run now
+# Populate technical_data_daily.mansfield_rs for all stocks in database
+# SATA Score implementation: Mansfield RS calculation added - Sep 30 2025
 import concurrent.futures
 import gc
 import json

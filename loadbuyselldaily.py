@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Updated: Buy sell daily loader for AWS deployment - test CI/CD fix Sep 28 2025
+# Updated: 2025-09-30 - Calculate SATA scores with Mansfield RS - run now
+# Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
 import json
 import logging
 import os
