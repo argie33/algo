@@ -478,6 +478,16 @@ function TradingSignals() {
                 <span>Stage</span>
               </Tooltip>
             </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="SATA Score (0-10): Stage Analysis Technical Attributes score from stageanalysis.com. 8-10 = Strong Stage 2, 4-7 = Stage 1/3, 0-3 = Stage 4">
+                <span>SATA</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Mansfield RS: Relative Strength vs S&P 500. >0 = outperforming market, <0 = underperforming">
+                <span>RS</span>
+              </Tooltip>
+            </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>
               <Tooltip title="Volume: Pocket Pivot (200%+ surge) = STRONG BUY, Volume Surge (150%+) = Good, Normal = OK, Dry-up (<70%) = Wait">
                 <span>Volume</span>
@@ -639,6 +649,37 @@ function TradingSignals() {
                     )}
                   </Box>
                 </Tooltip>
+              </TableCell>
+              <TableCell align="right">
+                <Chip
+                  label={signal.sata_score !== null && signal.sata_score !== undefined ? signal.sata_score : "—"}
+                  size="small"
+                  sx={{
+                    backgroundColor:
+                      signal.sata_score >= 8 ? "rgba(5, 150, 105, 0.2)" :
+                      signal.sata_score >= 4 ? "rgba(59, 130, 246, 0.2)" :
+                      "rgba(220, 38, 38, 0.2)",
+                    color:
+                      signal.sata_score >= 8 ? "#059669" :
+                      signal.sata_score >= 4 ? "#3B82F6" :
+                      "#DC2626",
+                    fontWeight: "bold",
+                    fontSize: "0.75rem",
+                  }}
+                />
+              </TableCell>
+              <TableCell align="right">
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: signal.mansfield_rs > 0 ? "#059669" : "#DC2626",
+                    fontWeight: signal.mansfield_rs !== 0 ? "bold" : "normal",
+                  }}
+                >
+                  {signal.mansfield_rs !== null && signal.mansfield_rs !== undefined
+                    ? Number(signal.mansfield_rs).toFixed(1)
+                    : "—"}
+                </Typography>
               </TableCell>
               <TableCell>
                 <Chip
@@ -1055,6 +1096,8 @@ function TradingSignals() {
                     <TableCell align="right">Target</TableCell>
                     <TableCell align="right">R/R Ratio</TableCell>
                     <TableCell>Stage</TableCell>
+                    <TableCell align="right">SATA</TableCell>
+                    <TableCell align="right">RS</TableCell>
                     <TableCell align="right">Quality</TableCell>
                     <TableCell>Volume</TableCell>
                     <TableCell align="right">% from 21 EMA</TableCell>
@@ -1134,6 +1177,38 @@ function TradingSignals() {
                             )}
                           </Box>
                         </Tooltip>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={signal.sata_score !== null && signal.sata_score !== undefined ? signal.sata_score : "—"}
+                          size="small"
+                          sx={{
+                            backgroundColor:
+                              signal.sata_score >= 8 ? "rgba(5, 150, 105, 0.2)" :
+                              signal.sata_score >= 4 ? "rgba(59, 130, 246, 0.2)" :
+                              "rgba(220, 38, 38, 0.2)",
+                            color:
+                              signal.sata_score >= 8 ? "#059669" :
+                              signal.sata_score >= 4 ? "#3B82F6" :
+                              "#DC2626",
+                            fontWeight: "bold",
+                            fontSize: "0.7rem",
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: signal.mansfield_rs > 0 ? "#059669" : "#DC2626",
+                            fontWeight: signal.mansfield_rs !== 0 ? "bold" : "normal",
+                            fontSize: "0.75rem",
+                          }}
+                        >
+                          {signal.mansfield_rs !== null && signal.mansfield_rs !== undefined
+                            ? Number(signal.mansfield_rs).toFixed(1)
+                            : "—"}
+                        </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Chip
