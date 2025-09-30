@@ -97,11 +97,72 @@ def create_buy_sell_table(cur):
         signal       VARCHAR(10),
         buylevel     REAL,
         stoplevel    REAL,
+        selllevel    REAL,
         inposition   BOOLEAN,
+        -- Swing Trading Metrics (O'Neill/Minervini)
+        target_price REAL,
+        current_price REAL,
+        risk_reward_ratio NUMERIC(6,2),
+        market_stage VARCHAR(30),
+        pct_from_ema_21 NUMERIC(6,2),
+        pct_from_sma_50 NUMERIC(6,2),
+        pct_from_sma_200 NUMERIC(6,2),
+        volume_ratio NUMERIC(6,2),
+        volume_analysis VARCHAR(30),
+        entry_quality_score INTEGER,
+        profit_target_8pct REAL,
+        profit_target_20pct REAL,
+        current_gain_loss_pct NUMERIC(6,2),
+        risk_pct NUMERIC(6,2),
+        position_size_recommendation NUMERIC(10,2),
+        passes_minervini_template BOOLEAN DEFAULT FALSE,
+        rsi NUMERIC(6,2),
+        adx NUMERIC(6,2),
+        atr NUMERIC(10,4),
+        daily_range_pct NUMERIC(6,2),
         UNIQUE(symbol, timeframe, date)
       );
     """
     )
+    # Create stage function if not exists
+    cur.execute("""
+    CREATE OR REPLACE FUNCTION calculate_weinstein_stage(
+        current_price NUMERIC,
+        sma_50_current NUMERIC,
+        sma_200_current NUMERIC,
+        sma_50_prev NUMERIC,
+        sma_200_prev NUMERIC,
+        adx_value NUMERIC,
+        volume_current BIGINT,
+        volume_avg_50 BIGINT
+    ) RETURNS TEXT AS $$
+    DECLARE
+        sma_50_slope NUMERIC;
+        sma_200_slope NUMERIC;
+        stage TEXT;
+    BEGIN
+        sma_50_slope := (sma_50_current - sma_50_prev) / NULLIF(sma_50_prev, 0) * 100;
+        sma_200_slope := (sma_200_current - sma_200_prev) / NULLIF(sma_200_prev, 0) * 100;
+
+        IF (current_price > sma_50_current AND current_price > sma_200_current AND
+            sma_50_current > sma_200_current AND sma_50_slope > 0.1 AND
+            sma_200_slope > 0 AND COALESCE(adx_value, 0) > 25) THEN
+            stage := 'Stage 2 - Advancing';
+        ELSIF (current_price < sma_50_current AND current_price < sma_200_current AND
+               sma_50_current < sma_200_current AND sma_50_slope < -0.1 AND
+               COALESCE(adx_value, 0) > 20) THEN
+            stage := 'Stage 4 - Declining';
+        ELSIF (current_price > sma_200_current AND
+               (sma_50_slope < 0 OR ABS(sma_50_slope) < 0.1) AND
+               COALESCE(adx_value, 0) < 25) THEN
+            stage := 'Stage 3 - Topping';
+        ELSE
+            stage := 'Stage 1 - Basing';
+        END IF;
+        RETURN stage;
+    END;
+    $$ LANGUAGE plpgsql IMMUTABLE;
+    """)
 
 
 def insert_symbol_results(cur, symbol, timeframe, df):
