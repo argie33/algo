@@ -69,7 +69,7 @@ describe("Signals Routes - Integration Tests", () => {
   });
 
   describe("GET /api/signals - Database Schema Integration", () => {
-    test("should return signals with proper loader table schema structure", async () => {
+    test("should return signals with proper loader table schema structure including swing metrics", async () => {
       const response = await request(app).get("/api/signals");
 
       expect(response.status).toBe(200);
@@ -88,11 +88,42 @@ describe("Signals Routes - Integration Tests", () => {
         expect(signal).toHaveProperty("signal");
         expect(signal).toHaveProperty("date");
         expect(signal).toHaveProperty("timeframe");
-        // Formatted fields derived from loader schema
-        expect(signal).toHaveProperty("confidence");
-        expect(signal).toHaveProperty("currentPrice");
+        expect(signal).toHaveProperty("buylevel");
+        expect(signal).toHaveProperty("stoplevel");
+        expect(signal).toHaveProperty("inposition");
+
+        // Swing trading metrics (24 new fields)
+        expect(signal).toHaveProperty("target_price");
+        expect(signal).toHaveProperty("current_price");
+        expect(signal).toHaveProperty("risk_reward_ratio");
+        expect(signal).toHaveProperty("market_stage");
+        expect(signal).toHaveProperty("pct_from_ema_21");
+        expect(signal).toHaveProperty("pct_from_sma_50");
+        expect(signal).toHaveProperty("pct_from_sma_200");
+        expect(signal).toHaveProperty("volume_ratio");
+        expect(signal).toHaveProperty("volume_analysis");
+        expect(signal).toHaveProperty("entry_quality_score");
+        expect(signal).toHaveProperty("profit_target_8pct");
+        expect(signal).toHaveProperty("profit_target_20pct");
+        expect(signal).toHaveProperty("risk_pct");
+        expect(signal).toHaveProperty("position_size_recommendation");
+        expect(signal).toHaveProperty("passes_minervini_template");
+        expect(signal).toHaveProperty("rsi");
+        expect(signal).toHaveProperty("adx");
+        expect(signal).toHaveProperty("atr");
+        expect(signal).toHaveProperty("daily_range_pct");
+
+        // Type validation
         expect(typeof signal.symbol).toBe("string");
         expect(["BUY", "SELL", "HOLD"].includes(signal.signal)).toBe(true);
+
+        // Swing metrics validation
+        if (signal.market_stage) {
+          expect(["Stage 1 - Basing", "Stage 2 - Advancing", "Stage 3 - Topping", "Stage 4 - Declining"].includes(signal.market_stage)).toBe(true);
+        }
+        if (signal.volume_analysis) {
+          expect(["Pocket Pivot", "Volume Surge", "Volume Dry-up", "Normal Volume"].includes(signal.volume_analysis)).toBe(true);
+        }
       }
     });
 
@@ -138,7 +169,7 @@ describe("Signals Routes - Integration Tests", () => {
   });
 
   describe("GET /api/signals/buy - Loader Schema Integration", () => {
-    test("should return buy signals with exact loader table schema structure", async () => {
+    test("should return buy signals with exact loader table schema structure including swing metrics", async () => {
       const response = await request(app).get("/api/signals/buy");
 
       if (response.status === 200) {
@@ -149,20 +180,37 @@ describe("Signals Routes - Integration Tests", () => {
 
         if (response.body.data.length > 0) {
           const signal = response.body.data[0];
-          // Fields from buy_sell_daily loader table
+          // Core fields from buy_sell_daily loader table
           expect(signal).toHaveProperty("symbol");
           expect(signal).toHaveProperty("signal", "BUY");
           expect(signal).toHaveProperty("signal_type", "BUY");
           expect(signal).toHaveProperty("date");
           expect(signal).toHaveProperty("timeframe");
+          expect(signal).toHaveProperty("buylevel");
+          expect(signal).toHaveProperty("stoplevel");
+
+          // Swing trading metrics validation
+          expect(signal).toHaveProperty("target_price");
           expect(signal).toHaveProperty("current_price");
-          expect(signal).toHaveProperty("buy_level");
-          expect(signal).toHaveProperty("stop_level");
-          expect(signal).toHaveProperty("confidence");
+          expect(signal).toHaveProperty("risk_reward_ratio");
+          expect(signal).toHaveProperty("market_stage");
+          expect(signal).toHaveProperty("profit_target_8pct");
+          expect(signal).toHaveProperty("profit_target_20pct");
+          expect(signal).toHaveProperty("entry_quality_score");
+          expect(signal).toHaveProperty("volume_analysis");
+          expect(signal).toHaveProperty("rsi");
+          expect(signal).toHaveProperty("adx");
+
           // Type validation
           expect(typeof signal.symbol).toBe("string");
-          expect(typeof signal.current_price).toBe("number");
-          expect(typeof signal.confidence).toBe("number");
+          if (signal.current_price !== null) {
+            expect(typeof signal.current_price).toBe("number");
+          }
+          if (signal.entry_quality_score !== null) {
+            expect(typeof signal.entry_quality_score).toBe("number");
+            expect(signal.entry_quality_score).toBeGreaterThanOrEqual(0);
+            expect(signal.entry_quality_score).toBeLessThanOrEqual(100);
+          }
         }
       } else {
         // Handle gracefully when no buy_sell_daily table exists

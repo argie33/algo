@@ -35,54 +35,77 @@ describe("TradingSignals", () => {
     {
       id: "1",
       symbol: "AAPL",
+      company_name: "Apple Inc.",
       signal: "BUY",
       strength: "Strong",
-      price: 160.5,
-      targetPrice: 175.0,
-      stopLoss: 145.0,
-      confidence: 85,
-      timeframe: "1D",
+      date: "2024-01-15",
+      buylevel: 160.5,
+      stoplevel: 145.0,
+      target_price: 175.0,
+      profit_target_8pct: 173.34,
+      profit_target_20pct: 192.6,
+      current_price: 160.5,
+      risk_reward_ratio: 3.5,
+      risk_pct: 9.6,
+      market_stage: "Stage 2 - Advancing",
+      volume_ratio: 2.1,
+      volume_analysis: "Pocket Pivot",
+      pct_from_ema_21: 1.5,
+      pct_from_sma_50: 5.2,
+      pct_from_sma_200: 12.3,
+      entry_quality_score: 85,
+      passes_minervini_template: true,
+      rsi: 65,
+      adx: 32,
+      atr: 2.5,
+      daily_range_pct: 1.8,
+      inposition: false,
+      timeframe: "daily",
       timestamp: "2024-01-15T10:30:00Z",
       source: "Technical Analysis",
       description: "Golden cross pattern with high volume",
       sector: "Technology",
-      marketCap: 2500000000000,
       volume: 50000000,
       change: 2.5,
       changePercent: 1.58,
-      indicators: {
-        rsi: 65,
-        macd: "Bullish",
-        movingAverage: "Above 50-day",
-        support: 155.0,
-        resistance: 165.0,
-      },
     },
     {
       id: "2",
       symbol: "TSLA",
+      company_name: "Tesla Inc.",
       signal: "SELL",
       strength: "Moderate",
-      price: 180.25,
-      targetPrice: 160.0,
-      stopLoss: 195.0,
-      confidence: 70,
-      timeframe: "4H",
+      date: "2024-01-15",
+      buylevel: 180.25,
+      stoplevel: 195.0,
+      selllevel: 180.25,
+      target_price: 160.0,
+      profit_target_8pct: 165.83,
+      profit_target_20pct: 144.2,
+      current_price: 180.25,
+      risk_reward_ratio: 2.5,
+      risk_pct: 8.2,
+      market_stage: "Stage 4 - Declining",
+      volume_ratio: 1.6,
+      volume_analysis: "Volume Surge",
+      pct_from_ema_21: -3.2,
+      pct_from_sma_50: -8.5,
+      pct_from_sma_200: -15.7,
+      entry_quality_score: 70,
+      passes_minervini_template: false,
+      rsi: 25,
+      adx: 28,
+      atr: 3.2,
+      daily_range_pct: 2.5,
+      inposition: true,
+      timeframe: "daily",
       timestamp: "2024-01-15T09:15:00Z",
       source: "Sentiment Analysis",
       description: "Bearish divergence with negative news sentiment",
       sector: "Automotive",
-      marketCap: 580000000000,
       volume: 75000000,
       change: -5.75,
       changePercent: -3.09,
-      indicators: {
-        rsi: 25,
-        macd: "Bearish",
-        movingAverage: "Below 20-day",
-        support: 175.0,
-        resistance: 190.0,
-      },
     },
   ];
 
@@ -286,9 +309,8 @@ describe("TradingSignals", () => {
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
         expect(screen.getByText("BUY")).toBeInTheDocument();
-        expect(screen.getByText("Strong")).toBeInTheDocument();
-        expect(screen.getByText("$160.50")).toBeInTheDocument();
-        expect(screen.getByText("85%")).toBeInTheDocument();
+        // Entry quality score displayed
+        expect(screen.getByText("85")).toBeInTheDocument();
       });
     });
 
@@ -296,8 +318,21 @@ describe("TradingSignals", () => {
       render(<TradingSignals />, { wrapper: TestWrapper });
 
       await waitFor(() => {
-        expect(screen.getByText("$175.00")).toBeInTheDocument(); // Target
-        expect(screen.getByText("$145.00")).toBeInTheDocument(); // Stop loss
+        expect(screen.getByText("175.00")).toBeInTheDocument(); // Target
+        expect(screen.getByText("145.00")).toBeInTheDocument(); // Stop loss
+      });
+    });
+
+    it("should display swing trading metrics", async () => {
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        // Should display market stage
+        expect(screen.getByText(/Stage 2 - Advancing/)).toBeInTheDocument();
+        // Should display volume analysis
+        expect(screen.getByText(/Pocket Pivot/)).toBeInTheDocument();
+        // Should display RSI
+        expect(screen.getByText("65")).toBeInTheDocument();
       });
     });
 
@@ -305,16 +340,26 @@ describe("TradingSignals", () => {
       render(<TradingSignals />, { wrapper: TestWrapper });
 
       await waitFor(() => {
-        expect(screen.getByText(/10:30/)).toBeInTheDocument();
+        expect(screen.getByText(/2024-01-15/)).toBeInTheDocument();
       });
     });
 
-    it("should display technical indicators", async () => {
+    it("should display profit targets", async () => {
       render(<TradingSignals />, { wrapper: TestWrapper });
 
       await waitFor(() => {
-        expect(screen.getByText("RSI: 65")).toBeInTheDocument();
-        expect(screen.getByText("Bullish")).toBeInTheDocument(); // MACD
+        // 8% profit target
+        expect(screen.getByText("173.34")).toBeInTheDocument();
+        // 20% profit target
+        expect(screen.getByText("192.60")).toBeInTheDocument();
+      });
+    });
+
+    it("should display risk/reward ratio", async () => {
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("3.5")).toBeInTheDocument();
       });
     });
   });

@@ -106,7 +106,7 @@ describe("API Endpoints Contract Tests", () => {
   });
 
   describe("Trading Endpoints", () => {
-    it("should return trading signals", async () => {
+    it("should return trading signals with swing trading metrics", async () => {
       if (!serverAvailable) return;
 
       const response = await fetch(`${API_BASE_URL}/api/signals/`);
@@ -118,6 +118,41 @@ describe("API Endpoints Contract Tests", () => {
       expect(data).toHaveProperty("summary");
       expect(data.summary).toHaveProperty("buy_signals");
       expect(data.summary).toHaveProperty("sell_signals");
+
+      // Validate swing trading metrics in signal data
+      if (data.data && data.data.length > 0) {
+        const signal = data.data[0];
+
+        // Core signal fields
+        expect(signal).toHaveProperty("symbol");
+        expect(signal).toHaveProperty("signal");
+        expect(signal).toHaveProperty("date");
+        expect(signal).toHaveProperty("timeframe");
+        expect(signal).toHaveProperty("buylevel");
+        expect(signal).toHaveProperty("stoplevel");
+
+        // Swing trading metrics (24 new fields)
+        expect(signal).toHaveProperty("target_price");
+        expect(signal).toHaveProperty("current_price");
+        expect(signal).toHaveProperty("risk_reward_ratio");
+        expect(signal).toHaveProperty("market_stage");
+        expect(signal).toHaveProperty("pct_from_ema_21");
+        expect(signal).toHaveProperty("pct_from_sma_50");
+        expect(signal).toHaveProperty("pct_from_sma_200");
+        expect(signal).toHaveProperty("volume_ratio");
+        expect(signal).toHaveProperty("volume_analysis");
+        expect(signal).toHaveProperty("entry_quality_score");
+        expect(signal).toHaveProperty("profit_target_8pct");
+        expect(signal).toHaveProperty("profit_target_20pct");
+        expect(signal).toHaveProperty("risk_pct");
+        expect(signal).toHaveProperty("position_size_recommendation");
+        expect(signal).toHaveProperty("passes_minervini_template");
+        expect(signal).toHaveProperty("rsi");
+        expect(signal).toHaveProperty("adx");
+        expect(signal).toHaveProperty("atr");
+        expect(signal).toHaveProperty("daily_range_pct");
+        expect(signal).toHaveProperty("inposition");
+      }
     });
 
     it("should return recent trades", async () => {
