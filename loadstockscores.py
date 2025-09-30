@@ -137,17 +137,12 @@ def get_stock_symbols(conn, limit=100):
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Try stock_symbols table first (matches other loaders)
+        # Query stock_symbols table
         cur.execute("""
-            SELECT ss.symbol
-            FROM stock_symbols ss
-            WHERE EXISTS (
-                SELECT 1 FROM stock_prices sp
-                WHERE sp.symbol = ss.symbol
-                GROUP BY sp.symbol
-                HAVING COUNT(*) >= 20
-            )
-            ORDER BY ss.symbol
+            SELECT symbol
+            FROM stock_symbols
+            WHERE symbol IS NOT NULL
+            ORDER BY symbol
             LIMIT %s
         """, (limit,))
 
@@ -159,20 +154,8 @@ def get_stock_symbols(conn, limit=100):
             logger.info(f"First row: {rows[0]}")
             symbols = [row[0] for row in rows]
         else:
-            # Fallback: If stock_symbols is empty, query stock_prices directly
-            logger.warning("⚠️ stock_symbols table is empty, falling back to stock_prices")
-            cur.execute("""
-                SELECT DISTINCT symbol
-                FROM stock_prices
-                WHERE symbol IS NOT NULL
-                GROUP BY symbol
-                HAVING COUNT(*) >= 20
-                ORDER BY symbol
-                LIMIT %s
-            """, (limit,))
-            rows = cur.fetchall()
-            logger.info(f"Query returned {len(rows)} rows from stock_prices fallback")
-            symbols = [row[0] for row in rows] if rows else []
+            logger.error("❌ No symbols found in stock_symbols table")
+            symbols = []
 
         cur.close()
         logger.info(f"📊 Retrieved {len(symbols)} stock symbols")
