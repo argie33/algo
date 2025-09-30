@@ -406,19 +406,46 @@ function TradingSignals() {
           <TableRow sx={{ backgroundColor: "grey.50" }}>
             <TableCell sx={{ fontWeight: "bold" }}>Symbol</TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>Company</TableCell>
-            <TableCell sx={{ fontWeight: "bold" }}>Sector</TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>Signal</TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              Current Price
+              <Tooltip title="Current market price">
+                <span>Price</span>
+              </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              Market Cap
+              <Tooltip title="Entry price for position">
+                <span>Buy Level</span>
+              </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              P/E
+              <Tooltip title="Stop loss price (7-8% max risk)">
+                <span>Stop Loss</span>
+              </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              Dividend Yield
+              <Tooltip title="25% profit target (buys) / 15% profit target (sells)">
+                <span>Target</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Reward divided by risk (minimum 2:1)">
+                <span>R/R</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Weinstein Stage: 1=Basing, 2=Advancing (BUY), 3=Topping, 4=Declining">
+                <span>Stage</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Entry quality score (0-100): 80+ excellent, 60+ good, 40+ average">
+                <span>Quality</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="center" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Currently holding this position">
+                <span>In Position</span>
+              </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
           </TableRow>
@@ -472,11 +499,6 @@ function TradingSignals() {
                 </Typography>
               </TableCell>
               <TableCell>
-                <Typography variant="body2" noWrap>
-                  {signal.sector}
-                </Typography>
-              </TableCell>
-              <TableCell>
                 <Tooltip
                   title={
                     isRecentSignal(signal.date)
@@ -488,22 +510,83 @@ function TradingSignals() {
                 </Tooltip>
               </TableCell>
               <TableCell align="right">
-                {formatCurrency(signal.current_price)}
+                {formatCurrency(signal.current_price || signal.close)}
               </TableCell>
               <TableCell align="right">
-                {signal.market_cap
-                  ? `$${(+signal.market_cap).toLocaleString()}`
-                  : "—"}
+                {formatCurrency(signal.buylevel)}
               </TableCell>
               <TableCell align="right">
-                {signal.trailing_pe && !isNaN(Number(signal.trailing_pe))
-                  ? Number(signal.trailing_pe).toFixed(2)
-                  : "—"}
+                {formatCurrency(signal.stoplevel)}
               </TableCell>
               <TableCell align="right">
-                {signal.dividend_yield
-                  ? formatPercentage(signal.dividend_yield)
+                {signal.target_price ? formatCurrency(signal.target_price) : "—"}
+              </TableCell>
+              <TableCell align="right">
+                {signal.risk_reward_ratio
+                  ? `${Number(signal.risk_reward_ratio).toFixed(1)}:1`
                   : "—"}
+              </TableCell>
+              <TableCell>
+                <Chip
+                  label={signal.market_stage || "Unknown"}
+                  size="small"
+                  sx={{
+                    backgroundColor:
+                      signal.market_stage === "Stage 2 - Advancing" ? "rgba(5, 150, 105, 0.2)" :
+                      signal.market_stage === "Stage 1 - Basing" ? "rgba(59, 130, 246, 0.2)" :
+                      signal.market_stage === "Stage 3 - Topping" ? "rgba(245, 158, 11, 0.2)" :
+                      signal.market_stage === "Stage 4 - Declining" ? "rgba(220, 38, 38, 0.2)" :
+                      "rgba(156, 163, 175, 0.2)",
+                    color:
+                      signal.market_stage === "Stage 2 - Advancing" ? "#059669" :
+                      signal.market_stage === "Stage 1 - Basing" ? "#3B82F6" :
+                      signal.market_stage === "Stage 3 - Topping" ? "#F59E0B" :
+                      signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
+                      "#6B7280",
+                    fontWeight: "bold",
+                  }}
+                />
+              </TableCell>
+              <TableCell align="right">
+                <Chip
+                  label={signal.entry_quality_score || "—"}
+                  size="small"
+                  sx={{
+                    backgroundColor:
+                      signal.entry_quality_score >= 80 ? "rgba(5, 150, 105, 0.2)" :
+                      signal.entry_quality_score >= 60 ? "rgba(59, 130, 246, 0.2)" :
+                      signal.entry_quality_score >= 40 ? "rgba(245, 158, 11, 0.2)" :
+                      "rgba(220, 38, 38, 0.2)",
+                    color:
+                      signal.entry_quality_score >= 80 ? "#059669" :
+                      signal.entry_quality_score >= 60 ? "#3B82F6" :
+                      signal.entry_quality_score >= 40 ? "#F59E0B" :
+                      "#DC2626",
+                    fontWeight: "bold",
+                  }}
+                />
+              </TableCell>
+              <TableCell align="center">
+                {signal.inposition ? (
+                  <Chip
+                    label="YES"
+                    size="small"
+                    sx={{
+                      backgroundColor: "rgba(5, 150, 105, 0.2)",
+                      color: "#059669",
+                      fontWeight: "bold",
+                    }}
+                  />
+                ) : (
+                  <Chip
+                    label="NO"
+                    size="small"
+                    sx={{
+                      backgroundColor: "rgba(156, 163, 175, 0.2)",
+                      color: "#6B7280",
+                    }}
+                  />
+                )}
               </TableCell>
               <TableCell>
                 <Typography variant="body2">

@@ -144,7 +144,13 @@ router.get("/", async (req, res) => {
     const signalsQuery = `
       SELECT
         symbol, date, timeframe, signal, open, high, low, close, volume,
-        buylevel, stoplevel, inposition
+        buylevel, stoplevel, inposition,
+        selllevel, target_price, current_price, risk_reward_ratio,
+        market_stage, pct_from_ema_21, pct_from_sma_50, pct_from_sma_200,
+        volume_ratio, volume_analysis, entry_quality_score,
+        profit_target_8pct, profit_target_20pct, current_gain_loss_pct,
+        risk_pct, position_size_recommendation, passes_minervini_template,
+        rsi, adx, atr, daily_range_pct
       FROM ${tableName}
       ${whereClause}
       ORDER BY date DESC, symbol
