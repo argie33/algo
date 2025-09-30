@@ -916,47 +916,7 @@ export const getMarketOverview = async () => {
   console.log("📈 [API] Axios baseURL:", api.defaults.baseURL);
 
   try {
-    // Use the correct endpoint for our API - try market-overview first, then liveData
-    const endpoints = ["/api/market-overview", "/api/liveData/market"];
-    let response = null;
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`📈 [API] Trying endpoint: ${endpoint}`);
-        // Add auth headers for liveData endpoint
-        const headers = endpoint.includes('liveData') ?
-          { Authorization: 'Bearer test-token' } : {};
-        response = await api.get(endpoint, { headers });
-        console.log(`📈 [API] SUCCESS with endpoint: ${endpoint}`, response);
-        break;
-      } catch (err) {
-        console.log(`📈 [API] FAILED endpoint: ${endpoint}`, err.message);
-        lastError = err;
-        continue;
-      }
-    }
-
-    if (!response) {
-      // Use console.warn for expected backend offline errors
-      const isExpectedError =
-        lastError?.message === "Network Error" ||
-        lastError?.code === "ERR_NETWORK" ||
-        lastError?.response?.status === 503;
-      if (isExpectedError) {
-        console.warn(
-          "⚠️ [API] Market overview endpoints unavailable:",
-          lastError?.message || "Unknown error"
-        );
-      } else {
-        console.error(
-          "📈 [API] All market overview endpoints failed:",
-          lastError
-        );
-      }
-      throw lastError;
-    }
-
+    const response = await api.get("/api/market/overview");
     console.log("📈 [API] Market overview raw response:", response);
     // Always return { data: ... } structure for consistency
     const result = normalizeApiResponse(response, false);
