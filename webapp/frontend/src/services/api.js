@@ -3714,46 +3714,9 @@ export const getDashboardMarketSummary = async () => {
 export const getDashboardEarningsCalendar = async () => {
   console.log("📅 [API] Fetching dashboard earnings calendar...");
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockEarnings = [
-      {
-        symbol: "AAPL",
-        company_name: "Apple Inc.",
-        date: "2024-01-25",
-        time: "AMC",
-        importance: "high",
-      },
-      {
-        symbol: "MSFT",
-        company_name: "Microsoft Corp.",
-        date: "2024-01-30",
-        time: "AMC",
-        importance: "high",
-      },
-      {
-        symbol: "GOOGL",
-        company_name: "Alphabet Inc.",
-        date: "2024-02-01",
-        time: "AMC",
-        importance: "medium",
-      },
-      {
-        symbol: "TSLA",
-        company_name: "Tesla Inc.",
-        date: "2024-02-05",
-        time: "AMC",
-        importance: "high",
-      },
-      {
-        symbol: "NVDA",
-        company_name: "NVIDIA Corp.",
-        date: "2024-02-08",
-        time: "AMC",
-        importance: "high",
-      },
-    ];
-    console.log("📅 [API] Returning mock earnings calendar:", mockEarnings);
-    return { data: mockEarnings };
+    const response = await api.get("/api/earnings/calendar");
+    console.log("📅 [API] Earnings calendar response:", response.data);
+    return response.data;
   } catch (error) {
     console.error("❌ [API] Dashboard earnings calendar error:", {
       message: error?.message || "Unknown error",
@@ -3769,20 +3732,9 @@ export const getDashboardEarningsCalendar = async () => {
 export const getDashboardFinancialHighlights = async () => {
   console.log("💰 [API] Fetching dashboard financial highlights...");
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockHighlights = [
-      { label: "Revenue Growth", value: "+12.5%" },
-      { label: "EPS Growth", value: "+8.2%" },
-      { label: "Profit Margin", value: "18.5%" },
-      { label: "ROE", value: "22.3%" },
-      { label: "Debt/Equity", value: "0.45" },
-      { label: "Current Ratio", value: "1.8" },
-    ];
-    console.log(
-      "💰 [API] Returning mock financial highlights:",
-      mockHighlights
-    );
-    return { data: mockHighlights };
+    const response = await api.get("/api/financials/highlights");
+    console.log("💰 [API] Financial highlights response:", response.data);
+    return response.data;
   } catch (error) {
     console.error("❌ [API] Dashboard financial highlights error:", {
       message: error?.message || "Unknown error",
@@ -3798,21 +3750,9 @@ export const getDashboardFinancialHighlights = async () => {
 export const getDashboardSymbols = async () => {
   console.log("🔤 [API] Fetching dashboard symbols...");
   try {
-    // Mock data for now since backend endpoint doesn't exist
-    const mockSymbols = [
-      "AAPL",
-      "MSFT",
-      "GOOGL",
-      "TSLA",
-      "NVDA",
-      "SPY",
-      "QQQ",
-      "DIA",
-      "AMZN",
-      "META",
-    ];
-    console.log("🔤 [API] Returning mock symbols:", mockSymbols);
-    return { data: mockSymbols };
+    const response = await api.get("/api/dashboard/symbols");
+    console.log("🔤 [API] Dashboard symbols response:", response.data);
+    return response.data;
   } catch (error) {
     console.error("❌ [API] Dashboard symbols error:", {
       message: error?.message || "Unknown error",
