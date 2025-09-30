@@ -39,6 +39,7 @@ async function loadSampleData() {
         market_stage: 'Stage 2 - Advancing',
         stage_confidence: 85,
         substage: 'Stage 2 - Mid',
+        sata_score: 8,  // Strong Stage 2
         pct_from_ema_21: 1.2,
         pct_from_sma_50: 3.5,
         pct_from_sma_200: 8.2,
@@ -76,6 +77,7 @@ async function loadSampleData() {
         market_stage: 'Stage 2 - Advancing',
         stage_confidence: 78,
         substage: 'Stage 2 - Early',
+        sata_score: 7,  // Early Stage 2
         pct_from_ema_21: -0.5,
         pct_from_sma_50: 2.1,
         pct_from_sma_200: 12.5,
@@ -113,6 +115,7 @@ async function loadSampleData() {
         market_stage: 'Stage 3 - Topping',
         stage_confidence: 72,
         substage: 'Stage 3 - Late',
+        sata_score: 5,  // Stage 3 Topping
         pct_from_ema_21: -2.1,
         pct_from_sma_50: -4.5,
         pct_from_sma_200: -1.2,
@@ -150,6 +153,7 @@ async function loadSampleData() {
         market_stage: 'Stage 2 - Advancing',
         stage_confidence: 92,
         substage: 'Stage 2 - Mid',
+        sata_score: 9,  // Very strong Stage 2
         pct_from_ema_21: 0.8,
         pct_from_sma_50: 5.2,
         pct_from_sma_200: 15.3,
@@ -187,6 +191,7 @@ async function loadSampleData() {
         market_stage: 'Stage 2 - Advancing',
         stage_confidence: 81,
         substage: 'Stage 2 - Mid',
+        sata_score: 7,  // Stage 2 Mid
         pct_from_ema_21: 1.5,
         pct_from_sma_50: 4.2,
         pct_from_sma_200: 10.8,
@@ -224,6 +229,7 @@ async function loadSampleData() {
         market_stage: 'Stage 2 - Advancing',
         stage_confidence: 68,
         substage: 'Stage 2 - Late',
+        sata_score: 6,  // Stage 2 Late
         pct_from_ema_21: 4.2,
         pct_from_sma_50: 8.5,
         pct_from_sma_200: 18.2,
@@ -261,6 +267,7 @@ async function loadSampleData() {
         market_stage: 'Stage 1 - Basing',
         stage_confidence: 55,
         substage: 'Stage 1 - Late',
+        sata_score: 4,  // Stage 1 Basing
         pct_from_ema_21: 0.2,
         pct_from_sma_50: -1.2,
         pct_from_sma_200: 5.5,
@@ -298,6 +305,7 @@ async function loadSampleData() {
         market_stage: 'Stage 2 - Advancing',
         stage_confidence: 76,
         substage: 'Stage 2 - Early',
+        sata_score: 7,  // Early Stage 2
         pct_from_ema_21: 0.5,
         pct_from_sma_50: 3.8,
         pct_from_sma_200: 14.2,
@@ -323,7 +331,7 @@ async function loadSampleData() {
         INSERT INTO buy_sell_daily (
           symbol, timeframe, date, open, high, low, close, volume, signal,
           buylevel, stoplevel, inposition, selllevel, target_price, current_price,
-          risk_reward_ratio, market_stage, stage_confidence, substage,
+          risk_reward_ratio, market_stage, stage_confidence, substage, sata_score,
           pct_from_ema_21, pct_from_sma_50, pct_from_sma_200,
           volume_ratio, volume_analysis, entry_quality_score,
           profit_target_8pct, profit_target_20pct, current_gain_loss_pct,
@@ -332,18 +340,18 @@ async function loadSampleData() {
         ) VALUES (
           $1, 'daily', $2, $3, $4, $5, $6, $7, $8,
           $9, $10, $11, $12, $13, $14,
-          $15, $16, $17, $18,
-          $19, $20, $21,
-          $22, $23, $24,
-          $25, $26, $27,
-          $28, $29, $30,
-          $31, $32, $33, $34, $35
+          $15, $16, $17, $18, $19,
+          $20, $21, $22,
+          $23, $24, $25,
+          $26, $27, $28,
+          $29, $30, $31,
+          $32, $33, $34, $35, $36
         )
       `, [
         signal.symbol, signal.date, signal.open, signal.high, signal.low,
         signal.close, signal.volume, signal.signal, signal.buylevel, signal.stoplevel,
         signal.inposition, signal.selllevel, signal.target_price, signal.current_price,
-        signal.risk_reward_ratio, signal.market_stage, signal.stage_confidence, signal.substage,
+        signal.risk_reward_ratio, signal.market_stage, signal.stage_confidence, signal.substage, signal.sata_score,
         signal.pct_from_ema_21, signal.pct_from_sma_50, signal.pct_from_sma_200,
         signal.volume_ratio, signal.volume_analysis, signal.entry_quality_score,
         signal.profit_target_8pct, signal.profit_target_20pct, signal.current_gain_loss_pct,

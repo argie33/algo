@@ -146,7 +146,7 @@ router.get("/", async (req, res) => {
         symbol, date, timeframe, signal, open, high, low, close, volume,
         buylevel, stoplevel, inposition,
         selllevel, target_price, current_price, risk_reward_ratio,
-        market_stage, stage_confidence, substage,
+        market_stage, stage_confidence, substage, sata_score, stage_number, mansfield_rs,
         pct_from_ema_21, pct_from_sma_50, pct_from_sma_200,
         volume_ratio, volume_analysis, entry_quality_score,
         profit_target_8pct, profit_target_20pct, current_gain_loss_pct,
@@ -238,6 +238,9 @@ router.get("/", async (req, res) => {
       market_stage: row.market_stage || null,
       stage_confidence: parseInt(row.stage_confidence || 0),
       substage: row.substage || null,
+      sata_score: parseInt(row.sata_score || 0),
+      stage_number: parseInt(row.stage_number || 0),
+      mansfield_rs: parseFloat(row.mansfield_rs || 0),
 
       // Technical indicators
       pct_from_ema_21: parseFloat(row.pct_from_ema_21 || 0),

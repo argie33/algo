@@ -120,8 +120,56 @@ def create_buy_sell_table(cur):
         adx NUMERIC(6,2),
         atr NUMERIC(10,4),
         daily_range_pct NUMERIC(6,2),
+        volatility_profile VARCHAR(20),
+        -- Stage Analysis Technical Attributes (SATA)
+        sata_score INTEGER,              -- 0-10 SATA scoring
+        stage_number INTEGER,            -- 1, 2, 3, or 4
+        stage_confidence INTEGER,        -- 0-100 confidence in stage
+        substage VARCHAR(50),            -- Stage 1 - Early/Mid/Late
+        mansfield_rs NUMERIC(10,2),      -- Mansfield Relative Strength
+        -- Base Pattern Detection Fields
+        base_pivot_price REAL,           -- Resistance level to break
+        base_support_price REAL,         -- Support level of base
+        base_pattern VARCHAR(50),        -- VCP, Cup, Flat Base, etc.
+        base_depth_pct NUMERIC(6,2),     -- Depth of base from high
+        base_duration_days INTEGER,      -- Days in base
+        base_tightness_score INTEGER,    -- 0-100, based on ATR contraction
+        is_base_on_base BOOLEAN,         -- Building on prior base
+        base_quality_score INTEGER,      -- Overall base quality 0-100
         UNIQUE(symbol, timeframe, date)
       );
+    """
+    )
+
+    # Create base_levels tracking table
+    cur.execute("DROP TABLE IF EXISTS base_levels CASCADE;")
+    cur.execute("""
+      CREATE TABLE base_levels (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(20) NOT NULL,
+        timeframe VARCHAR(10) NOT NULL,
+        base_start_date DATE NOT NULL,
+        base_end_date DATE,               -- NULL if still forming
+        base_support REAL NOT NULL,       -- Low of base
+        base_resistance REAL NOT NULL,    -- Pivot/high of base
+        base_depth_pct NUMERIC(6,2),      -- (High - Low) / High * 100
+        base_duration_weeks INTEGER,      -- Duration in weeks
+        base_pattern VARCHAR(50),         -- VCP, Cup & Handle, Flat Base, etc.
+        base_tightness NUMERIC(6,2),      -- ATR contraction ratio
+        is_base_on_base BOOLEAN DEFAULT FALSE,
+        prior_base_id INTEGER REFERENCES base_levels(id),
+        breakout_date DATE,               -- When/if it broke out
+        breakout_volume_ratio NUMERIC(6,2), -- Volume on breakout
+        quality_score INTEGER,            -- 0-100 overall quality
+        stage_at_base VARCHAR(30),        -- Stage when base formed
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, timeframe, base_start_date)
+      );
+
+      CREATE INDEX idx_base_levels_symbol ON base_levels(symbol);
+      CREATE INDEX idx_base_levels_dates ON base_levels(base_start_date, base_end_date);
+      CREATE INDEX idx_base_levels_quality ON base_levels(quality_score DESC);
     """
     )
     # Create stage function if not exists
@@ -139,27 +187,287 @@ def create_buy_sell_table(cur):
     DECLARE
         sma_50_slope NUMERIC;
         sma_200_slope NUMERIC;
+        sma_200_flat_threshold NUMERIC := 0.05;  -- 200 SMA moving < 0.05% = flat/basing
+        volume_ratio NUMERIC;
         stage TEXT;
     BEGIN
+        -- Calculate slopes (rate of change)
         sma_50_slope := (sma_50_current - sma_50_prev) / NULLIF(sma_50_prev, 0) * 100;
         sma_200_slope := (sma_200_current - sma_200_prev) / NULLIF(sma_200_prev, 0) * 100;
+        volume_ratio := volume_current::NUMERIC / NULLIF(volume_avg_50, 1);
 
-        IF (current_price > sma_50_current AND current_price > sma_200_current AND
-            sma_50_current > sma_200_current AND sma_50_slope > 0.1 AND
-            sma_200_slope > 0 AND COALESCE(adx_value, 0) > 25) THEN
+        -- STAGE 2: ADVANCING (Uptrend with momentum)
+        -- Strong bullish criteria - all must align
+        IF (current_price > sma_50_current AND
+            current_price > sma_200_current AND
+            sma_50_current > sma_200_current AND
+            sma_50_slope > 0.1 AND                    -- 50 SMA rising
+            sma_200_slope > 0 AND                     -- 200 SMA rising
+            COALESCE(adx_value, 0) > 25) THEN         -- Strong trend
             stage := 'Stage 2 - Advancing';
-        ELSIF (current_price < sma_50_current AND current_price < sma_200_current AND
-               sma_50_current < sma_200_current AND sma_50_slope < -0.1 AND
-               COALESCE(adx_value, 0) > 20) THEN
+
+        -- STAGE 4: DECLINING (Downtrend with momentum)
+        -- Strong bearish criteria - all must align
+        ELSIF (current_price < sma_50_current AND
+               current_price < sma_200_current AND
+               sma_50_current < sma_200_current AND
+               sma_50_slope < -0.1 AND                -- 50 SMA falling
+               COALESCE(adx_value, 0) > 20) THEN      -- Trend strength
             stage := 'Stage 4 - Declining';
+
+        -- STAGE 3: TOPPING (Distribution - losing momentum after uptrend)
+        -- Price still above 200 but trend weakening
         ELSIF (current_price > sma_200_current AND
-               (sma_50_slope < 0 OR ABS(sma_50_slope) < 0.1) AND
-               COALESCE(adx_value, 0) < 25) THEN
+               (sma_50_slope < 0 OR ABS(sma_50_slope) < 0.1) AND  -- 50 SMA rolling over or flat
+               COALESCE(adx_value, 0) < 25 AND                     -- Trend weakening
+               sma_50_current > sma_200_current) THEN              -- Still in bullish structure
             stage := 'Stage 3 - Topping';
+
+        -- STAGE 1: BASING (Consolidation/Accumulation)
+        -- Key: 200 SMA flattening out, price consolidating
+        -- This is where base patterns form (cup, flat base, VCP, etc.)
+        ELSIF (ABS(sma_200_slope) < sma_200_flat_threshold AND      -- 200 SMA flat = base forming
+               COALESCE(adx_value, 0) < 25 AND                       -- Low trend strength = consolidation
+               current_price > sma_200_current * 0.85) THEN          -- Within 15% of 200 SMA
+            stage := 'Stage 1 - Basing';
+
+        -- STAGE 1: BASING (Recovery from Stage 4)
+        -- Catching turn from downtrend to base
+        ELSIF (current_price > sma_50_current AND                    -- Price recovering above 50 SMA
+               sma_50_slope > -0.1 AND                               -- 50 SMA starting to flatten
+               ABS(sma_200_slope) < sma_200_flat_threshold AND       -- 200 SMA flattening
+               COALESCE(adx_value, 0) < 25) THEN                     -- Trend dying out
+            stage := 'Stage 1 - Basing';
+
+        -- DEFAULT: Treat ambiguous cases as Stage 1 (safer)
+        -- Price consolidating, unclear trend direction
         ELSE
             stage := 'Stage 1 - Basing';
         END IF;
+
         RETURN stage;
+    END;
+    $$ LANGUAGE plpgsql IMMUTABLE;
+
+    -- =========================================================================
+    -- SATA Score Calculator: Stage Analysis Technical Attributes (0-10)
+    -- Based on stageanalysis.com methodology
+    -- =========================================================================
+    CREATE OR REPLACE FUNCTION calculate_sata_score(
+        current_price NUMERIC,
+        sma_20 NUMERIC,
+        sma_50 NUMERIC,
+        sma_150 NUMERIC,
+        sma_200 NUMERIC,
+        sma_20_prev NUMERIC,
+        sma_50_prev NUMERIC,
+        high_52week NUMERIC,
+        volume_current BIGINT,
+        volume_avg_50 BIGINT,
+        adx_value NUMERIC,
+        mansfield_rs NUMERIC DEFAULT NULL  -- To be implemented
+    ) RETURNS INTEGER AS $$
+    DECLARE
+        sata_score INTEGER := 0;
+        sma_20_slope NUMERIC;
+        sma_50_slope NUMERIC;
+        pct_from_52w_high NUMERIC;
+    BEGIN
+        -- Calculate slopes for momentum
+        sma_20_slope := ((sma_20 - sma_20_prev) / NULLIF(sma_20_prev, 0)) * 100;
+        sma_50_slope := ((sma_50 - sma_50_prev) / NULLIF(sma_50_prev, 0)) * 100;
+        pct_from_52w_high := ((current_price - high_52week) / NULLIF(high_52week, 0)) * 100;
+
+        -- Component 1: Breakout/Breakdown (near 52-week high = breakout potential)
+        -- Green if within 5% of 52-week high
+        IF pct_from_52w_high >= -5 THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Components 2-5: Price vs Moving Averages (4 points total)
+        -- Component 2: Price > 20 SMA (short-term trend)
+        IF current_price > COALESCE(sma_20, 0) THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Component 3: Price > 50 SMA (intermediate trend)
+        IF current_price > COALESCE(sma_50, 0) THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Component 4: Price > 150 SMA (long-term positioning)
+        IF current_price > COALESCE(sma_150, 0) THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Component 5: Price > 200 SMA (major trend)
+        IF current_price > COALESCE(sma_200, 0) THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Component 6: Mansfield Relative Strength
+        -- Green if outperforming benchmark (RS > 0)
+        IF COALESCE(mansfield_rs, 0) > 0 THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Components 7-8: Momentum (2 points)
+        -- Component 7: 20 SMA slope (short-term momentum)
+        IF sma_20_slope > 0.1 THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Component 8: 50 SMA slope (intermediate momentum)
+        IF sma_50_slope > 0.1 THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Component 9: Volume (above average = accumulation)
+        IF volume_current > COALESCE(volume_avg_50, 1) THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        -- Component 10: Overhead Resistance (within 15% of 52w high = low resistance)
+        IF pct_from_52w_high >= -15 THEN
+            sata_score := sata_score + 1;
+        END IF;
+
+        RETURN sata_score;
+    END;
+    $$ LANGUAGE plpgsql IMMUTABLE;
+
+    -- =========================================================================
+    -- Enhanced Stage Calculator with SATA, Confidence, and Substage
+    -- Returns composite record with all stage attributes
+    -- =========================================================================
+    CREATE OR REPLACE FUNCTION calculate_enhanced_stage(
+        current_price NUMERIC,
+        sma_20 NUMERIC,
+        sma_50 NUMERIC,
+        sma_150 NUMERIC,
+        sma_200 NUMERIC,
+        sma_20_prev NUMERIC,
+        sma_50_prev NUMERIC,
+        sma_200_prev NUMERIC,
+        adx_value NUMERIC,
+        volume_current BIGINT,
+        volume_avg_50 BIGINT,
+        atr_value NUMERIC,
+        daily_range_pct NUMERIC,
+        high_52week NUMERIC,
+        sector VARCHAR DEFAULT 'Unknown',
+        rsi_value NUMERIC DEFAULT NULL,
+        mansfield_rs NUMERIC DEFAULT NULL
+    ) RETURNS TABLE(
+        stage TEXT,
+        confidence INTEGER,
+        substage TEXT,
+        sata_score INTEGER
+    ) AS $$
+    DECLARE
+        v_stage TEXT;
+        v_confidence INTEGER := 50;
+        v_substage TEXT;
+        v_sata INTEGER := 0;
+        sma_50_slope NUMERIC;
+        sma_200_slope NUMERIC;
+        volume_ratio NUMERIC;
+    BEGIN
+        -- Calculate slopes
+        sma_50_slope := ((sma_50 - sma_50_prev) / NULLIF(sma_50_prev, 0)) * 100;
+        sma_200_slope := ((sma_200 - sma_200_prev) / NULLIF(sma_200_prev, 0)) * 100;
+        volume_ratio := volume_current::NUMERIC / NULLIF(volume_avg_50, 1);
+
+        -- Determine stage using existing logic
+        v_stage := calculate_weinstein_stage(
+            current_price, sma_50, sma_200, sma_50_prev, sma_200_prev,
+            adx_value, volume_current, volume_avg_50
+        );
+
+        -- Calculate SATA score using comprehensive calculate_sata_score function
+        v_sata := calculate_sata_score(
+            current_price,
+            sma_20,
+            sma_50,
+            sma_150,
+            sma_200,
+            sma_20_prev,
+            sma_50_prev,
+            high_52week,
+            volume_current,
+            volume_avg_50,
+            adx_value,
+            mansfield_rs
+        );
+
+        -- Determine confidence based on alignment of indicators
+        IF v_stage = 'Stage 2 - Advancing' THEN
+            v_confidence := 60;
+            IF sma_50_slope > 0.2 THEN v_confidence := v_confidence + 10; END IF;
+            IF sma_200_slope > 0.1 THEN v_confidence := v_confidence + 10; END IF;
+            IF COALESCE(adx_value, 0) > 30 THEN v_confidence := v_confidence + 10; END IF;
+            IF volume_ratio > 1.2 THEN v_confidence := v_confidence + 10; END IF;
+
+            -- Determine substage
+            IF v_sata >= 9 AND COALESCE(adx_value, 0) > 35 THEN
+                v_substage := 'Stage 2 - Early';
+                v_confidence := LEAST(v_confidence + 5, 100);
+            ELSIF v_sata >= 7 AND COALESCE(adx_value, 0) > 25 THEN
+                v_substage := 'Stage 2 - Mid';
+            ELSE
+                v_substage := 'Stage 2 - Late';
+                v_confidence := v_confidence - 10;
+            END IF;
+
+        ELSIF v_stage = 'Stage 4 - Declining' THEN
+            v_confidence := 55;
+            IF sma_50_slope < -0.2 THEN v_confidence := v_confidence + 10; END IF;
+            IF COALESCE(adx_value, 0) > 25 THEN v_confidence := v_confidence + 10; END IF;
+
+            IF v_sata <= 2 AND COALESCE(adx_value, 0) > 30 THEN
+                v_substage := 'Stage 4 - Early';
+            ELSIF v_sata <= 4 THEN
+                v_substage := 'Stage 4 - Mid';
+            ELSE
+                v_substage := 'Stage 4 - Late';
+                v_confidence := v_confidence - 10;
+            END IF;
+
+        ELSIF v_stage = 'Stage 3 - Topping' THEN
+            v_confidence := 50;
+            IF sma_50_slope < -0.1 THEN v_confidence := v_confidence + 10; END IF;
+            IF COALESCE(rsi_value, 50) > 70 THEN v_confidence := v_confidence + 10; END IF;
+
+            IF v_sata >= 7 AND sma_50_slope >= 0 THEN
+                v_substage := 'Stage 3 - Early';
+            ELSIF v_sata >= 5 THEN
+                v_substage := 'Stage 3 - Mid';
+            ELSE
+                v_substage := 'Stage 3 - Late';
+            END IF;
+
+        ELSE  -- Stage 1 - Basing
+            v_confidence := 45;
+            IF ABS(sma_200_slope) < 0.05 THEN v_confidence := v_confidence + 10; END IF;
+            IF COALESCE(adx_value, 0) < 20 THEN v_confidence := v_confidence + 10; END IF;
+            IF atr_value IS NOT NULL AND daily_range_pct < 2.0 THEN
+                v_confidence := v_confidence + 10;
+            END IF;
+
+            IF v_sata >= 5 AND sma_50_slope > 0 THEN
+                v_substage := 'Stage 1 - Late';
+                v_confidence := v_confidence + 10;
+            ELSIF v_sata >= 3 THEN
+                v_substage := 'Stage 1 - Mid';
+            ELSE
+                v_substage := 'Stage 1 - Early';
+            END IF;
+        END IF;
+
+        -- Ensure confidence is in valid range
+        v_confidence := GREATEST(0, LEAST(100, v_confidence));
+
+        RETURN QUERY SELECT v_stage, v_confidence, v_substage, v_sata;
     END;
     $$ LANGUAGE plpgsql IMMUTABLE;
     """)
@@ -247,6 +555,8 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 td.symbol, td.date::date as date,
                 td.sma_20, td.sma_50, td.sma_150, td.sma_200,
                 td.ema_21, td.rsi, td.adx, td.atr,
+                td.mansfield_rs,
+                LAG(td.sma_20, 5) OVER (ORDER BY td.date) as sma_20_prev,
                 LAG(td.sma_50, 5) OVER (ORDER BY td.date) as sma_50_prev,
                 LAG(td.sma_200, 10) OVER (ORDER BY td.date) as sma_200_prev
             FROM {tech_table} td
@@ -259,6 +569,16 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ORDER BY pd.date
                     ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
                 ) as volume_avg_50
+            FROM {price_table} pd
+            WHERE pd.symbol = %s
+        ),
+        high_52week_data AS (
+            SELECT
+                pd.symbol, pd.date,
+                MAX(pd.high) OVER (
+                    ORDER BY pd.date
+                    ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
+                ) as high_52week
             FROM {price_table} pd
             WHERE pd.symbol = %s
         ),
@@ -289,8 +609,11 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 -- Market stage (enhanced with confidence and substage)
                 (SELECT stage FROM calculate_enhanced_stage(
                     sd.current_price,
+                    td.sma_20,
                     td.sma_50,
+                    td.sma_150,
                     td.sma_200,
+                    td.sma_20_prev,
                     td.sma_50_prev,
                     td.sma_200_prev,
                     td.adx,
@@ -298,16 +621,20 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     vd.volume_avg_50::BIGINT,
                     td.atr,
                     ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),  -- daily_range_pct
+                    hd.high_52week,  -- 52-week high
                     'Unknown',  -- sector (to be added later)
                     td.rsi,
-                    -20.0  -- pct_from_52w_high (to be calculated later)
+                    td.mansfield_rs  -- Mansfield Relative Strength
                 )) as market_stage,
 
                 -- Stage confidence score
                 (SELECT confidence FROM calculate_enhanced_stage(
                     sd.current_price,
+                    td.sma_20,
                     td.sma_50,
+                    td.sma_150,
                     td.sma_200,
+                    td.sma_20_prev,
                     td.sma_50_prev,
                     td.sma_200_prev,
                     td.adx,
@@ -315,16 +642,20 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     vd.volume_avg_50::BIGINT,
                     td.atr,
                     ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                    hd.high_52week,
                     'Unknown',
                     td.rsi,
-                    -20.0
+                    td.mansfield_rs
                 )) as stage_confidence,
 
                 -- Substage
                 (SELECT substage FROM calculate_enhanced_stage(
                     sd.current_price,
+                    td.sma_20,
                     td.sma_50,
+                    td.sma_150,
                     td.sma_200,
+                    td.sma_20_prev,
                     td.sma_50_prev,
                     td.sma_200_prev,
                     td.adx,
@@ -332,28 +663,72 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     vd.volume_avg_50::BIGINT,
                     td.atr,
                     ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                    hd.high_52week,
                     'Unknown',
                     td.rsi,
-                    -20.0
+                    td.mansfield_rs
                 )) as substage,
+
+                -- SATA Score
+                (SELECT sata_score FROM calculate_enhanced_stage(
+                    sd.current_price,
+                    td.sma_20,
+                    td.sma_50,
+                    td.sma_150,
+                    td.sma_200,
+                    td.sma_20_prev,
+                    td.sma_50_prev,
+                    td.sma_200_prev,
+                    td.adx,
+                    sd.volume,
+                    vd.volume_avg_50::BIGINT,
+                    td.atr,
+                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                    hd.high_52week,
+                    'Unknown',
+                    td.rsi,
+                    td.mansfield_rs
+                )) as sata_score,
+
+                -- Stage Number (extract from stage text: "Stage 2 - Advancing" -> 2)
+                CAST(SUBSTRING(
+                    (SELECT stage FROM calculate_enhanced_stage(
+                        sd.current_price,
+                        td.sma_20,
+                        td.sma_50,
+                        td.sma_150,
+                        td.sma_200,
+                        td.sma_20_prev,
+                        td.sma_50_prev,
+                        td.sma_200_prev,
+                        td.adx,
+                        sd.volume,
+                        vd.volume_avg_50::BIGINT,
+                        td.atr,
+                        ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                        hd.high_52week,
+                        'Unknown',
+                        td.rsi,
+                        td.mansfield_rs
+                    ))
+                    FROM 'Stage ([0-9])'
+                ) AS INTEGER) as stage_number,
+
+                -- Mansfield RS from technical data
+                td.mansfield_rs as mansfield_rs,
 
                 -- Distance from MAs
                 ROUND(((sd.current_price - td.ema_21) / NULLIF(td.ema_21, 0) * 100)::NUMERIC, 2) as pct_from_ema_21,
                 ROUND(((sd.current_price - td.sma_50) / NULLIF(td.sma_50, 0) * 100)::NUMERIC, 2) as pct_from_sma_50,
                 ROUND(((sd.current_price - td.sma_200) / NULLIF(td.sma_200, 0) * 100)::NUMERIC, 2) as pct_from_sma_200,
 
-                -- Volume analysis
+                -- Volume analysis (standardized labels)
                 ROUND((sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1))::NUMERIC, 2) as volume_ratio,
                 CASE
-                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 2.0
-                        AND ((sd.current_price - sd.open) / NULLIF(sd.open, 0)) > 0
-                    THEN 'Pocket Pivot'
-                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 1.5
-                        AND ((sd.current_price - sd.open) / NULLIF(sd.open, 0)) > 0.02
-                    THEN 'Volume Surge'
-                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) < 0.7
-                    THEN 'Volume Dry-up'
-                    ELSE 'Normal Volume'
+                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 2.0 THEN 'Very High'
+                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 1.5 THEN 'High'
+                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 0.9 THEN 'Average'
+                    ELSE 'Low'
                 END as volume_analysis,
 
                 -- Entry quality score
@@ -406,11 +781,19 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 td.rsi::NUMERIC(6,2), td.adx::NUMERIC(6,2), td.atr::NUMERIC(10,4),
 
                 -- Daily range
-                ROUND(((sd.high - sd.low) / NULLIF(sd.low, 0) * 100)::NUMERIC, 2) as daily_range_pct
+                ROUND(((sd.high - sd.low) / NULLIF(sd.low, 0) * 100)::NUMERIC, 2) as daily_range_pct,
+
+                -- Volatility profile based on ATR and daily range
+                CASE
+                    WHEN td.atr IS NOT NULL AND ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100) > 3.0 THEN 'high'
+                    WHEN td.atr IS NOT NULL AND ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100) < 1.5 THEN 'low'
+                    ELSE 'medium'
+                END as volatility_profile
 
             FROM signal_data sd
             JOIN technical_data td ON sd.symbol = td.symbol AND sd.date = td.date
             JOIN volume_data vd ON sd.symbol = vd.symbol AND sd.date = vd.date
+            JOIN high_52week_data hd ON sd.symbol = hd.symbol AND sd.date = hd.date
         )
         UPDATE {table_name} bsd SET
             selllevel = cm.selllevel,
@@ -420,6 +803,9 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             market_stage = cm.market_stage,
             stage_confidence = cm.stage_confidence,
             substage = cm.substage,
+            sata_score = cm.sata_score,
+            stage_number = cm.stage_number,
+            mansfield_rs = cm.mansfield_rs,
             pct_from_ema_21 = cm.pct_from_ema_21,
             pct_from_sma_50 = cm.pct_from_sma_50,
             pct_from_sma_200 = cm.pct_from_sma_200,
@@ -435,12 +821,13 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             rsi = cm.rsi,
             adx = cm.adx,
             atr = cm.atr,
-            daily_range_pct = cm.daily_range_pct
+            daily_range_pct = cm.daily_range_pct,
+            volatility_profile = cm.volatility_profile
         FROM calculated_metrics cm
         WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date AND bsd.timeframe = %s
         """
 
-        cur.execute(update_sql, (symbol, timeframe, symbol, symbol, timeframe))
+        cur.execute(update_sql, (symbol, timeframe, symbol, symbol, symbol, timeframe))
         updated_count = cur.rowcount
         logging.info(f"✅ Updated {updated_count} swing metrics for {symbol} {timeframe}")
 

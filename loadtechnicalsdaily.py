@@ -96,6 +96,30 @@ def fast_rsi(close, period=14):
     return rsi
 
 
+def calculate_mansfield_rs(stock_close, benchmark_close, period=200):
+    """
+    Calculate Mansfield Relative Strength
+
+    Formula: (Stock Price / Benchmark Price) / MA200(Stock Price / Benchmark Price)
+
+    Returns values above 0 when outperforming benchmark, below 0 when underperforming
+    """
+    if stock_close is None or benchmark_close is None:
+        return pd.Series([None] * len(stock_close), index=stock_close.index)
+
+    # Calculate relative performance ratio
+    relative_performance = stock_close / benchmark_close
+
+    # Calculate 200-period MA of the ratio
+    ma_ratio = relative_performance.rolling(window=period).mean()
+
+    # Mansfield RS = (Current Ratio / MA Ratio - 1) * 100
+    # This gives percentage above/below the 200-day average
+    mansfield_rs = ((relative_performance / ma_ratio) - 1) * 100
+
+    return mansfield_rs
+
+
 def fast_macd(close, fast=12, slow=26, signal=9):
     """Fast MACD calculation"""
     ema_fast = close.ewm(span=fast, adjust=False).mean()
@@ -437,6 +461,7 @@ def prepare_db():
         pivot_low       DOUBLE PRECISION,
         pivot_high_triggered DOUBLE PRECISION,
         pivot_low_triggered DOUBLE PRECISION,
+        mansfield_rs    DOUBLE PRECISION,
         fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
     );
@@ -452,6 +477,46 @@ def prepare_db():
     conn.close()
 
     return symbols
+
+
+def fetch_sp500_benchmark(conn_pool):
+    """
+    Fetch S&P 500 benchmark data for Mansfield RS calculation
+    Uses SPY (S&P 500 ETF) as benchmark
+    """
+    try:
+        conn = conn_pool.getconn()
+        cursor = conn.cursor()
+
+        # Try SPY first, fallback to ^GSPC
+        cursor.execute(
+            """
+            SELECT date, close
+            FROM price_daily
+            WHERE symbol IN ('SPY', '^GSPC')
+            ORDER BY date ASC
+        """
+        )
+        rows = cursor.fetchall()
+        conn_pool.putconn(conn)
+
+        if not rows:
+            logging.warning("No S&P 500 benchmark data found (SPY or ^GSPC)")
+            return None
+
+        # Create DataFrame with benchmark data
+        df = pd.DataFrame(rows, columns=["date", "close"])
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date").set_index("date")
+        df["close"] = pd.to_numeric(df["close"], errors="coerce")
+        df = df.ffill().dropna()
+
+        logging.info(f"Loaded S&P 500 benchmark data: {len(df)} days")
+        return df
+
+    except Exception as e:
+        logging.error(f"Error fetching S&P 500 benchmark: {e}")
+        return None
 
 
 def create_connection_pool():
@@ -475,7 +540,7 @@ def get_memory_usage():
         return 0
 
 
-def process_symbol(symbol, conn_pool):
+def process_symbol(symbol, conn_pool, sp500_benchmark=None):
     """Process a single symbol and return the number of rows inserted"""
     initial_memory = get_memory_usage()
 
@@ -600,6 +665,14 @@ def process_symbol(symbol, conn_pool):
         df["pivot_high_triggered"] = pivot_high_triggered_vectorized(df, 3, 3)
         df["pivot_low_triggered"] = pivot_low_triggered_vectorized(df, 3, 3)
 
+        # Mansfield Relative Strength
+        if sp500_benchmark is not None:
+            # Align benchmark data with stock data by date
+            benchmark_aligned = sp500_benchmark.reindex(df.index, method='ffill')
+            df["mansfield_rs"] = calculate_mansfield_rs(df["close"], benchmark_aligned["close"])
+        else:
+            df["mansfield_rs"] = None
+
         # Clean data
         df = df.replace([np.inf, -np.inf], np.nan)
 
@@ -614,6 +687,7 @@ def process_symbol(symbol, conn_pool):
           ema_4, ema_9, ema_21,
           bbands_lower, bbands_middle, bbands_upper,
           pivot_high, pivot_low, pivot_high_triggered, pivot_low_triggered,
+          mansfield_rs,
           fetched_at
         ) VALUES %s;
         """
@@ -664,6 +738,7 @@ def process_symbol(symbol, conn_pool):
                     sanitize_value(row.get("pivot_low")),
                     sanitize_value(row.get("pivot_high_triggered")),
                     sanitize_value(row.get("pivot_low_triggered")),
+                    sanitize_value(row.get("mansfield_rs")),
                     datetime.now(),
                 )
             )
@@ -711,7 +786,7 @@ def process_symbol(symbol, conn_pool):
         return 0
 
 
-def process_symbol_batch(symbols):
+def process_symbol_batch(symbols, sp500_benchmark=None):
     """Process a batch of symbols and return the total rows inserted"""
     # Create a connection pool within this process
     conn_pool = create_connection_pool()
@@ -723,7 +798,7 @@ def process_symbol_batch(symbols):
     try:
         for symbol in symbols:
             try:
-                inserted = process_symbol(symbol, conn_pool)
+                inserted = process_symbol(symbol, conn_pool, sp500_benchmark)
                 total_inserted += inserted
                 if inserted > 0:
                     success_count += 1
@@ -745,6 +820,17 @@ def main():
         # Prepare database and get symbols
         symbols = prepare_db()
 
+        # Fetch S&P 500 benchmark for Mansfield RS calculation
+        logging.info("📊 Fetching S&P 500 benchmark data for Mansfield RS...")
+        temp_conn_pool = create_connection_pool()
+        sp500_benchmark = fetch_sp500_benchmark(temp_conn_pool)
+        temp_conn_pool.closeall()
+
+        if sp500_benchmark is not None:
+            logging.info(f"✅ Loaded {len(sp500_benchmark)} S&P 500 benchmark records")
+        else:
+            logging.warning("⚠️ Could not load S&P 500 benchmark - Mansfield RS will be NULL")
+
         start = time.time()
         total_inserted = 0
         symbols_processed = 0
@@ -763,7 +849,7 @@ def main():
                 # Process each batch with a worker
                 futures = []
                 for batch in symbol_batches:
-                    future = executor.submit(process_symbol_batch, batch)
+                    future = executor.submit(process_symbol_batch, batch, sp500_benchmark)
                     futures.append(future)
                 # Collect results
                 for future in concurrent.futures.as_completed(futures):
@@ -789,7 +875,7 @@ def main():
                                 )
                                 gc.collect()
 
-                            inserted = process_symbol(symbol, conn_pool)
+                            inserted = process_symbol(symbol, conn_pool, sp500_benchmark)
                             total_inserted += inserted
                             if inserted > 0:
                                 symbols_processed += 1
