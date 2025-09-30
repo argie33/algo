@@ -18,6 +18,7 @@ CloudFormation export name corrected for workflow compatibility - v1.3
 Container name corrected to match workflow expectations - v1.4
 AWS Secrets Manager authentication with SSL/TLS encryption - v1.5
 Force Docker image rebuild with all security fixes - v1.6
+Workflow path detection fixed for subdirectory loaders - v1.7
 """
 
 import os
