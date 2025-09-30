@@ -447,6 +447,45 @@ jobs:
             "buysellmonthly")
               TASK_DEF_NAME="BuySellMonthlyTaskDefArn"
               ;;
+            "technicalsdaily")
+              TASK_DEF_NAME="TechnicalsDailyTaskDefArn"
+              ;;
+            "technicalsweekly")
+              TASK_DEF_NAME="TechnicalsWeeklyTaskDefArn"
+              ;;
+            "technicalsmonthly")
+              TASK_DEF_NAME="TechnicalsMonthlyTaskDefArn"
+              ;;
+            "latesttechnicalsdaily")
+              TASK_DEF_NAME="LatestTechnicalsDailyTaskDefArn"
+              ;;
+            "latesttechnicalsweekly")
+              TASK_DEF_NAME="LatestTechnicalsWeeklyTaskDefArn"
+              ;;
+            "latesttechnicalsmonthly")
+              TASK_DEF_NAME="LatestTechnicalsMonthlyTaskDefArn"
+              ;;
+            "latestpricedaily")
+              TASK_DEF_NAME="LatestPriceDailyTaskDefArn"
+              ;;
+            "latestpriceweekly")
+              TASK_DEF_NAME="LatestPriceWeeklyTaskDefArn"
+              ;;
+            "latestpricemonthly")
+              TASK_DEF_NAME="LatestPriceMonthlyTaskDefArn"
+              ;;
+            "pricedaily")
+              TASK_DEF_NAME="PriceTaskDefArn"
+              ;;
+            "priceweekly")
+              TASK_DEF_NAME="PriceWeeklyTaskDefArn"
+              ;;
+            "pricemonthly")
+              TASK_DEF_NAME="PriceMonthlyTaskDefArn"
+              ;;
+            "stocksymbols")
+              TASK_DEF_NAME="StockSymbolsTaskDefArn"
+              ;;
             *)
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
