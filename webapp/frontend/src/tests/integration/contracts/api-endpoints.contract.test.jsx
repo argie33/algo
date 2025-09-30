@@ -143,7 +143,9 @@ describe("API Endpoints Contract Tests", () => {
         expect(signal).toHaveProperty("pct_from_sma_200");
         expect(signal).toHaveProperty("volume_ratio");
         expect(signal).toHaveProperty("volume_analysis");
-        expect(signal).toHaveProperty("entry_quality_score");
+        expect(signal).toHaveProperty("sata_score");
+        expect(signal).toHaveProperty("stage_number");
+        expect(signal).toHaveProperty("mansfield_rs");
         expect(signal).toHaveProperty("profit_target_8pct");
         expect(signal).toHaveProperty("profit_target_20pct");
         expect(signal).toHaveProperty("risk_pct");

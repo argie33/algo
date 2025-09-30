@@ -508,11 +508,6 @@ function TradingSignals() {
                 <span>ADX</span>
               </Tooltip>
             </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Entry Quality: 80+ = excellent (full position), 60-79 = good, 40-59 = average (half position), <40 = skip">
-                <span>Quality</span>
-              </Tooltip>
-            </TableCell>
             <TableCell align="center" sx={{ fontWeight: "bold" }}>
               <Tooltip title="Passes 7-point trend template: Price > 50/150/200 SMA, SMAs aligned, Price 0-30% above 200 SMA, 200 SMA rising">
                 <span>Trend ✓</span>
@@ -715,25 +710,6 @@ function TradingSignals() {
                 {signal.adx
                   ? Number(signal.adx).toFixed(0)
                   : "—"}
-              </TableCell>
-              <TableCell align="right">
-                <Chip
-                  label={signal.entry_quality_score || "—"}
-                  size="small"
-                  sx={{
-                    backgroundColor:
-                      signal.entry_quality_score >= 80 ? "rgba(5, 150, 105, 0.2)" :
-                      signal.entry_quality_score >= 60 ? "rgba(59, 130, 246, 0.2)" :
-                      signal.entry_quality_score >= 40 ? "rgba(245, 158, 11, 0.2)" :
-                      "rgba(220, 38, 38, 0.2)",
-                    color:
-                      signal.entry_quality_score >= 80 ? "#059669" :
-                      signal.entry_quality_score >= 60 ? "#3B82F6" :
-                      signal.entry_quality_score >= 40 ? "#F59E0B" :
-                      "#DC2626",
-                    fontWeight: "bold",
-                  }}
-                />
               </TableCell>
               <TableCell align="center">
                 {signal.passes_minervini_template ? (

@@ -315,8 +315,6 @@ describe("TradingSignals", () => {
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
         expect(screen.getByText("BUY")).toBeInTheDocument();
-        // Entry quality score displayed
-        expect(screen.getByText("85")).toBeInTheDocument();
       });
     });
 
@@ -339,6 +337,21 @@ describe("TradingSignals", () => {
         expect(screen.getByText(/Pocket Pivot/)).toBeInTheDocument();
         // Should display RSI
         expect(screen.getByText("65")).toBeInTheDocument();
+      });
+    });
+
+    it("should display SATA Score and Mansfield RS", async () => {
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        // Should display SATA Score for AAPL (9)
+        expect(screen.getByText("9")).toBeInTheDocument();
+        // Should display SATA Score for TSLA (2)
+        expect(screen.getByText("2")).toBeInTheDocument();
+        // Should display Mansfield RS for AAPL (12.5)
+        expect(screen.getByText("12.5")).toBeInTheDocument();
+        // Should display Mansfield RS for TSLA (-8.3)
+        expect(screen.getByText("-8.3")).toBeInTheDocument();
       });
     });
 
