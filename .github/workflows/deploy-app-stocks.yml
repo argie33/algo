@@ -122,8 +122,8 @@ jobs:
             REQUIREMENTS_FILES=$(echo "$ALL_CHANGED_FILES" | grep 'requirements-load.*\.txt$' || true)
             echo "Debug: Requirements files found: $REQUIREMENTS_FILES"
 
-            # Extract loaders from direct loader file changes
-            CHANGED_LOADERS_FROM_PY=$(echo "$LOADER_FILES" | sed 's/^load//' | sed 's/\.py$//' | sort || true)
+            # Extract loaders from direct loader file changes (strip directory paths first)
+            CHANGED_LOADERS_FROM_PY=$(echo "$LOADER_FILES" | xargs -n1 basename 2>/dev/null | sed 's/^load//' | sed 's/\.py$//' | sort || true)
             echo "Debug: Loaders from .py files: $CHANGED_LOADERS_FROM_PY"
 
             # Extract loaders from requirements file changes (requirements-loadinfo.txt -> info)
