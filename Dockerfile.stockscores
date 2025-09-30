@@ -18,8 +18,8 @@ COPY requirements-loadstockscores.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements-loadstockscores.txt
 
-# Copy the script from webapp/lambda
-COPY webapp/lambda/loadstockscores.py .
+# Copy the script from root directory
+COPY loadstockscores.py .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
