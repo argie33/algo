@@ -1,7 +1,12 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 import AnalystInsights from '../../pages/AnalystInsights';
+import api from '../../services/api';
+
+// Mock the API module
+vi.mock('../../services/api');
 
 // Component Contract Tests - Verify API contract expectations
 describe('AnalystInsights Component Contract Tests', () => {
@@ -14,26 +19,23 @@ describe('AnalystInsights Component Contract Tests', () => {
   };
 
   beforeEach(() => {
-    if (fetch.mockClear) {
-      fetch.mockClear();
-    }
+    vi.clearAllMocks();
   });
 
   describe('API Contract: /api/analysts/upgrades', () => {
     test('expects correct request format with pagination', async () => {
-      fetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
+      api.get.mockResolvedValue({
+        data: {
           success: true,
           data: [],
           pagination: { page: 1, limit: 50, total: 0 }
-        })
+        }
       });
 
       renderWithRouter(<AnalystInsights />);
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
+        expect(api.get).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
       });
     });
 
@@ -64,9 +66,8 @@ describe('AnalystInsights Component Contract Tests', () => {
         timestamp: "2025-09-28T13:52:42.239Z"
       };
 
-      fetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse
+      api.get.mockResolvedValue({
+        data: mockResponse
       });
 
       renderWithRouter(<AnalystInsights />);
@@ -97,9 +98,8 @@ describe('AnalystInsights Component Contract Tests', () => {
         pagination: { page: 1, limit: 50, total: 1 }
       };
 
-      fetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockResponseWithMissingFields
+      api.get.mockResolvedValue({
+        data: mockResponseWithMissingFields
       });
 
       renderWithRouter(<AnalystInsights />);
@@ -153,21 +153,18 @@ describe('AnalystInsights Component Contract Tests', () => {
         pagination: { page: 1, limit: 50, total: 1 }
       };
 
-      fetch.mockImplementation((url) => {
+      api.get.mockImplementation((url) => {
         if (url.includes('/api/analysts/AAPL')) {
           return Promise.resolve({
-            ok: true,
-            json: async () => mockSymbolResponse
+            data: mockSymbolResponse
           });
         } else if (url.includes('upgrades')) {
           return Promise.resolve({
-            ok: true,
-            json: async () => mockClickableData
+            data: mockClickableData
           });
         }
         return Promise.resolve({
-          ok: true,
-          json: async () => ({ success: true, data: [] })
+          data: { success: true, data: [] }
         });
       });
 
@@ -189,10 +186,8 @@ describe('AnalystInsights Component Contract Tests', () => {
         timestamp: "2025-09-28T13:52:42.239Z"
       };
 
-      fetch.mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: async () => mockErrorResponse
+      api.get.mockResolvedValue({
+        data: mockErrorResponse
       });
 
       renderWithRouter(<AnalystInsights />);
@@ -203,7 +198,7 @@ describe('AnalystInsights Component Contract Tests', () => {
     });
 
     test('handles network failures', async () => {
-      fetch.mockRejectedValue(new Error('Network error'));
+      api.get.mockRejectedValue(new Error('Network error'));
 
       renderWithRouter(<AnalystInsights />);
 
@@ -222,39 +217,37 @@ describe('AnalystInsights Component Contract Tests', () => {
         timestamp: "2025-09-28T13:52:42.239Z"
       };
 
-      fetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockWithSources
+      api.get.mockResolvedValue({
+        data: mockWithSources
       });
 
       renderWithRouter(<AnalystInsights />);
 
       // Component should receive and could potentially display source info
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalled();
+        expect(api.get).toHaveBeenCalled();
       });
     });
   });
 
   describe('Updated Component Behavior', () => {
     test('no longer makes revenue estimates API calls', async () => {
-      fetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
+      api.get.mockResolvedValue({
+        data: {
           success: true,
           data: [],
           pagination: { page: 1, limit: 50, total: 0 }
-        })
+        }
       });
 
       renderWithRouter(<AnalystInsights />);
 
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
+        expect(api.get).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
       });
 
       // Should NOT call revenue estimates endpoint
-      expect(fetch).not.toHaveBeenCalledWith('/api/analysts/revenue-estimates');
+      expect(api.get).not.toHaveBeenCalledWith('/api/analysts/revenue-estimates');
     });
 
     test('focuses only on upgrades/downgrades functionality', async () => {
@@ -274,9 +267,8 @@ describe('AnalystInsights Component Contract Tests', () => {
         pagination: { page: 1, limit: 50, total: 1 }
       };
 
-      fetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockUpgradesOnly
+      api.get.mockResolvedValue({
+        data: mockUpgradesOnly
       });
 
       renderWithRouter(<AnalystInsights />);

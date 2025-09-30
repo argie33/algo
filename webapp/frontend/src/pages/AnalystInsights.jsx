@@ -32,6 +32,7 @@ import {
   Business as BusinessIcon,
   Timeline as TimelineIcon
 } from '@mui/icons-material';
+import api from '../services/api';
 
 const AnalystInsights = () => {
   const [upgrades, setUpgrades] = useState([]);
@@ -52,13 +53,8 @@ const AnalystInsights = () => {
       setLoading(true);
 
       // Fetch upgrades/downgrades
-      const upgradesResponse = await fetch(`/api/analysts/upgrades?page=${page}&limit=50`);
-
-      if (!upgradesResponse.ok) {
-        throw new Error(`HTTP error! status: ${upgradesResponse.status}`);
-      }
-
-      const upgradesData = await upgradesResponse.json();
+      const upgradesResponse = await api.get(`/api/analysts/upgrades?page=${page}&limit=50`);
+      const upgradesData = upgradesResponse.data;
 
       if (upgradesData.success) {
         let filteredUpgrades = upgradesData.data;
@@ -85,8 +81,8 @@ const AnalystInsights = () => {
     if (!symbol) return;
 
     try {
-      const response = await fetch(`/api/analysts/${symbol.toUpperCase()}`);
-      const data = await response.json();
+      const response = await api.get(`/api/analysts/${symbol.toUpperCase()}`);
+      const data = response.data;
 
       if (data.success) {
         setSymbolData(prev => ({
