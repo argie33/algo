@@ -174,8 +174,26 @@ function TradingSignals() {
     const signals = signalsData?.data;
     const totalSignals = signals?.length || 0;
     const recentSignals = signals.filter((s) => isRecentSignal(s.date)).length;
-    const buySignals = signals.filter((s) => s.signal === "Buy").length;
-    const sellSignals = signals.filter((s) => s.signal === "Sell").length;
+    const buySignals = signals.filter((s) => s.signal === "Buy" || s.signal === "BUY").length;
+    const sellSignals = signals.filter((s) => s.signal === "Sell" || s.signal === "SELL").length;
+
+    // Swing Trading Metrics
+    const stage2Signals = signals.filter((s) => s.market_stage === "Stage 2 - Advancing").length;
+    const highQualitySignals = signals.filter((s) => s.entry_quality_score >= 60).length;
+    const pocketPivots = signals.filter((s) => s.volume_analysis === "Pocket Pivot").length;
+    const minerviniCompliant = signals.filter((s) => s.passes_minervini_template).length;
+    const inPosition = signals.filter((s) => s.inposition).length;
+
+    // Average metrics for signals with data
+    const validRRSignals = signals.filter((s) => s.risk_reward_ratio && s.risk_reward_ratio > 0);
+    const avgRiskReward = validRRSignals.length > 0
+      ? (validRRSignals.reduce((sum, s) => sum + parseFloat(s.risk_reward_ratio || 0), 0) / validRRSignals.length).toFixed(1)
+      : 0;
+
+    const validQualitySignals = signals.filter((s) => s.entry_quality_score);
+    const avgQualityScore = validQualitySignals.length > 0
+      ? Math.round(validQualitySignals.reduce((sum, s) => sum + parseInt(s.entry_quality_score || 0), 0) / validQualitySignals.length)
+      : 0;
 
     // Find top performing sectors
     const sectorCounts = {};
@@ -195,6 +213,14 @@ function TradingSignals() {
       sellSignals,
       topSector: topSector ? topSector[0] : null,
       topSectorCount: topSector ? topSector[1] : 0,
+      // Swing Trading Metrics
+      stage2Signals,
+      highQualitySignals,
+      pocketPivots,
+      minerviniCompliant,
+      inPosition,
+      avgRiskReward,
+      avgQualityScore,
     };
   }, [signalsData]);
 
@@ -688,6 +714,69 @@ function TradingSignals() {
         )}
       </Grid>
 
+      {/* Swing Trading Metrics Summary */}
+      {summaryStats && (
+        <Grid container spacing={3} mb={4}>
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              📊 Swing Trading Metrics (O'Neill / Minervini)
+            </Typography>
+          </Grid>
+
+          <Grid item xs={12} md={2.4}>
+            <PerformanceCard
+              title="Stage 2 - Advancing"
+              value={summaryStats.stage2Signals}
+              subtitle="Optimal buy zone (Weinstein)"
+              icon={<TrendingUp />}
+              color="#059669"
+              isHighlight={summaryStats.stage2Signals > 0}
+            />
+          </Grid>
+
+          <Grid item xs={12} md={2.4}>
+            <PerformanceCard
+              title="High Quality Setups"
+              value={summaryStats.highQualitySignals}
+              subtitle="Entry quality score ≥60"
+              icon={<Analytics />}
+              color="#3B82F6"
+            />
+          </Grid>
+
+          <Grid item xs={12} md={2.4}>
+            <PerformanceCard
+              title="Pocket Pivots"
+              value={summaryStats.pocketPivots}
+              subtitle="O'Neill 200%+ volume surge"
+              icon={<TrendingUp />}
+              color="#F59E0B"
+            />
+          </Grid>
+
+          <Grid item xs={12} md={2.4}>
+            <PerformanceCard
+              title="Minervini Template"
+              value={summaryStats.minerviniCompliant}
+              subtitle="Passes trend template"
+              icon={<Analytics />}
+              color="#8B5CF6"
+            />
+          </Grid>
+
+          <Grid item xs={12} md={2.4}>
+            <PerformanceCard
+              title="Currently Holding"
+              value={summaryStats.inPosition}
+              subtitle={`Avg R/R: ${summaryStats.avgRiskReward}:1`}
+              icon={<TrendingUp />}
+              color="#10B981"
+            />
+          </Grid>
+        </Grid>
+      )}
+
+
       {/* Filters and Search */}
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} md={3}>
@@ -889,8 +978,17 @@ function TradingSignals() {
                     <TableCell>Signal</TableCell>
                     <TableCell align="right">Price</TableCell>
                     <TableCell align="right">Buy Level</TableCell>
-                    <TableCell align="right">Stop Level</TableCell>
-                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Stop Loss</TableCell>
+                    <TableCell align="right">Target</TableCell>
+                    <TableCell align="right">R/R Ratio</TableCell>
+                    <TableCell>Stage</TableCell>
+                    <TableCell align="right">Quality</TableCell>
+                    <TableCell>Volume</TableCell>
+                    <TableCell align="right">% from 21 EMA</TableCell>
+                    <TableCell align="right">RSI</TableCell>
+                    <TableCell align="right">ADX</TableCell>
+                    <TableCell align="center">Minervini</TableCell>
+                    <TableCell align="center">Status</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -905,7 +1003,7 @@ function TradingSignals() {
                         {getSignalChip(signal.signal, signal.date)}
                       </TableCell>
                       <TableCell align="right">
-                        {formatCurrency(signal.current_price)}
+                        {formatCurrency(signal.current_price || signal.close)}
                       </TableCell>
                       <TableCell align="right">
                         {signal.buylevel
@@ -917,7 +1015,116 @@ function TradingSignals() {
                           ? formatCurrency(signal.stoplevel)
                           : "—"}
                       </TableCell>
+                      <TableCell align="right">
+                        {signal.target_price
+                          ? formatCurrency(signal.target_price)
+                          : "—"}
+                      </TableCell>
+                      <TableCell align="right">
+                        {signal.risk_reward_ratio
+                          ? `${Number(signal.risk_reward_ratio).toFixed(1)}:1`
+                          : "—"}
+                      </TableCell>
                       <TableCell>
+                        <Chip
+                          label={signal.market_stage?.replace("Stage ", "S") || "—"}
+                          size="small"
+                          sx={{
+                            backgroundColor:
+                              signal.market_stage === "Stage 2 - Advancing" ? "rgba(5, 150, 105, 0.2)" :
+                              signal.market_stage === "Stage 1 - Basing" ? "rgba(59, 130, 246, 0.2)" :
+                              signal.market_stage === "Stage 3 - Topping" ? "rgba(245, 158, 11, 0.2)" :
+                              signal.market_stage === "Stage 4 - Declining" ? "rgba(220, 38, 38, 0.2)" :
+                              "rgba(156, 163, 175, 0.2)",
+                            color:
+                              signal.market_stage === "Stage 2 - Advancing" ? "#059669" :
+                              signal.market_stage === "Stage 1 - Basing" ? "#3B82F6" :
+                              signal.market_stage === "Stage 3 - Topping" ? "#F59E0B" :
+                              signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
+                              "#6B7280",
+                            fontWeight: "bold",
+                            fontSize: "0.7rem",
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={signal.entry_quality_score || "—"}
+                          size="small"
+                          sx={{
+                            backgroundColor:
+                              signal.entry_quality_score >= 80 ? "rgba(5, 150, 105, 0.2)" :
+                              signal.entry_quality_score >= 60 ? "rgba(59, 130, 246, 0.2)" :
+                              signal.entry_quality_score >= 40 ? "rgba(245, 158, 11, 0.2)" :
+                              "rgba(220, 38, 38, 0.2)",
+                            color:
+                              signal.entry_quality_score >= 80 ? "#059669" :
+                              signal.entry_quality_score >= 60 ? "#3B82F6" :
+                              signal.entry_quality_score >= 40 ? "#F59E0B" :
+                              "#DC2626",
+                            fontWeight: "bold",
+                            fontSize: "0.7rem",
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={signal.volume_analysis || "Normal"}
+                          size="small"
+                          sx={{
+                            backgroundColor:
+                              signal.volume_analysis === "Pocket Pivot" ? "rgba(5, 150, 105, 0.2)" :
+                              signal.volume_analysis === "Volume Surge" ? "rgba(59, 130, 246, 0.2)" :
+                              signal.volume_analysis === "Volume Dry-up" ? "rgba(245, 158, 11, 0.2)" :
+                              "rgba(156, 163, 175, 0.2)",
+                            color:
+                              signal.volume_analysis === "Pocket Pivot" ? "#059669" :
+                              signal.volume_analysis === "Volume Surge" ? "#3B82F6" :
+                              signal.volume_analysis === "Volume Dry-up" ? "#F59E0B" :
+                              "#6B7280",
+                            fontWeight: "bold",
+                            fontSize: "0.65rem",
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        {signal.pct_from_ema_21
+                          ? `${Number(signal.pct_from_ema_21).toFixed(1)}%`
+                          : "—"}
+                      </TableCell>
+                      <TableCell align="right">
+                        {signal.rsi
+                          ? Number(signal.rsi).toFixed(0)
+                          : "—"}
+                      </TableCell>
+                      <TableCell align="right">
+                        {signal.adx
+                          ? Number(signal.adx).toFixed(0)
+                          : "—"}
+                      </TableCell>
+                      <TableCell align="center">
+                        {signal.passes_minervini_template ? (
+                          <Chip
+                            label="✓"
+                            size="small"
+                            sx={{
+                              backgroundColor: "rgba(5, 150, 105, 0.2)",
+                              color: "#059669",
+                              fontWeight: "bold",
+                            }}
+                          />
+                        ) : (
+                          <Chip
+                            label="✗"
+                            size="small"
+                            sx={{
+                              backgroundColor: "rgba(156, 163, 175, 0.2)",
+                              color: "#6B7280",
+                            }}
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell align="center">
                         <Chip
                           label={signal.inposition ? "In Position" : "Closed"}
                           size="small"
