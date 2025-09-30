@@ -21,6 +21,7 @@ Force Docker image rebuild with all security fixes - v1.6
 Workflow path detection fixed for subdirectory loaders - v1.7
 Testing with updated workflow basename fix - v1.8
 Migration fix for last_updated column - v1.9
+Robust migration with step-by-step table creation - v1.10
 """
 
 import os
@@ -73,64 +74,80 @@ def get_db_connection():
 
 def create_stock_scores_table(conn):
     """Create stock_scores table if it doesn't exist."""
-    create_table_sql = """
-    CREATE TABLE IF NOT EXISTS stock_scores (
-        symbol VARCHAR(50) PRIMARY KEY,
-        composite_score DECIMAL(5,2),
-        momentum_score DECIMAL(5,2),
-        trend_score DECIMAL(5,2),
-        value_score DECIMAL(5,2),
-        quality_score DECIMAL(5,2),
-        growth_score DECIMAL(5,2),
-        rsi DECIMAL(5,2),
-        macd DECIMAL(10,4),
-        sma_20 DECIMAL(10,2),
-        sma_50 DECIMAL(10,2),
-        volume_avg_30d BIGINT,
-        current_price DECIMAL(10,2),
-        price_change_1d DECIMAL(5,2),
-        price_change_5d DECIMAL(5,2),
-        price_change_30d DECIMAL(5,2),
-        volatility_30d DECIMAL(5,2),
-        market_cap BIGINT,
-        pe_ratio DECIMAL(8,2),
-        score_date DATE DEFAULT CURRENT_DATE,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Create index for better performance
-    CREATE INDEX IF NOT EXISTS idx_stock_scores_composite ON stock_scores(composite_score DESC);
-    CREATE INDEX IF NOT EXISTS idx_stock_scores_updated ON stock_scores(last_updated);
-    CREATE INDEX IF NOT EXISTS idx_stock_scores_date ON stock_scores(score_date);
-    """
-
     try:
         cur = conn.cursor()
-        cur.execute(create_table_sql)
+
+        # First, create base table without last_updated (for compatibility)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stock_scores (
+                symbol VARCHAR(50) PRIMARY KEY,
+                composite_score DECIMAL(5,2),
+                momentum_score DECIMAL(5,2),
+                trend_score DECIMAL(5,2),
+                value_score DECIMAL(5,2),
+                quality_score DECIMAL(5,2),
+                growth_score DECIMAL(5,2),
+                rsi DECIMAL(5,2),
+                macd DECIMAL(10,4),
+                sma_20 DECIMAL(10,2),
+                sma_50 DECIMAL(10,2),
+                volume_avg_30d BIGINT,
+                current_price DECIMAL(10,2),
+                price_change_1d DECIMAL(5,2),
+                price_change_5d DECIMAL(5,2),
+                price_change_30d DECIMAL(5,2),
+                volatility_30d DECIMAL(5,2),
+                market_cap BIGINT,
+                pe_ratio DECIMAL(8,2),
+                score_date DATE DEFAULT CURRENT_DATE
+            );
+        """)
         conn.commit()
+        logger.info("✅ Base stock_scores table created/verified")
 
-        # Add last_updated column if it doesn't exist (migration for existing tables)
-        try:
-            cur.execute("""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_name='stock_scores' AND column_name='last_updated'
-                    ) THEN
-                        ALTER TABLE stock_scores ADD COLUMN last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-                    END IF;
-                END $$;
-            """)
-            conn.commit()
-        except psycopg2.Error as migrate_err:
-            logger.warning(f"Migration warning for last_updated column: {migrate_err}")
+        # Add last_updated column if it doesn't exist (migration)
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='stock_scores' AND column_name='last_updated'
+                ) THEN
+                    ALTER TABLE stock_scores ADD COLUMN last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                    RAISE NOTICE 'Added last_updated column';
+                END IF;
+            END $$;
+        """)
+        conn.commit()
+        logger.info("✅ Column migration completed")
 
-        logger.info("✅ stock_scores table created/verified")
+        # Create indexes
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_stock_scores_composite ON stock_scores(composite_score DESC);
+            CREATE INDEX IF NOT EXISTS idx_stock_scores_date ON stock_scores(score_date);
+        """)
+        conn.commit()
+        logger.info("✅ Indexes created")
+
+        # Create index on last_updated only if column exists
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='stock_scores' AND column_name='last_updated'
+                ) THEN
+                    CREATE INDEX IF NOT EXISTS idx_stock_scores_updated ON stock_scores(last_updated);
+                END IF;
+            END $$;
+        """)
+        conn.commit()
+        logger.info("✅ All indexes verified")
+
         cur.close()
         return True
     except psycopg2.Error as e:
-        logger.error(f"❌ Failed to create stock_scores table: {e}")
+        logger.error(f"❌ Failed to create/migrate stock_scores table: {e}")
         return False
 
 def get_stock_symbols(conn, limit=100):

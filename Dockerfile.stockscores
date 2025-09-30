@@ -5,7 +5,7 @@ ENV PIP_ROOT_USER_ACTION=ignore \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Force cache invalidation for code changes
-ARG CACHE_BUST=v1.9
+ARG CACHE_BUST=v1.10
 
 WORKDIR /app
 
