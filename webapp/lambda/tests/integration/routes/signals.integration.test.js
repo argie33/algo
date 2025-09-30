@@ -92,11 +92,13 @@ describe("Signals Routes - Integration Tests", () => {
         expect(signal).toHaveProperty("stoplevel");
         expect(signal).toHaveProperty("inposition");
 
-        // Swing trading metrics (24 new fields)
+        // Swing trading metrics (27 fields including enhanced stage analysis)
         expect(signal).toHaveProperty("target_price");
         expect(signal).toHaveProperty("current_price");
         expect(signal).toHaveProperty("risk_reward_ratio");
         expect(signal).toHaveProperty("market_stage");
+        expect(signal).toHaveProperty("stage_confidence");
+        expect(signal).toHaveProperty("substage");
         expect(signal).toHaveProperty("pct_from_ema_21");
         expect(signal).toHaveProperty("pct_from_sma_50");
         expect(signal).toHaveProperty("pct_from_sma_200");
