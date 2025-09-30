@@ -137,11 +137,11 @@ def get_stock_symbols(conn, limit=100):
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Query stock_symbols table
+        # Query stock_symbols table (matches loadbuyselldaily.py)
         cur.execute("""
             SELECT symbol
             FROM stock_symbols
-            WHERE symbol IS NOT NULL
+            WHERE exchange IN ('NASDAQ', 'New York Stock Exchange')
             ORDER BY symbol
             LIMIT %s
         """, (limit,))
