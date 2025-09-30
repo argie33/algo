@@ -107,6 +107,24 @@ def create_stock_scores_table(conn):
         cur = conn.cursor()
         cur.execute(create_table_sql)
         conn.commit()
+
+        # Add last_updated column if it doesn't exist (migration for existing tables)
+        try:
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='stock_scores' AND column_name='last_updated'
+                    ) THEN
+                        ALTER TABLE stock_scores ADD COLUMN last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                    END IF;
+                END $$;
+            """)
+            conn.commit()
+        except psycopg2.Error as migrate_err:
+            logger.warning(f"Migration warning for last_updated column: {migrate_err}")
+
         logger.info("✅ stock_scores table created/verified")
         cur.close()
         return True
