@@ -26,19 +26,35 @@ import numpy as np
 from datetime import datetime, timedelta
 import logging
 import json
+import boto3
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Database configuration - matching Node.js config
-DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'port': int(os.getenv('DB_PORT', 5432)),
-    'user': os.getenv('DB_USER', 'postgres'),
-    'password': os.getenv('DB_PASSWORD', 'password'),
-    'dbname': os.getenv('DB_NAME', 'stocks')
-}
+# Get database credentials from AWS Secrets Manager
+DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
+if not DB_SECRET_ARN:
+    logger.error("DB_SECRET_ARN not set; aborting")
+    sys.exit(1)
+
+def get_db_config():
+    """Fetch database configuration from AWS Secrets Manager."""
+    try:
+        client = boto3.client("secretsmanager")
+        secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+        return {
+            'host': secret["host"],
+            'port': int(secret.get("port", 5432)),
+            'user': secret["username"],
+            'password': secret["password"],
+            'dbname': secret["dbname"]
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch database credentials: {e}")
+        sys.exit(1)
+
+DB_CONFIG = get_db_config()
 
 def get_db_connection():
     """Get database connection."""
