@@ -3,7 +3,7 @@
 Stock Scores Loader Script - Production Ready
 Calculates and stores stock scores in the database using existing data.
 Reads from stock_symbols table and calculates metrics from:
-- stock_prices: price data, volume, volatility calculations
+- price_daily: price data, volume, volatility calculations
 - technical_data_daily: RSI, MACD, moving averages
 - earnings: PE ratios from actual EPS data
 Stores calculated scores in stock_scores table for API consumption.
@@ -132,21 +132,19 @@ def create_stock_scores_table(conn):
         return False
 
 def get_stock_symbols(conn, limit=None):
-    """Get stock symbols from stock_symbols table, fallback to stock_prices.
+    """Get stock symbols directly from price_daily table.
     Only returns symbols that have price data available."""
     try:
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Query stock_symbols table, but only get symbols with price data
-        # This prevents processing symbols without price data
+        # Get symbols directly from price_daily to ensure we only process symbols with data
+        # No need to join with stock_symbols since we need price data regardless
         limit_clause = f"LIMIT {limit}" if limit else ""
         cur.execute(f"""
-            SELECT DISTINCT ss.symbol
-            FROM stock_symbols ss
-            INNER JOIN stock_prices sp ON ss.symbol = sp.symbol
-            WHERE ss.exchange IN ('NASDAQ', 'New York Stock Exchange')
-            ORDER BY ss.symbol
+            SELECT DISTINCT symbol
+            FROM price_daily
+            ORDER BY symbol
             {limit_clause}
         """)
 
@@ -212,10 +210,10 @@ def get_stock_data_from_database(conn, symbol):
     try:
         cur = conn.cursor()
 
-        # Get price data from stock_prices table (last 90 days for calculations)
+        # Get price data from price_daily table (last 90 days for calculations)
         cur.execute("""
-            SELECT date, open, high, low, close, volume, adjusted_close
-            FROM stock_prices
+            SELECT date, open, high, low, close, volume, adj_close
+            FROM price_daily
             WHERE symbol = %s
             AND date >= CURRENT_DATE - INTERVAL '90 days'
             ORDER BY date DESC
@@ -229,7 +227,7 @@ def get_stock_data_from_database(conn, symbol):
             return None
 
         # Convert to pandas DataFrame for easier calculations
-        df = pd.DataFrame(price_data, columns=['date', 'open', 'high', 'low', 'close', 'volume', 'adjusted_close'])
+        df = pd.DataFrame(price_data, columns=['date', 'open', 'high', 'low', 'close', 'volume', 'adj_close'])
         df = df.sort_values('date')  # Sort chronologically for calculations
 
         # Get current price (most recent)
