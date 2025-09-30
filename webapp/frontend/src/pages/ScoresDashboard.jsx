@@ -273,7 +273,7 @@ const ScoresDashboard = () => {
       const { default: api } = await import("../services/api");
 
       // Fetch scores data from our backend
-      const response = await api.get("/scores");
+      const response = await api.get("/api/scores");
 
       if (response?.data?.success && response.data.data?.stocks) {
         const transformedStocks = response.data.data.stocks.map(transformStockData);
@@ -301,7 +301,7 @@ const ScoresDashboard = () => {
       // Get latest signals for each stock symbol
       const signalPromises = stockList.map(async (stock) => {
         try {
-          const response = await api.get(`/signals/${stock.symbol}?timeframe=daily&limit=1`);
+          const response = await api.get(`/api/signals?symbol=${stock.symbol}&timeframe=daily&limit=1`);
           if (response?.data?.success && response.data.data?.length > 0) {
             return {
               symbol: stock.symbol,
