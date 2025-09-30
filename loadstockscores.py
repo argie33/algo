@@ -48,7 +48,8 @@ def get_db_config():
             'port': int(secret.get("port", 5432)),
             'user': secret["username"],
             'password': secret["password"],
-            'dbname': secret["dbname"]
+            'dbname': secret["dbname"],
+            'sslmode': 'require'
         }
     except Exception as e:
         logger.error(f"❌ Failed to fetch database credentials: {e}")
