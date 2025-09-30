@@ -2835,8 +2835,8 @@ Outputs:
     Export:
       Name: TECHNICALSDAILYTaskDefArn
 
-  StockScoresTaskDefArn:
+  StockscoresTaskDefArn:
     Description: ARN of the ECS TaskDefinition for stock scores loader
     Value: !Ref StockScoresTaskDefinition
     Export:
-      Name: StockScoresTaskDefArn
+      Name: StockscoresTaskDefArn
