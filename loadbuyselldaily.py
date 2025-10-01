@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Updated: 2025-09-30 - ETF filtering + SATA scores with Mansfield RS
+# Updated: 2025-09-30 - ETF filtering + SATA scores + Bug fixes
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
+# Fixed: FRED_API_KEY check, tuple index error (named params)
 import json
 import logging
 import os
@@ -550,7 +551,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 bsd.close as current_price, bsd.open, bsd.high, bsd.low,
                 bsd.volume, bsd.inposition
             FROM {table_name} bsd
-            WHERE bsd.symbol = %s AND bsd.timeframe = %s
+            WHERE bsd.symbol = %(symbol)s AND bsd.timeframe = %(timeframe)s
         ),
         technical_data AS (
             SELECT
@@ -562,7 +563,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 LAG(td.sma_50, 5) OVER (ORDER BY td.date) as sma_50_prev,
                 LAG(td.sma_200, 10) OVER (ORDER BY td.date) as sma_200_prev
             FROM {tech_table} td
-            WHERE td.symbol = %s
+            WHERE td.symbol = %(symbol)s
         ),
         volume_data AS (
             SELECT
@@ -572,7 +573,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
                 ) as volume_avg_50
             FROM {price_table} pd
-            WHERE pd.symbol = %s
+            WHERE pd.symbol = %(symbol)s
         ),
         high_52week_data AS (
             SELECT
@@ -582,7 +583,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                 ) as high_52week
             FROM {price_table} pd
-            WHERE pd.symbol = %s
+            WHERE pd.symbol = %(symbol)s
         ),
         calculated_metrics AS (
             SELECT
@@ -826,10 +827,10 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             daily_range_pct = cm.daily_range_pct,
             volatility_profile = cm.volatility_profile
         FROM calculated_metrics cm
-        WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date AND bsd.timeframe = %s
+        WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date AND bsd.timeframe = %(timeframe)s
         """
 
-        cur.execute(update_sql, (symbol, timeframe, symbol, symbol, symbol, timeframe))
+        cur.execute(update_sql, {'symbol': symbol, 'timeframe': timeframe})
         updated_count = cur.rowcount
         logging.info(f"✅ Updated {updated_count} swing metrics for {symbol} {timeframe}")
 
@@ -1081,8 +1082,12 @@ def process_symbol(symbol, timeframe):
 def main():
 
     try:
-        annual_rfr = get_risk_free_rate_fred(FRED_API_KEY)
-        print(f"Annual RFR: {annual_rfr:.2%}")
+        if FRED_API_KEY:
+            annual_rfr = get_risk_free_rate_fred(FRED_API_KEY)
+            print(f"Annual RFR: {annual_rfr:.2%}")
+        else:
+            annual_rfr = 0.0
+            logging.info("FRED_API_KEY not set, using 0% risk-free rate")
     except Exception as e:
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
