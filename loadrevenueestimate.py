@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# Updated: 2025-10-01 - Revenue estimates loader for analyst revenue projections
 import gc
 import json
 import logging
