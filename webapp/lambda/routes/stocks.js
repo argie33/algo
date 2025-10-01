@@ -883,8 +883,15 @@ router.get("/", async (req, res) => {
     });
 
     // ACTUAL AWS SCHEMA: Use company_profile (from loadinfo.py) with market_data and key_metrics
+    // Use CTE with window function to avoid slow correlated subquery
     const stocksQuery = `
-      SELECT DISTINCT ON (cp.ticker)
+      WITH latest_prices AS (
+        SELECT DISTINCT ON (symbol)
+          symbol, date, open, high, low, close, adj_close, volume
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      )
+      SELECT
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
         cp.sector,
@@ -940,8 +947,7 @@ router.get("/", async (req, res) => {
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
-        AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
+      LEFT JOIN latest_prices pd ON cp.ticker = pd.symbol
       ${whereClause.replace(/symbol/g, 'cp.ticker')}
       ORDER BY cp.ticker ASC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
