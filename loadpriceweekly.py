@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Weekly price data loader - fetches weekly OHLCV data for all symbols
-# Updated: 2025-10-01 - Removed ETF loading, stocks only from stock_symbols
+# Updated: 2025-10-01 - Optimized for ARM64, uses shared base image for faster builds
 import gc
 import json
 import logging

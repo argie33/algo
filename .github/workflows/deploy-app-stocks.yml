@@ -334,6 +334,27 @@ jobs:
           # Enable GitHub Actions cache optimization
           export BUILDX_EXPERIMENTAL=1
 
+          # Build shared base image first (contains pandas, yfinance, etc.)
+          echo "🏗️ Building shared base image with dependencies..."
+          BASE_IMAGE="$REPO_NAME:base-loader-latest"
+          docker buildx build \
+            --platform linux/arm64 \
+            --cache-from type=gha,scope=base-loader \
+            --cache-to type=gha,mode=max,scope=base-loader \
+            --progress=plain \
+            -t "$BASE_IMAGE" \
+            -f Dockerfile.base-loader . --load
+
+          if [ $? -eq 0 ]; then
+            echo "✅ Base image built successfully"
+            # Push base image to ECR for use by loader images
+            docker tag "$BASE_IMAGE" "$REPOSITORY_URI:base-loader-latest"
+            docker push "$REPOSITORY_URI:base-loader-latest"
+          else
+            echo "❌ Base image build failed!"
+            exit 1
+          fi
+
           # Build specific images for each loader type that will be executed
           echo "🔨 Building Docker images for detected loaders..."
 
@@ -361,6 +382,7 @@ jobs:
             echo "🔨 Building $loader with optimizations..."
             timeout 30m docker buildx build \
               --platform linux/arm64 \
+              --build-arg ECR_REGISTRY="$REPOSITORY_URI" \
               --cache-from "$CACHE_FROM" \
               --cache-to "$CACHE_TO" \
               --progress=plain \

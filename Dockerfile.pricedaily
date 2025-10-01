@@ -1,17 +1,7 @@
-# Dockerfile.pricedaily
-FROM python:3.11-slim
+# Use shared base image with dependencies pre-installed
+ARG ECR_REGISTRY
+FROM ${ECR_REGISTRY}:base-loader-latest
 
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-
-WORKDIR /app
-
-# install Python dependencies for loadpricedaily.py
-COPY requirements-loadpricedaily.txt .
-RUN pip install --no-cache-dir -r requirements-loadpricedaily.txt
-
-# copy and run the price-daily loader script
+# Copy only the Python script (dependencies already in base)
 COPY loadpricedaily.py .
 ENTRYPOINT ["python", "loadpricedaily.py"]

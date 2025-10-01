@@ -1,18 +1,7 @@
-# Dockerfile.priceweekly
-FROM python:3.11-slim
+# Use shared base image with dependencies pre-installed
+ARG ECR_REGISTRY
+FROM ${ECR_REGISTRY}:base-loader-latest
 
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-
-
-WORKDIR /app
-
-# install Python dependencies for loadpriceweekly.py
-COPY requirements-loadpriceweekly.txt .
-RUN pip install --no-cache-dir -r requirements-loadpriceweekly.txt
-
-# copy and run the price-weekly loader script
+# Copy only the Python script (dependencies already in base)
 COPY loadpriceweekly.py .
 ENTRYPOINT ["python", "loadpriceweekly.py"]
