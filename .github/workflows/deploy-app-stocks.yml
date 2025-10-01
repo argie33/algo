@@ -299,7 +299,19 @@ jobs:
           # Check if individual Dockerfiles exist for each loader
           MISSING_DOCKERFILES=""
           for loader in $LOADERS; do
-            DOCKERFILE="Dockerfile.$loader"
+            # Map loader names to Dockerfile names
+            case "$loader" in
+              "earningsestimate")
+                DOCKERFILE="Dockerfile.loadearningsestimate"
+                ;;
+              "revenueestimate")
+                DOCKERFILE="Dockerfile.loadrevenueestimate"
+                ;;
+              *)
+                DOCKERFILE="Dockerfile.$loader"
+                ;;
+            esac
+
             if [[ ! -f "$DOCKERFILE" ]]; then
               MISSING_DOCKERFILES="$MISSING_DOCKERFILES $loader"
             fi
@@ -354,6 +366,19 @@ jobs:
           for loader in $LOADERS; do
             echo "🔨 Building image for $loader loader..."
 
+            # Map loader names to Dockerfile names
+            case "$loader" in
+              "earningsestimate")
+                DOCKERFILE="Dockerfile.loadearningsestimate"
+                ;;
+              "revenueestimate")
+                DOCKERFILE="Dockerfile.loadrevenueestimate"
+                ;;
+              *)
+                DOCKERFILE="Dockerfile.$loader"
+                ;;
+            esac
+
             # Build image with cache optimization
             IMAGE_TAG="$REPO_NAME:$loader-latest"
             CACHE_FROM="type=gha,scope=$loader"
@@ -367,7 +392,7 @@ jobs:
               --cache-to "$CACHE_TO" \
               --progress=plain \
               -t "$IMAGE_TAG" \
-              -f Dockerfile.$loader . --load
+              -f $DOCKERFILE . --load
 
             if [ $? -ne 0 ]; then
               echo "❌ ERROR: Docker build failed or timed out for $loader!"
