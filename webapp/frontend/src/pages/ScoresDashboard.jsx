@@ -589,13 +589,6 @@ const ScoresDashboard = () => {
                         variant="filled"
                       />
                       <Chip
-                        icon={<Assessment />}
-                        label={`Trend: ${stock.trend_score.toFixed(1)}`}
-                        size="medium"
-                        color={stock.trend_score >= 80 ? "success" : stock.trend_score >= 60 ? "warning" : "error"}
-                        variant="filled"
-                      />
-                      <Chip
                         icon={<AccountBalance />}
                         label={`Value: ${stock.value_score.toFixed(1)}`}
                         size="medium"

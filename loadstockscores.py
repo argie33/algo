@@ -10,14 +10,13 @@ Data Sources:
 - earnings_history: Growth trends and earnings surprise patterns
 
 Scoring Methodology (0-100 scale):
-1. Momentum Score (15%): RSI + MACD + Price momentum across timeframes
-2. Trend Score (18%): MA alignment + Multi-timeframe analysis + Position scoring
-3. Value Score (12%): PE ratio + PEG-adjusted valuation
-4. Quality Score (12%): Volatility risk + Liquidity + Price stability
-5. Growth Score (15%): Earnings growth + Momentum + Consistency
-6. Relative Strength Score (13%): RSI-based strength + Price performance vs market
-7. Positioning Score (10%): Institutional holdings changes + Market positioning trends
-8. Sentiment Score (5%): Analyst ratings + Market sentiment indicators
+1. Momentum Score (20%): RSI + MACD + Price momentum across timeframes
+2. Value Score (15%): PE ratio + PEG-adjusted valuation
+3. Quality Score (15%): Volatility risk + Liquidity + Price stability
+4. Growth Score (18%): Earnings growth + Momentum + Consistency
+5. Relative Strength Score (17%): RSI-based strength + Price performance vs market
+6. Positioning Score (10%): Institutional holdings changes + Market positioning trends
+7. Sentiment Score (5%): Analyst ratings + Market sentiment indicators
 
 Version History:
 - v2.0: Enhanced multi-factor scoring with improved technical + fundamental analysis
@@ -670,16 +669,15 @@ def get_stock_data_from_database(conn, symbol):
 
         sentiment_score = max(0, min(100, sentiment_score))
 
-        # Composite Score (optimized weighted average with 8 factors)
-        # Weights: Trend (18%), Growth (15%), Momentum (15%), Relative Strength (13%),
-        #          Value (12%), Quality (12%), Positioning (10%), Sentiment (5%)
+        # Composite Score (optimized weighted average with 7 factors)
+        # Weights: Momentum (20%), Growth (18%), Relative Strength (17%), Value (15%),
+        #          Quality (15%), Positioning (10%), Sentiment (5%)
         composite_score = (
-            trend_score * 0.18 +                    # Trend analysis
-            growth_score * 0.15 +                   # Growth drivers
-            momentum_score * 0.15 +                 # Short-term momentum
-            relative_strength_score * 0.13 +        # Relative strength
-            value_score * 0.12 +                    # Valuation
-            quality_score * 0.12 +                  # Quality/Risk
+            momentum_score * 0.20 +                 # Short-term momentum
+            growth_score * 0.18 +                   # Growth drivers
+            relative_strength_score * 0.17 +        # Relative strength
+            value_score * 0.15 +                    # Valuation
+            quality_score * 0.15 +                  # Quality/Risk
             positioning_score * 0.10 +              # Institutional positioning
             sentiment_score * 0.05                  # Market sentiment
         )
