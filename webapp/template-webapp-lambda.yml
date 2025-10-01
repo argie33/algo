@@ -15,7 +15,7 @@ Parameters:
 
 Globals:
   Function:
-    Timeout: 45
+    Timeout: 60
     MemorySize: 512
     Runtime: nodejs18.x
     Environment:

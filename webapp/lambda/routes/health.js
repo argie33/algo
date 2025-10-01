@@ -593,12 +593,8 @@ router.get("/database", async (req, res) => {
 
       summary.total_tables = tablesResult.rowCount;
 
-      // Only check critical tables to avoid timeout (full check available at /health/database/diagnostics)
-      const criticalTables = ['stock_symbols', 'company_profile', 'price_daily', 'stock_scores', 'last_updated'];
-      const tablesToCheck = tablesResult.rows.filter(row => criticalTables.includes(row.table_name));
-
       // Check each table for record count and status
-      for (const tableRow of tablesToCheck) {
+      for (const tableRow of tablesResult.rows) {
         const tableName = tableRow.table_name;
         try {
           // Use fast table statistics instead of slow COUNT(*)
