@@ -1,0 +1,196 @@
+name: Scheduled LoadInfo Daily
+
+on:
+  schedule:
+    # Run daily at 6:00 AM UTC (1:00 AM EST / 2:00 AM EDT)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: false
+        default: 'prod'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-scheduled-loadinfo
+
+jobs:
+  run-loadinfo:
+    name: Execute LoadInfo Loader
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get infrastructure info
+        id: infra
+        run: |
+          # Get cluster ARN
+          CLUSTER_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+
+          # Get LoadInfo task definition ARN
+          TASK_DEF_ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
+            --output text)
+
+          if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+            echo "❌ No task definition found for loadinfo"
+            exit 1
+          fi
+
+          # Get networking info
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SECURITY_GROUP=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+
+          echo "cluster=$CLUSTER_ARN" >> $GITHUB_OUTPUT
+          echo "task-def=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "subnet1=$SUBNET1" >> $GITHUB_OUTPUT
+          echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
+          echo "security-group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
+
+      - name: Execute loadinfo task
+        id: task
+        run: |
+          echo "🚀 Starting loadinfo loader (scheduled daily run)"
+
+          CONTAINER_NAME="loadinfo-loader"
+
+          # Get the correct image URI
+          REPOSITORY_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text --region ${{ env.AWS_REGION }})
+
+          IMAGE_URI="${REPOSITORY_URI}:info-latest"
+          echo "✅ Using image: $IMAGE_URI"
+
+          # Get current task definition and update image
+          TASK_DEF_JSON=$(aws ecs describe-task-definition \
+            --task-definition "${{ steps.infra.outputs.task-def }}" \
+            --query "taskDefinition" \
+            --output json)
+
+          UPDATED_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
+            --arg imageUri "$IMAGE_URI" \
+            --arg containerName "$CONTAINER_NAME" \
+            '.containerDefinitions |= map(if .name == $containerName then .image = $imageUri else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)')
+
+          echo "$UPDATED_TASK_DEF" > /tmp/task_def.json
+
+          if ! jq empty /tmp/task_def.json; then
+            echo "❌ ERROR: Invalid JSON for task definition"
+            exit 1
+          fi
+
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/task_def.json \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text)
+
+          echo "📝 Registered task definition: $NEW_TASK_DEF_ARN"
+
+          # Run ECS task
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --task-definition "$NEW_TASK_DEF_ARN" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"$CONTAINER_NAME\",\"command\":[\"python3\",\"loadinfo.py\"]}]}" \
+            --tags "[{\"key\":\"Schedule\",\"value\":\"Daily\"},{\"key\":\"Source\",\"value\":\"GitHub Actions\"}]" \
+            --query "tasks[0].taskArn" \
+            --output text)
+
+          echo "task-arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Started task: $TASK_ARN"
+
+      - name: Wait for task completion
+        run: |
+          echo "⏳ Waiting for loadinfo task to complete..."
+
+          aws ecs wait tasks-stopped \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --tasks "${{ steps.task.outputs.task-arn }}"
+
+      - name: Check task result
+        id: result
+        run: |
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --tasks "${{ steps.task.outputs.task-arn }}")
+
+          EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // 1')
+          STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].stoppedReason // "Unknown"')
+
+          echo "Task stopped with exit code: $EXIT_CODE"
+          echo "Stop reason: $STOP_REASON"
+          echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          echo "stop-reason=$STOP_REASON" >> $GITHUB_OUTPUT
+
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "❌ loadinfo failed with exit code $EXIT_CODE"
+            exit 1
+          else
+            echo "✅ loadinfo completed successfully"
+          fi
+
+      - name: Get CloudWatch logs
+        if: always()
+        run: |
+          echo "📋 Fetching CloudWatch logs..."
+
+          # Extract task ID from ARN
+          TASK_ID=$(echo "${{ steps.task.outputs.task-arn }}" | cut -d'/' -f3)
+
+          # Log group pattern for ECS tasks
+          LOG_GROUP="/ecs/stocks-loadinfo"
+          LOG_STREAM="ecs/loadinfo-loader/$TASK_ID"
+
+          # Get logs (last 100 events)
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_STREAM" \
+            --limit 100 \
+            --output text || echo "⚠️ Could not fetch logs (task may have just started)"
+
+      - name: Report status
+        if: always()
+        run: |
+          echo "## 📊 LoadInfo Daily Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Task ARN**: ${{ steps.task.outputs.task-arn }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Exit Code**: ${{ steps.result.outputs.exit-code || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Stop Reason**: ${{ steps.result.outputs.stop-reason || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.result.outputs.exit-code }}" == "0" ]]; then
+            echo "✅ **Status**: Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi

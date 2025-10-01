@@ -1077,4 +1077,125 @@ router.get("/database/diagnostics", async (req, res) => {
   }
 });
 
+// ECS task monitoring endpoint - check status of scheduled tasks
+router.get("/ecs-tasks", async (req, res) => {
+  console.log("Received request for /health/ecs-tasks");
+
+  try {
+    const { ECSClient, ListTasksCommand, DescribeTasksCommand } = require("@aws-sdk/client-ecs");
+    const { CloudWatchLogsClient, DescribeLogStreamsCommand, GetLogEventsCommand } = require("@aws-sdk/client-cloudwatch-logs");
+
+    const ecsClient = new ECSClient({ region: process.env.AWS_REGION || "us-east-1" });
+    const logsClient = new CloudWatchLogsClient({ region: process.env.AWS_REGION || "us-east-1" });
+
+    const tasks = {};
+
+    // Monitor loadinfo task
+    const taskName = "loadinfo";
+    const clusterName = "stocks-cluster";
+    const logGroupName = "/ecs/stocks-loadinfo";
+
+    try {
+      // Get recent log streams for this task
+      const describeStreamsCmd = new DescribeLogStreamsCommand({
+        logGroupName: logGroupName,
+        orderBy: "LastEventTime",
+        descending: true,
+        limit: 5
+      });
+
+      const streamsResponse = await logsClient.send(describeStreamsCmd);
+      const logStreams = streamsResponse.logStreams || [];
+
+      if (logStreams.length === 0) {
+        tasks[taskName] = {
+          status: "never_run",
+          message: "No execution logs found",
+          last_run: null
+        };
+      } else {
+        const latestStream = logStreams[0];
+        const streamName = latestStream.logStreamName;
+        const lastEventTime = new Date(latestStream.lastEventTime);
+
+        // Get log events from the latest stream
+        const getLogsCmd = new GetLogEventsCommand({
+          logGroupName: logGroupName,
+          logStreamName: streamName,
+          limit: 100,
+          startFromHead: false
+        });
+
+        const logsResponse = await logsClient.send(getLogsCmd);
+        const events = logsResponse.events || [];
+
+        // Check for success/failure indicators in logs
+        let status = "unknown";
+        let exitCode = null;
+        let errorMessage = null;
+
+        for (const event of events) {
+          const message = event.message || "";
+
+          // Check for completion messages
+          if (message.includes("All done") || message.includes("completed successfully")) {
+            status = "success";
+          } else if (message.includes("ERROR") || message.includes("CRITICAL") || message.includes("Failed")) {
+            status = "failure";
+            if (!errorMessage) {
+              errorMessage = message.substring(0, 200);
+            }
+          } else if (message.includes("exit code") || message.includes("Exit code")) {
+            const match = message.match(/exit code[:\s]+(\d+)/i);
+            if (match) {
+              exitCode = parseInt(match[1]);
+              status = exitCode === 0 ? "success" : "failure";
+            }
+          }
+        }
+
+        // Calculate freshness
+        const hoursSinceRun = Math.floor((Date.now() - lastEventTime.getTime()) / (1000 * 60 * 60));
+        let freshness = "current"; // < 24 hours
+        if (hoursSinceRun > 48) {
+          freshness = "stale"; // > 48 hours
+        } else if (hoursSinceRun > 24) {
+          freshness = "warning"; // > 24 hours
+        }
+
+        tasks[taskName] = {
+          status: status,
+          last_run: lastEventTime.toISOString(),
+          hours_since_run: hoursSinceRun,
+          freshness: freshness,
+          exit_code: exitCode,
+          error_message: errorMessage,
+          log_stream: streamName
+        };
+      }
+    } catch (taskError) {
+      console.error(`Error checking ${taskName} task:`, taskError);
+      tasks[taskName] = {
+        status: "error",
+        message: `Failed to check task status: ${taskError.message}`,
+        last_run: null
+      };
+    }
+
+    return res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      tasks: tasks
+    });
+
+  } catch (error) {
+    console.error("Error in ECS tasks monitoring:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve ECS task status",
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
