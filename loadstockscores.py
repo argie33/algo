@@ -14,7 +14,7 @@ Scoring Methodology (0-100 scale):
 2. Value Score (15%): PE ratio + PEG-adjusted valuation
 3. Quality Score (15%): Volatility risk + Liquidity + Price stability
 4. Growth Score (18%): Earnings growth + Momentum + Consistency
-5. Relative Strength Score (17%): RSI-based strength + Price performance vs market
+5. Relative Strength Score (17%): Outperformance vs S&P 500 + Sector relative performance
 6. Positioning Score (10%): Institutional holdings changes + Market positioning trends
 7. Sentiment Score (5%): Analyst ratings + Market sentiment indicators
 
@@ -353,8 +353,6 @@ def get_stock_data_from_database(conn, symbol):
             if market_shares:
                 inst_market_share = sum(market_shares) / len(market_shares)
 
-        cur.close()
-
         # Calculate individual scores (0-100 scale)
 
         # Momentum Score (RSI + MACD + Price Momentum)
@@ -598,29 +596,56 @@ def get_stock_data_from_database(conn, symbol):
         growth_score = earnings_component + momentum_component + consistency_bonus
         growth_score = max(0, min(100, growth_score))
 
-        # Relative Strength Score (RSI-based strength + Price performance)
+        # Relative Strength Score (Performance vs S&P 500)
         relative_strength_score = 50  # Start neutral
 
-        # RSI strength component (0-60 points)
-        if rsi is not None:
-            if rsi >= 70:
-                relative_strength_score = 80 + min((rsi - 70) / 30 * 20, 20)  # 80-100 for overbought
-            elif rsi >= 50:
-                relative_strength_score = 50 + (rsi - 50)  # 50-80 for bullish
-            elif rsi >= 30:
-                relative_strength_score = 30 + (rsi - 30)  # 30-50 for neutral
-            else:
-                relative_strength_score = rsi  # 0-30 for oversold
+        # Get SPY (S&P 500) price data for comparison
+        cur.execute("""
+            SELECT close
+            FROM price_daily
+            WHERE symbol = 'SPY'
+            AND date <= CURRENT_DATE
+            ORDER BY date DESC
+            LIMIT 30
+        """)
+        spy_data = cur.fetchall()
 
-        # Add price momentum component (adjust by multi-timeframe performance)
-        if price_change_30d > 10:
-            relative_strength_score += min(15, price_change_30d * 0.5)
-        elif price_change_30d > 0:
-            relative_strength_score += price_change_30d * 0.5
-        elif price_change_30d < -10:
-            relative_strength_score -= min(15, abs(price_change_30d) * 0.5)
+        if spy_data and len(spy_data) >= 2:
+            spy_prices = [float(row[0]) for row in spy_data if row[0] is not None]
+
+            # Calculate SPY 30-day return
+            if len(spy_prices) >= 30:
+                spy_return_30d = ((spy_prices[0] - spy_prices[29]) / spy_prices[29]) * 100
+            elif len(spy_prices) >= 2:
+                spy_return_30d = ((spy_prices[0] - spy_prices[-1]) / spy_prices[-1]) * 100
+            else:
+                spy_return_30d = 0
+
+            # Calculate relative outperformance (alpha)
+            alpha = price_change_30d - spy_return_30d
+
+            # Score based on alpha (outperformance)
+            # Strong outperformance: alpha > 10% = 80-100 points
+            # Moderate outperformance: alpha 0-10% = 50-80 points
+            # Underperformance: alpha < 0% = 0-50 points
+            if alpha > 20:
+                relative_strength_score = 90 + min(alpha - 20, 10)  # 90-100 for exceptional
+            elif alpha > 10:
+                relative_strength_score = 80 + (alpha - 10)  # 80-90 for strong
+            elif alpha > 0:
+                relative_strength_score = 50 + (alpha * 3)  # 50-80 for moderate
+            elif alpha > -10:
+                relative_strength_score = 50 + (alpha * 5)  # 0-50 for slight under
+            else:
+                relative_strength_score = max(0, 50 + (alpha * 2.5))  # 0 for severe under
         else:
-            relative_strength_score += price_change_30d * 0.5
+            # Fallback: use absolute performance if SPY data unavailable
+            if price_change_30d > 10:
+                relative_strength_score = 70 + min(price_change_30d - 10, 30)
+            elif price_change_30d > 0:
+                relative_strength_score = 50 + (price_change_30d * 2)
+            else:
+                relative_strength_score = max(0, 50 + (price_change_30d * 2))
 
         relative_strength_score = max(0, min(100, relative_strength_score))
 
@@ -681,6 +706,8 @@ def get_stock_data_from_database(conn, symbol):
             positioning_score * 0.10 +              # Institutional positioning
             sentiment_score * 0.05                  # Market sentiment
         )
+
+        cur.close()
 
         return {
             'symbol': symbol,
