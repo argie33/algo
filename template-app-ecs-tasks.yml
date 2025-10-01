@@ -2613,112 +2613,666 @@ Resources:
                   - !GetAtt ECSTaskRole.Arn
 
   #########################################
-  # EventBridge Scheduled Rules           #
+  # Step Functions Orchestration          #
+  # Well-Architected loader orchestration  #
+  # with dependencies & controlled concurrency
   #########################################
 
-  # Load Info - TEST: 30 min from now (13:37 UTC)
-  LoadInfoScheduleRule:
-    Type: AWS::Events::Rule
+  # IAM Role for Step Functions to invoke ECS tasks
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
     Properties:
-      Name: !Sub "${AWS::StackName}-loadinfo-weekdays"
-      Description: "Run loadinfo loader - TEST at 13:37 UTC"
-      ScheduleExpression: "cron(37 13 ? * * *)"
-      State: ENABLED
-      Targets:
-        - Arn: !ImportValue StocksApp-ClusterArn
-          Id: "LoadInfoTarget"
-          RoleArn: !GetAtt EventBridgeECSRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref LoadInfoTaskDefinition
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PublicSubnet1Id
-                  - !ImportValue StocksCore-PublicSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
-                AssignPublicIp: ENABLED
-          Input: !Sub |
-            {
-              "containerOverrides": [
-                {
-                  "name": "loadinfo-loader",
-                  "command": ["python3", "loadinfo.py"]
-                }
-              ]
-            }
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: ECSTaskExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - ecs:StopTask
+                  - ecs:DescribeTasks
+                Resource:
+                  - !Ref StockSymbolsTaskDefinition
+                  - !Ref LoadInfoTaskDefinition
+                  - !Ref EarningsEstimateTaskDefinition
+                  - !Ref EarningsHistoryTaskDefinition
+                  - !Ref RevenueEstimateTaskDefinition
+                  - !Ref AnnualBalanceSheetTaskDefinition
+                  - !Ref QuarterlyBalanceSheetTaskDefinition
+                  - !Ref AnnualIncomeStatementTaskDefinition
+                  - !Ref QuarterlyIncomeStatementTaskDefinition
+                  - !Ref TTMIncomeStatementTaskDefinition
+                  - !Ref TTMCashFlowTaskDefinition
+                  - !Ref AnnualCashFlowTaskDefinition
+                  - !Ref QuarterlyCashFlowTaskDefinition
+                  - !Ref AaiiDataTaskDefinition
+                  - !Ref FearGreedDataTaskDefinition
+                  - !Ref NaaaimDataTaskDefinition
+                  - !Ref EconDataTaskDefinition
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !GetAtt ECSExecutionRole.Arn
+                  - !GetAtt ECSTaskRole.Arn
+              - Effect: Allow
+                Action:
+                  - events:PutTargets
+                  - events:PutRule
+                  - events:DescribeRule
+                Resource: '*'
 
-  # Earnings Estimate - TEST: 30 min from now (13:37 UTC)
-  EarningsEstimateScheduleRule:
-    Type: AWS::Events::Rule
+  # Step Functions State Machine
+  LoaderOrchestrationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
     Properties:
-      Name: !Sub "${AWS::StackName}-earnings-estimate-weekdays"
-      Description: "Run earnings estimate loader - TEST at 13:37 UTC"
-      ScheduleExpression: "cron(37 13 ? * * *)"
-      State: ENABLED
-      Targets:
-        - Arn: !ImportValue StocksApp-ClusterArn
-          Id: "EarningsEstimateTarget"
-          RoleArn: !GetAtt EventBridgeECSRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref EarningsEstimateTaskDefinition
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PublicSubnet1Id
-                  - !ImportValue StocksCore-PublicSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
-                AssignPublicIp: ENABLED
-          Input: !Sub |
-            {
-              "containerOverrides": [
-                {
-                  "name": "earningsestimate-loader",
-                  "command": ["python3", "loadearningsestimate.py"]
+      StateMachineName: !Sub "${AWS::StackName}-loader-orchestrator"
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Orchestrates data loaders with dependencies and controlled concurrency",
+          "StartAt": "Stage1-Symbols",
+          "States": {
+            "Stage1-Symbols": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "${StocksApp-ClusterArn}",
+                "TaskDefinition": "${StockSymbolsTaskDefinition}",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                    "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [{
+                    "Name": "stocksymbols-loader",
+                    "Command": ["python3", "loadstocksymbols.py"]
+                  }]
                 }
-              ]
+              },
+              "Retry": [{
+                "ErrorEquals": ["States.TaskFailed"],
+                "IntervalSeconds": 30,
+                "MaxAttempts": 2,
+                "BackoffRate": 2.0
+              }],
+              "Catch": [{
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "NotifyFailure"
+              }],
+              "Next": "Stage2-LoadInfo"
+            },
+            "Stage2-LoadInfo": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "${StocksApp-ClusterArn}",
+                "TaskDefinition": "${LoadInfoTaskDefinition}",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                    "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [{
+                    "Name": "loadinfo-loader",
+                    "Command": ["python3", "loadinfo.py"]
+                  }]
+                }
+              },
+              "Retry": [{
+                "ErrorEquals": ["States.TaskFailed"],
+                "IntervalSeconds": 30,
+                "MaxAttempts": 2,
+                "BackoffRate": 2.0
+              }],
+              "Catch": [{
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "NotifyFailure"
+              }],
+              "Next": "Stage3-EarningsFinancials"
+            },
+            "Stage3-EarningsFinancials": {
+              "Type": "Parallel",
+              "Comment": "Run earnings and financial loaders in parallel (max 5 concurrent)",
+              "Branches": [
+                {
+                  "StartAt": "EarningsEstimate",
+                  "States": {
+                    "EarningsEstimate": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${EarningsEstimateTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "earningsestimate-loader",
+                            "Command": ["python3", "loadearningsestimate.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "EarningsHistory",
+                  "States": {
+                    "EarningsHistory": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${EarningsHistoryTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "earningshistory-loader",
+                            "Command": ["python3", "loadearningshistory.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "RevenueEstimate",
+                  "States": {
+                    "RevenueEstimate": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${RevenueEstimateTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "revenueestimate-loader",
+                            "Command": ["python3", "loadrevenueestimate.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "AnnualBalanceSheet",
+                  "States": {
+                    "AnnualBalanceSheet": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${AnnualBalanceSheetTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "annualbalancesheet-loader",
+                            "Command": ["python3", "loadannualbalancesheet.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "QuarterlyBalanceSheet",
+                  "States": {
+                    "QuarterlyBalanceSheet": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${QuarterlyBalanceSheetTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "quarterlybalancesheet-loader",
+                            "Command": ["python3", "loadquarterlybalancesheet.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Catch": [{
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "NotifyFailure"
+              }],
+              "Next": "Stage4-IncomeStatements"
+            },
+            "Stage4-IncomeStatements": {
+              "Type": "Parallel",
+              "Comment": "Run income statement loaders in parallel (max 4 concurrent)",
+              "Branches": [
+                {
+                  "StartAt": "AnnualIncomeStatement",
+                  "States": {
+                    "AnnualIncomeStatement": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${AnnualIncomeStatementTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "annualincomestatement-loader",
+                            "Command": ["python3", "loadannualincomestatement.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "QuarterlyIncomeStatement",
+                  "States": {
+                    "QuarterlyIncomeStatement": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${QuarterlyIncomeStatementTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "quarterlyincomestatement-loader",
+                            "Command": ["python3", "loadquarterlyincomestatement.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "TTMIncomeStatement",
+                  "States": {
+                    "TTMIncomeStatement": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${TTMIncomeStatementTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "ttmincomestatement-loader",
+                            "Command": ["python3", "loadttmincomestatement.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "TTMCashFlow",
+                  "States": {
+                    "TTMCashFlow": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${TTMCashFlowTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "ttmcashflow-loader",
+                            "Command": ["python3", "loadttmcashflow.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Catch": [{
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "NotifyFailure"
+              }],
+              "Next": "Stage5-CashFlow"
+            },
+            "Stage5-CashFlow": {
+              "Type": "Parallel",
+              "Comment": "Run cash flow loaders in parallel (max 4 concurrent)",
+              "Branches": [
+                {
+                  "StartAt": "AnnualCashFlow",
+                  "States": {
+                    "AnnualCashFlow": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${AnnualCashFlowTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "annualcashflow-loader",
+                            "Command": ["python3", "loadannualcashflow.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "QuarterlyCashFlow",
+                  "States": {
+                    "QuarterlyCashFlow": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${QuarterlyCashFlowTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "quarterlycashflow-loader",
+                            "Command": ["python3", "loadquarterlycashflow.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Catch": [{
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "NotifyFailure"
+              }],
+              "Next": "Stage6-Sentiment"
+            },
+            "Stage6-Sentiment": {
+              "Type": "Parallel",
+              "Comment": "Run sentiment and economic data loaders (max 4 concurrent)",
+              "Branches": [
+                {
+                  "StartAt": "AaiiData",
+                  "States": {
+                    "AaiiData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${AaiiDataTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "aaiidata-loader",
+                            "Command": ["python3", "loadaaiidata.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "FearGreedData",
+                  "States": {
+                    "FearGreedData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${FearGreedDataTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "feargreeddata-loader",
+                            "Command": ["python3", "loadfeargreed.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "NaaaimData",
+                  "States": {
+                    "NaaaimData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${NaaaimDataTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "naaaimdata-loader",
+                            "Command": ["python3", "loadnaaim.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "EconData",
+                  "States": {
+                    "EconData": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${StocksApp-ClusterArn}",
+                        "TaskDefinition": "${EconDataTaskDefinition}",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${StocksCore-PublicSubnet1Id}", "${StocksCore-PublicSubnet2Id}"],
+                            "SecurityGroups": ["${StocksApp-EcsTasksSecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        },
+                        "Overrides": {
+                          "ContainerOverrides": [{
+                            "Name": "econdata-loader",
+                            "Command": ["python3", "loadecondata.py"]
+                          }]
+                        }
+                      },
+                      "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Catch": [{
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "NotifyFailure"
+              }],
+              "Next": "Success"
+            },
+            "Success": {
+              "Type": "Succeed"
+            },
+            "NotifyFailure": {
+              "Type": "Pass",
+              "Comment": "TODO: Add SNS notification for failures",
+              "Next": "Fail"
+            },
+            "Fail": {
+              "Type": "Fail",
+              "Error": "LoaderOrchestrationFailed",
+              "Cause": "One or more loader stages failed after retries"
             }
+          }
+        }
 
-  # Earnings History - TEST: 30 min from now (13:37 UTC)
-  EarningsHistoryScheduleRule:
+  # EventBridge rule to trigger Step Functions - TEST at 14:00 UTC today
+  LoaderOrchestrationScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "${AWS::StackName}-earnings-history-weekdays"
-      Description: "Run earnings history loader - TEST at 13:37 UTC"
-      ScheduleExpression: "cron(37 13 ? * * *)"
+      Name: !Sub "${AWS::StackName}-loader-orchestration-test"
+      Description: "Trigger loader orchestration - TEST at 14:00 UTC"
+      ScheduleExpression: "cron(0 14 ? * * *)"
       State: ENABLED
       Targets:
-        - Arn: !ImportValue StocksApp-ClusterArn
-          Id: "EarningsHistoryTarget"
+        - Arn: !GetAtt LoaderOrchestrationStateMachine.Arn
+          Id: "LoaderStateMachineTarget"
           RoleArn: !GetAtt EventBridgeECSRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref EarningsHistoryTaskDefinition
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PublicSubnet1Id
-                  - !ImportValue StocksCore-PublicSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
-                AssignPublicIp: ENABLED
-          Input: !Sub |
-            {
-              "containerOverrides": [
-                {
-                  "name": "earningshistory-loader",
-                  "command": ["python3", "loadearningshistory.py"]
-                }
-              ]
-            }
 
   #########################################
   # Outputs                               #
   #########################################
 Outputs:
+  LoaderOrchestrationStateMachineArn:
+    Description: ARN of the Step Functions state machine for loader orchestration
+    Value: !GetAtt LoaderOrchestrationStateMachine.Arn
+    Export:
+      Name: LoaderOrchestrationStateMachineArn
+
   StockSymbolsTaskDefArn:
     Description: ARN of the ECS TaskDefinition for stock-symbols loader
     Value: !Ref StockSymbolsTaskDefinition
