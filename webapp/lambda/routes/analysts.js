@@ -409,22 +409,36 @@ router.get("/:symbol/overview", async (req, res) => {
       upgradesDowngrades,
       earningsHistory
     ] = await Promise.all([
-      // Earnings estimates
+      // Earnings estimates (limit to key periods)
       query(`
         SELECT symbol, period, avg_estimate, low_estimate, high_estimate,
                number_of_analysts, year_ago_eps, growth, fetched_at
         FROM earnings_estimates
         WHERE UPPER(symbol) = $1
-        ORDER BY period DESC
+          AND period IN ('0q', '+1q', '0y', '+1y')
+        ORDER BY
+          CASE period
+            WHEN '0q' THEN 1
+            WHEN '+1q' THEN 2
+            WHEN '0y' THEN 3
+            WHEN '+1y' THEN 4
+          END
       `, [symbolUpper]),
 
-      // Revenue estimates
+      // Revenue estimates (limit to key periods)
       query(`
         SELECT symbol, period, avg_estimate, low_estimate, high_estimate,
                number_of_analysts, year_ago_revenue, growth, fetched_at
         FROM revenue_estimates
         WHERE UPPER(symbol) = $1
-        ORDER BY period DESC
+          AND period IN ('0q', '+1q', '0y', '+1y')
+        ORDER BY
+          CASE period
+            WHEN '0q' THEN 1
+            WHEN '+1q' THEN 2
+            WHEN '0y' THEN 3
+            WHEN '+1y' THEN 4
+          END
       `, [symbolUpper]),
 
       // EPS revisions (same as earnings estimates)
@@ -516,24 +530,38 @@ router.get("/:symbol", async (req, res) => {
         ORDER BY date DESC, fetched_at DESC
       `, [symbolUpper]),
 
-      // Revenue estimates with analyst counts from YFinance
+      // Revenue estimates with analyst counts from YFinance (limit to key periods)
       query(`
         SELECT
           symbol, period, avg_estimate, low_estimate, high_estimate,
           number_of_analysts, year_ago_revenue, growth, fetched_at
         FROM revenue_estimates
         WHERE UPPER(symbol) = $1
-        ORDER BY period DESC
+          AND period IN ('0q', '+1q', '0y', '+1y')
+        ORDER BY
+          CASE period
+            WHEN '0q' THEN 1
+            WHEN '+1q' THEN 2
+            WHEN '0y' THEN 3
+            WHEN '+1y' THEN 4
+          END
       `, [symbolUpper]),
 
-      // EPS estimates with analyst counts from YFinance
+      // EPS estimates with analyst counts from YFinance (limit to key periods)
       query(`
         SELECT
           symbol, period, avg_estimate, low_estimate, high_estimate,
           number_of_analysts, year_ago_eps, growth, fetched_at
         FROM earnings_estimates
         WHERE UPPER(symbol) = $1
-        ORDER BY period DESC
+          AND period IN ('0q', '+1q', '0y', '+1y')
+        ORDER BY
+          CASE period
+            WHEN '0q' THEN 1
+            WHEN '+1q' THEN 2
+            WHEN '0y' THEN 3
+            WHEN '+1y' THEN 4
+          END
       `, [symbolUpper])
     ]);
 
