@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
-# Updated: 2025-10-01 - Optimized for ARM64, uses shared base image for faster builds
+# Updated: 2025-10-01 - Trigger fresh data load after stock scores update
 import gc
 import json
 import logging

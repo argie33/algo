@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Monthly price data loader - fetches monthly OHLCV data for all symbols
-# Updated: 2025-10-01 - Optimized for ARM64, uses shared base image for faster builds
+# Updated: 2025-10-01 - Trigger fresh data load after stock scores update
 import gc
 import json
 import logging
