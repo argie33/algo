@@ -334,7 +334,7 @@ router.get("/", async (req, res) => {
             'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
             'ttm_income_statement', 'ttm_cash_flow',
             'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
-            'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
+            'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_growth',
             'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
             'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
             'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
@@ -438,7 +438,7 @@ router.get("/", async (req, res) => {
         "earnings_estimates",
         "revenue_estimates",
         "calendar_events",
-        "earnings_metrics",
+        "earnings_growth",
         "fear_greed_index",
         "aaii_sentiment",
         "naaim",
@@ -1090,11 +1090,14 @@ router.get("/ecs-tasks", async (req, res) => {
 
     const tasks = {};
 
-    // Monitor multiple ECS tasks
+    // Monitor multiple ECS tasks - matches Step Functions orchestration
     const taskConfigs = [
+      { name: "stocksymbols", logGroup: "/ecs/stocksymbols-loader" },
       { name: "loadinfo", logGroup: "/ecs/loadinfo-loader" },
       { name: "earnings_estimate", logGroup: "/ecs/earningsestimate-loader" },
-      { name: "earnings_history", logGroup: "/ecs/earningshistory-loader" }
+      { name: "earnings_history", logGroup: "/ecs/earningshistory-loader" },
+      { name: "earnings_growth", logGroup: "/ecs/earningsgrowth-loader" },
+      { name: "revenue_estimate", logGroup: "/ecs/revenueestimate-loader" }
     ];
 
     // Function to check a single task

@@ -90,7 +90,7 @@ Parameters:
   NaaimImageTag:
     Type: String
     Description: "Tag for NAAIM data loader image"
-  EarningsMetricsImageTag:
+  EarningsGrowthImageTag:
     Type: String
     Description: "Tag for earnings metrics loader image"
 
@@ -262,7 +262,7 @@ Resources:
       LogGroupName: /ecs/earningsestimate-loader
       RetentionInDays: 14
 
-  EarningsMetricsLogGroup:
+  EarningsGrowthLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/earningsmetrics-loader
@@ -922,10 +922,10 @@ Resources:
   ########################################
   # K) earningsmetrics loader            #
   ########################################
-  EarningsMetricsTaskDefinition:
+  EarningsGrowthTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: earningsmetrics-loader
+      Family: earningsgrowth-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -937,8 +937,8 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: earningsmetrics-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref EarningsMetricsImageTag]]
+        - Name: earningsgrowth-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref EarningsGrowthImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -946,19 +946,19 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/earningsmetrics-loader
+              awslogs-group: /ecs/earningsgrowth-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
 
-  EarningsMetricsLoaderService:
+  EarningsGrowthLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: earningsmetrics-loader-service
+      ServiceName: earningsgrowth-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
-      TaskDefinition: !Ref EarningsMetricsTaskDefinition
+      TaskDefinition: !Ref EarningsGrowthTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -2646,7 +2646,7 @@ Resources:
                   - !Ref LoadInfoTaskDefinition
                   - !Ref EarningsEstimateTaskDefinition
                   - !Ref EarningsHistoryTaskDefinition
-                  - !Ref EarningsMetricsTaskDefinition
+                  - !Ref EarningsGrowthTaskDefinition
                   - !Ref RevenueEstimateTaskDefinition
               - Effect: Allow
                 Action:
@@ -2805,15 +2805,15 @@ Resources:
                       }
                     },
                     {
-                      "StartAt": "EarningsMetrics",
+                      "StartAt": "EarningsGrowth",
                       "States": {
-                        "EarningsMetrics": {
+                        "EarningsGrowth": {
                           "Type": "Task",
                           "Resource": "arn:aws:states:::ecs:runTask.sync",
                           "Parameters": {
                             "LaunchType": "FARGATE",
                             "Cluster": "${ClusterArn}",
-                            "TaskDefinition": "${EarningsMetricsTaskDef}",
+                            "TaskDefinition": "${EarningsGrowthTaskDef}",
                             "NetworkConfiguration": {
                               "AwsvpcConfiguration": {
                                 "Subnets": ["${Subnet1}", "${Subnet2}"],
@@ -2823,8 +2823,8 @@ Resources:
                             },
                             "Overrides": {
                               "ContainerOverrides": [{
-                                "Name": "earningsmetrics-loader",
-                                "Command": ["python3", "loadearningsmetrics.py"]
+                                "Name": "earningsgrowth-loader",
+                                "Command": ["python3", "loadearningsgrowth.py"]
                               }]
                             }
                           },
@@ -2893,15 +2893,15 @@ Resources:
             LoadInfoTaskDef: !Ref LoadInfoTaskDefinition
             EarningsEstimateTaskDef: !Ref EarningsEstimateTaskDefinition
             EarningsHistoryTaskDef: !Ref EarningsHistoryTaskDefinition
-            EarningsMetricsTaskDef: !Ref EarningsMetricsTaskDefinition
+            EarningsGrowthTaskDef: !Ref EarningsGrowthTaskDefinition
             RevenueEstimateTaskDef: !Ref RevenueEstimateTaskDefinition
 
   LoaderOrchestrationScheduleRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "${AWS::StackName}-loader-orchestration-test"
-      Description: "Trigger loader orchestration - TEST at 14:00 UTC"
-      ScheduleExpression: "cron(0 14 ? * * *)"
+      Description: "Trigger loader orchestration - TEST at 14:36 UTC"
+      ScheduleExpression: "cron(36 14 ? * * *)"
       State: ENABLED
       Targets:
         - Arn: !GetAtt LoaderOrchestrationStateMachine.Arn
@@ -3056,11 +3056,11 @@ Outputs:
     Export:
       Name: EarningsHistoryTaskDefArn
 
-  EarningsMetricsTaskDefArn:
+  EarningsGrowthTaskDefArn:
     Description: ARN of the ECS TaskDefinition for earnings metrics loader
-    Value: !Ref EarningsMetricsTaskDefinition
+    Value: !Ref EarningsGrowthTaskDefinition
     Export:
-      Name: EarningsMetricsTaskDefArn
+      Name: EarningsGrowthTaskDefArn
 
   BuySellDailyTaskDefArn:
     Description: ARN of the ECS TaskDefinition for buysell daily loader

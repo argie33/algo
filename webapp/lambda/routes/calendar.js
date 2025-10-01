@@ -732,67 +732,46 @@ router.get("/earnings-history", async (req, res) => {
   }
 });
 
-// Get earnings metrics for all companies
+// Get earnings growth metrics for all companies
 router.get("/earnings-metrics", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
 
-    // Simple query using the existing earnings_history table structure
+    // Query using the new earnings_growth table with calculated metrics
     const metricsQuery = `
       SELECT
         symbol,
         symbol as company_name,
-        quarter as report_date,
-        eps_actual,
-        eps_estimate,
-        surprise_percent as eps_surprise_last_q,
-        CASE 
-          WHEN eps_actual IS NOT NULL AND eps_estimate IS NOT NULL 
-          THEN ((eps_actual - eps_estimate) / NULLIF(eps_estimate, 0)) * 100
-          ELSE NULL
-        END as eps_growth_1q,
-        0 as eps_growth_2q,
-        0 as eps_growth_4q, 
-        0 as eps_growth_8q,
-        0 as eps_acceleration_qtrs,
-        0 as eps_estimate_revision_1m,
-        0 as eps_estimate_revision_3m,
-        0 as eps_estimate_revision_6m,
-        0 as annual_eps_growth_1y,
-        0 as annual_eps_growth_3y,
-        0 as annual_eps_growth_5y,
-        0 as consecutive_eps_growth_years,
-        0 as eps_estimated_change_this_year
-      FROM earnings_history
-      ORDER BY symbol ASC, quarter DESC
+        report_date,
+        eps_qoq_growth,
+        eps_yoy_growth,
+        revenue_yoy_growth,
+        earnings_surprise_pct,
+        fetched_at
+      FROM earnings_growth
+      ORDER BY symbol ASC, report_date DESC
       LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM earnings_history
+      FROM earnings_growth
     `;
 
     // Summary query for insights
     const summaryQuery = `
-      SELECT 
+      SELECT
         symbol,
         COUNT(*) as count,
-        AVG(surprise_percent) as avg_surprise,
-        AVG(CASE 
-          WHEN eps_actual IS NOT NULL AND eps_estimate IS NOT NULL 
-          THEN ((eps_actual - eps_estimate) / NULLIF(eps_estimate, 0)) * 100
-          ELSE NULL
-        END) as avg_growth_1q,
-        0 as avg_growth_2q,
-        0 as avg_growth_4q, 
-        0 as avg_growth_8q,
-        0 as max_annual_growth_1y,
-        0 as max_annual_growth_3y,
-        0 as max_annual_growth_5y
-      FROM earnings_history
+        AVG(earnings_surprise_pct) as avg_surprise,
+        AVG(eps_qoq_growth) as avg_eps_qoq_growth,
+        AVG(eps_yoy_growth) as avg_eps_yoy_growth,
+        AVG(revenue_yoy_growth) as avg_revenue_yoy_growth,
+        MAX(eps_yoy_growth) as max_eps_yoy_growth,
+        MIN(eps_yoy_growth) as min_eps_yoy_growth
+      FROM earnings_growth
       GROUP BY symbol
       ORDER BY symbol ASC
     `;
@@ -831,13 +810,12 @@ router.get("/earnings-metrics", async (req, res) => {
     (summaryResult.rows || []).forEach((row) => {
       insights[row.symbol] = {
         count: row.count,
-        avg_growth_1q: row.avg_growth_1q,
-        avg_growth_2q: row.avg_growth_2q,
-        avg_growth_4q: row.avg_growth_4q,
-        avg_growth_8q: row.avg_growth_8q,
-        max_annual_growth_1y: row.max_annual_growth_1y,
-        max_annual_growth_3y: row.max_annual_growth_3y,
-        max_annual_growth_5y: row.max_annual_growth_5y,
+        avg_surprise: row.avg_surprise,
+        avg_eps_qoq_growth: row.avg_eps_qoq_growth,
+        avg_eps_yoy_growth: row.avg_eps_yoy_growth,
+        avg_revenue_yoy_growth: row.avg_revenue_yoy_growth,
+        max_eps_yoy_growth: row.max_eps_yoy_growth,
+        min_eps_yoy_growth: row.min_eps_yoy_growth,
       };
     });
 

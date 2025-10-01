@@ -569,7 +569,7 @@ function EarningsCalendar() {
           <Tab value={3} label="EPS Revisions" icon={<TrendingUp />} />
           <Tab value={4} label="EPS Trend" icon={<TrendingDown />} />
           <Tab value={5} label="Revenue Estimates" icon={<AttachMoney />} />
-          <Tab value={6} label="Earnings Metrics" icon={<HorizontalRule />} />
+          <Tab value={6} label="Earnings Growth" icon={<HorizontalRule />} />
         </Tabs>
       </Box>
 
@@ -879,7 +879,7 @@ function EarningsCalendar() {
           {activeTab === 6 && (
             <>
               <Typography variant="h6" gutterBottom>
-                Earnings Metrics Lookup
+                Earnings Growth Metrics Lookup
               </Typography>
               <Box display="flex" alignItems="center" gap={2} mb={2}>
                 <TextField
@@ -907,7 +907,7 @@ function EarningsCalendar() {
                 </Box>
               ) : earningsMetricsError ? (
                 <Alert severity="error">
-                  Failed to load earnings metrics:{" "}
+                  Failed to load earnings growth metrics:{" "}
                   {earningsMetricsError.message}
                 </Alert>
               ) : (
@@ -916,20 +916,11 @@ function EarningsCalendar() {
                     <TableHead>
                       <TableRow>
                         <TableCell>Report Date</TableCell>
-                        <TableCell align="right">EPS Growth 1Q</TableCell>
-                        <TableCell align="right">EPS Growth 2Q</TableCell>
-                        <TableCell align="right">EPS Growth 4Q</TableCell>
-                        <TableCell align="right">EPS Growth 8Q</TableCell>
-                        <TableCell align="right">EPS Accel Qtrs</TableCell>
-                        <TableCell align="right">Surprise Last Q</TableCell>
-                        <TableCell align="right">Est Rev 1M</TableCell>
-                        <TableCell align="right">Est Rev 3M</TableCell>
-                        <TableCell align="right">Est Rev 6M</TableCell>
-                        <TableCell align="right">Annual EPS 1Y</TableCell>
-                        <TableCell align="right">Annual EPS 3Y</TableCell>
-                        <TableCell align="right">Annual EPS 5Y</TableCell>
-                        <TableCell align="right">Consec EPS Yrs</TableCell>
-                        <TableCell align="right">Est Change This Yr</TableCell>
+                        <TableCell align="right">EPS QoQ Growth %</TableCell>
+                        <TableCell align="right">EPS YoY Growth %</TableCell>
+                        <TableCell align="right">Revenue YoY Growth %</TableCell>
+                        <TableCell align="right">Earnings Surprise %</TableCell>
+                        <TableCell align="right">Fetched At</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -944,58 +935,31 @@ function EarningsCalendar() {
                           <TableRow key={row.report_date + idx}>
                             <TableCell>{row.report_date}</TableCell>
                             <TableCell align="right">
-                              {row.eps_growth_1q ?? "-"}
+                              {row.eps_qoq_growth ? `${row.eps_qoq_growth.toFixed(2)}%` : "-"}
                             </TableCell>
                             <TableCell align="right">
-                              {row.eps_growth_2q ?? "-"}
+                              {row.eps_yoy_growth ? `${row.eps_yoy_growth.toFixed(2)}%` : "-"}
                             </TableCell>
                             <TableCell align="right">
-                              {row.eps_growth_4q ?? "-"}
+                              {row.revenue_yoy_growth ? `${row.revenue_yoy_growth.toFixed(2)}%` : "-"}
                             </TableCell>
                             <TableCell align="right">
-                              {row.eps_growth_8q ?? "-"}
+                              {row.earnings_surprise_pct ? `${row.earnings_surprise_pct.toFixed(2)}%` : "-"}
                             </TableCell>
                             <TableCell align="right">
-                              {row.eps_acceleration_qtrs ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.eps_surprise_last_q ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.eps_estimate_revision_1m ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.eps_estimate_revision_3m ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.eps_estimate_revision_6m ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.annual_eps_growth_1y ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.annual_eps_growth_3y ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.annual_eps_growth_5y ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.consecutive_eps_growth_years ?? "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.eps_estimated_change_this_year ?? "-"}
+                              {row.fetched_at ? new Date(row.fetched_at).toLocaleString() : "-"}
                             </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={15} align="center">
+                          <TableCell colSpan={6} align="center">
                             <Typography
                               variant="body2"
                               color="text.secondary"
                               mt={2}
                             >
-                              No earnings metrics data found for{" "}
+                              No earnings growth metrics data found for{" "}
                               <b>{epsSymbol}</b>.
                             </Typography>
                           </TableCell>
