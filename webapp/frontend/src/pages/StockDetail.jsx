@@ -2007,41 +2007,55 @@ function StockDetail() {
                     <Divider sx={{ mb: 2 }} />
 
                     {analystOverview?.data?.earnings_estimates?.length > 0 ? (
-                      <TableContainer>
-                        <Table size="small">
-                          <TableBody>
-                            {(
-                              analystOverview?.data.earnings_estimates || []
-                            ).map((estimate) => (
-                              <TableRow key={estimate.period}>
-                                <TableCell sx={{ fontWeight: "bold" }}>
-                                  {estimate.period === "0q"
-                                    ? "Current Quarter"
-                                    : estimate.period === "+1q"
-                                      ? "Next Quarter"
-                                      : estimate.period === "0y"
-                                        ? "Current Year"
-                                        : estimate.period === "+1y"
-                                          ? "Next Year"
-                                          : estimate.period}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {estimate.avg_estimate
-                                    ? formatCurrency(estimate.avg_estimate)
-                                    : "N/A"}
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Chip
-                                    label={`${estimate.number_of_analysts || 0} analysts`}
-                                    size="small"
-                                    variant="outlined"
-                                  />
-                                </TableCell>
+                      <>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: "grey.50" }}>
+                                <TableCell sx={{ fontWeight: "bold" }}>Period</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Avg Estimate</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Analysts</TableCell>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                            </TableHead>
+                            <TableBody>
+                              {(
+                                analystOverview?.data.earnings_estimates || []
+                              ).map((estimate) => (
+                                <TableRow key={estimate.period}>
+                                  <TableCell sx={{ fontWeight: "bold" }}>
+                                    {estimate.period === "0q"
+                                      ? "Current Quarter"
+                                      : estimate.period === "+1q"
+                                        ? "Next Quarter"
+                                        : estimate.period === "0y"
+                                          ? "Current Year"
+                                          : estimate.period === "+1y"
+                                            ? "Next Year"
+                                            : estimate.period}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {estimate.avg_estimate
+                                      ? formatCurrency(estimate.avg_estimate)
+                                      : "N/A"}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={`${estimate.number_of_analysts || 0} analysts`}
+                                      size="small"
+                                      variant="outlined"
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {analystOverview?.data?.fetched_at && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
+                          </Typography>
+                        )}
+                      </>
                     ) : (
                       <Typography color="text.secondary">
                         No earnings estimates available
@@ -2061,41 +2075,55 @@ function StockDetail() {
                     <Divider sx={{ mb: 2 }} />
 
                     {analystOverview?.data?.revenue_estimates?.length > 0 ? (
-                      <TableContainer>
-                        <Table size="small">
-                          <TableBody>
-                            {(
-                              analystOverview?.data.revenue_estimates || []
-                            ).map((estimate) => (
-                              <TableRow key={estimate.period}>
-                                <TableCell sx={{ fontWeight: "bold" }}>
-                                  {estimate.period === "0q"
-                                    ? "Current Quarter"
-                                    : estimate.period === "+1q"
-                                      ? "Next Quarter"
-                                      : estimate.period === "0y"
-                                        ? "Current Year"
-                                        : estimate.period === "+1y"
-                                          ? "Next Year"
-                                          : estimate.period}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {estimate.avg_estimate
-                                    ? formatCurrency(estimate.avg_estimate, 0)
-                                    : "N/A"}
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Chip
-                                    label={`${estimate.number_of_analysts || 0} analysts`}
-                                    size="small"
-                                    variant="outlined"
-                                  />
-                                </TableCell>
+                      <>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: "grey.50" }}>
+                                <TableCell sx={{ fontWeight: "bold" }}>Period</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Avg Estimate</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Analysts</TableCell>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                            </TableHead>
+                            <TableBody>
+                              {(
+                                analystOverview?.data.revenue_estimates || []
+                              ).map((estimate) => (
+                                <TableRow key={estimate.period}>
+                                  <TableCell sx={{ fontWeight: "bold" }}>
+                                    {estimate.period === "0q"
+                                      ? "Current Quarter"
+                                      : estimate.period === "+1q"
+                                        ? "Next Quarter"
+                                        : estimate.period === "0y"
+                                          ? "Current Year"
+                                          : estimate.period === "+1y"
+                                            ? "Next Year"
+                                            : estimate.period}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {estimate.avg_estimate
+                                      ? formatCurrency(estimate.avg_estimate, 0)
+                                      : "N/A"}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={`${estimate.number_of_analysts || 0} analysts`}
+                                      size="small"
+                                      variant="outlined"
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {analystOverview?.data?.fetched_at && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
+                          </Typography>
+                        )}
+                      </>
                     ) : (
                       <Typography color="text.secondary">
                         No revenue estimates available
@@ -2187,48 +2215,55 @@ function StockDetail() {
                     <Divider sx={{ mb: 2 }} />
 
                     {analystOverview?.data?.growth_estimates?.length > 0 ? (
-                      <TableContainer>
-                        <Table size="small">
-                          <TableBody>
-                            {(analystOverview?.data.growth_estimates || []).map(
-                              (growth) => (
-                                <TableRow key={growth.period}>
-                                  <TableCell sx={{ fontWeight: "bold" }}>
-                                    {growth.period === "0q"
-                                      ? "Current Quarter"
-                                      : growth.period === "+1q"
-                                        ? "Next Quarter"
-                                        : growth.period === "0y"
-                                          ? "Current Year"
-                                          : growth.period === "+1y"
-                                            ? "Next Year"
-                                            : growth.period === "+5y"
-                                              ? "Next 5 Years"
-                                              : growth.period}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {growth.stock_trend
-                                      ? formatPercent(growth.stock_trend / 100)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell
-                                    align="right"
-                                    sx={{
-                                      fontSize: "0.75rem",
-                                      color: "text.secondary",
-                                    }}
-                                  >
-                                    vs Index:{" "}
-                                    {growth.index_trend
-                                      ? formatPercent(growth.index_trend / 100)
-                                      : "N/A"}
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            )}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                      <>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: "grey.50" }}>
+                                <TableCell sx={{ fontWeight: "bold" }}>Period</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Stock Growth</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Index Growth</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {(analystOverview?.data.growth_estimates || []).map(
+                                (growth) => (
+                                  <TableRow key={growth.period}>
+                                    <TableCell sx={{ fontWeight: "bold" }}>
+                                      {growth.period === "0q"
+                                        ? "Current Quarter"
+                                        : growth.period === "+1q"
+                                          ? "Next Quarter"
+                                          : growth.period === "0y"
+                                            ? "Current Year"
+                                            : growth.period === "+1y"
+                                              ? "Next Year"
+                                              : growth.period === "+5y"
+                                                ? "Next 5 Years"
+                                                : growth.period}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {growth.stock_trend
+                                        ? formatPercent(growth.stock_trend / 100)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {growth.index_trend
+                                        ? formatPercent(growth.index_trend / 100)
+                                        : "N/A"}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              )}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {analystOverview?.data?.fetched_at && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
+                          </Typography>
+                        )}
+                      </>
                     ) : (
                       <Typography color="text.secondary">
                         No growth estimates available
@@ -2327,53 +2362,66 @@ function StockDetail() {
                     <Divider sx={{ mb: 2 }} />
 
                     {analystOverview?.data?.earnings_history?.length > 0 ? (
-                      <TableContainer>
-                        <Table>
-                          <TableBody>
-                            {analystOverview?.data.earnings_history
-                              .slice(0, 8)
-                              .map((history) => (
-                                <TableRow key={history.quarter}>
-                                  <TableCell sx={{ fontWeight: "bold" }}>
-                                    {new Date(
-                                      history.quarter
-                                    ).toLocaleDateString()}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    Actual:{" "}
-                                    {history.eps_actual
-                                      ? formatCurrency(history.eps_actual)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    Estimate:{" "}
-                                    {history.eps_estimate
-                                      ? formatCurrency(history.eps_estimate)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={
-                                        history.surprise_percent
-                                          ? `${formatPercent(history.surprise_percent / 100)} surprise`
-                                          : "N/A"
-                                      }
-                                      color={
-                                        history.surprise_percent > 0
-                                          ? "success"
-                                          : history.surprise_percent < 0
-                                            ? "error"
-                                            : "default"
-                                      }
-                                      size="small"
-                                      variant="outlined"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                      <>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: "grey.50" }}>
+                                <TableCell sx={{ fontWeight: "bold" }}>Quarter</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Actual EPS</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Estimated EPS</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Surprise</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {analystOverview?.data.earnings_history
+                                .slice(0, 8)
+                                .map((history) => (
+                                  <TableRow key={history.quarter}>
+                                    <TableCell sx={{ fontWeight: "bold" }}>
+                                      {new Date(
+                                        history.quarter
+                                      ).toLocaleDateString()}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {history.eps_actual
+                                        ? formatCurrency(history.eps_actual)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {history.eps_estimate
+                                        ? formatCurrency(history.eps_estimate)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Chip
+                                        label={
+                                          history.surprise_percent
+                                            ? formatPercent(history.surprise_percent / 100)
+                                            : "N/A"
+                                        }
+                                        color={
+                                          history.surprise_percent > 0
+                                            ? "success"
+                                            : history.surprise_percent < 0
+                                              ? "error"
+                                              : "default"
+                                        }
+                                        size="small"
+                                        variant="outlined"
+                                      />
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {analystOverview?.data?.fetched_at && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
+                          </Typography>
+                        )}
+                      </>
                     ) : (
                       <Typography color="text.secondary">
                         No earnings history available
