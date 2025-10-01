@@ -394,6 +394,110 @@ router.get("/:symbol/eps-trend", async (req, res) => {
   }
 });
 
+// GET /:symbol/overview - Get comprehensive analyst overview for a specific symbol
+router.get("/:symbol/overview", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const symbolUpper = symbol.toUpperCase();
+
+    // Get all analyst data in parallel
+    const [
+      earningsEstimates,
+      revenueEstimates,
+      epsRevisions,
+      epsTrend,
+      upgradesDowngrades,
+      earningsHistory
+    ] = await Promise.all([
+      // Earnings estimates
+      query(`
+        SELECT symbol, period, avg_estimate, low_estimate, high_estimate,
+               number_of_analysts, year_ago_eps, growth, fetched_at
+        FROM earnings_estimates
+        WHERE UPPER(symbol) = $1
+        ORDER BY period DESC
+      `, [symbolUpper]),
+
+      // Revenue estimates
+      query(`
+        SELECT symbol, period, avg_estimate, low_estimate, high_estimate,
+               number_of_analysts, year_ago_revenue, growth, fetched_at
+        FROM revenue_estimates
+        WHERE UPPER(symbol) = $1
+        ORDER BY period DESC
+      `, [symbolUpper]),
+
+      // EPS revisions (same as earnings estimates)
+      query(`
+        SELECT symbol, period, avg_estimate, low_estimate, high_estimate,
+               number_of_analysts, year_ago_eps, growth, fetched_at
+        FROM earnings_estimates
+        WHERE UPPER(symbol) = $1
+        ORDER BY period DESC
+      `, [symbolUpper]),
+
+      // EPS trend (historical earnings estimates)
+      query(`
+        SELECT symbol, period, avg_estimate, low_estimate, high_estimate,
+               number_of_analysts, year_ago_eps, growth, fetched_at
+        FROM earnings_estimates
+        WHERE UPPER(symbol) = $1
+        ORDER BY period ASC
+      `, [symbolUpper]),
+
+      // Upgrades/downgrades
+      query(`
+        SELECT id, symbol, firm, action, from_grade, to_grade,
+               date, details, fetched_at
+        FROM analyst_upgrade_downgrade
+        WHERE UPPER(symbol) = $1
+        ORDER BY date DESC
+      `, [symbolUpper]),
+
+      // Earnings history
+      query(`
+        SELECT id, symbol, date, eps_estimate, eps_actual,
+               eps_difference, surprise_percent, fetched_at
+        FROM earnings_history
+        WHERE UPPER(symbol) = $1
+        ORDER BY date DESC
+      `, [symbolUpper])
+    ]);
+
+    res.json({
+      success: true,
+      symbol: symbolUpper,
+      data: {
+        earnings_estimates: earningsEstimates?.rows || [],
+        revenue_estimates: revenueEstimates?.rows || [],
+        eps_revisions: epsRevisions?.rows || [],
+        eps_trend: epsTrend?.rows || [],
+        growth_estimates: [], // Placeholder - can add growth estimates table later
+        recommendations: upgradesDowngrades?.rows || [],
+        earnings_history: earningsHistory?.rows || []
+      },
+      counts: {
+        earnings_estimates: earningsEstimates?.rows?.length || 0,
+        revenue_estimates: revenueEstimates?.rows?.length || 0,
+        eps_revisions: epsRevisions?.rows?.length || 0,
+        eps_trend: epsTrend?.rows?.length || 0,
+        recommendations: upgradesDowngrades?.rows?.length || 0,
+        earnings_history: earningsHistory?.rows?.length || 0
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error(`Analyst overview error for symbol ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch analyst overview for symbol",
+      symbol: req.params.symbol?.toUpperCase() || null,
+      details: error.message
+    });
+  }
+});
+
 // GET /:symbol - Get all real analyst data for a specific symbol
 router.get("/:symbol", async (req, res) => {
   try {
