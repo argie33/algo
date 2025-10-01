@@ -2616,13 +2616,13 @@ Resources:
   # EventBridge Scheduled Rules           #
   #########################################
 
-  # Load Info - Weekdays at 8:00 AM CT (1:00 PM UTC)
+  # Load Info - TEST: 30 min from now (13:37 UTC)
   LoadInfoScheduleRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "${AWS::StackName}-loadinfo-weekdays"
-      Description: "Run loadinfo loader weekdays at 8:00 AM CT (1:00 PM UTC)"
-      ScheduleExpression: "cron(0 13 ? * MON-FRI *)"
+      Description: "Run loadinfo loader - TEST at 13:37 UTC"
+      ScheduleExpression: "cron(37 13 ? * * *)"
       State: ENABLED
       Targets:
         - Arn: !ImportValue StocksApp-ClusterArn
@@ -2649,13 +2649,13 @@ Resources:
               ]
             }
 
-  # Earnings Estimate - Weekdays at 8:00 AM CT (1:00 PM UTC)
+  # Earnings Estimate - TEST: 30 min from now (13:37 UTC)
   EarningsEstimateScheduleRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "${AWS::StackName}-earnings-estimate-weekdays"
-      Description: "Run earnings estimate loader weekdays at 8:00 AM CT (1:00 PM UTC)"
-      ScheduleExpression: "cron(0 13 ? * MON-FRI *)"
+      Description: "Run earnings estimate loader - TEST at 13:37 UTC"
+      ScheduleExpression: "cron(37 13 ? * * *)"
       State: ENABLED
       Targets:
         - Arn: !ImportValue StocksApp-ClusterArn
@@ -2682,13 +2682,13 @@ Resources:
               ]
             }
 
-  # Earnings History - Weekdays at 8:00 AM CT (1:00 PM UTC)
+  # Earnings History - TEST: 30 min from now (13:37 UTC)
   EarningsHistoryScheduleRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "${AWS::StackName}-earnings-history-weekdays"
-      Description: "Run earnings history loader weekdays at 8:00 AM CT (1:00 PM UTC)"
-      ScheduleExpression: "cron(0 13 ? * MON-FRI *)"
+      Description: "Run earnings history loader - TEST at 13:37 UTC"
+      ScheduleExpression: "cron(37 13 ? * * *)"
       State: ENABLED
       Targets:
         - Arn: !ImportValue StocksApp-ClusterArn
