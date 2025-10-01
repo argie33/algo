@@ -104,6 +104,39 @@ function ServiceHealth() {
     return () => window.removeEventListener("error", handleError);
   }, []);
 
+  // ECS task monitoring - check status of scheduled tasks
+  const {
+    data: ecsTasks,
+    isLoading: ecsLoading,
+    error: ecsError,
+    refetch: refetchEcs,
+  } = useQuery({
+    queryKey: ["ecsTasks"],
+    queryFn: async () => {
+      try {
+        const response = await api.get("/health/ecs-tasks", {
+          timeout: 10000,
+          validateStatus: (status) => status < 500,
+        });
+        return response?.data?.success ? response.data : response?.data;
+      } catch (error) {
+        console.error("ECS tasks check failed:", error);
+        return {
+          error: true,
+          message: error.message || "Unknown ECS tasks error",
+          timestamp: new Date().toISOString(),
+        };
+      }
+    },
+    refetchInterval: 60000, // Refresh every minute
+    retry: 1,
+    staleTime: 30000,
+    enabled: true,
+    onError: (error) => {
+      console.error("React Query ECS tasks error:", error);
+    },
+  });
+
   // Cached database health check - uses the backend's cached health_status table
   const {
     data: dbHealth,
@@ -695,6 +728,163 @@ function ServiceHealth() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+              )}
+            </AccordionDetails>
+          </Accordion>
+        </Grid>
+
+        {/* ECS Scheduled Tasks Status */}
+        <Grid item xs={12}>
+          <Accordion defaultExpanded>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Typography variant="h6">
+                <Cloud sx={{ mr: 1, verticalAlign: "middle" }} />
+                Scheduled Tasks Status
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<Refresh />}
+                  onClick={() => refetchEcs()}
+                >
+                  Refresh
+                </Button>
+              </Box>
+
+              {ecsLoading && (
+                <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
+                  <CircularProgress size={24} />
+                  <Typography sx={{ ml: 2 }}>
+                    Loading scheduled tasks status...
+                  </Typography>
+                </Box>
+              )}
+
+              {ecsError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2">
+                    Failed to load ECS tasks status:
+                  </Typography>
+                  <Typography variant="body2" sx={{ wordBreak: "break-all" }}>
+                    {typeof ecsError === "string"
+                      ? ecsError
+                      : ecsError?.message || "Unknown error"}
+                  </Typography>
+                </Alert>
+              )}
+
+              {!ecsLoading && !ecsError && ecsTasks && ecsTasks.tasks && (
+                <TableContainer component={Paper}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Task Name</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Last Run</TableCell>
+                        <TableCell>Freshness</TableCell>
+                        <TableCell>Details</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {Object.entries(ecsTasks.tasks).map(([taskName, taskData]) => (
+                        <TableRow key={taskName}>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">
+                              {taskName}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              icon={
+                                taskData.status === "success" ? (
+                                  <CheckCircle />
+                                ) : taskData.status === "failure" ? (
+                                  <ErrorIcon />
+                                ) : taskData.status === "never_run" ? (
+                                  <Info />
+                                ) : (
+                                  <Warning />
+                                )
+                              }
+                              label={taskData.status || "unknown"}
+                              color={
+                                taskData.status === "success"
+                                  ? "success"
+                                  : taskData.status === "failure"
+                                  ? "error"
+                                  : taskData.status === "never_run"
+                                  ? "default"
+                                  : "warning"
+                              }
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {taskData.last_run ? (
+                              <Tooltip title={new Date(taskData.last_run).toLocaleString()}>
+                                <Typography variant="body2">
+                                  {taskData.hours_since_run !== undefined
+                                    ? `${taskData.hours_since_run}h ago`
+                                    : new Date(taskData.last_run).toLocaleDateString()}
+                                </Typography>
+                              </Tooltip>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                Never
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {taskData.freshness && (
+                              <Chip
+                                label={taskData.freshness}
+                                color={
+                                  taskData.freshness === "current"
+                                    ? "success"
+                                    : taskData.freshness === "warning"
+                                    ? "warning"
+                                    : "error"
+                                }
+                                size="small"
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {taskData.error_message ? (
+                              <Tooltip title={taskData.error_message}>
+                                <Typography variant="body2" color="error" noWrap>
+                                  {taskData.error_message.substring(0, 50)}...
+                                </Typography>
+                              </Tooltip>
+                            ) : taskData.message ? (
+                              <Typography variant="body2" color="text.secondary">
+                                {taskData.message}
+                              </Typography>
+                            ) : taskData.exit_code !== null && taskData.exit_code !== undefined ? (
+                              <Typography variant="body2">
+                                Exit code: {taskData.exit_code}
+                              </Typography>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+
+              {!ecsLoading && !ecsError && (!ecsTasks || !ecsTasks.tasks || Object.keys(ecsTasks.tasks).length === 0) && (
+                <Alert severity="info">
+                  <Typography variant="subtitle2">No scheduled tasks configured</Typography>
+                  <Typography variant="body2">
+                    Configure scheduled tasks in GitHub Actions workflows or AWS EventBridge.
+                  </Typography>
+                </Alert>
               )}
             </AccordionDetails>
           </Accordion>
