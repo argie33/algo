@@ -1071,10 +1071,8 @@ function ServiceHealth() {
                             <TableHead>
                               <TableRow>
                                 <TableCell>Table</TableCell>
-                                <TableCell>Category</TableCell>
                                 <TableCell align="right">Records</TableCell>
                                 <TableCell>Status</TableCell>
-                                <TableCell>Critical</TableCell>
                                 <TableCell>Last Updated</TableCell>
                                 <TableCell>Missing Data</TableCell>
                                 <TableCell>Last Checked</TableCell>
@@ -1088,71 +1086,19 @@ function ServiceHealth() {
                                   <TableRow
                                     key={tableName}
                                     sx={{
-                                      backgroundColor: tableData.critical_table
-                                        ? "rgba(25, 118, 210, 0.04)"
-                                        : "inherit",
                                       "&:hover": {
                                         backgroundColor: "rgba(0, 0, 0, 0.04)",
                                       },
                                     }}
                                   >
                                     <TableCell component="th" scope="row">
-                                      <Box>
-                                        <Typography
-                                          variant="body2"
-                                          fontFamily="monospace"
-                                          fontWeight={600}
-                                        >
-                                          {tableName}
-                                        </Typography>
-                                        {tableData.table_category && (
-                                          <Typography
-                                            variant="caption"
-                                            color="text.secondary"
-                                          >
-                                            {tableData.table_category}
-                                          </Typography>
-                                        )}
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                      {tableData.table_category && (
-                                        <Chip
-                                          label={tableData.table_category}
-                                          size="small"
-                                          variant="outlined"
-                                          sx={{
-                                            fontSize: "0.7rem",
-                                            height: 20,
-                                            backgroundColor:
-                                              tableData.table_category ===
-                                              "symbols"
-                                                ? "#e3f2fd"
-                                                : tableData.table_category ===
-                                                    "prices"
-                                                  ? "#f3e5f5"
-                                                  : tableData.table_category ===
-                                                      "technicals"
-                                                    ? "#e8f5e8"
-                                                    : tableData.table_category ===
-                                                        "financials"
-                                                      ? "#fff3e0"
-                                                      : tableData.table_category ===
-                                                          "company"
-                                                        ? "#e0f2f1"
-                                                        : tableData.table_category ===
-                                                            "earnings"
-                                                          ? "#fce4ec"
-                                                          : tableData.table_category ===
-                                                              "sentiment"
-                                                            ? "#f1f8e9"
-                                                            : tableData.table_category ===
-                                                                "trading"
-                                                              ? "#e8eaf6"
-                                                              : "#f5f5f5",
-                                          }}
-                                        />
-                                      )}
+                                      <Typography
+                                        variant="body2"
+                                        fontFamily="monospace"
+                                        fontWeight={600}
+                                      >
+                                        {tableName}
+                                      </Typography>
                                     </TableCell>
                                     <TableCell align="right">
                                       <Typography
@@ -1187,16 +1133,6 @@ function ServiceHealth() {
                                           />
                                         )}
                                       </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                      {tableData.critical_table && (
-                                        <Chip
-                                          label="Critical"
-                                          color="error"
-                                          size="small"
-                                          variant="outlined"
-                                        />
-                                      )}
                                     </TableCell>
                                     <TableCell>
                                       <Box>
@@ -1287,187 +1223,6 @@ function ServiceHealth() {
                     </Alert>
                   )}
                 </Box>
-              )}
-            </AccordionDetails>
-          </Accordion>
-        </Grid>
-
-        {/* Environment Information */}
-        <Grid item xs={12} lg={6}>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <Typography variant="h6">
-                <Info sx={{ mr: 1, verticalAlign: "middle" }} />
-                Environment Information
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              {Object.keys(safeEnvironmentInfo).length > 0 && (
-                <TableContainer component={Paper}>
-                  <Table size="small">
-                    <TableBody>
-                      {Object.entries(safeEnvironmentInfo).map(
-                        ([section, values]) => (
-                          <React.Fragment key={section}>
-                            <TableRow>
-                              <TableCell
-                                colSpan={2}
-                                sx={{
-                                  fontWeight: "bold",
-                                  backgroundColor: "grey.100",
-                                }}
-                              >
-                                {section}
-                              </TableCell>
-                            </TableRow>
-                            {isObject(values) &&
-                              Object.entries(values).map(([key, value]) => (
-                                <TableRow key={`${section}-${key}`}>
-                                  <TableCell
-                                    component="th"
-                                    scope="row"
-                                    sx={{ fontWeight: "bold", pl: 3 }}
-                                  >
-                                    {key}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Typography
-                                      variant="body2"
-                                      sx={{ wordBreak: "break-all" }}
-                                    >
-                                      {String(value ?? "undefined")}
-                                    </Typography>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                          </React.Fragment>
-                        )
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </AccordionDetails>
-          </Accordion>
-        </Grid>
-
-        {/* API Configuration Diagnostics */}
-        <Grid item xs={12} lg={6}>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <Typography variant="h6">
-                <Api sx={{ mr: 1, verticalAlign: "middle" }} />
-                API Configuration Diagnostics
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              {Object.keys(safeDiagnosticInfo).length > 0 && (
-                <TableContainer component={Paper}>
-                  <Table size="small">
-                    <TableBody>
-                      <TableRow>
-                        <TableCell
-                          component="th"
-                          scope="row"
-                          sx={{ fontWeight: "bold" }}
-                        >
-                          Current API URL
-                        </TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            sx={{ wordBreak: "break-all" }}
-                          >
-                            {safeDiagnosticInfo.currentApiUrl || "Not set"}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell
-                          component="th"
-                          scope="row"
-                          sx={{ fontWeight: "bold" }}
-                        >
-                          Axios Default Base URL
-                        </TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            sx={{ wordBreak: "break-all" }}
-                          >
-                            {safeDiagnosticInfo.axiosDefaultBaseUrl ||
-                              "Not set"}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell
-                          component="th"
-                          scope="row"
-                          sx={{ fontWeight: "bold" }}
-                        >
-                          VITE_API_URL
-                        </TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            sx={{ wordBreak: "break-all" }}
-                          >
-                            {safeDiagnosticInfo.viteApiUrl || "Not set"}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell
-                          component="th"
-                          scope="row"
-                          sx={{ fontWeight: "bold" }}
-                        >
-                          URLs Match
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            icon={getStatusIcon(
-                              safeDiagnosticInfo.urlsMatch ? "success" : "error"
-                            )}
-                            label={safeDiagnosticInfo.urlsMatch ? "Yes" : "No"}
-                            color={getStatusColor(
-                              safeDiagnosticInfo.urlsMatch ? "success" : "error"
-                            )}
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell
-                          component="th"
-                          scope="row"
-                          sx={{ fontWeight: "bold" }}
-                        >
-                          Is Configured
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            icon={getStatusIcon(
-                              safeDiagnosticInfo.isConfigured
-                                ? "success"
-                                : "error"
-                            )}
-                            label={
-                              safeDiagnosticInfo.isConfigured ? "Yes" : "No"
-                            }
-                            color={getStatusColor(
-                              safeDiagnosticInfo.isConfigured
-                                ? "success"
-                                : "error"
-                            )}
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
               )}
             </AccordionDetails>
           </Accordion>
