@@ -273,15 +273,10 @@ if __name__ == "__main__":
 
     conn.commit()
 
-    # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol;")
+    # Load stock symbols only (ETFs are in etf_symbols table and not processed by this loader)
+    cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_news_data(stock_syms, cur, conn)
-
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols ORDER BY symbol;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, p_e, f_e = load_news_data(etf_syms, cur, conn)
 
     # Clean up old news (keep only last 30 days)
     logging.info("Cleaning up old news data...")
@@ -312,15 +307,10 @@ if __name__ == "__main__":
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
 
     if f_s:
         logging.warning(
             f"Failed stock symbols: {f_s[:10]}{'...' if len(f_s) > 10 else ''}"
-        )
-    if f_e:
-        logging.warning(
-            f"Failed ETF symbols: {f_e[:10]}{'...' if len(f_e) > 10 else ''}"
         )
 
     cur.close()

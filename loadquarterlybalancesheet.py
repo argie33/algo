@@ -299,22 +299,10 @@ if __name__ == "__main__":
     conn.commit()
     logging.info("Created quarterly balance sheet table with normalized structure")
 
-    # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
+    # Load stock symbols only (ETFs are in etf_symbols table and not processed by this loader)
+    cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_quarterly_balance_sheet(stock_syms, cur, conn)
-
-    # Load ETF symbols (if available)
-    try:
-        cur.execute("SELECT symbol FROM etf_symbols;")
-        etf_syms = [r["symbol"] for r in cur.fetchall()]
-        if etf_syms:
-            t_e, p_e, f_e = load_quarterly_balance_sheet(etf_syms, cur, conn)
-        else:
-            t_e, p_e, f_e = 0, 0, []
-    except Exception as e:
-        logging.info(f"No ETF symbols table or error: {e}")
-        t_e, p_e, f_e = 0, 0, []
 
     # Record last run
     cur.execute(
@@ -331,7 +319,6 @@ if __name__ == "__main__":
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
