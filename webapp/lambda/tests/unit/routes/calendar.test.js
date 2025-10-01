@@ -183,4 +183,101 @@ describe("Calendar Routes Unit Tests", () => {
       expect(response.body.data.available_filters.countries).toContain("EU");
     });
   });
+
+  describe("GET /calendar/earnings-metrics", () => {
+    test("should return earnings metrics with quality scores", async () => {
+      // Mock successful database response for earnings metrics
+      query.mockResolvedValueOnce({
+        rows: [
+          {
+            symbol: "AAPL",
+            company_name: "AAPL",
+            report_date: "2024-12-31",
+            eps_qoq_growth: 12.5,
+            eps_yoy_growth: 18.3,
+            revenue_yoy_growth: 15.2,
+            earnings_surprise_pct: 5.8,
+            earnings_quality_score: 78.5,
+            fetched_at: "2025-01-01T00:00:00.000Z"
+          },
+          {
+            symbol: "MSFT",
+            company_name: "MSFT",
+            report_date: "2024-12-31",
+            eps_qoq_growth: 8.2,
+            eps_yoy_growth: 22.1,
+            revenue_yoy_growth: 12.5,
+            earnings_surprise_pct: 3.2,
+            earnings_quality_score: 82.1,
+            fetched_at: "2025-01-01T00:00:00.000Z"
+          }
+        ]
+      }).mockResolvedValueOnce({
+        rows: [{ total: 2 }]
+      }).mockResolvedValueOnce({
+        rows: [
+          {
+            symbol: "AAPL",
+            count: 8,
+            avg_surprise: 4.5,
+            avg_eps_qoq_growth: 10.2,
+            avg_eps_yoy_growth: 15.8,
+            avg_revenue_yoy_growth: 14.1,
+            max_eps_yoy_growth: 22.5,
+            min_eps_yoy_growth: 8.2,
+            quality_score: 78.5
+          }
+        ]
+      });
+
+      const response = await request(app).get("/calendar/earnings-metrics").expect(200);
+
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("AAPL");
+      expect(response.body.data).toHaveProperty("MSFT");
+
+      // Verify AAPL metrics
+      const aaplData = response.body.data.AAPL;
+      expect(aaplData).toHaveProperty("metrics");
+      expect(Array.isArray(aaplData.metrics)).toBe(true);
+      expect(aaplData.metrics[0]).toHaveProperty("earnings_quality_score", 78.5);
+      expect(aaplData.metrics[0]).toHaveProperty("eps_yoy_growth", 18.3);
+      expect(aaplData.metrics[0]).toHaveProperty("revenue_yoy_growth", 15.2);
+
+      // Verify insights
+      expect(aaplData).toHaveProperty("insights");
+      expect(aaplData.insights).toHaveProperty("quality_score", 78.5);
+      expect(aaplData.insights).toHaveProperty("avg_eps_yoy_growth", 15.8);
+    });
+
+    test("should handle pagination parameters", async () => {
+      query.mockResolvedValueOnce({
+        rows: []
+      }).mockResolvedValueOnce({
+        rows: [{ total: 100 }]
+      }).mockResolvedValueOnce({
+        rows: []
+      });
+
+      const response = await request(app)
+        .get("/calendar/earnings-metrics?page=2&limit=50")
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("pagination");
+      expect(response.body.pagination).toHaveProperty("page", 2);
+      expect(response.body.pagination).toHaveProperty("limit", 50);
+      expect(response.body.pagination).toHaveProperty("total", 100);
+    });
+
+    test("should handle database errors gracefully", async () => {
+      query.mockRejectedValue(new Error("Database connection failed"));
+
+      const response = await request(app).get("/calendar/earnings-metrics").expect(500);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body).toHaveProperty("error");
+    });
+  });
 });
