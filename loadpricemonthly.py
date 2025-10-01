@@ -240,10 +240,15 @@ if __name__ == "__main__":
             splits DOUBLE PRECISION,
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Performance indexes for symbol/date queries
+        CREATE INDEX idx_price_monthly_symbol_date ON price_monthly(symbol, date DESC);
+        CREATE INDEX idx_price_monthly_date ON price_monthly(date DESC);
     """
     )
 
     conn.commit()
+    logging.info("Created price_monthly table with performance indexes")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
