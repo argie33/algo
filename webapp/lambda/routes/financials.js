@@ -725,28 +725,107 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
       });
     }
 
-    // Use the correct schema from loadannualbalancesheet.py: (symbol, date, item_name, value)
+    // Pivot the normalized data to match expected format (like income statement)
     const balanceSheetQuery = `
+      WITH balance_pivot AS (
+        SELECT
+          symbol,
+          date,
+          MAX(CASE WHEN item_name = 'Total Assets' THEN value ELSE 0 END) as total_assets,
+          MAX(CASE WHEN item_name = 'Current Assets' THEN value ELSE 0 END) as current_assets,
+          MAX(CASE WHEN item_name = 'Cash And Cash Equivalents' THEN value ELSE 0 END) as cash,
+          MAX(CASE WHEN item_name = 'Cash Cash Equivalents And Short Term Investments' THEN value ELSE 0 END) as cash_and_short_term_investments,
+          MAX(CASE WHEN item_name = 'Inventory' THEN value ELSE 0 END) as inventory,
+          MAX(CASE WHEN item_name = 'Receivables' THEN value ELSE 0 END) as receivables,
+          MAX(CASE WHEN item_name = 'Total Liabilities Net Minority Interest' THEN value ELSE 0 END) as total_liabilities,
+          MAX(CASE WHEN item_name = 'Current Liabilities' THEN value ELSE 0 END) as current_liabilities,
+          MAX(CASE WHEN item_name = 'Payables' THEN value ELSE 0 END) as payables,
+          MAX(CASE WHEN item_name = 'Total Debt' THEN value ELSE 0 END) as total_debt,
+          MAX(CASE WHEN item_name = 'Current Debt' THEN value ELSE 0 END) as current_debt,
+          MAX(CASE WHEN item_name = 'Long Term Debt' THEN value ELSE 0 END) as long_term_debt,
+          MAX(CASE WHEN item_name = 'Stockholders Equity' THEN value ELSE 0 END) as stockholders_equity,
+          MAX(CASE WHEN item_name = 'Common Stock' THEN value ELSE 0 END) as common_stock,
+          MAX(CASE WHEN item_name = 'Retained Earnings' THEN value ELSE 0 END) as retained_earnings,
+          MAX(CASE WHEN item_name = 'Intangible Assets' THEN value ELSE 0 END) as intangible_assets,
+          MAX(CASE WHEN item_name = 'Goodwill' THEN value ELSE 0 END) as goodwill
+        FROM ${tableName}
+        WHERE symbol ILIKE $1
+        GROUP BY symbol, date
+      )
       SELECT
         symbol,
         date,
-        item_name,
-        value
-      FROM ${tableName}
-      WHERE symbol ILIKE $1
-      ORDER BY date DESC, item_name
-      LIMIT 50
+        total_assets,
+        current_assets,
+        cash,
+        cash_and_short_term_investments,
+        inventory,
+        receivables,
+        total_liabilities,
+        current_liabilities,
+        payables,
+        total_debt,
+        current_debt,
+        long_term_debt,
+        stockholders_equity,
+        common_stock,
+        retained_earnings,
+        intangible_assets,
+        goodwill
+      FROM balance_pivot
+      ORDER BY date DESC
+      LIMIT 10
     `;
 
     const result = await query(balanceSheetQuery, [ticker.toUpperCase()]);
 
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        metadata: {
+          ticker: ticker.toUpperCase(),
+          period: period,
+          count: 0,
+          timestamp: new Date().toISOString(),
+          dataSource: "database",
+          message: "No balance sheet data found for this ticker",
+        },
+      });
+    }
+
+    // Transform the data to match expected format
+    const transformedData = result.rows.map((row) => ({
+      symbol: row.symbol,
+      date: row.date,
+      totalAssets: parseFloat(row.total_assets || 0),
+      currentAssets: parseFloat(row.current_assets || 0),
+      cash: parseFloat(row.cash || 0),
+      cashAndShortTermInvestments: parseFloat(row.cash_and_short_term_investments || 0),
+      inventory: parseFloat(row.inventory || 0),
+      receivables: parseFloat(row.receivables || 0),
+      totalLiabilities: parseFloat(row.total_liabilities || 0),
+      currentLiabilities: parseFloat(row.current_liabilities || 0),
+      payables: parseFloat(row.payables || 0),
+      totalDebt: parseFloat(row.total_debt || 0),
+      currentDebt: parseFloat(row.current_debt || 0),
+      longTermDebt: parseFloat(row.long_term_debt || 0),
+      stockholdersEquity: parseFloat(row.stockholders_equity || 0),
+      commonStock: parseFloat(row.common_stock || 0),
+      retainedEarnings: parseFloat(row.retained_earnings || 0),
+      intangibleAssets: parseFloat(row.intangible_assets || 0),
+      goodwill: parseFloat(row.goodwill || 0),
+      // Raw data for debugging
+      raw: row,
+    }));
+
     return res.status(200).json({
       success: true,
-      data: result.rows || [],
+      data: transformedData,
       metadata: {
         ticker: ticker.toUpperCase(),
         period: period,
-        count: result.rows ? result.rows.length : 0,
+        count: transformedData.length,
         timestamp: new Date().toISOString(),
         dataSource: "database",
       },
@@ -970,17 +1049,48 @@ router.get("/:ticker/cash-flow", async (req, res) => {
       });
     }
 
-    // Query the cash flow table using the correct schema: (symbol, date, item_name, value)
+    // Pivot the normalized data to match expected format (like income statement)
     const cashFlowQuery = `
+      WITH cash_flow_pivot AS (
+        SELECT
+          symbol,
+          date,
+          MAX(CASE WHEN item_name = 'Operating Cash Flow' THEN value ELSE 0 END) as operating_cash_flow,
+          MAX(CASE WHEN item_name = 'Investing Cash Flow' THEN value ELSE 0 END) as investing_cash_flow,
+          MAX(CASE WHEN item_name = 'Financing Cash Flow' THEN value ELSE 0 END) as financing_cash_flow,
+          MAX(CASE WHEN item_name = 'Free Cash Flow' THEN value ELSE 0 END) as free_cash_flow,
+          MAX(CASE WHEN item_name = 'Capital Expenditure' THEN value ELSE 0 END) as capital_expenditure,
+          MAX(CASE WHEN item_name = 'Net Income From Continuing Operations' THEN value ELSE 0 END) as net_income,
+          MAX(CASE WHEN item_name = 'Depreciation And Amortization' THEN value ELSE 0 END) as depreciation_amortization,
+          MAX(CASE WHEN item_name = 'Stock Based Compensation' THEN value ELSE 0 END) as stock_based_compensation,
+          MAX(CASE WHEN item_name = 'Change In Working Capital' THEN value ELSE 0 END) as change_in_working_capital,
+          MAX(CASE WHEN item_name = 'Cash Dividends Paid' THEN value ELSE 0 END) as dividends_paid,
+          MAX(CASE WHEN item_name = 'Repurchase Of Capital Stock' THEN value ELSE 0 END) as stock_repurchases,
+          MAX(CASE WHEN item_name = 'Issuance Of Debt' THEN value ELSE 0 END) as debt_issuance,
+          MAX(CASE WHEN item_name = 'Repayment Of Debt' THEN value ELSE 0 END) as debt_repayment
+        FROM ${tableName}
+        WHERE symbol ILIKE $1
+        GROUP BY symbol, date
+      )
       SELECT
         symbol,
         date,
-        item_name,
-        value
-      FROM ${tableName}
-      WHERE symbol ILIKE $1
-      ORDER BY date DESC, item_name
-      LIMIT 200
+        operating_cash_flow,
+        investing_cash_flow,
+        financing_cash_flow,
+        free_cash_flow,
+        capital_expenditure,
+        net_income,
+        depreciation_amortization,
+        stock_based_compensation,
+        change_in_working_capital,
+        dividends_paid,
+        stock_repurchases,
+        debt_issuance,
+        debt_repayment
+      FROM cash_flow_pivot
+      ORDER BY date DESC
+      LIMIT 10
     `;
 
     const result = await query(cashFlowQuery, [ticker.toUpperCase()]);
@@ -1000,44 +1110,25 @@ router.get("/:ticker/cash-flow", async (req, res) => {
       });
     }
 
-    // Transform the normalized data into a structured format
-    const groupedData = {};
-
-    result.rows.forEach((row) => {
-      const dateKey = row.date;
-      if (!groupedData[dateKey]) {
-        groupedData[dateKey] = {
-          symbol: row.symbol,
-          date: row.date,
-          items: {},
-        };
-      }
-      groupedData[dateKey].items[row.item_name] = parseFloat(row.value || 0);
-    });
-
-    // Convert to array and add common cash flow metrics
-    const transformedData = Object.values(groupedData).map((period) => ({
-      symbol: period.symbol,
-      date: period.date,
-      operatingCashFlow:
-        period.items["Operating Cash Flow"] ||
-        period.items["Cash Flow From Operating Activities"] ||
-        0,
-      investingCashFlow:
-        period.items["Investing Cash Flow"] ||
-        period.items["Cash Flow From Investing Activities"] ||
-        0,
-      financingCashFlow:
-        period.items["Financing Cash Flow"] ||
-        period.items["Cash Flow From Financing Activities"] ||
-        0,
-      freeCashFlow: period.items["Free Cash Flow"] || 0,
-      capitalExpenditures:
-        period.items["Capital Expenditure"] ||
-        period.items["Capital Expenditures"] ||
-        0,
-      netIncome: period.items["Net Income"] || 0,
-      items: period.items, // Include all raw items for debugging
+    // Transform the data to match expected format
+    const transformedData = result.rows.map((row) => ({
+      symbol: row.symbol,
+      date: row.date,
+      operatingCashFlow: parseFloat(row.operating_cash_flow || 0),
+      investingCashFlow: parseFloat(row.investing_cash_flow || 0),
+      financingCashFlow: parseFloat(row.financing_cash_flow || 0),
+      freeCashFlow: parseFloat(row.free_cash_flow || 0),
+      capitalExpenditures: parseFloat(row.capital_expenditure || 0),
+      netIncome: parseFloat(row.net_income || 0),
+      depreciationAmortization: parseFloat(row.depreciation_amortization || 0),
+      stockBasedCompensation: parseFloat(row.stock_based_compensation || 0),
+      changeInWorkingCapital: parseFloat(row.change_in_working_capital || 0),
+      dividendsPaid: parseFloat(row.dividends_paid || 0),
+      stockRepurchases: parseFloat(row.stock_repurchases || 0),
+      debtIssuance: parseFloat(row.debt_issuance || 0),
+      debtRepayment: parseFloat(row.debt_repayment || 0),
+      // Raw data for debugging
+      raw: row,
     }));
 
     res.json({
