@@ -2892,8 +2892,8 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "${AWS::StackName}-loader-orchestration-test"
-      Description: "Trigger loader orchestration - TEST at 16:00 UTC"
-      ScheduleExpression: "cron(0 16 ? * * *)"
+      Description: "Trigger loader orchestration - TEST at 17:15 UTC"
+      ScheduleExpression: "cron(15 17 ? * * *)"
       State: ENABLED
       Targets:
         - Arn: !GetAtt LoaderOrchestrationStateMachine.Arn
