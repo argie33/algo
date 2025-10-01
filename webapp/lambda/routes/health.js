@@ -9,6 +9,8 @@ const {
 
 const router = express.Router();
 
+// Health endpoints - Updated 2025-10-01
+
 // Health check endpoint
 router.get("/", async (req, res) => {
   try {
