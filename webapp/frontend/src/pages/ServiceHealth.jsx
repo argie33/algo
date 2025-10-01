@@ -152,7 +152,7 @@ function ServiceHealth() {
 
         // Use the standard api instance but with better error handling
         const response = await api.get("/health/database", {
-          timeout: 15000, // 15 second timeout
+          timeout: 60000, // 60 second timeout (matches Lambda timeout)
           validateStatus: (status) => status < 500, // Don't throw on 4xx errors
         });
 
