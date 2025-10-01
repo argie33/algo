@@ -635,8 +635,10 @@ router.get("/database", async (req, res) => {
           );
           if (daysSinceUpdate > 30) {
             data_freshness = "very_stale";
+            summary.stale_tables++;
           } else if (daysSinceUpdate > 7) {
             data_freshness = "stale";
+            summary.stale_tables++;
           }
         }
 
