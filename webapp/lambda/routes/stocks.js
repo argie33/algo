@@ -883,29 +883,23 @@ router.get("/", async (req, res) => {
     });
 
     // ACTUAL AWS SCHEMA: Use company_profile (from loadinfo.py) with market_data and key_metrics
-    // Use CTE with window function to avoid slow correlated subquery
+    // Simplified query without price_daily join to avoid timeout
     const stocksQuery = `
-      WITH latest_prices AS (
-        SELECT DISTINCT ON (symbol)
-          symbol, date, open, high, low, close, adj_close, volume
-        FROM price_daily
-        ORDER BY symbol, date DESC
-      )
       SELECT
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
         cp.sector,
         cp.industry,
         COALESCE(md.market_cap, 0) as market_cap,
-        COALESCE(pd.close, md.current_price, 0) as current_price,
-        COALESCE(pd.volume, md.volume, 0) as volume,
+        COALESCE(md.current_price, 0) as current_price,
+        COALESCE(md.volume, 0) as volume,
         COALESCE(km.trailing_pe, 0) as trailing_pe,
         COALESCE(km.forward_pe, 0) as forward_pe,
         COALESCE(km.dividend_yield, 0) as dividend_yield,
         0 as beta,
         'NASDAQ' as exchange,
         COALESCE(km.eps_trailing, 0) as eps,
-        COALESCE(pd.close, md.current_price, 0) as previous_close,
+        COALESCE(md.current_price, 0) as previous_close,
         COALESCE(km.total_revenue, 0) as total_revenue,
         COALESCE(km.profit_margin_pct, 0) as profit_margin_pct,
         COALESCE(km.price_to_book, 0) as price_to_book,
@@ -936,18 +930,17 @@ router.get("/", async (req, res) => {
         COALESCE(km.earnings_growth_pct, 0) as earnings_growth_pct,
         COALESCE(km.revenue_growth_pct, 0) as revenue_growth_pct,
 
-        -- Recent price data
-        pd.open,
-        pd.high,
-        pd.low,
-        pd.close,
-        pd.adj_close,
-        pd.date as price_date
+        -- Price data from market_data instead of price_daily
+        NULL as open,
+        NULL as high,
+        NULL as low,
+        md.current_price as close,
+        NULL as adj_close,
+        NULL as price_date
 
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      LEFT JOIN latest_prices pd ON cp.ticker = pd.symbol
       ${whereClause.replace(/symbol/g, 'cp.ticker')}
       ORDER BY cp.ticker ASC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
