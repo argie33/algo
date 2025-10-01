@@ -622,8 +622,8 @@ router.get("/database", async (req, res) => {
           } else {
             summary.healthy_tables++;
 
-            // Get the most recent timestamp for this table
-            // Priority: fetched_at > updated_at > created_at > date
+            // Get the most recent timestamp for this table using ORDER BY + LIMIT 1
+            // Much faster than MAX() as it can use indexes
             try {
               const timestampQuery = `
                 SELECT column_name
@@ -645,7 +645,8 @@ router.get("/database", async (req, res) => {
 
               if (timestampCol.rows.length > 0) {
                 const colName = timestampCol.rows[0].column_name;
-                const maxTimestampQuery = `SELECT MAX(${colName}) as last_updated FROM ${tableName}`;
+                // Use ORDER BY DESC LIMIT 1 instead of MAX() - much faster with indexes
+                const maxTimestampQuery = `SELECT ${colName} as last_updated FROM ${tableName} ORDER BY ${colName} DESC LIMIT 1`;
                 const maxResult = await query(maxTimestampQuery);
 
                 if (maxResult.rows.length > 0 && maxResult.rows[0].last_updated) {
