@@ -1124,6 +1124,16 @@ router.get("/ecs-tasks", async (req, res) => {
 
         const latestStream = logStreams[0];
         const streamName = latestStream.logStreamName;
+
+        // Handle null or undefined lastEventTime
+        if (!latestStream.lastEventTime) {
+          return {
+            status: "never_run",
+            message: "No execution timestamp found",
+            last_run: null
+          };
+        }
+
         const lastEventTime = new Date(latestStream.lastEventTime);
 
         // Get log events from the latest stream

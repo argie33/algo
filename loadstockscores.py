@@ -10,11 +10,14 @@ Data Sources:
 - earnings_history: Growth trends and earnings surprise patterns
 
 Scoring Methodology (0-100 scale):
-1. Momentum Score (20%): RSI + MACD + Price momentum across timeframes
-2. Trend Score (25%): MA alignment + Multi-timeframe analysis + Position scoring
-3. Value Score (18%): PE ratio + PEG-adjusted valuation
-4. Quality Score (15%): Volatility risk + Liquidity + Price stability
-5. Growth Score (22%): Earnings growth + Momentum + Consistency
+1. Momentum Score (15%): RSI + MACD + Price momentum across timeframes
+2. Trend Score (18%): MA alignment + Multi-timeframe analysis + Position scoring
+3. Value Score (12%): PE ratio + PEG-adjusted valuation
+4. Quality Score (12%): Volatility risk + Liquidity + Price stability
+5. Growth Score (15%): Earnings growth + Momentum + Consistency
+6. Relative Strength Score (13%): RSI-based strength + Price performance vs market
+7. Positioning Score (10%): Institutional holdings changes + Market positioning trends
+8. Sentiment Score (5%): Analyst ratings + Market sentiment indicators
 
 Version History:
 - v2.0: Enhanced multi-factor scoring with improved technical + fundamental analysis
@@ -93,6 +96,9 @@ def create_stock_scores_table(conn):
                 value_score DECIMAL(5,2),
                 quality_score DECIMAL(5,2),
                 growth_score DECIMAL(5,2),
+                relative_strength_score DECIMAL(5,2),
+                positioning_score DECIMAL(5,2),
+                sentiment_score DECIMAL(5,2),
                 rsi DECIMAL(5,2),
                 macd DECIMAL(10,4),
                 sma_20 DECIMAL(10,2),
@@ -295,6 +301,58 @@ def get_stock_data_from_database(conn, symbol):
 
         # Market cap placeholder - we don't have this data, so set to None
         market_cap = None
+
+        # Get sentiment data for Sentiment Score
+        cur.execute("""
+            SELECT sentiment_score, news_count
+            FROM sentiment_analysis
+            WHERE symbol = %s
+            AND date >= CURRENT_DATE - INTERVAL '30 days'
+            ORDER BY date DESC
+            LIMIT 1
+        """, (symbol,))
+        sentiment_data = cur.fetchone()
+        sentiment_score_raw = float(sentiment_data[0]) if sentiment_data and sentiment_data[0] is not None else None
+        news_count = int(sentiment_data[1]) if sentiment_data and sentiment_data[1] is not None else 0
+
+        # Get analyst recommendations for Sentiment Score
+        cur.execute("""
+            SELECT rating, target_price, current_price
+            FROM analyst_recommendations
+            WHERE symbol = %s
+            AND date_published >= CURRENT_DATE - INTERVAL '90 days'
+            ORDER BY date_published DESC
+            LIMIT 10
+        """, (symbol,))
+        analyst_recs = cur.fetchall()
+        analyst_score = None
+        if analyst_recs:
+            # Convert ratings to numeric: Strong Buy=5, Buy=4, Hold=3, Sell=2, Strong Sell=1
+            rating_map = {'strong buy': 5, 'buy': 4, 'hold': 3, 'sell': 2, 'strong sell': 1}
+            ratings = [rating_map.get(row[0].lower(), 3) for row in analyst_recs if row[0]]
+            if ratings:
+                analyst_score = sum(ratings) / len(ratings)
+
+        # Get institutional positioning data for Positioning Score
+        cur.execute("""
+            SELECT position_change_percent, market_share, institution_type
+            FROM institutional_positioning
+            WHERE symbol = %s
+            AND filing_date >= CURRENT_DATE - INTERVAL '90 days'
+            ORDER BY filing_date DESC
+            LIMIT 20
+        """, (symbol,))
+        positioning_data = cur.fetchall()
+        inst_position_change = None
+        inst_market_share = None
+        if positioning_data:
+            # Calculate average position change and market share
+            position_changes = [float(row[0]) for row in positioning_data if row[0] is not None]
+            market_shares = [float(row[1]) for row in positioning_data if row[1] is not None]
+            if position_changes:
+                inst_position_change = sum(position_changes) / len(position_changes)
+            if market_shares:
+                inst_market_share = sum(market_shares) / len(market_shares)
 
         cur.close()
 
@@ -541,14 +599,89 @@ def get_stock_data_from_database(conn, symbol):
         growth_score = earnings_component + momentum_component + consistency_bonus
         growth_score = max(0, min(100, growth_score))
 
-        # Composite Score (optimized weighted average)
-        # Weights: Trend (25%), Growth (22%), Momentum (20%), Value (18%), Quality (15%)
+        # Relative Strength Score (RSI-based strength + Price performance)
+        relative_strength_score = 50  # Start neutral
+
+        # RSI strength component (0-60 points)
+        if rsi is not None:
+            if rsi >= 70:
+                relative_strength_score = 80 + min((rsi - 70) / 30 * 20, 20)  # 80-100 for overbought
+            elif rsi >= 50:
+                relative_strength_score = 50 + (rsi - 50)  # 50-80 for bullish
+            elif rsi >= 30:
+                relative_strength_score = 30 + (rsi - 30)  # 30-50 for neutral
+            else:
+                relative_strength_score = rsi  # 0-30 for oversold
+
+        # Add price momentum component (adjust by multi-timeframe performance)
+        if price_change_30d > 10:
+            relative_strength_score += min(15, price_change_30d * 0.5)
+        elif price_change_30d > 0:
+            relative_strength_score += price_change_30d * 0.5
+        elif price_change_30d < -10:
+            relative_strength_score -= min(15, abs(price_change_30d) * 0.5)
+        else:
+            relative_strength_score += price_change_30d * 0.5
+
+        relative_strength_score = max(0, min(100, relative_strength_score))
+
+        # Positioning Score (Institutional holdings + trends)
+        positioning_score = 50  # Start neutral
+
+        if inst_position_change is not None:
+            # Institutional buying (+) or selling (-) trend
+            if inst_position_change > 5:
+                positioning_score += min(30, inst_position_change * 2)  # Strong buying
+            elif inst_position_change > 0:
+                positioning_score += inst_position_change * 3  # Moderate buying
+            elif inst_position_change > -5:
+                positioning_score += inst_position_change * 3  # Moderate selling
+            else:
+                positioning_score += max(-30, inst_position_change * 2)  # Strong selling
+
+        if inst_market_share is not None:
+            # Higher institutional ownership can be positive (confidence) up to a point
+            # Normalize market share to 0-20 points (assuming 0-100% range)
+            market_share_component = min(20, inst_market_share * 100 * 0.2)
+            positioning_score += market_share_component
+
+        positioning_score = max(0, min(100, positioning_score))
+
+        # Sentiment Score (Analyst ratings + Market sentiment)
+        sentiment_score = 50  # Start neutral
+
+        # Analyst sentiment component (0-50 points)
+        if analyst_score is not None:
+            # Scale from 1-5 to 0-50: (score-1)/4 * 50
+            analyst_component = ((analyst_score - 1) / 4) * 50
+            sentiment_score = analyst_component
+
+        # News sentiment component (add up to ±25 points)
+        if sentiment_score_raw is not None:
+            # Assuming sentiment_score_raw is 0-1 scale, convert to -25 to +25
+            news_component = (sentiment_score_raw - 0.5) * 50
+            sentiment_score += news_component
+
+        # Bonus for high news coverage (indicates interest)
+        if news_count > 10:
+            sentiment_score += min(10, news_count * 0.5)
+        elif news_count > 5:
+            sentiment_score += 5
+
+        sentiment_score = max(0, min(100, sentiment_score))
+
+        # Composite Score (optimized weighted average with 8 factors)
+        # Weights: Trend (18%), Growth (15%), Momentum (15%), Relative Strength (13%),
+        #          Value (12%), Quality (12%), Positioning (10%), Sentiment (5%)
         composite_score = (
-            trend_score * 0.25 +      # Trend is most predictive
-            growth_score * 0.22 +      # Growth drives long-term returns
-            momentum_score * 0.20 +    # Short-term momentum
-            value_score * 0.18 +       # Valuation matters
-            quality_score * 0.15       # Risk management
+            trend_score * 0.18 +                    # Trend analysis
+            growth_score * 0.15 +                   # Growth drivers
+            momentum_score * 0.15 +                 # Short-term momentum
+            relative_strength_score * 0.13 +        # Relative strength
+            value_score * 0.12 +                    # Valuation
+            quality_score * 0.12 +                  # Quality/Risk
+            positioning_score * 0.10 +              # Institutional positioning
+            sentiment_score * 0.05                  # Market sentiment
         )
 
         return {
@@ -559,6 +692,9 @@ def get_stock_data_from_database(conn, symbol):
             'value_score': float(round(value_score, 2)),
             'quality_score': float(round(quality_score, 2)),
             'growth_score': float(round(growth_score, 2)),
+            'relative_strength_score': float(round(relative_strength_score, 2)),
+            'positioning_score': float(round(positioning_score, 2)),
+            'sentiment_score': float(round(sentiment_score, 2)),
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
@@ -586,11 +722,13 @@ def save_stock_score(conn, score_data):
         upsert_sql = """
         INSERT INTO stock_scores (
             symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
+            relative_strength_score, positioning_score, sentiment_score,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio, score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
+            %(relative_strength_score)s, %(positioning_score)s, %(sentiment_score)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s, CURRENT_DATE, CURRENT_TIMESTAMP
@@ -601,6 +739,9 @@ def save_stock_score(conn, score_data):
             value_score = EXCLUDED.value_score,
             quality_score = EXCLUDED.quality_score,
             growth_score = EXCLUDED.growth_score,
+            relative_strength_score = EXCLUDED.relative_strength_score,
+            positioning_score = EXCLUDED.positioning_score,
+            sentiment_score = EXCLUDED.sentiment_score,
             rsi = EXCLUDED.rsi,
             macd = EXCLUDED.macd,
             sma_20 = EXCLUDED.sma_20,
