@@ -2594,7 +2594,7 @@ Resources:
               Service: events.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: EventBridgeECSPolicy
+        - PolicyName: EventBridgeStepFunctionsPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -2603,19 +2603,6 @@ Resources:
                   - states:StartExecution
                 Resource:
                   - !GetAtt LoaderOrchestrationStateMachine.Arn
-              - Effect: Allow
-                Action:
-                  - ecs:RunTask
-                Resource:
-                  - !Ref LoadInfoTaskDefinition
-                  - !Ref EarningsEstimateTaskDefinition
-                  - !Ref EarningsHistoryTaskDefinition
-              - Effect: Allow
-                Action:
-                  - iam:PassRole
-                Resource:
-                  - !GetAtt ECSExecutionRole.Arn
-                  - !GetAtt ECSTaskRole.Arn
 
   #########################################
   # Step Functions Orchestration          #
