@@ -2115,45 +2115,59 @@ function StockDetail() {
                     <Divider sx={{ mb: 2 }} />
 
                     {analystOverview?.data?.eps_revisions?.length > 0 ? (
-                      <TableContainer>
-                        <Table>
-                          <TableBody>
-                            {(analystOverview?.data.eps_revisions || []).map(
-                              (revision) => (
-                                <TableRow key={revision.period}>
-                                  <TableCell sx={{ fontWeight: "bold" }}>
-                                    {revision.period === "0q"
-                                      ? "Current Quarter"
-                                      : revision.period === "+1q"
-                                        ? "Next Quarter"
-                                        : revision.period === "0y"
-                                          ? "Current Year"
-                                          : revision.period === "+1y"
-                                            ? "Next Year"
-                                            : revision.period}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    <Box display="flex" gap={1} justifyContent="flex-end">
+                      <>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: "grey.50" }}>
+                                <TableCell sx={{ fontWeight: "bold" }}>Period</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Upgrades (30d)</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Downgrades (30d)</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {(analystOverview?.data.eps_revisions || []).map(
+                                (revision) => (
+                                  <TableRow key={revision.period}>
+                                    <TableCell sx={{ fontWeight: "bold" }}>
+                                      {revision.period === "0q"
+                                        ? "Current Quarter"
+                                        : revision.period === "+1q"
+                                          ? "Next Quarter"
+                                          : revision.period === "0y"
+                                            ? "Current Year"
+                                            : revision.period === "+1y"
+                                              ? "Next Year"
+                                              : revision.period}
+                                    </TableCell>
+                                    <TableCell align="right">
                                       <Chip
-                                        label={`Upgraded: ${revision.up_last30days || 0}`}
+                                        label={revision.up_last30days || 0}
                                         size="small"
                                         color="success"
                                         variant="outlined"
                                       />
+                                    </TableCell>
+                                    <TableCell align="right">
                                       <Chip
-                                        label={`Downgraded: ${revision.down_last30days || 0}`}
+                                        label={revision.down_last30days || 0}
                                         size="small"
                                         color="error"
                                         variant="outlined"
                                       />
-                                    </Box>
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            )}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              )}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {analystOverview?.data?.fetched_at && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
+                          </Typography>
+                        )}
+                      </>
                     ) : (
                       <Typography color="text.secondary">
                         No EPS revisions available
@@ -2379,59 +2393,71 @@ function StockDetail() {
                     <Divider sx={{ mb: 2 }} />
 
                     {analystOverview?.data?.eps_trend?.length > 0 ? (
-                      <TableContainer>
-                        <Table>
-                          <TableBody>
-                            {(analystOverview?.data.eps_trend || []).map(
-                              (trend) => (
-                                <TableRow key={trend.period}>
-                                  <TableCell sx={{ fontWeight: "bold" }}>
-                                    {trend.period === "0q"
-                                      ? "Current Quarter"
-                                      : trend.period === "+1q"
-                                        ? "Next Quarter"
-                                        : trend.period === "0y"
-                                          ? "Current Year"
-                                          : trend.period === "+1y"
-                                            ? "Next Year"
-                                            : trend.period}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    Current:{" "}
-                                    {trend.current
-                                      ? formatCurrency(trend.current)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    7 Days Ago:{" "}
-                                    {trend.days_ago_7
-                                      ? formatCurrency(trend.days_ago_7)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    30 Days Ago:{" "}
-                                    {trend.days_ago_30
-                                      ? formatCurrency(trend.days_ago_30)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    60 Days Ago:{" "}
-                                    {trend.days_ago_60
-                                      ? formatCurrency(trend.days_ago_60)
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    90 Days Ago:{" "}
-                                    {trend.days_ago_90
-                                      ? formatCurrency(trend.days_ago_90)
-                                      : "N/A"}
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            )}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                      <>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: "grey.50" }}>
+                                <TableCell sx={{ fontWeight: "bold" }}>Period</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Current</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>7 Days Ago</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>30 Days Ago</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>60 Days Ago</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>90 Days Ago</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {(analystOverview?.data.eps_trend || []).map(
+                                (trend) => (
+                                  <TableRow key={trend.period}>
+                                    <TableCell sx={{ fontWeight: "bold" }}>
+                                      {trend.period === "0q"
+                                        ? "Current Quarter"
+                                        : trend.period === "+1q"
+                                          ? "Next Quarter"
+                                          : trend.period === "0y"
+                                            ? "Current Year"
+                                            : trend.period === "+1y"
+                                              ? "Next Year"
+                                              : trend.period}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {trend.current
+                                        ? formatCurrency(trend.current)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {trend.days_ago_7
+                                        ? formatCurrency(trend.days_ago_7)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {trend.days_ago_30
+                                        ? formatCurrency(trend.days_ago_30)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {trend.days_ago_60
+                                        ? formatCurrency(trend.days_ago_60)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {trend.days_ago_90
+                                        ? formatCurrency(trend.days_ago_90)
+                                        : "N/A"}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              )}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {analystOverview?.data?.fetched_at && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
+                          </Typography>
+                        )}
+                      </>
                     ) : (
                       <Typography color="text.secondary">
                         No EPS trends available

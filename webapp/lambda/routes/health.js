@@ -1077,7 +1077,7 @@ router.get("/ecs-tasks", async (req, res) => {
         if (logStreams.length === 0) {
           return {
             status: "never_run",
-            message: "No execution logs found",
+            message: "No log streams found - task never executed",
             last_run: null
           };
         }
@@ -1089,8 +1089,9 @@ router.get("/ecs-tasks", async (req, res) => {
         if (!latestStream.lastEventTime) {
           return {
             status: "never_run",
-            message: "No execution timestamp found",
-            last_run: null
+            message: "Log stream exists but no events found",
+            last_run: null,
+            log_stream: streamName
           };
         }
 
@@ -1155,6 +1156,17 @@ router.get("/ecs-tasks", async (req, res) => {
         console.error(`  - Log group: ${logGroupName}`);
         console.error(`  - Error code: ${taskError.name}`);
         console.error(`  - Error message: ${taskError.message}`);
+
+        // Handle specific error cases
+        if (taskError.name === "ResourceNotFoundException") {
+          return {
+            status: "not_deployed",
+            message: "Task not deployed - log group does not exist",
+            last_run: null,
+            log_group: logGroupName
+          };
+        }
+
         return {
           status: "error",
           message: `${taskError.name}: ${taskError.message}`,

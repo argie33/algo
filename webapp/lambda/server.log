@@ -312,3 +312,270 @@ NAAIM data endpoint called with limit: 5
 Fear & Greed data endpoint called with limit: 5
 ::1 - - [01/Oct/2025:22:18:08 +0000] "GET /api/market/fear-greed?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
 ::1 - - [01/Oct/2025:22:18:08 +0000] "GET /health/database HTTP/1.1" 200 22921 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Received request for /health/ecs-tasks
+Error in ECS tasks monitoring: Error: Cannot find module '@aws-sdk/client-ecs'
+Require stack:
+- /home/stocks/algo/webapp/lambda/routes/health.js
+- /home/stocks/algo/webapp/lambda/server.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+    at Module._load (node:internal/modules/cjs/loader:1043:27)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at /home/stocks/algo/webapp/lambda/routes/health.js:1085:67
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+    at next (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+    at /home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:284:15 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/home/stocks/algo/webapp/lambda/routes/health.js',
+    '/home/stocks/algo/webapp/lambda/server.js'
+  ]
+}
+::1 - - [01/Oct/2025:23:00:06 +0000] "GET /health/ecs-tasks HTTP/1.1" 500 228 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Received request for /health/database
+Starting health check with database...
+Starting health check with database...
+::1 - - [01/Oct/2025:23:00:06 +0000] "GET /health HTTP/1.1" 200 349 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:00:06 +0000] "GET /api/health HTTP/1.1" 200 349 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:00:06 +0000] "GET /health/database HTTP/1.1" 200 22921 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/health?quick=true HTTP/1.1" 200 443 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Stocks main endpoint called with params: { limit: '5' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 5, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 6 estimated total
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/stocks?limit=5 HTTP/1.1" 200 14222 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📊 Daily technical data requested - page: 1, limit: 5, sortBy: symbol, sortOrder: asc
+Testing query function...
+Test query result: Result {
+  command: 'SELECT',
+  rowCount: 1,
+  oid: null,
+  rows: [ { test: 1 } ],
+  fields: [
+    Field {
+      name: 'test',
+      tableID: 0,
+      columnID: 0,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    }
+  ],
+  _parsers: [ [Function: parseInteger] ],
+  _types: TypeOverrides {
+    _types: {
+      getTypeParser: [Function: getTypeParser],
+      setTypeParser: [Function: setTypeParser],
+      arrayParser: [Object],
+      builtins: [Object]
+    },
+    text: {},
+    binary: {}
+  },
+  RowCtor: null,
+  rowAsArray: false,
+  _prebuiltEmptyResultObject: { test: null }
+}
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/technical/daily?limit=5 HTTP/1.1" 200 3549 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 11ms using real loader tables
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/market/overview HTTP/1.1" 200 1741 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Stocks main endpoint called with params: { 'object Object': '' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 13 stocks, 13 estimated total
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/stocks?[object%20Object] HTTP/1.1" 200 32341 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📈 Fetching real BUY signals from buy_sell_daily
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/signals/buy HTTP/1.1" 200 2274 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📉 Sell signals requested for daily timeframe
+📉 Fetching real SELL signals from buy_sell_daily
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/signals/sell HTTP/1.1" 200 567 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+NAAIM data endpoint called with limit: 5
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/market/naaim?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Fear & Greed data endpoint called with limit: 5
+::1 - - [01/Oct/2025:23:00:08 +0000] "GET /api/market/fear-greed?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Received request for /health/ecs-tasks
+Error in ECS tasks monitoring: Error: Cannot find module '@aws-sdk/client-ecs'
+Require stack:
+- /home/stocks/algo/webapp/lambda/routes/health.js
+- /home/stocks/algo/webapp/lambda/server.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+    at Module._load (node:internal/modules/cjs/loader:1043:27)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at /home/stocks/algo/webapp/lambda/routes/health.js:1085:67
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+    at next (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+    at /home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:284:15 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/home/stocks/algo/webapp/lambda/routes/health.js',
+    '/home/stocks/algo/webapp/lambda/server.js'
+  ]
+}
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /health/ecs-tasks HTTP/1.1" 500 228 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Received request for /health/database
+Starting health check with database...
+Starting health check with database...
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/health HTTP/1.1" 200 349 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /health HTTP/1.1" 200 348 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/health?quick=true HTTP/1.1" 200 443 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Stocks main endpoint called with params: { limit: '5' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 5, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 6 estimated total
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/stocks?limit=5 HTTP/1.1" 200 14222 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📊 Daily technical data requested - page: 1, limit: 5, sortBy: symbol, sortOrder: asc
+Testing query function...
+Test query result: Result {
+  command: 'SELECT',
+  rowCount: 1,
+  oid: null,
+  rows: [ { test: 1 } ],
+  fields: [
+    Field {
+      name: 'test',
+      tableID: 0,
+      columnID: 0,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    }
+  ],
+  _parsers: [ [Function: parseInteger] ],
+  _types: TypeOverrides {
+    _types: {
+      getTypeParser: [Function: getTypeParser],
+      setTypeParser: [Function: setTypeParser],
+      arrayParser: [Object],
+      builtins: [Object]
+    },
+    text: {},
+    binary: {}
+  },
+  RowCtor: null,
+  rowAsArray: false,
+  _prebuiltEmptyResultObject: { test: null }
+}
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/technical/daily?limit=5 HTTP/1.1" 200 3549 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/market/overview HTTP/1.1" 200 1741 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Stocks main endpoint called with params: { 'object Object': '' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 13 stocks, 13 estimated total
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/stocks?[object%20Object] HTTP/1.1" 200 32341 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📈 Fetching real BUY signals from buy_sell_daily
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/signals/buy HTTP/1.1" 200 2274 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📉 Sell signals requested for daily timeframe
+📉 Fetching real SELL signals from buy_sell_daily
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/signals/sell HTTP/1.1" 200 567 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+NAAIM data endpoint called with limit: 5
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/market/naaim?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Fear & Greed data endpoint called with limit: 5
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /api/market/fear-greed?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:10:39 +0000] "GET /health/database HTTP/1.1" 200 22921 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Received request for /health/ecs-tasks
+Error in ECS tasks monitoring: Error: Cannot find module '@aws-sdk/client-ecs'
+Require stack:
+- /home/stocks/algo/webapp/lambda/routes/health.js
+- /home/stocks/algo/webapp/lambda/server.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+    at Module._load (node:internal/modules/cjs/loader:1043:27)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+    at /home/stocks/algo/webapp/lambda/routes/health.js:1085:67
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+    at next (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/route.js:149:13)
+    at Route.dispatch (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/route.js:119:3)
+    at Layer.handle [as handle_request] (/home/stocks/algo/webapp/lambda/node_modules/express/lib/router/layer.js:95:5)
+    at /home/stocks/algo/webapp/lambda/node_modules/express/lib/router/index.js:284:15 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/home/stocks/algo/webapp/lambda/routes/health.js',
+    '/home/stocks/algo/webapp/lambda/server.js'
+  ]
+}
+::1 - - [01/Oct/2025:23:33:07 +0000] "GET /health/ecs-tasks HTTP/1.1" 500 228 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Received request for /health/database
+Starting health check with database...
+Starting health check with database...
+::1 - - [01/Oct/2025:23:33:07 +0000] "GET /api/health HTTP/1.1" 200 349 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:33:07 +0000] "GET /health HTTP/1.1" 200 349 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:33:07 +0000] "GET /health/database HTTP/1.1" 200 22921 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/health?quick=true HTTP/1.1" 200 443 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Stocks main endpoint called with params: { limit: '5' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 5, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 6 estimated total
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/stocks?limit=5 HTTP/1.1" 200 14222 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📊 Daily technical data requested - page: 1, limit: 5, sortBy: symbol, sortOrder: asc
+Testing query function...
+Test query result: Result {
+  command: 'SELECT',
+  rowCount: 1,
+  oid: null,
+  rows: [ { test: 1 } ],
+  fields: [
+    Field {
+      name: 'test',
+      tableID: 0,
+      columnID: 0,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    }
+  ],
+  _parsers: [ [Function: parseInteger] ],
+  _types: TypeOverrides {
+    _types: {
+      getTypeParser: [Function: getTypeParser],
+      setTypeParser: [Function: setTypeParser],
+      arrayParser: [Object],
+      builtins: [Object]
+    },
+    text: {},
+    binary: {}
+  },
+  RowCtor: null,
+  rowAsArray: false,
+  _prebuiltEmptyResultObject: { test: null }
+}
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/technical/daily?limit=5 HTTP/1.1" 200 3549 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 8ms using real loader tables
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/market/overview HTTP/1.1" 200 1741 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Stocks main endpoint called with params: { 'object Object': '' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 50, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 13 stocks, 13 estimated total
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/stocks?[object%20Object] HTTP/1.1" 200 32341 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📈 Fetching real BUY signals from buy_sell_daily
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/signals/buy HTTP/1.1" 200 2274 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📉 Sell signals requested for daily timeframe
+📉 Fetching real SELL signals from buy_sell_daily
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/signals/sell HTTP/1.1" 200 567 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+NAAIM data endpoint called with limit: 5
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/market/naaim?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Fear & Greed data endpoint called with limit: 5
+::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/market/fear-greed?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"

@@ -1228,44 +1228,6 @@ function ServiceHealth() {
           </Accordion>
         </Grid>
 
-        {/* Error Information */}
-        {(healthError ||
-          Object.values(safeTestResults).some((r) => r.status === "error")) && (
-          <Grid item xs={12} lg={6}>
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMore />}>
-                <Typography variant="h6" color="error">
-                  <ErrorIcon sx={{ mr: 1, verticalAlign: "middle" }} />
-                  Error Details
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                {healthError && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2">
-                      Health Check Error:
-                    </Typography>
-                    <Typography variant="body2">
-                      {healthError.message}
-                    </Typography>
-                  </Alert>
-                )}
-                {Object.entries(safeTestResults)
-                  .filter(([, result]) => result?.status === "error")
-                  .map(([name, result]) => (
-                    <Alert severity="error" key={name} sx={{ mb: 1 }}>
-                      <Typography variant="subtitle2">
-                        {name} Endpoint Error:
-                      </Typography>
-                      <Typography variant="body2">
-                        {result?.error || "Unknown error"}
-                      </Typography>
-                    </Alert>
-                  ))}
-              </AccordionDetails>
-            </Accordion>
-          </Grid>
-        )}
       </Grid>
     </Container>
   );
