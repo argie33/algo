@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Monthly price data loader - fetches monthly OHLCV data for all symbols
-# Updated: 2025-09-30 - Verified ETF filtering: stocks only from stock_symbols
+# Updated: 2025-10-01 - Removed ETF loading, stocks only from stock_symbols
 import gc
 import json
 import logging

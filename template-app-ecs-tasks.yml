@@ -2609,8 +2609,8 @@ Resources:
                 Action:
                   - iam:PassRole
                 Resource:
-                  - !ImportValue StocksApp-ExecutionRoleArn
-                  - !ImportValue StocksApp-TaskRoleArn
+                  - !GetAtt ECSExecutionRole.Arn
+                  - !GetAtt ECSTaskRole.Arn
 
   #########################################
   # EventBridge Scheduled Rules           #
