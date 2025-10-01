@@ -9,7 +9,7 @@ const {
 
 const router = express.Router();
 
-// Health endpoints - Updated 2025-10-01
+// Health endpoints - Updated 2025-10-01 - CloudWatch Logs integration for ECS tasks
 
 // Health check endpoint
 router.get("/", async (req, res) => {
