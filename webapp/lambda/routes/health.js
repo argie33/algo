@@ -1092,9 +1092,9 @@ router.get("/ecs-tasks", async (req, res) => {
 
     // Monitor multiple ECS tasks
     const taskConfigs = [
-      { name: "loadinfo", logGroup: "/ecs/stocks-loadinfo" },
-      { name: "earnings_estimate", logGroup: "/ecs/stocks-earnings-estimate" },
-      { name: "earnings_history", logGroup: "/ecs/stocks-earnings-history" }
+      { name: "loadinfo", logGroup: "/ecs/loadinfo-loader" },
+      { name: "earnings_estimate", logGroup: "/ecs/earningsestimate-loader" },
+      { name: "earnings_history", logGroup: "/ecs/earningshistory-loader" }
     ];
 
     // Function to check a single task
