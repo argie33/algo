@@ -30,6 +30,8 @@ router.get("/", async (req, res) => {
     const search = req.query.search || '';
 
     // Query stock scores with proper field names from loadstockscores.py
+    // Using stock_scores_new table locally (has new columns)
+    const tableName = process.env.NODE_ENV === 'production' ? 'stock_scores' : 'stock_scores_new';
     let stocksQuery = `
       SELECT
         symbol,
@@ -56,7 +58,7 @@ router.get("/", async (req, res) => {
         volume_avg_30d,
         score_date,
         last_updated
-      FROM stock_scores
+      FROM ${tableName}
     `;
 
     const queryParams = [];
@@ -129,7 +131,7 @@ router.get("/", async (req, res) => {
     }));
 
     // Count total records for pagination
-    let countQuery = `SELECT COUNT(*) as total FROM stock_scores`;
+    let countQuery = `SELECT COUNT(*) as total FROM ${tableName}`;
     const countParams = [];
     if (search) {
       countQuery += ` WHERE symbol ILIKE $1`;
@@ -190,6 +192,7 @@ router.get("/:symbol", async (req, res) => {
       console.log(`📊 Detailed scores requested for symbol: ${symbol.toUpperCase()} - using real table`);
     }
 
+    const tableName = process.env.NODE_ENV === 'production' ? 'stock_scores' : 'stock_scores_new';
     const symbolQuery = `
       SELECT
         symbol,
@@ -199,6 +202,9 @@ router.get("/:symbol", async (req, res) => {
         value_score,
         quality_score,
         growth_score,
+        relative_strength_score,
+        positioning_score,
+        sentiment_score,
         rsi,
         macd,
         sma_20,
@@ -213,7 +219,7 @@ router.get("/:symbol", async (req, res) => {
         volume_avg_30d,
         score_date,
         last_updated
-      FROM stock_scores
+      FROM ${tableName}
       WHERE symbol = $1
     `;
 
@@ -239,7 +245,10 @@ router.get("/:symbol", async (req, res) => {
         trend_score: parseFloat(row.trend_score) || 0,
         value_score: parseFloat(row.value_score) || 0,
         quality_score: parseFloat(row.quality_score) || 0,
-        growth_score: parseFloat(row.growth_score),
+        growth_score: parseFloat(row.growth_score) || 0,
+        relative_strength_score: parseFloat(row.relative_strength_score) || 0,
+        positioning_score: parseFloat(row.positioning_score) || 0,
+        sentiment_score: parseFloat(row.sentiment_score) || 0,
         current_price: parseFloat(row.current_price) || 0,
         price_change_1d: parseFloat(row.price_change_1d) || 0,
         price_change_5d: parseFloat(row.price_change_5d) || 0,
