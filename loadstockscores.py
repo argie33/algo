@@ -1,30 +1,27 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script - Production Ready
-Calculates and stores stock scores in the database using existing data.
-Reads from stock_symbols table and calculates metrics from:
-- price_daily: price data, volume, volatility calculations
-- technical_data_daily: RSI, MACD, moving averages
-- earnings: PE ratios from actual EPS data
-Stores calculated scores in stock_scores table for API consumption.
+Stock Scores Loader Script - Enhanced Scoring Logic v2.0
+Calculates and stores improved stock scores using multi-factor analysis.
 
-Production loader for ECS task definition: stock-scores
-Configured for GitHub Actions workflow deployment
-Updated with growth score calculation and CloudFormation IAM role fixes
-Growth score integration completed - v1.1
-Testing GitHub Actions workflow trigger - deployment verification
-Fixed Docker image reference and database environment variables - v1.2
-CloudFormation export name corrected for workflow compatibility - v1.3
-Container name corrected to match workflow expectations - v1.4
-AWS Secrets Manager authentication with SSL/TLS encryption - v1.5
-Force Docker image rebuild with all security fixes - v1.6
-Workflow path detection fixed for subdirectory loaders - v1.7
-Testing with updated workflow basename fix - v1.8
-Migration fix for last_updated column - v1.9
-Robust migration with step-by-step table creation - v1.10
-Clean slate - drop and recreate table with correct schema - v1.11
-Use stock_symbols table like other loaders - v1.12
-Add fallback to stock_prices if stock_symbols is empty - v1.13
+Data Sources:
+- price_daily: Price data, volume, volatility, multi-timeframe momentum
+- technical_data_daily: RSI, MACD, moving averages with alignment analysis
+- earnings: PE ratios, EPS growth, earnings consistency
+- earnings_history: Growth trends and earnings surprise patterns
+
+Scoring Methodology (0-100 scale):
+1. Momentum Score (20%): RSI + MACD + Price momentum across timeframes
+2. Trend Score (25%): MA alignment + Multi-timeframe analysis + Position scoring
+3. Value Score (18%): PE ratio + PEG-adjusted valuation
+4. Quality Score (15%): Volatility risk + Liquidity + Price stability
+5. Growth Score (22%): Earnings growth + Momentum + Consistency
+
+Version History:
+- v2.0: Enhanced multi-factor scoring with improved technical + fundamental analysis
+- v1.13: Add fallback to stock_prices if stock_symbols is empty
+- v1.12: Use stock_symbols table like other loaders
+- v1.11: Clean slate - drop and recreate table with correct schema
+- v1.10: Robust migration with step-by-step table creation
 """
 
 import os
@@ -303,87 +300,255 @@ def get_stock_data_from_database(conn, symbol):
 
         # Calculate individual scores (0-100 scale)
 
-        # Momentum Score (based on RSI)
+        # Momentum Score (RSI + MACD + Price Momentum)
+        momentum_score = 50  # Start neutral
+
+        # RSI component (0-40 points)
         if rsi is not None:
             if rsi > 70:
-                momentum_score = 80 + (rsi - 70) * 0.67  # 80-100 for overbought
+                rsi_score = 35 + (min(rsi, 100) - 70) * 0.17  # 35-40 for strong
+            elif rsi > 60:
+                rsi_score = 30 + (rsi - 60)  # 30-35 for bullish
             elif rsi > 50:
-                momentum_score = 50 + (rsi - 50)  # 50-80 for moderate momentum
+                rsi_score = 25 + (rsi - 50) * 0.5  # 25-30 for mild bullish
+            elif rsi > 40:
+                rsi_score = 20 + (rsi - 40) * 0.5  # 20-25 for neutral/weak
             elif rsi > 30:
-                momentum_score = 30 + (rsi - 30)  # 30-50 for weak momentum
+                rsi_score = 10 + (rsi - 30)  # 10-20 for oversold (potential bounce)
             else:
-                momentum_score = rsi  # 0-30 for oversold
+                rsi_score = max(0, rsi * 0.33)  # 0-10 for very oversold
         else:
-            momentum_score = 50  # Neutral if no RSI
+            rsi_score = 20  # Default neutral
 
-        # Trend Score (based on price relative to moving averages)
+        # MACD component (0-30 points)
+        macd_score = 15  # Default neutral
+        if macd is not None:
+            if macd > 0:
+                macd_score = 20 + min(macd * 2, 10)  # 20-30 for positive MACD
+            else:
+                macd_score = max(0, 15 + macd * 2)  # 0-15 for negative MACD
+
+        # Price momentum component (0-30 points)
+        momentum_score = rsi_score + macd_score
+        if price_change_5d > 5:
+            momentum_score += min(10, price_change_5d * 0.5)
+        elif price_change_5d > 0:
+            momentum_score += price_change_5d
+        elif price_change_5d > -5:
+            momentum_score += max(-10, price_change_5d)
+        else:
+            momentum_score += max(-15, price_change_5d * 0.5)
+
+        momentum_score = max(0, min(100, momentum_score))
+
+        # Trend Score (multi-timeframe analysis + MA alignment)
+        trend_score = 50  # Start neutral
+
         if sma_20 and sma_50:
             price_vs_sma20 = (current_price / float(sma_20) - 1) * 100
             price_vs_sma50 = (current_price / float(sma_50) - 1) * 100
-            trend_score = 50 + (price_vs_sma20 * 2) + (price_vs_sma50 * 1)
-            trend_score = max(0, min(100, trend_score))  # Cap between 0-100
-        else:
-            trend_score = 50  # Neutral if no moving averages
 
-        # Value Score (based on PE ratio if available)
-        if pe_ratio and pe_ratio > 0:
-            if pe_ratio < 15:
-                value_score = 90
-            elif pe_ratio < 25:
-                value_score = 70
-            elif pe_ratio < 35:
-                value_score = 50
+            # MA alignment bonus/penalty (0-25 points)
+            ma_alignment = 0
+            if float(sma_20) > float(sma_50):
+                # Bullish alignment
+                ma_alignment = 15
+                if price_vs_sma20 > 0:
+                    ma_alignment += 10  # Price above both MAs
             else:
-                value_score = 30
+                # Bearish alignment
+                ma_alignment = -15
+                if price_vs_sma20 < 0:
+                    ma_alignment -= 10  # Price below both MAs
+
+            # Price position score (0-50 points)
+            position_score = 25 + (price_vs_sma20 * 0.5) + (price_vs_sma50 * 0.3)
+            position_score = max(0, min(50, position_score))
+
+            # Multi-timeframe momentum (0-25 points)
+            timeframe_score = 12.5
+            if price_change_1d > 0 and price_change_5d > 0 and price_change_30d > 0:
+                timeframe_score = 25  # Bullish across all timeframes
+            elif price_change_1d < 0 and price_change_5d < 0 and price_change_30d < 0:
+                timeframe_score = 0  # Bearish across all timeframes
+            elif price_change_5d > 0 and price_change_30d > 0:
+                timeframe_score = 18.75  # Medium-term bullish
+            elif price_change_5d < 0 and price_change_30d < 0:
+                timeframe_score = 6.25  # Medium-term bearish
+
+            trend_score = position_score + ma_alignment + timeframe_score
+            trend_score = max(0, min(100, trend_score))
+        else:
+            # Fallback to price changes only
+            if price_change_5d > 0 and price_change_30d > 0:
+                trend_score = 60 + min(20, (price_change_30d * 0.5))
+            elif price_change_5d < 0 and price_change_30d < 0:
+                trend_score = 40 + max(-20, (price_change_30d * 0.5))
+            trend_score = max(0, min(100, trend_score))
+
+        # Value Score (PE ratio with growth adjustment - PEG concept)
+        value_score = 50  # Start neutral
+
+        if pe_ratio and pe_ratio > 0:
+            # Base PE score
+            if pe_ratio < 10:
+                pe_score = 95  # Very undervalued
+            elif pe_ratio < 15:
+                pe_score = 85
+            elif pe_ratio < 20:
+                pe_score = 70
+            elif pe_ratio < 25:
+                pe_score = 55
+            elif pe_ratio < 30:
+                pe_score = 40
+            elif pe_ratio < 40:
+                pe_score = 25
+            else:
+                pe_score = 10  # Very overvalued
+
+            # Growth adjustment (PEG-like)
+            if earnings_growth is not None and earnings_growth > 0:
+                peg_ratio = pe_ratio / earnings_growth
+                if peg_ratio < 1:
+                    # Undervalued relative to growth
+                    pe_score = min(100, pe_score + 15)
+                elif peg_ratio < 1.5:
+                    # Fair value
+                    pe_score = min(100, pe_score + 5)
+                elif peg_ratio > 2.5:
+                    # Overvalued relative to growth
+                    pe_score = max(0, pe_score - 15)
+                elif peg_ratio > 2:
+                    pe_score = max(0, pe_score - 5)
+
+            value_score = pe_score
         else:
             value_score = 50  # Neutral if no PE
 
-        # Quality Score (based on volatility and volume)
-        quality_score = 50
+        # Quality Score (volatility risk + volume consistency + price stability)
+        quality_score = 50  # Start neutral
+
+        # Volatility component (0-40 points)
+        vol_score = 20
         if volatility_30d:
-            if volatility_30d < 20:
-                quality_score += 30
-            elif volatility_30d < 40:
-                quality_score += 10
-            elif volatility_30d > 60:
-                quality_score -= 20
+            if volatility_30d < 15:
+                vol_score = 40  # Very low risk
+            elif volatility_30d < 25:
+                vol_score = 35  # Low risk
+            elif volatility_30d < 35:
+                vol_score = 25  # Moderate risk
+            elif volatility_30d < 50:
+                vol_score = 15  # High risk
+            elif volatility_30d < 70:
+                vol_score = 5   # Very high risk
+            else:
+                vol_score = 0   # Extremely risky
 
-        if volume_avg_30d > 1000000:
-            quality_score += 20
+        # Volume consistency (0-30 points)
+        volume_score = 10
+        if volume_avg_30d > 5000000:
+            volume_score = 30  # Very liquid
+        elif volume_avg_30d > 1000000:
+            volume_score = 25  # Highly liquid
+        elif volume_avg_30d > 500000:
+            volume_score = 20  # Good liquidity
         elif volume_avg_30d > 100000:
-            quality_score += 10
+            volume_score = 12  # Moderate liquidity
+        elif volume_avg_30d > 50000:
+            volume_score = 5   # Low liquidity
+        else:
+            volume_score = 0   # Very low liquidity
 
+        # Price stability (0-30 points) - penalize wild swings
+        stability_score = 15
+        if abs(price_change_30d) < 5:
+            stability_score = 30  # Very stable
+        elif abs(price_change_30d) < 10:
+            stability_score = 25  # Stable
+        elif abs(price_change_30d) < 20:
+            stability_score = 18  # Moderate stability
+        elif abs(price_change_30d) < 30:
+            stability_score = 10  # Volatile
+        else:
+            stability_score = 5   # Very volatile
+
+        # Bonus for consistent uptrend (low vol + positive returns)
+        if volatility_30d and volatility_30d < 25 and price_change_30d > 5:
+            stability_score = min(30, stability_score + 5)
+
+        quality_score = vol_score + volume_score + stability_score
         quality_score = max(0, min(100, quality_score))
 
-        # Growth Score (based on earnings growth and price momentum)
+        # Growth Score (earnings growth + consistency + forward estimates)
         growth_score = 50  # Default neutral score
+
+        # Historical earnings growth component (0-50 points)
+        earnings_component = 25
         if earnings_growth is not None:
-            if earnings_growth > 20:
-                growth_score = 90
+            if earnings_growth > 30:
+                earnings_component = 50  # Exceptional growth
+            elif earnings_growth > 20:
+                earnings_component = 45  # Very strong growth
+            elif earnings_growth > 15:
+                earnings_component = 40  # Strong growth
             elif earnings_growth > 10:
-                growth_score = 75
+                earnings_component = 35  # Good growth
+            elif earnings_growth > 5:
+                earnings_component = 28  # Moderate growth
             elif earnings_growth > 0:
-                growth_score = 60
+                earnings_component = 22  # Positive but weak
+            elif earnings_growth > -5:
+                earnings_component = 15  # Slight decline
             elif earnings_growth > -10:
-                growth_score = 40
+                earnings_component = 8   # Declining
             else:
-                growth_score = 20
+                earnings_component = 0   # Significant decline
 
-        # Add price momentum to growth score
-        if price_change_30d > 10:
-            growth_score = min(100, growth_score + 10)
-        elif price_change_30d < -10:
-            growth_score = max(0, growth_score - 10)
+        # Price momentum component (0-30 points)
+        momentum_component = 15
+        if price_change_30d > 15:
+            momentum_component = 30
+        elif price_change_30d > 10:
+            momentum_component = 25
+        elif price_change_30d > 5:
+            momentum_component = 20
+        elif price_change_30d > 0:
+            momentum_component = 17
+        elif price_change_30d > -5:
+            momentum_component = 13
+        elif price_change_30d > -10:
+            momentum_component = 8
+        else:
+            momentum_component = 0
 
+        # Growth consistency bonus (0-20 points)
+        consistency_bonus = 10
+        if len(earnings_data) >= 8:
+            # Check if growth is consistent (more positive quarters than negative)
+            eps_values = [float(row[0]) for row in earnings_data if row[0] is not None]
+            if len(eps_values) >= 4:
+                recent_positive = sum(1 for i in range(min(4, len(eps_values)-1))
+                                    if eps_values[i] > eps_values[i+1])
+                if recent_positive >= 3:
+                    consistency_bonus = 20  # Very consistent
+                elif recent_positive >= 2:
+                    consistency_bonus = 15  # Moderately consistent
+                elif recent_positive == 1:
+                    consistency_bonus = 8   # Somewhat consistent
+                else:
+                    consistency_bonus = 0   # Inconsistent or declining
+
+        growth_score = earnings_component + momentum_component + consistency_bonus
         growth_score = max(0, min(100, growth_score))
 
-        # Composite Score (weighted average including growth)
+        # Composite Score (optimized weighted average)
+        # Weights: Trend (25%), Growth (22%), Momentum (20%), Value (18%), Quality (15%)
         composite_score = (
-            momentum_score * 0.20 +
-            trend_score * 0.25 +
-            value_score * 0.20 +
-            quality_score * 0.15 +
-            growth_score * 0.20
+            trend_score * 0.25 +      # Trend is most predictive
+            growth_score * 0.22 +      # Growth drives long-term returns
+            momentum_score * 0.20 +    # Short-term momentum
+            value_score * 0.18 +       # Valuation matters
+            quality_score * 0.15       # Risk management
         )
 
         return {
