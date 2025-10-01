@@ -1085,19 +1085,7 @@ router.get("/ecs-tasks", async (req, res) => {
         const latestStream = logStreams[0];
         const streamName = latestStream.logStreamName;
 
-        // Handle null or undefined lastEventTime
-        if (!latestStream.lastEventTime) {
-          return {
-            status: "never_run",
-            message: "Log stream exists but no events found",
-            last_run: null,
-            log_stream: streamName
-          };
-        }
-
-        const lastEventTime = new Date(latestStream.lastEventTime);
-
-        // Get log events from the latest stream
+        // Get log events from the latest stream (even if lastEventTime is null)
         const getLogsCmd = new GetLogEventsCommand({
           logGroupName: logGroupName,
           logStreamName: streamName,
@@ -1107,6 +1095,20 @@ router.get("/ecs-tasks", async (req, res) => {
 
         const logsResponse = await logsClient.send(getLogsCmd);
         const events = logsResponse.events || [];
+
+        // If no events found in the stream
+        if (events.length === 0) {
+          return {
+            status: "never_run",
+            message: "Log stream exists but no events found",
+            last_run: null,
+            log_stream: streamName
+          };
+        }
+
+        // Get the timestamp from the last event in the stream
+        const lastEvent = events[events.length - 1];
+        const lastEventTime = new Date(lastEvent.timestamp);
 
         // Check for success/failure indicators in logs
         let status = "unknown";
