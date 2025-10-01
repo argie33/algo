@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 - Calendar data loader for earnings and economic events
+# Updated: 2025-10-01 - Calendar data loader with optimized health checks
 import functools
 import json
 import logging

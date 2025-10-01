@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 - YFinance earnings estimates loader for analyst consensus data
+# Updated: 2025-10-01 - YFinance earnings estimates loader with optimized health checks
 import gc
 import json
 import logging
