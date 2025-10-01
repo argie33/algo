@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-01-16 - Trigger weekly technical data loading for AWS RDS
+# Updated: 2025-10-01 - Trigger weekly technical data loading for AWS RDS
 import concurrent.futures
 import gc
 import json

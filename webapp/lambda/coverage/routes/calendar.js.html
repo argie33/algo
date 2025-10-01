@@ -1861,23 +1861,7 @@
 <a name='L1796'></a><a href='#L1796'>1796</a>
 <a name='L1797'></a><a href='#L1797'>1797</a>
 <a name='L1798'></a><a href='#L1798'>1798</a>
-<a name='L1799'></a><a href='#L1799'>1799</a>
-<a name='L1800'></a><a href='#L1800'>1800</a>
-<a name='L1801'></a><a href='#L1801'>1801</a>
-<a name='L1802'></a><a href='#L1802'>1802</a>
-<a name='L1803'></a><a href='#L1803'>1803</a>
-<a name='L1804'></a><a href='#L1804'>1804</a>
-<a name='L1805'></a><a href='#L1805'>1805</a>
-<a name='L1806'></a><a href='#L1806'>1806</a>
-<a name='L1807'></a><a href='#L1807'>1807</a>
-<a name='L1808'></a><a href='#L1808'>1808</a>
-<a name='L1809'></a><a href='#L1809'>1809</a>
-<a name='L1810'></a><a href='#L1810'>1810</a>
-<a name='L1811'></a><a href='#L1811'>1811</a>
-<a name='L1812'></a><a href='#L1812'>1812</a>
-<a name='L1813'></a><a href='#L1813'>1813</a>
-<a name='L1814'></a><a href='#L1814'>1814</a>
-<a name='L1815'></a><a href='#L1815'>1815</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L1799'></a><a href='#L1799'>1799</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -2635,20 +2619,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2656,8 +2626,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -4425,69 +4393,53 @@ const router = <span class="cstat-no" title="statement not covered" >express.Rou
   }
 });
 &nbsp;
-// Get earnings metrics for all companies
+// Get earnings growth metrics for all companies
 <span class="cstat-no" title="statement not covered" >router.get("/earnings-metrics", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const page = <span class="cstat-no" title="statement not covered" >parseInt(req.query.page) || 1;</span>
     const limit = <span class="cstat-no" title="statement not covered" >parseInt(req.query.limit) || 25;</span>
     const offset = <span class="cstat-no" title="statement not covered" >(page - 1) * limit;</span>
 &nbsp;
-    // Simple query using the existing earnings_history table structure
+    // Query using the earnings_metrics table with quality score
     const metricsQuery = <span class="cstat-no" title="statement not covered" >`</span>
       SELECT
         symbol,
         symbol as company_name,
-        quarter as report_date,
-        eps_actual,
-        eps_estimate,
-        surprise_percent as eps_surprise_last_q,
-        CASE 
-          WHEN eps_actual IS NOT NULL AND eps_estimate IS NOT NULL 
-          THEN ((eps_actual - eps_estimate) / NULLIF(eps_estimate, 0)) * 100
-          ELSE NULL
-        END as eps_growth_1q,
-        0 as eps_growth_2q,
-        0 as eps_growth_4q, 
-        0 as eps_growth_8q,
-        0 as eps_acceleration_qtrs,
-        0 as eps_estimate_revision_1m,
-        0 as eps_estimate_revision_3m,
-        0 as eps_estimate_revision_6m,
-        0 as annual_eps_growth_1y,
-        0 as annual_eps_growth_3y,
-        0 as annual_eps_growth_5y,
-        0 as consecutive_eps_growth_years,
-        0 as eps_estimated_change_this_year
-      FROM earnings_history
-      ORDER BY symbol ASC, quarter DESC
+        report_date,
+        eps_qoq_growth,
+        eps_yoy_growth,
+        revenue_yoy_growth,
+        earnings_surprise_pct,
+        earnings_quality_score,
+        fetched_at
+      FROM earnings_metrics
+      ORDER BY earnings_quality_score DESC NULLS LAST, symbol ASC, report_date DESC
       LIMIT $1 OFFSET $2
     `;
 &nbsp;
     const countQuery = <span class="cstat-no" title="statement not covered" >`</span>
-      SELECT COUNT(*) as total
-      FROM earnings_history
+      SELECT COUNT(DISTINCT symbol) as total
+      FROM earnings_metrics
     `;
 &nbsp;
     // Summary query for insights
     const summaryQuery = <span class="cstat-no" title="statement not covered" >`</span>
-      SELECT 
+      SELECT
         symbol,
         COUNT(*) as count,
-        AVG(surprise_percent) as avg_surprise,
-        AVG(CASE 
-          WHEN eps_actual IS NOT NULL AND eps_estimate IS NOT NULL 
-          THEN ((eps_actual - eps_estimate) / NULLIF(eps_estimate, 0)) * 100
-          ELSE NULL
-        END) as avg_growth_1q,
-        0 as avg_growth_2q,
-        0 as avg_growth_4q, 
-        0 as avg_growth_8q,
-        0 as max_annual_growth_1y,
-        0 as max_annual_growth_3y,
-        0 as max_annual_growth_5y
-      FROM earnings_history
+        AVG(earnings_surprise_pct) as avg_surprise,
+        AVG(eps_qoq_growth) as avg_eps_qoq_growth,
+        AVG(eps_yoy_growth) as avg_eps_yoy_growth,
+        AVG(revenue_yoy_growth) as avg_revenue_yoy_growth,
+        MAX(eps_yoy_growth) as max_eps_yoy_growth,
+        MIN(eps_yoy_growth) as min_eps_yoy_growth,
+        MAX(earnings_quality_score) as quality_score
+      FROM earnings_metrics
+      WHERE report_date = (
+        SELECT MAX(report_date) FROM earnings_metrics em2 WHERE em2.symbol = earnings_metrics.symbol
+      )
       GROUP BY symbol
-      ORDER BY symbol ASC
+      ORDER BY quality_score DESC NULLS LAST
     `;
 &nbsp;
     const [metricsResult, countResult, summaryResult] = <span class="cstat-no" title="statement not covered" >await Promise.all([</span>
@@ -4524,13 +4476,13 @@ const router = <span class="cstat-no" title="statement not covered" >express.Rou
 <span class="cstat-no" title="statement not covered" >    (summaryResult.rows || []).forEach(<span class="fstat-no" title="function not covered" >(r</span>ow) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >      insights[row.symbol] = {</span>
         count: row.count,
-        avg_growth_1q: row.avg_growth_1q,
-        avg_growth_2q: row.avg_growth_2q,
-        avg_growth_4q: row.avg_growth_4q,
-        avg_growth_8q: row.avg_growth_8q,
-        max_annual_growth_1y: row.max_annual_growth_1y,
-        max_annual_growth_3y: row.max_annual_growth_3y,
-        max_annual_growth_5y: row.max_annual_growth_5y,
+        avg_surprise: row.avg_surprise,
+        avg_eps_qoq_growth: row.avg_eps_qoq_growth,
+        avg_eps_yoy_growth: row.avg_eps_yoy_growth,
+        avg_revenue_yoy_growth: row.avg_revenue_yoy_growth,
+        max_eps_yoy_growth: row.max_eps_yoy_growth,
+        min_eps_yoy_growth: row.min_eps_yoy_growth,
+        quality_score: row.quality_score,
       };
     });
 &nbsp;
@@ -5512,7 +5464,7 @@ const router = <span class="cstat-no" title="statement not covered" >express.Rou
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-30T12:44:20.653Z
+                at 2025-10-01T21:06:08.671Z
             </div>
         <script src="../prettify.js"></script>
         <script>
