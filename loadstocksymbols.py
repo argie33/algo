@@ -455,3 +455,4 @@ if __name__ == "__main__":
     except Exception:
         logger.exception("Fatal error")
         sys.exit(1)
+# Force rebuild
