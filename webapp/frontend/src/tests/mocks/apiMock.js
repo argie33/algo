@@ -941,6 +941,35 @@ const mockApi = {
     success: true,
     data: { id: 1, name: 'Test User', email: 'test@example.com' }
   }),
+
+  // API instance for direct HTTP calls
+  api: {
+    get: vi.fn().mockResolvedValue({
+      data: {
+        success: true,
+        data: {}
+      }
+    }),
+    post: vi.fn().mockResolvedValue({
+      data: {
+        success: true,
+        data: {}
+      }
+    }),
+    put: vi.fn().mockResolvedValue({
+      data: {
+        success: true,
+        data: {}
+      }
+    }),
+    delete: vi.fn().mockResolvedValue({
+      data: {
+        success: true,
+        data: {}
+      }
+    }),
+  },
 };
 
 export default mockApi;
+export const api = mockApi.api;
