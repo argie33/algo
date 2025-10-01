@@ -584,116 +584,71 @@ router.get("/database", async (req, res) => {
     let tables = {};
 
     try {
-      // Get all tables in the database
-      const tablesResult = await query(`
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
-        AND table_type = 'BASE TABLE'
-        ORDER BY table_name
-      `);
+      // Single optimized query to get all table stats using pg_stat_user_tables
+      // and join with last_updated table for loader script timestamps
+      const statsQuery = `
+        SELECT
+          t.table_name,
+          COALESCE(s.n_live_tup, 0) as record_count,
+          s.last_vacuum,
+          s.last_autovacuum,
+          s.last_analyze,
+          s.last_autoanalyze,
+          lu.last_run as loader_last_run
+        FROM information_schema.tables t
+        LEFT JOIN pg_stat_user_tables s ON s.relname = t.table_name
+        LEFT JOIN last_updated lu ON lu.script_name LIKE '%' || t.table_name || '%'
+        WHERE t.table_schema = 'public'
+          AND t.table_type = 'BASE TABLE'
+        ORDER BY t.table_name
+      `;
 
-      summary.total_tables = tablesResult.rowCount;
+      const statsResult = await query(statsQuery);
+      summary.total_tables = statsResult.rowCount;
 
-      // Check each table for record count and status
-      for (const tableRow of tablesResult.rows) {
-        const tableName = tableRow.table_name;
-        try {
-          // Use fast table statistics instead of slow COUNT(*)
-          const statsResult = await query(
-            `
-            SELECT COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
-            FROM pg_stat_user_tables
-            WHERE relname = $1
-          `,
-            [tableName]
-          );
-          const recordCount =
-            statsResult.rows.length > 0
-              ? parseInt(statsResult.rows[0].estimated_count) || 0
-              : 0;
+      // Process all tables in one pass
+      for (const row of statsResult.rows) {
+        const tableName = row.table_name;
+        const recordCount = parseInt(row.record_count) || 0;
 
-          let status = "healthy";
-          let last_updated = null;
+        let status = recordCount === 0 ? "empty" : "healthy";
+        let last_updated = null;
 
-          if (recordCount === 0) {
-            status = "empty";
-            summary.empty_tables++;
-          } else {
-            summary.healthy_tables++;
+        if (recordCount === 0) {
+          summary.empty_tables++;
+        } else {
+          summary.healthy_tables++;
 
-            // Get the most recent timestamp for this table using ORDER BY + LIMIT 1
-            // Much faster than MAX() as it can use indexes
-            try {
-              const timestampQuery = `
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_name = $1
-                  AND table_schema = 'public'
-                  AND column_name IN ('fetched_at', 'updated_at', 'created_at', 'date', 'timestamp')
-                ORDER BY
-                  CASE column_name
-                    WHEN 'fetched_at' THEN 1
-                    WHEN 'updated_at' THEN 2
-                    WHEN 'created_at' THEN 3
-                    WHEN 'timestamp' THEN 4
-                    WHEN 'date' THEN 5
-                  END
-                LIMIT 1
-              `;
-              const timestampCol = await query(timestampQuery, [tableName]);
-
-              if (timestampCol.rows.length > 0) {
-                const colName = timestampCol.rows[0].column_name;
-                // Use ORDER BY DESC LIMIT 1 instead of MAX() - much faster with indexes
-                const maxTimestampQuery = `SELECT ${colName} as last_updated FROM ${tableName} ORDER BY ${colName} DESC LIMIT 1`;
-                const maxResult = await query(maxTimestampQuery);
-
-                if (maxResult.rows.length > 0 && maxResult.rows[0].last_updated) {
-                  last_updated = maxResult.rows[0].last_updated;
-                }
-              }
-            } catch (tsErr) {
-              // If timestamp query fails, just continue without last_updated
-              console.error(
-                `Error getting timestamp for ${tableName}:`,
-                tsErr.message
-              );
-            }
-          }
-
-          // Check for stale data (last_updated > 7 days ago)
-          let data_freshness = "current";
-          if (last_updated) {
-            const daysSinceUpdate = Math.floor(
-              (Date.now() - new Date(last_updated).getTime()) / (1000 * 60 * 60 * 24)
-            );
-            if (daysSinceUpdate > 30) {
-              data_freshness = "very_stale";
-            } else if (daysSinceUpdate > 7) {
-              data_freshness = "stale";
-            }
-          }
-
-          tables[tableName] = {
-            status: status,
-            record_count: recordCount,
-            last_updated: last_updated,
-            data_freshness: data_freshness,
-            last_checked: new Date().toISOString(),
-          };
-
-          summary.total_records += recordCount;
-        } catch (tableErr) {
-          console.error(`Error checking table ${tableName}:`, tableErr.message);
-          tables[tableName] = {
-            status: "error",
-            record_count: 0,
-            error: tableErr.message,
-            last_checked: new Date().toISOString(),
-          };
-          summary.error_tables++;
+          // Use loader timestamp if available, otherwise use maintenance timestamps
+          last_updated = row.loader_last_run ||
+                        row.last_autoanalyze ||
+                        row.last_analyze ||
+                        row.last_autovacuum ||
+                        row.last_vacuum;
         }
+
+        // Check for stale data (last_updated > 7 days ago)
+        let data_freshness = "current";
+        if (last_updated) {
+          const daysSinceUpdate = Math.floor(
+            (Date.now() - new Date(last_updated).getTime()) / (1000 * 60 * 60 * 24)
+          );
+          if (daysSinceUpdate > 30) {
+            data_freshness = "very_stale";
+          } else if (daysSinceUpdate > 7) {
+            data_freshness = "stale";
+          }
+        }
+
+        tables[tableName] = {
+          status: status,
+          record_count: recordCount,
+          last_updated: last_updated,
+          data_freshness: data_freshness,
+          last_checked: new Date().toISOString(),
+        };
+
+        summary.total_records += recordCount;
       }
     } catch (err) {
       console.error("Error querying database tables:", err.message);
