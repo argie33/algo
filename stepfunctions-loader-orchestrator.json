@@ -1,5 +1,5 @@
 {
-  "Comment": "Orchestrates data loaders with dependencies and controlled concurrency",
+  "Comment": "Orchestrates data loaders: symbols → info → earnings/revenue",
   "StartAt": "Stage1-Symbols",
   "States": {
     "Stage1-Symbols": {
@@ -69,12 +69,12 @@
         "ResultPath": "$.error",
         "Next": "NotifyFailure"
       }],
-      "Next": "Stage3-EarningsFinancials"
+      "Next": "Stage3-EarningsRevenue"
     },
 
-    "Stage3-EarningsFinancials": {
+    "Stage3-EarningsRevenue": {
       "Type": "Parallel",
-      "Comment": "Run earnings and financial loaders in parallel (max 5 concurrent)",
+      "Comment": "Run earnings and revenue loaders in parallel (max 4 concurrent)",
       "Branches": [
         {
           "StartAt": "EarningsEstimate",
@@ -135,6 +135,35 @@
           }
         },
         {
+          "StartAt": "EarningsMetrics",
+          "States": {
+            "EarningsMetrics": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "${ClusterArn}",
+                "TaskDefinition": "${EarningsMetricsTaskDefArn}",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["${Subnet1}", "${Subnet2}"],
+                    "SecurityGroups": ["${SecurityGroup}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [{
+                    "Name": "earningsmetrics-loader",
+                    "Command": ["python3", "loadearningsmetrics.py"]
+                  }]
+                }
+              },
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+              "End": true
+            }
+          }
+        },
+        {
           "StartAt": "RevenueEstimate",
           "States": {
             "RevenueEstimate": {
@@ -155,393 +184,6 @@
                   "ContainerOverrides": [{
                     "Name": "revenueestimate-loader",
                     "Command": ["python3", "loadrevenueestimate.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "AnnualBalanceSheet",
-          "States": {
-            "AnnualBalanceSheet": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${AnnualBalanceSheetTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "annualbalancesheet-loader",
-                    "Command": ["python3", "loadannualbalancesheet.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "QuarterlyBalanceSheet",
-          "States": {
-            "QuarterlyBalanceSheet": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${QuarterlyBalanceSheetTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "quarterlybalancesheet-loader",
-                    "Command": ["python3", "loadquarterlybalancesheet.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        }
-      ],
-      "Catch": [{
-        "ErrorEquals": ["States.ALL"],
-        "ResultPath": "$.error",
-        "Next": "NotifyFailure"
-      }],
-      "Next": "Stage4-IncomeStatements"
-    },
-
-    "Stage4-IncomeStatements": {
-      "Type": "Parallel",
-      "Comment": "Run income statement loaders in parallel (max 4 concurrent)",
-      "Branches": [
-        {
-          "StartAt": "AnnualIncomeStatement",
-          "States": {
-            "AnnualIncomeStatement": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${AnnualIncomeStatementTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "annualincomestatement-loader",
-                    "Command": ["python3", "loadannualincomestatement.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "QuarterlyIncomeStatement",
-          "States": {
-            "QuarterlyIncomeStatement": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${QuarterlyIncomeStatementTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "quarterlyincomestatement-loader",
-                    "Command": ["python3", "loadquarterlyincomestatement.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "TTMIncomeStatement",
-          "States": {
-            "TTMIncomeStatement": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${TTMIncomeStatementTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "ttmincomestatement-loader",
-                    "Command": ["python3", "loadttmincomestatement.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "TTMCashFlow",
-          "States": {
-            "TTMCashFlow": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${TTMCashFlowTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "ttmcashflow-loader",
-                    "Command": ["python3", "loadttmcashflow.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        }
-      ],
-      "Catch": [{
-        "ErrorEquals": ["States.ALL"],
-        "ResultPath": "$.error",
-        "Next": "NotifyFailure"
-      }],
-      "Next": "Stage5-CashFlow"
-    },
-
-    "Stage5-CashFlow": {
-      "Type": "Parallel",
-      "Comment": "Run cash flow loaders in parallel (max 4 concurrent)",
-      "Branches": [
-        {
-          "StartAt": "AnnualCashFlow",
-          "States": {
-            "AnnualCashFlow": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${AnnualCashFlowTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "annualcashflow-loader",
-                    "Command": ["python3", "loadannualcashflow.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "QuarterlyCashFlow",
-          "States": {
-            "QuarterlyCashFlow": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${QuarterlyCashFlowTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "quarterlycashflow-loader",
-                    "Command": ["python3", "loadquarterlycashflow.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        }
-      ],
-      "Catch": [{
-        "ErrorEquals": ["States.ALL"],
-        "ResultPath": "$.error",
-        "Next": "NotifyFailure"
-      }],
-      "Next": "Stage6-Sentiment"
-    },
-
-    "Stage6-Sentiment": {
-      "Type": "Parallel",
-      "Comment": "Run sentiment and economic data loaders (max 4 concurrent)",
-      "Branches": [
-        {
-          "StartAt": "AaiiData",
-          "States": {
-            "AaiiData": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${AaiiDataTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "aaiidata-loader",
-                    "Command": ["python3", "loadaaiidata.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "FearGreedData",
-          "States": {
-            "FearGreedData": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${FearGreedDataTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "feargreeddata-loader",
-                    "Command": ["python3", "loadfeargreed.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "NaaaimData",
-          "States": {
-            "NaaaimData": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${NaaaimDataTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "naaaimdata-loader",
-                    "Command": ["python3", "loadnaaim.py"]
-                  }]
-                }
-              },
-              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "EconData",
-          "States": {
-            "EconData": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::ecs:runTask.sync",
-              "Parameters": {
-                "LaunchType": "FARGATE",
-                "Cluster": "${ClusterArn}",
-                "TaskDefinition": "${EconDataTaskDefArn}",
-                "NetworkConfiguration": {
-                  "AwsvpcConfiguration": {
-                    "Subnets": ["${Subnet1}", "${Subnet2}"],
-                    "SecurityGroups": ["${SecurityGroup}"],
-                    "AssignPublicIp": "ENABLED"
-                  }
-                },
-                "Overrides": {
-                  "ContainerOverrides": [{
-                    "Name": "econdata-loader",
-                    "Command": ["python3", "loadecondata.py"]
                   }]
                 }
               },
