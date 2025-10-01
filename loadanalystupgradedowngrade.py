@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Loads analyst upgrade/downgrade data from yfinance - triggered to run in AWS
+# Updated: 2025-09-30 - YFinance analyst upgrade/downgrade loader for recommendations data
 import gc
 import json
 import logging

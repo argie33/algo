@@ -1,9 +1,9 @@
-name: Scheduled LoadInfo Daily
+name: Scheduled YFinance Loaders
 
 on:
   schedule:
-    # Run daily at 6:00 AM UTC (1:00 AM EST / 2:00 AM EDT)
-    - cron: '0 6 * * *'
+    # Run weekdays only at 6:00 AM UTC (1:00 AM EST / 2:00 AM EDT)
+    - cron: '0 6 * * 1-5'
   workflow_dispatch:
     inputs:
       environment:
@@ -193,4 +193,170 @@ jobs:
             echo "✅ **Status**: Success" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Status**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  run-earnings-estimate:
+    name: Execute Earnings Estimate Loader
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get infrastructure info
+        id: infra
+        run: |
+          CLUSTER_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+
+          TASK_DEF_ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='EarningsEstimateTaskDefArn'].OutputValue" \
+            --output text)
+
+          if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+            echo "❌ No task definition found for earnings estimate"
+            exit 1
+          fi
+
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SECURITY_GROUP=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+
+          echo "cluster=$CLUSTER_ARN" >> $GITHUB_OUTPUT
+          echo "task-def=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "subnet1=$SUBNET1" >> $GITHUB_OUTPUT
+          echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
+          echo "security-group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
+
+      - name: Execute earnings estimate task
+        id: task
+        run: |
+          echo "🚀 Starting earnings estimate loader"
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --task-definition "${{ steps.infra.outputs.task-def }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
+            --tags "[{\"key\":\"Schedule\",\"value\":\"Daily\"},{\"key\":\"Source\",\"value\":\"GitHub Actions\"}]" \
+            --query "tasks[0].taskArn" \
+            --output text)
+          echo "task-arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Started task: $TASK_ARN"
+
+      - name: Wait for task completion
+        run: |
+          echo "⏳ Waiting for earnings estimate task to complete..."
+          aws ecs wait tasks-stopped \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --tasks "${{ steps.task.outputs.task-arn }}"
+
+      - name: Check task result
+        id: result
+        run: |
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --tasks "${{ steps.task.outputs.task-arn }}")
+          EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // 1')
+          echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "❌ earnings estimate failed with exit code $EXIT_CODE"
+            exit 1
+          else
+            echo "✅ earnings estimate completed successfully"
+          fi
+
+  run-earnings-history:
+    name: Execute Earnings History Loader
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get infrastructure info
+        id: infra
+        run: |
+          CLUSTER_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+
+          TASK_DEF_ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='EarningsHistoryTaskDefArn'].OutputValue" \
+            --output text)
+
+          if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+            echo "❌ No task definition found for earnings history"
+            exit 1
+          fi
+
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SECURITY_GROUP=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+
+          echo "cluster=$CLUSTER_ARN" >> $GITHUB_OUTPUT
+          echo "task-def=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "subnet1=$SUBNET1" >> $GITHUB_OUTPUT
+          echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
+          echo "security-group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
+
+      - name: Execute earnings history task
+        id: task
+        run: |
+          echo "🚀 Starting earnings history loader"
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --task-definition "${{ steps.infra.outputs.task-def }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
+            --tags "[{\"key\":\"Schedule\",\"value\":\"Daily\"},{\"key\":\"Source\",\"value\":\"GitHub Actions\"}]" \
+            --query "tasks[0].taskArn" \
+            --output text)
+          echo "task-arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Started task: $TASK_ARN"
+
+      - name: Wait for task completion
+        run: |
+          echo "⏳ Waiting for earnings history task to complete..."
+          aws ecs wait tasks-stopped \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --tasks "${{ steps.task.outputs.task-arn }}"
+
+      - name: Check task result
+        id: result
+        run: |
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --tasks "${{ steps.task.outputs.task-arn }}")
+          EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // 1')
+          echo "exit-code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "❌ earnings history failed with exit code $EXIT_CODE"
+            exit 1
+          else
+            echo "✅ earnings history completed successfully"
           fi

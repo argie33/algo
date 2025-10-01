@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-09-30 - YFinance earnings history loader for historical EPS data
 import gc
 import json
 import logging

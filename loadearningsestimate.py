@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Workflow test - minor comment update
+# Updated: 2025-09-30 - YFinance earnings estimates loader for analyst consensus data
 import gc
 import json
 import logging
