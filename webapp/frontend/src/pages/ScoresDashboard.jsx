@@ -36,6 +36,9 @@ import {
   ShowChart,
   SignalCellularAlt,
   Timeline,
+  Bolt,
+  Group,
+  SentimentSatisfied,
 } from "@mui/icons-material";
 
 // Trading Signal Component
@@ -605,6 +608,33 @@ const ScoresDashboard = () => {
                           label={`Growth: ${stock.growth_score.toFixed(1)}`}
                           size="medium"
                           color={stock.growth_score >= 80 ? "success" : stock.growth_score >= 60 ? "warning" : "error"}
+                          variant="filled"
+                        />
+                      )}
+                      {stock.relative_strength_score && (
+                        <Chip
+                          icon={<Bolt />}
+                          label={`Rel Strength: ${stock.relative_strength_score.toFixed(1)}`}
+                          size="medium"
+                          color={stock.relative_strength_score >= 80 ? "success" : stock.relative_strength_score >= 60 ? "warning" : "error"}
+                          variant="filled"
+                        />
+                      )}
+                      {stock.positioning_score && (
+                        <Chip
+                          icon={<Group />}
+                          label={`Positioning: ${stock.positioning_score.toFixed(1)}`}
+                          size="medium"
+                          color={stock.positioning_score >= 80 ? "success" : stock.positioning_score >= 60 ? "warning" : "error"}
+                          variant="filled"
+                        />
+                      )}
+                      {stock.sentiment_score && (
+                        <Chip
+                          icon={<SentimentSatisfied />}
+                          label={`Sentiment: ${stock.sentiment_score.toFixed(1)}`}
+                          size="medium"
+                          color={stock.sentiment_score >= 80 ? "success" : stock.sentiment_score >= 60 ? "warning" : "error"}
                           variant="filled"
                         />
                       )}
