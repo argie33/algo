@@ -36,6 +36,13 @@ Resources:
       Policies:
         - SecretsManagerReadWrite
         - VPCAccessPolicy: {}
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:DescribeLogGroups
+                - logs:DescribeLogStreams
+                - logs:GetLogEvents
+              Resource: 'arn:aws:logs:*:*:log-group:/ecs/*'
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
