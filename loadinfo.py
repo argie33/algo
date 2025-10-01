@@ -724,15 +724,10 @@ if __name__ == "__main__":
 
     conn.commit()
 
-    # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
+    # Load stock symbols only (ETFs are in etf_symbols table and not processed by this loader)
+    cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_company_info(stock_syms, cur, conn)
-
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, p_e, f_e = load_company_info(etf_syms, cur, conn)
 
     # Record last run
     cur.execute(
@@ -749,7 +744,6 @@ if __name__ == "__main__":
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
     logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
 
     cur.close()
     conn.close()
