@@ -1204,9 +1204,17 @@ router.get("/ecs-tasks", async (req, res) => {
       }
     };
 
-    // Check all tasks
-    for (const config of taskConfigs) {
-      tasks[config.name] = await checkTask(config.name, config.logGroup);
+    // Check all tasks in parallel for faster response
+    const taskChecks = await Promise.all(
+      taskConfigs.map(async (config) => ({
+        name: config.name,
+        result: await checkTask(config.name, config.logGroup)
+      }))
+    );
+
+    // Build tasks object from results
+    for (const check of taskChecks) {
+      tasks[check.name] = check.result;
     }
 
     return res.json({
