@@ -2579,6 +2579,116 @@ Resources:
           AssignPublicIp: ENABLED
 
   #########################################
+  # EventBridge IAM Role                  #
+  #########################################
+
+  EventBridgeECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-EventBridge-ECS-Role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EventBridgeECSPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource:
+                  - !Ref LoadInfoTaskDefinition
+                  - !Ref EarningsEstimateTaskDefinition
+                  - !Ref EarningsHistoryTaskDefinition
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !ImportValue StocksApp-ExecutionRoleArn
+                  - !ImportValue StocksApp-TaskRoleArn
+
+  #########################################
+  # EventBridge Scheduled Rules           #
+  #########################################
+
+  # Load Info - Weekdays at 6:00 AM UTC
+  LoadInfoScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-loadinfo-weekdays"
+      Description: "Run loadinfo loader weekdays at 6:00 AM UTC"
+      ScheduleExpression: "cron(0 6 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "LoadInfoTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref LoadInfoTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  # Earnings Estimate - Weekdays at 6:00 AM UTC
+  EarningsEstimateScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-earnings-estimate-weekdays"
+      Description: "Run earnings estimate loader weekdays at 6:00 AM UTC"
+      ScheduleExpression: "cron(0 6 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "EarningsEstimateTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref EarningsEstimateTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  # Earnings History - Weekdays at 6:00 AM UTC
+  EarningsHistoryScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-earnings-history-weekdays"
+      Description: "Run earnings history loader weekdays at 6:00 AM UTC"
+      ScheduleExpression: "cron(0 6 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "EarningsHistoryTarget"
+          RoleArn: !GetAtt EventBridgeECSRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref EarningsHistoryTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+
+  #########################################
   # Outputs                               #
   #########################################
 Outputs:
