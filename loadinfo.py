@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-09-30 - Verified YFinance data loader for company info and profiles
+# Updated: 2025-10-01 - YFinance loader for company info and profiles (scheduled weekdays 6AM UTC)
 # Updated Thu Sep 19 23:25:00 CDT 2025 - Final Docker build fix: renamed Dockerfile.loadinfo to Dockerfile.info
 # Updated Thu Sep 19 23:18:00 CDT 2025 - Test Docker build with workflow fix for loadinfo naming
 # Updated Thu Sep 19 18:16:00 CDT 2025 - Optimize Docker build for faster pip installs
