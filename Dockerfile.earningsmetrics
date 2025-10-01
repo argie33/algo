@@ -15,17 +15,17 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY requirements-earningsgrowth.txt .
+COPY requirements-earningsmetrics.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements-earningsgrowth.txt
+RUN pip install --no-cache-dir -r requirements-earningsmetrics.txt
 
 # Copy the script
-COPY loadearningsgrowth.py .
+COPY loadearningsmetrics.py .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
 # Run the script
-CMD ["python", "loadearningsgrowth.py"] 
+CMD ["python", "loadearningsmetrics.py"] 

@@ -739,7 +739,7 @@ router.get("/earnings-metrics", async (req, res) => {
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
 
-    // Query using the new earnings_growth table with calculated metrics
+    // Query using the earnings_metrics table with quality score
     const metricsQuery = `
       SELECT
         symbol,
@@ -749,15 +749,16 @@ router.get("/earnings-metrics", async (req, res) => {
         eps_yoy_growth,
         revenue_yoy_growth,
         earnings_surprise_pct,
+        earnings_quality_score,
         fetched_at
-      FROM earnings_growth
-      ORDER BY symbol ASC, report_date DESC
+      FROM earnings_metrics
+      ORDER BY earnings_quality_score DESC NULLS LAST, symbol ASC, report_date DESC
       LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
-      SELECT COUNT(*) as total
-      FROM earnings_growth
+      SELECT COUNT(DISTINCT symbol) as total
+      FROM earnings_metrics
     `;
 
     // Summary query for insights
@@ -770,10 +771,14 @@ router.get("/earnings-metrics", async (req, res) => {
         AVG(eps_yoy_growth) as avg_eps_yoy_growth,
         AVG(revenue_yoy_growth) as avg_revenue_yoy_growth,
         MAX(eps_yoy_growth) as max_eps_yoy_growth,
-        MIN(eps_yoy_growth) as min_eps_yoy_growth
-      FROM earnings_growth
+        MIN(eps_yoy_growth) as min_eps_yoy_growth,
+        MAX(earnings_quality_score) as quality_score
+      FROM earnings_metrics
+      WHERE report_date = (
+        SELECT MAX(report_date) FROM earnings_metrics em2 WHERE em2.symbol = earnings_metrics.symbol
+      )
       GROUP BY symbol
-      ORDER BY symbol ASC
+      ORDER BY quality_score DESC NULLS LAST
     `;
 
     const [metricsResult, countResult, summaryResult] = await Promise.all([
@@ -816,6 +821,7 @@ router.get("/earnings-metrics", async (req, res) => {
         avg_revenue_yoy_growth: row.avg_revenue_yoy_growth,
         max_eps_yoy_growth: row.max_eps_yoy_growth,
         min_eps_yoy_growth: row.min_eps_yoy_growth,
+        quality_score: row.quality_score,
       };
     });
 

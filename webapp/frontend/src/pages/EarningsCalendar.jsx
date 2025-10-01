@@ -569,7 +569,7 @@ function EarningsCalendar() {
           <Tab value={3} label="EPS Revisions" icon={<TrendingUp />} />
           <Tab value={4} label="EPS Trend" icon={<TrendingDown />} />
           <Tab value={5} label="Revenue Estimates" icon={<AttachMoney />} />
-          <Tab value={6} label="Earnings Growth" icon={<HorizontalRule />} />
+          <Tab value={6} label="Earnings Metrics" icon={<HorizontalRule />} />
         </Tabs>
       </Box>
 
@@ -879,7 +879,7 @@ function EarningsCalendar() {
           {activeTab === 6 && (
             <>
               <Typography variant="h6" gutterBottom>
-                Earnings Growth Metrics Lookup
+                Earnings Metrics with Quality Score
               </Typography>
               <Box display="flex" alignItems="center" gap={2} mb={2}>
                 <TextField
@@ -916,6 +916,7 @@ function EarningsCalendar() {
                     <TableHead>
                       <TableRow>
                         <TableCell>Report Date</TableCell>
+                        <TableCell align="right">Quality Score</TableCell>
                         <TableCell align="right">EPS QoQ Growth %</TableCell>
                         <TableCell align="right">EPS YoY Growth %</TableCell>
                         <TableCell align="right">Revenue YoY Growth %</TableCell>
@@ -935,6 +936,18 @@ function EarningsCalendar() {
                           <TableRow key={row.report_date + idx}>
                             <TableCell>{row.report_date}</TableCell>
                             <TableCell align="right">
+                              <Typography
+                                variant="body2"
+                                fontWeight="bold"
+                                sx={{
+                                  color: row.earnings_quality_score >= 70 ? 'success.main' :
+                                         row.earnings_quality_score >= 50 ? 'warning.main' : 'error.main'
+                                }}
+                              >
+                                {row.earnings_quality_score ? row.earnings_quality_score.toFixed(1) : "-"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
                               {row.eps_qoq_growth ? `${row.eps_qoq_growth.toFixed(2)}%` : "-"}
                             </TableCell>
                             <TableCell align="right">
@@ -953,13 +966,13 @@ function EarningsCalendar() {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={6} align="center">
+                          <TableCell colSpan={7} align="center">
                             <Typography
                               variant="body2"
                               color="text.secondary"
                               mt={2}
                             >
-                              No earnings growth metrics data found for{" "}
+                              No earnings metrics data found for{" "}
                               <b>{epsSymbol}</b>.
                             </Typography>
                           </TableCell>

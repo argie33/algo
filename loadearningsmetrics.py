@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Earnings Growth Loader - Simplified focus on key growth metrics
-Calculates quarter-over-quarter and year-over-year growth for EPS and revenue
+Earnings Metrics Loader - Comprehensive earnings analysis with quality scoring
+Calculates growth metrics and derives an earnings quality score for stock selection
 """
 import concurrent.futures
 import gc
@@ -87,6 +87,97 @@ def calculate_yoy_growth(current, year_ago):
     return ((current - year_ago) / abs(year_ago)) * 100
 
 
+def normalize_score(value, min_val, max_val, higher_is_better=True):
+    """
+    Normalize a value to 0-1 scale
+
+    Args:
+        value: The value to normalize
+        min_val: Minimum threshold (values below get 0 or 1)
+        max_val: Maximum threshold (values above get 1 or 0)
+        higher_is_better: True if higher values should get higher scores
+    """
+    if value is None:
+        return 0.0
+
+    # Clamp value between min and max
+    clamped = max(min_val, min(max_val, value))
+
+    # Normalize to 0-1
+    if max_val == min_val:
+        return 0.5
+
+    normalized = (clamped - min_val) / (max_val - min_val)
+
+    return normalized if higher_is_better else (1 - normalized)
+
+
+def calculate_earnings_quality_score(metrics_data):
+    """
+    Calculate comprehensive earnings quality score (0-100)
+
+    Factors:
+    - EPS Growth (YoY): 25% - Long-term growth trend
+    - EPS Growth (QoQ): 15% - Recent acceleration
+    - Revenue Growth: 10% - Top-line sustainability
+    - Earnings Surprise: 25% - Beat expectations
+    - Growth Consistency: 15% - Positive quarters streak
+    - Acceleration: 10% - QoQ vs YoY momentum
+
+    Args:
+        metrics_data: List of dicts with growth metrics over multiple quarters
+
+    Returns:
+        float: Quality score 0-100
+    """
+    if not metrics_data or len(metrics_data) == 0:
+        return None
+
+    # Get most recent quarter
+    latest = metrics_data[0]
+
+    eps_yoy = safe_numeric(latest.get('eps_yoy_growth'))
+    eps_qoq = safe_numeric(latest.get('eps_qoq_growth'))
+    rev_yoy = safe_numeric(latest.get('revenue_yoy_growth'))
+    surprise = safe_numeric(latest.get('earnings_surprise_pct'))
+
+    # Component scores (0-1 scale)
+    scores = {}
+
+    # 1. EPS YoY Growth (25% weight) - Higher is better, 0-50% range
+    scores['eps_yoy'] = normalize_score(eps_yoy if eps_yoy else 0, -20, 50) * 0.25
+
+    # 2. EPS QoQ Growth (15% weight) - Recent acceleration, -10 to 30% range
+    scores['eps_qoq'] = normalize_score(eps_qoq if eps_qoq else 0, -10, 30) * 0.15
+
+    # 3. Revenue Growth (10% weight) - Top-line growth, 0-40% range
+    scores['revenue'] = normalize_score(rev_yoy if rev_yoy else 0, -10, 40) * 0.10
+
+    # 4. Earnings Surprise (25% weight) - Beat expectations, -5 to 15% range
+    scores['surprise'] = normalize_score(surprise if surprise else 0, -5, 15) * 0.25
+
+    # 5. Growth Consistency (15% weight) - Positive quarters in last 4
+    positive_quarters = sum(1 for m in metrics_data[:4]
+                          if safe_numeric(m.get('eps_yoy_growth', 0)) and
+                          safe_numeric(m.get('eps_yoy_growth')) > 0)
+    scores['consistency'] = (positive_quarters / 4) * 0.15
+
+    # 6. Acceleration Score (10% weight) - QoQ > YoY indicates acceleration
+    if eps_qoq and eps_yoy:
+        acceleration = 1.0 if eps_qoq > eps_yoy else 0.5
+    else:
+        acceleration = 0.5
+    scores['acceleration'] = acceleration * 0.10
+
+    # Calculate final score
+    total_score = sum(scores.values()) * 100
+
+    # Log breakdown for transparency
+    logging.debug(f"Score breakdown: {scores}, Total: {total_score:.1f}")
+
+    return round(total_score, 2)
+
+
 def prepare_db():
     """Setup database tables"""
     user, pwd, host, port, db = get_db_config()
@@ -105,24 +196,34 @@ def prepare_db():
         """
     )
 
-    # Drop and recreate earnings_growth table
-    logging.info("Recreating earnings_growth table...")
-    cursor.execute("DROP TABLE IF EXISTS earnings_growth;")
+    # Drop and recreate earnings_metrics table
+    logging.info("Recreating earnings_metrics table...")
+    cursor.execute("DROP TABLE IF EXISTS earnings_metrics;")
     cursor.execute(
         """
-        CREATE TABLE earnings_growth (
+        CREATE TABLE earnings_metrics (
             symbol                  VARCHAR(50),
             report_date             DATE,
             eps_qoq_growth          DOUBLE PRECISION,  -- Quarter-over-quarter EPS growth %
             eps_yoy_growth          DOUBLE PRECISION,  -- Year-over-year EPS growth %
             revenue_yoy_growth      DOUBLE PRECISION,  -- Year-over-year Revenue growth %
             earnings_surprise_pct   DOUBLE PRECISION,  -- Earnings surprise %
+            earnings_quality_score  DOUBLE PRECISION,  -- Composite quality score 0-100
             fetched_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, report_date)
         );
         """
     )
-    logging.info("Table 'earnings_growth' ready.")
+
+    # Create index on quality score for efficient sorting
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_earnings_quality_score
+        ON earnings_metrics(earnings_quality_score DESC NULLS LAST);
+        """
+    )
+
+    logging.info("Table 'earnings_metrics' ready with quality score.")
 
     # Get stock symbols (exclude ETFs)
     cursor.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
@@ -149,12 +250,12 @@ def create_connection_pool():
 
 
 def process_symbol(symbol, conn_pool):
-    """Process a single symbol and calculate growth metrics"""
+    """Process a single symbol and calculate growth metrics + quality score"""
     try:
         conn = conn_pool.getconn()
         cursor = conn.cursor()
 
-        logging.info(f"Processing earnings growth for {symbol}...")
+        logging.info(f"Processing earnings metrics for {symbol}...")
 
         # Get earnings history (EPS data)
         cursor.execute(
@@ -202,6 +303,8 @@ def process_symbol(symbol, conn_pool):
 
         # Calculate metrics for each quarter
         data = []
+        metrics_for_scoring = []  # Store for quality score calculation
+
         for i in range(len(earnings_df)):
             row = earnings_df.iloc[i]
             report_date = row["quarter"]
@@ -229,6 +332,15 @@ def process_symbol(symbol, conn_pool):
                         revenue_yoy_growth = growth_val
                         break
 
+            # Store metrics for this quarter
+            quarter_metrics = {
+                'eps_qoq_growth': eps_qoq_growth,
+                'eps_yoy_growth': eps_yoy_growth,
+                'revenue_yoy_growth': revenue_yoy_growth,
+                'earnings_surprise_pct': surprise_pct
+            }
+            metrics_for_scoring.append(quarter_metrics)
+
             data.append(
                 (
                     symbol,
@@ -237,22 +349,31 @@ def process_symbol(symbol, conn_pool):
                     eps_yoy_growth,
                     revenue_yoy_growth,
                     surprise_pct,
+                    None,  # Quality score calculated after
                     datetime.now(),
                 )
             )
 
+        # Calculate earnings quality score for most recent quarter
+        quality_score = calculate_earnings_quality_score(metrics_for_scoring)
+
+        # Update most recent quarter with quality score
+        if data and quality_score is not None:
+            data[0] = data[0][:6] + (quality_score,) + (data[0][7],)
+
         # Insert data
         if data:
             insert_q = """
-                INSERT INTO earnings_growth (
+                INSERT INTO earnings_metrics (
                     symbol, report_date, eps_qoq_growth, eps_yoy_growth,
-                    revenue_yoy_growth, earnings_surprise_pct, fetched_at
+                    revenue_yoy_growth, earnings_surprise_pct, earnings_quality_score, fetched_at
                 ) VALUES %s;
             """
             execute_values(cursor, insert_q, data)
             conn.commit()
             num_inserted = len(data)
-            logging.info(f"✅ {symbol}: Inserted {num_inserted} rows")
+            score_msg = f" (Quality Score: {quality_score:.1f})" if quality_score else ""
+            logging.info(f"✅ {symbol}: Inserted {num_inserted} rows{score_msg}")
         else:
             num_inserted = 0
             logging.warning(f"⚠️ {symbol}: No data to insert")
@@ -261,7 +382,7 @@ def process_symbol(symbol, conn_pool):
         conn_pool.putconn(conn)
 
         # Free memory
-        del earnings_df, earnings_history, revenue_estimates, data
+        del earnings_df, earnings_history, revenue_estimates, data, metrics_for_scoring
         gc.collect()
 
         return num_inserted
