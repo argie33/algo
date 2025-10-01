@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Testing workflow cleanup - trigger test
+# Updated: 2025-10-01 - Calendar data loader for earnings and economic events
 import functools
 import json
 import logging

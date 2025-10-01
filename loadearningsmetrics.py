@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Earnings Metrics Loader - Comprehensive earnings analysis with quality scoring
+Earnings Metrics Loader - Updated 2025-10-01
+Comprehensive earnings analysis with quality scoring
 Calculates growth metrics and derives an earnings quality score for stock selection
 
 Updated: 2025-01-03 - Quality score implementation with weighted factors
