@@ -261,7 +261,7 @@ jobs:
               AaiiImageTag=latest \
               FearGreedImageTag=latest \
               NaaimImageTag=latest \
-              EarningsMetricsImageTag=latest \
+              EarningsGrowthImageTag=latest \
               QuarterlyBalanceSheetImageTag=latest \
               AnnualBalanceSheetImageTag=latest \
               QuarterlyIncomeStatementImageTag=latest \
