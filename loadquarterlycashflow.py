@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-01 - Financial statement loader
 import gc
 import json
 import logging
