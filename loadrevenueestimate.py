@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 - Revenue estimates loader with optimized health checks
+# Updated: 2025-10-01 - Revenue estimates loader (fixed Docker build)
 import gc
 import json
 import logging
