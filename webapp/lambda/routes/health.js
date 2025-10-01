@@ -1090,30 +1090,35 @@ router.get("/ecs-tasks", async (req, res) => {
 
     const tasks = {};
 
-    // Monitor loadinfo task
-    const taskName = "loadinfo";
-    const clusterName = "stocks-cluster";
-    const logGroupName = "/ecs/stocks-loadinfo";
+    // Monitor multiple ECS tasks
+    const taskConfigs = [
+      { name: "loadinfo", logGroup: "/ecs/stocks-loadinfo" },
+      { name: "earnings_estimate", logGroup: "/ecs/stocks-earnings-estimate" },
+      { name: "earnings_history", logGroup: "/ecs/stocks-earnings-history" }
+    ];
 
-    try {
-      // Get recent log streams for this task
-      const describeStreamsCmd = new DescribeLogStreamsCommand({
-        logGroupName: logGroupName,
-        orderBy: "LastEventTime",
-        descending: true,
-        limit: 5
-      });
+    // Function to check a single task
+    const checkTask = async (taskName, logGroupName) => {
+      try {
+        // Get recent log streams for this task
+        const describeStreamsCmd = new DescribeLogStreamsCommand({
+          logGroupName: logGroupName,
+          orderBy: "LastEventTime",
+          descending: true,
+          limit: 5
+        });
 
-      const streamsResponse = await logsClient.send(describeStreamsCmd);
-      const logStreams = streamsResponse.logStreams || [];
+        const streamsResponse = await logsClient.send(describeStreamsCmd);
+        const logStreams = streamsResponse.logStreams || [];
 
-      if (logStreams.length === 0) {
-        tasks[taskName] = {
-          status: "never_run",
-          message: "No execution logs found",
-          last_run: null
-        };
-      } else {
+        if (logStreams.length === 0) {
+          return {
+            status: "never_run",
+            message: "No execution logs found",
+            last_run: null
+          };
+        }
+
         const latestStream = logStreams[0];
         const streamName = latestStream.logStreamName;
         const lastEventTime = new Date(latestStream.lastEventTime);
@@ -1163,7 +1168,7 @@ router.get("/ecs-tasks", async (req, res) => {
           freshness = "warning"; // > 24 hours
         }
 
-        tasks[taskName] = {
+        return {
           status: status,
           last_run: lastEventTime.toISOString(),
           hours_since_run: hoursSinceRun,
@@ -1172,14 +1177,19 @@ router.get("/ecs-tasks", async (req, res) => {
           error_message: errorMessage,
           log_stream: streamName
         };
+      } catch (taskError) {
+        console.error(`Error checking ${taskName} task:`, taskError);
+        return {
+          status: "error",
+          message: `Failed to check task status: ${taskError.message}`,
+          last_run: null
+        };
       }
-    } catch (taskError) {
-      console.error(`Error checking ${taskName} task:`, taskError);
-      tasks[taskName] = {
-        status: "error",
-        message: `Failed to check task status: ${taskError.message}`,
-        last_run: null
-      };
+    };
+
+    // Check all tasks
+    for (const config of taskConfigs) {
+      tasks[config.name] = await checkTask(config.name, config.logGroup);
     }
 
     return res.json({
