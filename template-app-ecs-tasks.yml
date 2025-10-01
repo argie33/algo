@@ -2639,6 +2639,15 @@ Resources:
                 SecurityGroups:
                   - !ImportValue StocksApp-EcsTasksSecurityGroupId
                 AssignPublicIp: ENABLED
+          Input: !Sub |
+            {
+              "containerOverrides": [
+                {
+                  "name": "loadinfo-loader",
+                  "command": ["python3", "loadinfo.py"]
+                }
+              ]
+            }
 
   # Earnings Estimate - Weekdays at 8:00 AM CT (1:00 PM UTC)
   EarningsEstimateScheduleRule:
@@ -2663,6 +2672,15 @@ Resources:
                 SecurityGroups:
                   - !ImportValue StocksApp-EcsTasksSecurityGroupId
                 AssignPublicIp: ENABLED
+          Input: !Sub |
+            {
+              "containerOverrides": [
+                {
+                  "name": "earningsestimate-loader",
+                  "command": ["python3", "loadearningsestimate.py"]
+                }
+              ]
+            }
 
   # Earnings History - Weekdays at 8:00 AM CT (1:00 PM UTC)
   EarningsHistoryScheduleRule:
@@ -2687,6 +2705,15 @@ Resources:
                 SecurityGroups:
                   - !ImportValue StocksApp-EcsTasksSecurityGroupId
                 AssignPublicIp: ENABLED
+          Input: !Sub |
+            {
+              "containerOverrides": [
+                {
+                  "name": "earningshistory-loader",
+                  "command": ["python3", "loadearningshistory.py"]
+                }
+              ]
+            }
 
   #########################################
   # Outputs                               #
