@@ -264,37 +264,12 @@ if __name__ == "__main__":
     """
     )
 
-    logging.info("Recreating etf_price_daily table…")
-    cur.execute("DROP TABLE IF EXISTS etf_price_daily;")
-    cur.execute(
-        """
-        CREATE TABLE etf_price_daily (
-            id           SERIAL PRIMARY KEY,
-            symbol       VARCHAR(10) NOT NULL,
-            date         DATE         NOT NULL,
-            open         DOUBLE PRECISION,
-            high         DOUBLE PRECISION,
-            low          DOUBLE PRECISION,
-            close        DOUBLE PRECISION,
-            adj_close    DOUBLE PRECISION,
-            volume       BIGINT,
-            dividends    DOUBLE PRECISION,
-            splits DOUBLE PRECISION,
-            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """
-    )
     conn.commit()
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
-
-    # Load ETF symbols
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    etf_syms = [r["symbol"] for r in cur.fetchall()]
-    t_e, i_e, f_e = load_prices("etf_price_daily", etf_syms, cur, conn)
 
     # Record last run
     cur.execute(
@@ -310,8 +285,7 @@ if __name__ == "__main__":
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Stocks — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
-    logging.info(f"ETFs   — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
+    logging.info(f"Price Daily — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
 
     cur.close()
     conn.close()
