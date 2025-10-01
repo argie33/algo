@@ -261,10 +261,15 @@ if __name__ == "__main__":
             splits DOUBLE PRECISION,
             fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Critical indexes for LATERAL join performance in stocks query
+        CREATE INDEX idx_price_daily_symbol_date ON price_daily(symbol, date DESC);
+        CREATE INDEX idx_price_daily_date ON price_daily(date DESC);
     """
     )
 
     conn.commit()
+    logging.info("Created price_daily table with performance indexes")
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
