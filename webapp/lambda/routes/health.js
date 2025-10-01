@@ -612,16 +612,71 @@ router.get("/database", async (req, res) => {
               : 0;
 
           let status = "healthy";
+          let last_updated = null;
+
           if (recordCount === 0) {
             status = "empty";
             summary.empty_tables++;
           } else {
             summary.healthy_tables++;
+
+            // Get the most recent timestamp for this table
+            // Priority: fetched_at > updated_at > created_at > date
+            try {
+              const timestampQuery = `
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = $1
+                  AND table_schema = 'public'
+                  AND column_name IN ('fetched_at', 'updated_at', 'created_at', 'date', 'timestamp')
+                ORDER BY
+                  CASE column_name
+                    WHEN 'fetched_at' THEN 1
+                    WHEN 'updated_at' THEN 2
+                    WHEN 'created_at' THEN 3
+                    WHEN 'timestamp' THEN 4
+                    WHEN 'date' THEN 5
+                  END
+                LIMIT 1
+              `;
+              const timestampCol = await query(timestampQuery, [tableName]);
+
+              if (timestampCol.rows.length > 0) {
+                const colName = timestampCol.rows[0].column_name;
+                const maxTimestampQuery = `SELECT MAX(${colName}) as last_updated FROM ${tableName}`;
+                const maxResult = await query(maxTimestampQuery);
+
+                if (maxResult.rows.length > 0 && maxResult.rows[0].last_updated) {
+                  last_updated = maxResult.rows[0].last_updated;
+                }
+              }
+            } catch (tsErr) {
+              // If timestamp query fails, just continue without last_updated
+              console.error(
+                `Error getting timestamp for ${tableName}:`,
+                tsErr.message
+              );
+            }
+          }
+
+          // Check for stale data (last_updated > 7 days ago)
+          let data_freshness = "current";
+          if (last_updated) {
+            const daysSinceUpdate = Math.floor(
+              (Date.now() - new Date(last_updated).getTime()) / (1000 * 60 * 60 * 24)
+            );
+            if (daysSinceUpdate > 30) {
+              data_freshness = "very_stale";
+            } else if (daysSinceUpdate > 7) {
+              data_freshness = "stale";
+            }
           }
 
           tables[tableName] = {
             status: status,
             record_count: recordCount,
+            last_updated: last_updated,
+            data_freshness: data_freshness,
             last_checked: new Date().toISOString(),
           };
 

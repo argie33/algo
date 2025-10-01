@@ -200,35 +200,30 @@ function ServiceHealth() {
   // Simplified endpoint tests - only test essential endpoints
   const endpoints = useMemo(
     () => [
-      { name: "Health Check", fn: () => healthCheck(), critical: true },
-      { name: "API Connection", fn: () => testApiConnection(), critical: true },
-      { name: "Stocks", fn: () => getStocks({ limit: 5 }), critical: true },
+      { name: "Health Check", fn: () => healthCheck() },
+      { name: "API Connection", fn: () => testApiConnection() },
+      { name: "Stocks", fn: () => getStocks({ limit: 5 }) },
       {
         name: "Technical Data",
         fn: () => getTechnicalData("daily", { limit: 5 }),
-        critical: true,
       },
       {
         name: "Market Overview",
         fn: () => getMarketOverview(),
-        critical: true,
       },
       {
         name: "Stock Screener",
         fn: () => screenStocks({ limit: 5 }),
-        critical: false,
       },
-      { name: "Buy Signals", fn: () => getBuySignals(), critical: false },
-      { name: "Sell Signals", fn: () => getSellSignals(), critical: false },
+      { name: "Buy Signals", fn: () => getBuySignals() },
+      { name: "Sell Signals", fn: () => getSellSignals() },
       {
         name: "NAAIM Data",
         fn: () => getNaaimData({ limit: 5 }),
-        critical: false,
       },
       {
         name: "Fear & Greed",
         fn: () => getFearGreedData({ limit: 5 }),
-        critical: false,
       },
     ],
     []

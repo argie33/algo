@@ -291,7 +291,7 @@ if __name__ == "__main__":
     create_table(cur, conn)
 
     # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     if stock_syms:
         t_s, p_s, f_s = load_annual_cash_flow(stock_syms, cur, conn)

@@ -266,7 +266,7 @@ if __name__ == "__main__":
     conn.commit()
 
     # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_monthly", stock_syms, cur, conn)
 

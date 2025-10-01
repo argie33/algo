@@ -250,7 +250,7 @@ def prepare_db():
     )
     logging.info("Table 'earnings_metrics' ready.")
 
-    cursor.execute("SELECT symbol FROM stock_symbols;")
+    cursor.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     symbols = [r[0] for r in cursor.fetchall()]
     logging.info(f"Found {len(symbols)} symbols.")
 

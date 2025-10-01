@@ -189,7 +189,7 @@ def lambda_handler(event, context):
     create_tables(cur)
     conn.commit()
 
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t, p, f = load_earnings_history(stock_syms, cur, conn)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-01-16 - Trigger stock symbols loading for AWS RDS
+# Updated: 2025-09-30 - Verified ETF filtering: stocks only to stock_symbols table
 import csv
 import json
 import logging

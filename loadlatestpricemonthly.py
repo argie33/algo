@@ -264,7 +264,7 @@ if __name__ == "__main__":
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Load stock symbols incrementally
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_monthly", stock_syms, cur, conn)
 

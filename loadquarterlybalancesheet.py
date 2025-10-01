@@ -300,7 +300,7 @@ if __name__ == "__main__":
     logging.info("Created quarterly balance sheet table with normalized structure")
 
     # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_quarterly_balance_sheet(stock_syms, cur, conn)
 

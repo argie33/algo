@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated: 2025-09-30 - Calculate Mansfield RS with SPY benchmark - run now
-# Populate technical_data_daily.mansfield_rs for all stocks in database
+# Updated: 2025-09-30 - ETF filtering + Mansfield RS calculation
+# Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # SATA Score implementation: Mansfield RS calculation added - Sep 30 2025
 import concurrent.futures
 import gc
@@ -469,7 +469,7 @@ def prepare_db():
     )
     logging.info("Table 'technical_data_daily' ready.")
 
-    cursor.execute("SELECT symbol FROM stock_symbols;")
+    cursor.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     symbols = [r[0] for r in cursor.fetchall()]
     logging.info(f"Found {len(symbols)} symbols.")
 

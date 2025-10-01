@@ -724,7 +724,7 @@ if __name__ == "__main__":
     conn.commit()
 
     # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, p_s, f_s = load_company_info(stock_syms, cur, conn)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
-# Updated: 2025-01-16 - Trigger daily price data loading for AWS RDS
+# Updated: 2025-09-30 - Added ETF filtering: stocks only from stock_symbols
 import gc
 import json
 import logging
@@ -287,7 +287,7 @@ if __name__ == "__main__":
     conn.commit()
 
     # Load stock symbols
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
