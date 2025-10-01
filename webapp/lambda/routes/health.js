@@ -1192,9 +1192,13 @@ router.get("/ecs-tasks", async (req, res) => {
         };
       } catch (taskError) {
         console.error(`Error checking ${taskName} task:`, taskError);
+        console.error(`  - Log group: ${logGroupName}`);
+        console.error(`  - Error code: ${taskError.name}`);
+        console.error(`  - Error message: ${taskError.message}`);
         return {
           status: "error",
-          message: `Failed to check task status: ${taskError.message}`,
+          message: `${taskError.name}: ${taskError.message}`,
+          error_details: `Log group: ${logGroupName}`,
           last_run: null
         };
       }
