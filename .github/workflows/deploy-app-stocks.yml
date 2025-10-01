@@ -488,6 +488,9 @@ jobs:
             "stocksymbols")
               TASK_DEF_NAME="StockSymbolsTaskDefArn"
               ;;
+            "info")
+              TASK_DEF_NAME="LoadInfoTaskDefArn"
+              ;;
             *)
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
