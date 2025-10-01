@@ -579,3 +579,6 @@ NAAIM data endpoint called with limit: 5
 ::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/market/naaim?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
 Fear & Greed data endpoint called with limit: 5
 ::1 - - [01/Oct/2025:23:33:09 +0000] "GET /api/market/fear-greed?limit=5 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Calendar events endpoint called with params: { type: 'upcoming', page: '1', limit: '25' }
+::1 - - [01/Oct/2025:23:38:35 +0000] "GET /api/calendar/events?type=upcoming&page=1&limit=25 HTTP/1.1" 200 813 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [01/Oct/2025:23:38:37 +0000] "GET /api/analysts/upgrades?page=1&limit=50 HTTP/1.1" 200 11151 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"

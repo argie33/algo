@@ -194,7 +194,9 @@ const SignalPerformanceTracker = ({ symbols = [], timeframe = "7d" }) => {
                 fontWeight="bold"
                 color={getReturnColor(metrics.avgReturn)}
               >
-                {metrics.avgReturn > 0 ? '+' : ''}{metrics.avgReturn.toFixed(1)}%
+                {metrics.avgReturn != null
+                  ? `${metrics.avgReturn > 0 ? '+' : ''}${metrics.avgReturn.toFixed(1)}%`
+                  : 'N/A'}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Avg Return
@@ -210,7 +212,7 @@ const SignalPerformanceTracker = ({ symbols = [], timeframe = "7d" }) => {
                 <Timeline />
               </Avatar>
               <Typography variant="h6" fontWeight="bold">
-                {metrics.winRate.toFixed(1)}%
+                {metrics.winRate != null ? `${metrics.winRate.toFixed(1)}%` : 'N/A'}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Win Rate
@@ -226,7 +228,9 @@ const SignalPerformanceTracker = ({ symbols = [], timeframe = "7d" }) => {
                 <TrendingUp />
               </Avatar>
               <Typography variant="h6" fontWeight="bold" color="success.main">
-                {metrics.bestPerformer ? `+${metrics.bestPerformer.currentReturn.toFixed(1)}%` : '--'}
+                {metrics.bestPerformer && metrics.bestPerformer.currentReturn != null
+                  ? `+${metrics.bestPerformer.currentReturn.toFixed(1)}%`
+                  : '--'}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Best Signal
@@ -247,7 +251,9 @@ const SignalPerformanceTracker = ({ symbols = [], timeframe = "7d" }) => {
                 <TrendingDown />
               </Avatar>
               <Typography variant="h6" fontWeight="bold" color="error.main">
-                {metrics.worstPerformer ? `${metrics.worstPerformer.currentReturn.toFixed(1)}%` : '--'}
+                {metrics.worstPerformer && metrics.worstPerformer.currentReturn != null
+                  ? `${metrics.worstPerformer.currentReturn.toFixed(1)}%`
+                  : '--'}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Worst Signal
@@ -304,7 +310,9 @@ const SignalPerformanceTracker = ({ symbols = [], timeframe = "7d" }) => {
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2">
-                        {(performance.confidence * 100).toFixed(0)}%
+                        {performance.confidence != null
+                          ? `${(performance.confidence * 100).toFixed(0)}%`
+                          : 'N/A'}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
@@ -323,13 +331,15 @@ const SignalPerformanceTracker = ({ symbols = [], timeframe = "7d" }) => {
                         fontWeight="bold"
                         color={getReturnColor(performance.currentReturn)}
                       >
-                        {performance.currentReturn > 0 ? '+' : ''}{performance.currentReturn.toFixed(1)}%
+                        {performance.currentReturn != null
+                          ? `${performance.currentReturn > 0 ? '+' : ''}${performance.currentReturn.toFixed(1)}%`
+                          : 'N/A'}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
                       <LinearProgress
                         variant="determinate"
-                        value={Math.min(Math.abs(performance.currentReturn) * 5, 100)}
+                        value={performance.currentReturn != null ? Math.min(Math.abs(performance.currentReturn) * 5, 100) : 0}
                         sx={{
                           width: 60,
                           height: 6,
