@@ -47,10 +47,10 @@ jobs:
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
 
-          # Get INFO task definition ARN (CloudFormation output is INFOTaskDefArn)
+          # Get LoadInfo task definition ARN
           TASK_DEF_ARN=$(aws cloudformation describe-stacks \
             --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='INFOTaskDefArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadInfoTaskDefArn'].OutputValue" \
             --output text)
 
           if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
