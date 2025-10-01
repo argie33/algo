@@ -28,4 +28,4 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
 # Run the script
-CMD ["python", "loadearningsmetrics.py"] 
+CMD ["python", "loadearningsmetrics.py"]
