@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Weekly price data loader - fetches weekly OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - weekly loader update
+# Updated: 2025-09-30 - Verified ETF filtering: stocks only from stock_symbols
 import gc
 import json
 import logging
