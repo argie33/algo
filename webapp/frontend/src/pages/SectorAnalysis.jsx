@@ -68,36 +68,16 @@ const SectorAnalysis = () => {
     XLRE: { name: "Real Estate", color: "#E91E63" },
   };
 
-  // Fetch sector rotation data with demo fallback
-  const { data: rotationData, isLoading: rotationLoading } = useQuery({
+  // Fetch sector rotation data - NO FALLBACK
+  const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
     queryKey: ["sector-rotation"],
     queryFn: async () => {
-      try {
-        const response = await getMarketResearchIndicators();
-        return response;
-      } catch (error) {
-        console.warn("Using demo rotation data");
-        // Return demo rotation data
-        return {
-          data: {
-            sectorRotation: [
-              { sector: "Technology", momentum: "Strong", flow: "Inflow", performance: 2.3 },
-              { sector: "Healthcare", momentum: "Moderate", flow: "Inflow", performance: 1.1 },
-              { sector: "Financials", momentum: "Weak", flow: "Outflow", performance: -0.5 },
-              { sector: "Consumer Discretionary", momentum: "Strong", flow: "Inflow", performance: 1.8 },
-              { sector: "Consumer Staples", momentum: "Moderate", flow: "Neutral", performance: 0.3 },
-              { sector: "Energy", momentum: "Weak", flow: "Outflow", performance: -1.2 },
-              { sector: "Industrials", momentum: "Moderate", flow: "Inflow", performance: 0.7 },
-              { sector: "Materials", momentum: "Weak", flow: "Neutral", performance: -0.3 },
-              { sector: "Utilities", momentum: "Weak", flow: "Neutral", performance: 0.1 },
-              { sector: "Real Estate", momentum: "Moderate", flow: "Inflow", performance: 0.5 },
-            ],
-          },
-        };
-      }
+      const response = await getMarketResearchIndicators();
+      return response;
     },
     staleTime: 60000,
-    enabled: true, // Always enabled, will show demo data if API fails
+    enabled: !!user,
+    retry: false,
   });
 
   useEffect(() => {
@@ -161,40 +141,9 @@ const SectorAnalysis = () => {
 
       throw new Error("No valid sector data from API");
     } catch (error) {
-      console.warn("Using demo sector data:", error.message);
-      setError("Using demo data - API unavailable");
-
-      // Demo data with realistic values
-      const demoSectors = [
-        { sector: "Technology", change: 2.3, volume: 15000000, marketCap: 12000000000000 },
-        { sector: "Healthcare", change: 1.1, volume: 8000000, marketCap: 8000000000000 },
-        { sector: "Financials", change: -0.5, volume: 12000000, marketCap: 7500000000000 },
-        { sector: "Consumer Discretionary", change: 1.8, volume: 9000000, marketCap: 6000000000000 },
-        { sector: "Consumer Staples", change: 0.3, volume: 5000000, marketCap: 5000000000000 },
-        { sector: "Energy", change: -1.2, volume: 10000000, marketCap: 4500000000000 },
-        { sector: "Industrials", change: 0.7, volume: 7000000, marketCap: 5500000000000 },
-        { sector: "Materials", change: -0.3, volume: 6000000, marketCap: 3500000000000 },
-        { sector: "Utilities", change: 0.1, volume: 4000000, marketCap: 3000000000000 },
-        { sector: "Real Estate", change: 0.5, volume: 3000000, marketCap: 2500000000000 },
-      ];
-
-      setSectorData(
-        demoSectors.map((demo, idx) => {
-          const etfSymbol = Object.keys(sectorETFs)[idx] || "N/A";
-          return {
-            sector: demo.sector,
-            etfSymbol: etfSymbol,
-            price: 100 + Math.random() * 50,
-            change: demo.change,
-            changePercent: demo.change,
-            volume: demo.volume,
-            marketCap: demo.marketCap,
-            color: sectorETFs[etfSymbol]?.color || "#666",
-            dataSource: "demo",
-          };
-        })
-      );
-      setLastUpdate(new Date());
+      console.error("Failed to load sector data:", error);
+      setError(`Database error: ${error.message}`);
+      setSectorData([]);
     } finally {
       setLoading(false);
     }
@@ -396,6 +345,14 @@ const SectorAnalysis = () => {
             <Box display="flex" justifyContent="center" py={4}>
               <LinearProgress sx={{ width: "50%" }} />
             </Box>
+          ) : rotationError ? (
+            <Alert severity="error">
+              Failed to load sector rotation data: {rotationError.message}
+            </Alert>
+          ) : !rotationData?.data?.sectorRotation?.length ? (
+            <Alert severity="warning">
+              No sector rotation data available in database
+            </Alert>
           ) : (
             <TableContainer>
               <Table>
