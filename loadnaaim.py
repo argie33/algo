@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 12:51 - Trigger initial deployment for NAAIM sentiment data
+# Updated: 2025-10-02 21:35 - Run NAAIM sentiment loader
 import gc
 import json
 import logging

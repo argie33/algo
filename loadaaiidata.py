@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 12:52 - Trigger initial deployment for AAII sentiment data
+# Updated: 2025-10-02 21:35 - Run AAII sentiment loader
 import gc
 import json
 import logging
