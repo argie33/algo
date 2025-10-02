@@ -273,6 +273,7 @@ jobs:
               QualityMetricsImageTag=latest \
               ValueMetricsImageTag=latest \
               StockScoresImageTag=latest \
+              AnalystUpgradeDowngradeImageTag=latest \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
 
