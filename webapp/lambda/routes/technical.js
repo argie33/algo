@@ -200,6 +200,11 @@ router.get("/daily", async (req, res) => {
       SELECT
         t.symbol,
         t.date,
+        p.open as open_price,
+        p.high as high_price,
+        p.low as low_price,
+        p.close as close_price,
+        p.volume as price_volume,
         t.rsi,
         t.macd,
         t.macd_signal,
@@ -234,6 +239,7 @@ router.get("/daily", async (req, res) => {
         t.pivot_low_triggered,
         t.fetched_at
       FROM technical_data_daily t
+      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
       INNER JOIN (
         SELECT symbol, MAX(date) as max_date
         FROM technical_data_daily
