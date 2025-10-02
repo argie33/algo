@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 00:20 - Trigger execution for economic data
+# Updated: 2025-10-02 02:30 - Trigger execution to populate AWS economic data tables
 import json
 import logging
 import os
