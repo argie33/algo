@@ -2139,8 +2139,10 @@ function StockDetail() {
                             <TableHead>
                               <TableRow sx={{ backgroundColor: "grey.50" }}>
                                 <TableCell sx={{ fontWeight: "bold" }}>Period</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Upgrades (30d)</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Downgrades (30d)</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Avg. Estimate</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Low</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>High</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Analysts</TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>
@@ -2159,18 +2161,24 @@ function StockDetail() {
                                               : revision.period}
                                     </TableCell>
                                     <TableCell align="right">
-                                      <Chip
-                                        label={revision.up_last30days || 0}
-                                        size="small"
-                                        color="success"
-                                        variant="outlined"
-                                      />
+                                      {revision.avg_estimate
+                                        ? formatCurrency(revision.avg_estimate)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {revision.low_estimate
+                                        ? formatCurrency(revision.low_estimate)
+                                        : "N/A"}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {revision.high_estimate
+                                        ? formatCurrency(revision.high_estimate)
+                                        : "N/A"}
                                     </TableCell>
                                     <TableCell align="right">
                                       <Chip
-                                        label={revision.down_last30days || 0}
+                                        label={`${revision.number_of_analysts || 0} analysts`}
                                         size="small"
-                                        color="error"
                                         variant="outlined"
                                       />
                                     </TableCell>
@@ -2422,11 +2430,10 @@ function StockDetail() {
                             <TableHead>
                               <TableRow sx={{ backgroundColor: "grey.50" }}>
                                 <TableCell sx={{ fontWeight: "bold" }}>Period</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Current</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: "bold" }}>7 Days Ago</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: "bold" }}>30 Days Ago</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: "bold" }}>60 Days Ago</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: "bold" }}>90 Days Ago</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Avg. Estimate</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Year Ago EPS</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Growth</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: "bold" }}>Analysts</TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>
@@ -2445,29 +2452,33 @@ function StockDetail() {
                                               : trend.period}
                                     </TableCell>
                                     <TableCell align="right">
-                                      {trend.current
-                                        ? formatCurrency(trend.current)
+                                      {trend.avg_estimate
+                                        ? formatCurrency(trend.avg_estimate)
                                         : "N/A"}
                                     </TableCell>
                                     <TableCell align="right">
-                                      {trend.days_ago_7
-                                        ? formatCurrency(trend.days_ago_7)
+                                      {trend.year_ago_eps
+                                        ? formatCurrency(trend.year_ago_eps)
                                         : "N/A"}
                                     </TableCell>
                                     <TableCell align="right">
-                                      {trend.days_ago_30
-                                        ? formatCurrency(trend.days_ago_30)
-                                        : "N/A"}
+                                      {trend.growth ? (
+                                        <Chip
+                                          label={formatPercent(trend.growth / 100)}
+                                          size="small"
+                                          color={trend.growth > 0 ? "success" : trend.growth < 0 ? "error" : "default"}
+                                          variant="outlined"
+                                        />
+                                      ) : (
+                                        "N/A"
+                                      )}
                                     </TableCell>
                                     <TableCell align="right">
-                                      {trend.days_ago_60
-                                        ? formatCurrency(trend.days_ago_60)
-                                        : "N/A"}
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {trend.days_ago_90
-                                        ? formatCurrency(trend.days_ago_90)
-                                        : "N/A"}
+                                      <Chip
+                                        label={`${trend.number_of_analysts || 0} analysts`}
+                                        size="small"
+                                        variant="outlined"
+                                      />
                                     </TableCell>
                                   </TableRow>
                                 )
