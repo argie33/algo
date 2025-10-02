@@ -746,3 +746,4 @@ if (require.main === module) {
     console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws`);
   });
 }
+// Force redeploy Thu Oct  2 18:22:58 CDT 2025
