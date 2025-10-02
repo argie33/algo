@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 14:15 - Retrigger deployment with safe type conversion
+# Updated: 2025-10-02 16:59 - Fix numpy type handling with proper type hierarchy
 import gc
 import json
 import logging
@@ -46,12 +46,24 @@ def log_mem(stage: str):
 # -------------------------------
 def safe_int(value):
     """Safely convert value to int, handling None, NaN, numpy types, and invalid values"""
-    if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
+    if value is None:
         return None
-    if isinstance(value, (np.integer, np.int64, np.int32)):
+    # Handle numpy types first before NaN checks
+    if isinstance(value, np.integer):
         return int(value)
-    if isinstance(value, (int, float)):
+    if isinstance(value, np.floating):
+        if np.isnan(value) or np.isinf(value):
+            return None
         return int(value)
+    # Handle Python floats
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return int(value)
+    # Handle Python ints
+    if isinstance(value, int):
+        return int(value)
+    # Handle strings
     if isinstance(value, str):
         value = value.strip()
         if value in ["", "N/A", "null", "NULL", "nan", "NaN"]:
@@ -65,12 +77,25 @@ def safe_int(value):
 
 def safe_float(value):
     """Safely convert value to float, handling None, NaN, numpy types, and invalid values"""
-    if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
+    if value is None:
         return None
-    if isinstance(value, (np.floating, np.float64, np.float32)):
+    # Handle numpy floating types first
+    if isinstance(value, np.floating):
+        if np.isnan(value) or np.isinf(value):
+            return None
         return float(value)
-    if isinstance(value, (int, float)):
+    # Handle numpy integers
+    if isinstance(value, np.integer):
         return float(value)
+    # Handle Python floats
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return float(value)
+    # Handle Python ints
+    if isinstance(value, int):
+        return float(value)
+    # Handle strings
     if isinstance(value, str):
         value = value.strip()
         if value in ["", "N/A", "null", "NULL", "nan", "NaN"]:
