@@ -48,9 +48,4 @@ Test query result: Result {
   rowAsArray: false,
   _prebuiltEmptyResultObject: { test: null }
 }
-::1 - - [02/Oct/2025:15:52:57 +0000] "GET /api/technical/daily?limit=2 HTTP/1.1" 200 1684 "-" "curl/8.5.0"
-Processing request: GET /api/signals
-Database connection verified for database-dependent endpoint
-📊 Signals data requested (deployment refresh v3)
-📊 Fetching real daily signals from database {}
-::1 - - [02/Oct/2025:15:57:22 +0000] "GET /api/signals?limit=5 HTTP/1.1" 200 5580 "-" "curl/8.5.0"
+::1 - - [02/Oct/2025:16:03:03 +0000] "GET /api/technical/daily?limit=2 HTTP/1.1" 200 1688 "-" "curl/8.5.0"

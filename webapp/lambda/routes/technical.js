@@ -194,18 +194,36 @@ router.get("/daily", async (req, res) => {
 
     try {
       // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
-      // Optimized query: Use JOIN with subquery for latest dates instead of DISTINCT ON
+      // Optimized query: Calculate price changes first, then filter to latest
       result = await query(
       `
+      WITH price_changes AS (
+        SELECT
+          symbol,
+          date,
+          open,
+          high,
+          low,
+          close,
+          volume,
+          ROUND(((close - LAG(close) OVER (PARTITION BY symbol ORDER BY date)) / NULLIF(LAG(close) OVER (PARTITION BY symbol ORDER BY date), 0) * 100)::NUMERIC, 2) as price_change_percent
+        FROM price_daily
+      ),
+      latest_dates AS (
+        SELECT symbol, MAX(date) as max_date
+        FROM technical_data_daily
+        ${whereClause}
+        GROUP BY symbol
+      )
       SELECT
         t.symbol,
         t.date,
-        p.open as open_price,
-        p.high as high_price,
-        p.low as low_price,
-        p.close as close_price,
-        p.volume,
-        ROUND(((p.close - LAG(p.close) OVER (PARTITION BY p.symbol ORDER BY p.date)) / NULLIF(LAG(p.close) OVER (PARTITION BY p.symbol ORDER BY p.date), 0) * 100)::NUMERIC, 2) as price_change_percent,
+        pc.open as open_price,
+        pc.high as high_price,
+        pc.low as low_price,
+        pc.close as close_price,
+        pc.volume,
+        pc.price_change_percent,
         t.rsi,
         t.macd,
         t.macd_signal,
@@ -240,13 +258,8 @@ router.get("/daily", async (req, res) => {
         t.pivot_low_triggered,
         t.fetched_at
       FROM technical_data_daily t
-      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-      INNER JOIN (
-        SELECT symbol, MAX(date) as max_date
-        FROM technical_data_daily
-        ${whereClause}
-        GROUP BY symbol
-      ) latest ON t.symbol = latest.symbol AND t.date = latest.max_date
+      INNER JOIN latest_dates ld ON t.symbol = ld.symbol AND t.date = ld.max_date
+      LEFT JOIN price_changes pc ON t.symbol = pc.symbol AND t.date = pc.date
       ORDER BY t.${sortField} ${order}
       LIMIT $1 OFFSET $2
       `,
