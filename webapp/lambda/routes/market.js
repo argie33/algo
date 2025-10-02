@@ -5890,4 +5890,3 @@ router.get("/hours", async (req, res) => {
 });
 
 module.exports = router;
-# Updated: $(date '+%Y-%m-%d %H:%M') - Fix sector analysis query to use real tables
