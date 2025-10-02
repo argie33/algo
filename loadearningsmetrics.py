@@ -4,8 +4,8 @@ Earnings Metrics Loader - Updated 2025-10-02
 Comprehensive earnings analysis with quality scoring
 Calculates growth metrics and derives an earnings quality score for stock selection
 
-Updated: 2025-10-02 13:00 - Add dependency check for earnings_history table
-Ensures earnings_history is populated before processing metrics
+Updated: 2025-10-02 15:16 - Deployed with earnings_history dependency check
+Ensures earnings_history is populated before processing metrics to avoid 100% failure rate
 """
 import concurrent.futures
 import gc
