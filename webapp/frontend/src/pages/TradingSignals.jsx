@@ -1125,7 +1125,7 @@ function TradingSignals() {
           {signalsError && (
             <ErrorDisplay
               error={{
-                ...signalsError,
+                message: signalsError?.message || String(signalsError),
                 context: {
                   endpoint: `${API_BASE}/api/signals?timeframe=${timeframe}`,
                   debugEndpoint: `${API_BASE}/api/trading/debug`,
