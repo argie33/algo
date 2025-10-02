@@ -468,7 +468,15 @@ def prepare_db():
     );
     """
     )
-    logging.info("Table 'technical_data_daily' ready.")
+
+    # Create index for efficient latest-date queries
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_technical_daily_symbol_date_desc
+        ON technical_data_daily(symbol, date DESC);
+        """
+    )
+    logging.info("Table 'technical_data_daily' ready with performance indexes.")
 
     cursor.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     symbols = [r[0] for r in cursor.fetchall()]

@@ -194,51 +194,53 @@ router.get("/daily", async (req, res) => {
 
     try {
       // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
+      // Optimized query: Use JOIN with subquery for latest dates instead of DISTINCT ON
       result = await query(
       `
       SELECT
-        symbol,
-        date,
-        rsi,
-        macd,
-        macd_signal,
-        macd_hist,
-        mom,
-        roc,
-        adx,
-        plus_di,
-        minus_di,
-        atr,
-        ad,
-        cmf,
-        mfi,
-        td_sequential,
-        td_combo,
-        marketwatch,
-        dm,
-        sma_10,
-        sma_20,
-        sma_50,
-        sma_150,
-        sma_200,
-        ema_4,
-        ema_9,
-        ema_21,
-        bbands_lower,
-        bbands_middle,
-        bbands_upper,
-        pivot_high,
-        pivot_low,
-        pivot_high_triggered,
-        pivot_low_triggered,
-        fetched_at
-      FROM (
-        SELECT DISTINCT ON (symbol) *
+        t.symbol,
+        t.date,
+        t.rsi,
+        t.macd,
+        t.macd_signal,
+        t.macd_hist,
+        t.mom,
+        t.roc,
+        t.adx,
+        t.plus_di,
+        t.minus_di,
+        t.atr,
+        t.ad,
+        t.cmf,
+        t.mfi,
+        t.td_sequential,
+        t.td_combo,
+        t.marketwatch,
+        t.dm,
+        t.sma_10,
+        t.sma_20,
+        t.sma_50,
+        t.sma_150,
+        t.sma_200,
+        t.ema_4,
+        t.ema_9,
+        t.ema_21,
+        t.bbands_lower,
+        t.bbands_middle,
+        t.bbands_upper,
+        t.pivot_high,
+        t.pivot_low,
+        t.pivot_high_triggered,
+        t.pivot_low_triggered,
+        t.fetched_at
+      FROM technical_data_daily t
+      INNER JOIN (
+        SELECT symbol, MAX(date) as max_date
         FROM technical_data_daily
         ${whereClause}
-        ORDER BY symbol, date DESC
-      ) latest_technical
-      ORDER BY ${sortField} ${order}
+        GROUP BY symbol
+      ) latest ON t.symbol = latest.symbol AND t.date = latest.max_date
+      ORDER BY t.${sortField} ${order}
       LIMIT $1 OFFSET $2
       `,
       queryParams
