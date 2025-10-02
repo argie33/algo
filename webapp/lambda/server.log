@@ -2605,3 +2605,108 @@ Processing request: GET /api/signals/performance/TSLA
 Database connection verified for database-dependent endpoint
 📊 Signal performance requested for TSLA - 7d
 ::ffff:127.0.0.1 - - [02/Oct/2025:22:17:10 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database {}
+Processing request: GET /api/signals/performance
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for daily
+::1 - - [02/Oct/2025:22:32:57 +0000] "GET /api/signals?timeframe=daily&page=1&limit=25 HTTP/1.1" 200 8760 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [02/Oct/2025:22:32:57 +0000] "GET /api/signals/performance HTTP/1.1" 200 900 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+::ffff:127.0.0.1 - - [02/Oct/2025:22:32:57 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+::ffff:127.0.0.1 - - [02/Oct/2025:22:32:57 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:32:57 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:32:57 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:32:57 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:32:58 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+::ffff:127.0.0.1 - - [02/Oct/2025:22:32:58 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:32:58 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:34 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:34 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:34 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:34 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:34 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:34 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:34 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:34 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:35 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:35 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:35 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:35 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:35 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:35 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:35 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [02/Oct/2025:22:33:35 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"

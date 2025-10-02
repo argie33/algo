@@ -1445,30 +1445,6 @@ function MarketOverview() {
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Latest Economic Indicators
-                  </Typography>
-                  {economicIndicators.slice(0, 5).map((indicator, index) => (
-                    <Box
-                      key={index}
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 1,
-                      }}
-                    >
-                      <Typography variant="body2">{indicator.name}:</Typography>
-                      <Typography variant="body2" fontWeight="600">
-                        {indicator.value} {indicator.unit}
-                      </Typography>
-                    </Box>
-                  ))}
-                </CardContent>
-              </Card>
-            </Grid>
           </Grid>
         </TabPanel>
 
@@ -1710,116 +1686,6 @@ function MarketOverview() {
           )}
         </TabPanel>
 
-        <TabPanel value={tabValue} index={4}>
-          {economicLoading ? (
-            <LinearProgress />
-          ) : (
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                      Economic Indicators (Last 90 Days)
-                    </Typography>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ backgroundColor: "grey.50" }}>
-                            <TableCell sx={{ fontWeight: 600 }}>
-                              Indicator
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>
-                              Current Value
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>
-                              Previous Value
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>
-                              Change
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>
-                              Date
-                            </TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {(() => {
-                            // Handle different data structures for economic indicators
-                            let indicators = [];
-                            if (
-                              economicData?.data &&
-                              Array.isArray(economicData?.data)
-                            ) {
-                              indicators = economicData?.data.slice(0, 10);
-                            } else if (
-                              economicData?.data &&
-                              typeof economicData?.data === "object"
-                            ) {
-                              // If data is grouped by indicator name
-                              indicators = Object.entries(economicData?.data)
-                                .flatMap(([name, values]) =>
-                                  Array.isArray(values)
-                                    ? values
-                                        .slice(0, 2)
-                                        .map((v) => ({ ...v, name }))
-                                    : [{ ...values, name }]
-                                )
-                                .slice(0, 10);
-                            } else if (Array.isArray(economicData)) {
-                              indicators = economicData.slice(0, 10);
-                            }
-
-                            return (indicators || []).map(
-                              (indicator, index) => (
-                                <TableRow key={index} hover>
-                                  <TableCell>
-                                    {indicator.name ||
-                                      indicator.indicator_name ||
-                                      "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {indicator.value} {indicator.unit}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {indicator.previous_value || "N/A"}{" "}
-                                    {indicator.unit}
-                                  </TableCell>
-                                  <TableCell
-                                    align="right"
-                                    sx={{
-                                      color: getChangeColor(
-                                        parseFloat(indicator.change_percent) ||
-                                          0
-                                      ),
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {indicator.change_percent
-                                      ? formatPercentage(
-                                          parseFloat(indicator.change_percent)
-                                        )
-                                      : "N/A"}
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    {indicator.timestamp || indicator.date
-                                      ? new Date(
-                                          indicator.timestamp || indicator.date
-                                        ).toLocaleDateString()
-                                      : "N/A"}
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            );
-                          })()}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          )}
-        </TabPanel>
 
         <TabPanel value={tabValue} index={5}>
           {seasonalityLoading ? (
@@ -2698,6 +2564,7 @@ function MarketOverview() {
                                             ? "success"
                                             : sector.momentum === "Moderate"
                                               ? "info"
+                                              : "default"
                                         }
                                         size="small"
                                       />
@@ -2710,6 +2577,7 @@ function MarketOverview() {
                                             ? "success"
                                             : sector.flow === "Outflow"
                                               ? "error"
+                                              : "default"
                                         }
                                         size="small"
                                       />
@@ -2772,6 +2640,9 @@ function MarketOverview() {
                                   color={
                                     event.importance === "High"
                                       ? "error"
+                                      : event.importance === "Medium"
+                                        ? "warning"
+                                        : "default"
                                   }
                                   size="small"
                                 />

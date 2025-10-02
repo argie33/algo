@@ -18,6 +18,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableHead,
   TableRow,
   Tabs,
   Tooltip,
