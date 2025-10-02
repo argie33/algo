@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-02 23:05 - ULTRA-CONSERVATIVE rate limiting: batch=3, pause=15s, extract delay=1s
 # Updated: 2025-10-02 20:55 - Fix rate limiting with per-symbol delays and better detection
 # Updated Thu Sep 19 23:25:00 CDT 2025 - Final Docker build fix: renamed Dockerfile.loadinfo to Dockerfile.info
 # Updated Thu Sep 19 23:18:00 CDT 2025 - Test Docker build with workflow fix for loadinfo naming
@@ -82,11 +83,12 @@ def load_company_info(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading company info for {total} symbols")
     processed, failed = 0, []
-    # Best practice: Use larger batches with yfinance batch API
-    # Batch API is more efficient and less likely to hit rate limits
-    CHUNK_SIZE = 10  # Process 10 symbols at once using batch API
-    BATCH_PAUSE = 5.0  # Shorter pause since we're using batch API
-    SYMBOL_DELAY = 3.0  # Fallback to individual if batch fails
+    # ULTRA-CONSERVATIVE rate limiting to avoid 429 errors
+    # Reduced batch size and increased delays significantly
+    CHUNK_SIZE = 3  # Small batches to minimize rate limit risk
+    BATCH_PAUSE = 15.0  # Long pause between batches (was 5.0)
+    SYMBOL_DELAY = 5.0  # Longer delay for fallback individual requests (was 3.0)
+    SYMBOL_EXTRACT_DELAY = 1.0  # NEW: Delay even when extracting from batch
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
@@ -132,6 +134,8 @@ def load_company_info(symbols, cur, conn):
                     info = ticker.info
                     if not info or not isinstance(info, dict) or len(info) == 0:
                         raise ValueError("Empty info from batch")
+                    # Small delay even when extracting from batch to be extra safe
+                    time.sleep(SYMBOL_EXTRACT_DELAY)
                 except Exception as e:
                     logging.warning(f"Failed to get {orig_sym} from batch: {e}, trying individual request")
                     info = None
