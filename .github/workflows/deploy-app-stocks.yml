@@ -559,6 +559,9 @@ jobs:
             "info")
               TASK_DEF_NAME="LoadInfoTaskDefArn"
               ;;
+            "calendar")
+              TASK_DEF_NAME="CalendarTaskDefArn"
+              ;;
             "earningsmetrics")
               TASK_DEF_NAME="EarningsMetricsTaskDefArn"
               ;;
