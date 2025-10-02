@@ -1050,11 +1050,8 @@ function MarketOverview() {
         </Grid>
       )}
 
-      ()
-                          : "N/A"}
-                      </Typography>
-                    </Box>
-                    <Box
+      {/* Tabs for different market views */}
+      <Box
                       sx={{
                         display: "flex",
                         justifyContent: "space-between",
@@ -1079,7 +1076,6 @@ function MarketOverview() {
                                   ? (val * 100).toFixed(1) + "%"
                                   : val.toFixed(1) + "%";
                             })()
-                          : "N/A"}
                       </Typography>
                     </Box>
                     <Box
@@ -1107,7 +1103,6 @@ function MarketOverview() {
                                   ? (val * 100).toFixed(1) + "%"
                                   : val.toFixed(1) + "%";
                             })()
-                          : "N/A"}
                       </Typography>
                     </Box>
                     <Typography variant="body2" sx={{ opacity: 0.9 }}>
@@ -1177,7 +1172,6 @@ function MarketOverview() {
                             );
                             return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                           })()
-                        : "N/A"}
                     </Typography>
                     <Box
                       sx={{
@@ -1200,7 +1194,6 @@ function MarketOverview() {
                               );
                               return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                             })()
-                          : "N/A"}
                       </Typography>
                     </Box>
                     <Box
@@ -1224,7 +1217,6 @@ function MarketOverview() {
                               );
                               return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                             })()
-                          : "N/A"}
                       </Typography>
                     </Box>
                     <Typography variant="body2" sx={{ opacity: 0.9 }}>
@@ -1233,7 +1225,6 @@ function MarketOverview() {
                         ? new Date(
                             sentimentIndicators.naaim.week_ending
                           ).toLocaleDateString()
-                        : "N/A"}
                     </Typography>
                   </Box>
                 ) : (
@@ -1277,7 +1268,6 @@ function MarketOverview() {
                       {marketBreadth.advancing !== undefined &&
                       marketBreadth.advancing !== null
                         ? parseInt(marketBreadth.advancing).toLocaleString()
-                        : "N/A"}
                     </Typography>
                     <Typography variant="body2" color="success.contrastText">
                       Advancing
@@ -1297,7 +1287,6 @@ function MarketOverview() {
                       {marketBreadth.declining !== undefined &&
                       marketBreadth.declining !== null
                         ? parseInt(marketBreadth.declining).toLocaleString()
-                        : "N/A"}
                     </Typography>
                     <Typography variant="body2" color="error.contrastText">
                       Declining
@@ -1310,7 +1299,6 @@ function MarketOverview() {
                       Advance/Decline Ratio:{" "}
                       {marketBreadth.advance_decline_ratio !== undefined
                         ? marketBreadth.advance_decline_ratio
-                        : "N/A"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Average Change:{" "}
@@ -1318,7 +1306,6 @@ function MarketOverview() {
                         ? parseFloat(
                             marketBreadth.average_change_percent
                           ).toFixed(2)
-                        : "N/A"}
                       %
                     </Typography>
                   </Box>
@@ -1340,7 +1327,6 @@ function MarketOverview() {
                 <Typography variant="body2" fontWeight="600">
                   {marketBreadth.total_stocks !== undefined
                     ? parseInt(marketBreadth.total_stocks).toLocaleString()
-                    : "N/A"}
                 </Typography>
               </Box>
               <Box
@@ -1350,7 +1336,6 @@ function MarketOverview() {
                 <Typography variant="body2" fontWeight="600">
                   {marketCap.total !== undefined
                     ? formatCurrency(marketCap.total)
-                    : "N/A"}
                 </Typography>
               </Box>
               <Box
@@ -1360,7 +1345,6 @@ function MarketOverview() {
                 <Typography variant="body2" fontWeight="600">
                   {marketBreadth.unchanged !== undefined
                     ? parseInt(marketBreadth.unchanged).toLocaleString()
-                    : "N/A"}
                 </Typography>
               </Box>{" "}
             </CardContent>
@@ -1873,14 +1857,12 @@ function MarketOverview() {
                                       ? formatPercentage(
                                           parseFloat(indicator.change_percent)
                                         )
-                                      : "N/A"}
                                   </TableCell>
                                   <TableCell align="right">
                                     {indicator.timestamp || indicator.date
                                       ? new Date(
                                           indicator.timestamp || indicator.date
                                         ).toLocaleDateString()
-                                      : "N/A"}
                                   </TableCell>
                                 </TableRow>
                               )
@@ -2143,7 +2125,6 @@ function MarketOverview() {
                                   sx={{
                                     backgroundColor: cycle.isCurrent
                                       ? "primary.light"
-                                      : "inherit",
                                   }}
                                 >
                                   <TableCell>Year {cycle.year}</TableCell>
@@ -2190,7 +2171,6 @@ function MarketOverview() {
                                 p: 1,
                                 backgroundColor: day.isCurrent
                                   ? "primary.light"
-                                  : "inherit",
                                 borderRadius: 1,
                               }}
                             >
@@ -2266,7 +2246,6 @@ function MarketOverview() {
                                         ? "error"
                                         : anomaly.strength === "Moderate"
                                           ? "warning"
-                                          : "default"
                                     }
                                   />
                                 </Box>
@@ -2773,7 +2752,6 @@ function MarketOverview() {
                                             ? "success"
                                             : sector.momentum === "Moderate"
                                               ? "info"
-                                              : "warning"
                                         }
                                         size="small"
                                       />
@@ -2786,7 +2764,6 @@ function MarketOverview() {
                                             ? "success"
                                             : sector.flow === "Outflow"
                                               ? "error"
-                                              : "default"
                                         }
                                         size="small"
                                       />
@@ -2849,7 +2826,6 @@ function MarketOverview() {
                                   color={
                                     event.importance === "High"
                                       ? "error"
-                                      : "warning"
                                   }
                                   size="small"
                                 />

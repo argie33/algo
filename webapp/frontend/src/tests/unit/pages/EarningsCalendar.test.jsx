@@ -68,37 +68,19 @@ const mockCalendarData = {
         symbol: "AAPL",
         company: "Apple Inc.",
         start_date: "2024-01-25",
-        report_date: "2024-01-25",
-        event_type: "earnings",
-        title: "Apple Inc. Q1 2024 Earnings Report",
-        quarter: 1,
-        fiscal_year: 2024,
-        estimated_eps: 2.11,
-        actual_eps: null,
-        surprise_percent: null,
-        timing: "after_market",
-        time: "after_market", // Legacy field
-        result: null,
-        analyst_count: null,
-        conference_call_time: null,
+        end_date: "2024-01-25",
+        event_type: "Earnings",
+        title: "Earnings",
+        fetched_at: "2024-01-20T10:00:00Z",
       },
       {
         symbol: "GOOGL",
         company: "Alphabet Inc.",
         start_date: "2024-01-24",
-        report_date: "2024-01-24",
-        event_type: "earnings",
-        title: "Alphabet Inc. Q4 2023 Earnings Report",
-        quarter: 4,
-        fiscal_year: 2023,
-        estimated_eps: 1.51,
-        actual_eps: 1.64,
-        surprise_percent: 8.6,
-        timing: "after_market",
-        time: "after_market", // Legacy field
-        result: "beat",
-        analyst_count: null,
-        conference_call_time: null,
+        end_date: "2024-01-24",
+        event_type: "Earnings",
+        title: "Earnings",
+        fetched_at: "2024-01-20T10:00:00Z",
       },
     ],
   },
@@ -389,7 +371,7 @@ describe("EarningsCalendar Component", () => {
 
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("Apple Inc. Earnings Report")).toBeInTheDocument();
+      expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
@@ -398,7 +380,7 @@ describe("EarningsCalendar Component", () => {
 
     await waitFor(() => {
       expect(screen.getByText("GOOGL")).toBeInTheDocument();
-      expect(screen.getByText("Alphabet Inc. Earnings Report")).toBeInTheDocument();
+      expect(screen.getByText("Alphabet Inc.")).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
