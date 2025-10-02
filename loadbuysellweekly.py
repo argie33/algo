@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: Buy sell weekly loader for AWS deployment - test CI/CD fix Sep 28 2025
+# Updated: 2025-10-02 17:37 - Deploy weekly buy/sell loader
 import json
 import logging
 import os
