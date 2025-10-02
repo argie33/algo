@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 13:45 - Fix swing metrics SQL parameters to use tuple format
+# Updated: 2025-10-02 14:15 - Retrigger deployment with tuple parameter fix
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
 # Fixed: SQL parameter formatting issue in update_swing_metrics_for_symbol
