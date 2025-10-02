@@ -1050,84 +1050,14 @@ function MarketOverview() {
         </Grid>
       )}
 
-      {/* Tabs for different market views */}
-      <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                        p: 1,
-                        bgcolor: "rgba(255,255,255,0.1)",
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Neutral:
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {sentimentIndicators.aaii.neutral !== undefined
-                          ? (() => {
-                              const val = parseFloat(
-                                sentimentIndicators.aaii.neutral
-                              );
-                              return isNaN(val)
-                                ? "N/A"
-                                : val <= 1
-                                  ? (val * 100).toFixed(1) + "%"
-                                  : val.toFixed(1) + "%";
-                            })()
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                        p: 1,
-                        bgcolor: "rgba(255,255,255,0.1)",
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Bearish:
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {sentimentIndicators.aaii.bearish !== undefined
-                          ? (() => {
-                              const val = parseFloat(
-                                sentimentIndicators.aaii.bearish
-                              );
-                              return isNaN(val)
-                                ? "N/A"
-                                : val <= 1
-                                  ? (val * 100).toFixed(1) + "%"
-                                  : val.toFixed(1) + "%";
-                            })()
-                      </Typography>
-                    </Box>
-                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                      Week ending:{" "}
-                      {sentimentIndicators.aaii.date
-                        ? new Date(
-                            sentimentIndicators.aaii.date
-                          ).toLocaleDateString()
-                        : "N/A"}
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box>
-                    <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                      No AAII data available
-                    </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                      Sentiment indicators are loading...
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </GradientCard>
-          </AnimatedCard>
-        </Grid>
+      {/* Sentiment Indicators Section */}
+      {sentimentIndicators && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12}>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+              Sentiment Indicators
+            </Typography>
+          </Grid>
         <Grid item xs={12} md={4}>
           <AnimatedCard delay={2}>
             <GradientCard gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
@@ -1172,6 +1102,7 @@ function MarketOverview() {
                             );
                             return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                           })()
+                        : "N/A"}
                     </Typography>
                     <Box
                       sx={{
@@ -1194,6 +1125,7 @@ function MarketOverview() {
                               );
                               return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                             })()
+                          : "N/A"}
                       </Typography>
                     </Box>
                     <Box
@@ -1217,6 +1149,7 @@ function MarketOverview() {
                               );
                               return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
                             })()
+                          : "N/A"}
                       </Typography>
                     </Box>
                     <Typography variant="body2" sx={{ opacity: 0.9 }}>
@@ -1225,6 +1158,7 @@ function MarketOverview() {
                         ? new Date(
                             sentimentIndicators.naaim.week_ending
                           ).toLocaleDateString()
+                        : "N/A"}
                     </Typography>
                   </Box>
                 ) : (
@@ -1245,6 +1179,7 @@ function MarketOverview() {
           </AnimatedCard>
         </Grid>
       </Grid>
+      )}
 
       {/* Enhanced Market Breadth Section */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -1268,6 +1203,7 @@ function MarketOverview() {
                       {marketBreadth.advancing !== undefined &&
                       marketBreadth.advancing !== null
                         ? parseInt(marketBreadth.advancing).toLocaleString()
+                        : "N/A"}
                     </Typography>
                     <Typography variant="body2" color="success.contrastText">
                       Advancing
@@ -1287,6 +1223,7 @@ function MarketOverview() {
                       {marketBreadth.declining !== undefined &&
                       marketBreadth.declining !== null
                         ? parseInt(marketBreadth.declining).toLocaleString()
+                        : "N/A"}
                     </Typography>
                     <Typography variant="body2" color="error.contrastText">
                       Declining
@@ -1299,14 +1236,15 @@ function MarketOverview() {
                       Advance/Decline Ratio:{" "}
                       {marketBreadth.advance_decline_ratio !== undefined
                         ? marketBreadth.advance_decline_ratio
+                        : "N/A"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Average Change:{" "}
                       {marketBreadth.average_change_percent !== undefined
                         ? parseFloat(
                             marketBreadth.average_change_percent
-                          ).toFixed(2)
-                      %
+                          ).toFixed(2) + "%"
+                        : "N/A"}
                     </Typography>
                   </Box>
                 </Grid>
@@ -1327,6 +1265,7 @@ function MarketOverview() {
                 <Typography variant="body2" fontWeight="600">
                   {marketBreadth.total_stocks !== undefined
                     ? parseInt(marketBreadth.total_stocks).toLocaleString()
+                    : "N/A"}
                 </Typography>
               </Box>
               <Box
@@ -1336,6 +1275,7 @@ function MarketOverview() {
                 <Typography variant="body2" fontWeight="600">
                   {marketCap.total !== undefined
                     ? formatCurrency(marketCap.total)
+                    : "N/A"}
                 </Typography>
               </Box>
               <Box
@@ -1345,6 +1285,7 @@ function MarketOverview() {
                 <Typography variant="body2" fontWeight="600">
                   {marketBreadth.unchanged !== undefined
                     ? parseInt(marketBreadth.unchanged).toLocaleString()
+                    : "N/A"}
                 </Typography>
               </Box>{" "}
             </CardContent>
@@ -1857,12 +1798,14 @@ function MarketOverview() {
                                       ? formatPercentage(
                                           parseFloat(indicator.change_percent)
                                         )
+                                      : "N/A"}
                                   </TableCell>
                                   <TableCell align="right">
                                     {indicator.timestamp || indicator.date
                                       ? new Date(
                                           indicator.timestamp || indicator.date
                                         ).toLocaleDateString()
+                                      : "N/A"}
                                   </TableCell>
                                 </TableRow>
                               )
@@ -2125,6 +2068,7 @@ function MarketOverview() {
                                   sx={{
                                     backgroundColor: cycle.isCurrent
                                       ? "primary.light"
+                                      : "transparent",
                                   }}
                                 >
                                   <TableCell>Year {cycle.year}</TableCell>
@@ -2171,6 +2115,7 @@ function MarketOverview() {
                                 p: 1,
                                 backgroundColor: day.isCurrent
                                   ? "primary.light"
+                                  : "transparent",
                                 borderRadius: 1,
                               }}
                             >
@@ -2246,6 +2191,7 @@ function MarketOverview() {
                                         ? "error"
                                         : anomaly.strength === "Moderate"
                                           ? "warning"
+                                          : "info"
                                     }
                                   />
                                 </Box>
