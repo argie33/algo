@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 - YFinance earnings estimates loader (fixed Docker build)
+# Updated: 2025-10-02 02:32 - Trigger execution to populate AWS earnings estimates table
 import gc
 import json
 import logging
