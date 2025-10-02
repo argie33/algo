@@ -1157,7 +1157,8 @@ router.get("/ecs-tasks", async (req, res) => {
           const message = event.message || "";
 
           // Check for completion messages
-          if (message.includes("All done") || message.includes("completed successfully")) {
+          if (message.includes("All done") || message.includes("completed successfully") ||
+              message.includes("Done.") || message.includes("Done!") || message.includes("✨")) {
             status = "success";
           } else if (message.includes("ERROR") || message.includes("CRITICAL") || message.includes("Failed")) {
             status = "failure";

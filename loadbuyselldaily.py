@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Updated: 2025-09-30 - ETF filtering + SATA scores + Bug fixes
+# Updated: 2025-10-02 12:45 - Fix swing metrics parameter error for AACG
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
-# Fixed: FRED_API_KEY check, tuple index error (named params)
+# Fixed: SQL parameter formatting issue in update_swing_metrics_for_symbol
 import json
 import logging
 import os
@@ -827,7 +827,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             daily_range_pct = cm.daily_range_pct,
             volatility_profile = cm.volatility_profile
         FROM calculated_metrics cm
-        WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date AND bsd.timeframe = %(timeframe)s
+        WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date
         """
 
         cur.execute(update_sql, {'symbol': symbol, 'timeframe': timeframe})
