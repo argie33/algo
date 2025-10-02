@@ -93,8 +93,8 @@ function TradingSignals() {
   const [symbolFilter, setSymbolFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
-  // Date range filter - defaults to "today" to show most current signals
-  const [dateRange, setDateRange] = useState("today"); // today, week, month, all
+  // Date range filter - defaults to "all" to show all signals
+  const [dateRange, setDateRange] = useState("all"); // today, week, month, all
 
   // Advanced filters
   const [highQualityOnly, setHighQualityOnly] = useState(false); // entry_quality_score >= 60
@@ -142,7 +142,7 @@ function TradingSignals() {
       page,
       rowsPerPage,
       symbolFilter,
-      dateRange,
+      // Note: dateRange is NOT in queryKey - it's client-side filtering only
     ],
     queryFn: async () => {
       try {
@@ -846,8 +846,8 @@ function TradingSignals() {
             No trading signals found
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {dateRange === "today"
-              ? "No signals for today. Try 'This Week' or 'All Time' to see historical signals."
+            {dateRange === "all"
+              ? "No signals found. Try adjusting your timeframe or other filters."
               : "No signals match your current filters. Try adjusting your date range or other filters."}
           </Typography>
         </Box>
