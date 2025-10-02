@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 18:50 - Trigger loader execution after WPP integer overflow fix
+# Updated: 2025-10-02 20:55 - Fix rate limiting with per-symbol delays and better detection
 # Updated Thu Sep 19 23:25:00 CDT 2025 - Final Docker build fix: renamed Dockerfile.loadinfo to Dockerfile.info
 # Updated Thu Sep 19 23:18:00 CDT 2025 - Test Docker build with workflow fix for loadinfo naming
 # Updated Thu Sep 19 18:16:00 CDT 2025 - Optimize Docker build for faster pip installs
@@ -82,7 +82,9 @@ def load_company_info(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading company info for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 5, 5.0  # Much smaller batches and longer pause for maximum success rate
+    CHUNK_SIZE = 3  # Smaller batches to reduce API pressure
+    BATCH_PAUSE = 10.0  # Longer pause between batches
+    SYMBOL_DELAY = 2.0  # Delay between individual API calls within a batch
     # Conservative settings prioritize data completeness over speed
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
@@ -102,6 +104,8 @@ def load_company_info(symbols, cur, conn):
                     info = ticker.info
                     if not info:
                         raise ValueError("No info data received")
+                    # Add delay after successful API call to prevent rate limiting
+                    time.sleep(SYMBOL_DELAY)
                     break
                 except Exception as e:
                     logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
@@ -110,10 +114,11 @@ def load_company_info(symbols, cur, conn):
                         break  # Break from retry loop
 
                     # Use exponential backoff for rate limit errors
-                    if "rate limit" in str(e).lower():
+                    error_str = str(e).lower()
+                    if "rate limit" in error_str or "too many requests" in error_str or "429" in error_str:
                         # Exponential backoff: 15s, 30s, 60s, 120s, 120s...
                         delay = min(RATE_LIMIT_BASE_DELAY * (2 ** (attempt - 1)), MAX_BACKOFF_DELAY)
-                        logging.info(f"Rate limited - waiting {delay}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
+                        logging.info(f"Rate limited - waiting {delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
                     else:
                         delay = RETRY_DELAY
                     time.sleep(delay)
@@ -484,7 +489,7 @@ def load_company_info(symbols, cur, conn):
         del batch, yq_batch, mapping
         gc.collect()
         log_mem(f"Batch {batch_idx+1} end")
-        time.sleep(PAUSE)
+        time.sleep(BATCH_PAUSE)
 
     return total, processed, failed
 
