@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -38,11 +39,12 @@ import {
   Tooltip,
 } from "recharts";
 import { useAuth } from "../contexts/AuthContext";
-import api from "../services/api";
+import api, { getMarketResearchIndicators } from "../services/api";
 import {
   formatCurrency,
   formatPercentage,
   formatNumber,
+  getChangeColor,
 } from "../utils/formatters";
 
 const SectorAnalysis = () => {
@@ -66,9 +68,20 @@ const SectorAnalysis = () => {
     XLRE: { name: "Real Estate", color: "#E91E63" },
   };
 
+  // Fetch sector rotation data
+  const { data: rotationData, isLoading: rotationLoading } = useQuery({
+    queryKey: ["sector-rotation"],
+    queryFn: async () => {
+      const response = await getMarketResearchIndicators();
+      return response;
+    },
+    staleTime: 60000, // 1 minute
+    enabled: !!user,
+  });
+
   useEffect(() => {
     loadSectorData();
-    
+
   }, []);
 
   const loadSectorData = async () => {
@@ -350,6 +363,79 @@ const SectorAnalysis = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Sector Rotation Analysis */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Sector Rotation Analysis
+          </Typography>
+          {rotationLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <LinearProgress sx={{ width: "50%" }} />
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: "grey.50" }}>
+                    <TableCell sx={{ fontWeight: 600 }}>Sector</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Momentum</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Money Flow</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      Performance
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(rotationData?.data?.sectorRotation || []).map(
+                    (sector, index) => (
+                      <TableRow key={index} hover>
+                        <TableCell>{sector.sector}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={sector.momentum}
+                            color={
+                              sector.momentum === "Strong"
+                                ? "success"
+                                : sector.momentum === "Moderate"
+                                  ? "info"
+                                  : "default"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={sector.flow}
+                            color={
+                              sector.flow === "Inflow"
+                                ? "success"
+                                : sector.flow === "Outflow"
+                                  ? "error"
+                                  : "default"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          sx={{
+                            color: getChangeColor(sector.performance),
+                            fontWeight: 600,
+                          }}
+                        >
+                          {formatPercentage(sector.performance)}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Detailed Sector Table */}
       <Card>

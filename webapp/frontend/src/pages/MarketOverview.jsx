@@ -498,14 +498,14 @@ function MarketOverview() {
   const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery({
     queryKey: ["seasonality-data"],
     queryFn: fetchSeasonalityData,
-    enabled: tabValue === 5,
+    enabled: tabValue === 4,
     staleTime: 30000,
   });
 
   const { data: researchData, isLoading: researchLoading } = useQuery({
     queryKey: ["market-research-indicators"],
     queryFn: fetchResearchIndicators,
-    enabled: tabValue === 6,
+    enabled: tabValue === 5,
     staleTime: 30000,
   });
 
@@ -916,48 +916,6 @@ function MarketOverview() {
         </Grid>
       )}
 
-      {/* Sector Performance Display */}
-      {mainSectors && mainSectors.length > 0 && (
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12}>
-            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-              Sector Performance
-            </Typography>
-          </Grid>
-          {mainSectors.slice(0, 6).map((sector, idx) => (
-            <Grid item xs={12} sm={6} md={4} key={sector.name || sector.sector}>
-              <AnimatedCard delay={idx}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Box>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                          {sector.name || sector.sector}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {sector.stocks || sector.stock_count || 0} stocks
-                        </Typography>
-                      </Box>
-                      <Box sx={{ textAlign: "right" }}>
-                        <Typography
-                          variant="h6"
-                          sx={{
-                            color: getChangeColor(sector.performance || sector.changePercent || sector.change_percent),
-                            fontWeight: 600,
-                          }}
-                          className={(sector.performance || sector.changePercent || sector.change_percent) > 0 ? "text-green-600" : "text-red-600"}
-                        >
-                          {formatPercentageChange(sector.performance || sector.changePercent || sector.change_percent)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </AnimatedCard>
-            </Grid>
-          ))}
-        </Grid>
-      )}
 
       {/* Top Movers Section */}
       {(topMovers.gainers?.length > 0 || topMovers.losers?.length > 0) && (
@@ -1343,43 +1301,27 @@ function MarketOverview() {
               />
               <Tab
                 value={2}
-                label="Sector Performance"
-                icon={<Business />}
+                label="Market Breadth"
+                icon={<Equalizer />}
                 iconPosition="start"
                 id="market-tab-2"
                 aria-controls="market-tabpanel-2"
               />
               <Tab
                 value={3}
-                label="Market Breadth"
-                icon={<Equalizer />}
+                label="Seasonality"
+                icon={<CalendarToday />}
                 iconPosition="start"
                 id="market-tab-3"
                 aria-controls="market-tabpanel-3"
               />
               <Tab
                 value={4}
-                label="Economic Indicators"
-                icon={<Public />}
-                iconPosition="start"
-                id="market-tab-4"
-                aria-controls="market-tabpanel-4"
-              />
-              <Tab
-                value={5}
-                label="Seasonality"
-                icon={<CalendarToday />}
-                iconPosition="start"
-                id="market-tab-5"
-                aria-controls="market-tabpanel-5"
-              />
-              <Tab
-                value={6}
                 label="Research Indicators"
                 icon={<Analytics />}
                 iconPosition="start"
-                id="market-tab-6"
-                aria-controls="market-tabpanel-6"
+                id="market-tab-4"
+                aria-controls="market-tabpanel-4"
               />
             </Tabs>
         </Box>
@@ -1687,7 +1629,7 @@ function MarketOverview() {
         </TabPanel>
 
 
-        <TabPanel value={tabValue} index={5}>
+        <TabPanel value={tabValue} index={4}>
           {seasonalityLoading ? (
             <LinearProgress />
           ) : (
@@ -2235,7 +2177,7 @@ function MarketOverview() {
           )}
         </TabPanel>
 
-        <TabPanel value={tabValue} index={6}>
+        <TabPanel value={tabValue} index={5}>
           {researchLoading ? (
             <LinearProgress />
           ) : (
@@ -2516,89 +2458,6 @@ function MarketOverview() {
                             </Box>
                           )
                         )}
-                      </CardContent>
-                    </Card>
-                  </Grid>
-
-                  {/* Sector Rotation */}
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{ mb: 2, fontWeight: 600 }}
-                        >
-                          Sector Rotation Analysis
-                        </Typography>
-                        <TableContainer>
-                          <Table>
-                            <TableHead>
-                              <TableRow sx={{ backgroundColor: "grey.50" }}>
-                                <TableCell sx={{ fontWeight: 600 }}>
-                                  Sector
-                                </TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>
-                                  Momentum
-                                </TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>
-                                  Money Flow
-                                </TableCell>
-                                <TableCell
-                                  align="right"
-                                  sx={{ fontWeight: 600 }}
-                                >
-                                  Performance
-                                </TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {(researchData?.data.sectorRotation || []).map(
-                                (sector, index) => (
-                                  <TableRow key={index} hover>
-                                    <TableCell>{sector.sector}</TableCell>
-                                    <TableCell>
-                                      <Chip
-                                        label={sector.momentum}
-                                        color={
-                                          sector.momentum === "Strong"
-                                            ? "success"
-                                            : sector.momentum === "Moderate"
-                                              ? "info"
-                                              : "default"
-                                        }
-                                        size="small"
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Chip
-                                        label={sector.flow}
-                                        color={
-                                          sector.flow === "Inflow"
-                                            ? "success"
-                                            : sector.flow === "Outflow"
-                                              ? "error"
-                                              : "default"
-                                        }
-                                        size="small"
-                                      />
-                                    </TableCell>
-                                    <TableCell
-                                      align="right"
-                                      sx={{
-                                        color: getChangeColor(
-                                          sector.performance
-                                        ),
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      {formatPercentage(sector.performance)}
-                                    </TableCell>
-                                  </TableRow>
-                                )
-                              )}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
                       </CardContent>
                     </Card>
                   </Grid>
