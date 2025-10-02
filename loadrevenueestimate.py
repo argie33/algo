@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 16:59 - Fix numpy type handling with proper type hierarchy
+# Updated: 2025-10-02 17:25 - Change BIGINT to NUMERIC to handle large revenue values
 import gc
 import json
 import logging
@@ -137,17 +137,17 @@ def create_tables(cur):
     # Drop and recreate revenue estimates table
     cur.execute("DROP TABLE IF EXISTS revenue_estimates CASCADE;")
 
-    # Create revenue_estimates table
+    # Create revenue_estimates table with NUMERIC for large values
     cur.execute(
         """
         CREATE TABLE revenue_estimates (
             symbol VARCHAR(20) NOT NULL,
             period VARCHAR(3) NOT NULL,
-            avg_estimate BIGINT,
-            low_estimate BIGINT,
-            high_estimate BIGINT,
+            avg_estimate NUMERIC,
+            low_estimate NUMERIC,
+            high_estimate NUMERIC,
             number_of_analysts INTEGER,
-            year_ago_revenue BIGINT,
+            year_ago_revenue NUMERIC,
             growth NUMERIC,
             fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, period)
@@ -190,15 +190,16 @@ def load_revenue_data(symbols, cur, conn):
                 if revenue_est is not None and not revenue_est.empty:
                     revenue_data = []
                     for period, row in revenue_est.iterrows():
+                        # Use safe_float for NUMERIC columns (handles large values better)
                         revenue_data.append(
                             (
                                 orig_sym,
                                 period,
-                                safe_int(row.get("avg")),
-                                safe_int(row.get("low")),
-                                safe_int(row.get("high")),
+                                safe_float(row.get("avg")),
+                                safe_float(row.get("low")),
+                                safe_float(row.get("high")),
                                 safe_int(row.get("numberOfAnalysts")),
-                                safe_int(row.get("yearAgoRevenue")),
+                                safe_float(row.get("yearAgoRevenue")),
                                 safe_float(row.get("growth")),
                             )
                         )
