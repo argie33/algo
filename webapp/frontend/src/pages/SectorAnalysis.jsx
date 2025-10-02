@@ -228,14 +228,13 @@ const SectorAnalysis = () => {
 
       {/* Error State */}
       {error && (
-        <Alert severity="warning" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Limited Data Available
+            Failed to Load Sector Data
           </Typography>
           <Typography variant="body2">{error}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Showing demo data for presentation. Configure Alpaca API credentials
-            for live sector data.
+            Check database connection and ensure sector data is populated.
           </Typography>
         </Alert>
       )}
@@ -545,8 +544,6 @@ const SectorAnalysis = () => {
                       <TableCell align="center">
                         {hasError ? (
                           <Chip label="Error" color="error" size="small" />
-                        ) : sector.dataSource === "demo" ? (
-                          <Chip label="Demo" color="warning" size="small" />
                         ) : (
                           <Chip label="Live" color="success" size="small" />
                         )}
