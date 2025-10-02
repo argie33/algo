@@ -118,8 +118,8 @@ router.get("/:sector/stocks", async (req, res) => {
 
 // Apply authentication to all routes except health and root
 router.use((req, res, next) => {
-  // Skip auth for public endpoints
-  const publicEndpoints = ["/health", "/", "/performance", "/leaders", "/rotation"];
+  // Skip auth for public endpoints - sectors are PUBLIC DATA
+  const publicEndpoints = ["/health", "/", "/performance", "/leaders", "/rotation", "/analysis"];
   const stocksPattern = /^\/[^/]+\/stocks$/; // matches /:sector/stocks
 
   if (publicEndpoints.includes(req.path) || stocksPattern.test(req.path)) {

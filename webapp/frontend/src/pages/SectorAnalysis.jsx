@@ -68,7 +68,7 @@ const SectorAnalysis = () => {
     XLRE: { name: "Real Estate", color: "#E91E63" },
   };
 
-  // Fetch sector rotation data - NO FALLBACK
+  // Fetch sector rotation data - NO AUTH REQUIRED
   const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
     queryKey: ["sector-rotation"],
     queryFn: async () => {
@@ -76,7 +76,7 @@ const SectorAnalysis = () => {
       return response;
     },
     staleTime: 60000,
-    enabled: !!user,
+    enabled: true, // No auth required
     retry: false,
   });
 
@@ -90,12 +90,7 @@ const SectorAnalysis = () => {
       setError(null);
       setLoading(true);
 
-      if (!user) {
-        console.warn("User not authenticated, using demo data");
-        throw new Error("Not authenticated");
-      }
-
-      console.log("Loading sector analysis data");
+      console.log("Loading sector analysis data (no auth required)");
 
       // Try multiple endpoints for sector data
       let sectorResponse = null;
