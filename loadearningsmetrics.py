@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Earnings Metrics Loader - Updated 2025-10-01
+Earnings Metrics Loader - Updated 2025-10-02
 Comprehensive earnings analysis with quality scoring
 Calculates growth metrics and derives an earnings quality score for stock selection
 
-Updated: 2025-01-03 - Quality score implementation with weighted factors
-Deployment: Testing quality score calculation at 16:00 UTC
+Updated: 2025-10-02 13:00 - Add dependency check for earnings_history table
+Ensures earnings_history is populated before processing metrics
 """
 import concurrent.futures
 import gc
@@ -199,6 +199,19 @@ def prepare_db():
         );
         """
     )
+
+    # Check if earnings_history table has data (dependency check)
+    cursor.execute("SELECT COUNT(*) FROM earnings_history;")
+    earnings_history_count = cursor.fetchone()[0]
+
+    if earnings_history_count == 0:
+        logging.error("❌ Dependency check failed: earnings_history table is empty")
+        logging.error("Please run loadearningshistory.py first before running earnings_metrics")
+        cursor.close()
+        conn.close()
+        sys.exit(1)
+
+    logging.info(f"✅ Dependency check passed: earnings_history has {earnings_history_count:,} records")
 
     # Drop and recreate earnings_metrics table
     logging.info("Recreating earnings_metrics table...")
