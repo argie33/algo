@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 - Revenue estimates loader (fixed Docker build)
+# Updated: 2025-10-02 02:40 - Fix numpy.int64 adaptation error in revenue estimates
 import gc
 import json
 import logging
@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 
 import boto3
+import numpy as np
 import psycopg2
 import yfinance as yf
 from psycopg2.extras import RealDictCursor, execute_values
@@ -38,6 +39,47 @@ def get_rss_mb():
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+
+# -------------------------------
+# Safe numeric conversion
+# -------------------------------
+def safe_int(value):
+    """Safely convert value to int, handling None, NaN, numpy types, and invalid values"""
+    if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
+        return None
+    if isinstance(value, (np.integer, np.int64, np.int32)):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        value = value.strip()
+        if value in ["", "N/A", "null", "NULL", "nan", "NaN"]:
+            return None
+        try:
+            return int(float(value))
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def safe_float(value):
+    """Safely convert value to float, handling None, NaN, numpy types, and invalid values"""
+    if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
+        return None
+    if isinstance(value, (np.floating, np.float64, np.float32)):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        value = value.strip()
+        if value in ["", "N/A", "null", "NULL", "nan", "NaN"]:
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+    return None
 
 
 # -------------------------------
@@ -127,12 +169,12 @@ def load_revenue_data(symbols, cur, conn):
                             (
                                 orig_sym,
                                 period,
-                                row.get("avg"),
-                                row.get("low"),
-                                row.get("high"),
-                                row.get("numberOfAnalysts"),
-                                row.get("yearAgoRevenue"),
-                                row.get("growth"),
+                                safe_int(row.get("avg")),
+                                safe_int(row.get("low")),
+                                safe_int(row.get("high")),
+                                safe_int(row.get("numberOfAnalysts")),
+                                safe_int(row.get("yearAgoRevenue")),
+                                safe_float(row.get("growth")),
                             )
                         )
 

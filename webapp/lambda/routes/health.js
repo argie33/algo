@@ -1041,6 +1041,18 @@ router.get("/database/diagnostics", async (req, res) => {
 router.get("/ecs-tasks", async (req, res) => {
   console.log("Received request for /health/ecs-tasks");
 
+  // In local development, AWS SDK may not be available
+  if (process.env.NODE_ENV === "development" || !process.env.AWS_REGION) {
+    console.log("Running in local development - ECS task monitoring not available");
+    return res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      environment: "local",
+      message: "ECS task monitoring only available in AWS environment",
+      tasks: {}
+    });
+  }
+
   try {
     const { ECSClient, ListTasksCommand, DescribeTasksCommand } = require("@aws-sdk/client-ecs");
     const { CloudWatchLogsClient, DescribeLogStreamsCommand, GetLogEventsCommand } = require("@aws-sdk/client-cloudwatch-logs");
