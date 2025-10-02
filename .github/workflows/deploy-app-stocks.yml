@@ -320,6 +320,15 @@ jobs:
               "analystupgradedowngrade")
                 DOCKERFILE="Dockerfile.loadanalystupgradedowngrade"
                 ;;
+              "aaiidata")
+                DOCKERFILE="Dockerfile.loadaaiidata"
+                ;;
+              "feargreed")
+                DOCKERFILE="Dockerfile.loadfeargreed"
+                ;;
+              "naaim")
+                DOCKERFILE="Dockerfile.loadnaaim"
+                ;;
               *)
                 DOCKERFILE="Dockerfile.$loader"
                 ;;
@@ -398,6 +407,15 @@ jobs:
                 ;;
               "analystupgradedowngrade")
                 DOCKERFILE="Dockerfile.loadanalystupgradedowngrade"
+                ;;
+              "aaiidata")
+                DOCKERFILE="Dockerfile.loadaaiidata"
+                ;;
+              "feargreed")
+                DOCKERFILE="Dockerfile.loadfeargreed"
+                ;;
+              "naaim")
+                DOCKERFILE="Dockerfile.loadnaaim"
                 ;;
               *)
                 DOCKERFILE="Dockerfile.$loader"
