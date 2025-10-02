@@ -733,16 +733,17 @@ function ServiceHealth() {
           </Accordion>
         </Grid>
 
-        {/* ECS Scheduled Tasks Status */}
-        <Grid item xs={12}>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <Typography variant="h6">
-                <Cloud sx={{ mr: 1, verticalAlign: "middle" }} />
-                Scheduled Tasks Status
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails>
+        {/* ECS Scheduled Tasks Status - Only show in production AWS environment */}
+        {ecsTasks?.environment !== "local" && (
+          <Grid item xs={12}>
+            <Accordion defaultExpanded>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="h6">
+                  <Cloud sx={{ mr: 1, verticalAlign: "middle" }} />
+                  Scheduled Tasks Status
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
               <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
                 <Button
                   variant="outlined"
@@ -895,6 +896,7 @@ function ServiceHealth() {
             </AccordionDetails>
           </Accordion>
         </Grid>
+        )}
 
         {/* Database Health */}
         <Grid item xs={12}>
