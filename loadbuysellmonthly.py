@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 17:37 - Deploy monthly buy/sell loader
+# Updated: 2025-10-02 19:45 - Remove debug limit, process all symbols
 import json
 import logging
 import os
@@ -410,9 +410,7 @@ def main():
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
-    symbols = get_symbols_from_db(
-        limit=3
-    )  # Limit for debugging, remove or increase as needed
+    symbols = get_symbols_from_db()  # Process all symbols
     if not symbols:
         print("No symbols in DB.")
         return
