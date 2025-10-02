@@ -392,11 +392,11 @@ router.get("/events", async (req, res) => {
       const earningsQuery = `
         SELECT
           eh.symbol,
-          COALESCE(ss.name, eh.symbol) as company,
+          COALESCE(ss.security_name, eh.symbol) as company,
           eh.quarter as start_date,
           eh.quarter as report_date,
           'earnings' as event_type,
-          CONCAT(COALESCE(ss.name, eh.symbol), ' Q', EXTRACT(QUARTER FROM eh.quarter), ' ', EXTRACT(YEAR FROM eh.quarter), ' Earnings Report') as title,
+          CONCAT(COALESCE(ss.security_name, eh.symbol), ' Q', EXTRACT(QUARTER FROM eh.quarter), ' ', EXTRACT(YEAR FROM eh.quarter), ' Earnings Report') as title,
           EXTRACT(QUARTER FROM eh.quarter)::INTEGER as quarter,
           EXTRACT(YEAR FROM eh.quarter)::INTEGER as fiscal_year,
           eh.eps_estimate as estimated_eps,
