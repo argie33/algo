@@ -3083,6 +3083,12 @@ Outputs:
     Export:
       Name: RevenueEstimateTaskDefinitionArn
 
+  RevenueEstimateTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for revenueestimate loader
+    Value: !Ref RevenueEstimateTaskDefinition
+    Export:
+      Name: RevenueEstimateTaskDefArn
+
   SwingTraderTaskDefArn:
     Description: ARN of the ECS TaskDefinition for swing-trader loader
     Value: !Ref SwingTraderTaskDefinition

@@ -571,6 +571,9 @@ jobs:
             "earningsestimate")
               TASK_DEF_NAME="EarningsEstimateTaskDefArn"
               ;;
+            "revenueestimate")
+              TASK_DEF_NAME="RevenueEstimateTaskDefArn"
+              ;;
             *)
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
