@@ -69,7 +69,7 @@ describe('AnalystInsights Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Analyst Insights')).toBeInTheDocument();
-      expect(screen.getByText('Real analyst data from YFinance - Upgrades and downgrades')).toBeInTheDocument();
+      expect(screen.getByText('Analyst Insights')).toBeInTheDocument();
     });
   });
 

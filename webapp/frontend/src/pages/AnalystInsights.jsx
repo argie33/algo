@@ -149,9 +149,6 @@ const AnalystInsights = () => {
           <PersonIcon fontSize="large" />
           Analyst Insights
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
-          Real analyst data from YFinance - Upgrades and downgrades
-        </Typography>
       </Box>
 
       {error && (

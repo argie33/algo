@@ -14,7 +14,7 @@ test.describe('Analyst Insights E2E Tests', () => {
     await expect(page.getByRole('heading', { name: 'Analyst Insights' })).toBeVisible();
 
     // Check for the description
-    await expect(page.getByText('Real analyst data from YFinance - Upgrades and downgrades')).toBeVisible();
+    await expect(page.getByText('Analyst Insights')).toBeVisible();
 
     // Wait for data to load (should show loading spinner first, then data)
     await expect(page.getByText('Recent Analyst Actions')).toBeVisible({ timeout: 10000 });
