@@ -544,14 +544,14 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
         logging.info(f"Updating swing metrics for {symbol} {timeframe}")
 
         # Update all swing metrics in one efficient SQL statement
-        # Use string formatting for table names, psycopg2 parameters for values
-        update_sql = """
+        # Use f-strings for table names, psycopg2 parameters for values
+        update_sql = f"""
         WITH signal_data AS (
             SELECT
                 bsd.symbol, bsd.date, bsd.signal, bsd.buylevel, bsd.stoplevel,
                 bsd.close as current_price, bsd.open, bsd.high, bsd.low,
                 bsd.volume, bsd.inposition
-            FROM {} bsd
+            FROM {table_name} bsd
             WHERE bsd.symbol = %(symbol)s AND bsd.timeframe = %(timeframe)s
         ),
         technical_data AS (
@@ -563,7 +563,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 LAG(td.sma_20, 5) OVER (ORDER BY td.date) as sma_20_prev,
                 LAG(td.sma_50, 5) OVER (ORDER BY td.date) as sma_50_prev,
                 LAG(td.sma_200, 10) OVER (ORDER BY td.date) as sma_200_prev
-            FROM {} td
+            FROM {tech_table} td
             WHERE td.symbol = %(symbol)s
         ),
         volume_data AS (
@@ -573,7 +573,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ORDER BY pd.date
                     ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
                 ) as volume_avg_50
-            FROM {} pd
+            FROM {price_table} pd
             WHERE pd.symbol = %(symbol)s
         ),
         high_52week_data AS (
@@ -583,7 +583,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ORDER BY pd.date
                     ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                 ) as high_52week
-            FROM {} pd
+            FROM {price_table} pd
             WHERE pd.symbol = %(symbol)s
         ),
         calculated_metrics AS (
@@ -799,7 +799,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             JOIN volume_data vd ON sd.symbol = vd.symbol AND sd.date = vd.date
             JOIN high_52week_data hd ON sd.symbol = hd.symbol AND sd.date = hd.date
         )
-        UPDATE {} bsd SET
+        UPDATE {table_name} bsd SET
             selllevel = cm.selllevel,
             target_price = cm.target_price,
             current_price = cm.current_price,
@@ -829,7 +829,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             volatility_profile = cm.volatility_profile
         FROM calculated_metrics cm
         WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date
-        """.format(table_name, tech_table, price_table, price_table, table_name)
+        """
 
         # Parameters: named dict for all placeholders
         cur.execute(update_sql, {'symbol': symbol, 'timeframe': timeframe})
