@@ -1042,7 +1042,9 @@ router.get("/ecs-tasks", async (req, res) => {
   console.log("Received request for /health/ecs-tasks");
 
   // In local development, AWS SDK may not be available
-  if (process.env.NODE_ENV === "development" || !process.env.AWS_REGION) {
+  // Check for AWS Lambda environment or DB_SECRET_ARN to detect AWS
+  const isAWS = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.DB_SECRET_ARN;
+  if (process.env.NODE_ENV === "development" && !isAWS) {
     console.log("Running in local development - ECS task monitoring not available");
     return res.json({
       success: true,

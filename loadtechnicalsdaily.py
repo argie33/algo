@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Updated: 2025-09-30 - ETF filtering + Mansfield RS calculation
+# Updated: 2025-10-02 10:45 - Trigger execution with optimized batch processing
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # SATA Score implementation: Mansfield RS calculation added - Sep 30 2025
+# Memory optimized: 512MB, batch size 30 for better throughput
 import concurrent.futures
 import gc
 import json
@@ -46,7 +47,7 @@ logging.basicConfig(
 
 # Optimized for ECS - minimal resource usage
 MAX_WORKERS = 1  # Single worker to prevent memory issues on 512MB tasks
-BATCH_SIZE = 25  # Smaller batches for memory efficiency
+BATCH_SIZE = 30  # Optimized batch size for better throughput without memory issues
 DB_POOL_MIN = 1
 DB_POOL_MAX = 2  # Minimal connections for 512MB memory constraint
 
