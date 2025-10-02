@@ -65,9 +65,7 @@ import {
   getMarketOverview,
   getMarketSentimentHistory,
   getMarketSectorPerformance,
-  getMarketBreadth,
-  getEconomicIndicators,
-  getSeasonalityData,
+  getMarketBreadth, getSeasonalityData,
   getMarketResearchIndicators,
 } from "../services/api";
 import {
@@ -418,20 +416,7 @@ const fetchMarketBreadth = async () => {
   }
 };
 
-const fetchEconomicIndicators = async (days = 90) => {
-  try {
-    console.log(`💰 Fetching economic indicators for ${days} days...`);
-    const response = await getEconomicIndicators(days);
-    console.log("💰 Economic indicators response:", response);
-    return response;
-  } catch (error) {
-    _logger.error(
-      "Economic indicators error:",
-      error.message || error.toString()
-    );
-    throw error;
-  }
-};
+
 
 const fetchSeasonalityData = async () => {
   try {
@@ -508,12 +493,7 @@ function MarketOverview() {
     staleTime: 30000,
   });
 
-  const { data: economicData, isLoading: economicLoading } = useQuery({
-    queryKey: ["economic-indicators"],
-    queryFn: () => fetchEconomicIndicators(90),
-    enabled: tabValue === 4,
-    staleTime: 30000,
-  });
+  
 
   const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery({
     queryKey: ["seasonality-data"],
@@ -575,11 +555,7 @@ function MarketOverview() {
     marketData?.data?.market_breadth || marketData?.market_breadth || {};
   const marketCap =
     marketData?.data?.market_cap || marketData?.market_cap || {};
-  const economicIndicators =
-    marketData?.economicIndicators ||
-    marketData?.data?.economic_indicators ||
-    marketData?.economic_indicators ||
-    [];
+  
   const indices =
     marketData?.data?.indices || 
     marketData?.indices || 
@@ -1074,221 +1050,7 @@ function MarketOverview() {
         </Grid>
       )}
 
-      {/* Economic Indicators Section */}
-      {economicIndicators && economicIndicators.length > 0 && (
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12}>
-            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-              Economic Indicators
-            </Typography>
-          </Grid>
-          {economicIndicators.slice(0, 6).map((indicator, idx) => (
-            <Grid item xs={12} sm={6} md={4} key={indicator.name}>
-              <AnimatedCard delay={idx}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Box>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                          {indicator.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {indicator.description}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ textAlign: "right" }}>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                          {indicator.value}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: getChangeColor(indicator.change),
-                            fontWeight: 600,
-                          }}
-                        >
-                          {indicator.change > 0 ? '+' : ''}{indicator.change}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </AnimatedCard>
-            </Grid>
-          ))}
-        </Grid>
-      )}
-
-      {/* Enhanced Market Sentiment Indicators */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={4}>
-          <AnimatedCard delay={0}>
-            <GradientCard gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
-              <CardContent>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    mb: 3,
-                  }}
-                >
-                  <Box>
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 600, color: "inherit" }}
-                    >
-                      Fear & Greed Index
-                    </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                      Market Sentiment Indicator
-                    </Typography>
-                  </Box>
-                  <Avatar
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      bgcolor: "rgba(255,255,255,0.2)",
-                      backdropFilter: "blur(10px)",
-                    }}
-                  >
-                    <Psychology />
-                  </Avatar>
-                </Box>
-                {sentimentIndicators.fear_greed ? (
-                  <Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        mb: 3,
-                      }}
-                    >
-                      <SentimentGauge
-                        value={sentimentIndicators.fear_greed.value || 0}
-                        label={
-                          sentimentIndicators.fear_greed.value_text || "Unknown"
-                        }
-                      />
-                    </Box>
-                    <Box
-                      sx={{
-                        p: 2,
-                        bgcolor: "rgba(255,255,255,0.1)",
-                        borderRadius: 2,
-                        backdropFilter: "blur(10px)",
-                      }}
-                    >
-                      <Grid container spacing={2}>
-                        <Grid item xs={6}>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            Previous
-                          </Typography>
-                          <Typography variant="body2" fontWeight={600}>
-                            {sentimentIndicators.fear_greed.previous || "N/A"}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            Change
-                          </Typography>
-                          <Typography variant="body2" fontWeight={600}>
-                            {sentimentIndicators.fear_greed.change || "0"}%
-                          </Typography>
-                        </Grid>
-                      </Grid>
-                    </Box>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        display: "block",
-                        mt: 2,
-                        opacity: 0.7,
-                        textAlign: "center",
-                      }}
-                    >
-                      Updated:{" "}
-                      {sentimentIndicators.fear_greed.timestamp
-                        ? new Date(
-                            sentimentIndicators.fear_greed.timestamp
-                          ).toLocaleString()
-                        : "N/A"}
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ textAlign: "center", py: 4 }}>
-                    <CircularProgress sx={{ color: "rgba(255,255,255,0.5)" }} />
-                    <Typography variant="body2" sx={{ mt: 2, opacity: 0.7 }}>
-                      Loading sentiment data...
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </GradientCard>
-          </AnimatedCard>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <AnimatedCard delay={1}>
-            <GradientCard gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">
-              <CardContent>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    mb: 3,
-                  }}
-                >
-                  <Box>
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 600, color: "inherit" }}
-                    >
-                      AAII Investor Sentiment
-                    </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                      Retail Investor Survey
-                    </Typography>
-                  </Box>
-                  <Avatar
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      bgcolor: "rgba(255,255,255,0.2)",
-                      backdropFilter: "blur(10px)",
-                    }}
-                  >
-                    <Assessment />
-                  </Avatar>
-                </Box>
-                {sentimentIndicators.aaii ? (
-                  <Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                        p: 1,
-                        bgcolor: "rgba(255,255,255,0.1)",
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Bullish:
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {sentimentIndicators.aaii.bullish !== undefined
-                          ? (() => {
-                              const val = parseFloat(
-                                sentimentIndicators.aaii.bullish
-                              );
-                              return isNaN(val)
-                                ? "N/A"
-                                : val <= 1
-                                  ? (val * 100).toFixed(1) + "%"
-                                  : val.toFixed(1) + "%";
-                            })()
+      ()
                           : "N/A"}
                       </Typography>
                     </Box>
