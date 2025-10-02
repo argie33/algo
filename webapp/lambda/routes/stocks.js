@@ -887,6 +887,13 @@ router.get("/", async (req, res) => {
       SELECT
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
+        cp.long_name as "fullName",
+        cp.short_name as "shortName",
+        cp.display_name as "displayName",
+        cp.website_url as website,
+        cp.employee_count as "employeeCount",
+        cp.country,
+        cp.business_summary as "businessSummary",
         cp.sector,
         cp.industry,
         COALESCE(md.market_cap, 0) as market_cap,
