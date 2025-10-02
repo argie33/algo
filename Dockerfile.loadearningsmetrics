@@ -1,0 +1,13 @@
+# Dockerfile.loadearningsmetrics
+FROM public.ecr.aws/lambda/python:3.11
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy requirements and script
+COPY Dockerfile.loadearningsmetrics requirements-loadearningsmetrics.txt loadearningsmetrics.py ./
+
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadearningsmetrics.txt
+
+# Set the entrypoint
+ENTRYPOINT ["python", "loadearningsmetrics.py"]
