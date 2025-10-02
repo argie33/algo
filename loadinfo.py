@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-02 23:50 - OPTIMIZED rate limiting: fast with adaptive backoff only on rate limits
 # Updated: 2025-10-02 23:05 - ULTRA-CONSERVATIVE rate limiting: batch=3, pause=15s, extract delay=1s
 # Updated: 2025-10-02 20:55 - Fix rate limiting with per-symbol delays and better detection
 # Updated Thu Sep 19 23:25:00 CDT 2025 - Final Docker build fix: renamed Dockerfile.loadinfo to Dockerfile.info
@@ -54,12 +55,16 @@ def log_mem(stage: str):
 
 
 # -------------------------------
-# Retry settings - Enhanced for rate limit resilience
+# Retry settings - OPTIMIZED for speed + reliability
 # -------------------------------
-MAX_BATCH_RETRIES = 10  # More attempts for rate-limited APIs
-RETRY_DELAY = 3.0  # Base delay for general errors
-RATE_LIMIT_BASE_DELAY = 15.0  # Base delay for rate limits (will use exponential backoff)
+MAX_BATCH_RETRIES = 5  # Reasonable retry attempts
+RETRY_DELAY = 2.0  # Quick retry for general errors
+RATE_LIMIT_BASE_DELAY = 10.0  # Start backoff at 10s only when rate limited
 MAX_BACKOFF_DELAY = 120.0  # Maximum wait time (2 minutes)
+
+# Global rate limit tracking
+rate_limit_hit = False  # Track if we've been rate limited
+consecutive_successes = 0  # Track successful batches to speed up if no issues
 
 
 # -------------------------------
@@ -80,16 +85,21 @@ def get_db_config():
 
 
 def load_company_info(symbols, cur, conn):
+    global rate_limit_hit, consecutive_successes
+
     total = len(symbols)
     logging.info(f"Loading company info for {total} symbols")
     processed, failed = 0, []
-    # ULTRA-CONSERVATIVE rate limiting to avoid 429 errors
-    # Reduced batch size and increased delays significantly
-    CHUNK_SIZE = 3  # Small batches to minimize rate limit risk
-    BATCH_PAUSE = 15.0  # Long pause between batches (was 5.0)
-    SYMBOL_DELAY = 5.0  # Longer delay for fallback individual requests (was 3.0)
-    SYMBOL_EXTRACT_DELAY = 1.0  # NEW: Delay even when extracting from batch
+
+    # OPTIMIZED rate limiting: start fast, back off only when needed
+    # yfinance free tier: ~2000 requests/hour, batch requests count as 1 request
+    CHUNK_SIZE = 15  # Efficient batch size (batch API counts as 1 request)
+    BATCH_PAUSE_MIN = 2.0  # Fast when no issues (2s = 1800 batches/hour, well under limit)
+    BATCH_PAUSE_RATE_LIMITED = 10.0  # Slow down if rate limited
+    SYMBOL_DELAY = 3.0  # Individual request delay (fallback only)
+
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+    logging.info(f"Using optimized batching: {CHUNK_SIZE} symbols/batch, {batches} total batches")
 
     for batch_idx in range(batches):
         batch = symbols[batch_idx * CHUNK_SIZE : (batch_idx + 1) * CHUNK_SIZE]
@@ -105,15 +115,18 @@ def load_company_info(symbols, cur, conn):
             try:
                 # Create Tickers object for batch processing
                 tickers = yf.Tickers(" ".join(yq_batch))
-                logging.info(f"Batch API call successful for {len(yq_batch)} symbols")
+                logging.info(f"✅ Batch API call successful for {len(yq_batch)} symbols")
                 batch_success = True
+                consecutive_successes += 1
                 break
             except Exception as e:
                 logging.warning(f"Batch attempt {attempt} failed: {e}")
                 error_str = str(e).lower()
                 if "rate limit" in error_str or "too many requests" in error_str or "429" in error_str:
+                    rate_limit_hit = True
+                    consecutive_successes = 0  # Reset success counter
                     delay = min(RATE_LIMIT_BASE_DELAY * (2 ** (attempt - 1)), MAX_BACKOFF_DELAY)
-                    logging.info(f"Rate limited on batch - waiting {delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
+                    logging.warning(f"⚠️ RATE LIMITED on batch - waiting {delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
                 else:
                     delay = RETRY_DELAY
                 time.sleep(delay)
@@ -134,8 +147,7 @@ def load_company_info(symbols, cur, conn):
                     info = ticker.info
                     if not info or not isinstance(info, dict) or len(info) == 0:
                         raise ValueError("Empty info from batch")
-                    # Small delay even when extracting from batch to be extra safe
-                    time.sleep(SYMBOL_EXTRACT_DELAY)
+                    # No delay needed when extracting from already-fetched batch (it's local data)
                 except Exception as e:
                     logging.warning(f"Failed to get {orig_sym} from batch: {e}, trying individual request")
                     info = None
@@ -150,6 +162,7 @@ def load_company_info(symbols, cur, conn):
                             raise ValueError("No info data received")
                         # Delay after individual API call
                         time.sleep(SYMBOL_DELAY)
+                        consecutive_successes += 1
                         break
                     except Exception as e:
                         logging.warning(f"Individual attempt {attempt} failed for {orig_sym}: {e}")
@@ -159,8 +172,10 @@ def load_company_info(symbols, cur, conn):
 
                         error_str = str(e).lower()
                         if "rate limit" in error_str or "too many requests" in error_str or "429" in error_str:
+                            rate_limit_hit = True
+                            consecutive_successes = 0
                             delay = min(RATE_LIMIT_BASE_DELAY * (2 ** (attempt - 1)), MAX_BACKOFF_DELAY)
-                            logging.info(f"Rate limited - waiting {delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
+                            logging.warning(f"⚠️ RATE LIMITED - waiting {delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
                         else:
                             delay = RETRY_DELAY
                         time.sleep(delay)
@@ -530,7 +545,21 @@ def load_company_info(symbols, cur, conn):
         del batch, yq_batch, mapping
         gc.collect()
         log_mem(f"Batch {batch_idx+1} end")
-        time.sleep(BATCH_PAUSE)
+
+        # Adaptive delay between batches: fast when no issues, slow if rate limited
+        if batch_idx < batches - 1:  # Don't delay after last batch
+            if rate_limit_hit:
+                # Been rate limited - use conservative delay
+                delay = BATCH_PAUSE_RATE_LIMITED
+                logging.info(f"Using conservative {delay}s pause (rate limit detected)")
+            elif consecutive_successes >= 5:
+                # Multiple successes - can go even faster
+                delay = BATCH_PAUSE_MIN / 2
+                logging.info(f"Using fast {delay}s pause ({consecutive_successes} consecutive successes)")
+            else:
+                # Normal fast operation
+                delay = BATCH_PAUSE_MIN
+            time.sleep(delay)
 
     return total, processed, failed
 
@@ -804,15 +833,15 @@ if __name__ == "__main__":
         logging.warning(f"Failed symbols ({len(f_s)}): {', '.join(f_s[:20])}{'...' if len(f_s) > 20 else ''}")
         logging.info("RETRY PASS: Attempting to recover failed symbols with ultra-conservative settings...")
 
-        # Retry with EXTREMELY conservative settings (1 symbol at a time, long delays)
+        # Retry with moderate settings (still thorough but not wasteful)
         retry_failed = []
         for idx, symbol in enumerate(f_s):
             logging.info(f"Retry {idx+1}/{len(f_s)}: {symbol}")
             yq_sym = symbol.replace(".", "-").replace("$", "-").upper()
 
-            # Try up to 15 times with exponential backoff
+            # Try up to 10 times with exponential backoff
             success = False
-            for attempt in range(1, 16):
+            for attempt in range(1, 11):
                 try:
                     ticker = yf.Ticker(yq_sym)
                     info = ticker.info
@@ -895,24 +924,24 @@ if __name__ == "__main__":
                     success = True
                     break
                 except Exception as e:
-                    logging.warning(f"Retry attempt {attempt}/15 failed for {symbol}: {e}")
-                    if attempt == 15:
+                    logging.warning(f"Retry attempt {attempt}/10 failed for {symbol}: {e}")
+                    if attempt == 10:
                         retry_failed.append(symbol)
-                        logging.error(f"❌ PERMANENTLY FAILED: {symbol} - could not recover after 15 retry attempts")
+                        logging.error(f"❌ PERMANENTLY FAILED: {symbol} - could not recover after 10 retry attempts")
                         break
 
-                    # Ultra-long exponential backoff for retries (start at 30s, max 300s = 5min)
+                    # Moderate exponential backoff for retries (start at 10s, max 120s)
                     error_str = str(e).lower()
                     if "rate limit" in error_str or "too many requests" in error_str or "429" in error_str:
-                        delay = min(30.0 * (2 ** (attempt - 1)), 300.0)
-                        logging.info(f"Rate limited on retry - waiting {delay:.1f}s before attempt {attempt+1}/15")
+                        delay = min(10.0 * (2 ** (attempt - 1)), 120.0)
+                        logging.info(f"Rate limited on retry - waiting {delay:.1f}s before attempt {attempt+1}/10")
                     else:
-                        delay = 10.0
+                        delay = 5.0
                     time.sleep(delay)
 
-            # Delay between retry symbols (even on success)
+            # Moderate delay between retry symbols
             if idx < len(f_s) - 1:  # Don't delay after last symbol
-                time.sleep(10.0)
+                time.sleep(5.0)
 
         # Final report
         recovered = len(f_s) - len(retry_failed)

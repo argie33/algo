@@ -3022,3 +3022,11 @@ Processing request: GET /api/market/sectors/performance
 Database connection verified for database-dependent endpoint
 Sector performance endpoint called
 ::1 - - [02/Oct/2025:23:35:56 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [02/Oct/2025:23:46:21 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [02/Oct/2025:23:46:21 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
