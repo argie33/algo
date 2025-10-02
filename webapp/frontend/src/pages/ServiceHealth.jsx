@@ -879,10 +879,16 @@ function ServiceHealth() {
               )}
 
               {!ecsLoading && !ecsError && (!ecsTasks || !ecsTasks.tasks || Object.keys(ecsTasks.tasks).length === 0) && (
-                <Alert severity="info">
-                  <Typography variant="subtitle2">No scheduled tasks configured</Typography>
+                <Alert severity={ecsTasks?.environment === "local" ? "warning" : "info"}>
+                  <Typography variant="subtitle2">
+                    {ecsTasks?.environment === "local"
+                      ? "ECS Task Monitoring Not Available"
+                      : "No scheduled tasks configured"}
+                  </Typography>
                   <Typography variant="body2">
-                    Configure scheduled tasks in GitHub Actions workflows or AWS EventBridge.
+                    {ecsTasks?.environment === "local"
+                      ? "Scheduled task monitoring is only available in AWS production environment. View the AWS production site to see task status."
+                      : "Configure scheduled tasks in GitHub Actions workflows or AWS EventBridge."}
                   </Typography>
                 </Alert>
               )}
