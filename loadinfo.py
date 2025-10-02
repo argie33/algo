@@ -82,10 +82,11 @@ def load_company_info(symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading company info for {total} symbols")
     processed, failed = 0, []
-    CHUNK_SIZE = 3  # Smaller batches to reduce API pressure
-    BATCH_PAUSE = 10.0  # Longer pause between batches
-    SYMBOL_DELAY = 2.0  # Delay between individual API calls within a batch
-    # Conservative settings prioritize data completeness over speed
+    # Best practice: Use larger batches with yfinance batch API
+    # Batch API is more efficient and less likely to hit rate limits
+    CHUNK_SIZE = 10  # Process 10 symbols at once using batch API
+    BATCH_PAUSE = 5.0  # Shorter pause since we're using batch API
+    SYMBOL_DELAY = 3.0  # Fallback to individual if batch fails
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
@@ -93,39 +94,75 @@ def load_company_info(symbols, cur, conn):
         yq_batch = [s.replace(".", "-").replace("$", "-").upper() for s in batch]
         mapping = dict(zip(yq_batch, batch))
 
-        logging.info(f"Processing batch {batch_idx+1}/{batches}")
+        logging.info(f"Processing batch {batch_idx+1}/{batches} ({len(batch)} symbols)")
         log_mem(f"Batch {batch_idx+1} start")
 
+        # Try batch download first (best practice - single API call for multiple symbols)
+        batch_success = False
+        for attempt in range(1, MAX_BATCH_RETRIES + 1):
+            try:
+                # Create Tickers object for batch processing
+                tickers = yf.Tickers(" ".join(yq_batch))
+                logging.info(f"Batch API call successful for {len(yq_batch)} symbols")
+                batch_success = True
+                break
+            except Exception as e:
+                logging.warning(f"Batch attempt {attempt} failed: {e}")
+                error_str = str(e).lower()
+                if "rate limit" in error_str or "too many requests" in error_str or "429" in error_str:
+                    delay = min(RATE_LIMIT_BASE_DELAY * (2 ** (attempt - 1)), MAX_BACKOFF_DELAY)
+                    logging.info(f"Rate limited on batch - waiting {delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
+                else:
+                    delay = RETRY_DELAY
+                time.sleep(delay)
+
+        if not batch_success:
+            logging.error(f"Batch API failed after {MAX_BATCH_RETRIES} attempts, falling back to individual requests")
+            # Fall back to individual ticker calls
+            tickers = None
+
+        # Process each symbol in the batch
         for yq_sym, orig_sym in mapping.items():
-            info = None  # Initialize info variable
-            for attempt in range(1, MAX_BATCH_RETRIES + 1):
+            info = None
+
+            # Try to get info from batch result first
+            if batch_success and tickers:
                 try:
-                    ticker = yf.Ticker(yq_sym)
+                    ticker = tickers.tickers[yq_sym]
                     info = ticker.info
-                    if not info:
-                        raise ValueError("No info data received")
-                    # Add delay after successful API call to prevent rate limiting
-                    time.sleep(SYMBOL_DELAY)
-                    break
+                    if not info or not isinstance(info, dict) or len(info) == 0:
+                        raise ValueError("Empty info from batch")
                 except Exception as e:
-                    logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
-                    if attempt == MAX_BATCH_RETRIES:
-                        failed.append(orig_sym)
-                        break  # Break from retry loop
+                    logging.warning(f"Failed to get {orig_sym} from batch: {e}, trying individual request")
+                    info = None
 
-                    # Use exponential backoff for rate limit errors
-                    error_str = str(e).lower()
-                    if "rate limit" in error_str or "too many requests" in error_str or "429" in error_str:
-                        # Exponential backoff: 15s, 30s, 60s, 120s, 120s...
-                        delay = min(RATE_LIMIT_BASE_DELAY * (2 ** (attempt - 1)), MAX_BACKOFF_DELAY)
-                        logging.info(f"Rate limited - waiting {delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
-                    else:
-                        delay = RETRY_DELAY
-                    time.sleep(delay)
-
-            # Skip this symbol if we couldn't get info after all retries
+            # Fallback to individual request if batch failed
             if info is None:
-                logging.error(f"Failed to get info for {orig_sym} after {MAX_BATCH_RETRIES} attempts")
+                for attempt in range(1, MAX_BATCH_RETRIES + 1):
+                    try:
+                        ticker = yf.Ticker(yq_sym)
+                        info = ticker.info
+                        if not info:
+                            raise ValueError("No info data received")
+                        # Delay after individual API call
+                        time.sleep(SYMBOL_DELAY)
+                        break
+                    except Exception as e:
+                        logging.warning(f"Individual attempt {attempt} failed for {orig_sym}: {e}")
+                        if attempt == MAX_BATCH_RETRIES:
+                            failed.append(orig_sym)
+                            break
+
+                        error_str = str(e).lower()
+                        if "rate limit" in error_str or "too many requests" in error_str or "429" in error_str:
+                            delay = min(RATE_LIMIT_BASE_DELAY * (2 ** (attempt - 1)), MAX_BACKOFF_DELAY)
+                            logging.info(f"Rate limited - waiting {delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
+                        else:
+                            delay = RETRY_DELAY
+                        time.sleep(delay)
+
+            if info is None:
+                logging.error(f"Failed to get info for {orig_sym} after all attempts")
                 continue
 
             try:
