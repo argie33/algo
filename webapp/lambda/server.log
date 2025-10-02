@@ -7,3 +7,50 @@ Health check: http://localhost:5001/health
 Stocks: http://localhost:5001/stocks
 Technical: http://localhost:5001/technical/daily
 🔌 WebSocket endpoint: ws://localhost:5001/ws
+Processing request: GET /api/technical/daily
+Initializing database connection...
+Initializing database connection pool...
+Using database config from environment variables
+Database config loaded from environment: localhost:5432/stocks
+✅ Database connection pool initialized successfully
+Database connection established successfully
+Database connection verified for database-dependent endpoint
+📊 Daily technical data requested - page: 1, limit: 2, sortBy: symbol, sortOrder: asc
+Testing query function...
+Test query result: Result {
+  command: 'SELECT',
+  rowCount: 1,
+  oid: null,
+  rows: [ { test: 1 } ],
+  fields: [
+    Field {
+      name: 'test',
+      tableID: 0,
+      columnID: 0,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    }
+  ],
+  _parsers: [ [Function: parseInteger] ],
+  _types: TypeOverrides {
+    _types: {
+      getTypeParser: [Function: getTypeParser],
+      setTypeParser: [Function: setTypeParser],
+      arrayParser: [Object],
+      builtins: [Object]
+    },
+    text: {},
+    binary: {}
+  },
+  RowCtor: null,
+  rowAsArray: false,
+  _prebuiltEmptyResultObject: { test: null }
+}
+::1 - - [02/Oct/2025:15:52:57 +0000] "GET /api/technical/daily?limit=2 HTTP/1.1" 200 1684 "-" "curl/8.5.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database {}
+::1 - - [02/Oct/2025:15:57:22 +0000] "GET /api/signals?limit=5 HTTP/1.1" 200 5580 "-" "curl/8.5.0"
