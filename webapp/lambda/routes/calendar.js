@@ -388,19 +388,33 @@ router.get("/events", async (req, res) => {
     let events = [];
 
     try {
-      // Try to get earnings events from database
+      // Try to get earnings events from database with all required fields
       const earningsQuery = `
         SELECT
-          symbol,
-          quarter as event_date,
+          eh.symbol,
+          COALESCE(ss.company_name, ss.name, eh.symbol) as company,
+          eh.quarter as start_date,
+          eh.quarter as report_date,
           'earnings' as event_type,
-          CONCAT(symbol, ' Q', EXTRACT(QUARTER FROM quarter), ' ', EXTRACT(YEAR FROM quarter), ' Earnings Report') as title,
-          quarter as start_date,
-          quarter as end_date
-        FROM earnings_history
-        WHERE quarter >= CURRENT_DATE
-        AND quarter <= CURRENT_DATE + INTERVAL '30 days'
-        ORDER BY quarter ASC
+          CONCAT(COALESCE(ss.company_name, eh.symbol), ' Q', EXTRACT(QUARTER FROM eh.quarter), ' ', EXTRACT(YEAR FROM eh.quarter), ' Earnings Report') as title,
+          EXTRACT(QUARTER FROM eh.quarter)::INTEGER as quarter,
+          EXTRACT(YEAR FROM eh.quarter)::INTEGER as fiscal_year,
+          eh.eps_estimate as estimated_eps,
+          eh.eps_actual as actual_eps,
+          eh.surprise_percent,
+          'after_market' as timing,
+          CASE
+            WHEN eh.eps_actual > eh.eps_estimate THEN 'beat'
+            WHEN eh.eps_actual < eh.eps_estimate THEN 'miss'
+            ELSE 'met'
+          END as result,
+          NULL::INTEGER as analyst_count,
+          NULL::TIMESTAMPTZ as conference_call_time
+        FROM earnings_history eh
+        LEFT JOIN stock_symbols ss ON eh.symbol = ss.symbol
+        WHERE eh.quarter >= CURRENT_DATE
+        AND eh.quarter <= CURRENT_DATE + INTERVAL '30 days'
+        ORDER BY eh.quarter ASC
         LIMIT $1 OFFSET $2
       `;
 
@@ -409,11 +423,21 @@ router.get("/events", async (req, res) => {
       if (earningsResult && earningsResult.rows) {
         events = earningsResult.rows.map(row => ({
           symbol: row.symbol,
+          company: row.company,
           event_type: row.event_type,
           title: row.title,
           start_date: row.start_date,
-          end_date: row.end_date,
-          description: `${row.symbol} earnings report`,
+          report_date: row.report_date,
+          quarter: row.quarter,
+          fiscal_year: row.fiscal_year,
+          estimated_eps: row.estimated_eps,
+          actual_eps: row.actual_eps,
+          surprise_percent: row.surprise_percent,
+          timing: row.timing,
+          time: row.timing, // Legacy field for compatibility
+          result: row.result,
+          analyst_count: row.analyst_count,
+          conference_call_time: row.conference_call_time,
         }));
       }
     } catch (dbError) {
