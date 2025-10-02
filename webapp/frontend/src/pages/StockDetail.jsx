@@ -2050,11 +2050,6 @@ function StockDetail() {
                             </TableBody>
                           </Table>
                         </TableContainer>
-                        {analystOverview?.data?.fetched_at && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
-                          </Typography>
-                        )}
                       </>
                     ) : (
                       <Typography color="text.secondary">
@@ -2118,11 +2113,6 @@ function StockDetail() {
                             </TableBody>
                           </Table>
                         </TableContainer>
-                        {analystOverview?.data?.fetched_at && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
-                          </Typography>
-                        )}
                       </>
                     ) : (
                       <Typography color="text.secondary">
@@ -2190,11 +2180,6 @@ function StockDetail() {
                             </TableBody>
                           </Table>
                         </TableContainer>
-                        {analystOverview?.data?.fetched_at && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
-                          </Typography>
-                        )}
                       </>
                     ) : (
                       <Typography color="text.secondary">
@@ -2258,11 +2243,6 @@ function StockDetail() {
                             </TableBody>
                           </Table>
                         </TableContainer>
-                        {analystOverview?.data?.fetched_at && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
-                          </Typography>
-                        )}
                       </>
                     ) : (
                       <Typography color="text.secondary">
@@ -2416,11 +2396,6 @@ function StockDetail() {
                             </TableBody>
                           </Table>
                         </TableContainer>
-                        {analystOverview?.data?.fetched_at && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
-                          </Typography>
-                        )}
                       </>
                     ) : (
                       <Typography color="text.secondary">
@@ -2500,11 +2475,6 @@ function StockDetail() {
                             </TableBody>
                           </Table>
                         </TableContainer>
-                        {analystOverview?.data?.fetched_at && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                            Data last updated: {new Date(analystOverview.data.fetched_at).toLocaleString()}
-                          </Typography>
-                        )}
                       </>
                     ) : (
                       <Typography color="text.secondary">
