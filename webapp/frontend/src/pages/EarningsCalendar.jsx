@@ -666,11 +666,10 @@ function EarningsCalendar() {
                     <TableHead>
                       <TableRow>
                         <TableCell>Period</TableCell>
-                        <TableCell align="right">Up Last 7d</TableCell>
-                        <TableCell align="right">Up Last 30d</TableCell>
-                        <TableCell align="right">Down Last 7d</TableCell>
-                        <TableCell align="right">Down Last 30d</TableCell>
-                        <TableCell align="right">Fetched At</TableCell>
+                        <TableCell align="right">Avg. Estimate</TableCell>
+                        <TableCell align="right">Low</TableCell>
+                        <TableCell align="right">High</TableCell>
+                        <TableCell align="right">Analysts</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -678,21 +677,20 @@ function EarningsCalendar() {
                         <TableRow key={row.period + idx}>
                           <TableCell>{row.period}</TableCell>
                           <TableCell align="right">
-                            {row.up_last7days ?? "-"}
+                            {row.avg_estimate ? formatCurrency(row.avg_estimate) : "-"}
                           </TableCell>
                           <TableCell align="right">
-                            {row.up_last30days ?? "-"}
+                            {row.low_estimate ? formatCurrency(row.low_estimate) : "-"}
                           </TableCell>
                           <TableCell align="right">
-                            {row.down_last7days ?? "-"}
+                            {row.high_estimate ? formatCurrency(row.high_estimate) : "-"}
                           </TableCell>
                           <TableCell align="right">
-                            {row.down_last30days ?? "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            {row.fetched_at
-                              ? new Date(row.fetched_at).toLocaleString()
-                              : "-"}
+                            <Chip
+                              label={`${row.number_of_analysts || 0} analysts`}
+                              size="small"
+                              variant="outlined"
+                            />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -745,12 +743,10 @@ function EarningsCalendar() {
                     <TableHead>
                       <TableRow>
                         <TableCell>Period</TableCell>
-                        <TableCell align="right">Current</TableCell>
-                        <TableCell align="right">7 Days Ago</TableCell>
-                        <TableCell align="right">30 Days Ago</TableCell>
-                        <TableCell align="right">60 Days Ago</TableCell>
-                        <TableCell align="right">90 Days Ago</TableCell>
-                        <TableCell align="right">Fetched At</TableCell>
+                        <TableCell align="right">Avg. Estimate</TableCell>
+                        <TableCell align="right">Year Ago EPS</TableCell>
+                        <TableCell align="right">Growth</TableCell>
+                        <TableCell align="right">Analysts</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -758,24 +754,27 @@ function EarningsCalendar() {
                         <TableRow key={row.period + idx}>
                           <TableCell>{row.period}</TableCell>
                           <TableCell align="right">
-                            {row.current ?? "-"}
+                            {row.avg_estimate ? formatCurrency(row.avg_estimate) : "-"}
                           </TableCell>
                           <TableCell align="right">
-                            {row.days7ago ?? "-"}
+                            {row.year_ago_eps ? formatCurrency(row.year_ago_eps) : "-"}
                           </TableCell>
                           <TableCell align="right">
-                            {row.days30ago ?? "-"}
+                            {row.growth ? (
+                              <Chip
+                                label={formatPercentage(row.growth / 100)}
+                                size="small"
+                                color={row.growth > 0 ? "success" : row.growth < 0 ? "error" : "default"}
+                                variant="outlined"
+                              />
+                            ) : "-"}
                           </TableCell>
                           <TableCell align="right">
-                            {row.days60ago ?? "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            {row.days90ago ?? "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            {row.fetched_at
-                              ? new Date(row.fetched_at).toLocaleString()
-                              : "-"}
+                            <Chip
+                              label={`${row.number_of_analysts || 0} analysts`}
+                              size="small"
+                              variant="outlined"
+                            />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -814,7 +813,6 @@ function EarningsCalendar() {
                         <TableCell align="right">High Estimate</TableCell>
                         <TableCell align="right">Analysts</TableCell>
                         <TableCell align="right">Growth</TableCell>
-                        <TableCell align="right">Fetched At</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -857,11 +855,6 @@ function EarningsCalendar() {
                               }}
                             >
                               {estimate.growth ? `${(estimate.growth * 100).toFixed(1)}%` : 'N/A'}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2" color="text.secondary">
-                              {estimate.fetched_at ? new Date(estimate.fetched_at).toLocaleString() : 'N/A'}
                             </Typography>
                           </TableCell>
                         </TableRow>
@@ -921,7 +914,6 @@ function EarningsCalendar() {
                         <TableCell align="right">EPS YoY Growth %</TableCell>
                         <TableCell align="right">Revenue YoY Growth %</TableCell>
                         <TableCell align="right">Earnings Surprise %</TableCell>
-                        <TableCell align="right">Fetched At</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -959,14 +951,11 @@ function EarningsCalendar() {
                             <TableCell align="right">
                               {row.earnings_surprise_pct ? `${row.earnings_surprise_pct.toFixed(2)}%` : "-"}
                             </TableCell>
-                            <TableCell align="right">
-                              {row.fetched_at ? new Date(row.fetched_at).toLocaleString() : "-"}
-                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={7} align="center">
+                          <TableCell colSpan={6} align="center">
                             <Typography
                               variant="body2"
                               color="text.secondary"
