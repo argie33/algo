@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 16:17 - Deploy calendar events loader
+# Updated: 2025-10-02 17:12 - Fix is_active column error
 import functools
 import json
 import logging
@@ -273,12 +273,12 @@ def main():
 
         log_mem("Before fetching symbols")
         with conn.cursor() as cur:
-            # Only get active symbols to reduce processing
+            # Get non-ETF symbols for calendar events
             cur.execute(
                 """
-                SELECT DISTINCT symbol 
-                FROM stock_symbols 
-                WHERE is_active = true
+                SELECT DISTINCT symbol
+                FROM stock_symbols
+                WHERE (etf IS NULL OR etf != 'Y')
                 ORDER BY symbol;
             """
             )
