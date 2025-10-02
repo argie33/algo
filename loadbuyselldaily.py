@@ -551,7 +551,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 bsd.close as current_price, bsd.open, bsd.high, bsd.low,
                 bsd.volume, bsd.inposition
             FROM {table_name} bsd
-            WHERE bsd.symbol = %(symbol)s AND bsd.timeframe = %(timeframe)s
+            WHERE bsd.symbol = %%(symbol)s AND bsd.timeframe = %%(timeframe)s
         ),
         technical_data AS (
             SELECT
@@ -563,7 +563,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 LAG(td.sma_50, 5) OVER (ORDER BY td.date) as sma_50_prev,
                 LAG(td.sma_200, 10) OVER (ORDER BY td.date) as sma_200_prev
             FROM {tech_table} td
-            WHERE td.symbol = %(symbol)s
+            WHERE td.symbol = %%(symbol)s
         ),
         volume_data AS (
             SELECT
@@ -573,7 +573,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
                 ) as volume_avg_50
             FROM {price_table} pd
-            WHERE pd.symbol = %(symbol)s
+            WHERE pd.symbol = %%(symbol)s
         ),
         high_52week_data AS (
             SELECT
@@ -583,7 +583,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                 ) as high_52week
             FROM {price_table} pd
-            WHERE pd.symbol = %(symbol)s
+            WHERE pd.symbol = %%(symbol)s
         ),
         calculated_metrics AS (
             SELECT
