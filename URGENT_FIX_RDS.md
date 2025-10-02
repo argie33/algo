@@ -64,7 +64,52 @@ Need admin account with `rds:ModifyDBInstance` permission.
 ## Prevention
 Enable storage autoscaling (MaxAllocatedStorage) to prevent this in future.
 
+## CloudFormation Template Updated ✅
+
+**File**: `template-app-stocks.yml` (line 56-57)
+```yaml
+AllocatedStorage: 30      # Was: 20
+MaxAllocatedStorage: 100  # New: enables autoscaling
+```
+
+## Deploy Stack Update (Admin Required)
+
+**Option A: Using AWS Console**
+1. Go to CloudFormation Console: https://console.aws.amazon.com/cloudformation/
+2. Select stack: `stocks-app-stack`
+3. Click "Update"
+4. Choose "Replace current template"
+5. Upload file: `template-app-stocks.yml`
+6. Click "Next" through all pages (use existing parameters)
+7. Check "I acknowledge that AWS CloudFormation might create IAM resources"
+8. Click "Submit"
+9. Wait 5-10 minutes for UPDATE_COMPLETE
+
+**Option B: Using AWS CLI (Admin Credentials)**
+```bash
+cd /home/stocks/algo
+
+aws cloudformation update-stack \
+  --stack-name stocks-app-stack \
+  --region us-east-1 \
+  --template-body file://template-app-stocks.yml \
+  --capabilities CAPABILITY_IAM \
+  --parameters \
+    ParameterKey=RDSUsername,UsePreviousValue=true \
+    ParameterKey=RDSPassword,UsePreviousValue=true \
+    ParameterKey=FREDApiKey,UsePreviousValue=true
+```
+
+Monitor progress:
+```bash
+aws cloudformation describe-stack-events \
+  --stack-name stocks-app-stack \
+  --region us-east-1 \
+  --max-items 10
+```
+
 ## Timeline
 - Lambda syntax fixed: 2025-10-02 23:42 UTC ✅
 - Storage full detected: 2025-10-02 23:47 UTC ⚠️
-- Waiting for admin to increase storage...
+- Template updated: 2025-10-02 23:52 UTC ✅
+- Waiting for admin to deploy stack update...
