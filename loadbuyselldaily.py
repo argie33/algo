@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 14:15 - Retrigger deployment with tuple parameter fix
+# Updated: 2025-10-02 15:15 - Fixed SQL dict parameters (named placeholders)
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
 # Fixed: SQL parameter formatting issue in update_swing_metrics_for_symbol
@@ -551,7 +551,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 bsd.close as current_price, bsd.open, bsd.high, bsd.low,
                 bsd.volume, bsd.inposition
             FROM {table_name} bsd
-            WHERE bsd.symbol = %s AND bsd.timeframe = %s
+            WHERE bsd.symbol = %(symbol)s AND bsd.timeframe = %(timeframe)s
         ),
         technical_data AS (
             SELECT
@@ -563,7 +563,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 LAG(td.sma_50, 5) OVER (ORDER BY td.date) as sma_50_prev,
                 LAG(td.sma_200, 10) OVER (ORDER BY td.date) as sma_200_prev
             FROM {tech_table} td
-            WHERE td.symbol = %s
+            WHERE td.symbol = %(symbol)s
         ),
         volume_data AS (
             SELECT
@@ -573,7 +573,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
                 ) as volume_avg_50
             FROM {price_table} pd
-            WHERE pd.symbol = %s
+            WHERE pd.symbol = %(symbol)s
         ),
         high_52week_data AS (
             SELECT
@@ -583,7 +583,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                 ) as high_52week
             FROM {price_table} pd
-            WHERE pd.symbol = %s
+            WHERE pd.symbol = %(symbol)s
         ),
         calculated_metrics AS (
             SELECT
@@ -830,8 +830,8 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
         WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date
         """
 
-        # Parameters: signal_data(symbol, timeframe), technical_data(symbol), volume_data(symbol), high_52week_data(symbol)
-        cur.execute(update_sql, (symbol, timeframe, symbol, symbol, symbol))
+        # Parameters: named dict for all placeholders
+        cur.execute(update_sql, {'symbol': symbol, 'timeframe': timeframe})
         updated_count = cur.rowcount
         logging.info(f"✅ Updated {updated_count} swing metrics for {symbol} {timeframe}")
 
