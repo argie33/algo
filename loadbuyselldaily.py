@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 15:47 - Fixed f-string + named parameter conflict
+# Updated: 2025-10-02 16:16 - Redeploy to ensure AWS gets f-string fix
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
 # Fixed: SQL parameter formatting issue in update_swing_metrics_for_symbol
