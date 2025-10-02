@@ -88,11 +88,13 @@ function TradingSignals() {
   const [timeframe, setTimeframe] = useState("daily");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [showRecentOnly, setShowRecentOnly] = useState(false); // Changed to false to show all data by default
   const [selectedSymbol, setSelectedSymbol] = useState(null);
   const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
+
+  // Date range filter - defaults to "today" to show most current signals
+  const [dateRange, setDateRange] = useState("today"); // today, week, month, all
 
   // Advanced filters
   const [highQualityOnly, setHighQualityOnly] = useState(false); // entry_quality_score >= 60
@@ -102,14 +104,29 @@ function TradingSignals() {
   const [pocketPivotsOnly, setPocketPivotsOnly] = useState(false); // volume_analysis = "Pocket Pivot"
   const [minRiskReward, setMinRiskReward] = useState(0); // Minimum risk/reward ratio
 
-  // Helper function to check if signal is recent (within last 7 days)
-  const isRecentSignal = (signalDate) => {
+  // Helper function to check if signal matches date range
+  const matchesDateRange = (signalDate) => {
     if (!signalDate) return false;
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
     const signal = new Date(signalDate);
-    const diffTime = Math.abs(today - signal);
+    signal.setHours(0, 0, 0, 0);
+
+    const diffTime = today.getTime() - signal.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7;
+
+    switch(dateRange) {
+      case "today":
+        return diffDays === 0; // Same day
+      case "week":
+        return diffDays <= 7;
+      case "month":
+        return diffDays <= 30;
+      case "all":
+        return true;
+      default:
+        return true;
+    }
   };
 
   // Fetch buy/sell signals (moved up before useMemo hooks)
@@ -125,7 +142,7 @@ function TradingSignals() {
       page,
       rowsPerPage,
       symbolFilter,
-      showRecentOnly,
+      dateRange,
     ],
     queryFn: async () => {
       try {
@@ -141,9 +158,7 @@ function TradingSignals() {
         if (symbolFilter) {
           params.append("symbol", symbolFilter);
         }
-        if (showRecentOnly) {
-          params.append("latest_only", "true");
-        }
+        // Note: date filtering happens client-side for better UX
         const url = `${API_BASE}/api/signals?${params}`;
         logger.info("fetchTradingSignals - Request started", {
           url,
@@ -181,7 +196,8 @@ function TradingSignals() {
 
     const signals = signalsData?.data;
     const totalSignals = signals?.length || 0;
-    const recentSignals = signals.filter((s) => isRecentSignal(s.date)).length;
+    // Count signals matching current date range
+    const currentRangeSignals = signals.filter((s) => matchesDateRange(s.date)).length;
     const buySignals = signals.filter((s) => s.signal === "Buy" || s.signal === "BUY").length;
     const sellSignals = signals.filter((s) => s.signal === "Sell" || s.signal === "SELL").length;
 
@@ -216,7 +232,7 @@ function TradingSignals() {
 
     return {
       totalSignals,
-      recentSignals,
+      currentRangeSignals,
       buySignals,
       sellSignals,
       topSector: topSector ? topSector[0] : null,
@@ -230,7 +246,7 @@ function TradingSignals() {
       avgRiskReward,
       avgQualityScore,
     };
-  }, [signalsData]);
+  }, [signalsData, dateRange]);
 
   // Filter data based on all filter settings
   const filteredSignals = useMemo(() => {
@@ -241,10 +257,8 @@ function TradingSignals() {
 
     let filtered = signalsData?.data;
 
-    // Apply recent filter
-    if (showRecentOnly) {
-      filtered = filtered.filter((signal) => isRecentSignal(signal.date));
-    }
+    // Apply date range filter (defaults to today's signals)
+    filtered = filtered.filter((signal) => matchesDateRange(signal.date));
 
     // Apply symbol filter
     if (symbolFilter) {
@@ -291,7 +305,7 @@ function TradingSignals() {
       originalCount: signalsData.data?.length || 0,
       filteredCount: filtered?.length || 0,
       filters: {
-        showRecentOnly,
+        dateRange,
         symbolFilter,
         highQualityOnly,
         minerviniOnly,
@@ -305,7 +319,7 @@ function TradingSignals() {
     return filtered;
   }, [
     signalsData,
-    showRecentOnly,
+    dateRange,
     symbolFilter,
     highQualityOnly,
     minerviniOnly,
@@ -398,7 +412,7 @@ function TradingSignals() {
     const isBuy = signal === "Buy" || signal === "BUY";
     const isSell = signal === "Sell" || signal === "SELL";
     const isHold = signal === "Hold" || signal === "HOLD";
-    const isRecent = isRecentSignal(signalDate);
+    const isRecent = matchesDateRange(signalDate);
 
     return (
       <Badge
@@ -595,7 +609,7 @@ function TradingSignals() {
                         ? "rgba(220, 38, 38, 0.1)"
                         : "action.hover",
                 },
-                ...(isRecentSignal(signal.date) && {
+                ...(matchesDateRange(signal.date) && {
                   backgroundColor:
                     signal.signal === "Buy" || signal.signal === "BUY"
                       ? "rgba(5, 150, 105, 0.05)"
@@ -632,9 +646,9 @@ function TradingSignals() {
               <TableCell>
                 <Tooltip
                   title={
-                    isRecentSignal(signal.date)
-                      ? "New signal within last 7 days"
-                      : "Historical signal"
+                    matchesDateRange(signal.date)
+                      ? `Signal in ${dateRange === "today" ? "today's" : dateRange === "week" ? "this week's" : dateRange === "month" ? "this month's" : "selected"} range`
+                      : "Signal outside selected range"
                   }
                 >
                   <Box>{getSignalChip(signal.signal, signal.date)}</Box>
@@ -832,9 +846,9 @@ function TradingSignals() {
             No trading signals found
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {showRecentOnly
-              ? "Try turning off 'Latest Only' to see historical signals"
-              : "No signals match your current filters"}
+            {dateRange === "today"
+              ? "No signals for today. Try 'This Week' or 'All Time' to see historical signals."
+              : "No signals match your current filters. Try adjusting your date range or other filters."}
           </Typography>
         </Box>
       )}
@@ -875,17 +889,17 @@ function TradingSignals() {
             <PerformanceCard
               title="Active Signals"
               value={summaryStats.totalSignals}
-              subtitle={`${summaryStats.recentSignals} new in last 7 days`}
+              subtitle={`${summaryStats.currentRangeSignals} in ${dateRange === 'today' ? 'today' : dateRange === 'week' ? 'this week' : dateRange === 'month' ? 'this month' : 'all time'}`}
               icon={
                 <Badge
-                  badgeContent={summaryStats.recentSignals}
+                  badgeContent={summaryStats.currentRangeSignals}
                   color="secondary"
                 >
                   <Analytics />
                 </Badge>
               }
               color="#3B82F6"
-              isHighlight={summaryStats.recentSignals > 0}
+              isHighlight={summaryStats.currentRangeSignals > 0}
             />
           </Grid>
         )}
@@ -986,17 +1000,24 @@ function TradingSignals() {
               </FormControl>
             </Grid>
 
-            {/* Toggle Switches */}
+            {/* Date Range Filter */}
             <Grid item xs={12} md={2}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showRecentOnly}
-                    onChange={(e) => setShowRecentOnly(e.target.checked)}
-                  />
-                }
-                label="Latest Only"
-              />
+              <FormControl fullWidth size="small">
+                <InputLabel>Date Range</InputLabel>
+                <Select
+                  value={dateRange}
+                  label="Date Range"
+                  onChange={(e) => {
+                    setDateRange(e.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <MenuItem value="today">Today Only</MenuItem>
+                  <MenuItem value="week">This Week</MenuItem>
+                  <MenuItem value="month">This Month</MenuItem>
+                  <MenuItem value="all">All Time</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
 
             {/* Advanced Filters Section */}
@@ -1115,7 +1136,7 @@ function TradingSignals() {
                 context: {
                   endpoint: `${API_BASE}/api/signals?timeframe=${timeframe}`,
                   debugEndpoint: `${API_BASE}/api/trading/debug`,
-                  filters: { signalType, showRecentOnly, timeframe },
+                  filters: { signalType, dateRange, timeframe },
                   component: "TradingSignals",
                 },
               }}
@@ -1134,7 +1155,7 @@ function TradingSignals() {
                   message: "No trading signals data found",
                   context: {
                     endpoint: `${API_BASE}/api/signals?timeframe=${timeframe}`,
-                    filters: { signalType, showRecentOnly },
+                    filters: { signalType, dateRange },
                     response: signalsData,
                   },
                 }}
