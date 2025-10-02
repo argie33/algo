@@ -16,6 +16,7 @@ import {
   DialogTitle,
   Divider,
   FormControl,
+  FormControlLabel,
   Grid,
   IconButton,
   InputAdornment,
@@ -23,6 +24,7 @@ import {
   MenuItem,
   Paper,
   Select,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -93,6 +95,7 @@ function TradingSignals() {
 
   // Date range filter - defaults to "all" to show all signals
   const [dateRange, setDateRange] = useState("all"); // today, week, month, all
+  const [showActiveOnly, setShowActiveOnly] = useState(true); // Show active/recent signals by default
 
   // Helper function to check if signal matches date range
   const matchesDateRange = (signalDate) => {
@@ -247,6 +250,25 @@ function TradingSignals() {
 
     let filtered = signalsData?.data;
 
+    // Apply active filter - show signals with active positions OR recent signals
+    if (showActiveOnly) {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      filtered = filtered.filter((signal) => {
+        // Show if currently in position
+        if (signal.inPosition) return true;
+
+        // Show if signal is from last 7 days and has an actual signal (not "None")
+        if (signal.signal && signal.signal !== "None") {
+          const signalDate = new Date(signal.date);
+          return signalDate >= sevenDaysAgo;
+        }
+
+        return false;
+      });
+    }
+
     // Apply date range filter only if not "all"
     if (dateRange !== "all") {
       filtered = filtered.filter((signal) => matchesDateRange(signal.date));
@@ -263,6 +285,7 @@ function TradingSignals() {
       originalCount: signalsData.data?.length || 0,
       filteredCount: filtered?.length || 0,
       filters: {
+        showActiveOnly,
         dateRange,
         symbolFilter
       }
@@ -271,6 +294,7 @@ function TradingSignals() {
     return filtered;
   }, [
     signalsData,
+    showActiveOnly,
     dateRange,
     symbolFilter
   ]);
@@ -1038,6 +1062,27 @@ function TradingSignals() {
                   <MenuItem value="monthly">Monthly</MenuItem>
                 </Select>
               </FormControl>
+            </Grid>
+
+            {/* Active Signals Filter */}
+            <Grid item xs={12} md={2}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showActiveOnly}
+                    onChange={(e) => {
+                      setShowActiveOnly(e.target.checked);
+                      setPage(0);
+                    }}
+                    color="primary"
+                  />
+                }
+                label="Active Only"
+                sx={{ mt: 1 }}
+              />
+              <Typography variant="caption" display="block" color="text.secondary">
+                Show current positions & recent signals
+              </Typography>
             </Grid>
 
             {/* Date Range Filter */}
