@@ -404,6 +404,143 @@ describe("TradingSignals", () => {
       }
     });
 
+    it("should filter by high quality signals (score >= 60)", async () => {
+      const user = userEvent.setup();
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+      });
+
+      // Find and toggle high quality filter
+      const highQualityToggle = screen.queryByLabelText(/high quality/i);
+      if (highQualityToggle) {
+        await user.click(highQualityToggle);
+
+        await waitFor(() => {
+          // AAPL has entry_quality_score of 85, should be visible
+          expect(screen.getByText("AAPL")).toBeInTheDocument();
+          // TSLA has entry_quality_score of 70, should also be visible (>= 60)
+          expect(screen.getByText("TSLA")).toBeInTheDocument();
+        });
+      }
+    });
+
+    it("should filter by Minervini template", async () => {
+      const user = userEvent.setup();
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+      });
+
+      // Find and toggle Minervini filter
+      const minerviniToggle = screen.queryByLabelText(/minervini template/i);
+      if (minerviniToggle) {
+        await user.click(minerviniToggle);
+
+        await waitFor(() => {
+          // AAPL passes Minervini template, should be visible
+          expect(screen.getByText("AAPL")).toBeInTheDocument();
+          // TSLA doesn't pass Minervini template, should be hidden
+          expect(screen.queryByText("TSLA")).not.toBeInTheDocument();
+        });
+      }
+    });
+
+    it("should filter by Stage 2 only", async () => {
+      const user = userEvent.setup();
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+      });
+
+      // Find and toggle Stage 2 filter
+      const stage2Toggle = screen.queryByLabelText(/stage 2 only/i);
+      if (stage2Toggle) {
+        await user.click(stage2Toggle);
+
+        await waitFor(() => {
+          // AAPL is in Stage 2, should be visible
+          expect(screen.getByText("AAPL")).toBeInTheDocument();
+          // TSLA is in Stage 4, should be hidden
+          expect(screen.queryByText("TSLA")).not.toBeInTheDocument();
+        });
+      }
+    });
+
+    it("should filter by in-position only", async () => {
+      const user = userEvent.setup();
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+      });
+
+      // Find and toggle in-position filter
+      const inPositionToggle = screen.queryByLabelText(/in position/i);
+      if (inPositionToggle) {
+        await user.click(inPositionToggle);
+
+        await waitFor(() => {
+          // Both AAPL and TSLA have inposition = false, so neither should be visible
+          expect(screen.queryByText("AAPL")).not.toBeInTheDocument();
+          expect(screen.queryByText("TSLA")).not.toBeInTheDocument();
+        });
+      }
+    });
+
+    it("should filter by pocket pivots only", async () => {
+      const user = userEvent.setup();
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+      });
+
+      // Find and toggle pocket pivots filter
+      const pocketPivotsToggle = screen.queryByLabelText(/pocket pivots/i);
+      if (pocketPivotsToggle) {
+        await user.click(pocketPivotsToggle);
+
+        await waitFor(() => {
+          // AAPL has "Pocket Pivot" volume analysis, should be visible
+          expect(screen.getByText("AAPL")).toBeInTheDocument();
+          // TSLA has "Volume Surge", should be hidden
+          expect(screen.queryByText("TSLA")).not.toBeInTheDocument();
+        });
+      }
+    });
+
+    it("should filter by minimum risk/reward ratio", async () => {
+      const user = userEvent.setup();
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        expect(screen.getByText("AAPL")).toBeInTheDocument();
+      });
+
+      // Find and change min risk/reward filter
+      const minRRSelect = screen.queryByLabelText(/min risk\/reward/i);
+      if (minRRSelect) {
+        await user.click(minRRSelect);
+
+        // Select "3:1 or better"
+        const option3to1 = screen.queryByText(/3:1 or better/i);
+        if (option3to1) {
+          await user.click(option3to1);
+
+          await waitFor(() => {
+            // AAPL has risk_reward_ratio of 3.5, should be visible
+            expect(screen.getByText("AAPL")).toBeInTheDocument();
+            // TSLA has risk_reward_ratio of 2.5, should be hidden
+            expect(screen.queryByText("TSLA")).not.toBeInTheDocument();
+          });
+        }
+      }
+    });
+
     it("should allow filtering by timeframe", async () => {
       const user = userEvent.setup();
       render(<TradingSignals />, { wrapper: TestWrapper });

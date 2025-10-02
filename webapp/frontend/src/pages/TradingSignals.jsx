@@ -94,6 +94,14 @@ function TradingSignals() {
   const [symbolFilter, setSymbolFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
+  // Advanced filters
+  const [highQualityOnly, setHighQualityOnly] = useState(false); // entry_quality_score >= 60
+  const [minerviniOnly, setMinerviniOnly] = useState(false); // passes_minervini_template = true
+  const [stage2Only, setStage2Only] = useState(false); // market_stage contains "Stage 2"
+  const [inPositionOnly, setInPositionOnly] = useState(false); // inposition = true
+  const [pocketPivotsOnly, setPocketPivotsOnly] = useState(false); // volume_analysis = "Pocket Pivot"
+  const [minRiskReward, setMinRiskReward] = useState(0); // Minimum risk/reward ratio
+
   // Helper function to check if signal is recent (within last 7 days)
   const isRecentSignal = (signalDate) => {
     if (!signalDate) return false;
@@ -224,7 +232,7 @@ function TradingSignals() {
     };
   }, [signalsData]);
 
-  // Filter data based on recent-only setting
+  // Filter data based on all filter settings
   const filteredSignals = useMemo(() => {
     if (!signalsData?.data || !Array.isArray(signalsData?.data)) {
       console.log("No signals data available or not array:", signalsData);
@@ -245,15 +253,67 @@ function TradingSignals() {
       );
     }
 
+    // Apply high quality filter (entry_quality_score >= 60)
+    if (highQualityOnly) {
+      filtered = filtered.filter((signal) => signal.entry_quality_score >= 60);
+    }
+
+    // Apply Minervini template filter
+    if (minerviniOnly) {
+      filtered = filtered.filter((signal) => signal.passes_minervini_template === true);
+    }
+
+    // Apply Stage 2 filter
+    if (stage2Only) {
+      filtered = filtered.filter((signal) =>
+        signal.market_stage && signal.market_stage.includes("Stage 2")
+      );
+    }
+
+    // Apply in-position filter
+    if (inPositionOnly) {
+      filtered = filtered.filter((signal) => signal.inposition === true);
+    }
+
+    // Apply pocket pivots filter
+    if (pocketPivotsOnly) {
+      filtered = filtered.filter((signal) => signal.volume_analysis === "Pocket Pivot");
+    }
+
+    // Apply minimum risk/reward filter
+    if (minRiskReward > 0) {
+      filtered = filtered.filter((signal) =>
+        signal.risk_reward_ratio && signal.risk_reward_ratio >= minRiskReward
+      );
+    }
+
     logger.info("filteredSignals", "Data filtered", {
       originalCount: signalsData.data?.length || 0,
       filteredCount: filtered?.length || 0,
-      showRecentOnly,
-      symbolFilter,
+      filters: {
+        showRecentOnly,
+        symbolFilter,
+        highQualityOnly,
+        minerviniOnly,
+        stage2Only,
+        inPositionOnly,
+        pocketPivotsOnly,
+        minRiskReward
+      }
     });
 
     return filtered;
-  }, [signalsData, showRecentOnly, symbolFilter]);
+  }, [
+    signalsData,
+    showRecentOnly,
+    symbolFilter,
+    highQualityOnly,
+    minerviniOnly,
+    stage2Only,
+    inPositionOnly,
+    pocketPivotsOnly,
+    minRiskReward
+  ]);
 
   // Fetch historical data for selected symbol
   const { data: historicalData, isLoading: historicalLoading } = useQuery({
@@ -937,6 +997,97 @@ function TradingSignals() {
                 }
                 label="Latest Only"
               />
+            </Grid>
+
+            {/* Advanced Filters Section */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                Advanced Filters
+              </Typography>
+            </Grid>
+
+            {/* High Quality Only */}
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={highQualityOnly}
+                    onChange={(e) => setHighQualityOnly(e.target.checked)}
+                  />
+                }
+                label="High Quality (Score ≥60)"
+              />
+            </Grid>
+
+            {/* Minervini Template Only */}
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={minerviniOnly}
+                    onChange={(e) => setMinerviniOnly(e.target.checked)}
+                  />
+                }
+                label="Minervini Template"
+              />
+            </Grid>
+
+            {/* Stage 2 Only */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={stage2Only}
+                    onChange={(e) => setStage2Only(e.target.checked)}
+                  />
+                }
+                label="Stage 2 Only"
+              />
+            </Grid>
+
+            {/* In Position Only */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={inPositionOnly}
+                    onChange={(e) => setInPositionOnly(e.target.checked)}
+                  />
+                }
+                label="In Position"
+              />
+            </Grid>
+
+            {/* Pocket Pivots Only */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={pocketPivotsOnly}
+                    onChange={(e) => setPocketPivotsOnly(e.target.checked)}
+                  />
+                }
+                label="Pocket Pivots"
+              />
+            </Grid>
+
+            {/* Minimum Risk/Reward */}
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Min Risk/Reward</InputLabel>
+                <Select
+                  value={minRiskReward}
+                  label="Min Risk/Reward"
+                  onChange={(e) => setMinRiskReward(Number(e.target.value))}
+                >
+                  <MenuItem value={0}>Any</MenuItem>
+                  <MenuItem value={2}>2:1 or better</MenuItem>
+                  <MenuItem value={3}>3:1 or better</MenuItem>
+                  <MenuItem value={4}>4:1 or better</MenuItem>
+                  <MenuItem value={5}>5:1 or better</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} md={2}>
