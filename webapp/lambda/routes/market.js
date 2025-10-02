@@ -524,16 +524,10 @@ router.get("/overview", async (req, res) => {
   try {
     // Check if database is available
     if (!query) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          sentimentIndicators: { fearGreed: { value: 50, valueText: "Neutral" } },
-          indices: [{ name: "S&P 500", symbol: "SPX", value: 4500, change: "+0.5%" }],
-          marketBreadth: { advancing: 1500, declining: 1000, unchanged: 500 },
-          economicIndicators: [],
-          marketCap: { total: "45T", sectors: {} }
-        },
-        source: "fallback_data",
+      return res.status(503).json({
+        success: false,
+        error: "Database connection not available",
+        message: "Unable to fetch market overview - database service is unavailable. Please try again later or contact support if the issue persists.",
         timestamp: new Date().toISOString()
       });
     }
@@ -907,17 +901,10 @@ router.get("/sectors", async (req, res) => {
 
     // Check if database is available
     if (!query) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          sectors: [
-            { sector: "Technology", companies: 150, marketCapNote: "Fallback data" },
-            { sector: "Healthcare", companies: 120, marketCapNote: "Fallback data" },
-            { sector: "Financial", companies: 110, marketCapNote: "Fallback data" },
-            { sector: "Energy", companies: 80, marketCapNote: "Fallback data" }
-          ]
-        },
-        source: "fallback_data",
+      return res.status(503).json({
+        success: false,
+        error: "Database connection not available",
+        message: "Unable to fetch sector data - database service is unavailable. Please try again later or contact support if the issue persists.",
         timestamp: new Date().toISOString()
       });
     }

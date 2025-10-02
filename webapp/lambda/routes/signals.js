@@ -1362,10 +1362,14 @@ router.get("/performance", async (req, res) => {
       });
     }
 
-    // Calculate overall performance metrics
+    // Calculate overall performance metrics from database
     const totalSignals = result.rows.reduce((sum, row) => sum + parseInt(row.total_signals), 0);
-    const avgReturn = 2.5; // Calculated from real data
-    const successRate = 0.72; // Calculated success rate
+
+    // Note: Success rate and return calculations require position tracking
+    // Currently returning 0 until we implement position entry/exit tracking
+    const avgReturn = 0;
+    const successRate = 0;
+    const winLossRatio = 0;
 
     res.json({
       success: true,
@@ -1374,17 +1378,26 @@ router.get("/performance", async (req, res) => {
           success_rate: successRate,
           average_return: avgReturn,
           total_signals: totalSignals,
-          win_loss_ratio: 2.4, // Add missing field for test
+          win_loss_ratio: winLossRatio,
           avg_volume: result.rows.length > 0 ? result.rows[0].avg_volume : 0,
           date_range: {
             earliest: result.rows.length > 0 ? result.rows[0].earliest_date : null,
             latest: result.rows.length > 0 ? result.rows[0].latest_date : null
           }
         },
-        by_signal_type: result.rows
+        by_signal_type: result.rows,
+        performance: result.rows.map(row => ({
+          signal: row.signal,
+          total_signals: parseInt(row.total_signals),
+          avg_volume: parseFloat(row.avg_volume || 0),
+          avg_price: parseFloat(row.avg_price || 0),
+          win_rate: 0, // Requires position tracking
+          avg_performance: 0 // Requires position tracking
+        }))
       },
       timeframe,
       data_source: 'database',
+      message: "Performance metrics require position tracking implementation for accurate success_rate and returns",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
