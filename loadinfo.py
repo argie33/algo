@@ -53,11 +53,12 @@ def log_mem(stage: str):
 
 
 # -------------------------------
-# Retry settings
+# Retry settings - Enhanced for rate limit resilience
 # -------------------------------
-MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 3.0  # seconds between download retries (increased for reliability)
-RATE_LIMIT_DELAY = 10.0  # longer delay for rate limit errors (increased for success)
+MAX_BATCH_RETRIES = 10  # More attempts for rate-limited APIs
+RETRY_DELAY = 3.0  # Base delay for general errors
+RATE_LIMIT_BASE_DELAY = 15.0  # Base delay for rate limits (will use exponential backoff)
+MAX_BACKOFF_DELAY = 120.0  # Maximum wait time (2 minutes)
 
 
 # -------------------------------
@@ -107,8 +108,14 @@ def load_company_info(symbols, cur, conn):
                     if attempt == MAX_BATCH_RETRIES:
                         failed.append(orig_sym)
                         break  # Break from retry loop
-                    # Use longer delay for rate limit errors
-                    delay = RATE_LIMIT_DELAY if "rate limit" in str(e).lower() else RETRY_DELAY
+
+                    # Use exponential backoff for rate limit errors
+                    if "rate limit" in str(e).lower():
+                        # Exponential backoff: 15s, 30s, 60s, 120s, 120s...
+                        delay = min(RATE_LIMIT_BASE_DELAY * (2 ** (attempt - 1)), MAX_BACKOFF_DELAY)
+                        logging.info(f"Rate limited - waiting {delay}s before retry {attempt+1}/{MAX_BATCH_RETRIES}")
+                    else:
+                        delay = RETRY_DELAY
                     time.sleep(delay)
 
             # Skip this symbol if we couldn't get info after all retries
@@ -743,7 +750,11 @@ if __name__ == "__main__":
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)}")
+    success_rate = (p_s / t_s * 100) if t_s > 0 else 0
+    logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)} ({success_rate:.1f}% success)")
+
+    if f_s:
+        logging.warning(f"Failed symbols ({len(f_s)}): {', '.join(f_s[:20])}{'...' if len(f_s) > 20 else ''}")
 
     cur.close()
     conn.close()
