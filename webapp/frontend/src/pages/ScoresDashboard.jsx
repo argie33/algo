@@ -647,12 +647,6 @@ const ScoresDashboard = () => {
                   </Grid>
                   <Grid item xs={12} sm={3}>
                     <Box sx={{ textAlign: "right" }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Market Cap: {formatNumber(stock.marketCap)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Volume: {(stock.volume / 1e6).toFixed(1)}M
-                      </Typography>
                       {signals[stock.symbol] && (
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                           Signal: {new Date(signals[stock.symbol].date).toLocaleDateString()}
