@@ -422,7 +422,15 @@ def prepare_db():
     );
     """
     )
-    logging.info("Table 'technical_data_monthly' ready.")
+
+    # Create index for efficient latest-date queries
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_technical_monthly_symbol_date_desc
+        ON technical_data_monthly(symbol, date DESC);
+        """
+    )
+    logging.info("Table 'technical_data_monthly' ready with performance indexes.")
 
     cursor.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     symbols = [r[0] for r in cursor.fetchall()]
