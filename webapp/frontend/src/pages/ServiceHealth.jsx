@@ -105,6 +105,7 @@ function ServiceHealth() {
   }, []);
 
   // ECS task monitoring - check status of scheduled tasks
+  // Always fetch from AWS production to get real task status
   const {
     data: ecsTasks,
     isLoading: ecsLoading,
@@ -114,11 +115,16 @@ function ServiceHealth() {
     queryKey: ["ecsTasks"],
     queryFn: async () => {
       try {
-        const response = await api.get("/health/ecs-tasks", {
-          timeout: 10000,
-          validateStatus: (status) => status < 500,
+        // Always use AWS production URL for ECS tasks monitoring
+        const awsApiUrl = "https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev";
+        const response = await fetch(`${awsApiUrl}/api/health/ecs-tasks`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
-        return response?.data?.success ? response.data : response?.data;
+        const data = await response.json();
+        return data?.success ? data : data;
       } catch (error) {
         console.error("ECS tasks check failed:", error);
         return {
@@ -733,17 +739,16 @@ function ServiceHealth() {
           </Accordion>
         </Grid>
 
-        {/* ECS Scheduled Tasks Status - Only show in production AWS environment */}
-        {ecsTasks?.environment !== "local" && (
-          <Grid item xs={12}>
-            <Accordion defaultExpanded>
-              <AccordionSummary expandIcon={<ExpandMore />}>
-                <Typography variant="h6">
-                  <Cloud sx={{ mr: 1, verticalAlign: "middle" }} />
-                  Scheduled Tasks Status
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
+        {/* ECS Scheduled Tasks Status */}
+        <Grid item xs={12}>
+          <Accordion defaultExpanded>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Typography variant="h6">
+                <Cloud sx={{ mr: 1, verticalAlign: "middle" }} />
+                Scheduled Tasks Status
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
               <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
                 <Button
                   variant="outlined"
@@ -880,23 +885,16 @@ function ServiceHealth() {
               )}
 
               {!ecsLoading && !ecsError && (!ecsTasks || !ecsTasks.tasks || Object.keys(ecsTasks.tasks).length === 0) && (
-                <Alert severity={ecsTasks?.environment === "local" ? "warning" : "info"}>
-                  <Typography variant="subtitle2">
-                    {ecsTasks?.environment === "local"
-                      ? "ECS Task Monitoring Not Available"
-                      : "No scheduled tasks configured"}
-                  </Typography>
+                <Alert severity="info">
+                  <Typography variant="subtitle2">No scheduled tasks configured</Typography>
                   <Typography variant="body2">
-                    {ecsTasks?.environment === "local"
-                      ? "Scheduled task monitoring is only available in AWS production environment. View the AWS production site to see task status."
-                      : "Configure scheduled tasks in GitHub Actions workflows or AWS EventBridge."}
+                    Configure scheduled tasks in GitHub Actions workflows or AWS EventBridge.
                   </Typography>
                 </Alert>
               )}
             </AccordionDetails>
           </Accordion>
         </Grid>
-        )}
 
         {/* Database Health */}
         <Grid item xs={12}>
