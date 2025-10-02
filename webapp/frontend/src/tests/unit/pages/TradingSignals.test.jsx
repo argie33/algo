@@ -74,6 +74,14 @@ describe("TradingSignals", () => {
       volume: 50000000,
       change: 2.5,
       changePercent: 1.58,
+      // Earnings data
+      next_earnings_date: "2024-01-25",
+      days_to_earnings: 10,
+      estimated_eps: 1.85,
+      actual_eps: null,
+      eps_surprise_pct: null,
+      revenue_estimate: 125000000000,
+      earnings_growth_yoy: 12.5,
     },
     {
       id: "2",
@@ -115,6 +123,14 @@ describe("TradingSignals", () => {
       volume: 75000000,
       change: -5.75,
       changePercent: -3.09,
+      // Earnings data
+      next_earnings_date: "2024-02-10",
+      days_to_earnings: 26,
+      estimated_eps: 0.95,
+      actual_eps: 0.88,
+      eps_surprise_pct: -7.37,
+      revenue_estimate: 25000000000,
+      earnings_growth_yoy: -15.2,
     },
   ];
 
@@ -318,6 +334,23 @@ describe("TradingSignals", () => {
       await waitFor(() => {
         expect(screen.getByText("AAPL")).toBeInTheDocument();
         expect(screen.getByText("BUY")).toBeInTheDocument();
+      });
+    });
+
+    it("should display earnings metrics", async () => {
+      render(<TradingSignals />, { wrapper: TestWrapper });
+
+      await waitFor(() => {
+        // Check earnings headers
+        expect(screen.getByText("Next Earnings")).toBeInTheDocument();
+        expect(screen.getByText(/Est\. EPS/i)).toBeInTheDocument();
+        expect(screen.getByText(/EPS Surprise/i)).toBeInTheDocument();
+        expect(screen.getByText(/Growth YoY/i)).toBeInTheDocument();
+
+        // Check earnings data is displayed
+        expect(screen.getByText("$1.85")).toBeInTheDocument(); // AAPL estimated EPS
+        expect(screen.getByText("+12.5%")).toBeInTheDocument(); // AAPL growth
+        expect(screen.getByText("-7.4%")).toBeInTheDocument(); // TSLA surprise
       });
     });
 

@@ -538,6 +538,31 @@ function TradingSignals() {
                 <span>Position</span>
               </Tooltip>
             </TableCell>
+            <TableCell sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Next earnings announcement date">
+                <span>Next Earnings</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Days until next earnings">
+                <span>Days</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Estimated EPS for next earnings">
+                <span>Est. EPS</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Last EPS surprise percentage">
+                <span>EPS Surprise</span>
+              </Tooltip>
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold" }}>
+              <Tooltip title="Year-over-year earnings growth">
+                <span>Growth YoY</span>
+              </Tooltip>
+            </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
           </TableRow>
         </TableHead>
@@ -774,6 +799,75 @@ function TradingSignals() {
                     }}
                   />
                 )}
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
+                  {signal.next_earnings_date
+                    ? new Date(signal.next_earnings_date).toLocaleDateString()
+                    : "—"}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <Chip
+                  label={signal.days_to_earnings || "—"}
+                  size="small"
+                  sx={{
+                    backgroundColor:
+                      signal.days_to_earnings <= 7
+                        ? "rgba(220, 38, 38, 0.2)"
+                        : signal.days_to_earnings <= 14
+                          ? "rgba(245, 158, 11, 0.2)"
+                          : "rgba(59, 130, 246, 0.2)",
+                    color:
+                      signal.days_to_earnings <= 7
+                        ? "#DC2626"
+                        : signal.days_to_earnings <= 14
+                          ? "#F59E0B"
+                          : "#3B82F6",
+                    fontWeight: "bold",
+                  }}
+                />
+              </TableCell>
+              <TableCell align="right">
+                <Typography variant="body2">
+                  {signal.estimated_eps
+                    ? `$${Number(signal.estimated_eps).toFixed(2)}`
+                    : "—"}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: signal.eps_surprise_pct
+                      ? signal.eps_surprise_pct > 0
+                        ? "#059669"
+                        : "#DC2626"
+                      : "text.secondary",
+                    fontWeight: signal.eps_surprise_pct ? "bold" : "normal",
+                  }}
+                >
+                  {signal.eps_surprise_pct
+                    ? `${signal.eps_surprise_pct > 0 ? "+" : ""}${Number(signal.eps_surprise_pct).toFixed(1)}%`
+                    : "—"}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: signal.earnings_growth_yoy
+                      ? signal.earnings_growth_yoy > 0
+                        ? "#059669"
+                        : "#DC2626"
+                      : "text.secondary",
+                    fontWeight: signal.earnings_growth_yoy ? "bold" : "normal",
+                  }}
+                >
+                  {signal.earnings_growth_yoy
+                    ? `${signal.earnings_growth_yoy > 0 ? "+" : ""}${Number(signal.earnings_growth_yoy).toFixed(1)}%`
+                    : "—"}
+                </Typography>
               </TableCell>
               <TableCell>
                 <Typography variant="body2">
