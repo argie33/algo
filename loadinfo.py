@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 - Load company info and profiles for stocks
+# Updated: 2025-10-01 18:50 - Trigger loader execution after WPP integer overflow fix
 # Updated Thu Sep 19 23:25:00 CDT 2025 - Final Docker build fix: renamed Dockerfile.loadinfo to Dockerfile.info
 # Updated Thu Sep 19 23:18:00 CDT 2025 - Test Docker build with workflow fix for loadinfo naming
 # Updated Thu Sep 19 18:16:00 CDT 2025 - Optimize Docker build for faster pip installs
