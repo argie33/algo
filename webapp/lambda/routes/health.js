@@ -1088,6 +1088,9 @@ router.get("/ecs-tasks", async (req, res) => {
       { name: "annual_balance_sheet", logGroup: "/ecs/annualbalancesheet-loader" },
       { name: "annual_income_statement", logGroup: "/ecs/annualincomestatement-loader" },
       { name: "annual_cash_flow", logGroup: "/ecs/annualcashflow-loader" },
+      { name: "quarterly_balance_sheet", logGroup: "/ecs/quarterlybalancesheet-loader" },
+      { name: "quarterly_income_statement", logGroup: "/ecs/quarterlyincomestatement-loader" },
+      { name: "quarterly_cash_flow", logGroup: "/ecs/quarterlycashflow-loader" },
 
       // Buy/Sell signals
       { name: "buysell_daily", logGroup: "/ecs/buyselldaily-loader" },
@@ -1095,7 +1098,10 @@ router.get("/ecs-tasks", async (req, res) => {
       // Market sentiment
       { name: "fear_greed", logGroup: "/ecs/feargreed-loader" },
       { name: "naaim", logGroup: "/ecs/naaim-loader" },
-      { name: "aaii", logGroup: "/ecs/aaiidata-loader" }
+      { name: "aaii", logGroup: "/ecs/aaiidata-loader" },
+
+      // Analyst data
+      { name: "analyst_upgrades", logGroup: "/ecs/analystupgradedowngrade-loader" }
     ];
 
     // Function to check a single task
