@@ -1191,7 +1191,6 @@ router.get("/performance/:symbol", async (req, res) => {
       return res.json({
         symbol: symbol.toUpperCase(),
         signal: "BUY",
-        confidence: 0.75,
         signalDate: new Date().toISOString().split('T')[0],
         daysHeld: 0,
         currentReturn: 0,
@@ -1225,7 +1224,6 @@ router.get("/performance/:symbol", async (req, res) => {
       return res.json({
         symbol: symbol.toUpperCase(),
         signal: "BUY",
-        confidence: 0.75,
         signalDate: new Date().toISOString().split('T')[0],
         daysHeld: 0,
         currentReturn: 0,
@@ -1249,7 +1247,6 @@ router.get("/performance/:symbol", async (req, res) => {
     return res.json({
       symbol: symbol.toUpperCase(),
       signal: signalData.signal || "BUY",
-      confidence: 0.75,
       signalDate: signalDate,
       daysHeld: Math.max(0, daysHeld),
       currentReturn: currentReturn,
