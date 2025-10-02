@@ -1050,14 +1050,38 @@ router.get("/ecs-tasks", async (req, res) => {
 
     const tasks = {};
 
-    // Monitor multiple ECS tasks - matches Step Functions orchestration
+    // Monitor critical ECS tasks - core data loaders
     const taskConfigs = [
+      // Core symbol and company data
       { name: "stocksymbols", logGroup: "/ecs/stocksymbols-loader" },
       { name: "loadinfo", logGroup: "/ecs/loadinfo-loader" },
+
+      // Price data loaders
+      { name: "price_daily", logGroup: "/ecs/pricedaily-loader" },
+      { name: "price_weekly", logGroup: "/ecs/priceweekly-loader" },
+      { name: "price_monthly", logGroup: "/ecs/pricemonthly-loader" },
+
+      // Technical indicators
+      { name: "technicals_daily", logGroup: "/ecs/technicalsdaily-loader" },
+
+      // Earnings data
       { name: "earnings_estimate", logGroup: "/ecs/earningsestimate-loader" },
       { name: "earnings_history", logGroup: "/ecs/earningshistory-loader" },
       { name: "earnings_metrics", logGroup: "/ecs/earningsmetrics-loader" },
-      { name: "revenue_estimate", logGroup: "/ecs/revenueestimate-loader" }
+      { name: "revenue_estimate", logGroup: "/ecs/revenueestimate-loader" },
+
+      // Financial statements
+      { name: "annual_balance_sheet", logGroup: "/ecs/annualbalancesheet-loader" },
+      { name: "annual_income_statement", logGroup: "/ecs/annualincomestatement-loader" },
+      { name: "annual_cash_flow", logGroup: "/ecs/annualcashflow-loader" },
+
+      // Buy/Sell signals
+      { name: "buysell_daily", logGroup: "/ecs/buyselldaily-loader" },
+
+      // Market sentiment
+      { name: "fear_greed", logGroup: "/ecs/feargreed-loader" },
+      { name: "naaim", logGroup: "/ecs/naaim-loader" },
+      { name: "aaii", logGroup: "/ecs/aaiidata-loader" }
     ];
 
     // Function to check a single task
