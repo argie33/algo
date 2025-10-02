@@ -53,7 +53,8 @@ Resources:
       DBName: stocks
       Engine: postgres
       DBInstanceClass: db.t3.micro
-      AllocatedStorage: 20
+      AllocatedStorage: 30
+      MaxAllocatedStorage: 100
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
       VPCSecurityGroups:
