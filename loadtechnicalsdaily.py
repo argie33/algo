@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 14:00 - Add performance index for API query optimization
+# Updated: 2025-10-02 14:30 - Retrigger deployment with performance index
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # SATA Score implementation: Mansfield RS calculation added - Sep 30 2025
 # Memory optimized: 512MB, batch size 30 for better throughput
