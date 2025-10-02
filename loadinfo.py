@@ -799,8 +799,132 @@ if __name__ == "__main__":
     success_rate = (p_s / t_s * 100) if t_s > 0 else 0
     logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)} ({success_rate:.1f}% success)")
 
+    # CRITICAL: Retry failed symbols to ensure NO data loss
     if f_s:
         logging.warning(f"Failed symbols ({len(f_s)}): {', '.join(f_s[:20])}{'...' if len(f_s) > 20 else ''}")
+        logging.info("RETRY PASS: Attempting to recover failed symbols with ultra-conservative settings...")
+
+        # Retry with EXTREMELY conservative settings (1 symbol at a time, long delays)
+        retry_failed = []
+        for idx, symbol in enumerate(f_s):
+            logging.info(f"Retry {idx+1}/{len(f_s)}: {symbol}")
+            yq_sym = symbol.replace(".", "-").replace("$", "-").upper()
+
+            # Try up to 15 times with exponential backoff
+            success = False
+            for attempt in range(1, 16):
+                try:
+                    ticker = yf.Ticker(yq_sym)
+                    info = ticker.info
+                    if not info or not isinstance(info, dict) or len(info) == 0:
+                        raise ValueError("Empty info from retry")
+
+                    # Insert data (same logic as in load_company_info)
+                    cur.execute(
+                        """
+                        INSERT INTO company_profile (
+                            ticker, short_name, long_name, display_name, quote_type,
+                            symbol_type, triggerable, has_pre_post_market_data, price_hint,
+                            max_age_sec, language, region, financial_currency, currency,
+                            market, quote_source_name, custom_price_alert_confidence,
+                            address1, city, state, postal_code, country, phone_number,
+                            website_url, ir_website_url, message_board_id, corporate_actions,
+                            sector, sector_key, sector_disp, industry, industry_key,
+                            industry_disp, business_summary, employee_count,
+                            first_trade_date_ms, gmt_offset_ms, exchange,
+                            full_exchange_name, exchange_timezone_name,
+                            exchange_timezone_short_name, exchange_data_delayed_by_sec,
+                            post_market_time_ms, regular_market_time_ms
+                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                                 %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                                 %s,%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT (ticker) DO UPDATE SET
+                            short_name = EXCLUDED.short_name,
+                            long_name = EXCLUDED.long_name
+                    """,
+                        (
+                            symbol,
+                            info.get("shortName"),
+                            info.get("longName"),
+                            info.get("displayName"),
+                            info.get("quoteType"),
+                            info.get("symbolType"),
+                            info.get("triggerable"),
+                            info.get("hasPrePostMarketData"),
+                            info.get("priceHint"),
+                            info.get("maxAge"),
+                            info.get("language"),
+                            info.get("region"),
+                            info.get("financialCurrency"),
+                            info.get("currency"),
+                            info.get("market"),
+                            info.get("quoteSourceName"),
+                            info.get("customPriceAlertConfidence"),
+                            info.get("address1"),
+                            info.get("city"),
+                            info.get("state"),
+                            info.get("zip"),
+                            info.get("country"),
+                            info.get("phone"),
+                            info.get("website"),
+                            info.get("irWebsite"),
+                            info.get("messageBoardId"),
+                            json.dumps(info.get("corporateActions", {})),
+                            info.get("sector"),
+                            info.get("sectorKey"),
+                            info.get("sectorDisp"),
+                            info.get("industry"),
+                            info.get("industryKey"),
+                            info.get("industryDisp"),
+                            info.get("longBusinessSummary"),
+                            info.get("fullTimeEmployees"),
+                            info.get("firstTradeDateEpochUtc"),
+                            info.get("gmtOffSetMilliseconds"),
+                            info.get("exchange"),
+                            info.get("fullExchangeName"),
+                            info.get("exchangeTimezoneName"),
+                            info.get("exchangeTimezoneShortName"),
+                            info.get("exchangeDataDelayedBy"),
+                            info.get("postMarketTime"),
+                            info.get("regularMarketTime"),
+                        ),
+                    )
+                    conn.commit()
+                    logging.info(f"✅ Successfully recovered {symbol} on retry attempt {attempt}")
+                    p_s += 1  # Increment processed count
+                    success = True
+                    break
+                except Exception as e:
+                    logging.warning(f"Retry attempt {attempt}/15 failed for {symbol}: {e}")
+                    if attempt == 15:
+                        retry_failed.append(symbol)
+                        logging.error(f"❌ PERMANENTLY FAILED: {symbol} - could not recover after 15 retry attempts")
+                        break
+
+                    # Ultra-long exponential backoff for retries (start at 30s, max 300s = 5min)
+                    error_str = str(e).lower()
+                    if "rate limit" in error_str or "too many requests" in error_str or "429" in error_str:
+                        delay = min(30.0 * (2 ** (attempt - 1)), 300.0)
+                        logging.info(f"Rate limited on retry - waiting {delay:.1f}s before attempt {attempt+1}/15")
+                    else:
+                        delay = 10.0
+                    time.sleep(delay)
+
+            # Delay between retry symbols (even on success)
+            if idx < len(f_s) - 1:  # Don't delay after last symbol
+                time.sleep(10.0)
+
+        # Final report
+        recovered = len(f_s) - len(retry_failed)
+        if recovered > 0:
+            logging.info(f"🎯 RETRY SUCCESS: Recovered {recovered}/{len(f_s)} failed symbols")
+        if retry_failed:
+            logging.error(f"⚠️ PERMANENT FAILURES ({len(retry_failed)}): {', '.join(retry_failed)}")
+            logging.error("These symbols could not be retrieved even with aggressive retries - likely delisted or API issues")
+
+        # Update final success rate
+        success_rate = (p_s / t_s * 100) if t_s > 0 else 0
+        logging.info(f"FINAL — total: {t_s}, processed: {p_s}, failed: {len(retry_failed)} ({success_rate:.1f}% success)")
 
     cur.close()
     conn.close()
