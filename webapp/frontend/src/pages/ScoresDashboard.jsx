@@ -652,9 +652,6 @@ const ScoresDashboard = () => {
                           Signal: {new Date(signals[stock.symbol].date).toLocaleDateString()}
                         </Typography>
                       )}
-                      <Typography variant="caption" color="text.secondary">
-                        Updated: {new Date(stock.lastUpdated).toLocaleDateString()}
-                      </Typography>
                     </Box>
                   </Grid>
                 </Grid>
