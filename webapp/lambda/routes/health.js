@@ -1094,6 +1094,12 @@ router.get("/ecs-tasks", async (req, res) => {
 
       // Buy/Sell signals
       { name: "buysell_daily", logGroup: "/ecs/buyselldaily-loader" },
+      { name: "buysell_weekly", logGroup: "/ecs/latestbuysellweekly-loader" },
+      { name: "buysell_monthly", logGroup: "/ecs/latestbuysellmonthly-loader" },
+
+      // Calendar and market data
+      { name: "calendar", logGroup: "/ecs/calendar-loader" },
+      { name: "market", logGroup: "/ecs/market-loader" },
 
       // Market sentiment
       { name: "fear_greed", logGroup: "/ecs/feargreed-loader" },
