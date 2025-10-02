@@ -316,6 +316,9 @@ jobs:
               "earningsmetrics")
                 DOCKERFILE="Dockerfile.loadearningsmetrics"
                 ;;
+              "analystupgradedowngrade")
+                DOCKERFILE="Dockerfile.loadanalystupgradedowngrade"
+                ;;
               *)
                 DOCKERFILE="Dockerfile.$loader"
                 ;;
@@ -391,6 +394,9 @@ jobs:
                 ;;
               "earningsmetrics")
                 DOCKERFILE="Dockerfile.loadearningsmetrics"
+                ;;
+              "analystupgradedowngrade")
+                DOCKERFILE="Dockerfile.loadanalystupgradedowngrade"
                 ;;
               *)
                 DOCKERFILE="Dockerfile.$loader"
