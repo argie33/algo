@@ -212,24 +212,11 @@ function TradingSignals() {
       ? Math.round(validQualitySignals.reduce((sum, s) => sum + parseInt(s.entry_quality_score || 0), 0) / validQualitySignals.length)
       : 0;
 
-    // Find top performing sectors
-    const sectorCounts = {};
-    signals.forEach((s) => {
-      if (s.sector) {
-        sectorCounts[s.sector] = (sectorCounts[s.sector] || 0) + 1;
-      }
-    });
-    const topSector = Object.entries(sectorCounts).sort(
-      (a, b) => b[1] - a[1]
-    )[0];
-
     return {
       totalSignals,
       currentRangeSignals,
       buySignals,
       sellSignals,
-      topSector: topSector ? topSector[0] : null,
-      topSectorCount: topSector ? topSector[1] : 0,
       // Swing Trading Metrics
       stage2Signals,
       highQualitySignals,
@@ -980,14 +967,26 @@ function TradingSignals() {
           </Grid>
         ))}
 
-        {summaryStats?.topSector && (
+        {summaryStats && (
           <Grid item xs={12} md={3}>
             <PerformanceCard
-              title="Top Sector"
-              value={summaryStats.topSector}
-              subtitle={`${summaryStats.topSectorCount} signals`}
+              title="Buy Signals"
+              value={summaryStats.buySignals || 0}
+              subtitle={`${Math.round(((summaryStats.buySignals || 0) / (summaryStats.totalSignals || 1)) * 100)}% of signals`}
               icon={<TrendingUp />}
-              color="#8B5CF6"
+              color="#10B981"
+            />
+          </Grid>
+        )}
+
+        {summaryStats && (
+          <Grid item xs={12} md={3}>
+            <PerformanceCard
+              title="Sell Signals"
+              value={summaryStats.sellSignals || 0}
+              subtitle={`${Math.round(((summaryStats.sellSignals || 0) / (summaryStats.totalSignals || 1)) * 100)}% of signals`}
+              icon={<TrendingDown />}
+              color="#DC2626"
             />
           </Grid>
         )}

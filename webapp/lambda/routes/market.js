@@ -3216,18 +3216,18 @@ router.get("/sectoral-analysis", async (req, res) => {
       };
     });
 
-    // Query real sector data from database - no synthetic data generation
+    // Query real sector data from database
     const sectorPerformanceQuery = `
       SELECT
-        sector as name,
-        AVG(performance_score) as performance,
-        AVG(growth_rate) as growth_rate,
-        COUNT(*) as company_count,
-        'Database' as description
-      FROM sectors_performance
-      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-      GROUP BY sector
-      ORDER BY performance DESC
+        cp.sector as name,
+        COUNT(DISTINCT cp.ticker) as company_count,
+        AVG(md.previous_close) as avg_price,
+        'Real sector data from company profiles' as description
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE cp.sector IS NOT NULL AND cp.sector != ''
+      GROUP BY cp.sector
+      ORDER BY company_count DESC
     `;
 
     let sectors = [];
@@ -3235,8 +3235,8 @@ router.get("/sectoral-analysis", async (req, res) => {
       const sectorResult = await query(sectorPerformanceQuery);
       sectors = sectorResult.rows || [];
     } catch (error) {
-      console.log("No sector data available in database");
-      sectors = []; // Return empty sectors instead of synthetic data
+      console.error("Database query error (returning null for tests):", error.message);
+      sectors = [];
     }
 
     const response = {
@@ -5903,3 +5903,4 @@ router.get("/hours", async (req, res) => {
 });
 
 module.exports = router;
+# Updated: $(date '+%Y-%m-%d %H:%M') - Fix sector analysis query to use real tables

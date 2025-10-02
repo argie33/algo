@@ -110,8 +110,6 @@ const EconomicModeling = () => {
   const [selectedTimeframe, setSelectedTimeframe] = useState("6M");
   const [_selectedModel, _setSelectedModel] = useState("composite");
   const [selectedScenario, setSelectedScenario] = useState("base");
-  // Loading state managed above
-  const [liveUpdates, setLiveUpdates] = useState(false);
   // Real economic data from backend APIs
   const [economicData, setEconomicData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -338,17 +336,6 @@ const EconomicModeling = () => {
               <MenuItem value="5Y">5 Years</MenuItem>
             </Select>
           </FormControl>
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={liveUpdates}
-                onChange={(e) => setLiveUpdates(e.target.checked)}
-                color="primary"
-              />
-            }
-            label="Live Updates"
-          />
 
           <IconButton onClick={() => setLoading(true)}>
             <Refresh />
