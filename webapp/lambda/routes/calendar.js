@@ -387,65 +387,67 @@ router.get("/events", async (req, res) => {
     // Initialize empty events array
     let events = [];
 
+    // Get total count for pagination
+    let total = 0;
     try {
-      // Try to get earnings events from database with all required fields
-      const earningsQuery = `
+      const countQuery = `
+        SELECT COUNT(*) as count
+        FROM calendar_events ce
+        WHERE ce.start_date >= CURRENT_DATE
+        AND ce.start_date <= CURRENT_DATE + INTERVAL '30 days'
+      `;
+      const countResult = await query(countQuery);
+      total = parseInt(countResult.rows[0]?.count || 0);
+    } catch (countError) {
+      console.error("Calendar count query failed:", countError.message);
+      total = 0;
+    }
+
+    // Get calendar events
+    try {
+      // Simplified query without JOIN to avoid issues
+      const calendarQuery = `
         SELECT
-          eh.symbol,
-          COALESCE(ss.security_name, eh.symbol) as company,
-          eh.quarter as start_date,
-          eh.quarter as report_date,
-          'earnings' as event_type,
-          CONCAT(COALESCE(ss.security_name, eh.symbol), ' Q', EXTRACT(QUARTER FROM eh.quarter), ' ', EXTRACT(YEAR FROM eh.quarter), ' Earnings Report') as title,
-          EXTRACT(QUARTER FROM eh.quarter)::INTEGER as quarter,
-          EXTRACT(YEAR FROM eh.quarter)::INTEGER as fiscal_year,
-          eh.eps_estimate as estimated_eps,
-          eh.eps_actual as actual_eps,
-          eh.surprise_percent,
-          'after_market' as timing,
-          CASE
-            WHEN eh.eps_actual > eh.eps_estimate THEN 'beat'
-            WHEN eh.eps_actual < eh.eps_estimate THEN 'miss'
-            ELSE 'met'
-          END as result,
-          NULL::INTEGER as analyst_count,
-          NULL::TIMESTAMPTZ as conference_call_time
-        FROM earnings_history eh
-        LEFT JOIN stock_symbols ss ON eh.symbol = ss.symbol
-        WHERE eh.quarter >= CURRENT_DATE
-        AND eh.quarter <= CURRENT_DATE + INTERVAL '30 days'
-        ORDER BY eh.quarter ASC
+          symbol,
+          start_date,
+          end_date,
+          event_type,
+          title,
+          fetched_at
+        FROM calendar_events
+        WHERE start_date >= CURRENT_DATE
+        AND start_date <= CURRENT_DATE + INTERVAL '30 days'
+        ORDER BY start_date ASC
         LIMIT $1 OFFSET $2
       `;
 
-      const earningsResult = await query(earningsQuery, [limit, offset]);
+      const calendarResult = await query(calendarQuery, [limit, offset]);
 
-      if (earningsResult && earningsResult.rows) {
-        events = earningsResult.rows.map(row => ({
+      if (calendarResult && calendarResult.rows) {
+        events = calendarResult.rows.map(row => ({
           symbol: row.symbol,
-          company: row.company,
+          company: row.symbol, // Use symbol as company name for now
           event_type: row.event_type,
           title: row.title,
           start_date: row.start_date,
-          report_date: row.report_date,
-          quarter: row.quarter,
-          fiscal_year: row.fiscal_year,
-          estimated_eps: row.estimated_eps,
-          actual_eps: row.actual_eps,
-          surprise_percent: row.surprise_percent,
-          timing: row.timing,
-          time: row.timing, // Legacy field for compatibility
-          result: row.result,
-          analyst_count: row.analyst_count,
-          conference_call_time: row.conference_call_time,
+          end_date: row.end_date,
+          fetched_at: row.fetched_at,
         }));
       }
     } catch (dbError) {
-      console.log("Calendar events: database query failed, returning empty events:", dbError.message);
-      // Continue with empty events array
+      console.error("Calendar events query failed:", dbError.message);
+      // Continue with empty events array and return proper error message
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          error: "Database query failed",
+          message: "Unable to fetch calendar events from database. The calendar_events table may not exist or is inaccessible.",
+          details: dbError.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
 
-    const total = events.length;
     const totalPages = Math.ceil(Math.max(total, 1) / limit);
 
     return res.json({
