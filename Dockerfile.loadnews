@@ -21,7 +21,7 @@ COPY boto3.py ./
 
 # Install Python dependencies from requirements file
 COPY requirements-loadnews.txt ./
-RUN pip install --no-cache-dir -r requirements-loadnews.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadnews.txt
 
 # Copy the script
 COPY loadnews.py ./

@@ -10,7 +10,7 @@ WORKDIR /app
 
 COPY Dockerfile.loadearningsestimate requirements-loadearningsestimate.txt loadearningsestimate.py ./
 
-RUN pip install --no-cache-dir -r requirements-loadearningsestimate.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadearningsestimate.txt
 
 # Run as non-root
 USER 1000

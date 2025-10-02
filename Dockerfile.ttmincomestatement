@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install Python dependencies
 COPY requirements-loadttmincomestatement.txt .
-RUN pip install --no-cache-dir -r requirements-loadttmincomestatement.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadttmincomestatement.txt
 
 # Copy the loader script
 COPY loadttmincomestatement.py .

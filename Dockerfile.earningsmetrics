@@ -18,7 +18,7 @@ WORKDIR /app
 COPY requirements-earningsmetrics.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements-earningsmetrics.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-earningsmetrics.txt
 
 # Copy the script
 COPY loadearningsmetrics.py .

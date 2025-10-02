@@ -7,7 +7,7 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 COPY Dockerfile.loadearningshistory requirements-loadearningshistory.txt loadearningshistory.py ./
 
 # Install the requirements
-RUN pip install --no-cache-dir -r requirements-loadearningshistory.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadearningshistory.txt
 
 # Set the entrypoint
 ENTRYPOINT ["python", "loadearningshistory.py"]

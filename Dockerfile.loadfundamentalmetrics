@@ -15,7 +15,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements-loadfundamentalmetrics.txt .
-RUN pip install --no-cache-dir -r requirements-loadfundamentalmetrics.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadfundamentalmetrics.txt
 
 COPY loadfundamentalmetrics.py .
 CMD ["python", "loadfundamentalmetrics.py"]

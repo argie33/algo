@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install Python dependencies
 COPY requirements-loadannualcashflow.txt .
-RUN pip install --no-cache-dir -r requirements-loadannualcashflow.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadannualcashflow.txt
 
 # Copy the script
 COPY loadannualcashflow.py .

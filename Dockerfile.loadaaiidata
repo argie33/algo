@@ -16,7 +16,7 @@ WORKDIR /app
 
 # Copy requirements and install Python dependencies
 COPY requirements-loadaaiidata.txt .
-RUN pip install --no-cache-dir -r requirements-loadaaiidata.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadaaiidata.txt
 
 # Copy the script
 COPY loadaaiidata.py .

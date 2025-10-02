@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy only requirements first to leverage Docker cache
 COPY requirements-loadcalendar.txt .
-RUN pip install --no-cache-dir -r requirements-loadcalendar.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadcalendar.txt
 
 # Copy script
 COPY loadcalendar.py .

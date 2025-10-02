@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install Python dependencies
 COPY requirements-loadquarterlybalancesheet.txt .
-RUN pip install --no-cache-dir -r requirements-loadquarterlybalancesheet.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadquarterlybalancesheet.txt
 
 # Copy the loader script
 COPY loadquarterlybalancesheet.py .

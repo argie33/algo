@@ -18,7 +18,7 @@ WORKDIR /app
 COPY requirements-loadbuysell.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements-loadbuysell.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadbuysell.txt
 
 # Copy the script
 COPY loadbuysellweekly.py .

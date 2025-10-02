@@ -15,7 +15,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements-loadpositioning.txt .
-RUN pip install --no-cache-dir -r requirements-loadpositioning.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadpositioning.txt
 
 COPY loadpositioning.py .
 CMD ["python", "loadpositioning.py"]

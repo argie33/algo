@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY requirements-loadtechnicalsmonthly.txt .
-RUN pip install --no-cache-dir -r requirements-loadtechnicalsmonthly.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadtechnicalsmonthly.txt
 
 # Copy script
 COPY loadtechnicalsmonthly.py .

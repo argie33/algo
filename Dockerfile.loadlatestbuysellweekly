@@ -15,7 +15,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements-loadlatestbuysellweekly.txt .
-RUN pip install --no-cache-dir -r requirements-loadlatestbuysellweekly.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadlatestbuysellweekly.txt
 
 COPY loadlatestbuysellweekly.py .
 CMD ["python", "loadlatestbuysellweekly.py"]

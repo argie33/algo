@@ -20,7 +20,7 @@ RUN pip install --upgrade pip setuptools wheel
 
 # 3) Copy & install Python requirements
 COPY requirements-swingtrader.txt .
-RUN pip install --no-cache-dir -r requirements-swingtrader.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-swingtrader.txt
 
 # 4) Copy your trading script
 COPY swingtrader.py .

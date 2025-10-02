@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install Python dependencies
 COPY requirements-loadquarterlyincomestatement.txt .
-RUN pip install --no-cache-dir -r requirements-loadquarterlyincomestatement.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadquarterlyincomestatement.txt
 
 # Copy the script
 COPY loadquarterlyincomestatement.py .

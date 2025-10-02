@@ -42,7 +42,7 @@ WORKDIR /app
 
 # Copy requirements and install Python dependencies
 COPY requirements-loadfeargreed.txt .
-RUN pip install --no-cache-dir -r requirements-loadfeargreed.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadfeargreed.txt
 
 # Copy the script
 COPY loadfeargreed.py .

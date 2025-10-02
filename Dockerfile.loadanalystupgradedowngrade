@@ -15,7 +15,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements-loadanalystupgradedowngrade.txt .
-RUN pip install --no-cache-dir -r requirements-loadanalystupgradedowngrade.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadanalystupgradedowngrade.txt
 
 COPY loadanalystupgradedowngrade.py .
 CMD ["python", "loadanalystupgradedowngrade.py"]

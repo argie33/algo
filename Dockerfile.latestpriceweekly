@@ -10,7 +10,7 @@ WORKDIR /app
 
 # install Python dependencies for loadpriceweekly.py
 COPY requirements-loadlatestpriceweekly.txt .
-RUN pip install --no-cache-dir -r requirements-loadlatestpriceweekly.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadlatestpriceweekly.txt
 
 # copy and run the price-weekly loader script
 COPY loadlatestpriceweekly.py .
