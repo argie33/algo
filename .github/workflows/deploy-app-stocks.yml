@@ -559,6 +559,15 @@ jobs:
             "info")
               TASK_DEF_NAME="LoadInfoTaskDefArn"
               ;;
+            "earningsmetrics")
+              TASK_DEF_NAME="EarningsMetricsTaskDefArn"
+              ;;
+            "earningshistory")
+              TASK_DEF_NAME="EarningsHistoryTaskDefArn"
+              ;;
+            "earningsestimate")
+              TASK_DEF_NAME="EarningsEstimateTaskDefArn"
+              ;;
             *)
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
