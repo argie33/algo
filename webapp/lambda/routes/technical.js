@@ -194,10 +194,18 @@ router.get("/daily", async (req, res) => {
 
     try {
       // Get technical data from technical_data_daily table (created by loadtechnicalsdaily.py)
-      // Optimized query: Calculate price changes first, then filter to latest
+      // Optimized query: Filter to latest dates first, then calculate price changes only for needed symbols
       result = await query(
       `
-      WITH price_changes AS (
+      WITH latest_dates AS (
+        SELECT symbol, MAX(date) as max_date
+        FROM technical_data_daily
+        ${whereClause}
+        GROUP BY symbol
+        ORDER BY symbol ${order}
+        LIMIT $1 OFFSET $2
+      ),
+      price_changes AS (
         SELECT
           symbol,
           date,
@@ -208,12 +216,8 @@ router.get("/daily", async (req, res) => {
           volume,
           ROUND(((close - LAG(close) OVER (PARTITION BY symbol ORDER BY date)) / NULLIF(LAG(close) OVER (PARTITION BY symbol ORDER BY date), 0) * 100)::NUMERIC, 2) as price_change_percent
         FROM price_daily
-      ),
-      latest_dates AS (
-        SELECT symbol, MAX(date) as max_date
-        FROM technical_data_daily
-        ${whereClause}
-        GROUP BY symbol
+        WHERE symbol IN (SELECT symbol FROM latest_dates)
+        AND date >= (SELECT MIN(max_date) - INTERVAL '10 days' FROM latest_dates)
       )
       SELECT
         t.symbol,
@@ -261,7 +265,6 @@ router.get("/daily", async (req, res) => {
       INNER JOIN latest_dates ld ON t.symbol = ld.symbol AND t.date = ld.max_date
       LEFT JOIN price_changes pc ON t.symbol = pc.symbol AND t.date = pc.date
       ORDER BY t.${sortField} ${order}
-      LIMIT $1 OFFSET $2
       `,
       queryParams
     );
