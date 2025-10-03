@@ -2999,13 +2999,23 @@ router.get("/leading-indicators", async (req, res) => {
     const result = await query(economicQuery);
     const indicators = {};
 
+    console.log(`📊 Leading indicators query returned ${result.rows?.length || 0} series`);
+
     // Parse the results into a structured format
     result.rows.forEach((row) => {
       indicators[row.series_id] = {
         value: parseFloat(row.value),
         date: row.date,
       };
+      console.log(`  ✓ ${row.series_id}: ${row.value} (${row.date})`);
     });
+
+    // Log missing series
+    const requiredSeries = ['UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y', 'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH'];
+    const missingSeries = requiredSeries.filter(s => !indicators[s]);
+    if (missingSeries.length > 0) {
+      console.log(`⚠️  Missing series: ${missingSeries.join(', ')}`);
+    }
 
     // Calculate yield curve data
     const spread2y10y = indicators["T10Y2Y"] ? indicators["T10Y2Y"].value : 0;
@@ -3041,45 +3051,61 @@ router.get("/leading-indicators", async (req, res) => {
           averageLeadTime: isInverted ? 12 : 0, // Average lead time in months
         },
 
-        // Individual indicators array
+        // Individual indicators array - filter out null values and add required frontend fields
         indicators: [
           {
             name: "Unemployment Rate",
-            value: indicators["UNRATE"] ? indicators["UNRATE"].value : null,
+            value: indicators["UNRATE"] ? indicators["UNRATE"].value.toFixed(1) + "%" : null,
+            rawValue: indicators["UNRATE"] ? indicators["UNRATE"].value : null,
             unit: "%",
             change: 0, // Would need historical data to calculate
             trend: "stable",
+            signal: indicators["UNRATE"] && indicators["UNRATE"].value < 4.5 ? "Positive" : indicators["UNRATE"] && indicators["UNRATE"].value > 6 ? "Negative" : "Neutral",
+            description: "Percentage of labor force actively seeking employment",
+            strength: indicators["UNRATE"] ? Math.min(100, Math.max(0, 100 - (indicators["UNRATE"].value - 3) * 10)) : 0,
             importance: "high",
             date: indicators["UNRATE"] ? indicators["UNRATE"].date : null,
           },
           {
             name: "Industrial Production",
-            value: indicators["INDPRO"] ? indicators["INDPRO"].value : null,
+            value: indicators["INDPRO"] ? indicators["INDPRO"].value.toFixed(1) : null,
+            rawValue: indicators["INDPRO"] ? indicators["INDPRO"].value : null,
             unit: "Index",
             change: 0,
             trend: "stable",
+            signal: indicators["INDPRO"] && indicators["INDPRO"].value > 100 ? "Positive" : indicators["INDPRO"] && indicators["INDPRO"].value < 95 ? "Negative" : "Neutral",
+            description: "Measure of real output for all manufacturing, mining, and utilities facilities",
+            strength: indicators["INDPRO"] ? Math.min(100, Math.max(0, (indicators["INDPRO"].value - 90) * 2)) : 0,
             importance: "medium",
             date: indicators["INDPRO"] ? indicators["INDPRO"].date : null,
           },
           {
             name: "Housing Starts",
-            value: indicators["HOUST"] ? indicators["HOUST"].value : null,
+            value: indicators["HOUST"] ? indicators["HOUST"].value.toFixed(0) + "K" : null,
+            rawValue: indicators["HOUST"] ? indicators["HOUST"].value : null,
             unit: "Thousands",
             change: 0,
             trend: "stable",
+            signal: indicators["HOUST"] && indicators["HOUST"].value > 1500 ? "Positive" : indicators["HOUST"] && indicators["HOUST"].value < 1200 ? "Negative" : "Neutral",
+            description: "Number of new residential construction projects started",
+            strength: indicators["HOUST"] ? Math.min(100, Math.max(0, (indicators["HOUST"].value - 1000) / 10)) : 0,
             importance: "medium",
             date: indicators["HOUST"] ? indicators["HOUST"].date : null,
           },
           {
             name: "Consumer Sentiment",
-            value: indicators["MICH"] ? indicators["MICH"].value : null,
+            value: indicators["MICH"] ? indicators["MICH"].value.toFixed(1) : null,
+            rawValue: indicators["MICH"] ? indicators["MICH"].value : null,
             unit: "Index",
             change: 0,
             trend: "stable",
+            signal: indicators["MICH"] && indicators["MICH"].value > 80 ? "Positive" : indicators["MICH"] && indicators["MICH"].value < 60 ? "Negative" : "Neutral",
+            description: "Consumer confidence and spending expectations",
+            strength: indicators["MICH"] ? Math.min(100, Math.max(0, indicators["MICH"].value - 20)) : 0,
             importance: "high",
             date: indicators["MICH"] ? indicators["MICH"].date : null,
           },
-        ],
+        ].filter(ind => ind.rawValue !== null), // Filter out indicators with no data
 
         // Market data
         yieldCurveData: [
