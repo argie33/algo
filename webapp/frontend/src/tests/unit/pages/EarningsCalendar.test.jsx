@@ -1,6 +1,6 @@
 /**
  * EarningsCalendar Page Unit Tests
- * Tests the earnings calendar functionality - upcoming earnings, historical data, filters
+ * Tests the earnings calendar functionality - weekly calendar, symbol drill-down, earnings details
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -70,7 +70,7 @@ const mockCalendarData = {
         start_date: "2024-01-25",
         end_date: "2024-01-25",
         event_type: "Earnings",
-        title: "Earnings",
+        title: "Q1 2024 Earnings",
         fetched_at: "2024-01-20T10:00:00Z",
       },
       {
@@ -79,14 +79,14 @@ const mockCalendarData = {
         start_date: "2024-01-24",
         end_date: "2024-01-24",
         event_type: "Earnings",
-        title: "Earnings",
+        title: "Q4 2023 Earnings",
         fetched_at: "2024-01-20T10:00:00Z",
       },
     ],
   },
   summary: {
     upcoming_events: 12,
-    this_week: 8,
+    this_week: 2,
     database_integrated: true,
     real_time_data: true,
   },
@@ -95,29 +95,34 @@ const mockCalendarData = {
 const mockEstimatesData = {
   data: {
     AAPL: {
+      company_name: "Apple Inc.",
       estimates: [
         {
           period: "Q1 2024",
           avg_estimate: 2.11,
-          low: 1.95,
-          high: 2.25,
-          num_estimates: 24,
+          low_estimate: 1.95,
+          high_estimate: 2.25,
+          number_of_analysts: 24,
           growth: 5.2,
         },
       ],
     },
     GOOGL: {
+      company_name: "Alphabet Inc.",
       estimates: [
         {
           period: "Q4 2023",
           avg_estimate: 1.34,
-          low: 1.2,
-          high: 1.5,
-          num_estimates: 18,
+          low_estimate: 1.2,
+          high_estimate: 1.5,
+          number_of_analysts: 18,
           growth: 8.5,
         },
       ],
     },
+  },
+  pagination: {
+    total: 2,
   },
   summary: {
     recent_updates: 15,
@@ -127,23 +132,25 @@ const mockEstimatesData = {
 const mockHistoryData = {
   data: {
     AAPL: {
+      company_name: "Apple Inc.",
       history: [
         {
-          quarter: "Q4 2023",
-          actual_eps: 2.18,
-          estimated_eps: 2.11,
-          difference: 0.07,
+          quarter: "2023-12-31",
+          eps_actual: 2.18,
+          eps_estimate: 2.11,
+          eps_difference: 0.07,
           surprise_percent: 3.32,
         },
       ],
     },
     GOOGL: {
+      company_name: "Alphabet Inc.",
       history: [
         {
-          quarter: "Q3 2023",
-          actual_eps: 1.55,
-          estimated_eps: 1.45,
-          difference: 0.1,
+          quarter: "2023-09-30",
+          eps_actual: 1.55,
+          eps_estimate: 1.45,
+          eps_difference: 0.1,
           surprise_percent: 6.9,
         },
       ],
@@ -151,6 +158,45 @@ const mockHistoryData = {
   },
   summary: {
     positive_surprises: 5,
+  },
+};
+
+const mockEpsRevisions = {
+  data: [
+    {
+      period: "Q1 2024",
+      avg_estimate: 2.11,
+      low_estimate: 1.95,
+      high_estimate: 2.25,
+      number_of_analysts: 24,
+    },
+  ],
+};
+
+const mockEpsTrend = {
+  data: [
+    {
+      period: "Q1 2024",
+      avg_estimate: 2.11,
+      year_ago_eps: 2.00,
+      growth: 5.5,
+      number_of_analysts: 24,
+    },
+  ],
+};
+
+const mockMetrics = {
+  data: {
+    AAPL: {
+      metrics: [
+        {
+          report_date: "2024-01-25",
+          earnings_quality_score: 75.5,
+          eps_yoy_growth: 8.2,
+          revenue_yoy_growth: 6.5,
+        },
+      ],
+    },
   },
 };
 
@@ -203,21 +249,21 @@ describe("EarningsCalendar Component", () => {
       if (url.includes("/api/analysts/") && url.includes("/eps-revisions")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ data: { revisions: [] } }),
+          json: () => Promise.resolve(mockEpsRevisions),
         });
       }
 
       if (url.includes("/api/analysts/") && url.includes("/eps-trend")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ data: { trend: [] } }),
+          json: () => Promise.resolve(mockEpsTrend),
         });
       }
 
       if (url.includes("/api/calendar/earnings-metrics")) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ data: { metrics: [] } }),
+          json: () => Promise.resolve(mockMetrics),
         });
       }
 
@@ -242,12 +288,20 @@ describe("EarningsCalendar Component", () => {
     // Wait for the loading to complete and the title to appear
     await waitFor(() => {
       expect(
-        screen.getByText(/earnings calendar & estimates/i)
+        screen.getByText(/earnings calendar/i)
       ).toBeInTheDocument();
     }, { timeout: 5000 });
   });
 
-  it("displays earnings data when loaded", async () => {
+  it("displays weekly earnings calendar section", async () => {
+    renderEarningsCalendar();
+
+    await waitFor(() => {
+      expect(screen.getByText(/this week's earnings/i)).toBeInTheDocument();
+    }, { timeout: 3000 });
+  });
+
+  it("displays earnings data table when loaded", async () => {
     renderEarningsCalendar();
 
     // Wait for the fetch call first
@@ -257,15 +311,16 @@ describe("EarningsCalendar Component", () => {
       );
     }, { timeout: 3000 });
 
-    // Wait for the data to be rendered - first check for table
+    // Wait for the data to be rendered
     await waitFor(() => {
       const tables = screen.getAllByRole("table");
       expect(tables.length).toBeGreaterThan(0);
     }, { timeout: 8000 });
 
-    // Check that the table has table structure (headers, etc.)
+    // Check for table headers
     await waitFor(() => {
       expect(screen.getByRole("columnheader", { name: /symbol/i })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /company/i })).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
@@ -284,37 +339,7 @@ describe("EarningsCalendar Component", () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
-      expect(screen.getByText(/failed to load calendar data/i)).toBeInTheDocument();
-    }, { timeout: 3000 });
-  });
-
-  it("filters earnings by date range", async () => {
-    renderEarningsCalendar();
-
-    await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-    }, { timeout: 3000 });
-
-    // Look for date filter controls
-    const dateFilters = screen.getAllByRole("button");
-    expect(dateFilters.length).toBeGreaterThan(0);
-  });
-
-  it("displays EPS estimates and actuals", async () => {
-    renderEarningsCalendar();
-
-    await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
-    }, { timeout: 3000 });
-  });
-
-  it("shows earnings time (before/after market)", async () => {
-    renderEarningsCalendar();
-
-    await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
+      expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
@@ -328,12 +353,29 @@ describe("EarningsCalendar Component", () => {
     expect(screen.getByText("GOOGL")).toBeInTheDocument();
   });
 
-  it("displays quarter information", async () => {
+  it("displays company names", async () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
+      expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
+      expect(screen.getByText("Alphabet Inc.")).toBeInTheDocument();
+    }, { timeout: 3000 });
+  });
+
+  it("displays summary statistics cards", async () => {
+    renderEarningsCalendar();
+
+    await waitFor(() => {
+      expect(screen.getByText(/upcoming events/i)).toBeInTheDocument();
+      expect(screen.getByText(/this week/i)).toBeInTheDocument();
+    }, { timeout: 3000 });
+  });
+
+  it("shows search functionality", async () => {
+    renderEarningsCalendar();
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/search symbol/i)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
@@ -345,8 +387,14 @@ describe("EarningsCalendar Component", () => {
           json: () =>
             Promise.resolve({
               data: { data: [] },
-              summary: { upcoming_events: 0 },
+              summary: { upcoming_events: 0, this_week: 0 },
             }),
+        });
+      }
+      if (url.includes("/api/calendar/earnings-estimates")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: {}, pagination: { total: 0 } }),
         });
       }
       return Promise.resolve({
@@ -358,98 +406,43 @@ describe("EarningsCalendar Component", () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
-      // Check for empty state or zero in summary cards - using getAllByText since there are multiple 0's
-      const upcomingElements = screen.getAllByText("0");
-      expect(upcomingElements.length).toBeGreaterThan(0);
+      expect(screen.getByText(/no earnings data found/i) || screen.getByText(/no earnings scheduled/i)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
-  // NEW TESTS for enhanced database-integrated earnings functionality
-
-  it("displays database-integrated earnings data with enhanced fields", async () => {
+  it("displays EPS estimates with range", async () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
+    }, { timeout: 3000 });
+
+    // Should show estimates data
+    await waitFor(() => {
+      expect(screen.getByText(/Q1 2024/)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
-  it("shows earnings surprise percentages from database", async () => {
+  it("shows analyst counts", async () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
-      expect(screen.getByText("Alphabet Inc.")).toBeInTheDocument();
+      expect(screen.getByText("24")).toBeInTheDocument();
+      expect(screen.getByText("18")).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
-  it("displays conference call timing information", async () => {
-    renderEarningsCalendar();
-
-    await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
-    }, { timeout: 3000 });
-  });
-
-  it("handles actual vs estimated EPS from database", async () => {
+  it("displays growth percentages", async () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
-    }, { timeout: 3000 });
-  });
-
-  it("displays analyst coverage counts", async () => {
-    renderEarningsCalendar();
-
-    await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
-    }, { timeout: 3000 });
-  });
-
-  it("shows database integration status in summary", async () => {
-    renderEarningsCalendar();
-
-    await waitFor(() => {
-      // Should indicate database integration is active
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/calendar/events")
-      );
     }, { timeout: 3000 });
 
-    // Verify database-integrated flag is present in mock data
-    expect(mockCalendarData.summary.database_integrated).toBe(true);
-    expect(mockCalendarData.summary.real_time_data).toBe(true);
-  });
-
-  it("handles mixed upcoming and historical earnings data", async () => {
-    renderEarningsCalendar();
-
+    // Should show growth data (5.2% and 8.5%)
     await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
-    }, { timeout: 3000 });
-  });
-
-  it("displays fiscal year and quarter information from database", async () => {
-    renderEarningsCalendar();
-
-    await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
-    }, { timeout: 3000 });
-  });
-
-  it("shows earnings timing (before/after market) from database", async () => {
-    renderEarningsCalendar();
-
-    await waitFor(() => {
-      expect(screen.getByText("AAPL")).toBeInTheDocument();
-      expect(screen.getByText("GOOGL")).toBeInTheDocument();
+      const growthElements = screen.getAllByText(/\d+\.\d+%/);
+      expect(growthElements.length).toBeGreaterThan(0);
     }, { timeout: 3000 });
   });
 
@@ -476,7 +469,29 @@ describe("EarningsCalendar Component", () => {
     renderEarningsCalendar();
 
     await waitFor(() => {
-      expect(screen.getByText(/failed to load calendar data/i)).toBeInTheDocument();
+      expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
+    }, { timeout: 3000 });
+  });
+
+  it("shows pagination controls", async () => {
+    renderEarningsCalendar();
+
+    await waitFor(() => {
+      expect(screen.getByText("AAPL")).toBeInTheDocument();
+    }, { timeout: 3000 });
+
+    // Check for pagination component
+    await waitFor(() => {
+      const paginationText = screen.getByText(/1.*2.*of.*2/i) || screen.getByText(/rows per page/i);
+      expect(paginationText).toBeInTheDocument();
+    }, { timeout: 3000 });
+  });
+
+  it("displays Earnings Estimates & Details heading", async () => {
+    renderEarningsCalendar();
+
+    await waitFor(() => {
+      expect(screen.getByText(/earnings estimates & details/i)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 });
