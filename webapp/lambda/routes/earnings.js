@@ -137,7 +137,7 @@ router.get("/calendar", async (req, res) => {
     }
 
     try {
-      // Use earnings_history table (from loadearningshistory.py)
+      // Use earnings_history table and join earnings_metrics for quality scores
       const calendarQuery = `
         SELECT
           eh.symbol,
@@ -150,10 +150,19 @@ router.get("/calendar", async (req, res) => {
           NULL as actual_revenue,
           NULL as company_name,
           NULL as sector,
-          NULL as market_cap
+          NULL as market_cap,
+          em.earnings_quality_score,
+          (eh.eps_actual IS NOT NULL) as is_reported
         FROM earnings_history eh
+        LEFT JOIN earnings_metrics em ON eh.symbol = em.symbol AND eh.quarter = em.report_date
         ${dateFilter.replace('er.', 'eh.')}
-        ORDER BY eh.quarter ASC, eh.symbol
+        ORDER BY
+          CASE
+            WHEN em.earnings_quality_score IS NOT NULL THEN em.earnings_quality_score
+            ELSE -1
+          END DESC,
+          eh.quarter ASC,
+          eh.symbol
         LIMIT $1
       `;
 
