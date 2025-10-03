@@ -1330,6 +1330,86 @@ function MarketOverview() {
           <>
             <TabPanel value={tabValue} index={0}>
           <Grid container spacing={3}>
+            {/* Sentiment Indicators */}
+            <Grid item xs={12} md={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Fear & Greed Index
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    fontWeight={700}
+                    color={getChangeColor(latestFG.value)}
+                  >
+                    {latestFG.value ?? "N/A"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {latestFG.value_text || latestFG.classification || ""}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    0=Extreme Fear, 100=Extreme Greed
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    NAAIM Exposure
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    fontWeight={700}
+                    color={getChangeColor(latestNAAIM.mean_exposure)}
+                  >
+                    {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Active manager equity exposure
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    0=fully out, 100=fully in
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    AAII Sentiment
+                  </Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Bullish:{" "}
+                      <b style={{ color: "#10B981" }}>
+                        {latestAAII.bullish ?? "N/A"}%
+                      </b>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Neutral:{" "}
+                      <b style={{ color: "#8884d8" }}>
+                        {latestAAII.neutral ?? "N/A"}%
+                      </b>
+                    </Typography>
+                    <Typography variant="body2">
+                      Bearish:{" "}
+                      <b style={{ color: "#DC2626" }}>
+                        {latestAAII.bearish ?? "N/A"}%
+                      </b>
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Retail investor sentiment
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
             <Grid item xs={12} md={6}>
               <Card>
                 <CardContent>
