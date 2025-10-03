@@ -4467,3 +4467,7 @@ Database query error (returning null for tests): column "performance_score" does
 No sector data available in database
 ::1 - - [03/Oct/2025:01:13:07 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
 ::1 - - [03/Oct/2025:01:13:07 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/economic/indicators
+Database connection verified for database-dependent endpoint
+📊 Economic indicators requested, category: all
+::1 - - [03/Oct/2025:01:18:00 +0000] "GET /api/economic/indicators HTTP/1.1" 200 2967 "-" "curl/8.5.0"

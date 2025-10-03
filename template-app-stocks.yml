@@ -67,7 +67,7 @@ Resources:
       DeletionProtection: false
       Tags:
         - Key: StorageUpdate
-          Value: "force-30gb-deployment"
+          Value: "force-31gb-deployment-v2"
   ### 4) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
