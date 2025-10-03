@@ -632,6 +632,66 @@ jobs:
             "revenueestimate")
               TASK_DEF_NAME="RevenueEstimateTaskDefArn"
               ;;
+            "econdata")
+              TASK_DEF_NAME="EconDataTaskDefArn"
+              ;;
+            "aaiidata")
+              TASK_DEF_NAME="AaiiDataTaskDefArn"
+              ;;
+            "feargreeddata")
+              TASK_DEF_NAME="FearGreedDataTaskDefArn"
+              ;;
+            "naaaimdata")
+              TASK_DEF_NAME="NaaaimDataTaskDefArn"
+              ;;
+            "aaii")
+              TASK_DEF_NAME="AaiiTaskDefArn"
+              ;;
+            "feargreed")
+              TASK_DEF_NAME="FearGreedTaskDefArn"
+              ;;
+            "naiam")
+              TASK_DEF_NAME="NaaimTaskDefArn"
+              ;;
+            "swingtrader")
+              TASK_DEF_NAME="SwingTraderTaskDefArn"
+              ;;
+            "qualitymetrics")
+              TASK_DEF_NAME="QualityMetricsTaskDefArn"
+              ;;
+            "valuemetrics")
+              TASK_DEF_NAME="ValueMetricsTaskDefArn"
+              ;;
+            "stockscores")
+              TASK_DEF_NAME="StockscoresTaskDefArn"
+              ;;
+            "quarterlybalancesheet")
+              TASK_DEF_NAME="QuarterlyBalanceSheetTaskDefArn"
+              ;;
+            "annualbalancesheet")
+              TASK_DEF_NAME="AnnualBalanceSheetTaskDefArn"
+              ;;
+            "quarterlyincomestatement")
+              TASK_DEF_NAME="QuarterlyIncomeStatementTaskDefArn"
+              ;;
+            "annualincomestatement")
+              TASK_DEF_NAME="AnnualIncomeStatementTaskDefArn"
+              ;;
+            "quarterlycashflow")
+              TASK_DEF_NAME="QuarterlyCashFlowTaskDefArn"
+              ;;
+            "annualcashflow")
+              TASK_DEF_NAME="AnnualCashFlowTaskDefArn"
+              ;;
+            "ttmincomestatement")
+              TASK_DEF_NAME="TTMIncomeStatementTaskDefArn"
+              ;;
+            "ttmcashflow")
+              TASK_DEF_NAME="TTMCashFlowTaskDefArn"
+              ;;
+            "analystupgradedowngrade")
+              TASK_DEF_NAME="AnalystUpgradeDowngradeTaskDefArn"
+              ;;
             *)
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
