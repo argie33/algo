@@ -131,7 +131,7 @@ const menuItems = [
     premium: true,
   },
   {
-    text: "Earnings Calendar",
+    text: "Earnings Hub",
     icon: <EventIcon />,
     path: "/earnings",
     category: "stocks",
