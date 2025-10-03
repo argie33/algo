@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 - Analyst upgrade/downgrade loader ready for AWS deployment
-# Trigger deployment
+# Updated: 2025-10-03 22:45 - Trigger deployment to populate analyst upgrades/downgrades
+# Loads analyst rating changes and sentiment data for stock analysis
 import gc
 import json
 import logging
