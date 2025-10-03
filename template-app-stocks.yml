@@ -43,6 +43,7 @@ Resources:
           Description: "Allow Postgres traffic from anywhere"
 
   ### 3) RDS Instance ###
+  # FORCE UPDATE: Increasing storage from 20GB to 31GB (deployed template still shows 20GB)
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Retain
