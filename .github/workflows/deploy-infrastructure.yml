@@ -33,7 +33,9 @@ jobs:
         run: |
           echo "🚀 Deploying stocks-app-stack with updated RDS storage..."
 
-          aws cloudformation update-stack \
+          # Try to update stack, ignore "No updates" error
+          set +e
+          UPDATE_OUTPUT=$(aws cloudformation update-stack \
             --stack-name stocks-app-stack \
             --region us-east-1 \
             --template-body file://template-app-stocks.yml \
@@ -41,14 +43,25 @@ jobs:
             --parameters \
               ParameterKey=RDSUsername,UsePreviousValue=true \
               ParameterKey=RDSPassword,UsePreviousValue=true \
-              ParameterKey=FREDApiKey,UsePreviousValue=true
+              ParameterKey=FREDApiKey,UsePreviousValue=true 2>&1)
+          EXIT_CODE=$?
+          set -e
 
-          echo "⏳ Waiting for stack update to complete (this takes ~10-15 minutes)..."
-          aws cloudformation wait stack-update-complete \
-            --stack-name stocks-app-stack \
-            --region us-east-1
+          echo "$UPDATE_OUTPUT"
 
-          echo "✅ Stack update complete!"
+          # Check if update was successful or no changes needed
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "⏳ Waiting for stack update to complete (this takes ~10-15 minutes)..."
+            aws cloudformation wait stack-update-complete \
+              --stack-name stocks-app-stack \
+              --region us-east-1
+            echo "✅ Stack update complete!"
+          elif echo "$UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
+            echo "ℹ️ No updates needed - stack is already up to date"
+          else
+            echo "❌ Stack update failed"
+            exit $EXIT_CODE
+          fi
 
       - name: Verify RDS status
         run: |
