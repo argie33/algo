@@ -183,7 +183,8 @@ router.get("/calendar", async (req, res) => {
             actual_revenue: row.actual_revenue ? parseFloat(row.actual_revenue) : null,
             sector: row.sector || "Unknown",
             market_cap: parseFloat(row.market_cap || 0),
-            is_reported: !!row.actual_eps
+            earnings_quality_score: row.earnings_quality_score ? parseFloat(row.earnings_quality_score) : null,
+            is_reported: !!row.is_reported
           })),
           period,
           total: result.rows.length,
