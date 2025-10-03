@@ -2718,36 +2718,35 @@ router.get("/research-indicators", async (req, res) => {
       },
     };
 
-    // Economic calendar highlights
-    const economicCalendar = [
-      {
-        date: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
-        event: "Fed Interest Rate Decision",
-        importance: "High",
-        expected: "5.25%",
-        impact: "Market Moving",
-      },
-      {
-        date: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
-        event: "Non-Farm Payrolls",
-        importance: "High",
-        expected: "+200K",
-        impact: "Market Moving",
-      },
-      {
-        date: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
-        event: "CPI Inflation Report",
-        importance: "High",
-        expected: "3.2%",
-        impact: "Market Moving",
-      },
-    ];
+    // Economic calendar highlights - get from calendar table
+    let economicCalendar = [];
+    try {
+      const calendarQuery = `
+        SELECT
+          start_date as date,
+          title as event,
+          event_type as importance,
+          description as impact
+        FROM calendar
+        WHERE event_type = 'Economic'
+          AND start_date >= CURRENT_DATE
+          AND start_date <= CURRENT_DATE + INTERVAL '30 days'
+        ORDER BY start_date ASC
+        LIMIT 10
+      `;
+      const calendarResult = await query(calendarQuery);
+      economicCalendar = (calendarResult?.rows || []).map(row => ({
+        date: row.date,
+        event: row.event,
+        importance: 'High', // Default to high for economic events
+        expected: 'TBD',
+        impact: row.impact || 'Market Moving'
+      }));
+      console.log(`✅ Loaded ${economicCalendar.length} economic calendar events from database`);
+    } catch (err) {
+      console.error("Failed to load economic calendar from database:", err);
+      economicCalendar = []; // Empty array if query fails
+    }
 
     // Technical levels for major indices
     const technicalLevels = {
