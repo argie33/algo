@@ -338,7 +338,7 @@ function EarningsCalendar() {
         <CardContent>
           <Box display="flex" alignItems="center" gap={1} mb={3}>
             <Schedule color="primary" />
-            <Typography variant="h6">This Week's Earnings</Typography>
+            <Typography variant="h6">This Week&apos;s Earnings</Typography>
           </Box>
 
           {weeklyError && (
