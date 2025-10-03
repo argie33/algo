@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 17:35 - StockDetail page fixed, populate AWS with latest signals
+# Updated: 2025-10-03 - Fixed SQL parameter formatting in swing metrics calculation
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
-# Fixed: SQL parameter formatting issue in update_swing_metrics_for_symbol
+# Fixed: Escaped % character in SQL comment to prevent psycopg2 parameter mixing error
 import json
 import logging
 import os

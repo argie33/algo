@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 19:45 - Remove debug limit, process all symbols
+# Updated: 2025-10-03 - Monthly signals loader ready for AWS deployment
 import json
 import logging
 import os
