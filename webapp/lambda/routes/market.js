@@ -3033,7 +3033,7 @@ router.get("/leading-indicators", async (req, res) => {
         FROM economic_data
         WHERE series_id IN (
           'UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y',
-          'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'UMCSENT'
+          'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH'
         )
       )
       SELECT series_id, value, date
@@ -3118,12 +3118,12 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Consumer Sentiment",
-            value: indicators["UMCSENT"] ? indicators["UMCSENT"].value : null,
+            value: indicators["MICH"] ? indicators["MICH"].value : null,
             unit: "Index",
             change: 0,
             trend: "stable",
             importance: "high",
-            date: indicators["UMCSENT"] ? indicators["UMCSENT"].date : null,
+            date: indicators["MICH"] ? indicators["MICH"].date : null,
           },
         ],
 
