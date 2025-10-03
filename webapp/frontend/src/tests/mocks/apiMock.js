@@ -691,8 +691,6 @@ const mockApi = {
 
   // News and analysis
   getNews: createMockApiFunction('getNews'),
-  getNewsAnalysis: createMockApiFunction('getNewsAnalysis'),
-  getSentimentAnalysis: createMockApiFunction('getSentimentAnalysis'),
 
   // Technical analysis
   getTechnicalAnalysis: createMockApiFunction('getTechnicalAnalysis'),

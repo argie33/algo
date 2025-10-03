@@ -875,7 +875,6 @@ vi.mock("../services/api.js", () => ({
     getTechnicalAnalysis: vi
       .fn()
       .mockResolvedValue({ success: true, data: {} }),
-    getNewsAnalysis: vi.fn().mockResolvedValue({ success: true, data: [] }),
     getSectorData: vi.fn().mockResolvedValue({ success: true, data: [] }),
     getDashboardSummary: vi.fn().mockResolvedValue({
       success: true,
