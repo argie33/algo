@@ -50,7 +50,18 @@ DB_POOL_MAX = 10
 
 
 def get_db_config():
-    """Fetch database credentials from AWS Secrets Manager"""
+    """Fetch database credentials from AWS Secrets Manager or use local config"""
+    # Check for local database override
+    if os.environ.get("USE_LOCAL_DB") == "true" or not os.environ.get("DB_SECRET_ARN"):
+        logging.info("Using local database configuration")
+        return (
+            os.environ.get("DB_USER", "postgres"),
+            os.environ.get("DB_PASSWORD", "password"),
+            os.environ.get("DB_HOST", "localhost"),
+            int(os.environ.get("DB_PORT", "5432")),
+            os.environ.get("DB_NAME", "stocks"),
+        )
+
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
     sec = json.loads(resp["SecretString"])
