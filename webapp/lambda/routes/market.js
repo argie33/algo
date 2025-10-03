@@ -789,53 +789,50 @@ router.get("/sectors/performance", async (req, res) => {
   console.log("Sector performance endpoint called");
 
   try {
-    // Check if required tables exist (price_daily and company_profile)
+    // Check if sector_performance table exists (populated by loadsectordata.py)
     const tableExists = await query(
       `
       SELECT EXISTS (
         SELECT FROM information_schema.tables
         WHERE table_schema = 'public'
-        AND table_name = 'price_daily'
-      ) as price_daily_exists,
-      EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_schema = 'public'
-        AND table_name = 'company_profile'
-      ) as company_profile_exists;
+        AND table_name = 'sector_performance'
+      ) as sector_performance_exists;
     `,
       []
     );
 
-    if (!tableExists.rows[0].price_daily_exists || !tableExists.rows[0].company_profile_exists) {
+    if (!tableExists.rows[0].sector_performance_exists) {
       return res.status(503).json({
         success: false,
         error: "Sector performance service unavailable",
-        message: "Required database tables missing: price_daily or company_profile",
+        message: "Required database table missing: sector_performance. Run loadsectordata.py loader.",
         timestamp: new Date().toISOString(),
       });
     }
 
-    // Get sector performance data
-    const marketSectorQuery = `
+    // Get sector performance data from sector_performance table
+    const sectorQuery = `
       SELECT
-        cp.sector,
-        COUNT(*) as stock_count,
-        AVG(CASE WHEN ((pd.close - pd.open) / pd.open * 100) IS NOT NULL THEN ((pd.close - pd.open) / pd.open * 100) ELSE 0 END) as avg_change,
-        SUM(pd.volume) as total_volume,
-        AVG(0) as avg_market_cap
-      FROM price_daily pd
-      JOIN company_profile cp ON pd.symbol = cp.ticker
-      WHERE pd.date = (SELECT MAX(date) FROM price_daily)
-        AND cp.sector IS NOT NULL
-        AND cp.sector != ''
-      GROUP BY cp.sector
-      ORDER BY avg_change DESC
-      LIMIT 20
+        symbol as etf_symbol,
+        sector_name as sector,
+        price,
+        change,
+        change_percent,
+        volume,
+        market_cap,
+        momentum,
+        money_flow,
+        performance_1d,
+        performance_5d,
+        performance_20d,
+        fetched_at
+      FROM sector_performance
+      ORDER BY performance_1d DESC
     `;
 
     let result;
     try {
-      result = await query(marketSectorQuery);
+      result = await query(sectorQuery);
     } catch (error) {
       console.error("Sector performance query error:", error.message);
       return res.status(500).json({
@@ -850,7 +847,7 @@ router.get("/sectors/performance", async (req, res) => {
       return res.status(404).json({
         success: false,
         error: "No sector data found",
-        message: "No sector performance data available",
+        message: "No sector performance data available. Run loadsectordata.py loader.",
         timestamp: new Date().toISOString(),
       });
     }
@@ -863,7 +860,9 @@ router.get("/sectors/performance", async (req, res) => {
         summary: {
           total_sectors: result.rows.length,
           best_performer: result.rows[0]?.sector || "N/A",
-          worst_performer: result.rows[result.rows.length - 1]?.sector || "N/A"
+          worst_performer: result.rows[result.rows.length - 1]?.sector || "N/A",
+          best_performance: result.rows[0]?.performance_1d || 0,
+          worst_performance: result.rows[result.rows.length - 1]?.performance_1d || 0,
         }
       },
       count: result.rows.length,
@@ -871,25 +870,11 @@ router.get("/sectors/performance", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching sector performance:", error);
-    return res.status(200).json({
-      success: true,
-      data: {
-        sectors: [
-          { sector: "Technology", performance: "+1.2%", marketCap: "12T" },
-          { sector: "Healthcare", performance: "+0.8%", marketCap: "4T" },
-          { sector: "Financial", performance: "+0.5%", marketCap: "6T" },
-          { sector: "Energy", performance: "-0.3%", marketCap: "2T" }
-        ],
-        summary: {
-          total_sectors: 4,
-          best_performer: "Technology",
-          worst_performer: "Energy"
-        }
-      },
-      count: 4,
-      source: "database_error",
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      details: error.message,
       timestamp: new Date().toISOString(),
-      note: "Database error occurred, returning empty data"
     });
   }
 });
@@ -2693,56 +2678,26 @@ router.get("/research-indicators", async (req, res) => {
     };
 
     // Sector rotation analysis
-    const sectorRotation = [
-      {
-        sector: "Technology",
-        momentum: "Strong",
-        flow: "Inflow",
-        performance: 12.5,
-      },
-      {
-        sector: "Healthcare",
-        momentum: "Moderate",
-        flow: "Inflow",
-        performance: 8.2,
-      },
-      {
-        sector: "Financials",
-        momentum: "Weak",
-        flow: "Outflow",
-        performance: -2.1,
-      },
-      {
-        sector: "Energy",
-        momentum: "Strong",
-        flow: "Inflow",
-        performance: 15.3,
-      },
-      {
-        sector: "Utilities",
-        momentum: "Weak",
-        flow: "Outflow",
-        performance: -4.2,
-      },
-      {
-        sector: "Consumer Discretionary",
-        momentum: "Moderate",
-        flow: "Neutral",
-        performance: 5.7,
-      },
-      {
-        sector: "Materials",
-        momentum: "Strong",
-        flow: "Inflow",
-        performance: 9.8,
-      },
-      {
-        sector: "Industrials",
-        momentum: "Moderate",
-        flow: "Inflow",
-        performance: 6.4,
-      },
-    ];
+    // Fetch sector rotation from database (populated by loadsectordata.py)
+    let sectorRotation = [];
+    try {
+      const sectorQuery = `
+        SELECT
+          sector_name as sector,
+          momentum,
+          money_flow as flow,
+          performance_1d as performance
+        FROM sector_performance
+        ORDER BY performance_1d DESC
+      `;
+      const sectorResult = await query(sectorQuery);
+      sectorRotation = sectorResult.rows || [];
+      console.log(`✅ Loaded ${sectorRotation.length} sectors from database`);
+    } catch (err) {
+      console.error("Failed to load sector rotation from database:", err);
+      // Fallback to empty array - no hardcoded data
+      sectorRotation = [];
+    }
 
     // Market internals
     const marketInternals = {
