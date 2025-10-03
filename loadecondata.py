@@ -71,6 +71,7 @@ def handler(event, context):
             "GCEC1",
             "EXPGSC1",
             "IMPGSC1",
+            "INDPRO",  # Industrial Production Index
             # — U.S. Labor Market —
             "UNRATE",
             "PAYEMS",
