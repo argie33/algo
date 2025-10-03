@@ -441,9 +441,6 @@ const SectorAnalysis = () => {
                   <TableCell align="right">
                     <strong>Market Cap</strong>
                   </TableCell>
-                  <TableCell align="center">
-                    <strong>Status</strong>
-                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -538,14 +535,6 @@ const SectorAnalysis = () => {
                           <Typography variant="body2">
                             ${formatNumber(sector.marketCap / 1e12, 1)}T
                           </Typography>
-                        )}
-                      </TableCell>
-
-                      <TableCell align="center">
-                        {hasError ? (
-                          <Chip label="Error" color="error" size="small" />
-                        ) : (
-                          <Chip label="Live" color="success" size="small" />
                         )}
                       </TableCell>
                     </TableRow>
