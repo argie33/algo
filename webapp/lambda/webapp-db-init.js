@@ -12,6 +12,9 @@ async function initializeWebappTables() {
   console.log("🚀 Initializing webapp-specific database tables...");
 
   try {
+    // Fix/create loader tables that need schema updates
+    await fixLoaderTableSchemas();
+
     // User Management Tables
     await createUserTables();
 
@@ -50,6 +53,42 @@ async function initializeWebappTables() {
   } catch (error) {
     console.error("❌ Webapp database initialization error:", error);
     throw error;
+  }
+}
+
+async function fixLoaderTableSchemas() {
+  console.log("🔧 Fixing loader table schemas to match loader scripts...");
+
+  try {
+    // Fix earnings_metrics table - recreate to match loadearningsmetrics.py schema
+    console.log("  📊 Fixing earnings_metrics table schema...");
+
+    // Drop and recreate to ensure correct schema
+    await query("DROP TABLE IF EXISTS earnings_metrics CASCADE;");
+
+    await query(`
+      CREATE TABLE earnings_metrics (
+        symbol VARCHAR(20) NOT NULL,
+        report_date DATE NOT NULL,
+        eps_qoq_growth DOUBLE PRECISION,
+        eps_yoy_growth DOUBLE PRECISION,
+        revenue_yoy_growth DOUBLE PRECISION,
+        earnings_surprise_pct DOUBLE PRECISION,
+        earnings_quality_score DOUBLE PRECISION,
+        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (symbol, report_date)
+      );
+    `);
+
+    await query("CREATE INDEX IF NOT EXISTS idx_earnings_metrics_symbol ON earnings_metrics(symbol);");
+    await query("CREATE INDEX IF NOT EXISTS idx_earnings_metrics_quality_score ON earnings_metrics(earnings_quality_score DESC);");
+    await query("CREATE INDEX IF NOT EXISTS idx_earnings_metrics_date ON earnings_metrics(report_date DESC);");
+
+    console.log("  ✅ earnings_metrics table schema fixed");
+
+  } catch (error) {
+    console.error("  ❌ Loader table schema fix error:", error);
+    // Don't throw - allow other tables to be created
   }
 }
 
