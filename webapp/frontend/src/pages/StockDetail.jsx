@@ -43,6 +43,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Tooltip as RechartsTooltip,
 } from "recharts";
 import api from "../services/api";
 import {
@@ -507,7 +508,7 @@ function StockDetail() {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <RechartsTooltip />
                       </PieChart>
                     </ResponsiveContainer>
                   </Box>
@@ -575,7 +576,7 @@ function StockDetail() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="date" />
                         <YAxis domain={["dataMin - 5", "dataMax + 5"]} />
-                        <Tooltip
+                        <RechartsTooltip
                           formatter={(value, name) => [
                             `$${value.toFixed(2)}`,
                             name === "close" ? "Close Price" : name,
@@ -1057,7 +1058,7 @@ function StockDetail() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis />
-                        <Tooltip
+                        <RechartsTooltip
                           formatter={(value) => [
                             formatCurrency(value, 0),
                             "Revenue",
@@ -1097,7 +1098,7 @@ function StockDetail() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis />
-                        <Tooltip
+                        <RechartsTooltip
                           formatter={(value) => [
                             formatCurrency(value, 0),
                             "Net Income",
@@ -1508,7 +1509,7 @@ function StockDetail() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
+                      <RechartsTooltip formatter={(value) => `${value.toFixed(1)}%`} />
                       <Bar dataKey="value" fill="#1976d2" />
                       <Bar dataKey="benchmark" fill="#e0e0e0" opacity={0.5} />
                     </BarChart>
@@ -1612,7 +1613,7 @@ function StockDetail() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="year" />
                       <YAxis />
-                      <Tooltip />
+                      <RechartsTooltip />
                       <Line
                         type="monotone"
                         dataKey="revenue"

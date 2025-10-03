@@ -175,7 +175,7 @@ const menuItems = [
     text: "Analyst Insights",
     icon: <PersonIcon />,
     path: "/sentiment/analysts",
-    category: "sentiment",
+    category: "stocks",
     premium: true,
   },
 
