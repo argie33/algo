@@ -512,6 +512,42 @@ router.get("/:symbol/overview", async (req, res) => {
   }
 });
 
+// GET /:symbol/recommendations - Get analyst recommendations (upgrades/downgrades) for a specific symbol
+router.get("/:symbol/recommendations", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const symbolUpper = symbol.toUpperCase();
+
+    // Get upgrades/downgrades from YFinance
+    const upgradesResult = await query(`
+      SELECT
+        id, symbol, firm, action, from_grade, to_grade,
+        date, details, fetched_at
+      FROM analyst_upgrade_downgrade
+      WHERE UPPER(symbol) = $1
+      ORDER BY date DESC, fetched_at DESC
+      LIMIT 50
+    `, [symbolUpper]);
+
+    res.json({
+      success: true,
+      symbol: symbolUpper,
+      data: upgradesResult.rows || [],
+      count: upgradesResult.rows?.length || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("❌ Error fetching analyst recommendations:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch analyst recommendations",
+      message: error.message,
+      symbol: req.params.symbol,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // GET /:symbol - Get all real analyst data for a specific symbol
 router.get("/:symbol", async (req, res) => {
   try {

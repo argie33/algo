@@ -670,8 +670,14 @@ router.get("/:symbol", async (req, res, next) => {
   try {
     const { symbol } = req.params;
 
-    // Skip reserved keywords that should be handled by specific routes
-    const reservedKeywords = ['search', 'trending', 'screener', 'watchlist', 'analysis', 'recommendations'];
+    // Skip reserved keywords and route paths that should be handled by specific routes
+    const reservedKeywords = [
+      'search', 'trending', 'screener', 'watchlist', 'analysis', 'recommendations',
+      'technicals', 'options', 'insider', 'analysts', 'earnings', 'dividends',
+      'sentiment', 'social', 'prices', 'quote', 'price', 'technical', 'fundamentals',
+      'news', 'financials', 'key-metrics', 'profile', 'analyst-recommendations',
+      'balance-sheet', 'income-statement', 'cash-flow', 'analyst-overview'
+    ];
     if (reservedKeywords.includes(symbol.toLowerCase())) {
       return next(); // Pass to next route handler
     }
@@ -4445,18 +4451,84 @@ router.get("/history/:ticker", async (req, res) => {
 router.get("/:symbol/financials", async (req, res) => {
   try {
     const { symbol } = req.params;
-    const { period = "annual", type = "all" } = req.query;
+    const { period = "annual", type = "income" } = req.query;
 
     console.log(
       `📊 Stock financials requested for ${symbol}, period: ${period}, type: ${type}`
     );
 
-    // Financial data not available - no financial statements table in current schema
-    return res.status(404).json({
-      success: false,
-      error: "Financial statements not available",
-      message: "Financial statements data is not available in the current database schema.",
-      symbol: symbol.toUpperCase(),
+    const symbolUpper = symbol.toUpperCase();
+
+    // Determine table name based on period
+    const tablePrefix = period === "quarterly" ? "quarterly" : "annual";
+
+    // Fetch financial data based on type
+    let financialData = {};
+
+    if (type === "income" || type === "all") {
+      const incomeQuery = `
+        SELECT date, item_name, value
+        FROM ${tablePrefix}_income_statement
+        WHERE symbol = $1
+        ORDER BY date DESC, item_name
+      `;
+      const incomeResult = await query(incomeQuery, [symbolUpper]);
+
+      // Transform to object structure grouped by date
+      const incomeByDate = {};
+      incomeResult.rows.forEach(row => {
+        if (!incomeByDate[row.date]) {
+          incomeByDate[row.date] = { date: row.date };
+        }
+        incomeByDate[row.date][row.item_name.toLowerCase().replace(/ /g, '_')] = parseFloat(row.value);
+      });
+      financialData.income_statement = Object.values(incomeByDate);
+    }
+
+    if (type === "balance" || type === "balance_sheet" || type === "all") {
+      const balanceQuery = `
+        SELECT date, item_name, value
+        FROM ${tablePrefix}_balance_sheet
+        WHERE symbol = $1
+        ORDER BY date DESC, item_name
+      `;
+      const balanceResult = await query(balanceQuery, [symbolUpper]);
+
+      const balanceByDate = {};
+      balanceResult.rows.forEach(row => {
+        if (!balanceByDate[row.date]) {
+          balanceByDate[row.date] = { date: row.date };
+        }
+        balanceByDate[row.date][row.item_name.toLowerCase().replace(/ /g, '_')] = parseFloat(row.value);
+      });
+      financialData.balance_sheet = Object.values(balanceByDate);
+    }
+
+    if (type === "cashflow" || type === "cash_flow" || type === "all") {
+      const cashflowQuery = `
+        SELECT date, item_name, value
+        FROM ${tablePrefix}_cash_flow
+        WHERE symbol = $1
+        ORDER BY date DESC, item_name
+      `;
+      const cashflowResult = await query(cashflowQuery, [symbolUpper]);
+
+      const cashflowByDate = {};
+      cashflowResult.rows.forEach(row => {
+        if (!cashflowByDate[row.date]) {
+          cashflowByDate[row.date] = { date: row.date };
+        }
+        cashflowByDate[row.date][row.item_name.toLowerCase().replace(/ /g, '_')] = parseFloat(row.value);
+      });
+      financialData.cash_flow = Object.values(cashflowByDate);
+    }
+
+    res.json({
+      success: true,
+      symbol: symbolUpper,
+      period,
+      type,
+      data: financialData,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -4856,10 +4928,10 @@ router.get("/:symbol/profile", async (req, res) => {
         cp.long_name,
         cp.sector,
         cp.industry,
-        cp.summary as description,
+        cp.business_summary as description,
         cp.country,
-        cp.website,
-        cp.employees
+        cp.website_url as website,
+        cp.employee_count as employees
       FROM company_profile cp
       WHERE cp.ticker ILIKE $1
       LIMIT 1

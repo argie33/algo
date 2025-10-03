@@ -71,7 +71,8 @@ function TabPanel({ children, value, index, ...other }) {
 function StockDetail() {
   const logger = createComponentLogger("StockDetail");
 
-  const { symbol } = useParams();
+  const { ticker } = useParams();
+  const symbol = ticker; // Route uses :ticker param
   const [tabValue, setTabValue] = React.useState(0);
   // Fetch stock profile data
   const {
@@ -210,7 +211,24 @@ function StockDetail() {
     );
   }
 
-  if (!profile || (profile?.length || 0) === 0) {
+  // Debug logging
+  console.log('🔍 StockDetail Debug:', {
+    symbol,
+    profile,
+    profileType: typeof profile,
+    isArray: Array.isArray(profile),
+    profileKeys: profile ? Object.keys(profile) : 'null/undefined',
+    profileLoading,
+    profileError
+  });
+
+  // Check if profile is empty (handles both array and object)
+  const isProfileEmpty = !profile ||
+    (Array.isArray(profile) && profile.length === 0) ||
+    (typeof profile === 'object' && !Array.isArray(profile) && Object.keys(profile).length === 0);
+
+  if (isProfileEmpty) {
+    console.log('❌ Profile is empty, showing Stock not found');
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Alert severity="warning">Stock not found: {symbol}</Alert>
