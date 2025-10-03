@@ -293,6 +293,7 @@ const EconomicModeling = () => {
   };
 
   const getSectorIcon = (sector) => {
+    if (!sector) return <Business color="secondary" />;
     switch (sector.toLowerCase()) {
       case "manufacturing":
         return <Factory color="primary" />;
@@ -1234,12 +1235,12 @@ const EconomicModeling = () => {
                             sx={{
                               border:
                                 selectedScenario ===
-                                scenario.name.toLowerCase().replace(" ", "")
+                                scenario.name?.toLowerCase().replace(" ", "")
                                   ? 2
                                   : 1,
                               borderColor:
                                 selectedScenario ===
-                                scenario.name.toLowerCase().replace(" ", "")
+                                scenario.name?.toLowerCase().replace(" ", "")
                                   ? "primary.main"
                                   : "divider",
                             }}
@@ -1327,14 +1328,14 @@ const EconomicModeling = () => {
                               <Button
                                 variant={
                                   selectedScenario ===
-                                  scenario.name.toLowerCase().replace(" ", "")
+                                  scenario.name?.toLowerCase().replace(" ", "")
                                     ? "contained"
                                     : "outlined"
                                 }
                                 fullWidth
                                 onClick={() =>
                                   setSelectedScenario(
-                                    scenario.name.toLowerCase().replace(" ", "")
+                                    scenario.name?.toLowerCase().replace(" ", "")
                                   )
                                 }
                               >
