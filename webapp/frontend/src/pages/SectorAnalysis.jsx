@@ -444,12 +444,12 @@ const SectorAnalysis = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {(sectorData || []).map((sector) => {
+                {(sectorData || []).map((sector, index) => {
                   const hasError = sector.error;
                   const isPositive = sector.changePercent >= 0;
 
                   return (
-                    <TableRow key={sector.etfSymbol} hover>
+                    <TableRow key={sector.sector || `sector-${index}`} hover>
                       <TableCell>
                         <Box display="flex" alignItems="center" gap={2}>
                           <Box
