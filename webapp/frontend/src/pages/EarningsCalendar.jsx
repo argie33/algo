@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
@@ -102,41 +102,14 @@ function EarningsCalendar() {
     refetchInterval: 300000,
   });
 
-  // Fetch quality scores for all symbols
-  const symbols = Object.keys(earningsData?.data || {});
-  const {
-    data: qualityScoresData,
-    isLoading: qualityLoading,
-  } = useQuery({
-    queryKey: ["qualityScores", symbols],
-    queryFn: async () => {
-      if (symbols.length === 0) return {};
-
-      const results = await Promise.all(
-        symbols.map(async (symbol) => {
-          try {
-            const response = await fetch(
-              `${API_BASE}/api/calendar/earnings-metrics?symbol=${symbol}`
-            );
-            if (!response.ok) return { symbol, score: null };
-            const data = await response.json();
-            const metrics = data?.data?.[symbol]?.metrics;
-            const latestScore = metrics?.[0]?.earnings_quality_score || null;
-            return { symbol, score: latestScore };
-          } catch {
-            return { symbol, score: null };
-          }
-        })
-      );
-
-      return results.reduce((acc, { symbol, score }) => {
-        acc[symbol] = score;
-        return acc;
-      }, {});
-    },
-    enabled: symbols.length > 0,
-    staleTime: 60000,
-  });
+  // Get quality scores from insights data instead of separate API call
+  const qualityScoresData = useMemo(() => {
+    const insights = earningsData?.insights || {};
+    return Object.keys(insights).reduce((acc, symbol) => {
+      acc[symbol] = insights[symbol]?.quality_score || null;
+      return acc;
+    }, {});
+  }, [earningsData]);
 
   // Fetch detailed data for expanded symbol
   const {

@@ -571,18 +571,26 @@ router.get("/earnings-estimates", async (req, res) => {
     let summaryQuery, summaryPromise;
 
     if (req.query.page || req.query.limit) {
-      // Full summary for paginated requests
+      // Full summary for paginated requests - join with earnings_metrics for quality scores
       summaryQuery = `
         SELECT
-          symbol,
+          ee.symbol,
           COUNT(*) as count,
-          AVG(growth) as avg_growth,
-          AVG(avg_estimate) as avg_estimate,
-          MAX(avg_estimate) as max_estimate,
-          MIN(avg_estimate) as min_estimate
-        FROM earnings_estimates
-        GROUP BY symbol
-        ORDER BY symbol ASC
+          AVG(ee.growth) as avg_growth,
+          AVG(ee.avg_estimate) as avg_estimate,
+          MAX(ee.avg_estimate) as max_estimate,
+          MIN(ee.avg_estimate) as min_estimate,
+          em.earnings_quality_score as quality_score
+        FROM earnings_estimates ee
+        LEFT JOIN LATERAL (
+          SELECT earnings_quality_score
+          FROM earnings_metrics
+          WHERE symbol = ee.symbol
+          ORDER BY report_date DESC
+          LIMIT 1
+        ) em ON true
+        GROUP BY ee.symbol, em.earnings_quality_score
+        ORDER BY em.earnings_quality_score DESC NULLS LAST, ee.symbol ASC
         LIMIT 100
       `;
       summaryPromise = query(summaryQuery);
@@ -635,6 +643,7 @@ router.get("/earnings-estimates", async (req, res) => {
         avg_estimate: row.avg_estimate,
         max_estimate: row.max_estimate,
         min_estimate: row.min_estimate,
+        quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
       };
     });
 

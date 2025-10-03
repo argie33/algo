@@ -188,12 +188,6 @@ const SectorAnalysis = () => {
               size="small"
             />
             <Chip
-              label="Real-time ETF Data"
-              color="success"
-              size="small"
-              variant="outlined"
-            />
-            <Chip
               label={`Updated ${formatTimeAgo(lastUpdate)}`}
               color="info"
               size="small"

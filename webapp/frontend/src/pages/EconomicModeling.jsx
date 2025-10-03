@@ -572,12 +572,7 @@ const EconomicModeling = () => {
               <Tab value={0} label="Leading Indicators" icon={<Analytics />} />
               <Tab value={1} label="Yield Curve" icon={<ShowChart />} />
               <Tab value={2} label="Forecast Models" icon={<Assessment />} />
-              <Tab
-                value={3}
-                label="Sectoral Analysis"
-                icon={<BarChartIcon />}
-              />
-              <Tab value={4} label="Scenario Planning" icon={<Flag />} />
+              <Tab value={3} label="Scenario Planning" icon={<Flag />} />
             </Tabs>
           </Box>
 
@@ -1158,70 +1153,6 @@ const EconomicModeling = () => {
           </TabPanel>
 
           <TabPanel value={tabValue} index={3}>
-            {/* Sectoral Analysis */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
-                <Card>
-                  <CardHeader title="Sectoral Economic Performance" />
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <BarChart data={economicData.sectoralData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="sector" />
-                        <YAxis />
-                        <Tooltip
-                          formatter={(value) => [`${value}%`, "Growth"]}
-                        />
-                        <Bar dataKey="growth">
-                          {economicData.sectoralData?.map((entry, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={entry.growth >= 0 ? "#4caf50" : "#f44336"}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardHeader title="Sector Leaders" />
-                  <CardContent>
-                    <List>
-                      {economicData.sectoralData
-                        ?.slice()
-                        .sort((a, b) => b.growth - a.growth)
-                        .map((sector, index) => (
-                          <ListItem
-                            key={index}
-                            sx={{ display: "flex", alignItems: "center" }}
-                          >
-                            <ListItemAvatar>
-                              <Avatar>{getSectorIcon(sector.sector)}</Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                              primary={sector.sector}
-                              secondary={sector.description}
-                            />
-                            <Chip
-                              label={`${sector.growth >= 0 ? "+" : ""}${sector.growth}%`}
-                              color={sector.growth >= 0 ? "success" : "error"}
-                              size="small"
-                              sx={{ ml: 1 }}
-                            />
-                          </ListItem>
-                        ))}
-                    </List>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
-
-          <TabPanel value={tabValue} index={4}>
             {/* Scenario Planning */}
             <Grid container spacing={3}>
               <Grid item xs={12}>
