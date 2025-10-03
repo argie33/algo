@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 - Trigger monthly technical data loading for AWS RDS
+# Updated: 2025-10-03 21:26 - Run with expanded RDS storage (31GB available)
 import concurrent.futures
 import gc
 import json
