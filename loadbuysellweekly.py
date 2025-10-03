@@ -158,6 +158,317 @@ def insert_symbol_results(cur, symbol, timeframe, df):
     logging.info(f"Inserted {inserted} rows for {symbol} {timeframe}")
 
 
+def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
+    """
+    Calculate and update swing trading metrics for all recent records of a symbol.
+    Uses SQL to fetch technical data and calculate O'Neill/Minervini metrics.
+    """
+    try:
+        # Get the table name
+        table_name = f"buy_sell_{timeframe.lower()}"
+        tech_table = f"technical_data_{timeframe.lower()}"
+        price_table = f"price_{timeframe.lower()}"
+
+        logging.info(f"Updating swing metrics for {symbol} {timeframe}")
+
+        # Update all swing metrics in one efficient SQL statement
+        # Use f-strings for table names, psycopg2 parameters for values
+        update_sql = f"""
+        WITH signal_data AS (
+            SELECT
+                bsd.symbol, bsd.date, bsd.signal, bsd.buylevel, bsd.stoplevel,
+                bsd.close as current_price, bsd.open, bsd.high, bsd.low,
+                bsd.volume, bsd.inposition
+            FROM {table_name} bsd
+            WHERE bsd.symbol = %(symbol)s AND bsd.timeframe = %(timeframe)s
+        ),
+        technical_data AS (
+            SELECT
+                td.symbol, td.date::date as date,
+                td.sma_20, td.sma_50, td.sma_150, td.sma_200,
+                td.ema_21, td.rsi, td.adx, td.atr,
+                td.mansfield_rs,
+                LAG(td.sma_20, 5) OVER (ORDER BY td.date) as sma_20_prev,
+                LAG(td.sma_50, 5) OVER (ORDER BY td.date) as sma_50_prev,
+                LAG(td.sma_200, 10) OVER (ORDER BY td.date) as sma_200_prev
+            FROM {tech_table} td
+            WHERE td.symbol = %(symbol)s
+        ),
+        volume_data AS (
+            SELECT
+                pd.symbol, pd.date,
+                AVG(pd.volume) OVER (
+                    ORDER BY pd.date
+                    ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
+                ) as volume_avg_50
+            FROM {price_table} pd
+            WHERE pd.symbol = %(symbol)s
+        ),
+        high_52week_data AS (
+            SELECT
+                pd.symbol, pd.date,
+                MAX(pd.high) OVER (
+                    ORDER BY pd.date
+                    ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
+                ) as high_52week
+            FROM {price_table} pd
+            WHERE pd.symbol = %(symbol)s
+        ),
+        calculated_metrics AS (
+            SELECT
+                sd.symbol, sd.date,
+                -- Sell level (opposite of buy)
+                CASE WHEN sd.signal = 'SELL' THEN sd.buylevel ELSE NULL END as selllevel,
+
+                -- Target prices
+                CASE
+                    WHEN sd.signal = 'BUY' AND sd.buylevel IS NOT NULL THEN sd.buylevel * 1.25
+                    WHEN sd.signal = 'SELL' AND sd.buylevel IS NOT NULL THEN sd.buylevel * 0.85
+                    ELSE NULL
+                END as target_price,
+
+                sd.current_price,
+
+                -- Risk/Reward ratio
+                CASE
+                    WHEN sd.signal = 'BUY' AND sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
+                    THEN ROUND((((sd.buylevel * 1.25) - sd.buylevel) / NULLIF((sd.buylevel - sd.stoplevel), 0))::NUMERIC, 2)
+                    WHEN sd.signal = 'SELL' AND sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
+                    THEN ROUND((((sd.buylevel - (sd.buylevel * 0.85))) / NULLIF((sd.stoplevel - sd.buylevel), 0))::NUMERIC, 2)
+                    ELSE NULL
+                END as risk_reward_ratio,
+
+                -- Market stage (enhanced with confidence and substage)
+                (SELECT stage FROM calculate_enhanced_stage(
+                    sd.current_price,
+                    td.sma_20,
+                    td.sma_50,
+                    td.sma_150,
+                    td.sma_200,
+                    td.sma_20_prev,
+                    td.sma_50_prev,
+                    td.sma_200_prev,
+                    td.adx,
+                    sd.volume,
+                    vd.volume_avg_50::BIGINT,
+                    td.atr,
+                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),  -- daily_range_pct
+                    hd.high_52week,  -- 52-week high
+                    'Unknown',  -- sector (to be added later)
+                    td.rsi,
+                    td.mansfield_rs  -- Mansfield Relative Strength
+                )) as market_stage,
+
+                -- Stage confidence score
+                (SELECT confidence FROM calculate_enhanced_stage(
+                    sd.current_price,
+                    td.sma_20,
+                    td.sma_50,
+                    td.sma_150,
+                    td.sma_200,
+                    td.sma_20_prev,
+                    td.sma_50_prev,
+                    td.sma_200_prev,
+                    td.adx,
+                    sd.volume,
+                    vd.volume_avg_50::BIGINT,
+                    td.atr,
+                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                    hd.high_52week,
+                    'Unknown',
+                    td.rsi,
+                    td.mansfield_rs
+                )) as stage_confidence,
+
+                -- Substage
+                (SELECT substage FROM calculate_enhanced_stage(
+                    sd.current_price,
+                    td.sma_20,
+                    td.sma_50,
+                    td.sma_150,
+                    td.sma_200,
+                    td.sma_20_prev,
+                    td.sma_50_prev,
+                    td.sma_200_prev,
+                    td.adx,
+                    sd.volume,
+                    vd.volume_avg_50::BIGINT,
+                    td.atr,
+                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                    hd.high_52week,
+                    'Unknown',
+                    td.rsi,
+                    td.mansfield_rs
+                )) as substage,
+
+                -- SATA Score
+                (SELECT sata_score FROM calculate_enhanced_stage(
+                    sd.current_price,
+                    td.sma_20,
+                    td.sma_50,
+                    td.sma_150,
+                    td.sma_200,
+                    td.sma_20_prev,
+                    td.sma_50_prev,
+                    td.sma_200_prev,
+                    td.adx,
+                    sd.volume,
+                    vd.volume_avg_50::BIGINT,
+                    td.atr,
+                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                    hd.high_52week,
+                    'Unknown',
+                    td.rsi,
+                    td.mansfield_rs
+                )) as sata_score,
+
+                -- Stage Number (extract from stage text: "Stage 2 - Advancing" -> 2)
+                CAST(SUBSTRING(
+                    (SELECT stage FROM calculate_enhanced_stage(
+                        sd.current_price,
+                        td.sma_20,
+                        td.sma_50,
+                        td.sma_150,
+                        td.sma_200,
+                        td.sma_20_prev,
+                        td.sma_50_prev,
+                        td.sma_200_prev,
+                        td.adx,
+                        sd.volume,
+                        vd.volume_avg_50::BIGINT,
+                        td.atr,
+                        ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
+                        hd.high_52week,
+                        'Unknown',
+                        td.rsi,
+                        td.mansfield_rs
+                    ))
+                    FROM 'Stage ([0-9])'
+                ) AS INTEGER) as stage_number,
+
+                -- Mansfield RS from technical data
+                td.mansfield_rs as mansfield_rs,
+
+                -- Distance from MAs
+                ROUND(((sd.current_price - td.ema_21) / NULLIF(td.ema_21, 0) * 100)::NUMERIC, 2) as pct_from_ema_21,
+                ROUND(((sd.current_price - td.sma_50) / NULLIF(td.sma_50, 0) * 100)::NUMERIC, 2) as pct_from_sma_50,
+                ROUND(((sd.current_price - td.sma_200) / NULLIF(td.sma_200, 0) * 100)::NUMERIC, 2) as pct_from_sma_200,
+
+                -- Volume analysis (standardized labels)
+                ROUND((sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1))::NUMERIC, 2) as volume_ratio,
+                CASE
+                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 2.0 THEN 'Very High'
+                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 1.5 THEN 'High'
+                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 0.9 THEN 'Average'
+                    ELSE 'Low'
+                END as volume_analysis,
+
+                -- Entry quality score
+                (
+                    CASE WHEN calculate_weinstein_stage(
+                        sd.current_price, td.sma_50, td.sma_200, td.sma_50_prev, td.sma_200_prev,
+                        td.adx, sd.volume, vd.volume_avg_50::BIGINT
+                    ) = 'Stage 2 - Advancing' THEN 40 ELSE 0 END +
+                    CASE WHEN ABS((sd.current_price - td.ema_21) / NULLIF(td.ema_21, 0) * 100) <= 2 THEN 20 ELSE 0 END +
+                    CASE WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 1.5 THEN 20 ELSE 0 END +
+                    CASE WHEN td.rsi BETWEEN 40 AND 70 THEN 20 ELSE 0 END
+                )::INTEGER as entry_quality_score,
+
+                -- Profit targets
+                CASE WHEN sd.buylevel IS NOT NULL THEN (sd.buylevel * 1.08)::REAL ELSE NULL END as profit_target_8pct,
+                CASE WHEN sd.buylevel IS NOT NULL THEN (sd.buylevel * 1.20)::REAL ELSE NULL END as profit_target_20pct,
+
+                -- Current gain/loss
+                CASE
+                    WHEN sd.inposition = TRUE AND sd.buylevel IS NOT NULL
+                    THEN ROUND(((sd.current_price - sd.buylevel) / NULLIF(sd.buylevel, 0) * 100)::NUMERIC, 2)
+                    ELSE NULL
+                END as current_gain_loss_pct,
+
+                -- Risk %%
+                CASE
+                    WHEN sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
+                    THEN ROUND(((sd.buylevel - sd.stoplevel) / NULLIF(sd.buylevel, 0) * 100)::NUMERIC, 2)
+                    ELSE NULL
+                END as risk_pct,
+
+                -- Position size
+                CASE
+                    WHEN sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
+                    THEN ROUND((1000.0 / NULLIF((sd.buylevel - sd.stoplevel), 0))::NUMERIC, 2)
+                    ELSE NULL
+                END as position_size_recommendation,
+
+                -- Minervini template
+                CASE
+                    WHEN sd.current_price > td.sma_50 AND sd.current_price > td.sma_150 AND
+                         sd.current_price > td.sma_200 AND td.sma_50 > td.sma_150 AND
+                         td.sma_150 > td.sma_200 AND
+                         ((sd.current_price - td.sma_200) / NULLIF(td.sma_200, 0) * 100) BETWEEN 0 AND 30
+                    THEN TRUE
+                    ELSE FALSE
+                END as passes_minervini_template,
+
+                -- Technical indicators
+                td.rsi::NUMERIC(6,2), td.adx::NUMERIC(6,2), td.atr::NUMERIC(10,4),
+
+                -- Daily range
+                ROUND(((sd.high - sd.low) / NULLIF(sd.low, 0) * 100)::NUMERIC, 2) as daily_range_pct,
+
+                -- Volatility profile based on ATR and daily range
+                CASE
+                    WHEN td.atr IS NOT NULL AND ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100) > 3.0 THEN 'high'
+                    WHEN td.atr IS NOT NULL AND ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100) < 1.5 THEN 'low'
+                    ELSE 'medium'
+                END as volatility_profile
+
+            FROM signal_data sd
+            JOIN technical_data td ON sd.symbol = td.symbol AND sd.date = td.date
+            JOIN volume_data vd ON sd.symbol = vd.symbol AND sd.date = vd.date
+            JOIN high_52week_data hd ON sd.symbol = hd.symbol AND sd.date = hd.date
+        )
+        UPDATE {table_name} bsd SET
+            selllevel = cm.selllevel,
+            target_price = cm.target_price,
+            current_price = cm.current_price,
+            risk_reward_ratio = cm.risk_reward_ratio,
+            market_stage = cm.market_stage,
+            stage_confidence = cm.stage_confidence,
+            substage = cm.substage,
+            sata_score = cm.sata_score,
+            stage_number = cm.stage_number,
+            mansfield_rs = cm.mansfield_rs,
+            pct_from_ema_21 = cm.pct_from_ema_21,
+            pct_from_sma_50 = cm.pct_from_sma_50,
+            pct_from_sma_200 = cm.pct_from_sma_200,
+            volume_ratio = cm.volume_ratio,
+            volume_analysis = cm.volume_analysis,
+            entry_quality_score = cm.entry_quality_score,
+            profit_target_8pct = cm.profit_target_8pct,
+            profit_target_20pct = cm.profit_target_20pct,
+            current_gain_loss_pct = cm.current_gain_loss_pct,
+            risk_pct = cm.risk_pct,
+            position_size_recommendation = cm.position_size_recommendation,
+            passes_minervini_template = cm.passes_minervini_template,
+            rsi = cm.rsi,
+            adx = cm.adx,
+            atr = cm.atr,
+            daily_range_pct = cm.daily_range_pct,
+            volatility_profile = cm.volatility_profile
+        FROM calculated_metrics cm
+        WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date
+        """
+
+        # Parameters: named dict for all placeholders
+        cur.execute(update_sql, {'symbol': symbol, 'timeframe': timeframe})
+        updated_count = cur.rowcount
+        logging.info(f"✅ Updated {updated_count} swing metrics for {symbol} {timeframe}")
+
+    except Exception as e:
+        logging.error(f"❌ Failed to update swing metrics for {symbol}: {e}")
+        raise
+
+
 ###############################################################################
 # 2) RISK-FREE RATE (FRED)
 ###############################################################################
@@ -434,6 +745,13 @@ def main():
                 continue
             insert_symbol_results(cur, sym, tf, df)
             conn.commit()
+
+            # Calculate swing trading metrics for this symbol
+            logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
+            update_swing_metrics_for_symbol(cur, sym, tf)
+            conn.commit()
+            logging.info(f"  [main] Done calculating swing metrics for {sym} {tf}")
+
             _, rets, durs, _, _ = backtest_fixed_capital(df)
             results[tf]["rets"].extend(rets)
             results[tf]["durs"].extend(durs)
