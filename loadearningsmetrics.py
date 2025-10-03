@@ -380,17 +380,28 @@ def process_symbol(symbol, conn_pool):
             revenue_yoy_growth = None
             if revenue_estimates:
                 for period, avg_est, year_ago_rev, growth in revenue_estimates:
-                    # Convert period to datetime for comparison
-                    period_dt = pd.to_datetime(period) if period else None
-                    if period_dt and abs((period_dt - report_date).days) <= 45:
-                        growth_val = safe_numeric(growth)
-                        if growth_val is not None:
-                            revenue_yoy_growth = growth_val
-                            break
+                    # Skip relative period strings like "+1y", "-1y", "0q" etc.
+                    if not period or (isinstance(period, str) and ('+' in period or '-' in period or period.startswith('0'))):
+                        continue
 
-                # If no match found, use most recent as fallback
+                    try:
+                        # Convert period to datetime for comparison
+                        period_dt = pd.to_datetime(period)
+                        if period_dt and abs((period_dt - report_date).days) <= 45:
+                            growth_val = safe_numeric(growth)
+                            if growth_val is not None:
+                                revenue_yoy_growth = growth_val
+                                break
+                    except (ValueError, TypeError, pd.errors.ParserError):
+                        # Skip periods that can't be parsed as datetime
+                        continue
+
+                # If no match found, use most recent valid period as fallback
                 if revenue_yoy_growth is None:
                     for period, avg_est, year_ago_rev, growth in revenue_estimates:
+                        # Skip relative period strings
+                        if period and isinstance(period, str) and ('+' in period or '-' in period or period.startswith('0')):
+                            continue
                         growth_val = safe_numeric(growth)
                         if growth_val is not None:
                             revenue_yoy_growth = growth_val
