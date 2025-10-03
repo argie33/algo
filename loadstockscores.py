@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script - Enhanced Scoring Logic v2.0 (Updated: 2025-10-03)
+Stock Scores Loader Script - Enhanced Scoring Logic v2.0 (Updated: 2025-10-03 23:30)
 Calculates and stores improved stock scores using multi-factor analysis.
-Trigger deployment.
+Deploy stock scores calculation to populate comprehensive quality metrics.
 
 Data Sources:
 - price_daily: Price data, volume, volatility, multi-timeframe momentum
