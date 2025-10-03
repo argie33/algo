@@ -200,10 +200,19 @@ router.get("/", async (req, res) => {
       query(countQuery, queryParams)
     ]);
 
+    if (!countResult || !countResult.rows) {
+      return res.status(503).json({
+        success: false,
+        error: "Database query failed",
+        details: "Count query returned null result",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const total = parseInt(countResult.rows[0].total) || 0;
     const totalPages = Math.ceil(total / limit);
 
-    if (!signalsResult.rows || signalsResult.rows.length === 0) {
+    if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.status(200).json({
         success: true,
         data: [],
@@ -391,10 +400,19 @@ router.get("/buy", async (req, res) => {
       query(countQuery, queryConfig.countParams)
     ]);
 
+    if (!countResult || !countResult.rows) {
+      return res.status(503).json({
+        success: false,
+        error: "Database query failed",
+        details: "Count query returned null result",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const total = parseInt(countResult.rows[0].total) || 0;
     const totalPages = Math.ceil(total / limit);
 
-    if (!signalsResult.rows || signalsResult.rows.length === 0) {
+    if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.json({
         success: true,
         data: [],
@@ -521,10 +539,19 @@ router.get("/sell", async (req, res) => {
       query(countQuery, queryConfig.countParams)
     ]);
 
+    if (!countResult || !countResult.rows) {
+      return res.status(503).json({
+        success: false,
+        error: "Database query failed",
+        details: "Count query returned null result",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const total = parseInt(countResult.rows[0].total) || 0;
     const totalPages = Math.ceil(total / limit);
 
-    if (!signalsResult.rows || signalsResult.rows.length === 0) {
+    if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.json({
         success: true,
         data: [],
@@ -668,10 +695,19 @@ router.get("/technical", async (req, res) => {
       query(countQuery, countParams)
     ]);
 
+    if (!countResult || !countResult.rows) {
+      return res.status(503).json({
+        success: false,
+        error: "Database query failed",
+        details: "Count query returned null result",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const total = parseInt(countResult.rows[0].total) || 0;
     const totalPages = Math.ceil(total / limit);
 
-    if (!signalsResult.rows || signalsResult.rows.length === 0) {
+    if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No technical signals found",
@@ -787,10 +823,19 @@ router.get("/momentum", async (req, res) => {
       query(countQuery, queryConfig.countParams)
     ]);
 
+    if (!countResult || !countResult.rows) {
+      return res.status(503).json({
+        success: false,
+        error: "Database query failed",
+        details: "Count query returned null result",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const total = parseInt(countResult.rows[0].total) || 0;
     const totalPages = Math.ceil(total / limit);
 
-    if (!signalsResult.rows || signalsResult.rows.length === 0) {
+    if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "No momentum signals found",
