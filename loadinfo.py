@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 - Loadinfo ready for AWS deployment to populate key_metrics table
-# Trigger deployment
 # Updated: 2025-10-03 20:16 - Test loadinfo with expanded RDS storage (31GB available)
 # Updated: 2025-10-02 23:50 - OPTIMIZED rate limiting: fast with adaptive backoff only on rate limits
 # Updated: 2025-10-02 23:05 - ULTRA-CONSERVATIVE rate limiting: batch=3, pause=15s, extract delay=1s

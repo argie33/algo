@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Earnings Metrics Loader - Updated 2025-10-02
+Earnings Metrics Loader - Updated 2025-10-03
 Comprehensive earnings analysis with quality scoring
 Calculates growth metrics and derives an earnings quality score for stock selection
 
+Updated: 2025-10-03 - Trigger deployment to populate earnings_metrics table
 Updated: 2025-10-02 15:45 - Redeploy with workflow fix for task definition name mapping
 Ensures earnings_history is populated before processing metrics to avoid 100% failure rate
 """
+# Trigger deployment
 import concurrent.futures
 import gc
 import json

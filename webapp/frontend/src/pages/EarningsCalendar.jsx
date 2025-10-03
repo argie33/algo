@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createComponentLogger } from "../utils/errorLogger";
 import {
@@ -18,186 +18,138 @@ import {
   TableRow,
   Paper,
   Chip,
-  Tabs,
-  Tab,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   TablePagination,
-  Avatar,
-  LinearProgress,
   TextField,
+  InputAdornment,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Divider,
   Button,
 } from "@mui/material";
 import {
   EventNote,
   TrendingUp,
   TrendingDown,
-  HorizontalRule,
   Analytics,
   Schedule,
-  AttachMoney,
   ShowChart,
+  ExpandMore,
+  Search,
+  Clear,
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
 
-// Create component-specific logger
 const logger = createComponentLogger("EarningsCalendar");
 
 function EarningsCalendar() {
-  const [activeTab, setActiveTab] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [timeFilter, setTimeFilter] = useState("upcoming");
-
-  // EPS Revisions state
-  const [epsSymbol, setEpsSymbol] = useState("AAPL");
-  const [epsInput, setEpsInput] = useState("AAPL");
+  const [searchInput, setSearchInput] = useState("");
+  const [symbolFilter, setSymbolFilter] = useState("");
+  const [expandedSymbol, setExpandedSymbol] = useState(null);
 
   const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "";
 
-  // Fetch calendar events (earnings only)
+  // Fetch weekly calendar events
   const {
-    data: calendarData,
-    isLoading: calendarLoading,
-    error: calendarError,
+    data: weeklyCalendarData,
+    isLoading: weeklyLoading,
+    error: weeklyError,
   } = useQuery({
-    queryKey: ["calendarEvents", timeFilter, page, rowsPerPage],
+    queryKey: ["weeklyEarningsCalendar"],
     queryFn: async () => {
       const params = new URLSearchParams({
-        type: timeFilter,
-        event_type: "earnings", // Only show earnings events
-        page: page + 1,
-        limit: rowsPerPage,
+        type: "this_week",
+        event_type: "earnings",
       });
       const response = await fetch(`${API_BASE}/api/calendar/events?${params}`);
       if (!response.ok) {
         const text = await response.text();
-        logger.error("Calendar events fetch failed", {
+        logger.error("Weekly calendar fetch failed", {
           status: response.status,
           text,
         });
         throw new Error(
-          `Failed to fetch calendar data: ${response.status} ${text}`
+          `Failed to fetch weekly calendar: ${response.status} ${text}`
         );
       }
       return response.json();
     },
-    enabled: activeTab === 0,
-    refetchInterval: 300000, // Refresh every 5 minutes
+    refetchInterval: 300000,
   });
 
-  // Fetch earnings estimates
-  const { data: estimatesData, isLoading: estimatesLoading } = useQuery({
-    queryKey: ["earningsEstimates", page, rowsPerPage],
+  // Fetch all earnings data for symbol drill-down
+  const {
+    data: earningsData,
+    isLoading: earningsLoading,
+    error: earningsError,
+  } = useQuery({
+    queryKey: ["earningsAll", symbolFilter, page, rowsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page + 1,
         limit: rowsPerPage,
       });
+      if (symbolFilter) params.append("symbol", symbolFilter);
+
       const response = await fetch(
         `${API_BASE}/api/calendar/earnings-estimates?${params}`
       );
-      if (!response.ok) throw new Error("Failed to fetch estimates data");
+      if (!response.ok) throw new Error("Failed to fetch earnings data");
       return response.json();
     },
-    enabled: activeTab === 1,
     refetchInterval: 300000,
   });
 
-  // Fetch earnings history
-  const { data: historyData, isLoading: historyLoading } = useQuery({
-    queryKey: ["earningsHistory", page, rowsPerPage],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page + 1,
-        limit: rowsPerPage,
-      });
-      const response = await fetch(
-        `${API_BASE}/api/calendar/earnings-history?${params}`
-      );
-      if (!response.ok) throw new Error("Failed to fetch history data");
-      return response.json();
-    },
-    enabled: activeTab === 2,
-    refetchInterval: 600000, // Refresh every 10 minutes
-  });
-
-  // EPS Revisions fetch
+  // Fetch detailed data for expanded symbol
   const {
-    data: epsRevisionsData,
-    isLoading: epsRevisionsLoading,
-    error: epsRevisionsError,
-    refetch: refetchEps,
+    data: symbolDetails,
+    isLoading: detailsLoading,
   } = useQuery({
-    queryKey: ["epsRevisions", epsSymbol],
+    queryKey: ["earningsDetails", expandedSymbol],
     queryFn: async () => {
-      const url = `${API_BASE}/api/analysts/${encodeURIComponent(epsSymbol)}/eps-revisions`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch EPS revisions");
-      return response.json();
+      if (!expandedSymbol) return null;
+
+      const [history, epsRevisions, epsTrend, metrics] = await Promise.all([
+        fetch(
+          `${API_BASE}/api/calendar/earnings-history?symbol=${expandedSymbol}`
+        ).then((r) => (r.ok ? r.json() : { data: {} })),
+        fetch(
+          `${API_BASE}/api/analysts/${encodeURIComponent(
+            expandedSymbol
+          )}/eps-revisions`
+        ).then((r) => (r.ok ? r.json() : { data: [] })),
+        fetch(
+          `${API_BASE}/api/analysts/${encodeURIComponent(
+            expandedSymbol
+          )}/eps-trend`
+        ).then((r) => (r.ok ? r.json() : { data: [] })),
+        fetch(
+          `${API_BASE}/api/calendar/earnings-metrics?symbol=${expandedSymbol}`
+        ).then((r) => (r.ok ? r.json() : { data: {} })),
+      ]);
+
+      return { history, epsRevisions, epsTrend, metrics };
     },
-    enabled: activeTab === 3 && !!epsSymbol,
+    enabled: !!expandedSymbol,
     staleTime: 60000,
   });
 
-  // EPS Trend fetch
-  const {
-    data: epsTrendData,
-    isLoading: epsTrendLoading,
-    error: epsTrendError,
-    refetch: refetchEpsTrend,
-  } = useQuery({
-    queryKey: ["epsTrend", epsSymbol],
-    queryFn: async () => {
-      const url = `${API_BASE}/api/analysts/${encodeURIComponent(epsSymbol)}/eps-trend`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch EPS trend");
-      return response.json();
-    },
-    enabled: activeTab === 4 && !!epsSymbol,
-    staleTime: 60000,
-  });
+  const handleSearch = () => {
+    setSymbolFilter(searchInput.toUpperCase());
+    setPage(0);
+  };
 
-  // Revenue Estimates fetch (YFinance data)
-  const {
-    data: revenueEstimatesData,
-    isLoading: revenueEstimatesLoading,
-    error: revenueEstimatesError,
-  } = useQuery({
-    queryKey: ["revenueEstimates", page, rowsPerPage],
-    queryFn: async () => {
-      const response = await fetch(`${API_BASE}/api/analysts/revenue-estimates`);
-      if (!response.ok) throw new Error("Failed to fetch revenue estimates");
-      return response.json();
-    },
-    enabled: activeTab === 5,
-    refetchInterval: 300000,
-  });
+  const handleClearSearch = () => {
+    setSearchInput("");
+    setSymbolFilter("");
+    setPage(0);
+  };
 
-  // Earnings Metrics fetch
-  const {
-    data: earningsMetricsData,
-    isLoading: earningsMetricsLoading,
-    error: earningsMetricsError,
-    refetch: refetchEarningsMetrics,
-  } = useQuery({
-    queryKey: ["earningsMetrics", epsSymbol, page, rowsPerPage],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        page: page + 1,
-        limit: rowsPerPage,
-      });
-      const url = `${API_BASE}/api/calendar/earnings-metrics?${params}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch earnings metrics");
-      return response.json();
-    },
-    enabled: activeTab === 6 && !!epsSymbol,
-    staleTime: 60000,
-  });
-
+  const handleToggleExpand = (symbol) => {
+    setExpandedSymbol(expandedSymbol === symbol ? null : symbol);
+  };
 
   const getSurpriseColor = (surprise) => {
     if (surprise > 5) return "success.main";
@@ -208,262 +160,40 @@ function EarningsCalendar() {
   };
 
   const getSurpriseIcon = (surprise) => {
-    if (surprise > 0) return <TrendingUp />;
-    if (surprise < 0) return <TrendingDown />;
-    return <TrendingUp />;
+    if (surprise > 0) return <TrendingUp sx={{ fontSize: 16 }} />;
+    if (surprise < 0) return <TrendingDown sx={{ fontSize: 16 }} />;
+    return <ShowChart sx={{ fontSize: 16 }} />;
   };
 
-  const CalendarEventsTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: "grey.50" }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Earnings Date</TableCell>
-            <TableCell>Report Details</TableCell>
-            <TableCell>Days Until</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {(calendarData?.data?.data ?? calendarData?.data ?? [])?.map((event, index) => (
-            <TableRow key={`${event.symbol}-${index}`} hover>
-              <TableCell>
-                <Typography variant="body2" fontWeight="bold">
-                  {event.symbol}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2">
-                  {new Date(event.start_date).toLocaleDateString()}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" noWrap>
-                  {event.title}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" color="text.secondary">
-                  {Math.ceil(
-                    (new Date(event.start_date) - new Date()) /
-                      (1000 * 60 * 60 * 24)
-                  )}{" "}
-                  days
-                </Typography>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+  // Group weekly calendar by day
+  const weeklyEvents = (
+    weeklyCalendarData?.data?.data ??
+    weeklyCalendarData?.data ??
+    []
+  ).reduce((acc, event) => {
+    const date = new Date(event.start_date).toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(event);
+    return acc;
+  }, {});
+
+  // Format earnings data for table
+  const earningsRows = Object.entries(earningsData?.data || {}).flatMap(
+    ([symbol, group]) =>
+      (group.estimates || []).map((estimate) => ({
+        symbol,
+        company_name: group.company_name,
+        ...estimate,
+      }))
   );
 
-  const EarningsEstimatesTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: "grey.50" }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Company</TableCell>
-            <TableCell>Period</TableCell>
-            <TableCell align="right">Avg Estimate</TableCell>
-            <TableCell align="right">Low</TableCell>
-            <TableCell align="right">High</TableCell>
-            <TableCell align="right">Analysts</TableCell>
-            <TableCell align="right">Growth</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {Object.entries(estimatesData?.data || {}).map(([symbol, group]) =>
-            (group.estimates || []).map((estimate, index) => (
-              <TableRow key={`${symbol}-${estimate.period}-${index}`} hover>
-                <TableCell>
-                  <Typography variant="body2" fontWeight="bold">
-                    {symbol}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{group.company_name}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={estimate.period}
-                    size="small"
-                    variant="outlined"
-                  />
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2" fontWeight="bold">
-                    {formatCurrency(estimate.avg_estimate)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  {formatCurrency(estimate.low_estimate)}
-                </TableCell>
-                <TableCell align="right">
-                  {formatCurrency(estimate.high_estimate)}
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
-                    {estimate.number_of_analysts}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Box
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="flex-end"
-                    gap={1}
-                  >
-                    <Avatar
-                      sx={{
-                        bgcolor: getSurpriseColor(estimate.growth),
-                        width: 24,
-                        height: 24,
-                      }}
-                    >
-                      {getSurpriseIcon(estimate.growth)}
-                    </Avatar>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: getSurpriseColor(estimate.growth) }}
-                    >
-                      {formatPercentage(estimate.growth / 100)}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-
-  const EarningsHistoryTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow sx={{ backgroundColor: "grey.50" }}>
-            <TableCell>Symbol</TableCell>
-            <TableCell>Company</TableCell>
-            <TableCell>Quarter</TableCell>
-            <TableCell align="right">Actual EPS</TableCell>
-            <TableCell align="right">Estimated EPS</TableCell>
-            <TableCell align="right">Difference</TableCell>
-            <TableCell align="right">Surprise %</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {Object.entries(historyData?.data || {}).map(([symbol, group]) =>
-            (group.history || []).map((history, index) => (
-              <TableRow key={`${symbol}-${history.quarter}-${index}`} hover>
-                <TableCell>
-                  <Typography variant="body2" fontWeight="bold">
-                    {symbol}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{group.company_name}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
-                    {new Date(history.quarter).toLocaleDateString()}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2" fontWeight="bold">
-                    {formatCurrency(history.eps_actual)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  {formatCurrency(history.eps_estimate)}
-                </TableCell>
-                <TableCell align="right">
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color:
-                        history.eps_difference >= 0
-                          ? "success.main"
-                          : "error.main",
-                    }}
-                  >
-                    {formatCurrency(history.eps_difference)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Box
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="flex-end"
-                    gap={1}
-                  >
-                    <Avatar
-                      sx={{
-                        bgcolor: getSurpriseColor(history.surprise_percent),
-                        width: 24,
-                        height: 24,
-                      }}
-                    >
-                      {getSurpriseIcon(history.surprise_percent)}
-                    </Avatar>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: getSurpriseColor(history.surprise_percent) }}
-                    >
-                      {formatPercentage(history.surprise_percent / 100)}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-
-  const SummaryCard = ({ title, value, subtitle, icon, color }) => (
-    <Card>
-      <CardContent>
-        <Box display="flex" alignItems="center" mb={1}>
-          {icon}
-          <Typography variant="h6" ml={1}>
-            {title}
-          </Typography>
-        </Box>
-        <Typography variant="h4" sx={{ color, fontWeight: "bold" }}>
-          {value}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {subtitle}
-        </Typography>
-      </CardContent>
-    </Card>
-  );
-
-  const formatCurrencyValue = (value) => {
-    if (!value) return 'N/A';
-    const num = parseFloat(value);
-    if (num >= 1e9) return `$${(num / 1e9).toFixed(1)}B`;
-    if (num >= 1e6) return `$${(num / 1e6).toFixed(1)}M`;
-    if (num >= 1e3) return `$${(num / 1e3).toFixed(1)}K`;
-    return `$${num.toFixed(2)}`;
-  };
-
-  const isLoading =
-    calendarLoading ||
-    (activeTab === 1 && estimatesLoading) ||
-    (activeTab === 2 && historyLoading) ||
-    (activeTab === 3 && epsRevisionsLoading) ||
-    (activeTab === 4 && epsTrendLoading) ||
-    (activeTab === 5 && revenueEstimatesLoading) ||
-    (activeTab === 6 && earningsMetricsLoading);
-
-  if (isLoading && !calendarData && !estimatesData && !historyData) {
+  if (weeklyLoading && !weeklyCalendarData) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
         <Box
           display="flex"
           justifyContent="center"
@@ -477,494 +207,627 @@ function EarningsCalendar() {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom>
-        Earnings Calendar & Estimates
+        Earnings Calendar
       </Typography>
 
-      {/* Summary Cards */}
+      {/* Weekly Earnings Calendar */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={3}>
+            <Schedule color="primary" />
+            <Typography variant="h6">This Week's Earnings</Typography>
+          </Box>
+
+          {weeklyError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Failed to load weekly calendar. Please try again later.
+            </Alert>
+          )}
+
+          {weeklyLoading ? (
+            <Box display="flex" justifyContent="center" py={3}>
+              <CircularProgress size={28} />
+            </Box>
+          ) : Object.keys(weeklyEvents).length > 0 ? (
+            <Grid container spacing={2}>
+              {Object.entries(weeklyEvents).map(([date, events]) => (
+                <Grid item xs={12} sm={6} md={2.4} key={date}>
+                  <Card variant="outlined" sx={{ height: "100%" }}>
+                    <CardContent>
+                      <Typography
+                        variant="subtitle2"
+                        color="primary"
+                        gutterBottom
+                      >
+                        {date}
+                      </Typography>
+                      <Divider sx={{ mb: 1 }} />
+                      <Box sx={{ maxHeight: 200, overflowY: "auto" }}>
+                        {events.map((event, idx) => (
+                          <Box
+                            key={`${event.symbol}-${idx}`}
+                            sx={{ mb: 1, cursor: "pointer" }}
+                            onClick={() => {
+                              setSearchInput(event.symbol);
+                              setSymbolFilter(event.symbol);
+                              setExpandedSymbol(event.symbol);
+                              setPage(0);
+                            }}
+                          >
+                            <Typography
+                              variant="body2"
+                              fontWeight="bold"
+                              color="primary"
+                            >
+                              {event.symbol}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {event.title}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No earnings scheduled this week
+            </Typography>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Summary Stats */}
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} md={3}>
-          <SummaryCard
-            title="Upcoming Events"
-            value={calendarData?.summary?.upcoming_events || 0}
-            subtitle="Next 30 days"
-            icon={<Schedule />}
-            color="#3B82F6"
-          />
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={1}>
+                <EventNote color="primary" sx={{ mr: 1 }} />
+                <Typography variant="h6">Upcoming Events</Typography>
+              </Box>
+              <Typography variant="h4" fontWeight="bold" color="primary">
+                {weeklyCalendarData?.summary?.upcoming_events || 0}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Next 30 days
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <SummaryCard
-            title="Earnings This Week"
-            value={calendarData?.summary?.this_week || 0}
-            subtitle="Companies reporting"
-            icon={<ShowChart />}
-            color="#10B981"
-          />
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={1}>
+                <ShowChart color="success" sx={{ mr: 1 }} />
+                <Typography variant="h6">This Week</Typography>
+              </Box>
+              <Typography variant="h4" fontWeight="bold" color="success.main">
+                {Object.values(weeklyEvents).reduce(
+                  (sum, events) => sum + events.length,
+                  0
+                )}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Companies reporting
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <SummaryCard
-            title="Positive Surprises"
-            value={historyData?.summary?.positive_surprises || 0}
-            subtitle="Last quarter"
-            icon={<TrendingUp />}
-            color="#059669"
-          />
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={1}>
+                <TrendingUp color="success" sx={{ mr: 1 }} />
+                <Typography variant="h6">Total Estimates</Typography>
+              </Box>
+              <Typography variant="h4" fontWeight="bold" color="text.primary">
+                {earningsRows.length}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                All symbols
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <SummaryCard
-            title="Estimates Updated"
-            value={estimatesData?.summary?.recent_updates || 0}
-            subtitle="Last 7 days"
-            icon={<Analytics />}
-            color="#8B5CF6"
-          />
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" mb={1}>
+                <Analytics color="secondary" sx={{ mr: 1 }} />
+                <Typography variant="h6">Avg Analysts</Typography>
+              </Box>
+              <Typography variant="h4" fontWeight="bold" color="text.primary">
+                {earningsRows.length > 0
+                  ? Math.round(
+                      earningsRows.reduce(
+                        (sum, row) => sum + (row.number_of_analysts || 0),
+                        0
+                      ) / earningsRows.length
+                    )
+                  : 0}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Per symbol
+              </Typography>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
 
+      {/* Search */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box display="flex" gap={2} alignItems="center">
+            <TextField
+              placeholder="Search symbol (e.g., AAPL)"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") handleSearch();
+              }}
+              size="small"
+              sx={{ flex: 1, maxWidth: 400 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Button
+              variant="contained"
+              onClick={handleSearch}
+              disabled={!searchInput}
+            >
+              Search
+            </Button>
+            {symbolFilter && (
+              <Button
+                variant="outlined"
+                onClick={handleClearSearch}
+                startIcon={<Clear />}
+              >
+                Clear
+              </Button>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+
       {/* Error Handling */}
-      {calendarError && (
+      {earningsError && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          Failed to load calendar data. Please try again later.
+          Failed to load earnings data. Please try again later.
         </Alert>
       )}
 
-      {/* Tabs */}
-      <Box mb={3}>
-        <Tabs
-          value={activeTab}
-          onChange={(e, newValue) => setActiveTab(newValue)}
-        >
-          <Tab value={0} label="Calendar Events" icon={<Schedule />} />
-          <Tab value={1} label="Earnings Estimates" icon={<ShowChart />} />
-          <Tab value={2} label="Earnings History" icon={<Analytics />} />
-          <Tab value={3} label="EPS Revisions" icon={<TrendingUp />} />
-          <Tab value={4} label="EPS Trend" icon={<TrendingDown />} />
-          <Tab value={5} label="Revenue Estimates" icon={<AttachMoney />} />
-          <Tab value={6} label="Earnings Metrics" icon={<HorizontalRule />} />
-        </Tabs>
-      </Box>
-
-      {/* Filters for Calendar Tab */}
-      {activeTab === 0 && (
-        <Grid container spacing={2} mb={3}>
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth>
-              <InputLabel>Time Filter</InputLabel>
-              <Select
-                value={timeFilter}
-                label="Time Filter"
-                onChange={(e) => setTimeFilter(e.target.value)}
-              >
-                <MenuItem value="upcoming">Upcoming Events</MenuItem>
-                <MenuItem value="this_week">This Week</MenuItem>
-                <MenuItem value="next_week">Next Week</MenuItem>
-                <MenuItem value="this_month">This Month</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
-      )}
-
-      {/* Loading indicator */}
-      {isLoading && <LinearProgress sx={{ mb: 2 }} />}
-
-      {/* Content */}
+      {/* Earnings Table */}
       <Card>
         <CardContent>
-          {activeTab === 0 && (
-            <>
-              <Typography variant="h6" gutterBottom>
-                Earnings Calendar - {timeFilter.replace("_", " ").toUpperCase()}
-              </Typography>
-              <CalendarEventsTable />
-            </>
-          )}
+          <Typography variant="h6" gutterBottom>
+            Earnings Estimates & Details
+          </Typography>
 
-          {activeTab === 1 && (
-            <>
-              <Typography variant="h6" gutterBottom>
-                Earnings Estimates
-              </Typography>
-              <EarningsEstimatesTable />
-            </>
-          )}
-
-          {activeTab === 2 && (
-            <>
-              <Typography variant="h6" gutterBottom>
-                Earnings History & Surprises
-              </Typography>
-              <EarningsHistoryTable />
-            </>
-          )}
-
-          {activeTab === 3 && (
-            <>
-              <Typography variant="h6" gutterBottom>
-                EPS Revisions Lookup
-              </Typography>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <TextField
-                  label="Symbol"
-                  value={epsInput}
-                  onChange={(e) => setEpsInput(e.target.value.toUpperCase())}
-                  size="small"
-                  sx={{ width: 120 }}
-                  inputProps={{ maxLength: 8 }}
-                />
-                <Button
-                  variant="contained"
-                  onClick={() => {
-                    setEpsSymbol(epsInput);
-                    refetchEps();
-                  }}
-                  disabled={epsRevisionsLoading || !epsInput}
-                >
-                  Lookup
-                </Button>
-              </Box>
-              {epsRevisionsLoading ? (
-                <Box display="flex" justifyContent="center" my={3}>
-                  <CircularProgress size={28} />
-                </Box>
-              ) : epsRevisionsError ? (
-                <Alert severity="error">
-                  Failed to load EPS revisions: {epsRevisionsError.message}
-                </Alert>
-              ) : epsRevisionsData?.data?.length ? (
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Period</TableCell>
-                        <TableCell align="right">Avg. Estimate</TableCell>
-                        <TableCell align="right">Low</TableCell>
-                        <TableCell align="right">High</TableCell>
-                        <TableCell align="right">Analysts</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(epsRevisionsData.data || []).map((row, idx) => (
-                        <TableRow key={row.period + idx}>
-                          <TableCell>{row.period}</TableCell>
-                          <TableCell align="right">
-                            {row.avg_estimate ? formatCurrency(row.avg_estimate) : "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            {row.low_estimate ? formatCurrency(row.low_estimate) : "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            {row.high_estimate ? formatCurrency(row.high_estimate) : "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Chip
-                              label={`${row.number_of_analysts || 0} analysts`}
-                              size="small"
-                              variant="outlined"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary" mt={2}>
-                  No EPS revisions data found for <b>{epsSymbol}</b>.
-                </Typography>
-              )}
-            </>
-          )}
-          {activeTab === 4 && (
-            <>
-              <Typography variant="h6" gutterBottom>
-                EPS Trend Lookup
-              </Typography>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <TextField
-                  label="Symbol"
-                  value={epsInput}
-                  onChange={(e) => setEpsInput(e.target.value.toUpperCase())}
-                  size="small"
-                  sx={{ width: 120 }}
-                  inputProps={{ maxLength: 8 }}
-                />
-                <Button
-                  variant="contained"
-                  onClick={() => {
-                    setEpsSymbol(epsInput);
-                    refetchEpsTrend();
-                  }}
-                  disabled={epsTrendLoading || !epsInput}
-                >
-                  Lookup
-                </Button>
-              </Box>
-              {epsTrendLoading ? (
-                <Box display="flex" justifyContent="center" my={3}>
-                  <CircularProgress size={28} />
-                </Box>
-              ) : epsTrendError ? (
-                <Alert severity="error">
-                  Failed to load EPS trend: {epsTrendError.message}
-                </Alert>
-              ) : epsTrendData?.data?.length ? (
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Period</TableCell>
-                        <TableCell align="right">Avg. Estimate</TableCell>
-                        <TableCell align="right">Year Ago EPS</TableCell>
-                        <TableCell align="right">Growth</TableCell>
-                        <TableCell align="right">Analysts</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(epsTrendData.data || []).map((row, idx) => (
-                        <TableRow key={row.period + idx}>
-                          <TableCell>{row.period}</TableCell>
-                          <TableCell align="right">
-                            {row.avg_estimate ? formatCurrency(row.avg_estimate) : "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            {row.year_ago_eps ? formatCurrency(row.year_ago_eps) : "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            {row.growth ? (
-                              <Chip
-                                label={formatPercentage(row.growth / 100)}
-                                size="small"
-                                color={row.growth > 0 ? "success" : row.growth < 0 ? "error" : "default"}
-                                variant="outlined"
-                              />
-                            ) : "-"}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Chip
-                              label={`${row.number_of_analysts || 0} analysts`}
-                              size="small"
-                              variant="outlined"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary" mt={2}>
-                  No EPS trend data found for <b>{epsSymbol}</b>.
-                </Typography>
-              )}
-            </>
-          )}
-          {activeTab === 5 && (
-            <>
-              <Typography variant="h6" gutterBottom>
-                Revenue Estimates (YFinance Data)
-              </Typography>
-              {revenueEstimatesLoading ? (
-                <Box display="flex" justifyContent="center" my={3}>
-                  <CircularProgress size={28} />
-                </Box>
-              ) : revenueEstimatesError ? (
-                <Alert severity="error">
-                  Failed to load revenue estimates: {revenueEstimatesError.message}
-                </Alert>
-              ) : revenueEstimatesData?.data?.length ? (
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: "grey.50" }}>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Period</TableCell>
-                        <TableCell align="right">Avg Estimate</TableCell>
-                        <TableCell align="right">Low Estimate</TableCell>
-                        <TableCell align="right">High Estimate</TableCell>
-                        <TableCell align="right">Analysts</TableCell>
-                        <TableCell align="right">Growth</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(revenueEstimatesData.data || []).map((estimate, idx) => (
-                        <TableRow key={`${estimate.symbol}-${estimate.period}-${idx}`} hover>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="bold">
-                              {estimate.symbol}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={estimate.period}
-                              size="small"
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2" fontWeight="bold">
-                              {formatCurrencyValue(estimate.avg_estimate)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            {formatCurrencyValue(estimate.low_estimate)}
-                          </TableCell>
-                          <TableCell align="right">
-                            {formatCurrencyValue(estimate.high_estimate)}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
-                              {estimate.number_of_analysts}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
+          {earningsLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress />
+            </Box>
+          ) : earningsRows.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" align="center" py={4}>
+              No earnings data found. Try a different search.
+            </Typography>
+          ) : (
+            <TableContainer component={Paper} elevation={0}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: "grey.50" }}>
+                    <TableCell width={50}></TableCell>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell>Company</TableCell>
+                    <TableCell>Period</TableCell>
+                    <TableCell align="right">Avg Estimate</TableCell>
+                    <TableCell align="right">Range</TableCell>
+                    <TableCell align="right">Analysts</TableCell>
+                    <TableCell align="right">Growth</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {earningsRows.map((row, index) => (
+                    <React.Fragment key={`${row.symbol}-${row.period}-${index}`}>
+                      <TableRow
+                        hover
+                        onClick={() => handleToggleExpand(row.symbol)}
+                        sx={{ cursor: "pointer" }}
+                      >
+                        <TableCell>
+                          <ExpandMore
+                            sx={{
+                              transform:
+                                expandedSymbol === row.symbol
+                                  ? "rotate(180deg)"
+                                  : "rotate(0deg)",
+                              transition: "transform 0.2s",
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="bold">
+                            {row.symbol}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {row.company_name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={row.period}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" fontWeight="bold">
+                            {formatCurrency(row.avg_estimate)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            {formatCurrency(row.low_estimate)} -{" "}
+                            {formatCurrency(row.high_estimate)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={row.number_of_analysts}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="flex-end"
+                            gap={0.5}
+                          >
+                            {getSurpriseIcon(row.growth)}
                             <Typography
                               variant="body2"
-                              sx={{
-                                color: estimate.growth >= 0 ? "success.main" : "error.main",
-                                fontWeight: "medium"
-                              }}
+                              sx={{ color: getSurpriseColor(row.growth) }}
                             >
-                              {estimate.growth ? `${(estimate.growth * 100).toFixed(1)}%` : 'N/A'}
+                              {formatPercentage(row.growth / 100)}
                             </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary" mt={2}>
-                  No revenue estimates data available.
-                </Typography>
-              )}
-            </>
-          )}
-          {activeTab === 6 && (
-            <>
-              <Typography variant="h6" gutterBottom>
-                Earnings Metrics with Quality Score
-              </Typography>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <TextField
-                  label="Symbol"
-                  value={epsInput}
-                  onChange={(e) => setEpsInput(e.target.value.toUpperCase())}
-                  size="small"
-                  sx={{ width: 120 }}
-                  inputProps={{ maxLength: 8 }}
-                />
-                <Button
-                  variant="contained"
-                  onClick={() => {
-                    setEpsSymbol(epsInput);
-                    refetchEarningsMetrics();
-                  }}
-                  disabled={earningsMetricsLoading || !epsInput}
-                >
-                  Lookup
-                </Button>
-              </Box>
-              {earningsMetricsLoading ? (
-                <Box display="flex" justifyContent="center" my={3}>
-                  <CircularProgress size={28} />
-                </Box>
-              ) : earningsMetricsError ? (
-                <Alert severity="error">
-                  Failed to load earnings growth metrics:{" "}
-                  {earningsMetricsError.message}
-                </Alert>
-              ) : (
-                <TableContainer component={Paper} sx={{ mt: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Report Date</TableCell>
-                        <TableCell align="right">Quality Score</TableCell>
-                        <TableCell align="right">EPS QoQ Growth %</TableCell>
-                        <TableCell align="right">EPS YoY Growth %</TableCell>
-                        <TableCell align="right">Revenue YoY Growth %</TableCell>
-                        <TableCell align="right">Earnings Surprise %</TableCell>
+                          </Box>
+                        </TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {Array.isArray(
-                        earningsMetricsData?.data?.[epsSymbol]?.metrics
-                      ) &&
-                      earningsMetricsData?.data[epsSymbol].metrics.length >
-                        0 ? (
-                        (
-                          earningsMetricsData?.data[epsSymbol]?.metrics || []
-                        ).map((row, idx) => (
-                          <TableRow key={row.report_date + idx}>
-                            <TableCell>{row.report_date}</TableCell>
-                            <TableCell align="right">
-                              <Typography
-                                variant="body2"
-                                fontWeight="bold"
-                                sx={{
-                                  color: row.earnings_quality_score >= 70 ? 'success.main' :
-                                         row.earnings_quality_score >= 50 ? 'warning.main' : 'error.main'
-                                }}
-                              >
-                                {row.earnings_quality_score ? row.earnings_quality_score.toFixed(1) : "-"}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.eps_qoq_growth ? `${row.eps_qoq_growth.toFixed(2)}%` : "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.eps_yoy_growth ? `${row.eps_yoy_growth.toFixed(2)}%` : "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.revenue_yoy_growth ? `${row.revenue_yoy_growth.toFixed(2)}%` : "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              {row.earnings_surprise_pct ? `${row.earnings_surprise_pct.toFixed(2)}%` : "-"}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
+
+                      {/* Expanded Details */}
+                      {expandedSymbol === row.symbol && (
                         <TableRow>
-                          <TableCell colSpan={6} align="center">
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                              mt={2}
-                            >
-                              No earnings metrics data found for{" "}
-                              <b>{epsSymbol}</b>.
-                            </Typography>
+                          <TableCell colSpan={8} sx={{ p: 0 }}>
+                            <Box sx={{ p: 3, backgroundColor: "grey.50" }}>
+                              {detailsLoading ? (
+                                <Box display="flex" justifyContent="center" py={3}>
+                                  <CircularProgress size={28} />
+                                </Box>
+                              ) : symbolDetails ? (
+                                <Grid container spacing={3}>
+                                  {/* Earnings History */}
+                                  <Grid item xs={12} md={6}>
+                                    <Accordion defaultExpanded>
+                                      <AccordionSummary expandIcon={<ExpandMore />}>
+                                        <Typography variant="subtitle1" fontWeight="bold">
+                                          Earnings History
+                                        </Typography>
+                                      </AccordionSummary>
+                                      <AccordionDetails>
+                                        <TableContainer>
+                                          <Table size="small">
+                                            <TableHead>
+                                              <TableRow>
+                                                <TableCell>Quarter</TableCell>
+                                                <TableCell align="right">
+                                                  Actual
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  Estimate
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  Surprise %
+                                                </TableCell>
+                                              </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                              {symbolDetails.history?.data?.[
+                                                expandedSymbol
+                                              ]?.history
+                                                ?.slice(0, 4)
+                                                .map((h, idx) => (
+                                                  <TableRow key={idx}>
+                                                    <TableCell>
+                                                      {new Date(
+                                                        h.quarter
+                                                      ).toLocaleDateString()}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      {formatCurrency(h.eps_actual)}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      {formatCurrency(h.eps_estimate)}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      <Chip
+                                                        label={formatPercentage(
+                                                          h.surprise_percent / 100
+                                                        )}
+                                                        size="small"
+                                                        color={
+                                                          h.surprise_percent > 0
+                                                            ? "success"
+                                                            : h.surprise_percent < 0
+                                                              ? "error"
+                                                              : "default"
+                                                        }
+                                                      />
+                                                    </TableCell>
+                                                  </TableRow>
+                                                )) || (
+                                                <TableRow>
+                                                  <TableCell
+                                                    colSpan={4}
+                                                    align="center"
+                                                  >
+                                                    No history data
+                                                  </TableCell>
+                                                </TableRow>
+                                              )}
+                                            </TableBody>
+                                          </Table>
+                                        </TableContainer>
+                                      </AccordionDetails>
+                                    </Accordion>
+                                  </Grid>
+
+                                  {/* EPS Revisions */}
+                                  <Grid item xs={12} md={6}>
+                                    <Accordion defaultExpanded>
+                                      <AccordionSummary expandIcon={<ExpandMore />}>
+                                        <Typography variant="subtitle1" fontWeight="bold">
+                                          EPS Revisions
+                                        </Typography>
+                                      </AccordionSummary>
+                                      <AccordionDetails>
+                                        <TableContainer>
+                                          <Table size="small">
+                                            <TableHead>
+                                              <TableRow>
+                                                <TableCell>Period</TableCell>
+                                                <TableCell align="right">
+                                                  Avg Est
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  Low
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  High
+                                                </TableCell>
+                                              </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                              {symbolDetails.epsRevisions?.data
+                                                ?.slice(0, 4)
+                                                .map((r, idx) => (
+                                                  <TableRow key={idx}>
+                                                    <TableCell>{r.period}</TableCell>
+                                                    <TableCell align="right">
+                                                      {formatCurrency(r.avg_estimate)}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      {formatCurrency(r.low_estimate)}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      {formatCurrency(r.high_estimate)}
+                                                    </TableCell>
+                                                  </TableRow>
+                                                )) || (
+                                                <TableRow>
+                                                  <TableCell
+                                                    colSpan={4}
+                                                    align="center"
+                                                  >
+                                                    No revisions data
+                                                  </TableCell>
+                                                </TableRow>
+                                              )}
+                                            </TableBody>
+                                          </Table>
+                                        </TableContainer>
+                                      </AccordionDetails>
+                                    </Accordion>
+                                  </Grid>
+
+                                  {/* EPS Trend */}
+                                  <Grid item xs={12} md={6}>
+                                    <Accordion>
+                                      <AccordionSummary expandIcon={<ExpandMore />}>
+                                        <Typography variant="subtitle1" fontWeight="bold">
+                                          EPS Trend
+                                        </Typography>
+                                      </AccordionSummary>
+                                      <AccordionDetails>
+                                        <TableContainer>
+                                          <Table size="small">
+                                            <TableHead>
+                                              <TableRow>
+                                                <TableCell>Period</TableCell>
+                                                <TableCell align="right">
+                                                  Current Est
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  Year Ago
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  Growth
+                                                </TableCell>
+                                              </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                              {symbolDetails.epsTrend?.data
+                                                ?.slice(0, 4)
+                                                .map((t, idx) => (
+                                                  <TableRow key={idx}>
+                                                    <TableCell>{t.period}</TableCell>
+                                                    <TableCell align="right">
+                                                      {formatCurrency(t.avg_estimate)}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      {formatCurrency(t.year_ago_eps)}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      <Chip
+                                                        label={formatPercentage(
+                                                          t.growth / 100
+                                                        )}
+                                                        size="small"
+                                                        color={
+                                                          t.growth > 0
+                                                            ? "success"
+                                                            : t.growth < 0
+                                                              ? "error"
+                                                              : "default"
+                                                        }
+                                                      />
+                                                    </TableCell>
+                                                  </TableRow>
+                                                )) || (
+                                                <TableRow>
+                                                  <TableCell
+                                                    colSpan={4}
+                                                    align="center"
+                                                  >
+                                                    No trend data
+                                                  </TableCell>
+                                                </TableRow>
+                                              )}
+                                            </TableBody>
+                                          </Table>
+                                        </TableContainer>
+                                      </AccordionDetails>
+                                    </Accordion>
+                                  </Grid>
+
+                                  {/* Earnings Metrics */}
+                                  <Grid item xs={12} md={6}>
+                                    <Accordion>
+                                      <AccordionSummary expandIcon={<ExpandMore />}>
+                                        <Typography variant="subtitle1" fontWeight="bold">
+                                          Earnings Quality Metrics
+                                        </Typography>
+                                      </AccordionSummary>
+                                      <AccordionDetails>
+                                        <TableContainer>
+                                          <Table size="small">
+                                            <TableHead>
+                                              <TableRow>
+                                                <TableCell>Date</TableCell>
+                                                <TableCell align="right">
+                                                  Quality Score
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  EPS YoY
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  Rev YoY
+                                                </TableCell>
+                                              </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                              {symbolDetails.metrics?.data?.[
+                                                expandedSymbol
+                                              ]?.metrics
+                                                ?.slice(0, 4)
+                                                .map((m, idx) => (
+                                                  <TableRow key={idx}>
+                                                    <TableCell>
+                                                      {m.report_date}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      <Chip
+                                                        label={
+                                                          m.earnings_quality_score
+                                                            ? m.earnings_quality_score.toFixed(
+                                                                1
+                                                              )
+                                                            : "N/A"
+                                                        }
+                                                        size="small"
+                                                        color={
+                                                          m.earnings_quality_score >= 70
+                                                            ? "success"
+                                                            : m.earnings_quality_score >= 50
+                                                              ? "warning"
+                                                              : "error"
+                                                        }
+                                                      />
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      {m.eps_yoy_growth
+                                                        ? `${m.eps_yoy_growth.toFixed(1)}%`
+                                                        : "N/A"}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      {m.revenue_yoy_growth
+                                                        ? `${m.revenue_yoy_growth.toFixed(1)}%`
+                                                        : "N/A"}
+                                                    </TableCell>
+                                                  </TableRow>
+                                                )) || (
+                                                <TableRow>
+                                                  <TableCell
+                                                    colSpan={4}
+                                                    align="center"
+                                                  >
+                                                    No metrics data
+                                                  </TableCell>
+                                                </TableRow>
+                                              )}
+                                            </TableBody>
+                                          </Table>
+                                        </TableContainer>
+                                      </AccordionDetails>
+                                    </Accordion>
+                                  </Grid>
+                                </Grid>
+                              ) : (
+                                <Typography color="text.secondary">
+                                  No detailed data available
+                                </Typography>
+                              )}
+                            </Box>
                           </TableCell>
                         </TableRow>
                       )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </>
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
 
           <TablePagination
             component="div"
-            count={
-              activeTab === 0
-                ? calendarData?.pagination?.total || 0
-                : activeTab === 1
-                  ? estimatesData?.pagination?.total || 0
-                  : activeTab === 2
-                    ? historyData?.pagination?.total || 0
-                    : activeTab === 3
-                      ? epsRevisionsData?.pagination?.total || 0
-                      : activeTab === 4
-                        ? epsTrendData?.pagination?.total || 0
-                        : activeTab === 5
-                          ? revenueEstimatesData?.count || 0
-                          : earningsMetricsData?.pagination?.total || 0
-            }
+            count={earningsData?.pagination?.total || earningsRows.length}
             page={page}
-            onPageChange={(e, newPage) => setPage(newPage)}
+            onPageChange={(_e, newPage) => setPage(newPage)}
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={(e) => {
               setRowsPerPage(parseInt(e.target.value, 10));
