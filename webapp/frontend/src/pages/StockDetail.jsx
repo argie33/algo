@@ -242,8 +242,8 @@ function StockDetail() {
 
   // Handle both array and object responses from API
   const stockData = Array.isArray(profile) ? profile[0] || {} : profile || {};
-  const currentMetrics = Array.isArray(metrics) ? metrics[0] || {} : metrics || {};
-  const currentFinancials = Array.isArray(financials) ? financials[0] || {} : financials || {};
+  const currentMetrics = metrics?.data || metrics || {};
+  const currentFinancials = financials?.data || financials || {};
   const currentRecs = Array.isArray(recommendations) ? recommendations[0] || {} : recommendations || {};
 
   // Price change calculation
