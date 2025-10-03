@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Box,
-  Button,
   Card,
   CardContent,
   Chip,
@@ -19,7 +18,6 @@ import {
   Typography,
 } from "@mui/material";
 import {
-  Refresh,
   TrendingUp,
   TrendingDown,
   ShowChart,
@@ -203,15 +201,6 @@ const SectorAnalysis = () => {
             />
           </Box>
         </Box>
-
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadSectorData}
-          disabled={loading}
-        >
-          Refresh Data
-        </Button>
       </Box>
 
       {/* Loading State */}
