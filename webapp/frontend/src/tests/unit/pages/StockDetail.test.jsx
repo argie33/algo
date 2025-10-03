@@ -17,7 +17,7 @@ vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
     ...actual,
-    useParams: vi.fn(() => ({ symbol: "AAPL" })),
+    useParams: vi.fn(() => ({ ticker: "AAPL" })),
   };
 });
 
@@ -241,20 +241,24 @@ describe("StockDetail Component", () => {
     });
   });
 
-  it("switches between tabs", async () => {
+  it("displays all sections on single page without tabs", async () => {
     renderWithProviders(<StockDetail />);
 
     await waitFor(() => {
       expect(screen.getByText("AAPL")).toBeInTheDocument();
     });
 
-    // Click on financials tab
-    const financialsTab = screen.getByRole("tab", { name: /financials/i });
-    fireEvent.click(financialsTab);
+    // Verify all major sections are present and visible
+    expect(screen.getByText(/Key Statistics & Metrics/i)).toBeInTheDocument();
+    expect(screen.getByText(/Price & Volume/i)).toBeInTheDocument();
+    expect(screen.getByText(/Financial Statements/i)).toBeInTheDocument();
+    expect(screen.getByText(/Financial Ratios/i)).toBeInTheDocument();
+    expect(screen.getByText(/Institutional Factor Analysis/i)).toBeInTheDocument();
+    expect(screen.getByText(/Analyst Coverage & Recommendations/i)).toBeInTheDocument();
+    expect(screen.getByText(/Upcoming Events/i)).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByText(/revenue/i)).toBeInTheDocument();
-    });
+    // Verify no tab navigation exists
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
   it("displays financial metrics", async () => {
