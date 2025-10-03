@@ -49,3 +49,504 @@ Processing request: GET /api/financials/AAPL/income
 Database connection verified for database-dependent endpoint
 💰 [FINANCIALS] Fetching income data for AAPL (test endpoint)
 ::ffff:127.0.0.1 - - [03/Oct/2025:18:06:51 +0000] "GET /api/financials/AAPL/income HTTP/1.1" 200 2134 "-" "curl/8.5.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { event_type: 'earnings', limit: '3' }
+::ffff:127.0.0.1 - - [03/Oct/2025:18:08:22 +0000] "GET /api/calendar/events?event_type=earnings&limit=3 HTTP/1.1" 200 689 "-" "curl/8.5.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { symbol: 'AAPL', limit: '5' }
+::ffff:127.0.0.1 - - [03/Oct/2025:18:08:25 +0000] "GET /api/calendar/events?symbol=AAPL&limit=5 HTTP/1.1" 200 378 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:08:30 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 200 373 "-" "curl/8.5.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:08:30 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/AAPL/financials
+Database connection verified for database-dependent endpoint
+📊 Stock financials requested for AAPL, period: annual, type: income
+::ffff:127.0.0.1 - - [03/Oct/2025:18:08:30 +0000] "GET /api/stocks/AAPL/financials?type=income&period=annual HTTP/1.1" 200 683 "-" "curl/8.5.0"
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:08:30 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "-" "curl/8.5.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 25, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 5 estimated total
+::1 - - [03/Oct/2025:18:08:41 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 14926 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+::1 - - [03/Oct/2025:18:08:44 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/financials/AAPL/income
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching income data for AAPL (test endpoint)
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:08:44 +0000] "GET /api/financials/AAPL/income HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:08:44 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:08:44 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::1 - - [03/Oct/2025:18:08:45 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { symbol: 'AAPL', type: 'upcoming', page: '1', limit: '10' }
+::1 - - [03/Oct/2025:18:08:46 +0000] "GET /api/calendar/events?symbol=AAPL&type=upcoming&page=1&limit=10 HTTP/1.1" 200 379 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/analysts/AAPL/overview
+Database connection verified for database-dependent endpoint
+Database query error: {
+  error: 'column "id" does not exist',
+  query: '\n' +
+    '        SELECT id, symbol, date, eps_estimate, eps_actual,\n' +
+    '               eps_difference, surprise_...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "id" does not exist
+::1 - - [03/Oct/2025:18:08:57 +0000] "GET /api/analysts/AAPL/overview HTTP/1.1" 200 489387 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/income-statement
+Database connection verified for database-dependent endpoint
+Income statement request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/cash-flow
+Database connection verified for database-dependent endpoint
+Cash flow request for AAPL, period: annual
+::1 - - [03/Oct/2025:18:08:59 +0000] "GET /api/financials/AAPL/income-statement?period=annual HTTP/1.1" 200 1786 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:08:59 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:08:59 +0000] "GET /api/financials/AAPL/cash-flow?period=annual HTTP/1.1" 200 1629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 25, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 5 estimated total
+::1 - - [03/Oct/2025:18:13:43 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 14926 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:14:43 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 200 373 "-" "curl/8.5.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:14:43 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "-" "curl/8.5.0"
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+::ffff:127.0.0.1 - - [03/Oct/2025:18:14:43 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "-" "curl/8.5.0"
+Processing request: GET /api/financials/AAPL/income-statement
+Database connection verified for database-dependent endpoint
+Income statement request for AAPL, period: annual
+::ffff:127.0.0.1 - - [03/Oct/2025:18:14:43 +0000] "GET /api/financials/AAPL/income-statement?period=annual HTTP/1.1" 200 1786 "-" "curl/8.5.0"
+Processing request: GET /api/financials/AAPL/cash-flow
+Database connection verified for database-dependent endpoint
+Cash flow request for AAPL, period: annual
+::ffff:127.0.0.1 - - [03/Oct/2025:18:14:43 +0000] "GET /api/financials/AAPL/cash-flow?period=annual HTTP/1.1" 200 1629 "-" "curl/8.5.0"
+Processing request: GET /api/analysts/AAPL/overview
+Database connection verified for database-dependent endpoint
+Database query error: {
+  error: 'column "id" does not exist',
+  query: '\n' +
+    '        SELECT id, symbol, date, eps_estimate, eps_actual,\n' +
+    '               eps_difference, surprise_...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "id" does not exist
+::ffff:127.0.0.1 - - [03/Oct/2025:18:14:43 +0000] "GET /api/analysts/AAPL/overview HTTP/1.1" 200 489387 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:14:43 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:17:14 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 200 373 "-" "curl/8.5.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:17:14 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "-" "curl/8.5.0"
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+::ffff:127.0.0.1 - - [03/Oct/2025:18:17:14 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "-" "curl/8.5.0"
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:17:14 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:17:15 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "-" "curl/8.5.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { symbol: 'AAPL', type: 'upcoming', page: '1', limit: '10' }
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+Processing request: GET /api/financials/AAPL/income
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching income data for AAPL (test endpoint)
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/calendar/events?symbol=AAPL&type=upcoming&page=1&limit=10 HTTP/1.1" 200 379 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/financials/AAPL/income HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/income-statement
+Database connection verified for database-dependent endpoint
+Income statement request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/cash-flow
+Database connection verified for database-dependent endpoint
+Cash flow request for AAPL, period: annual
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/analysts/AAPL/overview
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/financials/AAPL/income-statement?period=annual HTTP/1.1" 200 1786 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "id" does not exist',
+  query: '\n' +
+    '        SELECT id, symbol, date, eps_estimate, eps_actual,\n' +
+    '               eps_difference, surprise_...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "id" does not exist
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/analysts/AAPL/overview HTTP/1.1" 200 489387 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:18:59 +0000] "GET /api/financials/AAPL/cash-flow?period=annual HTTP/1.1" 200 1629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::1 - - [03/Oct/2025:18:19:00 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:19:51 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 200 373 "-" "curl/8.5.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:20:35 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "-" "curl/8.5.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { symbol: 'AAPL', type: 'upcoming', page: '1', limit: '10' }
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/calendar/events?symbol=AAPL&type=upcoming&page=1&limit=10 HTTP/1.1" 200 379 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/financials/AAPL/cash-flow
+Database connection verified for database-dependent endpoint
+Cash flow request for AAPL, period: annual
+Processing request: GET /api/analysts/AAPL/overview
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/financials/AAPL/income
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching income data for AAPL (test endpoint)
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/income-statement
+Database connection verified for database-dependent endpoint
+Income statement request for AAPL, period: annual
+Database query error: {
+  error: 'column "id" does not exist',
+  query: '\n' +
+    '        SELECT id, symbol, date, eps_estimate, eps_actual,\n' +
+    '               eps_difference, surprise_...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "id" does not exist
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/analysts/AAPL/overview HTTP/1.1" 200 489387 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/financials/AAPL/cash-flow?period=annual HTTP/1.1" 200 1629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/financials/AAPL/income-statement?period=annual HTTP/1.1" 200 1786 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:20:39 +0000] "GET /api/financials/AAPL/income HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { symbol: 'AAPL', type: 'upcoming', page: '1', limit: '10' }
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/calendar/events?symbol=AAPL&type=upcoming&page=1&limit=10 HTTP/1.1" 200 379 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+Processing request: GET /api/financials/AAPL/cash-flow
+Database connection verified for database-dependent endpoint
+Cash flow request for AAPL, period: annual
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/financials/AAPL/income
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching income data for AAPL (test endpoint)
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/analysts/AAPL/overview
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/financials/AAPL/income HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/income-statement
+Database connection verified for database-dependent endpoint
+Income statement request for AAPL, period: annual
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+Database query error: {
+  error: 'column "id" does not exist',
+  query: '\n' +
+    '        SELECT id, symbol, date, eps_estimate, eps_actual,\n' +
+    '               eps_difference, surprise_...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "id" does not exist
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/analysts/AAPL/overview HTTP/1.1" 200 489387 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/financials/AAPL/cash-flow?period=annual HTTP/1.1" 200 1629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/financials/AAPL/income-statement?period=annual HTTP/1.1" 200 1786 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:21:09 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:22:19 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 200 373 "-" "curl/8.5.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:22:19 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "-" "curl/8.5.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:22:30 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:22:41 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 200 373 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 200 373 "-" "curl/8.5.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "-" "curl/8.5.0"
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "-" "curl/8.5.0"
+Processing request: GET /api/financials/AAPL/income-statement
+Database connection verified for database-dependent endpoint
+Income statement request for AAPL, period: annual
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/financials/AAPL/income-statement?period=annual HTTP/1.1" 200 1786 "-" "curl/8.5.0"
+Processing request: GET /api/financials/AAPL/cash-flow
+Database connection verified for database-dependent endpoint
+Cash flow request for AAPL, period: annual
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/financials/AAPL/cash-flow?period=annual HTTP/1.1" 200 1629 "-" "curl/8.5.0"
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "-" "curl/8.5.0"
+Processing request: GET /api/analysts/AAPL/overview
+Database connection verified for database-dependent endpoint
+Database query error: {
+  error: 'column "id" does not exist',
+  query: '\n' +
+    '        SELECT id, symbol, date, eps_estimate, eps_actual,\n' +
+    '               eps_difference, surprise_...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "id" does not exist
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/analysts/AAPL/overview HTTP/1.1" 200 489387 "-" "curl/8.5.0"
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "-" "curl/8.5.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { symbol: 'AAPL', limit: '10' }
+::ffff:127.0.0.1 - - [03/Oct/2025:18:23:18 +0000] "GET /api/calendar/events?symbol=AAPL&limit=10 HTTP/1.1" 200 379 "-" "curl/8.5.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { symbol: 'AAPL', type: 'upcoming', page: '1', limit: '10' }
+::1 - - [03/Oct/2025:18:24:41 +0000] "GET /api/calendar/events?symbol=AAPL&type=upcoming&page=1&limit=10 HTTP/1.1" 200 379 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/financials/AAPL/cash-flow
+Database connection verified for database-dependent endpoint
+Cash flow request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/income
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching income data for AAPL (test endpoint)
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/financials/AAPL/cash-flow?period=annual HTTP/1.1" 200 1629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+Processing request: GET /api/analysts/AAPL/overview
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/financials/AAPL/income-statement
+Database connection verified for database-dependent endpoint
+Income statement request for AAPL, period: annual
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/financials/AAPL/income HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "id" does not exist',
+  query: '\n' +
+    '        SELECT id, symbol, date, eps_estimate, eps_actual,\n' +
+    '               eps_difference, surprise_...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "id" does not exist
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/analysts/AAPL/overview HTTP/1.1" 200 489387 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:24:42 +0000] "GET /api/financials/AAPL/income-statement?period=annual HTTP/1.1" 200 1786 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { symbol: 'AAPL', type: 'upcoming', page: '1', limit: '10' }
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/calendar/events?symbol=AAPL&type=upcoming&page=1&limit=10 HTTP/1.1" 200 379 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/profile
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/stocks/AAPL/profile HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/metrics/AAPL
+Database connection verified for database-dependent endpoint
+📊 Metrics requested for symbol: AAPL
+Processing request: GET /api/financials/AAPL/income
+Database connection verified for database-dependent endpoint
+💰 [FINANCIALS] Fetching income data for AAPL (test endpoint)
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/metrics/AAPL HTTP/1.1" 200 292 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/analysts/AAPL/recommendations
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/financials/AAPL/cash-flow
+Database connection verified for database-dependent endpoint
+Cash flow request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+Processing request: GET /api/financials/AAPL/income-statement
+Database connection verified for database-dependent endpoint
+Income statement request for AAPL, period: annual
+Processing request: GET /api/analysts/AAPL/overview
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/analysts/AAPL/recommendations HTTP/1.1" 200 11861 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks/AAPL/prices/recent
+Database connection verified for database-dependent endpoint
+📊 [STOCKS] Recent prices endpoint called for ticker: AAPL, limit: 30
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/financials/AAPL/income HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "id" does not exist',
+  query: '\n' +
+    '        SELECT id, symbol, date, eps_estimate, eps_actual,\n' +
+    '               eps_difference, surprise_...',
+  params: '1 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "id" does not exist
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/analysts/AAPL/overview HTTP/1.1" 200 489387 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+📊 [STOCKS] Successfully returning 5 price records for AAPL
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/stocks/AAPL/prices/recent?limit=30 HTTP/1.1" 200 1119 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/financials/AAPL/income-statement?period=annual HTTP/1.1" 200 1786 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/financials/AAPL/cash-flow?period=annual HTTP/1.1" 200 1629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:18:26:42 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 25, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 5 estimated total
+::1 - - [03/Oct/2025:18:27:04 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 14926 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/stocks/AAPL/prices from origin: http://localhost:5173
+Processing request: GET /api/stocks/AAPL/prices
+Database connection verified for database-dependent endpoint
+🚀 OPTIMIZED prices endpoint: AAPL, timeframe: daily, limit: 90
+DEBUG: Using tableName: price_daily for symbol: AAPL, timeframe: daily
+🔍 DEBUG: About to execute daily query for AAPL:
+📊 Query length: 1183 characters
+🔧 Parameters: [AAPL, 90]
+📝 FULL QUERY:
+
+        WITH price_data AS (
+          SELECT
+            date,
+            open::DECIMAL(12,4) as open,
+            high::DECIMAL(12,4) as high,
+            low::DECIMAL(12,4) as low,
+            close::DECIMAL(12,4) as close,
+            close::DECIMAL(12,4) as adjusted_close,
+            volume::BIGINT as volume,
+            LAG(close) OVER (ORDER BY date DESC) as prev_close
+          FROM price_daily
+          WHERE symbol = $1
+            AND date >= CURRENT_DATE - INTERVAL '2 years'
+            AND close IS NOT NULL
+          ORDER BY date DESC
+          LIMIT $2
+        )
+        SELECT 
+          date,
+          open,
+          high, 
+          low,
+          close,
+          adjusted_close,
+          volume,
+          CASE 
+            WHEN prev_close IS NOT NULL AND prev_close > 0 
+            THEN ROUND((close - prev_close)::DECIMAL, 4)
+            ELSE NULL 
+          END as price_change,
+          CASE 
+            WHEN prev_close IS NOT NULL AND prev_close > 0
+            THEN ROUND(((close - prev_close) / prev_close * 100)::DECIMAL, 4)
+            ELSE NULL 
+          END as price_change_pct
+        FROM price_data
+        ORDER BY date DESC;
+      
+🎯 Query position 763 is at character: r
+✅ AAPL prices fetched: 5 records in 3ms
+::1 - - [03/Oct/2025:18:27:09 +0000] "GET /api/stocks/AAPL/prices?limit=90 HTTP/1.1" 200 1192 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"

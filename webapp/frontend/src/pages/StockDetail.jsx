@@ -812,7 +812,7 @@ function StockDetail() {
                               <TableContainer>
                                 <Table size="small">
                                   <TableBody>
-                                    {Object.entries(period.items)
+                                    {period.items && Object.entries(period.items)
                                       .filter(([key]) =>
                                         [
                                           "Total Revenue",
@@ -894,7 +894,7 @@ function StockDetail() {
                               <TableContainer>
                                 <Table size="small">
                                   <TableBody>
-                                    {Object.entries(period.items)
+                                    {period.items && Object.entries(period.items)
                                       .filter(([key]) =>
                                         [
                                           "Total Assets",
@@ -976,7 +976,7 @@ function StockDetail() {
                               <TableContainer>
                                 <Table size="small">
                                   <TableBody>
-                                    {Object.entries(period.items)
+                                    {period.items && Object.entries(period.items)
                                       .filter(([key]) =>
                                         [
                                           "Operating Cash Flow",
