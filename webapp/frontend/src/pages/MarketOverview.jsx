@@ -1285,51 +1285,33 @@ function MarketOverview() {
             >
               <Tab
                 value={0}
-                label="Market Overview"
-                icon={<ShowChart />}
-                iconPosition="start"
-                id="market-tab-0"
-                aria-controls="market-tabpanel-0"
-              />
-              <Tab
-                value={1}
                 label="Sentiment History"
                 icon={<Timeline />}
                 iconPosition="start"
-                id="market-tab-1"
-                aria-controls="market-tabpanel-1"
               />
               <Tab
-                value={2}
+                value={1}
                 label="Market Breadth"
                 icon={<Equalizer />}
                 iconPosition="start"
-                id="market-tab-2"
-                aria-controls="market-tabpanel-2"
               />
               <Tab
-                value={3}
+                value={2}
                 label="Seasonality"
                 icon={<CalendarToday />}
                 iconPosition="start"
-                id="market-tab-3"
-                aria-controls="market-tabpanel-3"
               />
               <Tab
-                value={4}
+                value={3}
                 label="Research Indicators"
                 icon={<Analytics />}
                 iconPosition="start"
-                id="market-tab-4"
-                aria-controls="market-tabpanel-4"
               />
             </Tabs>
         </Box>
 
-        {tabsReady && (
-          <>
-            <TabPanel value={tabValue} index={0}>
-          <Grid container spacing={3}>
+        {/* Main Page Content */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
             {/* Sentiment Indicators */}
             <Grid item xs={12} md={4}>
               <Card>
@@ -1469,10 +1451,11 @@ function MarketOverview() {
                 </CardContent>
               </Card>
             </Grid>
-          </Grid>
-        </TabPanel>
+        </Grid>
 
-        <TabPanel value={tabValue} index={1}>
+        {tabsReady && (
+          <>
+        <TabPanel value={tabValue} index={0}>
           {sentimentLoading ? (
             <LinearProgress />
           ) : (
@@ -1486,7 +1469,7 @@ function MarketOverview() {
           )}
         </TabPanel>
 
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={1}>
           {sectorLoading ? (
             <LinearProgress />
           ) : (
@@ -1572,7 +1555,7 @@ function MarketOverview() {
           )}
         </TabPanel>
 
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={2}>
           {breadthLoading ? (
             <LinearProgress />
           ) : (
@@ -1711,7 +1694,7 @@ function MarketOverview() {
         </TabPanel>
 
 
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={3}>
           {seasonalityLoading ? (
             <LinearProgress />
           ) : (
