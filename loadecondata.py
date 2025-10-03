@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 21:00 - Load missing series (T10Y2Y, SP500) with 31GB RDS
+# Updated: 2025-10-03 21:30 - StockDetail page fixed, populate AWS with economic data (all series)
 import json
 import logging
 import os
