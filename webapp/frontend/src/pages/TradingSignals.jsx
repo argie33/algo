@@ -94,7 +94,7 @@ function TradingSignals() {
   const [searchInput, setSearchInput] = useState("");
 
   // Date range filter - defaults to "all" to show all signals
-  const [dateRange, setDateRange] = useState("all"); // today, week, month, all
+  const [dateRange, setDateRange] = useState("week"); // today, week, month, all - default to week for cleaner view
   const [showActiveOnly, setShowActiveOnly] = useState(true); // Show active/recent signals by default
 
   // Helper function to check if signal matches date range
