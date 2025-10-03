@@ -1111,6 +1111,9 @@ router.get("/ecs-tasks", async (req, res) => {
       // Analyst data
       { name: "analyst_upgrades", logGroup: "/ecs/analystupgradedowngrade-loader" },
 
+      // Sector data
+      { name: "sector_data", logGroup: "/ecs/sectordata-loader" },
+
       // News and sentiment analysis
       { name: "news", logGroup: "/ecs/news-loader" },
       { name: "sentiment", logGroup: "/ecs/sentiment-loader" },
