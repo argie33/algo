@@ -137,53 +137,53 @@ const EconomicModeling = () => {
           api.get("/api/market/economic-scenarios"),
         ]);
 
+        // Extract actual data from API responses (unwrap success wrapper)
+        const leadingData = leadingIndicators?.data?.data || leadingIndicators?.data || {};
+        const recessionData = recessionForecast?.data?.data || recessionForecast?.data || {};
+        const sectoralData = sectoralAnalysis?.data?.data || sectoralAnalysis?.data || {};
+        const scenariosData = economicScenarios?.data?.data || economicScenarios?.data || {};
+
         // Debug logging
         console.log('🔍 Economic Data Debug:', {
-          apiResponse: leadingIndicators?.data,
-          apiResponseKeys: leadingIndicators?.data ? Object.keys(leadingIndicators.data) : [],
-          indicatorsArray: leadingIndicators?.data?.indicators,
-          indicatorsCount: leadingIndicators?.data?.indicators?.length,
-          firstIndicator: leadingIndicators?.data?.indicators?.[0],
-          fullResponse: JSON.stringify(leadingIndicators?.data, null, 2)
+          leadingDataKeys: Object.keys(leadingData),
+          indicatorsArray: leadingData.indicators,
+          indicatorsCount: leadingData.indicators?.length,
+          firstIndicator: leadingData.indicators?.[0]
         });
 
         // Combine all data into the expected structure
         const combinedData = {
           // Recession forecasting data
-          forecastModels: recessionForecast?.data.forecastModels || [],
-          recessionProbability:
-            recessionForecast?.data.compositeRecessionProbability || 0,
-          riskLevel: recessionForecast?.data.riskLevel || "Medium",
+          forecastModels: recessionData.forecastModels || [],
+          recessionProbability: recessionData.compositeRecessionProbability || 0,
+          riskLevel: recessionData.riskLevel || "Medium",
 
           // Leading indicators data
-          leadingIndicators: leadingIndicators?.data.indicators || [],
-          gdpGrowth: leadingIndicators?.data.gdpGrowth || 0,
-          unemployment: leadingIndicators?.data.unemployment || 0,
-          inflation: leadingIndicators?.data.inflation || 0,
-          employment: leadingIndicators?.data.employment || {},
+          leadingIndicators: leadingData.indicators || [],
+          gdpGrowth: leadingData.gdpGrowth || 0,
+          unemployment: leadingData.unemployment || 0,
+          inflation: leadingData.inflation || 0,
+          employment: leadingData.employment || {},
 
           // Yield curve data
           yieldCurve: {
-            spread2y10y: leadingIndicators?.data.yieldCurve?.spread2y10y || 0,
-            spread3m10y: leadingIndicators?.data.yieldCurve?.spread3m10y || 0,
-            isInverted: leadingIndicators?.data.yieldCurve?.isInverted || false,
-            interpretation:
-              leadingIndicators?.data.yieldCurve?.interpretation || "",
-            historicalAccuracy:
-              leadingIndicators?.data.yieldCurve?.historicalAccuracy || 0,
-            averageLeadTime:
-              leadingIndicators?.data.yieldCurve?.averageLeadTime || 0,
+            spread2y10y: leadingData.yieldCurve?.spread2y10y || 0,
+            spread3m10y: leadingData.yieldCurve?.spread3m10y || 0,
+            isInverted: leadingData.yieldCurve?.isInverted || false,
+            interpretation: leadingData.yieldCurve?.interpretation || "",
+            historicalAccuracy: leadingData.yieldCurve?.historicalAccuracy || 0,
+            averageLeadTime: leadingData.yieldCurve?.averageLeadTime || 0,
           },
-          yieldCurveData: leadingIndicators?.data.yieldCurveData || [],
+          yieldCurveData: leadingData.yieldCurveData || [],
 
           // Sectoral data
-          sectoralData: sectoralAnalysis?.data.sectors || [],
+          sectoralData: sectoralData.sectors || [],
 
           // Economic scenarios
-          scenarios: economicScenarios?.data.scenarios || [],
+          scenarios: scenariosData.scenarios || [],
 
           // Upcoming events (from leading indicators)
-          upcomingEvents: leadingIndicators?.data.upcomingEvents || [],
+          upcomingEvents: leadingData.upcomingEvents || [],
         };
 
         setEconomicData(combinedData);
