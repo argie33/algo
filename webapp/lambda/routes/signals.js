@@ -195,10 +195,22 @@ router.get("/", async (req, res) => {
       ${whereClause}
     `;
 
-    const [signalsResult, countResult] = await Promise.all([
-      query(signalsQuery, [...queryParams, limit, offset]),
-      query(countQuery, queryParams)
-    ]);
+    let signalsResult, countResult;
+    try {
+      [signalsResult, countResult] = await Promise.all([
+        query(signalsQuery, [...queryParams, limit, offset]),
+        query(countQuery, queryParams)
+      ]);
+    } catch (queryError) {
+      console.error(`❌ Query failed for ${timeframe} signals:`, queryError.message);
+      console.error('Query:', signalsQuery.substring(0, 200));
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch signals data",
+        details: queryError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     if (!countResult || !countResult.rows) {
       return res.status(503).json({
@@ -395,10 +407,21 @@ router.get("/buy", async (req, res) => {
       ${queryConfig.whereClause}
     `;
 
-    const [signalsResult, countResult] = await Promise.all([
-      query(buySignalsQuery, [...queryConfig.queryParams, limit, offset]),
-      query(countQuery, queryConfig.countParams)
-    ]);
+    let signalsResult, countResult;
+    try {
+      [signalsResult, countResult] = await Promise.all([
+        query(buySignalsQuery, [...queryConfig.queryParams, limit, offset]),
+        query(countQuery, queryConfig.countParams)
+      ]);
+    } catch (queryError) {
+      console.error(`❌ BUY signals query failed for ${timeframe}:`, queryError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch BUY signals",
+        details: queryError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     if (!countResult || !countResult.rows) {
       return res.status(503).json({
@@ -534,10 +557,21 @@ router.get("/sell", async (req, res) => {
       ${queryConfig.whereClause}
     `;
 
-    const [signalsResult, countResult] = await Promise.all([
-      query(sellSignalsQuery, [...queryConfig.queryParams, limit, offset]),
-      query(countQuery, queryConfig.countParams)
-    ]);
+    let signalsResult, countResult;
+    try {
+      [signalsResult, countResult] = await Promise.all([
+        query(sellSignalsQuery, [...queryConfig.queryParams, limit, offset]),
+        query(countQuery, queryConfig.countParams)
+      ]);
+    } catch (queryError) {
+      console.error(`❌ SELL signals query failed for ${timeframe}:`, queryError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch SELL signals",
+        details: queryError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     if (!countResult || !countResult.rows) {
       return res.status(503).json({
@@ -690,10 +724,21 @@ router.get("/technical", async (req, res) => {
       ${queryConfig.whereClause}${additionalWhere}
     `;
 
-    const [signalsResult, countResult] = await Promise.all([
-      query(technicalSignalsQuery, [...additionalParams, limit, offset]),
-      query(countQuery, countParams)
-    ]);
+    let signalsResult, countResult;
+    try {
+      [signalsResult, countResult] = await Promise.all([
+        query(technicalSignalsQuery, [...additionalParams, limit, offset]),
+        query(countQuery, countParams)
+      ]);
+    } catch (queryError) {
+      console.error(`❌ Technical signals query failed for ${timeframe}:`, queryError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch technical signals",
+        details: queryError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     if (!countResult || !countResult.rows) {
       return res.status(503).json({
@@ -818,10 +863,21 @@ router.get("/momentum", async (req, res) => {
       ${queryConfig.whereClause}
     `;
 
-    const [signalsResult, countResult] = await Promise.all([
-      query(momentumSignalsQuery, [...queryConfig.queryParams, limit, offset]),
-      query(countQuery, queryConfig.countParams)
-    ]);
+    let signalsResult, countResult;
+    try {
+      [signalsResult, countResult] = await Promise.all([
+        query(momentumSignalsQuery, [...queryConfig.queryParams, limit, offset]),
+        query(countQuery, queryConfig.countParams)
+      ]);
+    } catch (queryError) {
+      console.error(`❌ Momentum signals query failed for ${timeframe}:`, queryError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch momentum signals",
+        details: queryError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     if (!countResult || !countResult.rows) {
       return res.status(503).json({
