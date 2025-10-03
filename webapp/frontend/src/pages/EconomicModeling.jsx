@@ -140,9 +140,11 @@ const EconomicModeling = () => {
         // Debug logging
         console.log('🔍 Economic Data Debug:', {
           apiResponse: leadingIndicators?.data,
+          apiResponseKeys: leadingIndicators?.data ? Object.keys(leadingIndicators.data) : [],
           indicatorsArray: leadingIndicators?.data?.indicators,
           indicatorsCount: leadingIndicators?.data?.indicators?.length,
-          firstIndicator: leadingIndicators?.data?.indicators?.[0]
+          firstIndicator: leadingIndicators?.data?.indicators?.[0],
+          fullResponse: JSON.stringify(leadingIndicators?.data, null, 2)
         });
 
         // Combine all data into the expected structure
