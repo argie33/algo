@@ -505,7 +505,7 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Stage & Confidence: Stage 2=BUY zone, confidence 60+ required. Hover to see substage (Early/Mid/Late)">
+              <Tooltip title="Market Stage: Stage 2=BUY zone (Advancing phase). Hover to see substage (Early/Mid/Late)">
                 <span>Stage</span>
               </Tooltip>
             </TableCell>
@@ -665,7 +665,7 @@ function TradingSignals() {
                   : "—"}
               </TableCell>
               <TableCell>
-                <Tooltip title={`${signal.market_stage || "Unknown"}\nConfidence: ${signal.stage_confidence || 0}/100\n${signal.substage || ""}`}>
+                <Tooltip title={`${signal.market_stage || "Unknown"}\n${signal.substage || ""}`}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     <Chip
                       label={signal.market_stage?.replace("Stage ", "S") || "—"}
@@ -687,17 +687,6 @@ function TradingSignals() {
                         fontSize: "0.75rem",
                       }}
                     />
-                    {signal.stage_confidence && (
-                      <Typography variant="caption" sx={{
-                        fontSize: "0.65rem",
-                        color: signal.stage_confidence >= 75 ? "#059669" :
-                               signal.stage_confidence >= 60 ? "#3B82F6" :
-                               signal.stage_confidence >= 40 ? "#F59E0B" : "#DC2626",
-                        fontWeight: "bold"
-                      }}>
-                        {signal.stage_confidence}
-                      </Typography>
-                    )}
                   </Box>
                 </Tooltip>
               </TableCell>
@@ -1283,7 +1272,7 @@ function TradingSignals() {
                           : "—"}
                       </TableCell>
                       <TableCell>
-                        <Tooltip title={`${signal.market_stage || "Unknown"}\nConfidence: ${signal.stage_confidence || 0}/100\n${signal.substage || ""}`}>
+                        <Tooltip title={`${signal.market_stage || "Unknown"}\n${signal.substage || ""}`}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                             <Chip
                               label={signal.market_stage?.replace("Stage ", "S") || "—"}
@@ -1305,17 +1294,6 @@ function TradingSignals() {
                                 fontSize: "0.7rem",
                               }}
                             />
-                            {signal.stage_confidence && (
-                              <Typography variant="caption" sx={{
-                                fontSize: "0.6rem",
-                                color: signal.stage_confidence >= 75 ? "#059669" :
-                                       signal.stage_confidence >= 60 ? "#3B82F6" :
-                                       signal.stage_confidence >= 40 ? "#F59E0B" : "#DC2626",
-                                fontWeight: "bold"
-                              }}>
-                                {signal.stage_confidence}
-                              </Typography>
-                            )}
                           </Box>
                         </Tooltip>
                       </TableCell>
