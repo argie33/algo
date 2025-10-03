@@ -102,6 +102,42 @@ function EarningsCalendar() {
     refetchInterval: 300000,
   });
 
+  // Fetch quality scores for all symbols
+  const symbols = Object.keys(earningsData?.data || {});
+  const {
+    data: qualityScoresData,
+    isLoading: qualityLoading,
+  } = useQuery({
+    queryKey: ["qualityScores", symbols],
+    queryFn: async () => {
+      if (symbols.length === 0) return {};
+
+      const results = await Promise.all(
+        symbols.map(async (symbol) => {
+          try {
+            const response = await fetch(
+              `${API_BASE}/api/calendar/earnings-metrics?symbol=${symbol}`
+            );
+            if (!response.ok) return { symbol, score: null };
+            const data = await response.json();
+            const metrics = data?.data?.[symbol]?.metrics;
+            const latestScore = metrics?.[0]?.earnings_quality_score || null;
+            return { symbol, score: latestScore };
+          } catch {
+            return { symbol, score: null };
+          }
+        })
+      );
+
+      return results.reduce((acc, { symbol, score }) => {
+        acc[symbol] = score;
+        return acc;
+      }, {});
+    },
+    enabled: symbols.length > 0,
+    staleTime: 60000,
+  });
+
   // Fetch detailed data for expanded symbol
   const {
     data: symbolDetails,
@@ -181,15 +217,21 @@ function EarningsCalendar() {
     return acc;
   }, {});
 
-  // Format earnings data for table
-  const earningsRows = Object.entries(earningsData?.data || {}).flatMap(
-    ([symbol, group]) =>
-      (group.estimates || []).map((estimate) => ({
-        symbol,
-        company_name: group.company_name,
-        ...estimate,
-      }))
-  );
+  // Format earnings data for table - one row per symbol
+  const earningsRows = Object.entries(earningsData?.data || {})
+    .map(([symbol, group]) => ({
+      symbol,
+      company_name: group.company_name,
+      estimates: group.estimates || [],
+      quality_score: qualityScoresData?.[symbol] || null,
+    }))
+    .sort((a, b) => {
+      // Sort by quality score descending (nulls last)
+      if (a.quality_score === null && b.quality_score === null) return 0;
+      if (a.quality_score === null) return 1;
+      if (b.quality_score === null) return -1;
+      return b.quality_score - a.quality_score;
+    });
 
   if (weeklyLoading && !weeklyCalendarData) {
     return (
@@ -324,13 +366,13 @@ function EarningsCalendar() {
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
                 <TrendingUp color="success" sx={{ mr: 1 }} />
-                <Typography variant="h6">Total Estimates</Typography>
+                <Typography variant="h6">Total Companies</Typography>
               </Box>
               <Typography variant="h4" fontWeight="bold" color="text.primary">
                 {earningsRows.length}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                All symbols
+                With estimates
               </Typography>
             </CardContent>
           </Card>
@@ -340,20 +382,21 @@ function EarningsCalendar() {
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
                 <Analytics color="secondary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Avg Analysts</Typography>
+                <Typography variant="h6">Avg Quality Score</Typography>
               </Box>
               <Typography variant="h4" fontWeight="bold" color="text.primary">
                 {earningsRows.length > 0
                   ? Math.round(
-                      earningsRows.reduce(
-                        (sum, row) => sum + (row.number_of_analysts || 0),
-                        0
-                      ) / earningsRows.length
+                      earningsRows
+                        .filter((row) => row.quality_score !== null)
+                        .reduce((sum, row) => sum + row.quality_score, 0) /
+                        earningsRows.filter((row) => row.quality_score !== null)
+                          .length || 0
                     )
                   : 0}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Per symbol
+                Overall score
               </Typography>
             </CardContent>
           </Card>
@@ -415,7 +458,7 @@ function EarningsCalendar() {
             Earnings Estimates & Details
           </Typography>
 
-          {earningsLoading ? (
+          {earningsLoading || qualityLoading ? (
             <Box display="flex" justifyContent="center" py={4}>
               <CircularProgress />
             </Box>
@@ -431,16 +474,12 @@ function EarningsCalendar() {
                     <TableCell width={50}></TableCell>
                     <TableCell>Symbol</TableCell>
                     <TableCell>Company</TableCell>
-                    <TableCell>Period</TableCell>
-                    <TableCell align="right">Avg Estimate</TableCell>
-                    <TableCell align="right">Range</TableCell>
-                    <TableCell align="right">Analysts</TableCell>
-                    <TableCell align="right">Growth</TableCell>
+                    <TableCell align="center">Quality Score</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {earningsRows.map((row, index) => (
-                    <React.Fragment key={`${row.symbol}-${row.period}-${index}`}>
+                    <React.Fragment key={`${row.symbol}-${index}`}>
                       <TableRow
                         hover
                         onClick={() => handleToggleExpand(row.symbol)}
@@ -467,53 +506,31 @@ function EarningsCalendar() {
                             {row.company_name}
                           </Typography>
                         </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={row.period}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="body2" fontWeight="bold">
-                            {formatCurrency(row.avg_estimate)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            {formatCurrency(row.low_estimate)} -{" "}
-                            {formatCurrency(row.high_estimate)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={row.number_of_analysts}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Box
-                            display="flex"
-                            alignItems="center"
-                            justifyContent="flex-end"
-                            gap={0.5}
-                          >
-                            {getSurpriseIcon(row.growth)}
-                            <Typography
-                              variant="body2"
-                              sx={{ color: getSurpriseColor(row.growth) }}
-                            >
-                              {formatPercentage(row.growth / 100)}
+                        <TableCell align="center">
+                          {row.quality_score !== null ? (
+                            <Chip
+                              label={row.quality_score.toFixed(1)}
+                              size="small"
+                              color={
+                                row.quality_score >= 70
+                                  ? "success"
+                                  : row.quality_score >= 50
+                                    ? "warning"
+                                    : "error"
+                              }
+                            />
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              N/A
                             </Typography>
-                          </Box>
+                          )}
                         </TableCell>
                       </TableRow>
 
                       {/* Expanded Details */}
                       {expandedSymbol === row.symbol && (
                         <TableRow>
-                          <TableCell colSpan={8} sx={{ p: 0 }}>
+                          <TableCell colSpan={4} sx={{ p: 0 }}>
                             <Box sx={{ p: 3, backgroundColor: "grey.50" }}>
                               {detailsLoading ? (
                                 <Box display="flex" justifyContent="center" py={3}>
@@ -521,6 +538,81 @@ function EarningsCalendar() {
                                 </Box>
                               ) : symbolDetails ? (
                                 <Grid container spacing={3}>
+                                  {/* Earnings Estimates */}
+                                  <Grid item xs={12} md={6}>
+                                    <Accordion defaultExpanded>
+                                      <AccordionSummary expandIcon={<ExpandMore />}>
+                                        <Typography variant="subtitle1" fontWeight="bold">
+                                          Earnings Estimates
+                                        </Typography>
+                                      </AccordionSummary>
+                                      <AccordionDetails>
+                                        <TableContainer>
+                                          <Table size="small">
+                                            <TableHead>
+                                              <TableRow>
+                                                <TableCell>Period</TableCell>
+                                                <TableCell align="right">Avg Est</TableCell>
+                                                <TableCell align="right">Range</TableCell>
+                                                <TableCell align="right">Analysts</TableCell>
+                                                <TableCell align="right">Growth</TableCell>
+                                              </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                              {row.estimates?.length > 0 ? (
+                                                row.estimates.map((est, idx) => (
+                                                  <TableRow key={idx}>
+                                                    <TableCell>
+                                                      <Chip
+                                                        label={est.period}
+                                                        size="small"
+                                                        variant="outlined"
+                                                      />
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      <Typography variant="body2" fontWeight="bold">
+                                                        {formatCurrency(est.avg_estimate)}
+                                                      </Typography>
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      <Typography variant="caption" color="text.secondary">
+                                                        {formatCurrency(est.low_estimate)} - {formatCurrency(est.high_estimate)}
+                                                      </Typography>
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      <Chip
+                                                        label={est.number_of_analysts}
+                                                        size="small"
+                                                        variant="outlined"
+                                                      />
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                                                        {getSurpriseIcon(est.growth)}
+                                                        <Typography
+                                                          variant="body2"
+                                                          sx={{ color: getSurpriseColor(est.growth) }}
+                                                        >
+                                                          {formatPercentage(est.growth / 100)}
+                                                        </Typography>
+                                                      </Box>
+                                                    </TableCell>
+                                                  </TableRow>
+                                                ))
+                                              ) : (
+                                                <TableRow>
+                                                  <TableCell colSpan={5} align="center">
+                                                    No estimates data
+                                                  </TableCell>
+                                                </TableRow>
+                                              )}
+                                            </TableBody>
+                                          </Table>
+                                        </TableContainer>
+                                      </AccordionDetails>
+                                    </Accordion>
+                                  </Grid>
+
                                   {/* Earnings History */}
                                   <Grid item xs={12} md={6}>
                                     <Accordion defaultExpanded>
