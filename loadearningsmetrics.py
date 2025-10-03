@@ -79,7 +79,8 @@ def calculate_qoq_growth(current, previous):
     if current is None or previous is None or previous == 0:
         return None
 
-    return ((current - previous) / abs(previous)) * 100
+    # Fixed: Don't use abs() - preserves sign for negative earnings
+    return ((current - previous) / previous) * 100
 
 
 def calculate_yoy_growth(current, year_ago):
@@ -90,7 +91,8 @@ def calculate_yoy_growth(current, year_ago):
     if current is None or year_ago is None or year_ago == 0:
         return None
 
-    return ((current - year_ago) / abs(year_ago)) * 100
+    # Fixed: Don't use abs() - preserves sign for negative earnings
+    return ((current - year_ago) / year_ago) * 100
 
 
 def normalize_score(value, min_val, max_val, higher_is_better=True):
@@ -374,11 +376,12 @@ def process_symbol(symbol, conn_pool):
             )
 
         # Calculate earnings quality score for most recent quarter
-        quality_score = calculate_earnings_quality_score(metrics_for_scoring)
+        # Fixed: Reverse metrics_for_scoring so latest quarter is first
+        quality_score = calculate_earnings_quality_score(list(reversed(metrics_for_scoring)))
 
-        # Update most recent quarter with quality score
+        # Fixed: Update most recent quarter (data[-1]) with quality score
         if data and quality_score is not None:
-            data[0] = data[0][:6] + (quality_score,) + (data[0][7],)
+            data[-1] = data[-1][:6] + (quality_score,) + (data[-1][7],)
 
         # Insert data
         if data:
