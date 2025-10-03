@@ -13,14 +13,12 @@ import {
   Divider,
   Grid,
   LinearProgress,
-  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Tabs,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -55,26 +53,11 @@ import {
 
 // Use centralized error logging (logger will be defined in component)
 
-function TabPanel({ children, value, index, ...other }) {
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`simple-tabpanel-${index}`}
-      aria-labelledby={`simple-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
-  );
-}
-
 function StockDetail() {
   const logger = createComponentLogger("StockDetail");
 
   const { ticker } = useParams();
   const symbol = ticker; // Route uses :ticker param
-  const [tabValue, setTabValue] = React.useState(0);
   // Fetch stock profile data
   const {
     data: profile,
@@ -131,7 +114,7 @@ function StockDetail() {
   } = useQuery({
     queryKey: ["balanceSheet", symbol, "annual"],
     queryFn: () => api.getBalanceSheet(symbol, "annual"),
-    enabled: !!symbol && tabValue === 2,
+    enabled: !!symbol,
     onError: (error) =>
       logger.queryError("balanceSheet", error, { symbol, period: "annual" }),
   });
@@ -142,7 +125,7 @@ function StockDetail() {
   } = useQuery({
     queryKey: ["incomeStatement", symbol, "annual"],
     queryFn: () => api.getIncomeStatement(symbol, "annual"),
-    enabled: !!symbol && tabValue === 2,
+    enabled: !!symbol,
     onError: (error) =>
       logger.queryError("incomeStatement", error, { symbol, period: "annual" }),
   });
@@ -153,13 +136,14 @@ function StockDetail() {
   } = useQuery({
     queryKey: ["cashFlowStatement", symbol, "annual"],
     queryFn: () => api.getCashFlowStatement(symbol, "annual"),
-    enabled: !!symbol && tabValue === 2,
+    enabled: !!symbol,
     onError: (error) =>
       logger.queryError("cashFlowStatement", error, {
         symbol,
         period: "annual",
       }),
-  }); // Fetch comprehensive analyst data
+  });
+  // Fetch comprehensive analyst data
   const {
     data: analystOverview,
     isLoading: analystOverviewLoading,
@@ -167,10 +151,10 @@ function StockDetail() {
   } = useQuery({
     queryKey: ["analystOverview", symbol],
     queryFn: () => api.getAnalystOverview(symbol),
-    enabled: !!symbol && tabValue === 4,
+    enabled: !!symbol,
     onError: (error) => logger.queryError("analystOverview", error, { symbol }),
   });
-  // Fetch recent price data only when Price tab is selected - lightweight and fast
+  // Fetch recent price data - lightweight and fast
   const {
     data: recentPrices,
     isLoading: recentPricesLoading,
@@ -178,7 +162,7 @@ function StockDetail() {
   } = useQuery({
     queryKey: ["stockPricesRecent", symbol],
     queryFn: () => api.getStockPricesRecent(symbol, 30), // Only 30 days for performance
-    enabled: !!symbol && tabValue === 1, // Only load when Price tab is selected
+    enabled: !!symbol,
     onError: (error) =>
       logger.queryError("stockPricesRecent", error, { symbol }),
   });
@@ -202,13 +186,9 @@ function StockDetail() {
       if (!response.ok) throw new Error("Failed to fetch events");
       return response.json();
     },
-    enabled: !!symbol && tabValue === 6, // Only load when Events tab is selected
+    enabled: !!symbol,
     onError: (error) => logger.queryError("stockEvents", error, { symbol }),
   });
-
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-  };
 
   if (profileLoading) {
     return (
@@ -470,25 +450,13 @@ function StockDetail() {
           </CardContent>
         </Card>
       )}
-      {/* Tab Navigation */}
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          aria-label="stock detail tabs"
-        >
-          <Tab value={0} label="Overview" icon={<Analytics />} />
-          <Tab value={1} label="Price & Volume" icon={<Timeline />} />
-          <Tab value={2} label="Financials" icon={<AccountBalance />} />
-          <Tab value={3} label="Ratios" icon={<Timeline />} />
-          <Tab value={4} label="Factor Analysis" icon={<Business />} />
-          <Tab value={5} label="Recommendations" icon={<TrendingUp />} />
-          <Tab value={6} label="Events" icon={<EventNote />} />
-        </Tabs>
-      </Box>
-      {/* Tab Panels */}{" "}
-      <TabPanel value={tabValue} index={0}>
-        {/* Company Overview and Key Metrics - No Price Chart */}
+
+      {/* Key Statistics & Metrics */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <Analytics sx={{ verticalAlign: "middle", mr: 1 }} />
+          Key Statistics & Metrics
+        </Typography>
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
             <Card>
@@ -569,9 +537,14 @@ function StockDetail() {
             )}
           </Grid>
         </Grid>
-      </TabPanel>{" "}
-      {/* Price & Volume Tab - Lightweight, no technical indicators */}
-      <TabPanel value={tabValue} index={1}>
+      </Box>
+
+      {/* Price & Volume Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <Timeline sx={{ verticalAlign: "middle", mr: 1 }} />
+          Price & Volume
+        </Typography>
         {/* Price Chart Section */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12}>
@@ -790,17 +763,23 @@ function StockDetail() {
             </Card>
           </Grid>
         </Grid>
-      </TabPanel>
-      <TabPanel value={tabValue} index={2}>
+      </Box>
+
+      {/* Financial Statements Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <AccountBalance sx={{ verticalAlign: "middle", mr: 1 }} />
+          Financial Statements
+        </Typography>
         {balanceSheetLoading || incomeStatementLoading || cashFlowLoading ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
           </Box>
         ) : (
           <Box>
-            {/* Financial Statements Header */}
-            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
-              Financial Statements - {symbol?.toUpperCase()}
+            {/* Financial Statements Content */}
+            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+              Annual Statements - {symbol?.toUpperCase()}
             </Typography>
 
             <Grid container spacing={3}>
@@ -1138,8 +1117,14 @@ function StockDetail() {
             </Grid>
           </Box>
         )}
-      </TabPanel>
-      <TabPanel value={tabValue} index={3}>
+      </Box>
+
+      {/* Financial Ratios Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <Timeline sx={{ verticalAlign: "middle", mr: 1 }} />
+          Financial Ratios
+        </Typography>
         {metricsLoading ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
@@ -1147,9 +1132,6 @@ function StockDetail() {
         ) : (
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Financial Ratios
-              </Typography>
               <Grid container spacing={2}>
                 {(ratios || []).map((ratio, index) => (
                   <Grid item xs={12} sm={6} md={3} key={index}>
@@ -1173,17 +1155,17 @@ function StockDetail() {
             </CardContent>
           </Card>
         )}
-      </TabPanel>
-      <TabPanel value={tabValue} index={4}>
-        {/* Factor Analysis Tab - Enhanced Institutional-Grade Analysis */}
-        <Box mb={3}>
-          <Typography variant="h5" gutterBottom>
-            Institutional Factor Analysis - {symbol?.toUpperCase()}
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Multi-factor quantitative analysis using institutional methodologies
-          </Typography>
-        </Box>
+      </Box>
+
+      {/* Factor Analysis Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <Business sx={{ verticalAlign: "middle", mr: 1 }} />
+          Institutional Factor Analysis
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Multi-factor quantitative analysis using institutional methodologies
+        </Typography>
 
         <Grid container spacing={3}>
           {/* Overall Factor Score */}
@@ -2028,17 +2010,20 @@ function StockDetail() {
             </Card>
           </Grid>
         </Grid>
-      </TabPanel>
-      <TabPanel value={tabValue} index={5}>
+      </Box>
+
+      {/* Analyst Coverage Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <TrendingUp sx={{ verticalAlign: "middle", mr: 1 }} />
+          Analyst Coverage & Recommendations
+        </Typography>
         {analystOverviewLoading ? (
           <Box display="flex" justifyContent="center" p={4}>
             <CircularProgress />
           </Box>
         ) : (
           <Box>
-            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
-              Analyst Coverage - {symbol?.toUpperCase()}
-            </Typography>
 
             <Grid container spacing={3}>
               {/* Earnings Estimates */}
@@ -2649,11 +2634,13 @@ function StockDetail() {
             </Grid>
           </Box>
         )}
-      </TabPanel>
-      <TabPanel value={tabValue} index={6}>
-        {/* Events Calendar for this stock */}
-        <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
-          Upcoming Events - {symbol?.toUpperCase()}
+      </Box>
+
+      {/* Upcoming Events Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <EventNote sx={{ verticalAlign: "middle", mr: 1 }} />
+          Upcoming Events
         </Typography>
 
         {eventsLoading ? (
@@ -2728,7 +2715,7 @@ function StockDetail() {
             </CardContent>
           </Card>
         )}
-      </TabPanel>
+      </Box>
     </Container>
   );
 }
