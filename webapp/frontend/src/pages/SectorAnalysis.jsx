@@ -341,7 +341,7 @@ const SectorAnalysis = () => {
             </Box>
           ) : rotationError ? (
             <Alert severity="error">
-              Failed to load sector rotation data: {rotationError.message}
+              Failed to load sector rotation data: {rotationError?.message || rotationError?.error || String(rotationError)}
             </Alert>
           ) : !rotationData?.data?.sectorRotation?.length ? (
             <Alert severity="warning">
