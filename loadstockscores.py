@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script - Enhanced Scoring Logic v2.0
+Stock Scores Loader Script - Enhanced Scoring Logic v2.0 (Updated: 2025-10-03)
 Calculates and stores improved stock scores using multi-factor analysis.
 
 Data Sources:
