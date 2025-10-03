@@ -243,8 +243,8 @@ function TradingSignals() {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
       filtered = filtered.filter((signal) => {
-        // Show if currently in position
-        if (signal.inPosition) return true;
+        // Show if currently in position (API returns 'inposition' lowercase)
+        if (signal.inposition || signal.in_position) return true;
 
         // Show if signal is from last 7 days and has an actual signal (not "None")
         if (signal.signal && signal.signal !== "None") {
