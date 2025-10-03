@@ -757,7 +757,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ELSE NULL
                 END as current_gain_loss_pct,
 
-                -- Risk %
+                -- Risk %%
                 CASE
                     WHEN sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
                     THEN ROUND(((sd.buylevel - sd.stoplevel) / NULLIF(sd.buylevel, 0) * 100)::NUMERIC, 2)
