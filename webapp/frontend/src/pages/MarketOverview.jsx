@@ -792,6 +792,124 @@ function MarketOverview() {
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }} data-testid="market-overview-page">
+      {/* Sentiment Indicators - Above Header */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Fear & Greed Index
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Current Value:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestFG.value ?? "N/A"}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Classification:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestFG.value_text || latestFG.classification || "N/A"}
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Scale: 0 (Extreme Fear) - 100 (Extreme Greed)
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                NAAIM Exposure
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Mean Exposure:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Bearish Exposure:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestNAAIM.bearish_exposure ?? "N/A"}
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Active manager equity exposure (0=out, 100=in)
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                AAII Sentiment
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Bullish:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestAAII.bullish ?? "N/A"}%
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Neutral:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestAAII.neutral ?? "N/A"}%
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Bearish:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestAAII.bearish ?? "N/A"}%
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Retail investor sentiment survey
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Market Cap Distribution
+              </Typography>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">Large Cap:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.large_cap)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">Mid Cap:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.mid_cap)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">Small Cap:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.small_cap)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">Total:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.total)}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
       {/* Enhanced Header Section */}
       <Box sx={{ mb: 4 }}>
         <Grid container spacing={2} alignItems="center">
@@ -1182,149 +1300,6 @@ function MarketOverview() {
               />
             </Tabs>
         </Box>
-
-        {/* Main Page Content */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-            {/* Sentiment Indicators */}
-            <Grid item xs={12} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Fear & Greed Index
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Current Value:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {latestFG.value ?? "N/A"}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Classification:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {latestFG.value_text || latestFG.classification || "N/A"}
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Scale: 0 (Extreme Fear) - 100 (Extreme Greed)
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    NAAIM Exposure
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Mean Exposure:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bearish Exposure:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {latestNAAIM.bearish_exposure ?? "N/A"}
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Active manager equity exposure (0=out, 100=in)
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    AAII Sentiment
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bullish:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {latestAAII.bullish ?? "N/A"}%
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Neutral:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {latestAAII.neutral ?? "N/A"}%
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Bearish:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {latestAAII.bearish ?? "N/A"}%
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Retail investor sentiment survey
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Market Cap Distribution
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      mb: 1,
-                    }}
-                  >
-                    <Typography variant="body2">Large Cap:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {formatCurrency(marketCap.large_cap)}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      mb: 1,
-                    }}
-                  >
-                    <Typography variant="body2">Mid Cap:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {formatCurrency(marketCap.mid_cap)}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      mb: 1,
-                    }}
-                  >
-                    <Typography variant="body2">Small Cap:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {formatCurrency(marketCap.small_cap)}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      mb: 1,
-                    }}
-                  >
-                    <Typography variant="body2">Total:</Typography>
-                    <Typography variant="body2" fontWeight="600">
-                      {formatCurrency(marketCap.total)}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-        </Grid>
 
         {tabsReady && (
           <>

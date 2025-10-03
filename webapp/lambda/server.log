@@ -3030,3 +3030,1440 @@ Database connection verified for database-dependent endpoint
 Sector performance endpoint called
 ::1 - - [02/Oct/2025:23:46:21 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
 ::1 - - [02/Oct/2025:23:46:21 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [02/Oct/2025:23:58:54 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [02/Oct/2025:23:58:54 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/market/research-indicators from origin: http://localhost:5173
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+::1 - - [03/Oct/2025:00:06:31 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:06:31 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [03/Oct/2025:00:06:54 +0000] "GET /api/health HTTP/1.1" 200 349 "-" "curl/8.5.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:07:16 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "-" "curl/8.5.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:11:06 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "-" "curl/8.5.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:16:07 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:07 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/market/recession-forecast from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/market/leading-indicators from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/market/ai-insights from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/market/sectoral-analysis from origin: http://localhost:5173
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+🔄 Global OPTIONS handler for: /api/market/economic-scenarios from origin: http://localhost:5173
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:00:16:10 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:10 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:10 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:10 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:16:10 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:16:11 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/market/overview from origin: http://localhost:5173
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 5ms using real loader tables
+::1 - - [03/Oct/2025:00:16:13 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/stocks from origin: http://localhost:5173
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 25, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 5 estimated total
+::1 - - [03/Oct/2025:00:16:48 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 14926 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/scores from origin: http://localhost:5173
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/scores HTTP/1.1" 200 11275 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'QQQ' }
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'GLD' }
+🔄 Global OPTIONS handler for: /api/signals from origin: http://localhost:5173
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'CRM' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'IWM' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'JNJ' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'PG' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=CRM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=IWM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=JNJ&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'SPY' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'GOOGL' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'META' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=PG&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'NVDA' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=SPY&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=GOOGL&timeframe=daily&limit=1 HTTP/1.1" 200 1338 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'KO' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=META&timeframe=daily&limit=1 HTTP/1.1" 200 1346 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AAPL' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=NVDA&timeframe=daily&limit=1 HTTP/1.1" 200 1348 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'BAC' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=QQQ&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=KO&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AMZN' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=AAPL&timeframe=daily&limit=1 HTTP/1.1" 200 1347 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=BAC&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=GLD&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AMD' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'TSLA' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=AMZN&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'VTI' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'MSFT' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=AMD&timeframe=daily&limit=1 HTTP/1.1" 200 1335 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=TSLA&timeframe=daily&limit=1 HTTP/1.1" 200 1339 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'JPM' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'NFLX' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=VTI&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=MSFT&timeframe=daily&limit=1 HTTP/1.1" 200 1335 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=JPM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/signals?symbol=NFLX&timeframe=daily&limit=1 HTTP/1.1" 200 1331 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { type: 'upcoming', page: '1', limit: '25' }
+::1 - - [03/Oct/2025:00:16:50 +0000] "GET /api/calendar/events?type=upcoming&page=1&limit=25 HTTP/1.1" 200 1009 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database {}
+Processing request: GET /api/signals/performance
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for daily
+::1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals?timeframe=daily&page=1&limit=25 HTTP/1.1" 200 8760 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance HTTP/1.1" 200 900 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:52 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:53 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:53 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:53 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:16:53 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sentiment/history
+Database connection verified for database-dependent endpoint
+Sentiment history endpoint called for 30 days
+Fetching AAII historical data...
+AAII query returned 10 rows
+::1 - - [03/Oct/2025:00:17:24 +0000] "GET /api/market/sentiment/history HTTP/1.1" 200 1897 "-" "curl/8.5.0"
+Processing request: GET /api/market/fear-greed
+Database connection verified for database-dependent endpoint
+Fear & Greed data endpoint called with limit: 30
+::1 - - [03/Oct/2025:00:17:25 +0000] "GET /api/market/fear-greed HTTP/1.1" 200 1203 "-" "curl/8.5.0"
+Processing request: GET /api/market/naaim
+Database connection verified for database-dependent endpoint
+NAAIM data endpoint called with limit: 30
+::1 - - [03/Oct/2025:00:17:26 +0000] "GET /api/market/naaim HTTP/1.1" 200 1253 "-" "curl/8.5.0"
+🔄 Global OPTIONS handler for: /api/technical/daily from origin: http://localhost:5173
+Processing request: GET /api/technical/daily
+Database connection verified for database-dependent endpoint
+📊 Daily technical data requested - page: 1, limit: 10, sortBy: symbol, sortOrder: asc
+Testing query function...
+Test query result: Result {
+  command: 'SELECT',
+  rowCount: 1,
+  oid: null,
+  rows: [ { test: 1 } ],
+  fields: [
+    Field {
+      name: 'test',
+      tableID: 0,
+      columnID: 0,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    }
+  ],
+  _parsers: [ [Function: parseInteger] ],
+  _types: TypeOverrides {
+    _types: {
+      getTypeParser: [Function: getTypeParser],
+      setTypeParser: [Function: setTypeParser],
+      arrayParser: [Object],
+      builtins: [Object]
+    },
+    text: {},
+    binary: {}
+  },
+  RowCtor: null,
+  rowAsArray: false,
+  _prebuiltEmptyResultObject: { test: null }
+}
+::1 - - [03/Oct/2025:00:18:46 +0000] "GET /api/technical/daily?page=1&limit=10&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 3843 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:22:07 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:22:07 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:00:22:30 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:22:30 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:22:30 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:22:30 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:22:30 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+::1 - - [03/Oct/2025:00:22:36 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:00:22:36 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+::1 - - [03/Oct/2025:00:22:36 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:22:36 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:22:36 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:22:43 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "-" "curl/8.5.0"
+🔄 Global OPTIONS handler for: /api/market/sectors/performance from origin: http://localhost:5174
+Processing request: GET /api/health
+Database connection verified for database-dependent endpoint
+Starting health check with database...
+::1 - - [03/Oct/2025:00:23:29 +0000] "GET /api/health HTTP/1.1" 200 349 "-" "curl/8.5.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:26:26 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:26:26 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:26:29 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:26:29 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:28:58 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "-" "curl/8.5.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:29:05 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "-" "curl/8.5.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+::1 - - [03/Oct/2025:00:29:33 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:29:33 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+::1 - - [03/Oct/2025:00:29:53 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:29:53 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:00:29:53 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:29:53 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:29:53 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:29:54 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:00:30:22 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:30:22 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:30:22 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:30:22 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:30:22 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/analysts/upgrades from origin: http://localhost:5173
+Processing request: GET /api/analysts/upgrades
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:00:31:26 +0000] "GET /api/analysts/upgrades?page=1&limit=50 HTTP/1.1" 200 11151 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+::1 - - [03/Oct/2025:00:33:16 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "-" "curl/8.5.0"
+🔄 Global OPTIONS handler for: /api/sentiment from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/news/sentiment from origin: http://localhost:5173
+Processing request: GET /api/sentiment
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:00:33:39 +0000] "GET /api/sentiment?symbol=SPY&timeframe=1W HTTP/1.1" 200 184 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/news/sentiment
+Database connection verified for database-dependent endpoint
+DEBUG: /sentiment route hit
+🔄 Global OPTIONS handler for: /market/news from origin: http://localhost:5173
+Processing request: GET /market/news
+Database connection verified for database-dependent endpoint
+📰 Market news requested - category: all, symbol: all, limit: 10
+News table columns: [
+  'id',        'symbol',
+  'headline',  'summary',
+  'url',       'published_at',
+  'sentiment', 'relevance_score',
+  'source',    'fetched_at',
+  'category',  'title'
+]
+::1 - - [03/Oct/2025:00:33:39 +0000] "GET /api/news/sentiment?symbol=SPY&timeframe=1W HTTP/1.1" 200 205 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:33:39 +0000] "GET /market/news?limit=10 HTTP/1.1" 200 4793 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /sentiment/news/SPY from origin: http://localhost:5173
+Processing request: GET /market/news
+Database connection verified for database-dependent endpoint
+📰 Market news requested - category: all, symbol: all, limit: 10
+::1 - - [03/Oct/2025:00:33:39 +0000] "GET /market/news?limit=10 HTTP/1.1" 200 4792 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /sentiment/news/SPY
+Database connection verified for database-dependent endpoint
+📰 News sentiment for SPY
+::1 - - [03/Oct/2025:00:33:39 +0000] "GET /sentiment/news/SPY HTTP/1.1" 200 333 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/analysts/upgrades
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:00:33:42 +0000] "GET /api/analysts/upgrades?page=1&limit=50 HTTP/1.1" 200 11151 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+::1 - - [03/Oct/2025:00:34:16 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "-" "curl/8.5.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:38:00 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "-" "curl/8.5.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+::1 - - [03/Oct/2025:00:41:02 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:00:41:02 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:41:02 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:41:02 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:41:02 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:41:03 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:41:03 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:42:11 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:42:11 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:42:18 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { type: 'upcoming', page: '1', limit: '25' }
+::1 - - [03/Oct/2025:00:43:37 +0000] "GET /api/calendar/events?type=upcoming&page=1&limit=25 HTTP/1.1" 200 1009 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/earnings-estimates
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:00:43:39 +0000] "GET /api/calendar/earnings-estimates?page=1&limit=25 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/earnings-metrics
+Database connection verified for database-dependent endpoint
+Database query error: {
+  error: 'column "eps_qoq_growth" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        symbol as company_name,\n' +
+    '        report_date,\n' +
+    '        eps_qoq_g...',
+  params: '2 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "eps_qoq_growth" does not exist
+Database query error: {
+  error: 'column "earnings_surprise_pct" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        COUNT(*) as count,\n' +
+    '        AVG(earnings_surprise_pct) as avg_s...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "earnings_surprise_pct" does not exist
+::1 - - [03/Oct/2025:00:43:40 +0000] "GET /api/calendar/earnings-metrics?page=1&limit=25 HTTP/1.1" 200 220 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/analysts/revenue-estimates
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:00:43:46 +0000] "GET /api/analysts/revenue-estimates HTTP/1.1" 200 3194 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:46:41 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:46:41 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/stocks from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/financials/AAPL/balance-sheet from origin: http://localhost:5173
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: { limit: '1000', sortBy: 'ticker' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 100, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+Processing request: GET /api/financials/AAPL/balance-sheet
+Database connection verified for database-dependent endpoint
+Balance sheet request for AAPL, period: annual
+FAST query results: 5 stocks, 5 estimated total
+::1 - - [03/Oct/2025:00:47:44 +0000] "GET /api/stocks?limit=1000&sortBy=ticker HTTP/1.1" 200 14927 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:47:44 +0000] "GET /api/financials/AAPL/balance-sheet?period=annual HTTP/1.1" 200 5261 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database {}
+Processing request: GET /api/signals/performance
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for daily
+::1 - - [03/Oct/2025:00:47:44 +0000] "GET /api/signals?timeframe=daily&page=1&limit=25 HTTP/1.1" 200 8760 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:47:44 +0000] "GET /api/signals/performance HTTP/1.1" 200 900 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:45 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:46 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:46 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:46 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:47:46 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/stocks
+Database connection verified for database-dependent endpoint
+Stocks main endpoint called with params: { page: '1', limit: '25', sortBy: 'symbol', sortOrder: 'asc' }
+Triggering workflow deploy
+Query params: { whereClause: 'WHERE 1=1', params: [], limit: 25, offset: 0 }
+Executing FAST queries with schema validation...
+Executing comprehensive stocks query with timeout protection...
+FAST query results: 5 stocks, 5 estimated total
+::1 - - [03/Oct/2025:00:47:47 +0000] "GET /api/stocks?page=1&limit=25&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 14926 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/technical/daily
+Database connection verified for database-dependent endpoint
+📊 Daily technical data requested - page: 1, limit: 10, sortBy: symbol, sortOrder: asc
+Testing query function...
+Test query result: Result {
+  command: 'SELECT',
+  rowCount: 1,
+  oid: null,
+  rows: [ { test: 1 } ],
+  fields: [
+    Field {
+      name: 'test',
+      tableID: 0,
+      columnID: 0,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    }
+  ],
+  _parsers: [ [Function: parseInteger] ],
+  _types: TypeOverrides {
+    _types: {
+      getTypeParser: [Function: getTypeParser],
+      setTypeParser: [Function: setTypeParser],
+      arrayParser: [Object],
+      builtins: [Object]
+    },
+    text: {},
+    binary: {}
+  },
+  RowCtor: null,
+  rowAsArray: false,
+  _prebuiltEmptyResultObject: { test: null }
+}
+::1 - - [03/Oct/2025:00:47:47 +0000] "GET /api/technical/daily?page=1&limit=10&sortBy=symbol&sortOrder=asc HTTP/1.1" 200 3843 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:47:49 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:47:49 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+::1 - - [03/Oct/2025:00:47:49 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:47:49 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:47:49 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:47:49 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:00:47:49 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::1 - - [03/Oct/2025:00:47:51 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+::1 - - [03/Oct/2025:00:47:57 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "-" "curl/8.5.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:47:57 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "-" "curl/8.5.0"
+🔄 Global OPTIONS handler for: /market/sentiment/history from origin: http://localhost:5173
+Processing request: GET /market/sentiment/history
+Database connection verified for database-dependent endpoint
+Sentiment history endpoint called for 30 days
+Fetching AAII historical data...
+AAII query returned 10 rows
+::1 - - [03/Oct/2025:00:48:37 +0000] "GET /market/sentiment/history?days=30 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::1 - - [03/Oct/2025:00:48:52 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+::1 - - [03/Oct/2025:00:49:37 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:49:37 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+::1 - - [03/Oct/2025:00:49:38 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:38 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:38 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { type: 'upcoming', page: '1', limit: '25' }
+::1 - - [03/Oct/2025:00:49:43 +0000] "GET /api/calendar/events?type=upcoming&page=1&limit=25 HTTP/1.1" 200 1009 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/scores HTTP/1.1" 200 11275 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'QQQ' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=QQQ&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'SPY' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=SPY&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'BAC' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'CRM' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'IWM' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=BAC&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'GLD' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'JNJ' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=IWM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=CRM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'KO' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=GLD&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=JNJ&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'PG' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'GOOGL' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=KO&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'META' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'NVDA' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AAPL' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=PG&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=GOOGL&timeframe=daily&limit=1 HTTP/1.1" 200 1338 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AMZN' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=META&timeframe=daily&limit=1 HTTP/1.1" 200 1346 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AMD' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'TSLA' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=NVDA&timeframe=daily&limit=1 HTTP/1.1" 200 1348 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=AAPL&timeframe=daily&limit=1 HTTP/1.1" 200 1347 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'VTI' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=AMZN&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'MSFT' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=AMD&timeframe=daily&limit=1 HTTP/1.1" 200 1335 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=TSLA&timeframe=daily&limit=1 HTTP/1.1" 200 1339 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'JPM' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'NFLX' }
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=VTI&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=MSFT&timeframe=daily&limit=1 HTTP/1.1" 200 1335 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=JPM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:45 +0000] "GET /api/signals?symbol=NFLX&timeframe=daily&limit=1 HTTP/1.1" 200 1331 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database {}
+::1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals?timeframe=daily&page=1&limit=25 HTTP/1.1" 200 8760 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+Processing request: GET /api/signals/performance/AAPL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AAPL - 7d
+Processing request: GET /api/signals/performance/GOOGL
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for GOOGL - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/AAPL?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/AMD
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for AMD - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/GOOGL?timeframe=7d HTTP/1.1" 200 283 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/AMD?timeframe=7d HTTP/1.1" 200 277 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/MSFT
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for MSFT - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:46 +0000] "GET /api/signals/performance/MSFT?timeframe=7d HTTP/1.1" 200 282 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/scores
+Database connection verified for database-dependent endpoint
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/scores HTTP/1.1" 200 11275 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/META
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for META - 7d
+Processing request: GET /api/signals/performance/NFLX
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NFLX - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals/performance/META?timeframe=7d HTTP/1.1" 200 281 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals/performance/NFLX?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals/performance/NVDA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for NVDA - 7d
+Processing request: GET /api/signals/performance/TSLA
+Database connection verified for database-dependent endpoint
+📊 Signal performance requested for TSLA - 7d
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 279 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::ffff:127.0.0.1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 280 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'QQQ' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'SPY' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'IWM' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'GLD' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'JNJ' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=QQQ&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'KO' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=SPY&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=IWM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=JNJ&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=GLD&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'BAC' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=KO&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'CRM' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'PG' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'GOOGL' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=BAC&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'META' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'NVDA' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=CRM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=PG&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AAPL' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=GOOGL&timeframe=daily&limit=1 HTTP/1.1" 200 1338 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AMZN' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'AMD' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=META&timeframe=daily&limit=1 HTTP/1.1" 200 1346 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=NVDA&timeframe=daily&limit=1 HTTP/1.1" 200 1348 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'TSLA' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=AAPL&timeframe=daily&limit=1 HTTP/1.1" 200 1347 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=AMZN&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'VTI' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=TSLA&timeframe=daily&limit=1 HTTP/1.1" 200 1339 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=AMD&timeframe=daily&limit=1 HTTP/1.1" 200 1335 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'MSFT' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=VTI&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'JPM' }
+Processing request: GET /api/signals
+Database connection verified for database-dependent endpoint
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'NFLX' }
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=MSFT&timeframe=daily&limit=1 HTTP/1.1" 200 1335 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=JPM&timeframe=daily&limit=1 HTTP/1.1" 200 244 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:49:47 +0000] "GET /api/signals?symbol=NFLX&timeframe=daily&limit=1 HTTP/1.1" 200 1331 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 12ms using real loader tables
+::1 - - [03/Oct/2025:00:50:48 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::ffff:127.0.0.1 - - [03/Oct/2025:00:52:14 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "-" "curl/8.5.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 4ms using real loader tables
+::1 - - [03/Oct/2025:00:54:14 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 2ms using real loader tables
+::1 - - [03/Oct/2025:00:55:00 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+::1 - - [03/Oct/2025:00:55:37 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "-" "curl/8.5.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::1 - - [03/Oct/2025:00:56:23 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::1 - - [03/Oct/2025:00:56:25 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /market/sentiment/history
+Database connection verified for database-dependent endpoint
+Sentiment history endpoint called for 30 days
+Fetching AAII historical data...
+AAII query returned 10 rows
+::1 - - [03/Oct/2025:00:56:35 +0000] "GET /market/sentiment/history?days=30 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /market/sectors/performance from origin: http://localhost:5173
+Processing request: GET /market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:56:37 +0000] "GET /market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /market/breadth from origin: http://localhost:5173
+Processing request: GET /market/breadth
+Database connection verified for database-dependent endpoint
+Market breadth endpoint called
+::1 - - [03/Oct/2025:00:56:38 +0000] "GET /market/breadth HTTP/1.1" 404 156 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/market/breadth from origin: http://localhost:5173
+Processing request: GET /api/market/breadth
+Database connection verified for database-dependent endpoint
+Market breadth endpoint called
+::1 - - [03/Oct/2025:00:56:38 +0000] "GET /api/market/breadth HTTP/1.1" 404 156 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:00:58:19 +0000] "GET /market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /market/sentiment/history
+Database connection verified for database-dependent endpoint
+Sentiment history endpoint called for 30 days
+Fetching AAII historical data...
+AAII query returned 10 rows
+::1 - - [03/Oct/2025:00:58:23 +0000] "GET /market/sentiment/history?days=30 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 3ms using real loader tables
+::1 - - [03/Oct/2025:00:58:25 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /market/breadth
+Database connection verified for database-dependent endpoint
+Market breadth endpoint called
+::1 - - [03/Oct/2025:00:58:26 +0000] "GET /market/breadth HTTP/1.1" 404 156 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/breadth
+Database connection verified for database-dependent endpoint
+Market breadth endpoint called
+::1 - - [03/Oct/2025:00:58:26 +0000] "GET /api/market/breadth HTTP/1.1" 404 156 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:00:59:06 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+::1 - - [03/Oct/2025:00:59:06 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+::1 - - [03/Oct/2025:00:59:06 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:00:59:06 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:00:59:06 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:01:06:22 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:01:06:22 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Processing request: GET /market/sentiment/history
+Database connection verified for database-dependent endpoint
+Sentiment history endpoint called for 30 days
+Fetching AAII historical data...
+AAII query returned 10 rows
+::1 - - [03/Oct/2025:01:06:24 +0000] "GET /market/sentiment/history?days=30 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Market overview completed in 4ms using real loader tables
+::1 - - [03/Oct/2025:01:06:24 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /market/sentiment/history
+Database connection verified for database-dependent endpoint
+Sentiment history endpoint called for 30 days
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Fetching AAII historical data...
+AAII query returned 10 rows
+::1 - - [03/Oct/2025:01:07:05 +0000] "GET /market/sentiment/history?days=30 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Market overview completed in 13ms using real loader tables
+::1 - - [03/Oct/2025:01:07:05 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+Processing request: GET /market/breadth
+Database connection verified for database-dependent endpoint
+Market breadth endpoint called
+::1 - - [03/Oct/2025:01:07:10 +0000] "GET /market/breadth HTTP/1.1" 404 156 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:01:07:10 +0000] "GET /market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/breadth
+Database connection verified for database-dependent endpoint
+Market breadth endpoint called
+::1 - - [03/Oct/2025:01:07:10 +0000] "GET /api/market/breadth HTTP/1.1" 404 156 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/market/seasonality from origin: http://localhost:5173
+Processing request: GET /api/market/seasonality
+Database connection verified for database-dependent endpoint
+📅 Market seasonality endpoint called
+::1 - - [03/Oct/2025:01:07:13 +0000] "GET /api/market/seasonality HTTP/1.1" 200 6269 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+::1 - - [03/Oct/2025:01:07:16 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Market overview completed in 16ms using real loader tables
+::1 - - [03/Oct/2025:01:09:04 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:01:12:51 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:01:12:51 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+::1 - - [03/Oct/2025:01:12:52 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:01:12:52 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:01:12:52 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:01:12:52 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:01:12:52 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /market/sentiment/history
+Database connection verified for database-dependent endpoint
+Sentiment history endpoint called for 30 days
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Fetching AAII historical data...
+AAII query returned 10 rows
+::1 - - [03/Oct/2025:01:12:53 +0000] "GET /market/sentiment/history?days=30 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Market overview completed in 8ms using real loader tables
+::1 - - [03/Oct/2025:01:12:53 +0000] "GET /api/market/overview HTTP/1.1" 200 1668 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:01:13:05 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+::1 - - [03/Oct/2025:01:13:07 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 899 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+::1 - - [03/Oct/2025:01:13:07 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1285 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+::1 - - [03/Oct/2025:01:13:07 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+Database query error: {
+  error: 'column "performance_score" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        sector as name,\n' +
+    '        AVG(performance_score) as performance,\n' +
+    '        AVG(gro...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "performance_score" does not exist
+No sector data available in database
+::1 - - [03/Oct/2025:01:13:07 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 384 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:01:13:07 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
