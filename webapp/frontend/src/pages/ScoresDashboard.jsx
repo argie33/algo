@@ -548,18 +548,9 @@ const ScoresDashboard = () => {
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <ScoreGauge score={Math.round(stock.composite_score)} size={70} />
                       <Box sx={{ flex: 1 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                          <Typography variant="h5" fontWeight={700}>
-                            {stock.symbol}
-                          </Typography>
-                          {signals[stock.symbol] && (
-                            <TradingSignal
-                              signal={signals[stock.symbol].signal}
-                              confidence={signals[stock.symbol].confidence}
-                              size="small"
-                            />
-                          )}
-                        </Box>
+                        <Typography variant="h5" fontWeight={700}>
+                          {stock.symbol}
+                        </Typography>
                         <Typography variant="h6" color="primary" fontWeight={600}>
                           Score: {stock.composite_score.toFixed(1)}
                         </Typography>
@@ -646,11 +637,18 @@ const ScoresDashboard = () => {
                     </Box>
                   </Grid>
                   <Grid item xs={12} sm={3}>
-                    <Box sx={{ textAlign: "right" }}>
+                    <Box sx={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5 }}>
                       {signals[stock.symbol] && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          Signal: {new Date(signals[stock.symbol].date).toLocaleDateString()}
-                        </Typography>
+                        <>
+                          <TradingSignal
+                            signal={signals[stock.symbol].signal}
+                            confidence={signals[stock.symbol].confidence}
+                            size="small"
+                          />
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(signals[stock.symbol].date).toLocaleDateString()}
+                          </Typography>
+                        </>
                       )}
                     </Box>
                   </Grid>
