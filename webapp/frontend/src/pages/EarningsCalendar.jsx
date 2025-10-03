@@ -431,7 +431,7 @@ function EarningsCalendar() {
             Earnings Estimates & Details
           </Typography>
 
-          {earningsLoading || qualityLoading ? (
+          {earningsLoading ? (
             <Box display="flex" justifyContent="center" py={4}>
               <CircularProgress />
             </Box>
