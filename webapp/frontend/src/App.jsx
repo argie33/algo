@@ -65,9 +65,8 @@ import PortfolioHoldings from "./pages/PortfolioHoldings";
 import PortfolioOptimization from "./pages/PortfolioOptimization";
 import TradeHistory from "./pages/TradeHistory";
 import OrderManagement from "./pages/OrderManagement";
-import SentimentAnalysis from "./pages/SentimentAnalysis";
+import Sentiment from "./pages/Sentiment";
 import AnalystInsights from "./pages/AnalystInsights";
-import NewsAnalysis from "./pages/NewsAnalysis";
 import PatternRecognition from "./pages/PatternRecognition";
 import EconomicModeling from "./pages/EconomicModeling";
 import Settings from "./pages/Settings";
@@ -151,24 +150,10 @@ const menuItems = [
 
   // Sentiment Analysis Section (Premium)
   {
-    text: "Market Sentiment",
+    text: "Sentiment Analysis",
     icon: <PsychologyIcon />,
-    path: "/sentiment",
-    category: "sentiment",
-    premium: true,
-  },
-  {
-    text: "Social Media Sentiment",
-    icon: <PsychologyIcon />,
-    path: "/sentiment/social",
-    category: "sentiment",
-    premium: true,
-  },
-  {
-    text: "News Sentiment",
-    icon: <PsychologyIcon />,
-    path: "/sentiment/news",
-    category: "sentiment",
+    path: "/stocks/sentiment",
+    category: "stocks",
     premium: true,
   },
   {
