@@ -1404,3 +1404,223 @@ Database connection verified for database-dependent endpoint
 📊 Signal performance requested for NVDA - 7d
 ::ffff:127.0.0.1 - - [03/Oct/2025:22:01:41 +0000] "GET /api/signals/performance/TSLA?timeframe=7d HTTP/1.1" 200 262 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
 ::ffff:127.0.0.1 - - [03/Oct/2025:22:01:41 +0000] "GET /api/signals/performance/NVDA?timeframe=7d HTTP/1.1" 200 261 "http://localhost:5173/trading-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/events
+Database connection verified for database-dependent endpoint
+Calendar events endpoint called with params: { type: 'this_week', event_type: 'earnings' }
+Processing request: GET /api/calendar/earnings-estimates
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/calendar/earnings-metrics
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/calendar/earnings-metrics
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/calendar/earnings-metrics
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/calendar/earnings-metrics
+Database connection verified for database-dependent endpoint
+Database query error: {
+  error: 'column "eps_qoq_growth" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        symbol as company_name,\n' +
+    '        report_date,\n' +
+    '        eps_qoq_g...',
+  params: '2 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "eps_qoq_growth" does not exist
+::1 - - [03/Oct/2025:22:04:56 +0000] "GET /api/calendar/earnings-estimates?page=1&limit=25 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "eps_qoq_growth" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        symbol as company_name,\n' +
+    '        report_date,\n' +
+    '        eps_qoq_g...',
+  params: '2 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "eps_qoq_growth" does not exist
+Database query error: {
+  error: 'column "earnings_surprise_pct" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        COUNT(*) as count,\n' +
+    '        AVG(earnings_surprise_pct) as avg_s...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "earnings_surprise_pct" does not exist
+::1 - - [03/Oct/2025:22:04:56 +0000] "GET /api/calendar/earnings-metrics?symbol=AAPL HTTP/1.1" 200 220 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/earnings-metrics
+Database connection verified for database-dependent endpoint
+Database query error: {
+  error: 'column "eps_qoq_growth" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        symbol as company_name,\n' +
+    '        report_date,\n' +
+    '        eps_qoq_g...',
+  params: '2 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "eps_qoq_growth" does not exist
+Database query error: {
+  error: 'column "earnings_surprise_pct" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        COUNT(*) as count,\n' +
+    '        AVG(earnings_surprise_pct) as avg_s...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "earnings_surprise_pct" does not exist
+::1 - - [03/Oct/2025:22:04:56 +0000] "GET /api/calendar/earnings-metrics?symbol=GOOGL HTTP/1.1" 200 220 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "eps_qoq_growth" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        symbol as company_name,\n' +
+    '        report_date,\n' +
+    '        eps_qoq_g...',
+  params: '2 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "eps_qoq_growth" does not exist
+Database query error: {
+  error: 'column "earnings_surprise_pct" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        COUNT(*) as count,\n' +
+    '        AVG(earnings_surprise_pct) as avg_s...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "earnings_surprise_pct" does not exist
+Database query error: {
+  error: 'column "eps_qoq_growth" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        symbol as company_name,\n' +
+    '        report_date,\n' +
+    '        eps_qoq_g...',
+  params: '2 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "eps_qoq_growth" does not exist
+::1 - - [03/Oct/2025:22:04:56 +0000] "GET /api/calendar/earnings-metrics?symbol=NVDA HTTP/1.1" 200 220 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "earnings_surprise_pct" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        COUNT(*) as count,\n' +
+    '        AVG(earnings_surprise_pct) as avg_s...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "earnings_surprise_pct" does not exist
+::1 - - [03/Oct/2025:22:04:56 +0000] "GET /api/calendar/earnings-metrics?symbol=TSLA HTTP/1.1" 200 220 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "earnings_surprise_pct" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        COUNT(*) as count,\n' +
+    '        AVG(earnings_surprise_pct) as avg_s...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "earnings_surprise_pct" does not exist
+::1 - - [03/Oct/2025:22:04:56 +0000] "GET /api/calendar/earnings-metrics?symbol=MSFT HTTP/1.1" 200 220 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:22:04:56 +0000] "GET /api/calendar/events?type=this_week&event_type=earnings HTTP/1.1" 200 1170 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Processing request: GET /api/calendar/earnings-history
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/analysts/AAPL/eps-revisions
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/analysts/AAPL/eps-trend
+Database connection verified for database-dependent endpoint
+Processing request: GET /api/calendar/earnings-metrics
+Database connection verified for database-dependent endpoint
+::1 - - [03/Oct/2025:22:04:58 +0000] "GET /api/analysts/AAPL/eps-revisions HTTP/1.1" 200 1135 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:22:04:58 +0000] "GET /api/analysts/AAPL/eps-trend HTTP/1.1" 200 1277 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Database query error: {
+  error: 'column "eps_qoq_growth" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        symbol as company_name,\n' +
+    '        report_date,\n' +
+    '        eps_qoq_g...',
+  params: '2 parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "eps_qoq_growth" does not exist
+Database query error: {
+  error: 'column "earnings_surprise_pct" does not exist',
+  query: '\n' +
+    '      SELECT\n' +
+    '        symbol,\n' +
+    '        COUNT(*) as count,\n' +
+    '        AVG(earnings_surprise_pct) as avg_s...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "earnings_surprise_pct" does not exist
+::1 - - [03/Oct/2025:22:04:58 +0000] "GET /api/calendar/earnings-history?symbol=AAPL HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:22:04:58 +0000] "GET /api/calendar/earnings-metrics?symbol=AAPL HTTP/1.1" 200 220 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/market/recession-forecast from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/market/leading-indicators from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/market/economic-scenarios from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/market/sectoral-analysis from origin: http://localhost:5173
+Processing request: GET /api/market/recession-forecast
+Database connection verified for database-dependent endpoint
+📊 Recession forecast endpoint called
+Processing request: GET /api/market/leading-indicators
+Database connection verified for database-dependent endpoint
+📈 Leading indicators endpoint called
+Processing request: GET /api/market/economic-scenarios
+Database connection verified for database-dependent endpoint
+🎯 Economic scenarios endpoint called
+Processing request: GET /api/market/sectoral-analysis
+Database connection verified for database-dependent endpoint
+🏭 Sectoral analysis endpoint called
+🔄 Global OPTIONS handler for: /api/market/ai-insights from origin: http://localhost:5173
+Processing request: GET /api/market/ai-insights
+Database connection verified for database-dependent endpoint
+🤖 AI insights endpoint called
+::1 - - [03/Oct/2025:22:07:19 +0000] "GET /api/market/economic-scenarios HTTP/1.1" 200 778 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:22:07:19 +0000] "GET /api/market/recession-forecast HTTP/1.1" 200 904 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:22:07:19 +0000] "GET /api/market/ai-insights HTTP/1.1" 200 997 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:22:07:19 +0000] "GET /api/market/sectoral-analysis HTTP/1.1" 200 828 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:22:07:19 +0000] "GET /api/market/leading-indicators HTTP/1.1" 200 1335 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/market/overview from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /market/sentiment/history from origin: http://localhost:5173
+Processing request: GET /api/market/overview
+Database connection verified for database-dependent endpoint
+Market overview endpoint called - REAL LOADER TABLES
+Processing request: GET /market/sentiment/history
+Database connection verified for database-dependent endpoint
+Sentiment history endpoint called for 30 days
+Fetching AAII historical data...
+AAII query returned 10 rows
+::1 - - [03/Oct/2025:22:07:20 +0000] "GET /market/sentiment/history?days=30 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+Market overview completed in 7ms using real loader tables
+::1 - - [03/Oct/2025:22:07:20 +0000] "GET /api/market/overview HTTP/1.1" 200 1515 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+🔄 Global OPTIONS handler for: /api/market/research-indicators from origin: http://localhost:5173
+🔄 Global OPTIONS handler for: /api/market/sectors/performance from origin: http://localhost:5173
+Processing request: GET /api/market/research-indicators
+Database connection verified for database-dependent endpoint
+🔬 Market research indicators endpoint called
+Processing request: GET /api/market/sectors/performance
+Database connection verified for database-dependent endpoint
+Sector performance endpoint called
+::1 - - [03/Oct/2025:22:07:21 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2612 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+::1 - - [03/Oct/2025:22:07:21 +0000] "GET /api/market/sectors/performance HTTP/1.1" 200 629 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"

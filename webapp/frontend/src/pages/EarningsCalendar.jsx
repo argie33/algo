@@ -254,76 +254,6 @@ function EarningsCalendar() {
         Earnings Calendar
       </Typography>
 
-      {/* Weekly Earnings Calendar */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Box display="flex" alignItems="center" gap={1} mb={3}>
-            <Schedule color="primary" />
-            <Typography variant="h6">This Week's Earnings</Typography>
-          </Box>
-
-          {weeklyError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to load weekly calendar. Please try again later.
-            </Alert>
-          )}
-
-          {weeklyLoading ? (
-            <Box display="flex" justifyContent="center" py={3}>
-              <CircularProgress size={28} />
-            </Box>
-          ) : Object.keys(weeklyEvents).length > 0 ? (
-            <Grid container spacing={2}>
-              {Object.entries(weeklyEvents).map(([date, events]) => (
-                <Grid item xs={12} sm={6} md={2.4} key={date}>
-                  <Card variant="outlined" sx={{ height: "100%" }}>
-                    <CardContent>
-                      <Typography
-                        variant="subtitle2"
-                        color="primary"
-                        gutterBottom
-                      >
-                        {date}
-                      </Typography>
-                      <Divider sx={{ mb: 1 }} />
-                      <Box sx={{ maxHeight: 200, overflowY: "auto" }}>
-                        {events.map((event, idx) => (
-                          <Box
-                            key={`${event.symbol}-${idx}`}
-                            sx={{ mb: 1, cursor: "pointer" }}
-                            onClick={() => {
-                              setSearchInput(event.symbol);
-                              setSymbolFilter(event.symbol);
-                              setExpandedSymbol(event.symbol);
-                              setPage(0);
-                            }}
-                          >
-                            <Typography
-                              variant="body2"
-                              fontWeight="bold"
-                              color="primary"
-                            >
-                              {event.symbol}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {event.title}
-                            </Typography>
-                          </Box>
-                        ))}
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No earnings scheduled this week
-            </Typography>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Summary Stats */}
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} md={3}>
@@ -402,6 +332,76 @@ function EarningsCalendar() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Weekly Earnings Calendar */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={3}>
+            <Schedule color="primary" />
+            <Typography variant="h6">This Week's Earnings</Typography>
+          </Box>
+
+          {weeklyError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Failed to load weekly calendar. Please try again later.
+            </Alert>
+          )}
+
+          {weeklyLoading ? (
+            <Box display="flex" justifyContent="center" py={3}>
+              <CircularProgress size={28} />
+            </Box>
+          ) : Object.keys(weeklyEvents).length > 0 ? (
+            <Grid container spacing={2}>
+              {Object.entries(weeklyEvents).map(([date, events]) => (
+                <Grid item xs={12} sm={6} md={2.4} key={date}>
+                  <Card variant="outlined" sx={{ height: "100%" }}>
+                    <CardContent>
+                      <Typography
+                        variant="subtitle2"
+                        color="primary"
+                        gutterBottom
+                      >
+                        {date}
+                      </Typography>
+                      <Divider sx={{ mb: 1 }} />
+                      <Box sx={{ maxHeight: 200, overflowY: "auto" }}>
+                        {events.map((event, idx) => (
+                          <Box
+                            key={`${event.symbol}-${idx}`}
+                            sx={{ mb: 1, cursor: "pointer" }}
+                            onClick={() => {
+                              setSearchInput(event.symbol);
+                              setSymbolFilter(event.symbol);
+                              setExpandedSymbol(event.symbol);
+                              setPage(0);
+                            }}
+                          >
+                            <Typography
+                              variant="body2"
+                              fontWeight="bold"
+                              color="primary"
+                            >
+                              {event.symbol}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {event.title}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No earnings scheduled this week
+            </Typography>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Search */}
       <Card sx={{ mb: 3 }}>
