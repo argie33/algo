@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-03 - Trigger deployment for Fear & Greed Index data
 # Updated: 2025-10-02 21:35 - Run Fear & Greed sentiment loader
 import asyncio
 import gc
