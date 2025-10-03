@@ -2039,120 +2039,128 @@ router.get("/:symbol", async (req, res) => {
 });
 
 // Market-wide sentiment analysis
+// Market sentiment from AAII sentiment table
 router.get("/market", async (req, res) => {
   try {
-    const { period = "7d" } = req.query;
+    const { period = "30d" } = req.query;
 
-    console.log(`📊 Market sentiment analysis requested, period: ${period}`);
+    console.log(`📊 Market sentiment (AAII) requested, period: ${period}`);
 
     // Convert period to days
     const periodDays = {
-      "1d": 1,
-      "3d": 3,
       "7d": 7,
       "14d": 14,
       "30d": 30,
+      "90d": 90,
     };
 
-    const days = periodDays[period] || 7;
+    const days = periodDays[period] || 30;
 
-    // Generate market sentiment based on various factors
-    const marketFactors = {
-      spy_performance: Math.random() * 0.4 + 0.3, // 0.3-0.7
-      vix_level: Math.random() * 0.3 + 0.2, // 0.2-0.5 (inverted)
-      news_sentiment: Math.random() * 0.3 + 0.4, // 0.4-0.7
-      sector_rotation: Math.random() * 0.2 + 0.4, // 0.4-0.6
-    };
-
-    const overallSentiment =
-      marketFactors.spy_performance * 0.3 +
-      (1 - marketFactors.vix_level) * 0.3 + // VIX inverted
-      marketFactors.news_sentiment * 0.25 +
-      marketFactors.sector_rotation * 0.15;
-
-    const totalMentions = Math.floor(Math.random() * 5000) + 10000;
-
-    const sentiment = {
-      market: "overall",
-      period: period,
-      overall_sentiment: parseFloat(overallSentiment.toFixed(2)),
-      sentiment_label:
-        overallSentiment >= 0.7
-          ? "Very Bullish"
-          : overallSentiment >= 0.6
-            ? "Bullish"
-            : overallSentiment >= 0.4
-              ? "Neutral"
-              : overallSentiment >= 0.3
-                ? "Bearish"
-                : "Very Bearish",
-      confidence: 85,
-      metrics: {
-        positive_mentions: Math.floor(totalMentions * overallSentiment),
-        negative_mentions: Math.floor(totalMentions * (1 - overallSentiment)),
-        neutral_mentions: Math.floor(totalMentions * 0.15),
-        total_mentions: totalMentions,
-        mention_velocity: Math.floor(totalMentions / days),
-        fear_greed_index: Math.floor(overallSentiment * 100),
-      },
-      sectors: {
-        technology: Math.max(
-          0.2,
-          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.2)
-        ),
-        healthcare: Math.max(
-          0.2,
-          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.15)
-        ),
-        financial: Math.max(
-          0.2,
-          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.18)
-        ),
-        energy: Math.max(
-          0.2,
-          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.25)
-        ),
-        consumer: Math.max(
-          0.2,
-          Math.min(0.8, overallSentiment + (Math.random() - 0.5) * 0.12)
-        ),
-      },
-      trending_topics: [
-        overallSentiment > 0.6 ? "market rally" : "market correction",
-        "fed policy",
-        "earnings season",
-        "inflation data",
-        "geopolitical risks",
-      ],
-      sources: {
-        twitter: Math.floor(totalMentions * 0.4),
-        reddit: Math.floor(totalMentions * 0.25),
-        stocktwits: Math.floor(totalMentions * 0.2),
-        discord: Math.floor(totalMentions * 0.1),
-        financial_news: Math.floor(totalMentions * 0.05),
-      },
-      last_updated: new Date().toISOString(),
-    };
-
-    res.success(
-      {
-        sentiment: sentiment,
-        metadata: {
-          scope: "market_wide",
-          period: period,
-          period_days: days,
-          data_quality: "simulated",
-          last_updated: new Date().toISOString(),
-        },
-      },
-      200,
-      { message: "Market sentiment retrieved successfully" }
+    // Query AAII sentiment data
+    const result = await query(
+      `SELECT date, bullish, neutral, bearish, created_at
+       FROM aaii_sentiment
+       WHERE date >= CURRENT_DATE - INTERVAL '1 day' * $1
+       ORDER BY date DESC
+       LIMIT 100`,
+      [days]
     );
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        message: "No AAII sentiment data available for the requested period",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        date: row.date,
+        bullish: parseFloat(row.bullish),
+        neutral: parseFloat(row.neutral),
+        bearish: parseFloat(row.bearish),
+      })),
+      period,
+      timestamp: new Date().toISOString(),
+    });
   } catch (err) {
     console.error("Market sentiment error:", err);
-    res.serverError("Failed to retrieve market sentiment", {
-      error: err.message,
-      period: req.query.period || "7d",
+    res.status(500).json({
+      success: false,
+      error: "Failed to retrieve market sentiment",
+      details: err.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Stock-specific sentiment data
+router.get("/stocks", async (req, res) => {
+  try {
+    const { symbol } = req.query;
+
+    console.log(`📊 Stock sentiment requested, symbol: ${symbol || 'all'}`);
+
+    let sentimentQuery;
+    let params = [];
+
+    if (symbol) {
+      sentimentQuery = `
+        SELECT symbol, date, sentiment_score, positive_mentions, negative_mentions,
+               neutral_mentions, total_mentions, source, fetched_at
+        FROM sentiment
+        WHERE symbol = $1
+        ORDER BY date DESC
+        LIMIT 100
+      `;
+      params = [symbol.toUpperCase()];
+    } else {
+      sentimentQuery = `
+        SELECT symbol, date, sentiment_score, positive_mentions, negative_mentions,
+               neutral_mentions, total_mentions, source, fetched_at
+        FROM sentiment
+        ORDER BY date DESC, symbol
+        LIMIT 100
+      `;
+    }
+
+    const result = await query(sentimentQuery, params);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        message: symbol
+          ? `No sentiment data available for ${symbol}`
+          : "No stock sentiment data available",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        symbol: row.symbol,
+        date: row.date,
+        sentiment_score: row.sentiment_score ? parseFloat(row.sentiment_score) : null,
+        positive_mentions: row.positive_mentions || 0,
+        negative_mentions: row.negative_mentions || 0,
+        neutral_mentions: row.neutral_mentions || 0,
+        total_mentions: row.total_mentions || 0,
+        source: row.source || "Unknown",
+      })),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("Stock sentiment error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to retrieve stock sentiment",
+      details: err.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });
