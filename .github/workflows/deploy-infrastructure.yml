@@ -66,6 +66,16 @@ jobs:
               --output table
           fi
 
+      - name: Check CloudFormation stack events
+        run: |
+          echo "📋 Recent CloudFormation stack events (last 10):"
+          aws cloudformation describe-stack-events \
+            --stack-name stocks-app-stack \
+            --region us-east-1 \
+            --max-items 10 \
+            --query 'StackEvents[?LogicalResourceId==`StocksDBInstance`].[Timestamp,ResourceStatus,ResourceStatusReason]' \
+            --output table
+
       - name: Detect and fix CloudFormation drift
         run: |
           echo "🔍 Checking for stack drift..."
