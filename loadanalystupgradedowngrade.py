@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Updated: 2025-10-03 - Analyst upgrade/downgrade loader ready for AWS deployment
+# Trigger deployment
 import gc
 import json
 import logging
