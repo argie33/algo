@@ -31,6 +31,7 @@ import {
   AccountBalance,
   Analytics,
   Timeline,
+  EventNote,
 } from "@mui/icons-material";
 import {
   LineChart,
@@ -180,6 +181,29 @@ function StockDetail() {
     enabled: !!symbol && tabValue === 1, // Only load when Price tab is selected
     onError: (error) =>
       logger.queryError("stockPricesRecent", error, { symbol }),
+  });
+
+  // Fetch stock events (earnings, dividends, splits, etc.)
+  const {
+    data: stockEvents,
+    isLoading: eventsLoading,
+    error: eventsError,
+  } = useQuery({
+    queryKey: ["stockEvents", symbol],
+    queryFn: async () => {
+      const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "";
+      const params = new URLSearchParams({
+        symbol: symbol,
+        type: "upcoming",
+        page: 1,
+        limit: 10,
+      });
+      const response = await fetch(`${API_BASE}/api/calendar/events?${params}`);
+      if (!response.ok) throw new Error("Failed to fetch events");
+      return response.json();
+    },
+    enabled: !!symbol && tabValue === 6, // Only load when Events tab is selected
+    onError: (error) => logger.queryError("stockEvents", error, { symbol }),
   });
 
   const handleTabChange = (event, newValue) => {
@@ -459,6 +483,7 @@ function StockDetail() {
           <Tab value={3} label="Ratios" icon={<Timeline />} />
           <Tab value={4} label="Factor Analysis" icon={<Business />} />
           <Tab value={5} label="Recommendations" icon={<TrendingUp />} />
+          <Tab value={6} label="Events" icon={<EventNote />} />
         </Tabs>
       </Box>
       {/* Tab Panels */}{" "}
@@ -2623,6 +2648,85 @@ function StockDetail() {
               </Grid>
             </Grid>
           </Box>
+        )}
+      </TabPanel>
+      <TabPanel value={tabValue} index={6}>
+        {/* Events Calendar for this stock */}
+        <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
+          Upcoming Events - {symbol?.toUpperCase()}
+        </Typography>
+
+        {eventsLoading ? (
+          <Box display="flex" justifyContent="center" p={4}>
+            <CircularProgress />
+          </Box>
+        ) : eventsError ? (
+          <Alert severity="error">Failed to load events</Alert>
+        ) : (
+          <Card>
+            <CardContent>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: "grey.50" }}>
+                      <TableCell>Event Type</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Details</TableCell>
+                      <TableCell>Days Until</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(stockEvents?.data?.data ?? stockEvents?.data ?? []).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center">
+                          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                            No upcoming events scheduled
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      (stockEvents?.data?.data ?? stockEvents?.data ?? []).map((event, index) => (
+                        <TableRow key={`${event.symbol}-${index}`} hover>
+                          <TableCell>
+                            <Chip
+                              label={event.event_type?.toUpperCase() || "EVENT"}
+                              size="small"
+                              color={
+                                event.event_type === "earnings"
+                                  ? "primary"
+                                  : event.event_type === "dividend"
+                                  ? "success"
+                                  : "default"
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {new Date(event.start_date).toLocaleDateString()}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" noWrap>
+                              {event.title}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">
+                              {Math.ceil(
+                                (new Date(event.start_date) - new Date()) /
+                                  (1000 * 60 * 60 * 24)
+                              )}{" "}
+                              days
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
         )}
       </TabPanel>
     </Container>

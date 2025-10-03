@@ -57,7 +57,7 @@ function EarningsCalendar() {
 
   const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "";
 
-  // Fetch calendar events
+  // Fetch calendar events (earnings only)
   const {
     data: calendarData,
     isLoading: calendarLoading,
@@ -67,6 +67,7 @@ function EarningsCalendar() {
     queryFn: async () => {
       const params = new URLSearchParams({
         type: timeFilter,
+        event_type: "earnings", // Only show earnings events
         page: page + 1,
         limit: rowsPerPage,
       });
@@ -245,10 +246,9 @@ function EarningsCalendar() {
         <TableHead>
           <TableRow sx={{ backgroundColor: "grey.50" }}>
             <TableCell>Symbol</TableCell>
-            <TableCell>Event Type</TableCell>
-            <TableCell>Date</TableCell>
-            <TableCell>Title</TableCell>
-            <TableCell>Time to Event</TableCell>
+            <TableCell>Earnings Date</TableCell>
+            <TableCell>Report Details</TableCell>
+            <TableCell>Days Until</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -259,7 +259,6 @@ function EarningsCalendar() {
                   {event.symbol}
                 </Typography>
               </TableCell>
-              <TableCell>{getEventTypeChip(event.event_type)}</TableCell>
               <TableCell>
                 <Typography variant="body2">
                   {new Date(event.start_date).toLocaleDateString()}

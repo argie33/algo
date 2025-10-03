@@ -383,9 +383,30 @@ router.get("/events", async (req, res) => {
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
     const timeFilter = req.query.type || "upcoming";
+    const eventType = req.query.event_type; // Filter by event type (earnings, dividend, split, meeting)
+    const symbol = req.query.symbol; // Filter by symbol for individual stock
 
     // Initialize empty events array
     let events = [];
+
+    // Build WHERE clause based on filters
+    let whereConditions = ["ce.start_date >= CURRENT_DATE", "ce.start_date <= CURRENT_DATE + INTERVAL '30 days'"];
+    let queryParams = [];
+    let paramIndex = 1;
+
+    if (eventType) {
+      whereConditions.push(`ce.event_type = $${paramIndex}`);
+      queryParams.push(eventType);
+      paramIndex++;
+    }
+
+    if (symbol) {
+      whereConditions.push(`ce.symbol = $${paramIndex}`);
+      queryParams.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.join(' AND ');
 
     // Get total count for pagination
     let total = 0;
@@ -393,10 +414,9 @@ router.get("/events", async (req, res) => {
       const countQuery = `
         SELECT COUNT(*) as count
         FROM calendar_events ce
-        WHERE ce.start_date >= CURRENT_DATE
-        AND ce.start_date <= CURRENT_DATE + INTERVAL '30 days'
+        WHERE ${whereClause}
       `;
-      const countResult = await query(countQuery);
+      const countResult = await query(countQuery, queryParams);
       total = parseInt(countResult.rows[0]?.count || 0);
     } catch (countError) {
       console.error("Calendar count query failed:", countError.message);
@@ -405,6 +425,9 @@ router.get("/events", async (req, res) => {
 
     // Get calendar events
     try {
+      // Add limit and offset params
+      queryParams.push(limit, offset);
+
       // Simplified query without JOIN to avoid issues
       const calendarQuery = `
         SELECT
@@ -412,16 +435,14 @@ router.get("/events", async (req, res) => {
           start_date,
           end_date,
           event_type,
-          title,
-          fetched_at
-        FROM calendar_events
-        WHERE start_date >= CURRENT_DATE
-        AND start_date <= CURRENT_DATE + INTERVAL '30 days'
+          title
+        FROM calendar_events ce
+        WHERE ${whereClause}
         ORDER BY start_date ASC
-        LIMIT $1 OFFSET $2
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `;
 
-      const calendarResult = await query(calendarQuery, [limit, offset]);
+      const calendarResult = await query(calendarQuery, queryParams);
 
       if (calendarResult && calendarResult.rows) {
         events = calendarResult.rows.map(row => ({
