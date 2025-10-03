@@ -4,7 +4,7 @@ Sector Data Loader - Updated 2025-10-03
 Loads sector ETF performance data from yfinance for sector rotation analysis
 Tracks momentum, money flow, and performance metrics for 11 major sectors
 """
-# Trigger deployment
+# Trigger deployment - 2025-10-03 22:02
 import gc
 import json
 import logging

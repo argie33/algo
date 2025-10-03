@@ -197,6 +197,16 @@ const mockMetrics = {
         },
       ],
     },
+    GOOGL: {
+      metrics: [
+        {
+          report_date: "2024-01-24",
+          earnings_quality_score: 68.2,
+          eps_yoy_growth: 6.5,
+          revenue_yoy_growth: 5.8,
+        },
+      ],
+    },
   },
 };
 
@@ -321,6 +331,7 @@ describe("EarningsCalendar Component", () => {
     await waitFor(() => {
       expect(screen.getByRole("columnheader", { name: /symbol/i })).toBeInTheDocument();
       expect(screen.getByRole("columnheader", { name: /company/i })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /quality score/i })).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 

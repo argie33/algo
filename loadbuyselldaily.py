@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-03 22:02 - Trigger deployment after null check fixes
 # Updated: 2025-10-03 - Fixed SQL parameter formatting in swing metrics calculation
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
