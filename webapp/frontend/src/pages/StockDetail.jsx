@@ -715,7 +715,7 @@ function StockDetail() {
                             <strong>Volume</strong>
                           </TableCell>
                         </TableRow>
-                        {recentPrices?.data.data
+                        {(recentPrices?.data?.data || [])
                           .slice(0, 15)
                           .map((dayData, index) => (
                             <TableRow key={index}>
@@ -799,7 +799,7 @@ function StockDetail() {
 
                     {incomeStatement?.data?.length > 0 ? (
                       <Box>
-                        {incomeStatement?.data
+                        {(incomeStatement?.data || [])
                           .slice(0, 3)
                           .map((period, periodIndex) => (
                             <Box key={period.date} sx={{ mb: 3 }}>
@@ -881,7 +881,7 @@ function StockDetail() {
 
                     {balanceSheet?.data?.length > 0 ? (
                       <Box>
-                        {balanceSheet?.data
+                        {(balanceSheet?.data || [])
                           .slice(0, 3)
                           .map((period, periodIndex) => (
                             <Box key={period.date} sx={{ mb: 3 }}>
@@ -963,7 +963,7 @@ function StockDetail() {
 
                     {cashFlowStatement?.data?.length > 0 ? (
                       <Box>
-                        {cashFlowStatement?.data
+                        {(cashFlowStatement?.data || [])
                           .slice(0, 3)
                           .map((period, periodIndex) => (
                             <Box key={period.date} sx={{ mb: 3 }}>
@@ -2301,7 +2301,7 @@ function StockDetail() {
 
                     {analystOverview?.data?.recommendations?.length > 0 ? (
                       <Box>
-                        {analystOverview?.data.recommendations
+                        {(analystOverview?.data?.recommendations || [])
                           .slice(0, 3)
                           .map((rec, index) => (
                             <Box key={index} sx={{ mb: 2 }}>
@@ -2391,7 +2391,7 @@ function StockDetail() {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {analystOverview?.data.earnings_history
+                              {(analystOverview?.data?.earnings_history || [])
                                 .slice(0, 8)
                                 .map((history) => (
                                   <TableRow key={history.quarter}>
