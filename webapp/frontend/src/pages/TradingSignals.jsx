@@ -460,7 +460,7 @@ function TradingSignals() {
     <TableContainer component={Paper} elevation={0}>
       <Table>
         <TableHead>
-          <TableRow sx={{ backgroundColor: "grey.50" }}>
+          <TableRow>
             <TableCell sx={{ fontWeight: "bold" }}>Symbol</TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>Company</TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>Signal</TableCell>
@@ -584,27 +584,8 @@ function TradingSignals() {
               hover
               sx={{
                 "&:hover": {
-                  backgroundColor:
-                    signal.signal === "Buy" || signal.signal === "BUY"
-                      ? "rgba(5, 150, 105, 0.1)"
-                      : signal.signal === "Sell" || signal.signal === "SELL"
-                        ? "rgba(220, 38, 38, 0.1)"
-                        : "action.hover",
+                  backgroundColor: "action.hover",
                 },
-                ...(matchesDateRange(signal.date) && {
-                  backgroundColor:
-                    signal.signal === "Buy" || signal.signal === "BUY"
-                      ? "rgba(5, 150, 105, 0.05)"
-                      : signal.signal === "Sell" || signal.signal === "SELL"
-                        ? "rgba(220, 38, 38, 0.05)"
-                        : "rgba(59, 130, 246, 0.05)",
-                  borderLeft:
-                    signal.signal === "Buy" || signal.signal === "BUY"
-                      ? "4px solid #059669"
-                      : signal.signal === "Sell" || signal.signal === "SELL"
-                        ? "4px solid #DC2626"
-                        : "4px solid #3B82F6",
-                }),
               }}
             >
               <TableCell>
