@@ -1192,7 +1192,8 @@ const EconomicModeling = () => {
                   <CardContent>
                     <List>
                       {economicData.sectoralData
-                        ?.sort((a, b) => b.growth - a.growth)
+                        ?.slice()
+                        .sort((a, b) => b.growth - a.growth)
                         .map((sector, index) => (
                           <ListItem
                             key={index}
