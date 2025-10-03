@@ -749,7 +749,7 @@ function EarningsCalendar() {
 
                                   {/* EPS Trend */}
                                   <Grid item xs={12} md={6}>
-                                    <Accordion>
+                                    <Accordion defaultExpanded>
                                       <AccordionSummary expandIcon={<ExpandMore />}>
                                         <Typography variant="subtitle1" fontWeight="bold">
                                           EPS Trend
@@ -819,7 +819,7 @@ function EarningsCalendar() {
 
                                   {/* Earnings Metrics */}
                                   <Grid item xs={12} md={6}>
-                                    <Accordion>
+                                    <Accordion defaultExpanded>
                                       <AccordionSummary expandIcon={<ExpandMore />}>
                                         <Typography variant="subtitle1" fontWeight="bold">
                                           Earnings Quality Metrics
