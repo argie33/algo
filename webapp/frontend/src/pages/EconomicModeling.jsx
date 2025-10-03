@@ -139,6 +139,14 @@ const EconomicModeling = () => {
           api.get("/api/market/ai-insights"),
         ]);
 
+        // Debug logging
+        console.log('🔍 Economic Data Debug:', {
+          apiResponse: leadingIndicators?.data,
+          indicatorsArray: leadingIndicators?.data?.indicators,
+          indicatorsCount: leadingIndicators?.data?.indicators?.length,
+          firstIndicator: leadingIndicators?.data?.indicators?.[0]
+        });
+
         // Combine all data into the expected structure
         const combinedData = {
           // Recession forecasting data
