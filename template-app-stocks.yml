@@ -64,6 +64,9 @@ Resources:
       PubliclyAccessible: true
       MultiAZ: false
       DeletionProtection: false
+      Tags:
+        - Key: StorageUpdate
+          Value: "force-30gb-deployment"
   ### 4) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
