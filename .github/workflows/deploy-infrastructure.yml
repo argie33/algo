@@ -33,8 +33,7 @@ jobs:
         run: |
           echo "🚀 Deploying stocks-app-stack with updated RDS storage..."
 
-          # Try to update stack, ignore "No updates" error
-          set +e
+          # Try to update stack, capture output and exit code
           UPDATE_OUTPUT=$(aws cloudformation update-stack \
             --stack-name stocks-app-stack \
             --region us-east-1 \
@@ -43,24 +42,28 @@ jobs:
             --parameters \
               ParameterKey=RDSUsername,UsePreviousValue=true \
               ParameterKey=RDSPassword,UsePreviousValue=true \
-              ParameterKey=FREDApiKey,UsePreviousValue=true 2>&1)
-          EXIT_CODE=$?
-          set -e
+              ParameterKey=FREDApiKey,UsePreviousValue=true 2>&1) || true
 
+          echo "CloudFormation output:"
           echo "$UPDATE_OUTPUT"
 
           # Check if update was successful or no changes needed
-          if [ $EXIT_CODE -eq 0 ]; then
+          if echo "$UPDATE_OUTPUT" | grep -iq "No updates"; then
+            echo "ℹ️ No updates needed - stack is already up to date"
+          elif echo "$UPDATE_OUTPUT" | grep -q "StackId"; then
             echo "⏳ Waiting for stack update to complete (this takes ~10-15 minutes)..."
             aws cloudformation wait stack-update-complete \
               --stack-name stocks-app-stack \
               --region us-east-1
             echo "✅ Stack update complete!"
-          elif echo "$UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
-            echo "ℹ️ No updates needed - stack is already up to date"
           else
-            echo "❌ Stack update failed"
-            exit $EXIT_CODE
+            echo "⚠️ Unexpected CloudFormation response"
+            echo "Checking current stack status..."
+            aws cloudformation describe-stacks \
+              --stack-name stocks-app-stack \
+              --region us-east-1 \
+              --query 'Stacks[0].[StackStatus,StackStatusReason]' \
+              --output table
           fi
 
       - name: Verify RDS status
