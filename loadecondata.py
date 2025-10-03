@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 02:30 - Trigger execution to populate AWS economic data tables
+# Updated: 2025-10-03 21:00 - Load missing series (T10Y2Y, SP500) with 31GB RDS
 import json
 import logging
 import os
