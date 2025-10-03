@@ -377,24 +377,59 @@ router.get("/:symbol", async (req, res) => {
     const { symbol } = req.params;
     console.log(`📊 Metrics requested for symbol: ${symbol.toUpperCase()}`);
 
+    // Query comprehensive financial metrics from key_metrics table
     const symbolQuery = `
       SELECT
-        pd.symbol,
-        COALESCE(pd.close, 0) as current_price,
-        COALESCE(pd.volume, 0) as volume,
-        NULL as rsi,
-        NULL as macd,
-        NULL as sma_20,
-        0.5 as momentum_metric,
-        0.5 as trend_metric,
+        km.ticker as symbol,
+        pd.close as currentPrice,
+        pd.volume,
+        km.trailing_pe as pe_ratio,
+        km.forward_pe,
+        km.price_to_book,
+        km.book_value,
+        km.price_to_sales_ttm,
+        km.peg_ratio,
+        km.enterprise_value,
+        km.ev_to_revenue,
+        km.ev_to_ebitda,
+        km.profit_margin_pct,
+        km.gross_margin_pct,
+        km.ebitda_margin_pct,
+        km.operating_margin_pct,
+        km.return_on_assets_pct,
+        km.return_on_equity_pct,
+        km.current_ratio,
+        km.quick_ratio,
+        km.debt_to_equity,
+        km.eps_trailing as earnings_per_share,
+        km.eps_forward,
+        km.eps_current_year,
+        km.dividend_yield,
+        km.dividend_rate,
+        km.payout_ratio,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        km.total_debt,
+        km.ebitda,
+        km.total_revenue,
+        km.net_income,
+        km.gross_profit,
+        km.earnings_q_growth_pct,
+        km.revenue_growth_pct,
+        km.earnings_growth_pct,
+        md.market_cap as market_capitalization,
         pd.date as last_updated
-      FROM (
+      FROM key_metrics km
+      LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
         ORDER BY symbol, date DESC
-      ) pd
-      WHERE pd.symbol = $1
+      ) pd ON km.ticker = pd.symbol
+      LEFT JOIN market_data md ON km.ticker = md.ticker
+      WHERE km.ticker = $1
     `;
 
     const result = await query(symbolQuery, [symbol.toUpperCase()]);
@@ -414,17 +449,82 @@ router.get("/:symbol", async (req, res) => {
       success: true,
       data: {
         symbol: metric.symbol,
-        currentPrice: parseFloat(metric.current_price) || 0,
+        currentPrice: parseFloat(metric.currentprice) || 0,
         volume: parseInt(metric.volume) || 0,
-        momentumMetric: parseFloat(metric.momentum_metric) || 0.5,
-        trendMetric: parseFloat(metric.trend_metric) || 0.5,
+
+        // Valuation metrics
+        market_capitalization: parseFloat(metric.market_capitalization) || null,
+        pe_ratio: parseFloat(metric.pe_ratio) || null,
+        forward_pe: parseFloat(metric.forward_pe) || null,
+        price_to_book: parseFloat(metric.price_to_book) || null,
+        book_value: parseFloat(metric.book_value) || null,
+        price_to_sales_ttm: parseFloat(metric.price_to_sales_ttm) || null,
+        peg_ratio: parseFloat(metric.peg_ratio) || null,
+        enterprise_value: parseInt(metric.enterprise_value) || null,
+        ev_to_revenue: parseFloat(metric.ev_to_revenue) || null,
+        ev_to_ebitda: parseFloat(metric.ev_to_ebitda) || null,
+
+        // Profitability metrics
+        profit_margin_pct: parseFloat(metric.profit_margin_pct) || null,
+        gross_margin_pct: parseFloat(metric.gross_margin_pct) || null,
+        gross_margin: parseFloat(metric.gross_margin_pct) || null,
+        ebitda_margin_pct: parseFloat(metric.ebitda_margin_pct) || null,
+        operating_margin_pct: parseFloat(metric.operating_margin_pct) || null,
+        operating_margin: parseFloat(metric.operating_margin_pct) || null,
+        net_margin: parseFloat(metric.profit_margin_pct) || null,
+        return_on_assets_pct: parseFloat(metric.return_on_assets_pct) || null,
+        return_on_assets: parseFloat(metric.return_on_assets_pct) || null,
+        return_on_equity_pct: parseFloat(metric.return_on_equity_pct) || null,
+        return_on_equity: parseFloat(metric.return_on_equity_pct) || null,
+
+        // Liquidity ratios
+        current_ratio: parseFloat(metric.current_ratio) || null,
+        quick_ratio: parseFloat(metric.quick_ratio) || null,
+
+        // Debt metrics
+        debt_to_equity: parseFloat(metric.debt_to_equity) || null,
+        total_debt: parseInt(metric.total_debt) || null,
+
+        // Earnings metrics
+        earnings_per_share: parseFloat(metric.earnings_per_share) || null,
+        eps_forward: parseFloat(metric.eps_forward) || null,
+        eps_current_year: parseFloat(metric.eps_current_year) || null,
+
+        // Dividend metrics
+        dividend_yield: parseFloat(metric.dividend_yield) || null,
+        dividend_rate: parseFloat(metric.dividend_rate) || null,
+        payout_ratio: parseFloat(metric.payout_ratio) || null,
+
+        // Cash metrics
+        total_cash: parseInt(metric.total_cash) || null,
+        cash_per_share: parseFloat(metric.cash_per_share) || null,
+        operating_cashflow: parseInt(metric.operating_cashflow) || null,
+        free_cashflow: parseInt(metric.free_cashflow) || null,
+
+        // Financial data
+        ebitda: parseInt(metric.ebitda) || null,
+        total_revenue: parseInt(metric.total_revenue) || null,
+        net_income: parseInt(metric.net_income) || null,
+        gross_profit: parseInt(metric.gross_profit) || null,
+
+        // Growth metrics
+        earnings_q_growth_pct: parseFloat(metric.earnings_q_growth_pct) || null,
+        revenue_growth_pct: parseFloat(metric.revenue_growth_pct) || null,
+        revenue_growth: parseFloat(metric.revenue_growth_pct) || null,
+        earnings_growth_pct: parseFloat(metric.earnings_growth_pct) || null,
+        earnings_growth: parseFloat(metric.earnings_growth_pct) || null,
+
+        // Legacy fields for backward compatibility
+        momentumMetric: 0.5,
+        trendMetric: 0.5,
         qualityMetric: 0.5,
         valueMetric: 0.5,
         growthMetric: 0.5,
-        rsi: parseFloat(metric.rsi) || null,
-        macd: parseFloat(metric.macd) || null,
-        sma20: parseFloat(metric.sma_20) || null,
-        lastUpdated: metric.last_updated,
+        rsi: null,
+        macd: null,
+        sma20: null,
+
+        lastUpdated: metric.last_updated || new Date().toISOString(),
       },
       timestamp: new Date().toISOString(),
     });
