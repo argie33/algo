@@ -198,33 +198,6 @@ function EarningsCalendar() {
     staleTime: 60000,
   });
 
-  const getEventTypeChip = (eventType) => {
-    const typeConfig = {
-      earnings: { color: "#3B82F6", icon: <ShowChart />, label: "Earnings" },
-      dividend: { color: "#10B981", icon: <AttachMoney />, label: "Dividend" },
-      split: { color: "#8B5CF6", icon: <Analytics />, label: "Stock Split" },
-      meeting: { color: "#F59E0B", icon: <EventNote />, label: "Meeting" },
-    };
-
-    const config =
-      typeConfig[eventType?.toLowerCase()] || typeConfig["earnings"];
-
-    return (
-      <Chip
-        label={config.label}
-        size="small"
-        icon={config.icon}
-        sx={{
-          backgroundColor: config.color,
-          color: "white",
-          fontWeight: "medium",
-          "& .MuiChip-icon": {
-            color: "white",
-          },
-        }}
-      />
-    );
-  };
 
   const getSurpriseColor = (surprise) => {
     if (surprise > 5) return "success.main";
