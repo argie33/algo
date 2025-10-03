@@ -475,37 +475,37 @@ function MarketOverview() {
   const { data: sentimentData, isLoading: sentimentLoading } = useQuery({
     queryKey: ["market-sentiment-history"],
     queryFn: () => fetchSentimentHistory(30),
-    enabled: tabValue === 1,
+    enabled: tabValue === 0,
     staleTime: 30000,
   });
 
   const { data: sectorData, isLoading: sectorLoading } = useQuery({
     queryKey: ["market-sector-performance"],
     queryFn: fetchSectorPerformance,
-    enabled: tabValue === 2,
+    enabled: tabValue === 1,
     staleTime: 30000,
   });
 
   const { data: breadthData, isLoading: breadthLoading } = useQuery({
     queryKey: ["market-breadth"],
     queryFn: fetchMarketBreadth,
-    enabled: tabValue === 3,
+    enabled: tabValue === 1,
     staleTime: 30000,
   });
 
-  
+
 
   const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery({
     queryKey: ["seasonality-data"],
     queryFn: fetchSeasonalityData,
-    enabled: tabValue === 4,
+    enabled: tabValue === 2,
     staleTime: 30000,
   });
 
   const { data: researchData, isLoading: researchLoading } = useQuery({
     queryKey: ["market-research-indicators"],
     queryFn: fetchResearchIndicators,
-    enabled: tabValue === 5,
+    enabled: tabValue === 3,
     staleTime: 30000,
   });
 
@@ -629,160 +629,164 @@ function MarketOverview() {
   // --- Sentiment History Tab ---
   const SentimentHistoryPanel = () => (
     <Box>
-      <Grid container spacing={2} mb={2}>
-        <Grid item xs={12} md={4}>
+      <Grid container spacing={3}>
+        {/* Fear & Greed Chart */}
+        <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">
-                Fear & Greed Index
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Fear & Greed Index History
               </Typography>
-              <Typography
-                variant="h5"
-                fontWeight={700}
-                color={getChangeColor(latestFG.value)}
-              >
-                {latestFG.value ?? "N/A"}
-              </Typography>
-              <Typography variant="body2">
-                {latestFG.value_text || ""}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)
-              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Current: <strong>{latestFG.value ?? "N/A"}</strong> - {latestFG.value_text || ""}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)
+                </Typography>
+              </Box>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart
+                  data={sentimentChartData}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis
+                    domain={[0, 100]}
+                    label={{
+                      value: "Fear & Greed Index",
+                      angle: -90,
+                      position: "insideLeft",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Tooltip formatter={(value) => [`${value}`, "Fear & Greed"]} />
+                  <Line
+                    type="monotone"
+                    dataKey="fear_greed"
+                    name="Fear & Greed"
+                    stroke="#FF8042"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
+
+        {/* NAAIM Chart */}
+        <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">
-                NAAIM Exposure
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                NAAIM Exposure History
               </Typography>
-              <Typography
-                variant="h5"
-                fontWeight={700}
-                color={getChangeColor(latestNAAIM.mean_exposure)}
-              >
-                {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}
-              </Typography>
-              <Typography variant="body2">
-                Active manager equity exposure
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                0 = fully out, 100 = fully in
-              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Current: <strong>{latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}%</strong>
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Active manager equity exposure (0=fully out, 100=fully in)
+                </Typography>
+              </Box>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart
+                  data={sentimentChartData}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis
+                    domain={[-100, 100]}
+                    label={{
+                      value: "NAAIM Exposure %",
+                      angle: -90,
+                      position: "insideLeft",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Tooltip formatter={(value) => [`${value}%`, "NAAIM Exposure"]} />
+                  <Line
+                    type="monotone"
+                    dataKey="naaim"
+                    name="NAAIM Exposure"
+                    stroke="#0088FE"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
+
+        {/* AAII Chart */}
+        <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant="subtitle2" color="text.secondary">
-                AAII Sentiment
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                AAII Sentiment History
               </Typography>
-              <Typography variant="body2">
-                Bullish:{" "}
-                <b style={{ color: "#10B981" }}>
-                  {latestAAII.bullish ?? "N/A"}%
-                </b>{" "}
-                | Neutral:{" "}
-                <b style={{ color: "#8884d8" }}>
-                  {latestAAII.neutral ?? "N/A"}%
-                </b>{" "}
-                | Bearish:{" "}
-                <b style={{ color: "#DC2626" }}>
-                  {latestAAII.bearish ?? "N/A"}%
-                </b>
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                % of retail investors bullish, neutral, or bearish
-              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Current: <strong style={{ color: "#10B981" }}>{latestAAII.bullish ?? "N/A"}% Bullish</strong>{" | "}
+                  <strong style={{ color: "#8884d8" }}>{latestAAII.neutral ?? "N/A"}% Neutral</strong>{" | "}
+                  <strong style={{ color: "#DC2626" }}>{latestAAII.bearish ?? "N/A"}% Bearish</strong>
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  % of retail investors bullish, neutral, or bearish
+                </Typography>
+              </Box>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart
+                  data={sentimentChartData}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis
+                    domain={[0, 100]}
+                    label={{
+                      value: "AAII %",
+                      angle: -90,
+                      position: "insideLeft",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Tooltip formatter={(value, name) => [`${value}%`, name]} />
+                  <Legend verticalAlign="top" height={36} />
+                  <Line
+                    type="monotone"
+                    dataKey="aaii_bullish"
+                    name="Bullish"
+                    stroke="#10B981"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="aaii_bearish"
+                    name="Bearish"
+                    stroke="#DC2626"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="aaii_neutral"
+                    name="Neutral"
+                    stroke="#8884d8"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
-      <Card>
-        <CardContent>
-          <Typography variant="h6" mb={2}>
-            Sentiment History (Last 30 Days)
-          </Typography>
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart
-              data={sentimentChartData}
-              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              <YAxis
-                yAxisId="left"
-                label={{
-                  value: "FG/NAAIM",
-                  angle: -90,
-                  position: "insideLeft",
-                  fontSize: 12,
-                }}
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                label={{
-                  value: "AAII %",
-                  angle: 90,
-                  position: "insideRight",
-                  fontSize: 12,
-                }}
-              />
-              <Tooltip formatter={(value, name) => [`${value}`, name]} />
-              <Legend verticalAlign="top" height={36} />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="fear_greed"
-                name="Fear & Greed"
-                stroke="#FF8042"
-                strokeWidth={2}
-                dot={{ r: 0 }}
-              />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="naaim"
-                name="NAAIM Exposure"
-                stroke="#0088FE"
-                strokeWidth={2}
-                dot={{ r: 0 }}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="aaii_bullish"
-                name="AAII Bullish"
-                stroke="#10B981"
-                strokeWidth={2}
-                dot={{ r: 0 }}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="aaii_bearish"
-                name="AAII Bearish"
-                stroke="#DC2626"
-                strokeWidth={2}
-                dot={{ r: 0 }}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="aaii_neutral"
-                name="AAII Neutral"
-                stroke="#8884d8"
-                strokeWidth={2}
-                dot={{ r: 0 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
     </Box>
   );
 
@@ -1006,137 +1010,6 @@ function MarketOverview() {
             </Card>
           </Grid>
         </Grid>
-      )}
-
-      {/* Sentiment Indicators Section */}
-      {sentimentIndicators && (
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12}>
-            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-              Sentiment Indicators
-            </Typography>
-          </Grid>
-        <Grid item xs={12} md={4}>
-          <AnimatedCard delay={2}>
-            <GradientCard gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
-              <CardContent>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    mb: 3,
-                  }}
-                >
-                  <Box>
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 600, color: "inherit" }}
-                    >
-                      NAAIM Exposure Index
-                    </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                      Professional Manager Positioning
-                    </Typography>
-                  </Box>
-                  <Avatar
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      bgcolor: "rgba(255,255,255,0.2)",
-                      backdropFilter: "blur(10px)",
-                    }}
-                  >
-                    <AccountBalance />
-                  </Avatar>
-                </Box>
-                {sentimentIndicators.naaim ? (
-                  <Box>
-                    <Typography variant="h2" sx={{ mb: 2, fontWeight: 700 }}>
-                      {sentimentIndicators.naaim.average !== undefined
-                        ? (() => {
-                            const val = parseFloat(
-                              sentimentIndicators.naaim.average
-                            );
-                            return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
-                          })()
-                        : "N/A"}
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 1,
-                        p: 1,
-                        bgcolor: "rgba(255,255,255,0.1)",
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Bullish:
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {sentimentIndicators.naaim.bullish_8100 !== undefined
-                          ? (() => {
-                              const val = parseFloat(
-                                sentimentIndicators.naaim.bullish_8100
-                              );
-                              return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
-                            })()
-                          : "N/A"}
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                        p: 1,
-                        bgcolor: "rgba(255,255,255,0.1)",
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Bearish:
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {sentimentIndicators.naaim.bearish !== undefined
-                          ? (() => {
-                              const val = parseFloat(
-                                sentimentIndicators.naaim.bearish
-                              );
-                              return isNaN(val) ? "N/A" : val.toFixed(1) + "%";
-                            })()
-                          : "N/A"}
-                      </Typography>
-                    </Box>
-                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                      Week ending:{" "}
-                      {sentimentIndicators.naaim.week_ending
-                        ? new Date(
-                            sentimentIndicators.naaim.week_ending
-                          ).toLocaleDateString()
-                        : "N/A"}
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box>
-                    <Typography
-                      variant="h2"
-                      sx={{ mb: 1, fontWeight: 700, opacity: 0.5 }}
-                    >
-                      --
-                    </Typography>
-                    <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                      No NAAIM data available
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </GradientCard>
-          </AnimatedCard>
-        </Grid>
-      </Grid>
       )}
 
       {/* Enhanced Market Breadth Section */}
@@ -1459,13 +1332,7 @@ function MarketOverview() {
           {sentimentLoading ? (
             <LinearProgress />
           ) : (
-            <Box>
-              {sentimentLoading ? (
-                <LinearProgress />
-              ) : (
-                <SentimentHistoryPanel />
-              )}
-            </Box>
+            <SentimentHistoryPanel />
           )}
         </TabPanel>
 
@@ -2242,7 +2109,7 @@ function MarketOverview() {
           )}
         </TabPanel>
 
-        <TabPanel value={tabValue} index={5}>
+        <TabPanel value={tabValue} index={3}>
           {researchLoading ? (
             <LinearProgress />
           ) : (
