@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 14:15 - Retrigger deployment for analyst upgrades/downgrades
+# Updated: 2025-10-03 20:45 - Run with expanded RDS storage (31GB available)
 import gc
 import json
 import logging
