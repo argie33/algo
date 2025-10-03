@@ -130,13 +130,11 @@ const EconomicModeling = () => {
           leadingIndicators,
           sectoralAnalysis,
           economicScenarios,
-          aiInsights,
         ] = await Promise.all([
           api.get("/api/market/recession-forecast"),
           api.get("/api/market/leading-indicators"),
           api.get("/api/market/sectoral-analysis"),
           api.get("/api/market/economic-scenarios"),
-          api.get("/api/market/ai-insights"),
         ]);
 
         // Debug logging
@@ -181,9 +179,6 @@ const EconomicModeling = () => {
 
           // Economic scenarios
           scenarios: economicScenarios?.data.scenarios || [],
-
-          // AI insights
-          aiInsights: aiInsights?.data.insights || [],
 
           // Upcoming events (from leading indicators)
           upcomingEvents: leadingIndicators?.data.upcomingEvents || [],
@@ -580,7 +575,6 @@ const EconomicModeling = () => {
                 icon={<BarChartIcon />}
               />
               <Tab value={4} label="Scenario Planning" icon={<Flag />} />
-              <Tab value={5} label="AI Insights" icon={<Psychology />} />
             </Tabs>
           </Box>
 
@@ -1355,129 +1349,6 @@ const EconomicModeling = () => {
             </Grid>
           </TabPanel>
 
-          <TabPanel value={tabValue} index={5}>
-            {/* AI Insights */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
-                <Card>
-                  <CardHeader
-                    title="AI-Powered Economic Insights"
-                    subheader="Machine learning analysis of economic patterns and trends"
-                  />
-                  <CardContent>
-                    <Grid container spacing={3}>
-                      {economicData.aiInsights?.map((insight, index) => (
-                        <Grid item xs={12} key={index}>
-                          <Card variant="outlined">
-                            <CardContent>
-                              <Box
-                                display="flex"
-                                alignItems="center"
-                                gap={2}
-                                mb={2}
-                              >
-                                <Lightbulb color="primary" />
-                                <Typography variant="h6">
-                                  {insight.title}
-                                </Typography>
-                                <Chip
-                                  label={`${insight.confidence}% confidence`}
-                                  color={
-                                    insight.confidence > 80
-                                      ? "success"
-                                      : insight.confidence > 60
-                                        ? "warning"
-                                        : "error"
-                                  }
-                                  size="small"
-                                />
-                              </Box>
-
-                              <Typography variant="body1" mb={2}>
-                                {insight.description}
-                              </Typography>
-
-                              <Box display="flex" alignItems="center" gap={2}>
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
-                                  Impact: {insight.impact}
-                                </Typography>
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
-                                  Timeframe: {insight.timeframe}
-                                </Typography>
-                              </Box>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardHeader title="AI Model Performance" />
-                  <CardContent>
-                    <Box textAlign="center" mb={3}>
-                      <Typography variant="h3" color="primary">
-                        87%
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Prediction Accuracy
-                      </Typography>
-                    </Box>
-
-                    <LinearProgress
-                      variant="determinate"
-                      value={87}
-                      color="success"
-                      sx={{ mb: 3, height: 8 }}
-                    />
-
-                    <Box display="flex" justifyContent="between" mb={1}>
-                      <Typography variant="body2" color="text.secondary">
-                        Data Points Analyzed
-                      </Typography>
-                      <Typography variant="body2" fontWeight="bold">
-                        15,000+
-                      </Typography>
-                    </Box>
-
-                    <Box display="flex" justifyContent="between" mb={1}>
-                      <Typography variant="body2" color="text.secondary">
-                        Last Model Update
-                      </Typography>
-                      <Typography variant="body2" fontWeight="bold">
-                        2 hours ago
-                      </Typography>
-                    </Box>
-
-                    <Box display="flex" justifyContent="between" mb={3}>
-                      <Typography variant="body2" color="text.secondary">
-                        Next Update
-                      </Typography>
-                      <Typography variant="body2" fontWeight="bold">
-                        In 4 hours
-                      </Typography>
-                    </Box>
-
-                    <Alert severity="info">
-                      <Typography variant="body2">
-                        AI models are continuously learning from new economic
-                        data to improve prediction accuracy.
-                      </Typography>
-                    </Alert>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
         </>
       )}
     </Container>
