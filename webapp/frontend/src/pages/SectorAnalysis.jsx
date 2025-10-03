@@ -105,8 +105,8 @@ const SectorAnalysis = () => {
           console.log(`Trying sector endpoint: ${endpoint}`);
           const resp = await api.get(endpoint);
           if (resp?.data && (resp.data.success || resp.data.data)) {
-            sectorResponse = resp.data.data || resp.data.sectors || resp.data;
-            console.log(`✅ Success with endpoint: ${endpoint}`);
+            sectorResponse = resp.data.data?.sectors || resp.data.sectors || resp.data;
+            console.log(`✅ Success with endpoint: ${endpoint}`, sectorResponse);
             break;
           }
         } catch (err) {
