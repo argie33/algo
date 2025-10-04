@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script - Enhanced Scoring Logic v2.0 (Updated: 2025-10-04 13:45)
+Stock Scores Loader Script - Enhanced Scoring Logic v2.1 (Updated: 2025-10-04 14:30)
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
 
@@ -737,6 +737,7 @@ def get_stock_data_from_database(conn, symbol):
 
     except Exception as e:
         logger.error(f"❌ Error calculating scores for {symbol}: {e}")
+        conn.rollback()  # Rollback aborted transaction
         return None
 
 def save_stock_score(conn, score_data):
@@ -791,6 +792,7 @@ def save_stock_score(conn, score_data):
 
     except psycopg2.Error as e:
         logger.error(f"❌ Failed to save score for {score_data['symbol']}: {e}")
+        conn.rollback()  # Rollback aborted transaction
         return False
 
 def main():
