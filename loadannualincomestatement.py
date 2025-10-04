@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 20:45 - Run with expanded RDS storage (31GB available)
+# Updated: 2025-10-04 02:00 - Annual income statement loader
 import gc
 import json
 import logging
