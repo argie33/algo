@@ -1,5 +1,6 @@
 FROM python:3.11-slim
 
+# Quarterly income statement loader - loads quarterly P&L data
 # Set environment variables to suppress pip warnings
 ENV PIP_ROOT_USER_ACTION=ignore \
     PIP_DISABLE_PIP_VERSION_CHECK=1
