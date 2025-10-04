@@ -2,14 +2,12 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
-  Avatar,
   Box,
   Card,
   CardContent,
   Chip,
   CircularProgress,
   Grid,
-  IconButton,
   LinearProgress,
   Paper,
   Stack,
@@ -21,8 +19,6 @@ import {
   TableHead,
   TableRow,
   Tabs,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
   Zoom,
   alpha,
@@ -51,14 +47,11 @@ import {
   Psychology,
   Timeline,
   ShowChart,
-  Refresh,
   AccountBalance,
   Business,
   Assessment,
   Public,
   CalendarToday,
-  Fullscreen,
-  FullscreenExit,
   Equalizer,
 } from "@mui/icons-material";
 
@@ -449,10 +442,8 @@ const fetchResearchIndicators = async () => {
 function MarketOverview() {
   const [tabValue, setTabValue] = useState(0);
   const [tabsReady, setTabsReady] = useState(false);
-  const [timeframe, setTimeframe] = useState("1D");
   const [_viewMode, _setViewMode] = useState("cards");
   const [_selectedSector, _setSelectedSector] = useState("all");
-  const [fullscreen, setFullscreen] = useState(false);
   const theme = useTheme();
 
   // Fix MUI Tabs validation error by ensuring tabs are ready before rendering
@@ -1022,45 +1013,6 @@ function MarketOverview() {
               Real-time market analysis, sentiment indicators, and
               institutional-grade research insights
             </Typography>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Stack
-              direction="row"
-              spacing={2}
-              justifyContent={{ xs: "flex-start", md: "flex-end" }}
-            >
-              <ToggleButtonGroup
-                value={timeframe}
-                exclusive
-                onChange={(e, val) => val && setTimeframe(val)}
-                size="small"
-                sx={{ bgcolor: "background.paper", borderRadius: 2 }}
-              >
-                <ToggleButton value="1D">1D</ToggleButton>
-                <ToggleButton value="1W">1W</ToggleButton>
-                <ToggleButton value="1M">1M</ToggleButton>
-                <ToggleButton value="3M">3M</ToggleButton>
-                <ToggleButton value="1Y">1Y</ToggleButton>
-              </ToggleButtonGroup>
-              <IconButton
-                onClick={() => window.location.reload()}
-                sx={{
-                  bgcolor: "background.paper",
-                  "&:hover": { bgcolor: "action.hover" },
-                }}
-              >
-                <Refresh />
-              </IconButton>
-              <IconButton
-                onClick={() => setFullscreen(!fullscreen)}
-                sx={{
-                  bgcolor: "background.paper",
-                  "&:hover": { bgcolor: "action.hover" },
-                }}
-              >
-                {fullscreen ? <FullscreenExit /> : <Fullscreen />}
-              </IconButton>
-            </Stack>
           </Grid>
         </Grid>
         {marketLoading && (
