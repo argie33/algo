@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-04 14:15 - Quarterly balance sheet financial data loader
+# Updated: 2025-10-04 16:45 - Quarterly balance sheet loader - trigger rebuild
 import gc
 import json
 import logging

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-04 13:50 - Financial data loader
+# Updated: 2025-10-04 16:45 - Annual income statement loader - trigger rebuild
 import gc
 import json
 import logging
