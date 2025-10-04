@@ -1,32 +1,13 @@
-FROM python:3.11-slim
+# Dockerfile.stockscores
+FROM public.ecr.aws/lambda/python:3.11
 
-# Stock scores calculator - computes composite stock quality scores
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Force cache invalidation for code changes
-ARG CACHE_BUST=v1.13
+# Copy requirements and script
+COPY Dockerfile.stockscores requirements-loadstockscores.txt loadstockscores.py ./
 
-WORKDIR /app
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadstockscores.txt
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements
-COPY requirements-loadstockscores.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements-loadstockscores.txt
-
-# Copy the script from root directory
-COPY loadstockscores.py .
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-
-# Run the script
-CMD ["python", "loadstockscores.py"]
+# Set the entrypoint
+ENTRYPOINT ["python", "loadstockscores.py"]
