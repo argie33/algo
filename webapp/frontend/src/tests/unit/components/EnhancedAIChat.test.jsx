@@ -100,10 +100,12 @@ describe("EnhancedAIChat - New Features", () => {
         readText: vi.fn().mockResolvedValue("mocked text"),
       },
       writable: true,
+      configurable: true,
     });
     Object.defineProperty(navigator, 'share', {
       value: vi.fn().mockResolvedValue(undefined),
       writable: true,
+      configurable: true,
     });
   });
 
