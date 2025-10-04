@@ -214,8 +214,28 @@
 
 ## Summary
 
-**Keep**: ~70 core tables for site functionality
-**Remove**: ~88 duplicate, unused, or consolidatable tables
+**Original**: 158 total tables
+**Kept**: 78 core tables for site functionality
+**Removed**: 80 duplicate, unused, or consolidatable tables
+
+## Cleanup Status
+
+✅ **COMPLETED** - Database cleanup executed on 2025-10-03
+
+### Remaining Tables (78)
+Core functionality tables retained:
+- Market & pricing data (12 tables)
+- Technical analysis (4 tables)
+- Earnings & fundamentals (17 tables)
+- Financial statements (7 tables)
+- Analyst data (7 tables)
+- Sentiment & news (6 tables)
+- Dividends & events (3 tables)
+- Economic data (4 tables)
+- ETF data (4 tables)
+- Metrics & scoring (6 tables)
+- User & settings (4 tables)
+- Watchlists & alerts (4 tables)
 
 ## Cleanup Script
 
