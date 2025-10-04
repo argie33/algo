@@ -469,6 +469,36 @@ Resources:
                   }
                 },
                 {
+                  "StartAt": "LoadAnalystUpgradeDowngrade",
+                  "States": {
+                    "LoadAnalystUpgradeDowngrade": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "Cluster": "${ECSClusterName}",
+                        "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/analystupgradedowngrade-loader",
+                        "LaunchType": "FARGATE",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": [${SubnetIds}],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {
+                          "ErrorEquals": ["States.TaskFailed"],
+                          "IntervalSeconds": 30,
+                          "MaxAttempts": 2,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
                   "StartAt": "LoadSentimentData",
                   "States": {
                     "LoadSentimentData": {

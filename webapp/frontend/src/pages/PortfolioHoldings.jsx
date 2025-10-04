@@ -69,9 +69,10 @@ import {
   getTrendsAnalytics,
 } from "../services/api";
 
-// Advanced Analytics Component
+// Advanced Analytics Component with tabs
 const AdvancedAnalyticsContent = ({ timeframe }) => {
   const [benchmark, setBenchmark] = useState("SPY");
+  const [analyticsTab, setAnalyticsTab] = useState(0);
 
   // Convert timeframe format (1Y -> 1y, 3M -> 3m)
   const apiTimeframe = timeframe?.toLowerCase() || "1y";
@@ -94,7 +95,25 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
     staleTime: 120000,
   });
 
-  const isLoading = perfLoading || riskLoading || allocLoading;
+  const { data: correlationData, isLoading: corrLoading } = useQuery({
+    queryKey: ["correlationAnalytics", apiTimeframe],
+    queryFn: () => getCorrelationAnalytics(apiTimeframe),
+    staleTime: 300000,
+  });
+
+  const { data: volatilityData, isLoading: volLoading } = useQuery({
+    queryKey: ["volatilityAnalytics", apiTimeframe],
+    queryFn: () => getVolatilityAnalytics(apiTimeframe),
+    staleTime: 60000,
+  });
+
+  const { data: trendsData, isLoading: trendsLoading } = useQuery({
+    queryKey: ["trendsAnalytics", apiTimeframe],
+    queryFn: () => getTrendsAnalytics(apiTimeframe),
+    staleTime: 60000,
+  });
+
+  const isLoading = perfLoading || riskLoading || allocLoading || corrLoading || volLoading || trendsLoading;
 
   if (isLoading) {
     return (
@@ -104,7 +123,7 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
     );
   }
 
-  return (
+  const renderPerformanceTab = () => (
     <Grid container spacing={3}>
       {/* Performance Summary */}
       <Grid item xs={12}>
@@ -250,6 +269,175 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
         </Card>
       </Grid>
     </Grid>
+  );
+
+  const renderRiskTab = () => (
+    <Grid container spacing={3}>
+      <Grid item xs={12}>
+        <Card>
+          <CardHeader title="Risk Metrics" />
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Box mb={2}>
+                  <Typography variant="body2" color="text.secondary">Portfolio Volatility</Typography>
+                  <Typography variant="h6">{riskData?.data?.risk?.portfolio_metrics?.portfolio_volatility || "N/A"}%</Typography>
+                </Box>
+                <Box mb={2}>
+                  <Typography variant="body2" color="text.secondary">Max Drawdown</Typography>
+                  <Typography variant="h6">{riskData?.data?.risk?.portfolio_metrics?.max_drawdown || "N/A"}%</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">Value at Risk (95%)</Typography>
+                  <Typography variant="h6">{riskData?.data?.risk?.portfolio_metrics?.value_at_risk_95 || "N/A"}%</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Box mb={2}>
+                  <Typography variant="body2" color="text.secondary">Concentration Risk</Typography>
+                  <Typography variant="h6">{riskData?.data?.risk?.portfolio_metrics?.concentration_risk || "N/A"}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">Overall Risk Level</Typography>
+                  <Box display="flex" alignItems="center" gap={1} mt={1}>
+                    {riskData?.data?.risk?.risk_assessment?.overall_risk === "Low" ? <CheckCircle color="success" /> :
+                     riskData?.data?.risk?.risk_assessment?.overall_risk === "Medium" ? <Warning color="warning" /> :
+                     riskData?.data?.risk?.risk_assessment?.overall_risk === "High" ? <ErrorIcon color="error" /> : null}
+                    <Typography variant="h6">{riskData?.data?.risk?.risk_assessment?.overall_risk || "Unknown"}</Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+
+  const renderCorrelationTab = () => (
+    <Grid container spacing={3}>
+      <Grid item xs={12}>
+        <Card>
+          <CardHeader title="Correlation Analysis" />
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={4}>
+                <Box textAlign="center" p={2}>
+                  <Typography variant="h4" color="primary">{correlationData?.data?.correlations?.insights?.diversification_score || "N/A"}</Typography>
+                  <Typography variant="body2" color="text.secondary">Diversification Score</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Box textAlign="center" p={2}>
+                  <Typography variant="h6">{correlationData?.data?.correlations?.insights?.average_correlation || "N/A"}</Typography>
+                  <Typography variant="body2" color="text.secondary">Average Correlation</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Box textAlign="center" p={2}>
+                  <Typography variant="h6">{correlationData?.data?.correlations?.assets_analyzed || "N/A"}</Typography>
+                  <Typography variant="body2" color="text.secondary">Assets Analyzed</Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+
+  const renderVolatilityTab = () => (
+    <Grid container spacing={3}>
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardHeader title="Volatility Analysis" />
+          <CardContent>
+            <Box textAlign="center" p={2}>
+              <Typography variant="h5">{volatilityData?.data?.volatility?.annualized_volatility || "N/A"}%</Typography>
+              <Typography variant="body2" color="text.secondary">Annualized Volatility</Typography>
+              <Box mt={2}>
+                {volatilityData?.data?.volatility?.risk_level === "Low" ? <CheckCircle color="success" /> :
+                 volatilityData?.data?.volatility?.risk_level === "Medium" ? <Warning color="warning" /> :
+                 volatilityData?.data?.volatility?.risk_level === "High" ? <ErrorIcon color="error" /> : null}
+                <Typography variant="body2" color="text.secondary" mt={1}>{volatilityData?.data?.volatility?.risk_level || "Unknown"} Risk</Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardHeader title="Trend Analysis" />
+          <CardContent>
+            <Box textAlign="center" p={2}>
+              <Typography variant="h6">{trendsData?.data?.trends?.trend_direction || "Unknown"}</Typography>
+              <Typography variant="body2" color="text.secondary">Trend Direction</Typography>
+              <Box mt={2}>
+                <Typography variant="h6">{trendsData?.data?.trends?.trend_strength || "Unknown"}</Typography>
+                <Typography variant="body2" color="text.secondary">Trend Strength</Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+
+  return (
+    <Box>
+      <Paper sx={{ mb: 2 }}>
+        <Tabs value={analyticsTab} onChange={(_, v) => setAnalyticsTab(v)} variant="scrollable" scrollButtons="auto">
+          <Tab label="Performance" />
+          <Tab label="Risk Analysis" />
+          <Tab label="Asset Allocation" />
+          <Tab label="Correlation" />
+          <Tab label="Volatility & Trends" />
+        </Tabs>
+      </Paper>
+      <Box mt={2}>
+        {analyticsTab === 0 && renderPerformanceTab()}
+        {analyticsTab === 1 && renderRiskTab()}
+        {analyticsTab === 2 && (
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="Sector Allocation" />
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie data={allocationData?.data?.sectors || []} dataKey="percentage" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label={({ name, percentage }) => `${name}: ${percentage}%`}>
+                        {(allocationData?.data?.sectors || []).map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="Top Holdings" />
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={(allocationData?.data?.assets || []).slice(0, 10)}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="symbol" />
+                      <YAxis tickFormatter={(value) => `${value}%`} />
+                      <RechartChartTooltip formatter={(value) => [`${value}%`, "Weight"]} />
+                      <Bar dataKey="percentage" fill="#8884d8" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
+        {analyticsTab === 3 && renderCorrelationTab()}
+        {analyticsTab === 4 && renderVolatilityTab()}
+      </Box>
+    </Box>
   );
 };
 
