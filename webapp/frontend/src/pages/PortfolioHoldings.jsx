@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
@@ -29,6 +30,8 @@ import {
   TablePagination,
   TableRow,
   TableSortLabel,
+  Tabs,
+  Tab,
   TextField,
   Typography,
 } from "@mui/material";
@@ -38,8 +41,19 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartChartTooltip,
+  Legend,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
 } from "recharts";
-import { Add, Delete, Edit, FilterList, Refresh, CloudDownload } from "@mui/icons-material";
+import { Add, Delete, Edit, FilterList, Refresh, CloudDownload, ShowChart, Assessment, TrendingUp, AccountBalance, Timeline, Warning, CheckCircle, Error as ErrorIcon } from "@mui/icons-material";
 import {
   getPortfolioHoldings,
   addHolding,
@@ -47,7 +61,197 @@ import {
   deleteHolding,
   getStockPrices,
   importPortfolioFromBroker,
+  getPerformanceAnalytics,
+  getRiskAnalytics,
+  getCorrelationAnalytics,
+  getAllocationAnalytics,
+  getVolatilityAnalytics,
+  getTrendsAnalytics,
 } from "../services/api";
+
+// Advanced Analytics Component
+const AdvancedAnalyticsContent = ({ timeframe }) => {
+  const [benchmark, setBenchmark] = useState("SPY");
+
+  // Convert timeframe format (1Y -> 1y, 3M -> 3m)
+  const apiTimeframe = timeframe?.toLowerCase() || "1y";
+
+  const { data: performanceData, isLoading: perfLoading } = useQuery({
+    queryKey: ["performanceAnalytics", apiTimeframe, benchmark],
+    queryFn: () => getPerformanceAnalytics(apiTimeframe, benchmark),
+    staleTime: 60000,
+  });
+
+  const { data: riskData, isLoading: riskLoading } = useQuery({
+    queryKey: ["riskAnalytics", apiTimeframe],
+    queryFn: () => getRiskAnalytics(apiTimeframe),
+    staleTime: 60000,
+  });
+
+  const { data: allocationData, isLoading: allocLoading } = useQuery({
+    queryKey: ["allocationAnalytics"],
+    queryFn: () => getAllocationAnalytics(),
+    staleTime: 120000,
+  });
+
+  const isLoading = perfLoading || riskLoading || allocLoading;
+
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" p={4}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Grid container spacing={3}>
+      {/* Performance Summary */}
+      <Grid item xs={12}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <TrendingUp color="primary" />
+                  <Box>
+                    <Typography variant="h6">
+                      {performanceData?.data?.returns ? `${(performanceData.data.returns * 100).toFixed(2)}%` : "N/A"}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Total Return</Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <ShowChart color="secondary" />
+                  <Box>
+                    <Typography variant="h6">
+                      {performanceData?.data?.volatility ? `${(performanceData.data.volatility * 100).toFixed(2)}%` : "N/A"}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Volatility</Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <Timeline />
+                  <Box>
+                    <Typography variant="h6">
+                      {performanceData?.data?.sharpe_ratio ? performanceData.data.sharpe_ratio.toFixed(2) : "N/A"}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Sharpe Ratio</Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <AccountBalance />
+                  <Box>
+                    <Typography variant="h6">
+                      {performanceData?.data?.portfolio_metrics?.total_value ? `$${parseFloat(performanceData.data.portfolio_metrics.total_value).toLocaleString()}` : "N/A"}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Portfolio Value</Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Grid>
+
+      {/* Performance Chart */}
+      <Grid item xs={12} lg={8}>
+        <Card>
+          <CardHeader title="Performance vs Benchmark" />
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={performanceData?.data?.performance_timeline || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
+                <YAxis tickFormatter={(value) => `${value}%`} />
+                <RechartChartTooltip formatter={(value, name) => [`${parseFloat(value).toFixed(2)}%`, name]} labelFormatter={(value) => new Date(value).toLocaleDateString()} />
+                <Legend />
+                <Line type="monotone" dataKey="pnl_percent" stroke="#8884d8" strokeWidth={2} name="Portfolio" />
+                <Line type="monotone" dataKey="benchmark_return" stroke="#82ca9d" strokeWidth={2} name={`${benchmark} Benchmark`} data={performanceData?.data?.benchmark_comparison?.data || []} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Risk Analysis */}
+      <Grid item xs={12} lg={4}>
+        <Card>
+          <CardHeader title="Risk Metrics" />
+          <CardContent>
+            <Box mb={2}>
+              <Typography variant="body2" color="text.secondary">Portfolio Volatility</Typography>
+              <Typography variant="h6">{riskData?.data?.risk?.portfolio_metrics?.portfolio_volatility || "N/A"}%</Typography>
+            </Box>
+            <Box mb={2}>
+              <Typography variant="body2" color="text.secondary">Max Drawdown</Typography>
+              <Typography variant="h6">{riskData?.data?.risk?.portfolio_metrics?.max_drawdown || "N/A"}%</Typography>
+            </Box>
+            <Box>
+              <Typography variant="body2" color="text.secondary">Value at Risk (95%)</Typography>
+              <Typography variant="h6">{riskData?.data?.risk?.portfolio_metrics?.value_at_risk_95 || "N/A"}%</Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Sector Allocation */}
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardHeader title="Sector Allocation" />
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie data={allocationData?.data?.sectors || []} dataKey="percentage" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label={({ name, percentage }) => `${name}: ${percentage}%`}>
+                  {(allocationData?.data?.sectors || []).map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
+                  ))}
+                </Pie>
+                <RechartsTooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Top Holdings */}
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardHeader title="Top Holdings" />
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={(allocationData?.data?.assets || []).slice(0, 10)}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="symbol" />
+                <YAxis tickFormatter={(value) => `${value}%`} />
+                <RechartChartTooltip formatter={(value) => [`${value}%`, "Weight"]} />
+                <Bar dataKey="percentage" fill="#8884d8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+};
 
 const PortfolioHoldings = () => {
   const { user, tokens } = useAuth();
@@ -68,6 +272,7 @@ const PortfolioHoldings = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [timeframe, setTimeframe] = useState("1Y");
+  const [activeTab, setActiveTab] = useState(0);
 
   // Dialogs
   const [addHoldingDialog, setAddHoldingDialog] = useState(false);
@@ -429,9 +634,20 @@ const PortfolioHoldings = () => {
           </Grid>
         )}
 
-        {/* Portfolio Holdings */}
+        {/* Tabs */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
+          <Paper>
+            <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
+              <Tab icon={<ShowChart />} label="Holdings" />
+              <Tab icon={<Assessment />} label="Advanced Analytics" />
+            </Tabs>
+          </Paper>
+        </Grid>
+
+        {/* Portfolio Holdings */}
+        {activeTab === 0 && (
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3 }}>
             <Box
               display="flex"
               justifyContent="space-between"
@@ -674,6 +890,14 @@ const PortfolioHoldings = () => {
             </Grid>
           </Paper>
         </Grid>
+        )}
+
+        {/* Advanced Analytics Tab */}
+        {activeTab === 1 && (
+          <Grid item xs={12}>
+            <AdvancedAnalyticsContent timeframe={timeframe} />
+          </Grid>
+        )}
       </Grid>
 
       {/* Add Holding Dialog */}

@@ -80,7 +80,6 @@ import SectorAnalysis from "./pages/SectorAnalysis";
 import RealTimeDashboard from "./pages/RealTimeDashboard";
 import AuthTest from "./pages/AuthTest";
 import AIAssistant from "./pages/AIAssistant";
-import AdvancedPortfolioAnalytics from "./pages/AdvancedPortfolioAnalytics";
 
 const drawerWidth = 240;
 
@@ -186,13 +185,6 @@ const menuItems = [
     text: "Optimization Tools",
     icon: <AnalyticsIcon />,
     path: "/portfolio/optimize",
-    category: "portfolio",
-    premium: true,
-  },
-  {
-    text: "Advanced Analytics",
-    icon: <TimelineIcon />,
-    path: "/portfolio/analytics",
     category: "portfolio",
     premium: true,
   },
@@ -632,10 +624,6 @@ function App() {
             <Route
               path="/portfolio/optimize"
               element={<PortfolioOptimization />}
-            />
-            <Route
-              path="/portfolio/analytics"
-              element={<AdvancedPortfolioAnalytics />}
             />
             <Route path="/market" element={<MarketOverview />} />
             <Route path="/scores" element={<ScoresDashboard />} />
