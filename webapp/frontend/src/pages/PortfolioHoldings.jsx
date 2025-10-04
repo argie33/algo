@@ -460,7 +460,6 @@ const PortfolioHoldings = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [timeframe, setTimeframe] = useState("1Y");
-  const [activeTab, setActiveTab] = useState(0);
 
   // Dialogs
   const [addHoldingDialog, setAddHoldingDialog] = useState(false);
@@ -822,19 +821,8 @@ const PortfolioHoldings = () => {
           </Grid>
         )}
 
-        {/* Tabs */}
-        <Grid item xs={12}>
-          <Paper>
-            <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-              <Tab icon={<ShowChart />} label="Holdings" />
-              <Tab icon={<Assessment />} label="Advanced Analytics" />
-            </Tabs>
-          </Paper>
-        </Grid>
-
         {/* Portfolio Holdings */}
-        {activeTab === 0 && (
-          <Grid item xs={12}>
+        <Grid item xs={12}>
             <Paper sx={{ p: 3 }}>
             <Box
               display="flex"
@@ -1078,14 +1066,11 @@ const PortfolioHoldings = () => {
             </Grid>
           </Paper>
         </Grid>
-        )}
 
-        {/* Advanced Analytics Tab */}
-        {activeTab === 1 && (
-          <Grid item xs={12}>
-            <AdvancedAnalyticsContent timeframe={timeframe} />
-          </Grid>
-        )}
+        {/* Advanced Analytics */}
+        <Grid item xs={12}>
+          <AdvancedAnalyticsContent timeframe={timeframe} />
+        </Grid>
       </Grid>
 
       {/* Add Holding Dialog */}
