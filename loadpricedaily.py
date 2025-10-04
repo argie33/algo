@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
-# Updated: 2025-10-01 - Trigger fresh data load for relative strength score calculation
+# Updated: 2025-10-04 17:00 - Trigger price daily loader - populate price data for all stocks
 import gc
 import json
 import logging

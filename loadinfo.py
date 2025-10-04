@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 20:16 - Test loadinfo with expanded RDS storage (31GB available)
-# Updated: 2025-10-02 23:50 - OPTIMIZED rate limiting: fast with adaptive backoff only on rate limits
+# Updated: 2025-10-04 17:00 - Trigger company info loader - populate stocks table for Stock Explorer
 # Updated: 2025-10-02 23:05 - ULTRA-CONSERVATIVE rate limiting: batch=3, pause=15s, extract delay=1s
 # Updated: 2025-10-02 20:55 - Fix rate limiting with per-symbol delays and better detection
 # Updated Thu Sep 19 23:25:00 CDT 2025 - Final Docker build fix: renamed Dockerfile.loadinfo to Dockerfile.info
