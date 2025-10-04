@@ -543,14 +543,19 @@ router.get("/earnings-estimates", async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
+    const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
     // Optimize: Use smaller default limit for health checks
     const defaultLimit = req.query.page || req.query.limit ? limit : Math.min(limit, 10);
 
+    // Build WHERE clause for symbol filter
+    const whereClause = symbol ? `WHERE ee.symbol = $3` : '';
+    const queryParams = symbol ? [defaultLimit, offset, symbol] : [defaultLimit, offset];
+
     const estimatesQuery = `
       SELECT
         ee.symbol,
-        NULL as company_name,
+        COALESCE(cp.short_name, cp.long_name, ee.symbol) as company_name,
         ee.period,
         ee.avg_estimate,
         ee.low_estimate,
@@ -558,13 +563,16 @@ router.get("/earnings-estimates", async (req, res) => {
         ee.number_of_analysts,
         ee.growth
       FROM earnings_estimates ee
+      LEFT JOIN company_profile cp ON ee.symbol = cp.ticker
+      ${whereClause}
       ORDER BY ee.symbol ASC, ee.period DESC
       LIMIT $1 OFFSET $2
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM earnings_estimates
+      FROM earnings_estimates ee
+      ${whereClause}
     `;
 
     // Optimize: Only run full summary for paginated requests, not health checks
@@ -590,11 +598,12 @@ router.get("/earnings-estimates", async (req, res) => {
           ORDER BY report_date DESC
           LIMIT 1
         ) em ON true
+        ${whereClause}
         GROUP BY ee.symbol, em.earnings_quality_score
         ORDER BY em.earnings_quality_score DESC NULLS LAST, ee.symbol ASC
         LIMIT 100
       `;
-      summaryPromise = query(summaryQuery);
+      summaryPromise = symbol ? query(summaryQuery, [symbol]) : query(summaryQuery);
     } else {
       // Fast summary for health checks
       summaryQuery = `
@@ -619,8 +628,8 @@ router.get("/earnings-estimates", async (req, res) => {
     }
 
     const [estimatesResult, countResult, summaryResult] = await Promise.all([
-      query(estimatesQuery, [defaultLimit, offset]),
-      query(countQuery),
+      query(estimatesQuery, queryParams),
+      symbol ? query(countQuery, [symbol]) : query(countQuery),
       summaryPromise,
     ]);
 

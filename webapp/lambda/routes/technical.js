@@ -226,8 +226,14 @@ router.get("/daily", async (req, res) => {
         pc.high as high_price,
         pc.low as low_price,
         pc.close as close_price,
+        pc.close as current_price,
         pc.volume,
         pc.price_change_percent,
+        CASE
+          WHEN pc.price_change_percent > 0 THEN 'up'
+          WHEN pc.price_change_percent < 0 THEN 'down'
+          ELSE 'flat'
+        END as price_direction,
         t.rsi,
         t.macd,
         t.macd_signal,

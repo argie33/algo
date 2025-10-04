@@ -1880,164 +1880,6 @@ router.post("/alerts", authenticateToken, async (req, res) => {
   }
 });
 
-// Market sentiment route (for test compatibility)
-router.get("/market", async (req, res) => {
-  try {
-    const { period = "7d" } = req.query;
-    console.log(`📊 Market sentiment analysis requested, period: ${period}`);
-
-    let marketResult;
-    try {
-      // Try to fetch from database first
-      marketResult = await query(
-        'SELECT overall_sentiment, bullish_stocks, bearish_stocks, neutral_stocks, market_mood, fear_greed_index, updated_at FROM market_sentiment ORDER BY updated_at DESC LIMIT 1'
-      );
-    } catch (e) {
-      console.error('Market sentiment query failed:', e.message);
-      return res.status(503).json({
-        success: false,
-        error: 'Market sentiment service unavailable',
-        message: 'Database query failed',
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    let marketSentiment;
-    if (marketResult.rows.length > 0) {
-      marketSentiment = marketResult.rows[0];
-    } else {
-      return res.status(404).json({
-        success: false,
-        error: 'Market sentiment data not available',
-        message: 'No market sentiment data found in database',
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Add period to response
-    marketSentiment.period = period;
-
-    res.json({
-      success: true,
-      data: marketSentiment,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Market sentiment error:", error);
-    res.json({
-      success: false,
-      error: "Failed to analyze market sentiment",
-      details: error.message,
-    });
-  }
-});
-
-// Sentiment analysis for specific symbol
-router.get("/:symbol", async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const { period = "7d" } = req.query;
-
-    console.log(`😊 Sentiment analysis for ${symbol}, period: ${period}`);
-
-    // Convert period to days
-    const periodDays = {
-      "1d": 1,
-      "3d": 3,
-      "7d": 7,
-      "14d": 14,
-      "30d": 30,
-    };
-
-    const days = periodDays[period] || 7;
-
-    // Generate realistic sentiment data for the symbol
-    const baseValues = {
-      AAPL: { sentiment: 0.72, mentions: 1250, volatility: 0.15 },
-      TSLA: { sentiment: 0.68, mentions: 2100, volatility: 0.25 },
-      MSFT: { sentiment: 0.75, mentions: 890, volatility: 0.12 },
-      GOOGL: { sentiment: 0.71, mentions: 760, volatility: 0.14 },
-      AMZN: { sentiment: 0.69, mentions: 920, volatility: 0.18 },
-    };
-
-    const symbolData = baseValues[symbol.toUpperCase()] || {
-      sentiment: 0.5 + Math.random() * 0.4,
-      mentions: Math.floor(Math.random() * 800) + 200,
-      volatility: Math.random() * 0.3 + 0.1,
-    };
-
-    // Add some time-based variance
-    const timeVariance = Math.sin(Date.now() / 86400000) * 0.1; // Daily cycle
-    const currentSentiment = Math.max(
-      0,
-      Math.min(1, symbolData.sentiment + timeVariance)
-    );
-
-    const sentiment = {
-      symbol: symbol.toUpperCase(),
-      period: period,
-      overall_sentiment: parseFloat(currentSentiment.toFixed(2)),
-      sentiment_label:
-        currentSentiment >= 0.7
-          ? "Bullish"
-          : currentSentiment >= 0.6
-            ? "Slightly Bullish"
-            : currentSentiment >= 0.4
-              ? "Neutral"
-              : currentSentiment >= 0.3
-                ? "Slightly Bearish"
-                : "Bearish",
-      confidence: Math.min(100, Math.floor(symbolData.mentions / 10)),
-      metrics: {
-        positive_mentions: Math.floor(symbolData.mentions * currentSentiment),
-        negative_mentions: Math.floor(
-          symbolData.mentions * (1 - currentSentiment)
-        ),
-        neutral_mentions: Math.floor(symbolData.mentions * 0.2),
-        total_mentions: symbolData.mentions,
-        mention_velocity: Math.floor(symbolData.mentions / days),
-        sentiment_volatility: parseFloat(symbolData.volatility.toFixed(2)),
-      },
-      sources: {
-        twitter: Math.floor(symbolData.mentions * 0.45),
-        reddit: Math.floor(symbolData.mentions * 0.3),
-        stocktwits: Math.floor(symbolData.mentions * 0.15),
-        discord: Math.floor(symbolData.mentions * 0.1),
-      },
-      trending_keywords: [
-        symbol.toLowerCase(),
-        currentSentiment > 0.6 ? "bullish" : "bearish",
-        "earnings",
-        "price",
-        "target",
-      ],
-      last_updated: new Date().toISOString(),
-    };
-
-    res.success(
-      {
-        sentiment: sentiment,
-        metadata: {
-          symbol: symbol.toUpperCase(),
-          period: period,
-          period_days: days,
-          data_quality: "simulated",
-          last_updated: new Date().toISOString(),
-        },
-      },
-      200,
-      { message: "Symbol sentiment retrieved successfully" }
-    );
-  } catch (err) {
-    console.error("Symbol sentiment error:", err);
-    res.serverError("Failed to retrieve sentiment for symbol", {
-      error: err.message,
-      symbol: req.params.symbol,
-      period: req.query.period || "7d",
-    });
-  }
-});
-
 // Market-wide sentiment analysis
 // Market sentiment from AAII sentiment table
 router.get("/market", async (req, res) => {
@@ -2161,6 +2003,112 @@ router.get("/stocks", async (req, res) => {
       error: "Failed to retrieve stock sentiment",
       details: err.message,
       timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Sentiment analysis for specific symbol (MUST BE LAST - catch-all route)
+router.get("/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { period = "7d" } = req.query;
+
+    console.log(`😊 Sentiment analysis for ${symbol}, period: ${period}`);
+
+    // Convert period to days
+    const periodDays = {
+      "1d": 1,
+      "3d": 3,
+      "7d": 7,
+      "14d": 14,
+      "30d": 30,
+    };
+
+    const days = periodDays[period] || 7;
+
+    // Generate realistic sentiment data for the symbol
+    const baseValues = {
+      AAPL: { sentiment: 0.72, mentions: 1250, volatility: 0.15 },
+      TSLA: { sentiment: 0.68, mentions: 2100, volatility: 0.25 },
+      MSFT: { sentiment: 0.75, mentions: 890, volatility: 0.12 },
+      GOOGL: { sentiment: 0.71, mentions: 760, volatility: 0.14 },
+      AMZN: { sentiment: 0.69, mentions: 920, volatility: 0.18 },
+    };
+
+    const symbolData = baseValues[symbol.toUpperCase()] || {
+      sentiment: 0.5 + Math.random() * 0.4,
+      mentions: Math.floor(Math.random() * 800) + 200,
+      volatility: Math.random() * 0.3 + 0.1,
+    };
+
+    // Add some time-based variance
+    const timeVariance = Math.sin(Date.now() / 86400000) * 0.1; // Daily cycle
+    const currentSentiment = Math.max(
+      0,
+      Math.min(1, symbolData.sentiment + timeVariance)
+    );
+
+    const sentiment = {
+      symbol: symbol.toUpperCase(),
+      period: period,
+      overall_sentiment: parseFloat(currentSentiment.toFixed(2)),
+      sentiment_label:
+        currentSentiment >= 0.7
+          ? "Bullish"
+          : currentSentiment >= 0.6
+            ? "Slightly Bullish"
+            : currentSentiment >= 0.4
+              ? "Neutral"
+              : currentSentiment >= 0.3
+                ? "Slightly Bearish"
+                : "Bearish",
+      confidence: Math.min(100, Math.floor(symbolData.mentions / 10)),
+      metrics: {
+        positive_mentions: Math.floor(symbolData.mentions * currentSentiment),
+        negative_mentions: Math.floor(
+          symbolData.mentions * (1 - currentSentiment)
+        ),
+        neutral_mentions: Math.floor(symbolData.mentions * 0.2),
+        total_mentions: symbolData.mentions,
+        mention_velocity: Math.floor(symbolData.mentions / days),
+        sentiment_volatility: parseFloat(symbolData.volatility.toFixed(2)),
+      },
+      sources: {
+        twitter: Math.floor(symbolData.mentions * 0.45),
+        reddit: Math.floor(symbolData.mentions * 0.3),
+        stocktwits: Math.floor(symbolData.mentions * 0.15),
+        discord: Math.floor(symbolData.mentions * 0.1),
+      },
+      trending_keywords: [
+        symbol.toLowerCase(),
+        currentSentiment > 0.6 ? "bullish" : "bearish",
+        "earnings",
+        "price",
+        "target",
+      ],
+      last_updated: new Date().toISOString(),
+    };
+
+    res.success(
+      {
+        sentiment: sentiment,
+        metadata: {
+          symbol: symbol.toUpperCase(),
+          period: period,
+          period_days: days,
+          data_quality: "simulated",
+          last_updated: new Date().toISOString(),
+        },
+      },
+      200,
+      { message: "Symbol sentiment retrieved successfully" }
+    );
+  } catch (err) {
+    console.error("Symbol sentiment error:", err);
+    res.serverError("Failed to retrieve sentiment for symbol", {
+      error: err.message,
+      symbol: req.params.symbol,
+      period: req.query.period || "7d",
     });
   }
 });
