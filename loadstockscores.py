@@ -273,11 +273,11 @@ def get_stock_data_from_database(conn, symbol):
 
         # Get earnings data for PE ratio and growth calculation
         cur.execute("""
-            SELECT actual_eps, report_date
-            FROM earnings
+            SELECT eps_actual, quarter
+            FROM earnings_history
             WHERE symbol = %s
-            AND report_date >= CURRENT_DATE - INTERVAL '24 months'
-            ORDER BY report_date DESC
+            AND quarter >= CURRENT_DATE - INTERVAL '24 months'
+            ORDER BY quarter DESC
             LIMIT 8
         """, (symbol,))
 
