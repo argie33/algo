@@ -586,6 +586,7 @@ router.get("/earnings-estimates", async (req, res) => {
           SELECT earnings_quality_score
           FROM earnings_metrics
           WHERE symbol = ee.symbol
+            AND earnings_quality_score IS NOT NULL
           ORDER BY report_date DESC
           LIMIT 1
         ) em ON true
@@ -637,6 +638,7 @@ router.get("/earnings-estimates", async (req, res) => {
     // Attach summary insights
     const insights = {};
     summaryResult.rows.forEach((row) => {
+      console.log(`DEBUG: Symbol ${row.symbol} - quality_score from DB: ${row.quality_score}`);
       insights[row.symbol] = {
         count: row.count,
         avg_growth: row.avg_growth,
