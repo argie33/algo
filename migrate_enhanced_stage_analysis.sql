@@ -115,10 +115,14 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 -- ============================================
 -- 4. CORE FUNCTION: Enhanced Weinstein Stage Classification
 -- ============================================
+-- Updated to match loader parameters: 17 params from buysell loaders
 CREATE OR REPLACE FUNCTION calculate_enhanced_stage(
     current_price NUMERIC,
+    sma_20 NUMERIC,           -- Added: 20-day SMA
     sma_50_current NUMERIC,
+    sma_150 NUMERIC,          -- Added: 150-day SMA
     sma_200_current NUMERIC,
+    sma_20_prev NUMERIC,      -- Added: Previous 20-day SMA
     sma_50_prev NUMERIC,
     sma_200_prev NUMERIC,
     adx_value NUMERIC,
@@ -126,13 +130,15 @@ CREATE OR REPLACE FUNCTION calculate_enhanced_stage(
     volume_avg_50 BIGINT,
     atr_value NUMERIC,
     daily_range_pct NUMERIC,
+    high_52week NUMERIC,      -- Changed: 52-week high (will calculate pct from this)
     sector_name VARCHAR,
     rsi_value NUMERIC,
-    pct_from_52w_high NUMERIC  -- Distance from 52-week high
+    mansfield_rs NUMERIC      -- Added: Mansfield Relative Strength
 ) RETURNS TABLE(
     stage VARCHAR,
     confidence INTEGER,
-    substage VARCHAR
+    substage VARCHAR,
+    sata_score NUMERIC        -- Added: SATA score output
 ) AS $$
 DECLARE
     volatility_profile VARCHAR;
@@ -153,7 +159,12 @@ DECLARE
 
     stage_result VARCHAR;
     substage_result VARCHAR;
+    sata_score_result NUMERIC;
+    pct_from_52w_high NUMERIC;
 BEGIN
+    -- Step 0: Calculate pct_from_52w_high from high_52week parameter
+    pct_from_52w_high := ((current_price - high_52week) / NULLIF(high_52week, 0)) * 100;
+
     -- Step 1: Determine volatility profile
     volatility_profile := get_volatility_profile(atr_value, daily_range_pct, COALESCE(sector_name, 'Unknown'));
 
@@ -447,8 +458,12 @@ BEGIN
         stage_result := 'Stage 1 - Basing';
     END IF;
 
+    -- Calculate SATA score (simple confidence-based calculation for now)
+    -- SATA = Stage Analysis Technical Accuracy
+    sata_score_result := total_confidence::NUMERIC / 100.0;
+
     -- Return results
-    RETURN QUERY SELECT stage_result, total_confidence, substage_result;
+    RETURN QUERY SELECT stage_result, total_confidence, substage_result, sata_score_result;
 END;
 $$ LANGUAGE plpgsql;
 
