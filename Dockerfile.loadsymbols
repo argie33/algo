@@ -1,21 +1,13 @@
-FROM python:3.11-slim
+# Dockerfile.loadsymbols
+FROM public.ecr.aws/lambda/python:3.11
 
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR ${LAMBDA_TASK_ROOT}
 
+# Copy requirements and script
+COPY Dockerfile.loadsymbols requirements-loadsymbols.txt loadsymbols.py ./
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      build-essential \
-      gcc \
-      libpq-dev \
-      libssl-dev \
-      libffi-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY requirements-loadsymbols.txt .
+# Install the requirements
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadsymbols.txt
 
-COPY loadsymbols.py .
-CMD ["python", "loadsymbols.py"]
+# Set the entrypoint
+ENTRYPOINT ["python", "loadsymbols.py"]

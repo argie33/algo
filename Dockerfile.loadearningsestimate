@@ -1,18 +1,13 @@
 # Dockerfile.loadearningsestimate
-FROM python:3.11-slim
+FROM public.ecr.aws/lambda/python:3.11
 
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-
-WORKDIR /app
-
+# Copy requirements and script
 COPY Dockerfile.loadearningsestimate requirements-loadearningsestimate.txt loadearningsestimate.py ./
 
+# Install the requirements
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadearningsestimate.txt
 
-# Run as non-root
-USER 1000
-
+# Set the entrypoint
 ENTRYPOINT ["python", "loadearningsestimate.py"]

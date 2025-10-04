@@ -1,22 +1,13 @@
-FROM python:3.11-slim
+# Dockerfile.loadanalystupgradedowngrade
+FROM public.ecr.aws/lambda/python:3.11
 
-# Analyst upgrade/downgrade loader - tracks analyst rating changes
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR ${LAMBDA_TASK_ROOT}
 
+# Copy requirements and script
+COPY Dockerfile.loadanalystupgradedowngrade requirements-loadanalystupgradedowngrade.txt loadanalystupgradedowngrade.py ./
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      build-essential \
-      gcc \
-      libpq-dev \
-      libssl-dev \
-      libffi-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY requirements-loadanalystupgradedowngrade.txt .
+# Install the requirements
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadanalystupgradedowngrade.txt
 
-COPY loadanalystupgradedowngrade.py .
-CMD ["python", "loadanalystupgradedowngrade.py"]
+# Set the entrypoint
+ENTRYPOINT ["python", "loadanalystupgradedowngrade.py"]
