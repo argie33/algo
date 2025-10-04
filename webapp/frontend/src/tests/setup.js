@@ -937,7 +937,17 @@ vi.mock("../services/api.js", () => ({
     getPortfolioHoldings: vi
       .fn()
       .mockResolvedValue({ success: true, data: [] }),
-    getStockPrices: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getStockPrices: vi.fn().mockResolvedValue({
+      success: true,
+      data: Array.from({ length: 30 }, (_, i) => ({
+        date: `2024-01-${String(i + 1).padStart(2, '0')}`,
+        close: 150.0 + (i * 0.5),
+        open: 149.0 + (i * 0.5),
+        high: 151.0 + (i * 0.5),
+        low: 148.0 + (i * 0.5),
+        volume: 1000000 + (i * 10000)
+      }))
+    }),
     getPriceHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
 }));
 
