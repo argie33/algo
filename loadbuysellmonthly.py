@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 - Monthly signals loader ready for AWS deployment
+# Updated: 2025-10-04 - Monthly signals loader ready for AWS deployment
 # Trigger deployment with swing metrics
 import json
 import logging
