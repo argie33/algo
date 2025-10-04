@@ -1,11 +1,12 @@
 FROM python:3.11-slim
 
+# Stock scores calculator - computes composite stock quality scores
 # Set environment variables to suppress pip warnings
 ENV PIP_ROOT_USER_ACTION=ignore \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Force cache invalidation for code changes
-ARG CACHE_BUST=v1.12
+ARG CACHE_BUST=v1.13
 
 WORKDIR /app
 
