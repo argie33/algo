@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Analyst Upgrade/Downgrade Data Loader
+Updated: 2025-10-04 14:15 - Deploy analyst rating changes loader
 
 This script fetches and loads analyst rating changes (upgrades, downgrades, initiations)
 from Yahoo Finance into the PostgreSQL database. Analyst ratings are a key indicator
