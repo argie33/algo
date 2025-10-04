@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-09-30 - Verified ETF filtering: stocks only to stock_symbols table
+# Updated: 2025-10-04 16:55 - Trigger symbols loader - populate Agilent, Alcoa, and all stocks
 import csv
 import json
 import logging
