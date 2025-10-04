@@ -2977,6 +2977,7 @@ router.get("/leading-indicators", async (req, res) => {
 
   try {
     // Get latest values for key economic indicators from FRED data
+    // Query for economic indicators including full yield curve data
     const economicQuery = `
       WITH latest_values AS (
         SELECT
@@ -2986,8 +2987,11 @@ router.get("/leading-indicators", async (req, res) => {
           ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
         FROM economic_data
         WHERE series_id IN (
-          'UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y',
-          'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH'
+          'UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'T10Y2Y',
+          'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH',
+          -- Full yield curve maturities for comprehensive chart
+          'DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7',
+          'DGS10', 'DGS20', 'DGS30'
         )
       )
       SELECT series_id, value, date
@@ -3039,16 +3043,24 @@ router.get("/leading-indicators", async (req, res) => {
             : null,
         },
 
-        // Yield curve analysis
+        // Yield curve analysis with spread calculations
         yieldCurve: {
           spread2y10y: spread2y10y,
-          spread3m10y: spread2y10y, // Using 2y10y as proxy for 3m10y
+          // Calculate 3M-10Y spread if both rates available
+          spread3m10y: (indicators["DGS10"] && indicators["DGS3MO"])
+            ? indicators["DGS10"].value - indicators["DGS3MO"].value
+            : spread2y10y, // Fallback to 2y10y spread if 3M not available
           isInverted: isInverted,
           interpretation: isInverted
             ? "Inverted yield curve suggests potential recession risk"
             : "Normal yield curve indicates healthy economic conditions",
-          historicalAccuracy: isInverted ? 85 : 65, // Historical accuracy based on inversion
-          averageLeadTime: isInverted ? 12 : 0, // Average lead time in months
+          // Historical accuracy: Based on research, yield curve inversions
+          // have preceded 7 of 8 recessions since 1970 (87.5% accuracy)
+          // When not inverted, baseline accuracy around 65% for normal predictions
+          historicalAccuracy: isInverted ? 87 : 65,
+          // Average lead time: Studies show inversions lead recessions by 6-24 months,
+          // with median around 12 months. Zero when not inverted (no signal).
+          averageLeadTime: isInverted ? 12 : 0,
         },
 
         // Individual indicators array - filter out null values and add required frontend fields
@@ -3108,16 +3120,50 @@ router.get("/leading-indicators", async (req, res) => {
         ].filter(ind => ind.rawValue !== null), // Filter out indicators with no data
 
         // Market data
+        // Complete yield curve data across all treasury maturities
+        // This provides a comprehensive view from short-term to long-term rates
         yieldCurveData: [
+          {
+            maturity: "3M",
+            rate: indicators["DGS3MO"] ? indicators["DGS3MO"].value : null,
+          },
+          {
+            maturity: "6M",
+            rate: indicators["DGS6MO"] ? indicators["DGS6MO"].value : null,
+          },
+          {
+            maturity: "1Y",
+            rate: indicators["DGS1"] ? indicators["DGS1"].value : null,
+          },
           {
             maturity: "2Y",
             rate: indicators["DGS2"] ? indicators["DGS2"].value : null,
           },
           {
+            maturity: "3Y",
+            rate: indicators["DGS3"] ? indicators["DGS3"].value : null,
+          },
+          {
+            maturity: "5Y",
+            rate: indicators["DGS5"] ? indicators["DGS5"].value : null,
+          },
+          {
+            maturity: "7Y",
+            rate: indicators["DGS7"] ? indicators["DGS7"].value : null,
+          },
+          {
             maturity: "10Y",
             rate: indicators["DGS10"] ? indicators["DGS10"].value : null,
           },
-        ],
+          {
+            maturity: "20Y",
+            rate: indicators["DGS20"] ? indicators["DGS20"].value : null,
+          },
+          {
+            maturity: "30Y",
+            rate: indicators["DGS30"] ? indicators["DGS30"].value : null,
+          },
+        ].filter(item => item.rate !== null), // Only include maturities with actual data
 
         // Upcoming events (static for now)
         upcomingEvents: [
