@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-Fear & Greed Index Data Loader
+Fear & Greed Index Data Loader - Updated: 2025-10-04 16:50
 
 This script scrapes the CNN Fear & Greed Index data using a headless browser
 and loads it into the PostgreSQL database. The Fear & Greed Index is a market
 sentiment indicator that ranges from 0 (Extreme Fear) to 100 (Extreme Greed).
+
+TRIGGER: First deployment - loader has never run despite task definition existing.
 
 Key Features:
 - Scrapes historical Fear & Greed data from CNN's API endpoint
