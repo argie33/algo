@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Alpaca paper-trading order placer.
+Alpaca paper-trading order placer - Updated 2025-10-04.
 Reads PAPER API credentials and order parameters from environment,
 submits a single order, logs response, then exits.
 """
