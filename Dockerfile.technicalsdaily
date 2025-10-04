@@ -1,30 +1,13 @@
-# Dockerfile.technicalsdaily - Optimized for ECS
-FROM python:3.11-slim
+# Dockerfile.technicalsdaily
+FROM public.ecr.aws/lambda/python:3.11
 
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR ${LAMBDA_TASK_ROOT}
 
+# Copy requirements and script
+COPY Dockerfile.technicalsdaily requirements-loadtechnicalsdaily.txt loadtechnicalsdaily.py ./
 
-WORKDIR /app
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadtechnicalsdaily.txt
 
-# Install system dependencies for psycopg2 and memory monitoring
-RUN apt-get update && apt-get install -y \
-    libpq-dev \
-    gcc \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Install Python dependencies
-COPY requirements-loadtechnicalsdaily.txt .
-RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadtechnicalsdaily.txt \
-    && pip cache purge
-
-# Copy script
-COPY loadtechnicalsdaily.py .
-
-# Set memory limits for Python
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONMALLOC=malloc
-
+# Set the entrypoint
 ENTRYPOINT ["python", "loadtechnicalsdaily.py"]
