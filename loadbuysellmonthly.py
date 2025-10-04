@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-04 13:50 - Financial data loader
+# Updated: 2025-10-04 14:45 - Buy/Sell monthly signal loader with swing metrics
 # Trigger deployment with swing metrics
 import json
 import logging

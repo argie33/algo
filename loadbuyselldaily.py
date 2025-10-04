@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-04 13:50 - Financial data loader
+# Updated: 2025-10-04 14:45 - Buy/Sell signal loader with swing metrics
 # Updated: 2025-10-03 22:02 - Trigger deployment after null check fixes
 # Updated: 2025-10-03 - Fixed SQL parameter formatting in swing metrics calculation
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
