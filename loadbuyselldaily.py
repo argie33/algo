@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 22:08 - Trigger deployment to populate daily signals
+# Updated: 2025-10-04 02:05 - Daily buy/sell signals loader
 # Updated: 2025-10-03 22:02 - Trigger deployment after null check fixes
 # Updated: 2025-10-03 - Fixed SQL parameter formatting in swing metrics calculation
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
