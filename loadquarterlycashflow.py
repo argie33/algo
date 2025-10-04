@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-01 - Financial statement loader
+# Updated: 2025-10-04 - Financial statement loader (Quarterly Cash Flow)
 import gc
 import json
 import logging
