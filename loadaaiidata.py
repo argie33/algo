@@ -31,7 +31,7 @@ Sentiment Interpretation:
 - Historical averages: ~38% bullish, ~30% neutral, ~30% bearish
 - Extreme readings (>55% bullish or bearish) often signal contrarian opportunities
 
-Updated: 2025-10-03 23:15 - Deploy AAII sentiment loader to populate sentiment data
+Updated: 2025-10-04 14:00 - Deploy AAII investor sentiment survey loader
 """
 import gc
 import json

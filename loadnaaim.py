@@ -37,8 +37,7 @@ Interpretation:
 - 40-70%: Neutral range
 - <20%: Very bearish, potential contrarian buy signal
 
-Updated: 2025-10-03 - Trigger deployment for NAAIM sentiment data
-Updated: 2025-10-02 21:35 - Run NAAIM sentiment loader
+Updated: 2025-10-04 14:00 - Deploy NAAIM exposure index sentiment loader
 """
 import gc
 import json

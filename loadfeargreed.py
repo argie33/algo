@@ -18,8 +18,7 @@ Database Schema:
 - fear_greed_index: Stores daily Fear & Greed readings (date, index_value, rating)
 - last_updated: Tracks script execution timestamps
 
-Updated: 2025-10-03 - Trigger deployment for Fear & Greed Index data
-Updated: 2025-10-02 21:35 - Run Fear & Greed sentiment loader
+Updated: 2025-10-04 14:00 - Deploy Fear & Greed Index sentiment loader
 """
 import asyncio
 import gc
