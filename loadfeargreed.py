@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fear & Greed Index Data Loader - Updated: 2025-10-04 16:50
+Fear & Greed Index Data Loader - Updated: 2025-10-04 17:05
 
 This script scrapes the CNN Fear & Greed Index data using a headless browser
 and loads it into the PostgreSQL database. The Fear & Greed Index is a market

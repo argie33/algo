@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-02 02:32 - Trigger execution to populate AWS earnings estimates table
+# Updated: 2025-10-04 17:05 - Trigger earnings estimates loader for all stocks
 import gc
 import json
 import logging

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NAAIM Exposure Index Data Loader - Updated: 2025-10-04 16:50
+NAAIM Exposure Index Data Loader - Updated: 2025-10-04 17:05
 
 This script scrapes and loads the National Association of Active Investment Managers (NAAIM)
 Exposure Index data into the PostgreSQL database. The NAAIM Exposure Index is a sentiment
