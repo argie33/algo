@@ -517,6 +517,34 @@ function TechnicalAnalysis() {
                     </Button>
                   </Grid>
                 </Grid>
+
+                {/* Pattern Recognition Display */}
+                {row.pattern && row.pattern.type && (
+                  <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} sm={6}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography variant="caption" color="text.secondary">
+                            Pattern:
+                          </Typography>
+                          <Chip
+                            label={row.pattern.type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                            color={row.pattern.direction === 'bullish' ? 'success' : row.pattern.direction === 'bearish' ? 'error' : 'default'}
+                            size="small"
+                            icon={row.pattern.direction === 'bullish' ? <TrendingUp /> : row.pattern.direction === 'bearish' ? <TrendingDown /> : null}
+                          />
+                          {row.pattern.confidence && (
+                            <Chip
+                              label={`${Math.round(row.pattern.confidence * 100)}% confidence`}
+                              size="small"
+                              variant="outlined"
+                            />
+                          )}
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
               </Box>
             </AccordionSummary>
             <AccordionDetails>
@@ -552,6 +580,55 @@ function TechnicalAnalysis() {
                     </Grid>
                   ))}
               </Grid>
+
+              {/* Pattern Details (if available) */}
+              {row.pattern && row.pattern.type && (
+                <Box sx={{ mt: 3 }}>
+                  <Card variant="outlined" sx={{ bgcolor: row.pattern.direction === 'bullish' ? 'success.50' : row.pattern.direction === 'bearish' ? 'error.50' : 'grey.50' }}>
+                    <CardContent>
+                      <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                        Pattern Recognition
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">
+                            Pattern Type
+                          </Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {row.pattern.type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">
+                            Direction
+                          </Typography>
+                          <Typography variant="body2" fontWeight="medium" color={row.pattern.direction === 'bullish' ? 'success.dark' : row.pattern.direction === 'bearish' ? 'error.dark' : 'text.primary'}>
+                            {row.pattern.direction ? row.pattern.direction.charAt(0).toUpperCase() + row.pattern.direction.slice(1) : 'N/A'}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" color="text.secondary">
+                            Confidence
+                          </Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {row.pattern.confidence ? `${Math.round(row.pattern.confidence * 100)}%` : 'N/A'}
+                          </Typography>
+                        </Grid>
+                        {row.pattern.strength && (
+                          <Grid item xs={6} sm={3}>
+                            <Typography variant="caption" color="text.secondary">
+                              Strength
+                            </Typography>
+                            <Typography variant="body2" fontWeight="medium">
+                              {row.pattern.strength}%
+                            </Typography>
+                          </Grid>
+                        )}
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                </Box>
+              )}
             </AccordionDetails>
           </Accordion>
         )

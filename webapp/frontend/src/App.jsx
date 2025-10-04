@@ -67,7 +67,6 @@ import TradeHistory from "./pages/TradeHistory";
 import OrderManagement from "./pages/OrderManagement";
 import Sentiment from "./pages/Sentiment";
 import AnalystInsights from "./pages/AnalystInsights";
-import PatternRecognition from "./pages/PatternRecognition";
 import EconomicModeling from "./pages/EconomicModeling";
 import Settings from "./pages/Settings";
 import ScoresDashboard from "./pages/ScoresDashboard";
@@ -222,13 +221,6 @@ const menuItems = [
     icon: <HealthAndSafetyIcon />,
     path: "/service-health",
     category: "tools",
-  },
-  {
-    text: "Pattern Recognition",
-    icon: <AnalyticsIcon />,
-    path: "/tools/patterns",
-    category: "tools",
-    premium: true,
   },
   {
     text: "Backtester",
@@ -673,7 +665,6 @@ function App() {
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/stocks/sentiment" element={<Sentiment />} />
             <Route path="/sentiment/analysts" element={<AnalystInsights />} />
-            <Route path="/tools/patterns" element={<PatternRecognition />} />
             <Route path="/tools/ai" element={<AIAssistant />} />
           </Routes>
         </Container>
