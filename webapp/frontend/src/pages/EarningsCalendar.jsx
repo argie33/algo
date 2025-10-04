@@ -174,21 +174,40 @@ function EarningsCalendar() {
     return <ShowChart sx={{ fontSize: 16 }} />;
   };
 
-  // Group weekly calendar by day
-  const weeklyEvents = (
-    weeklyCalendarData?.data?.data ??
-    weeklyCalendarData?.data ??
-    []
-  ).reduce((acc, event) => {
-    const date = new Date(event.start_date).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
+  // Group weekly calendar by day - always show all weekdays
+  const weeklyEvents = useMemo(() => {
+    // Get current week's Monday-Friday dates
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // If Sunday, go back 6 days, else calculate offset to Monday
+
+    const weekDates = {};
+    for (let i = 0; i < 5; i++) { // Mon-Fri only
+      const date = new Date(today);
+      date.setDate(today.getDate() + mondayOffset + i);
+      const dateKey = date.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      weekDates[dateKey] = [];
+    }
+
+    // Populate events into the dates
+    const events = weeklyCalendarData?.data?.data ?? weeklyCalendarData?.data ?? [];
+    events.forEach(event => {
+      const date = new Date(event.start_date).toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      if (weekDates[date]) {
+        weekDates[date].push(event);
+      }
     });
-    if (!acc[date]) acc[date] = [];
-    acc[date].push(event);
-    return acc;
-  }, {});
+
+    return weekDates;
+  }, [weeklyCalendarData]);
 
   // Format earnings data for table - one row per symbol
   const earningsRows = Object.entries(earningsData?.data || {})
@@ -324,7 +343,7 @@ function EarningsCalendar() {
             <Box display="flex" justifyContent="center" py={3}>
               <CircularProgress size={28} />
             </Box>
-          ) : Object.keys(weeklyEvents).length > 0 ? (
+          ) : (
             <Grid container spacing={2}>
               {Object.entries(weeklyEvents).map(([date, events]) => (
                 <Grid item xs={12} sm={6} md={2.4} key={date}>
@@ -339,39 +358,41 @@ function EarningsCalendar() {
                       </Typography>
                       <Divider sx={{ mb: 1 }} />
                       <Box sx={{ maxHeight: 200, overflowY: "auto" }}>
-                        {events.map((event, idx) => (
-                          <Box
-                            key={`${event.symbol}-${idx}`}
-                            sx={{ mb: 1, cursor: "pointer" }}
-                            onClick={() => {
-                              setSearchInput(event.symbol);
-                              setSymbolFilter(event.symbol);
-                              setExpandedSymbol(event.symbol);
-                              setPage(0);
-                            }}
-                          >
-                            <Typography
-                              variant="body2"
-                              fontWeight="bold"
-                              color="primary"
+                        {events.length > 0 ? (
+                          events.map((event, idx) => (
+                            <Box
+                              key={`${event.symbol}-${idx}`}
+                              sx={{ mb: 1, cursor: "pointer" }}
+                              onClick={() => {
+                                setSearchInput(event.symbol);
+                                setSymbolFilter(event.symbol);
+                                setExpandedSymbol(event.symbol);
+                                setPage(0);
+                              }}
                             >
-                              {event.symbol}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {event.title}
-                            </Typography>
-                          </Box>
-                        ))}
+                              <Typography
+                                variant="body2"
+                                fontWeight="bold"
+                                color="primary"
+                              >
+                                {event.symbol}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {event.title}
+                              </Typography>
+                            </Box>
+                          ))
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
+                            None
+                          </Typography>
+                        )}
                       </Box>
                     </CardContent>
                   </Card>
                 </Grid>
               ))}
             </Grid>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No earnings scheduled this week
-            </Typography>
           )}
         </CardContent>
       </Card>
