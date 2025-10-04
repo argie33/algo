@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+# Updated: 2025-10-04 13:50 - Financial data loader
 Earnings Metrics Loader - Updated 2025-10-04 02:00
 Award-winning earnings quality scoring with industry best practices
 
