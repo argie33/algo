@@ -46,6 +46,7 @@ import {
 import {
   TrendingUp,
   TrendingDown,
+  TrendingFlat,
   Analytics,
   Psychology,
   Timeline,
@@ -626,10 +627,99 @@ function MarketOverview() {
   const latestNAAIM = naaimHistory[0] || {};
   const latestAAII = aaiiHistory[0] || {};
 
+  // Helper to calculate sentiment signal from AAII data
+  const getSentimentSignal = (bullish, bearish) => {
+    const diff = bullish - bearish;
+    if (diff > 10) return { label: "Bullish", color: "success", icon: <TrendingUp /> };
+    if (diff < -10) return { label: "Bearish", color: "error", icon: <TrendingDown /> };
+    return { label: "Neutral", color: "warning", icon: <TrendingFlat /> };
+  };
+
+  const aaiiSignal = getSentimentSignal(latestAAII.bullish || 0, latestAAII.bearish || 0);
+
   // --- Sentiment History Tab ---
   const SentimentHistoryPanel = () => (
     <Box>
       <Grid container spacing={3}>
+        {/* AAII Market Sentiment Summary Card */}
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                <Typography variant="h6">AAII Market Sentiment</Typography>
+                <Chip label={aaiiSignal.label} color={aaiiSignal.color} icon={aaiiSignal.icon} />
+              </Box>
+              <Box>
+                <Box mb={2}>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2" color="textSecondary">Bullish</Typography>
+                    <Typography variant="body2" fontWeight="bold" color="success.main">
+                      {latestAAII.bullish ?? "N/A"}%
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={latestAAII.bullish || 0}
+                    color="success"
+                    sx={{ height: 8, borderRadius: 1 }}
+                  />
+                </Box>
+                <Box mb={2}>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2" color="textSecondary">Neutral</Typography>
+                    <Typography variant="body2" fontWeight="bold" color="warning.main">
+                      {latestAAII.neutral ?? "N/A"}%
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={latestAAII.neutral || 0}
+                    color="warning"
+                    sx={{ height: 8, borderRadius: 1 }}
+                  />
+                </Box>
+                <Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2" color="textSecondary">Bearish</Typography>
+                    <Typography variant="body2" fontWeight="bold" color="error.main">
+                      {latestAAII.bearish ?? "N/A"}%
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={latestAAII.bearish || 0}
+                    color="error"
+                    sx={{ height: 8, borderRadius: 1 }}
+                  />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* AAII Sentiment Trend Chart */}
+        <Grid item xs={12} md={8}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                AAII Market Sentiment Trend
+              </Typography>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={sentimentChartData.slice(0, 30).reverse()}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis domain={[0, 100]} />
+                  <Tooltip formatter={(value, name) => [`${value}%`, name]} />
+                  <Legend />
+                  <Line type="monotone" dataKey="aaii_bullish" name="Bullish %" stroke="#4caf50" strokeWidth={2} />
+                  <Line type="monotone" dataKey="aaii_neutral" name="Neutral %" stroke="#ff9800" strokeWidth={2} />
+                  <Line type="monotone" dataKey="aaii_bearish" name="Bearish %" stroke="#f44336" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+
         {/* Fear & Greed Chart */}
         <Grid item xs={12}>
           <Card>
