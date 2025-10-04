@@ -72,14 +72,17 @@ const getSentimentLabel = (score) => {
 function Sentiment() {
   const [selectedSymbol, setSelectedSymbol] = useState(null);
 
-  // Fetch symbol list for autocomplete
+  // Fetch symbol list from sentiment data for autocomplete
   const { data: symbols } = useQuery({
     queryKey: ["symbols"],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE}/api/stocks/list`);
+      const response = await fetch(`${API_BASE}/api/sentiment/stocks`);
       if (!response.ok) throw new Error("Failed to fetch symbols");
       const data = await response.json();
-      return data.data || [];
+      // Extract unique symbols from sentiment data
+      const stockData = data.data || [];
+      const uniqueSymbols = [...new Set(stockData.map(d => d.symbol))].sort();
+      return uniqueSymbols.map(symbol => ({ symbol, name: symbol }));
     },
     staleTime: 3600000, // 1 hour
   });
