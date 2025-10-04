@@ -305,8 +305,8 @@ def get_stock_data_from_database(conn, symbol):
 
         # Get sentiment data for Sentiment Score
         cur.execute("""
-            SELECT sentiment_score, news_count
-            FROM sentiment_analysis
+            SELECT sentiment_score, total_mentions
+            FROM sentiment
             WHERE symbol = %s
             AND date >= CURRENT_DATE - INTERVAL '30 days'
             ORDER BY date DESC
