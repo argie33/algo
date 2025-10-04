@@ -1,6 +1,45 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-03 - Trigger deployment for NAAIM sentiment data
-# Updated: 2025-10-02 21:35 - Run NAAIM sentiment loader
+"""
+NAAIM Exposure Index Data Loader
+
+This script scrapes and loads the National Association of Active Investment Managers (NAAIM)
+Exposure Index data into the PostgreSQL database. The NAAIM Exposure Index is a sentiment
+indicator measuring the average exposure to U.S. equity markets reported by NAAIM members.
+
+Key Features:
+- Scrapes NAAIM Exposure Index data from NAAIM.org website
+- Parses HTML tables containing historical exposure readings
+- Tracks mean exposure, quartiles, and distribution metrics
+- UPSERT logic to update existing records
+- Retry logic for web scraping failures
+- Memory usage tracking
+
+Data Source:
+- NAAIM.org Exposure Index webpage
+- URL: https://www.naaim.org/programs/naaim-exposure-index/
+- Updated weekly (typically Wednesday evenings)
+
+Database Schema:
+- naaim: Stores weekly exposure readings
+- last_updated: Tracks script execution timestamps
+
+NAAIM Exposure Index Explained:
+- Range: -200% (maximum short) to +200% (maximum leveraged long)
+- Mean/Average: Average equity exposure across all NAAIM members
+- Quartiles: Distribution of member exposures (25th, 50th, 75th percentiles)
+- Bullish: Members with >100% long exposure (using leverage)
+- Bearish: Members with negative (short) exposure
+- Typical range: 30% to 100% (varies with market conditions)
+- Extreme readings (>100% or <20%) may signal excessive optimism/pessimism
+
+Interpretation:
+- >80%: Very bullish, potential contrarian sell signal
+- 40-70%: Neutral range
+- <20%: Very bearish, potential contrarian buy signal
+
+Updated: 2025-10-03 - Trigger deployment for NAAIM sentiment data
+Updated: 2025-10-02 21:35 - Run NAAIM sentiment loader
+"""
 import gc
 import json
 import logging
@@ -33,13 +72,15 @@ logging.basicConfig(
 # Memory-logging helper (RSS in MB)
 # -------------------------------
 def get_rss_mb():
+    """Get current memory usage in MB (RSS)."""
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+        return usage / 1024  # Linux reports in KB
+    return usage / (1024 * 1024)  # macOS reports in bytes
 
 
 def log_mem(stage: str):
+    """Log memory usage at a specific execution stage."""
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 
@@ -74,6 +115,7 @@ NAAIM_URL = "https://www.naaim.org/programs/naaim-exposure-index/"
 # DB config loader
 # -------------------------------
 def get_db_config():
+    """Retrieve database credentials from AWS Secrets Manager."""
     secret_str = boto3.client("secretsmanager").get_secret_value(
         SecretId=os.environ["DB_SECRET_ARN"]
     )["SecretString"]
@@ -91,10 +133,7 @@ def get_db_config():
 # Download NAAIM data
 # -------------------------------
 def get_naaim_data():
-    """
-    Downloads the NAAIM Exposure Index data from their website.
-    Returns a DataFrame with the NAAIM exposure data.
-    """
+    """Download NAAIM Exposure Index data. Uses pandas read_html first, falls back to BeautifulSoup."""
     logging.info(f"Downloading NAAIM data from: {NAAIM_URL}")
 
     # Custom headers to mimic a browser request and avoid compression
@@ -280,6 +319,7 @@ def get_naaim_data():
 # Main loader with batched inserts
 # -------------------------------
 def load_naaim_data(cur, conn):
+    """Load NAAIM data into database. Uses UPSERT to update existing records."""
     logging.info("Loading NAAIM data")
 
     try:
@@ -337,6 +377,7 @@ def load_naaim_data(cur, conn):
 # Entrypoint
 # -------------------------------
 if __name__ == "__main__":
+    """Main execution: recreate table, load NAAIM data, record last run timestamp."""
     log_mem("startup")
 
     # Connect to DB
