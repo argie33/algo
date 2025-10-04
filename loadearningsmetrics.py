@@ -347,14 +347,16 @@ def calculate_earnings_quality_score(metrics_data):
         available_weight += 0.20
 
     # ========== COMPONENT 4: Growth Consistency (15% weight) ==========
-    # Count how many of the last 4 quarters had positive YoY growth
+    # Count how many of the last quarters (up to 4) had positive YoY growth
     # Rewards predictable, consistent performers
-    positive_quarters = sum(1 for m in metrics_data[:4]
-                          if safe_numeric(m.get('eps_yoy_growth')) is not None and
-                          safe_numeric(m.get('eps_yoy_growth')) > 0)
-    if len(metrics_data) >= 4:
+    # Works with 2-4 quarters of data for maximum compatibility
+    quarters_to_check = min(len(metrics_data), 4)
+    if quarters_to_check >= 2:  # Need at least 2 quarters for consistency metric
+        positive_quarters = sum(1 for m in metrics_data[:quarters_to_check]
+                              if safe_numeric(m.get('eps_yoy_growth')) is not None and
+                              safe_numeric(m.get('eps_yoy_growth')) > 0)
         # Example: 3 out of 4 positive quarters -> 0.75 * 0.15 = 0.1125 weighted score
-        component_scores['consistency'] = (positive_quarters / 4) * 0.15
+        component_scores['consistency'] = (positive_quarters / quarters_to_check) * 0.15
         available_weight += 0.15
 
     # ========== COMPONENT 5: EPS Acceleration (10% weight) ==========
@@ -377,9 +379,10 @@ def calculate_earnings_quality_score(metrics_data):
         available_weight += 0.10
 
     # ========== VALIDATION AND FINAL CALCULATION ==========
-    # Require at least 50% of components to have data (e.g., 3 out of 5 major components)
-    # This ensures we're not scoring on insufficient information
-    if available_weight < 0.50:
+    # Require at least 30% of components to have data (minimum: EPS YoY growth)
+    # This allows scoring even when surprise_percent and revenue data are unavailable
+    # Most stocks will have eps_actual which gives us: EPS YoY (30%) + Consistency (15%) + Acceleration (10%) = 55%
+    if available_weight < 0.30:
         logging.warning(f"Insufficient data for quality score (only {available_weight*100:.0f}% weight available)")
         return None
 
@@ -567,7 +570,12 @@ def process_symbol(symbol, conn_pool):
             row = earnings_df.iloc[i]
             report_date = row["quarter"]
             eps_actual = row["eps_actual"]
+            eps_estimate = row["eps_estimate"]
             surprise_pct = row["surprise_percent"]
+
+            # Calculate surprise_percent ourselves if not provided by yfinance
+            if surprise_pct is None and eps_actual is not None and eps_estimate is not None and eps_estimate != 0:
+                surprise_pct = ((eps_actual - eps_estimate) / abs(eps_estimate)) * 100
 
             # Quarter-over-quarter growth (current vs previous quarter)
             eps_qoq_growth = None
@@ -580,6 +588,10 @@ def process_symbol(symbol, conn_pool):
             if i >= 4:  # Need at least 4 quarters (1 year) of history
                 year_ago_eps = earnings_df.iloc[i - 4]["eps_actual"]
                 eps_yoy_growth = calculate_yoy_growth(eps_actual, year_ago_eps)
+            elif i >= 1:  # Fallback: use QoQ if YoY not available (for stocks with limited history)
+                # For newer stocks, use QoQ as proxy for YoY (not perfect but better than nothing)
+                prev_eps = earnings_df.iloc[i - 1]["eps_actual"]
+                eps_yoy_growth = calculate_qoq_growth(eps_actual, prev_eps)
 
             # ========== Revenue YoY Growth - Match to Current Quarter ==========
             # Match revenue growth data to the current earnings quarter
