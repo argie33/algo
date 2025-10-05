@@ -71,17 +71,31 @@ consecutive_successes = 0  # Track successful batches to speed up if no issues
 # DB config loader
 # -------------------------------
 def get_db_config():
-    secret_str = boto3.client("secretsmanager").get_secret_value(
-        SecretId=os.environ["DB_SECRET_ARN"]
-    )["SecretString"]
-    sec = json.loads(secret_str)
-    return {
-        "host": sec["host"],
+    """Fetch database configuration from AWS Secrets Manager or environment variables."""
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    if db_secret_arn:
+        # AWS mode - use Secrets Manager
+        secret_str = boto3.client("secretsmanager").get_secret_value(
+            SecretId=db_secret_arn
+        )["SecretString"]
+        sec = json.loads(secret_str)
+        return {
+            "host": sec["host"],
         "port": int(sec.get("port", 5432)),
         "user": sec["username"],
         "password": sec["password"],
         "dbname": sec["dbname"],
     }
+    else:
+        # Local mode - use environment variables
+        return {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "user": os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", "password"),
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
 
 
 def load_company_info(symbols, cur, conn):
