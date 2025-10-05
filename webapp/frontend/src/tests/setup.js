@@ -346,11 +346,12 @@ vi.mock("../contexts/AuthContext.jsx", async () => {
   };
 });
 
+// Recharts mock - simple stub components
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children, ...props }) =>
     React.createElement(
       "div",
-      { "data-testid": "responsive-container", ...props },
+      { "data-testid": "responsive-container", style: { width: '100%', height: 400 }, ...props },
       children
     ),
   LineChart: ({ children, data, ...props }) =>

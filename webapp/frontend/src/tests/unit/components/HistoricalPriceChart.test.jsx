@@ -61,13 +61,14 @@ const mockHistoricalData = Array.from({ length: 5 }, (_, i) => ({
   close: 150.0,
 }));
 
-// Mock recharts components
-vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children, ...props }) => (
-    <div data-testid="responsive-container" {...props}>
-      {children}
-    </div>
-  ),
+// Mock recharts components - override global mock
+vi.mock("recharts", async () => {
+  return {
+    ResponsiveContainer: ({ children, ...props }) => (
+      <div data-testid="responsive-container" {...props}>
+        {children}
+      </div>
+    ),
   LineChart: ({ children, data, ...props }) => (
     <div
       data-testid="line-chart"
