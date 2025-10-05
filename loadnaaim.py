@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 20251005_134900
+# Trigger rebuild: 20251005_165500
 """
 NAAIM Exposure Index Data Loader - Updated: 2025-10-04 17:05
 
