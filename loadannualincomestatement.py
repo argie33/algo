@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Trigger rebuild: 20251005_061658
 # Updated: 2025-10-04 16:45 - Annual income statement loader - trigger rebuild
 import gc
 import json

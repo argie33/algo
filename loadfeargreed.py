@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Trigger rebuild: 20251005_061658
 """
 Fear & Greed Index Data Loader - Updated: 2025-10-04 17:05
 
