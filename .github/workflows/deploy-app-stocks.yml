@@ -767,7 +767,7 @@ jobs:
           UPDATED_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
             --arg imageUri "$IMAGE_URI" \
             --arg containerName "$CONTAINER_NAME" \
-            '.containerDefinitions |= map(if .name == $containerName then .image = $imageUri else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)')
+            '.containerDefinitions |= map(if .name == $containerName then .image = $imageUri else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
 
           # Register new task definition revision
           # Write JSON to temporary file for AWS CLI
