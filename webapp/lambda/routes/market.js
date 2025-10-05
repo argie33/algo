@@ -2727,7 +2727,7 @@ router.get("/research-indicators", async (req, res) => {
           title as event,
           event_type as importance,
           description as impact
-        FROM calendar
+        FROM calendar_events
         WHERE event_type = 'Economic'
           AND start_date >= CURRENT_DATE
           AND start_date <= CURRENT_DATE + INTERVAL '30 days'
