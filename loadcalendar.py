@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Updated: 2025-10-02 17:12 - Fix is_active column error
+# Triggering rebuild to deploy fixed code to AWS - 2025-10-05
 import functools
 import json
 import logging
