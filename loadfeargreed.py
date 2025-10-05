@@ -23,11 +23,8 @@ Database Schema:
 
 Updated: 2025-10-04 14:00 - Deploy Fear & Greed Index sentiment loader
 """
-import asyncio
-import gc
 import json
 import logging
-import math
 import os
 import resource
 import sys
@@ -35,10 +32,9 @@ import time
 from datetime import datetime
 
 import boto3
-import pandas as pd
 import psycopg2
+import requests
 from psycopg2.extras import RealDictCursor, execute_values
-from pyppeteer import launch
 
 # -------------------------------
 # Script metadata & logging setup
@@ -153,19 +149,13 @@ def timestamptodatestr(ts):
 # -------------------------------
 # Scrape Fear & Greed data
 # -------------------------------
-async def get_fear_greed_data():
+def get_fear_greed_data():
     """
-    Scrapes the CNN Fear & Greed index data using a headless browser.
+    Fetches the CNN Fear & Greed index data using simple HTTP requests.
 
     The CNN API endpoint returns JSON data with historical Fear & Greed Index values.
-    Since the endpoint requires JavaScript rendering, we use Pyppeteer (headless Chromium)
-    instead of simple HTTP requests.
-
-    Browser Configuration:
-        - Uses containerized Chromium with Docker-optimized flags
-        - Implements retry logic for reliability in containerized environments
-        - Sets user agent to avoid bot detection
-        - Waits for network idle to ensure data is fully loaded
+    We use a direct HTTP GET request which is much faster and more reliable than
+    browser automation.
 
     Returns:
         list: Array of dictionaries containing:
@@ -174,94 +164,52 @@ async def get_fear_greed_data():
             - rating (str): Text label (e.g., "Fear", "Greed", "Neutral")
 
     Raises:
-        Exception: If all retry attempts fail to scrape data
+        Exception: If all retry attempts fail to fetch data
     """
-    logging.info(f"Scraping Fear & Greed data from: {FEAR_GREED_URL}")
+    logging.info(f"Fetching Fear & Greed data from: {FEAR_GREED_URL}")
 
-    browser = None
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "application/json",
+    }
+
     for attempt in range(1, MAX_BROWSER_RETRIES + 1):
         try:
-            logging.info(f"Browser attempt {attempt}/{MAX_BROWSER_RETRIES}")
+            logging.info(f"HTTP request attempt {attempt}/{MAX_BROWSER_RETRIES}")
 
-            # Launch browser with Docker-optimized arguments for containerized environment
-            # These flags disable sandboxing and GPU features that may cause issues in containers
-            browser = await launch(
-                executablePath=os.environ.get("CHROME_BIN", "/usr/bin/chromium-browser"),
-                args=[
-                    "--no-sandbox",  # Required in Docker containers
-                    "--disable-setuid-sandbox",  # Required in Docker containers
-                    "--disable-dev-shm-usage",  # Prevent shared memory issues
-                    "--disable-accelerated-2d-canvas",  # Reduce resource usage
-                    "--no-first-run",  # Skip first-run setup
-                    "--no-zygote",  # Disable zygote process (Docker optimization)
-                    "--disable-gpu",  # No GPU in headless mode
-                    "--disable-background-timer-throttling",  # Consistent timing
-                    "--disable-backgrounding-occluded-windows",  # Prevent pausing
-                    "--disable-renderer-backgrounding",  # Keep renderer active
-                ],
-                headless=True,
-            )
+            response = requests.get(FEAR_GREED_URL, headers=headers, timeout=30)
+            response.raise_for_status()
 
-            page = await browser.newPage()
-
-            # Set user agent to mimic a real browser and avoid bot detection
-            await page.setUserAgent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            )
-
-            # Navigate to the Fear & Greed API endpoint
-            # waitUntil="networkidle0" ensures all network requests complete before proceeding
-            await page.goto(FEAR_GREED_URL, waitUntil="networkidle0", timeout=30000)
-
-            # Wait for the JSON data to appear in a <pre> tag
-            selector = "pre"
-            await page.waitForSelector(selector, timeout=30000)
-
-            # Extract the JSON data from the page
-            element = await page.querySelector(selector)
-            data = await page.evaluate("(element) => element.textContent", element)
-            data_json = json.loads(data)
+            data_json = response.json()
 
             # Extract the historical data array from the nested JSON structure
             data_array = data_json["fear_and_greed_historical"]["data"]
 
-            logging.info(f"Successfully scraped {len(data_array)} Fear & Greed records")
-
-            # Clean up browser resources
-            await browser.close()
-            browser = None
+            logging.info(f"Successfully fetched {len(data_array)} Fear & Greed records")
 
             return data_array
 
         except Exception as e:
-            logging.warning(f"Browser attempt {attempt} failed: {e}")
-            # Ensure browser is closed even if an error occurred
-            if browser:
-                try:
-                    await browser.close()
-                except:
-                    pass
-                browser = None
+            logging.warning(f"HTTP request attempt {attempt} failed: {e}")
 
             # Wait before retrying, or raise exception if all attempts exhausted
             if attempt < MAX_BROWSER_RETRIES:
                 time.sleep(RETRY_DELAY)
             else:
                 raise Exception(
-                    f"Failed to scrape Fear & Greed data after {MAX_BROWSER_RETRIES} attempts: {e}"
+                    f"Failed to fetch Fear & Greed data after {MAX_BROWSER_RETRIES} attempts: {e}"
                 )
 
 
 # -------------------------------
 # Main loader with batched inserts
 # -------------------------------
-async def load_fear_greed_data(cur, conn):
+def load_fear_greed_data(cur, conn):
     """
     Load Fear & Greed Index data into the database.
 
     This function orchestrates the entire data loading process:
-    1. Scrapes historical Fear & Greed data from CNN
+    1. Fetches historical Fear & Greed data from CNN
     2. Transforms the data (converts timestamps to dates)
     3. Deduplicates by date
     4. Batch inserts into database with UPSERT logic
@@ -284,15 +232,15 @@ async def load_fear_greed_data(cur, conn):
 
     Returns:
         tuple: (total_scraped, total_inserted, error_list)
-            - total_scraped (int): Number of records scraped from CNN
+            - total_scraped (int): Number of records fetched from CNN
             - total_inserted (int): Number of records inserted/updated in DB
             - error_list (list): List of error messages (empty if successful)
     """
     logging.info("Loading Fear & Greed data")
 
     try:
-        # Step 1: Scrape the Fear & Greed data from CNN
-        data_array = await get_fear_greed_data()
+        # Step 1: Fetch the Fear & Greed data from CNN
+        data_array = get_fear_greed_data()
 
         if not data_array:
             logging.warning("No Fear & Greed data scraped")
@@ -350,7 +298,7 @@ async def load_fear_greed_data(cur, conn):
 # -------------------------------
 # Entrypoint
 # -------------------------------
-async def main():
+def main():
     """
     Main execution function for the Fear & Greed Index data loader.
 
@@ -358,7 +306,7 @@ async def main():
     1. Establishes database connection using AWS Secrets Manager credentials
     2. Recreates fear_greed_index table (drops and recreates for fresh data)
     3. Ensures last_updated tracking table exists
-    4. Scrapes and loads Fear & Greed data
+    4. Fetches and loads Fear & Greed data
     5. Records execution timestamp in last_updated table
     6. Reports memory usage and execution statistics
 
@@ -410,8 +358,8 @@ async def main():
     )
     conn.commit()
 
-    # Step 4: Scrape and load Fear & Greed data
-    total, inserted, failed = await load_fear_greed_data(cur, conn)
+    # Step 4: Fetch and load Fear & Greed data
+    total, inserted, failed = load_fear_greed_data(cur, conn)
 
     # Step 5: Record this script's execution timestamp for monitoring
     cur.execute(
@@ -439,4 +387,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
