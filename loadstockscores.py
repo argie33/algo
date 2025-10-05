@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script - Enhanced Scoring Logic v2.1 (Updated: 2025-10-04 20:00)
+Stock Scores Loader Script - Enhanced Scoring Logic v2.2 (Updated: 2025-10-04 21:15)
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
-CRITICAL FIX: Added transaction rollback to prevent cascade failures.
-Trigger: Manual deployment for data population.
+CRITICAL FIX: Wrapped sentiment, analyst_recommendations, and institutional_positioning
+queries in try-except blocks to handle missing tables gracefully with rollback.
+Trigger: Manual deployment for missing table fix.
 
 Data Sources:
 - price_daily: Price data, volume, volatility, multi-timeframe momentum
@@ -305,56 +306,73 @@ def get_stock_data_from_database(conn, symbol):
         market_cap = None
 
         # Get sentiment data for Sentiment Score
-        cur.execute("""
-            SELECT sentiment_score, total_mentions
-            FROM sentiment
-            WHERE symbol = %s
-            AND date >= CURRENT_DATE - INTERVAL '30 days'
-            ORDER BY date DESC
-            LIMIT 1
-        """, (symbol,))
-        sentiment_data = cur.fetchone()
-        sentiment_score_raw = float(sentiment_data[0]) if sentiment_data and sentiment_data[0] is not None else None
-        news_count = int(sentiment_data[1]) if sentiment_data and sentiment_data[1] is not None else 0
+        try:
+            cur.execute("""
+                SELECT sentiment_score, total_mentions
+                FROM sentiment
+                WHERE symbol = %s
+                AND date >= CURRENT_DATE - INTERVAL '30 days'
+                ORDER BY date DESC
+                LIMIT 1
+            """, (symbol,))
+            sentiment_data = cur.fetchone()
+            sentiment_score_raw = float(sentiment_data[0]) if sentiment_data and sentiment_data[0] is not None else None
+            news_count = int(sentiment_data[1]) if sentiment_data and sentiment_data[1] is not None else 0
+        except psycopg2.Error as e:
+            conn.rollback()
+            logger.warning(f"Sentiment table query failed for {symbol}: {e}")
+            sentiment_score_raw = None
+            news_count = 0
 
         # Get analyst recommendations for Sentiment Score
-        cur.execute("""
-            SELECT rating, target_price, current_price
-            FROM analyst_recommendations
-            WHERE symbol = %s
-            AND date_published >= CURRENT_DATE - INTERVAL '90 days'
-            ORDER BY date_published DESC
-            LIMIT 10
-        """, (symbol,))
-        analyst_recs = cur.fetchall()
-        analyst_score = None
-        if analyst_recs:
-            # Convert ratings to numeric: Strong Buy=5, Buy=4, Hold=3, Sell=2, Strong Sell=1
-            rating_map = {'strong buy': 5, 'buy': 4, 'hold': 3, 'sell': 2, 'strong sell': 1}
-            ratings = [rating_map.get(row[0].lower(), 3) for row in analyst_recs if row[0]]
-            if ratings:
-                analyst_score = sum(ratings) / len(ratings)
+        try:
+            cur.execute("""
+                SELECT rating, target_price, current_price
+                FROM analyst_recommendations
+                WHERE symbol = %s
+                AND date_published >= CURRENT_DATE - INTERVAL '90 days'
+                ORDER BY date_published DESC
+                LIMIT 10
+            """, (symbol,))
+            analyst_recs = cur.fetchall()
+            analyst_score = None
+            if analyst_recs:
+                # Convert ratings to numeric: Strong Buy=5, Buy=4, Hold=3, Sell=2, Strong Sell=1
+                rating_map = {'strong buy': 5, 'buy': 4, 'hold': 3, 'sell': 2, 'strong sell': 1}
+                ratings = [rating_map.get(row[0].lower(), 3) for row in analyst_recs if row[0]]
+                if ratings:
+                    analyst_score = sum(ratings) / len(ratings)
+        except psycopg2.Error as e:
+            conn.rollback()
+            logger.warning(f"Analyst recommendations table query failed for {symbol}: {e}")
+            analyst_score = None
 
         # Get institutional positioning data for Positioning Score
-        cur.execute("""
-            SELECT position_change_percent, market_share, institution_type
-            FROM institutional_positioning
-            WHERE symbol = %s
-            AND filing_date >= CURRENT_DATE - INTERVAL '90 days'
-            ORDER BY filing_date DESC
-            LIMIT 20
-        """, (symbol,))
-        positioning_data = cur.fetchall()
-        inst_position_change = None
-        inst_market_share = None
-        if positioning_data:
-            # Calculate average position change and market share
-            position_changes = [float(row[0]) for row in positioning_data if row[0] is not None]
-            market_shares = [float(row[1]) for row in positioning_data if row[1] is not None]
-            if position_changes:
-                inst_position_change = sum(position_changes) / len(position_changes)
-            if market_shares:
-                inst_market_share = sum(market_shares) / len(market_shares)
+        try:
+            cur.execute("""
+                SELECT position_change_percent, market_share, institution_type
+                FROM institutional_positioning
+                WHERE symbol = %s
+                AND filing_date >= CURRENT_DATE - INTERVAL '90 days'
+                ORDER BY filing_date DESC
+                LIMIT 20
+            """, (symbol,))
+            positioning_data = cur.fetchall()
+            inst_position_change = None
+            inst_market_share = None
+            if positioning_data:
+                # Calculate average position change and market share
+                position_changes = [float(row[0]) for row in positioning_data if row[0] is not None]
+                market_shares = [float(row[1]) for row in positioning_data if row[1] is not None]
+                if position_changes:
+                    inst_position_change = sum(position_changes) / len(position_changes)
+                if market_shares:
+                    inst_market_share = sum(market_shares) / len(market_shares)
+        except psycopg2.Error as e:
+            conn.rollback()
+            logger.warning(f"Institutional positioning table query failed for {symbol}: {e}")
+            inst_position_change = None
+            inst_market_share = None
 
         # Calculate individual scores (0-100 scale)
 
