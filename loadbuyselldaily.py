@@ -78,13 +78,21 @@ def get_db_connection():
 # 1) DATABASE FUNCTIONS
 ###############################################################################
 def get_symbols_from_db(limit=None):
+    """Get symbols that have price and technical data (required for buy/sell signals)."""
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        # Only get symbols with sufficient price/technical data for signal generation
         q = """
-          SELECT symbol
-            FROM stock_symbols
-           WHERE exchange IN ('NASDAQ','New York Stock Exchange')
+            SELECT DISTINCT s.symbol
+            FROM stock_symbols s
+            INNER JOIN price_daily p ON s.symbol = p.symbol
+            INNER JOIN technical_data_daily t ON s.symbol = t.symbol
+            WHERE s.exchange IN ('NASDAQ', 'N', 'A', 'P')
+              AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
+            GROUP BY s.symbol
+            HAVING COUNT(DISTINCT p.date) >= 60
+            ORDER BY s.symbol
         """
         if limit:
             q += " LIMIT %s"
@@ -131,7 +139,7 @@ def create_buy_sell_table(cur):
         profit_target_20pct REAL,
         current_gain_loss_pct NUMERIC(6,2),
         risk_pct NUMERIC(6,2),
-        position_size_recommendation NUMERIC(10,2),
+        position_size_recommendation NUMERIC(18,2),
         passes_minervini_template BOOLEAN DEFAULT FALSE,
         rsi NUMERIC(6,2),
         adx NUMERIC(6,2),
@@ -1046,9 +1054,8 @@ def main():
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
-    symbols = get_symbols_from_db(
-        limit=3
-    )  # Limit for debugging, remove or increase as needed
+    # Get symbols with data - limit for local testing, unlimited for AWS production
+    symbols = get_symbols_from_db(limit=None)
     if not symbols:
         print("No symbols in DB.")
         return
