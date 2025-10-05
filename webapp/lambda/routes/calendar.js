@@ -483,7 +483,7 @@ router.get("/events", async (req, res) => {
         hasPrev: page > 1,
       },
       summary: {
-        upcoming_events: events.length,
+        upcoming_events: total,  // Use total count, not paginated events.length
         this_week: events.filter(e => {
           const eventDate = new Date(e.start_date);
           const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
