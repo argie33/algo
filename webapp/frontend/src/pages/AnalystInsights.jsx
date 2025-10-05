@@ -54,9 +54,9 @@ const AnalystInsights = () => {
 
       // Fetch upgrades/downgrades
       const upgradesResponse = await api.get(`/api/analysts/upgrades?page=${page}&limit=50`);
-      const upgradesData = upgradesResponse.data;
+      const upgradesData = upgradesResponse?.data;
 
-      if (upgradesData.success) {
+      if (upgradesData?.success) {
         let filteredUpgrades = upgradesData.data;
         if (filterAction !== 'all') {
           filteredUpgrades = upgradesData.data.filter(item =>
