@@ -153,15 +153,18 @@ def get_stock_symbols(conn, limit=None):
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Get all symbols from stock_symbols table
-        # Price data availability is checked when processing each symbol
+        # Get symbols that have price data (optimize for local testing)
+        # Only process symbols with sufficient price history
         limit_clause = f"LIMIT {limit}" if limit else ""
         cur.execute(f"""
-            SELECT symbol
-            FROM stock_symbols
-            WHERE exchange IN ('NASDAQ', 'N', 'A', 'P')
-              AND (etf = 'N' OR etf IS NULL OR etf = '')
-            ORDER BY symbol
+            SELECT DISTINCT s.symbol
+            FROM stock_symbols s
+            INNER JOIN price_daily p ON s.symbol = p.symbol
+            WHERE s.exchange IN ('NASDAQ', 'N', 'A', 'P')
+              AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
+            GROUP BY s.symbol
+            HAVING COUNT(p.date) >= 20
+            ORDER BY s.symbol
             {limit_clause}
         """)
 
