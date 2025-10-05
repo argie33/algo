@@ -32,7 +32,7 @@ import {
   TrendingUp as TrendingUpIcon,
   Business as BusinessIcon,
   Public as PublicIcon,
-  Search as SearchIcon,
+  Search as _SearchIcon,
   FilterList as FilterListIcon,
   ShowChart as ShowChartIcon,
   Event as EventIcon,

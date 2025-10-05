@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-04 19:45 - Added transaction rollback for cascade failure prevention
 # Updated: 2025-10-04 16:52 - Buy/Sell signal loader - DOUBLE PRECISION type fix
 # Updated: 2025-10-03 22:02 - Trigger deployment after null check fixes
 # Updated: 2025-10-03 - Fixed SQL parameter formatting in swing metrics calculation
@@ -904,6 +905,7 @@ def fetch_symbol_from_db(symbol, timeframe):
             f"[fetch_symbol_from_db] Got {len(rows)} rows for {symbol} {timeframe}"
         )
     except psycopg2.Error as e:
+        conn.rollback()  # Rollback aborted transaction
         logging.warning(f"[fetch_symbol_from_db] Technical data table issue for {symbol} {timeframe}: {e}")
         # Fallback query with only price data
         try:
@@ -920,9 +922,11 @@ def fetch_symbol_from_db(symbol, timeframe):
             rows = cur.fetchall()
             logging.info(f"[fetch_symbol_from_db] Fallback query got {len(rows)} rows for {symbol} {timeframe}")
         except Exception as fallback_e:
+            conn.rollback()  # Rollback aborted transaction
             logging.error(f"[fetch_symbol_from_db] Fallback SQL error for {symbol} {timeframe}: {fallback_e}")
             rows = []
     except Exception as e:
+        conn.rollback()  # Rollback aborted transaction
         logging.error(f"[fetch_symbol_from_db] SQL error for {symbol} {timeframe}: {e}")
         rows = []
     finally:

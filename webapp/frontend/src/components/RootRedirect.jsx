@@ -1,6 +1,4 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import React from 'react';
 import MarketOverview from '../pages/MarketOverview';
 
 /**
@@ -11,8 +9,6 @@ import MarketOverview from '../pages/MarketOverview';
  * - Dashboard is accessible via /dashboard for authenticated users only
  */
 const RootRedirect = () => {
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
 
   // For now, both authenticated and unauthenticated users see Market Overview at root
   // Dashboard is accessed via /dashboard and is protected
