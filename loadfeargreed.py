@@ -126,10 +126,10 @@ def get_db_config():
         return {
             "host": sec["host"],
             "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"],
-    }
+            "user": sec["username"],
+            "password": sec["password"],
+            "dbname": sec["dbname"],
+        }
     else:
         # Local mode - use environment variables
         return {
