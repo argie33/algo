@@ -37,17 +37,28 @@ if not FRED_API_KEY:
     logging.warning(
         "FRED_API_KEY environment variable is not set. Risk-free rate will be set to 0."
     )
-SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
-sm_client = boto3.client("secretsmanager")
-secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
-creds = json.loads(secret_resp["SecretString"])
+# Check if we're in AWS (has DB_SECRET_ARN)
+if os.environ.get("DB_SECRET_ARN"):
+    # AWS mode - use Secrets Manager
+    SECRET_ARN = os.environ["DB_SECRET_ARN"]
+    sm_client = boto3.client("secretsmanager")
+    secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
+    creds = json.loads(secret_resp["SecretString"])
 
-DB_USER = creds["username"]
-DB_PASSWORD = creds["password"]
-DB_HOST = creds["host"]
-DB_PORT = int(creds.get("port", 5432))
-DB_NAME = creds["dbname"]
+    DB_USER = creds["username"]
+    DB_PASSWORD = creds["password"]
+    DB_HOST = creds["host"]
+    DB_PORT = int(creds.get("port", 5432))
+    DB_NAME = creds["dbname"]
+else:
+    # Local mode - use environment variables
+    DB_HOST = os.environ.get("DB_HOST", "localhost")
+    DB_PORT = int(os.environ.get("DB_PORT", 5432))
+    DB_USER = os.environ.get("DB_USER", "postgres")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "password")
+    DB_NAME = os.environ.get("DB_NAME", "stocks")
+    logging.info(f"Using local database: {DB_HOST}:{DB_PORT}/{DB_NAME}")
 
 
 def get_db_connection():
@@ -589,218 +600,153 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             FROM {price_table} pd
             WHERE pd.symbol = %(symbol)s
         ),
-        calculated_metrics AS (
+        stage_data AS (
             SELECT
                 sd.symbol, sd.date,
+                es.stage, es.confidence as stage_confidence, es.substage, es.sata_score,
+                sd.current_price, sd.open, sd.high, sd.low, sd.volume, sd.inposition,
+                sd.signal, sd.buylevel, sd.stoplevel,
+                td.sma_20, td.sma_50, td.sma_150, td.sma_200, td.sma_20_prev, td.sma_50_prev, td.sma_200_prev,
+                td.ema_21, td.rsi, td.adx, td.atr, td.mansfield_rs,
+                vd.volume_avg_50,
+                hd.high_52week
+            FROM signal_data sd
+            JOIN technical_data td ON sd.symbol = td.symbol AND sd.date = td.date
+            JOIN volume_data vd ON sd.symbol = vd.symbol AND sd.date = vd.date
+            JOIN high_52week_data hd ON sd.symbol = hd.symbol AND sd.date = hd.date
+            CROSS JOIN LATERAL calculate_enhanced_stage(
+                sd.current_price::NUMERIC,
+                td.sma_20::NUMERIC,
+                td.sma_50::NUMERIC,
+                td.sma_150::NUMERIC,
+                td.sma_200::NUMERIC,
+                td.sma_20_prev::NUMERIC,
+                td.sma_50_prev::NUMERIC,
+                td.sma_200_prev::NUMERIC,
+                td.adx::NUMERIC,
+                sd.volume,
+                vd.volume_avg_50::BIGINT,
+                td.atr::NUMERIC,
+                ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100)::NUMERIC,
+                hd.high_52week::NUMERIC,
+                'Unknown',
+                td.rsi::NUMERIC,
+                td.mansfield_rs::NUMERIC
+            ) AS es
+        ),
+        calculated_metrics AS (
+            SELECT
+                stg.symbol, stg.date,
                 -- Sell level (opposite of buy)
-                CASE WHEN sd.signal = 'SELL' THEN sd.buylevel ELSE NULL END as selllevel,
+                CASE WHEN stg.signal = 'SELL' THEN stg.buylevel ELSE NULL END as selllevel,
 
                 -- Target prices
                 CASE
-                    WHEN sd.signal = 'BUY' AND sd.buylevel IS NOT NULL THEN sd.buylevel * 1.25
-                    WHEN sd.signal = 'SELL' AND sd.buylevel IS NOT NULL THEN sd.buylevel * 0.85
+                    WHEN stg.signal = 'BUY' AND stg.buylevel IS NOT NULL THEN stg.buylevel * 1.25
+                    WHEN stg.signal = 'SELL' AND stg.buylevel IS NOT NULL THEN stg.buylevel * 0.85
                     ELSE NULL
                 END as target_price,
 
-                sd.current_price,
+                stg.current_price,
 
                 -- Risk/Reward ratio
                 CASE
-                    WHEN sd.signal = 'BUY' AND sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
-                    THEN ROUND((((sd.buylevel * 1.25) - sd.buylevel) / NULLIF((sd.buylevel - sd.stoplevel), 0))::NUMERIC, 2)
-                    WHEN sd.signal = 'SELL' AND sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
-                    THEN ROUND((((sd.buylevel - (sd.buylevel * 0.85))) / NULLIF((sd.stoplevel - sd.buylevel), 0))::NUMERIC, 2)
+                    WHEN stg.signal = 'BUY' AND stg.buylevel IS NOT NULL AND stg.stoplevel IS NOT NULL
+                    THEN ROUND((((stg.buylevel * 1.25) - stg.buylevel) / NULLIF((stg.buylevel - stg.stoplevel), 0))::NUMERIC, 2)
+                    WHEN stg.signal = 'SELL' AND stg.buylevel IS NOT NULL AND stg.stoplevel IS NOT NULL
+                    THEN ROUND((((stg.buylevel - (stg.buylevel * 0.85))) / NULLIF((stg.stoplevel - stg.buylevel), 0))::NUMERIC, 2)
                     ELSE NULL
                 END as risk_reward_ratio,
 
-                -- Market stage (enhanced with confidence and substage)
-                (SELECT stage FROM calculate_enhanced_stage(
-                    sd.current_price,
-                    td.sma_20,
-                    td.sma_50,
-                    td.sma_150,
-                    td.sma_200,
-                    td.sma_20_prev,
-                    td.sma_50_prev,
-                    td.sma_200_prev,
-                    td.adx,
-                    sd.volume,
-                    vd.volume_avg_50::BIGINT,
-                    td.atr,
-                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),  -- daily_range_pct
-                    hd.high_52week,  -- 52-week high
-                    'Unknown',  -- sector (to be added later)
-                    td.rsi,
-                    td.mansfield_rs  -- Mansfield Relative Strength
-                )) as market_stage,
+                -- Market stage (from pre-calculated stage_data)
+                stg.stage as market_stage,
 
-                -- Stage confidence score
-                (SELECT confidence FROM calculate_enhanced_stage(
-                    sd.current_price,
-                    td.sma_20,
-                    td.sma_50,
-                    td.sma_150,
-                    td.sma_200,
-                    td.sma_20_prev,
-                    td.sma_50_prev,
-                    td.sma_200_prev,
-                    td.adx,
-                    sd.volume,
-                    vd.volume_avg_50::BIGINT,
-                    td.atr,
-                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
-                    hd.high_52week,
-                    'Unknown',
-                    td.rsi,
-                    td.mansfield_rs
-                )) as stage_confidence,
+                -- Stage confidence score (from pre-calculated stage_data)
+                stg.stage_confidence,
 
-                -- Substage
-                (SELECT substage FROM calculate_enhanced_stage(
-                    sd.current_price,
-                    td.sma_20,
-                    td.sma_50,
-                    td.sma_150,
-                    td.sma_200,
-                    td.sma_20_prev,
-                    td.sma_50_prev,
-                    td.sma_200_prev,
-                    td.adx,
-                    sd.volume,
-                    vd.volume_avg_50::BIGINT,
-                    td.atr,
-                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
-                    hd.high_52week,
-                    'Unknown',
-                    td.rsi,
-                    td.mansfield_rs
-                )) as substage,
+                -- Substage (from pre-calculated stage_data)
+                stg.substage,
 
-                -- SATA Score
-                (SELECT sata_score FROM calculate_enhanced_stage(
-                    sd.current_price,
-                    td.sma_20,
-                    td.sma_50,
-                    td.sma_150,
-                    td.sma_200,
-                    td.sma_20_prev,
-                    td.sma_50_prev,
-                    td.sma_200_prev,
-                    td.adx,
-                    sd.volume,
-                    vd.volume_avg_50::BIGINT,
-                    td.atr,
-                    ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
-                    hd.high_52week,
-                    'Unknown',
-                    td.rsi,
-                    td.mansfield_rs
-                )) as sata_score,
+                -- SATA Score (from pre-calculated stage_data)
+                stg.sata_score,
 
                 -- Stage Number (extract from stage text: "Stage 2 - Advancing" -> 2)
-                CAST(SUBSTRING(
-                    (SELECT stage FROM calculate_enhanced_stage(
-                        sd.current_price,
-                        td.sma_20,
-                        td.sma_50,
-                        td.sma_150,
-                        td.sma_200,
-                        td.sma_20_prev,
-                        td.sma_50_prev,
-                        td.sma_200_prev,
-                        td.adx,
-                        sd.volume,
-                        vd.volume_avg_50::BIGINT,
-                        td.atr,
-                        ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100),
-                        hd.high_52week,
-                        'Unknown',
-                        td.rsi,
-                        td.mansfield_rs
-                    ))
-                    FROM 'Stage ([0-9])'
-                ) AS INTEGER) as stage_number,
+                CAST(SUBSTRING(stg.stage FROM 'Stage ([0-9])') AS INTEGER) as stage_number,
 
                 -- Mansfield RS from technical data
-                td.mansfield_rs as mansfield_rs,
+                stg.mansfield_rs,
 
                 -- Distance from MAs
-                ROUND(((sd.current_price - td.ema_21) / NULLIF(td.ema_21, 0) * 100)::NUMERIC, 2) as pct_from_ema_21,
-                ROUND(((sd.current_price - td.sma_50) / NULLIF(td.sma_50, 0) * 100)::NUMERIC, 2) as pct_from_sma_50,
-                ROUND(((sd.current_price - td.sma_200) / NULLIF(td.sma_200, 0) * 100)::NUMERIC, 2) as pct_from_sma_200,
+                ROUND(((stg.current_price - stg.ema_21) / NULLIF(stg.ema_21, 0) * 100)::NUMERIC, 2) as pct_from_ema_21,
+                ROUND(((stg.current_price - stg.sma_50) / NULLIF(stg.sma_50, 0) * 100)::NUMERIC, 2) as pct_from_sma_50,
+                ROUND(((stg.current_price - stg.sma_200) / NULLIF(stg.sma_200, 0) * 100)::NUMERIC, 2) as pct_from_sma_200,
 
                 -- Volume analysis (standardized labels)
-                ROUND((sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1))::NUMERIC, 2) as volume_ratio,
+                ROUND((stg.volume::NUMERIC / NULLIF(stg.volume_avg_50, 1))::NUMERIC, 2) as volume_ratio,
                 CASE
-                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 2.0 THEN 'Very High'
-                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 1.5 THEN 'High'
-                    WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 0.9 THEN 'Average'
+                    WHEN (stg.volume::NUMERIC / NULLIF(stg.volume_avg_50, 1)) >= 2.0 THEN 'Very High'
+                    WHEN (stg.volume::NUMERIC / NULLIF(stg.volume_avg_50, 1)) >= 1.5 THEN 'High'
+                    WHEN (stg.volume::NUMERIC / NULLIF(stg.volume_avg_50, 1)) >= 0.9 THEN 'Average'
                     ELSE 'Low'
                 END as volume_analysis,
 
                 -- Entry quality score
                 (
-                    CASE WHEN calculate_weinstein_stage(
-                        sd.current_price, td.sma_50, td.sma_200, td.sma_50_prev, td.sma_200_prev,
-                        td.adx, sd.volume, vd.volume_avg_50::BIGINT
-                    ) = 'Stage 2 - Advancing' THEN 40 ELSE 0 END +
-                    CASE WHEN ABS((sd.current_price - td.ema_21) / NULLIF(td.ema_21, 0) * 100) <= 2 THEN 20 ELSE 0 END +
-                    CASE WHEN (sd.volume::NUMERIC / NULLIF(vd.volume_avg_50, 1)) >= 1.5 THEN 20 ELSE 0 END +
-                    CASE WHEN td.rsi BETWEEN 40 AND 70 THEN 20 ELSE 0 END
+                    CASE WHEN stg.stage = 'Stage 2 - Advancing' THEN 40 ELSE 0 END +
+                    CASE WHEN ABS((stg.current_price - stg.ema_21) / NULLIF(stg.ema_21, 0) * 100) <= 2 THEN 20 ELSE 0 END +
+                    CASE WHEN (stg.volume::NUMERIC / NULLIF(stg.volume_avg_50, 1)) >= 1.5 THEN 20 ELSE 0 END +
+                    CASE WHEN stg.rsi BETWEEN 40 AND 70 THEN 20 ELSE 0 END
                 )::INTEGER as entry_quality_score,
 
                 -- Profit targets
-                CASE WHEN sd.buylevel IS NOT NULL THEN (sd.buylevel * 1.08)::REAL ELSE NULL END as profit_target_8pct,
-                CASE WHEN sd.buylevel IS NOT NULL THEN (sd.buylevel * 1.20)::REAL ELSE NULL END as profit_target_20pct,
+                CASE WHEN stg.buylevel IS NOT NULL THEN (stg.buylevel * 1.08)::REAL ELSE NULL END as profit_target_8pct,
+                CASE WHEN stg.buylevel IS NOT NULL THEN (stg.buylevel * 1.20)::REAL ELSE NULL END as profit_target_20pct,
 
                 -- Current gain/loss
                 CASE
-                    WHEN sd.inposition = TRUE AND sd.buylevel IS NOT NULL
-                    THEN ROUND(((sd.current_price - sd.buylevel) / NULLIF(sd.buylevel, 0) * 100)::NUMERIC, 2)
+                    WHEN stg.inposition = TRUE AND stg.buylevel IS NOT NULL
+                    THEN ROUND(((stg.current_price - stg.buylevel) / NULLIF(stg.buylevel, 0) * 100)::NUMERIC, 2)
                     ELSE NULL
                 END as current_gain_loss_pct,
 
                 -- Risk %%
                 CASE
-                    WHEN sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
-                    THEN ROUND(((sd.buylevel - sd.stoplevel) / NULLIF(sd.buylevel, 0) * 100)::NUMERIC, 2)
+                    WHEN stg.buylevel IS NOT NULL AND stg.stoplevel IS NOT NULL
+                    THEN ROUND(((stg.buylevel - stg.stoplevel) / NULLIF(stg.buylevel, 0) * 100)::NUMERIC, 2)
                     ELSE NULL
                 END as risk_pct,
 
                 -- Position size
                 CASE
-                    WHEN sd.buylevel IS NOT NULL AND sd.stoplevel IS NOT NULL
-                    THEN ROUND((1000.0 / NULLIF((sd.buylevel - sd.stoplevel), 0))::NUMERIC, 2)
+                    WHEN stg.buylevel IS NOT NULL AND stg.stoplevel IS NOT NULL
+                    THEN ROUND((1000.0 / NULLIF((stg.buylevel - stg.stoplevel), 0))::NUMERIC, 2)
                     ELSE NULL
                 END as position_size_recommendation,
 
                 -- Minervini template
                 CASE
-                    WHEN sd.current_price > td.sma_50 AND sd.current_price > td.sma_150 AND
-                         sd.current_price > td.sma_200 AND td.sma_50 > td.sma_150 AND
-                         td.sma_150 > td.sma_200 AND
-                         ((sd.current_price - td.sma_200) / NULLIF(td.sma_200, 0) * 100) BETWEEN 0 AND 30
+                    WHEN stg.current_price > stg.sma_50 AND stg.current_price > stg.sma_150 AND
+                         stg.current_price > stg.sma_200 AND stg.sma_50 > stg.sma_150 AND
+                         stg.sma_150 > stg.sma_200 AND
+                         ((stg.current_price - stg.sma_200) / NULLIF(stg.sma_200, 0) * 100) BETWEEN 0 AND 30
                     THEN TRUE
                     ELSE FALSE
                 END as passes_minervini_template,
 
                 -- Technical indicators
-                td.rsi::NUMERIC(6,2), td.adx::NUMERIC(6,2), td.atr::NUMERIC(10,4),
+                stg.rsi::NUMERIC(6,2), stg.adx::NUMERIC(6,2), stg.atr::NUMERIC(10,4),
 
                 -- Daily range
-                ROUND(((sd.high - sd.low) / NULLIF(sd.low, 0) * 100)::NUMERIC, 2) as daily_range_pct,
+                ROUND(((stg.high - stg.low) / NULLIF(stg.low, 0) * 100)::NUMERIC, 2) as daily_range_pct,
 
                 -- Volatility profile based on ATR and daily range
                 CASE
-                    WHEN td.atr IS NOT NULL AND ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100) > 3.0 THEN 'high'
-                    WHEN td.atr IS NOT NULL AND ((sd.high - sd.low) / NULLIF(sd.low, 0) * 100) < 1.5 THEN 'low'
+                    WHEN stg.atr IS NOT NULL AND ((stg.high - stg.low) / NULLIF(stg.low, 0) * 100) > 3.0 THEN 'high'
+                    WHEN stg.atr IS NOT NULL AND ((stg.high - stg.low) / NULLIF(stg.low, 0) * 100) < 1.5 THEN 'low'
                     ELSE 'medium'
                 END as volatility_profile
 
-            FROM signal_data sd
-            JOIN technical_data td ON sd.symbol = td.symbol AND sd.date = td.date
-            JOIN volume_data vd ON sd.symbol = vd.symbol AND sd.date = vd.date
-            JOIN high_52week_data hd ON sd.symbol = hd.symbol AND sd.date = hd.date
+            FROM stage_data stg
         )
         UPDATE {table_name} bsd SET
             selllevel = cm.selllevel,

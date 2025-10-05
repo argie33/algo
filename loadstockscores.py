@@ -44,28 +44,37 @@ import boto3
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Get database credentials from AWS Secrets Manager
+# Get database credentials - support both AWS and local modes
 DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
-if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN not set; aborting")
-    sys.exit(1)
 
 def get_db_config():
-    """Fetch database configuration from AWS Secrets Manager."""
-    try:
-        client = boto3.client("secretsmanager")
-        secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+    """Fetch database configuration from AWS Secrets Manager or environment variables."""
+    if DB_SECRET_ARN:
+        # AWS mode - use Secrets Manager
+        try:
+            client = boto3.client("secretsmanager")
+            secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+            return {
+                'host': secret["host"],
+                'port': int(secret.get("port", 5432)),
+                'user': secret["username"],
+                'password': secret["password"],
+                'dbname': secret["dbname"],
+                'sslmode': 'require'
+            }
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch database credentials: {e}")
+            sys.exit(1)
+    else:
+        # Local mode - use environment variables
+        logger.info("Using local database configuration from environment variables")
         return {
-            'host': secret["host"],
-            'port': int(secret.get("port", 5432)),
-            'user': secret["username"],
-            'password': secret["password"],
-            'dbname': secret["dbname"],
-            'sslmode': 'require'
+            'host': os.environ.get("DB_HOST", "localhost"),
+            'port': int(os.environ.get("DB_PORT", 5432)),
+            'user': os.environ.get("DB_USER", "postgres"),
+            'password': os.environ.get("DB_PASSWORD", "password"),
+            'dbname': os.environ.get("DB_NAME", "stocks")
         }
-    except Exception as e:
-        logger.error(f"❌ Failed to fetch database credentials: {e}")
-        sys.exit(1)
 
 DB_CONFIG = get_db_config()
 
