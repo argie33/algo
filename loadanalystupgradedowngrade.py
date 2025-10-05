@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 20251005_061658
+# Trigger rebuild: 20251005_141900
 """
 Analyst Upgrade/Downgrade Data Loader
-Updated: 2025-10-04 14:15 - Deploy analyst rating changes loader
+Updated: 2025-10-05 14:19 - Fix yfinance API changes: use upgrades_downgrades property
 
 This script fetches and loads analyst rating changes (upgrades, downgrades, initiations)
 from Yahoo Finance into the PostgreSQL database. Analyst ratings are a key indicator
@@ -189,17 +189,17 @@ def fetch_analyst_actions(symbol):
         Yahoo Finance provides this data through the ticker.recommendations property,
         not through get_analyst_price_target_history() which is not available.
     """
-    # yfinance: Ticker(symbol).get_analyst_price_target_history() is not available, but recommendations is
+    # yfinance: Use upgrades_downgrades property to get analyst rating changes
     ticker = yf.Ticker(symbol)
     try:
-        df = ticker.recommendations
+        df = ticker.upgrades_downgrades
     except Exception as e:
-        logging.warning(f"Failed to fetch recommendations for {symbol}: {e}")
+        logging.warning(f"Failed to fetch upgrades/downgrades for {symbol}: {e}")
         return None
     if df is None or df.empty:
         return None
     # Only keep upgrade/downgrade actions (filter out rows with no grade information)
-    df = df[df["To Grade"].notna() | df["From Grade"].notna()]
+    df = df[df["ToGrade"].notna() | df["FromGrade"].notna()]
     return df
 
 
@@ -264,10 +264,10 @@ def load_analyst_actions(symbols, cur, conn):
                     symbol,
                     row.get("Firm"),  # Analyst firm name
                     row.get("Action"),  # Action type (up/down/init/main)
-                    row.get("From Grade"),  # Previous rating
-                    row.get("To Grade"),  # New rating
+                    row.get("FromGrade"),  # Previous rating
+                    row.get("ToGrade"),  # New rating
                     dt.date() if hasattr(dt, "date") else dt,  # Date of change
-                    row.get("Details") if "Details" in row else None,  # Additional commentary
+                    None,  # Details column removed from yfinance API
                 ]
             )
 
