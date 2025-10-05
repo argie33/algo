@@ -159,7 +159,8 @@ def get_stock_symbols(conn, limit=None):
         cur.execute(f"""
             SELECT symbol
             FROM stock_symbols
-            WHERE exchange IN ('NASDAQ', 'New York Stock Exchange')
+            WHERE exchange IN ('NASDAQ', 'N', 'A', 'P')
+              AND (etf = 'N' OR etf IS NULL OR etf = '')
             ORDER BY symbol
             {limit_clause}
         """)

@@ -6,22 +6,7 @@ import {
   useState,
   useCallback,
 } from "react";
-// Mock AWS Amplify Auth functions to avoid module resolution issues
-// In production with proper Amplify setup, these would be real functions
-const mockAmplifyAuth = {
-  fetchAuthSession: async () => ({ tokens: null }),
-  signIn: async () => ({ isSignedIn: false, nextStep: { signInStep: "DONE" } }),
-  signUp: async () => ({ isSignUpComplete: false, nextStep: { signUpStep: "CONFIRM_SIGN_UP" } }),
-  confirmSignUp: async () => ({ isSignUpComplete: true }),
-  resendSignUpCode: async () => ({}),
-  signOut: async () => ({}),
-  resetPassword: async () => ({ nextStep: { resetPasswordStep: "CONFIRM_RESET_PASSWORD" } }),
-  confirmResetPassword: async () => ({}),
-  getCurrentUser: async () => { throw new Error("No user authenticated"); },
-};
-
-// Use mock functions for now to avoid import issues
-const {
+import {
   fetchAuthSession,
   signIn,
   signUp,
@@ -31,7 +16,7 @@ const {
   resetPassword,
   confirmResetPassword,
   getCurrentUser,
-} = mockAmplifyAuth;
+} from "aws-amplify/auth";
 import { isCognitoConfigured } from "../config/amplify";
 import devAuth from "../services/devAuth";
 import sessionManager from "../services/sessionManager";

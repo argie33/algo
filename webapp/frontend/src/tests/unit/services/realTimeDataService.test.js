@@ -34,6 +34,26 @@ describe("RealTimeDataService", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
+    // Reset WebSocket mock for each test
+    global.WebSocket = vi.fn().mockImplementation((url) => ({
+      url,
+      readyState: 1, // OPEN
+      send: vi.fn(),
+      close: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      onopen: null,
+      onclose: null,
+      onerror: null,
+      onmessage: null,
+    }));
+
+    // WebSocket constants
+    global.WebSocket.OPEN = 1;
+    global.WebSocket.CONNECTING = 0;
+    global.WebSocket.CLOSING = 2;
+    global.WebSocket.CLOSED = 3;
+
     // Import the singleton service instance
     const module = await import("../../../services/realTimeDataService");
     service = module.default;

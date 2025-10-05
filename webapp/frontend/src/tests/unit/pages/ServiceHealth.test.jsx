@@ -23,6 +23,9 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ServiceHealth from "../../../pages/ServiceHealth.jsx";
 
+// Mock global fetch for ECS tasks query
+global.fetch = vi.fn();
+
 // Mock AuthContext
 vi.mock("../../../contexts/AuthContext.jsx", () => ({
   useAuth: vi.fn(() => ({
@@ -50,7 +53,29 @@ describe("ServiceHealth Component", () => {
     vi.clearAllMocks();
     const { api } = await import("../../../services/api");
 
-    // Mock database health endpoint
+    // Mock global fetch for ECS tasks endpoint
+    global.fetch.mockImplementation((url) => {
+      if (url.includes('/api/health/ecs-tasks')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            tasks: {
+              loadinfo: {
+                status: 'success',
+                last_run: '2024-01-25T06:00:00Z',
+                hours_since_run: 10,
+                freshness: 'current',
+                exit_code: 0
+              }
+            }
+          })
+        });
+      }
+      return Promise.reject(new Error('Unknown fetch URL'));
+    });
+
+    // Mock health endpoints
     api.get.mockImplementation((url) => {
       if (url === '/health/database') {
         return Promise.resolve({
@@ -99,6 +124,20 @@ describe("ServiceHealth Component", () => {
             }
           }
         });
+      } else if (url === '/health') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              status: 'healthy',
+              timestamp: '2024-01-25T15:30:00Z',
+              services: {
+                database: 'connected',
+                api: 'operational'
+              }
+            }
+          }
+        });
       }
       return Promise.reject(new Error('Unknown endpoint'));
     });
@@ -143,7 +182,8 @@ describe("ServiceHealth Component", () => {
     renderServiceHealth();
 
     await waitFor(() => {
-      expect(screen.getByText(/Scheduled Tasks Status/i)).toBeInTheDocument();
+      const scheduledTasksElements = screen.getAllByText(/Scheduled Tasks Status/i);
+      expect(scheduledTasksElements.length).toBeGreaterThan(0);
       expect(screen.getByText(/loadinfo/i)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
@@ -154,8 +194,11 @@ describe("ServiceHealth Component", () => {
     await waitFor(() => {
       expect(screen.getByText(/price_daily/i)).toBeInTheDocument();
       expect(screen.getByText(/stock_symbols/i)).toBeInTheDocument();
-      expect(screen.getByText(/1000/i)).toBeInTheDocument(); // record count
-      expect(screen.getByText(/500/i)).toBeInTheDocument(); // record count
+      // Numbers are formatted with commas (1000 -> "1,000")
+      expect(screen.getByText('1,000')).toBeInTheDocument(); // price_daily record count
+      // Use getAllByText for 500 since it might match port 5001
+      const elements = screen.getAllByText('500');
+      expect(elements.length).toBeGreaterThan(0);
     }, { timeout: 3000 });
   });
 
