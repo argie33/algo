@@ -186,7 +186,7 @@ async def get_fear_greed_data():
             # Launch browser with Docker-optimized arguments for containerized environment
             # These flags disable sandboxing and GPU features that may cause issues in containers
             browser = await launch(
-                executablePath="/usr/bin/chromium",
+                executablePath=os.environ.get("CHROME_BIN", "/usr/bin/chromium-browser"),
                 args=[
                     "--no-sandbox",  # Required in Docker containers
                     "--disable-setuid-sandbox",  # Required in Docker containers
