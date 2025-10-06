@@ -62,14 +62,14 @@ DB_NAME = creds["dbname"]
 
 
 def get_db_connection():
-    # Set statement timeout to 30 seconds (30000 ms)
+    # Set statement timeout to 2 minutes (120000 ms) for complex queries
     conn = psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
         dbname=DB_NAME,
-        options="-c statement_timeout=30000",
+        options="-c statement_timeout=120000",
     )
     return conn
 
@@ -763,11 +763,15 @@ def main():
             insert_symbol_results(cur, sym, tf, df)
             conn.commit()
 
-            # Calculate swing trading metrics for this symbol
-            logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
-            update_swing_metrics_for_symbol(cur, sym, tf)
-            conn.commit()
-            logging.info(f"  [main] Done calculating swing metrics for {sym} {tf}")
+            # Calculate swing trading metrics for this symbol (optional - may fail if columns don't exist)
+            try:
+                logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
+                update_swing_metrics_for_symbol(cur, sym, tf)
+                conn.commit()
+                logging.info(f"  [main] Done calculating swing metrics for {sym} {tf}")
+            except Exception as e:
+                logging.warning(f"  [main] Swing metrics calculation skipped for {sym} {tf}: {e}")
+                conn.rollback()
 
             _, rets, durs, _, _ = backtest_fixed_capital(df)
             results[tf]["rets"].extend(rets)
