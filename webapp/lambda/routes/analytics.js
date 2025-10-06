@@ -189,13 +189,13 @@ router.get("/performance", async (req, res) => {
       );
       portfolioHoldings = holdingsResult.rows || [];
     } catch (error) {
-      console.log("Portfolio holdings query failed, using sample data:", error.message);
-      // Use sample holdings data
-      portfolioHoldings = [
-        { symbol: 'AAPL', shares: 100, avg_cost: 150, current_price: 180, return_percent: 20, current_value: 18000 },
-        { symbol: 'MSFT', shares: 50, current_price: 300, return_percent: 15, current_value: 15000 },
-        { symbol: 'GOOGL', shares: 25, current_price: 2800, return_percent: 10, current_value: 70000 }
-      ];
+      console.error("Portfolio holdings query failed:", error.message);
+      return res.status(503).json({
+        success: false,
+        error: "Database query failed",
+        message: "Unable to fetch portfolio holdings",
+        details: error.message
+      });
     }
 
     // Calculate portfolio metrics
