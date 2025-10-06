@@ -35,4 +35,5 @@ ENV CHROME_BIN=/usr/bin/chromium-browser
 ENV CHROME_PATH=/usr/bin/chromium-browser
 
 # Set the entrypoint
-ENTRYPOINT ["python", "loadfeargreed.py"] # Trigger rebuild Mon Oct  6 13:52:43 CDT 2025
+ENTRYPOINT ["python", "loadfeargreed.py"]
+# Trigger rebuild Mon Oct  6 14:20:00 CDT 2025 - Deploy to load sentiment data
