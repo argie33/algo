@@ -16,3 +16,4 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r re
 COPY loadlatesttechnicalsdaily.py .
 
 ENTRYPOINT ["python", "loadlatesttechnicalsdaily.py"]
+# Trigger rebuild Mon Oct  6 13:53:02 CDT 2025
