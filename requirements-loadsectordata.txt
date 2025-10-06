@@ -1,0 +1,4 @@
+boto3>=1.26.0
+psycopg2-binary>=2.9.5
+numpy>=1.24.0
+yfinance>=0.2.28
