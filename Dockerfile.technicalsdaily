@@ -12,3 +12,4 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r re
 # Set the entrypoint
 ENTRYPOINT ["python", "loadtechnicalsdaily.py"]
 # Trigger rebuild Mon Oct  6 15:02:00 CDT 2025 - Load technical indicators
+# Trigger technicalsdaily Mon Oct 6 23:22 CDT 2025

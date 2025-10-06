@@ -6,3 +6,4 @@ FROM ${ECR_REGISTRY}:base-loader-latest
 COPY loadpricedaily.py .
 ENTRYPOINT ["python", "loadpricedaily.py"]
 # Trigger rebuild Mon Oct  6 15:02:00 CDT 2025 - Load price data
+# Trigger pricedaily Mon Oct 6 23:22 CDT 2025
