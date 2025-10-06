@@ -95,20 +95,20 @@ router.get("/data", async (req, res) => {
     if (tableStatus.stocks) {
       const marketResult = await query(`
         SELECT
-               s.symbol,
-               s.symbol as name,
+               s.ticker,
+               s.ticker as name,
                sp.close as current_price,
                0 as change_percent,
                0 as change_amount,
                sp.volume,
                s.market_cap
-        FROM stocks s
+        FROM company_profile s
         LEFT JOIN (
           SELECT DISTINCT ON (symbol)
             symbol, close, volume
           FROM price_daily
           ORDER BY symbol, date DESC
-        ) sp ON s.symbol = sp.symbol
+        ) sp ON s.ticker = sp.symbol
         WHERE s.market_cap IS NOT NULL
         ORDER BY s.market_cap DESC NULLS LAST
         LIMIT 50
@@ -203,7 +203,7 @@ router.get("/summary", async (req, res) => {
           AVG(COALESCE(((md.close - md.open) / NULLIF(md.open, 0) * 100), 0)) as avg_change_percent,
           SUM(md.volume) as total_volume
         FROM price_daily md
-        JOIN stocks cp ON md.symbol = cp.symbol
+        JOIN company_profile cp ON md.symbol = cp.symbol
         WHERE cp.sector IS NOT NULL
           AND md.volume > 0
           AND md.date = (SELECT MAX(date) FROM price_daily)
@@ -1846,7 +1846,7 @@ router.get("/indicators", async (req, res) => {
         s.sector,
         pd.date
       FROM price_daily pd
-      JOIN stocks s ON pd.symbol = s.ticker
+      JOIN company_profile s ON pd.symbol = s.ticker
       WHERE pd.date = (SELECT MAX(date) FROM price_daily)
       ORDER BY pd.symbol
     `;
@@ -5421,13 +5421,13 @@ router.get("/trending", async (req, res) => {
       // Query trending stocks based on volume and price activity
       const trendingQuery = `
         SELECT 
-          s.symbol,
+          s.ticker,
           s.name,
           p.close as price,
           p.change_percent,
           p.volume,
           p.date
-        FROM stocks s
+        FROM company_profile s
         JOIN price_daily p ON s.ticker = p.symbol
         WHERE p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.ticker)
         AND p.volume > 1000000  -- High volume threshold

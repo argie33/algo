@@ -2052,7 +2052,7 @@ router.get("/stocks", async (req, res) => {
         km.return_on_assets as roa,
         sp.last_updated
       FROM price_daily sp
-      LEFT JOIN stocks cp ON sp.symbol = cp.symbol
+      LEFT JOIN company_profile cp ON sp.symbol = cp.symbol
       LEFT JOIN key_metrics km ON sp.symbol = km.ticker
       WHERE ${whereConditions.join(' AND ')}
       ORDER BY sp.symbol, sp.last_updated DESC, ${orderBy}

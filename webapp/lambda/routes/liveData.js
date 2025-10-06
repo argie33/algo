@@ -1115,7 +1115,7 @@ router.get("/stream", authenticateToken, async (req, res) => {
             s.price as close,
             0 as volume,
             CURRENT_TIMESTAMP as date
-          FROM stocks s
+          FROM company_profile s
           WHERE s.symbol = ANY($1)
           ORDER BY s.symbol
         `;

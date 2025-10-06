@@ -582,7 +582,7 @@ router.get("/signals/:timeframe", async (req, res) => {
             ROW_NUMBER() OVER (PARTITION BY bs.symbol ORDER BY bs.date DESC) as rn
           FROM ${tableName} bs
           ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
-          ${companyProfileExists ? "LEFT JOIN stocks fm ON bs.symbol = fm.symbol" : ""}
+          ${companyProfileExists ? "LEFT JOIN company_profile fm ON bs.symbol = fm.symbol" : ""}
           ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
           ${whereClause}
         )
@@ -615,7 +615,7 @@ router.get("/signals/:timeframe", async (req, res) => {
           END as performance_percent
         FROM ${tableName} bs
         ${companyProfileExists ? "LEFT JOIN company_profile cp ON bs.symbol = cp.ticker" : ""}
-        ${companyProfileExists ? "LEFT JOIN stocks fm ON bs.symbol = fm.symbol" : ""}
+        ${companyProfileExists ? "LEFT JOIN company_profile fm ON bs.symbol = fm.symbol" : ""}
         ${priceDailyExists ? "LEFT JOIN (SELECT DISTINCT ON (pd_inner.symbol) pd_inner.symbol, pd_inner.close FROM price_daily pd_inner ORDER BY pd_inner.symbol, pd_inner.date DESC) pd ON bs.symbol = pd.symbol" : ""}
         ${whereClause}
         ORDER BY bs.date DESC, bs.symbol ASC
@@ -924,7 +924,7 @@ router.get("/swing-signals", async (req, res) => {
         END as status
       FROM swing_trading_signals st
       LEFT JOIN company_profile cp ON st.symbol = cp.ticker
-      JOIN stocks fm ON st.symbol = fm.symbol
+      JOIN company_profile fm ON st.symbol = fm.symbol
       LEFT JOIN (SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.close as close FROM price_daily pd ORDER BY pd.symbol, pd.date DESC) s ON st.symbol = s.symbol
       ORDER BY st.date DESC
       LIMIT $1 OFFSET $2
@@ -2237,7 +2237,7 @@ router.get("/risk/portfolio", async (req, res) => {
         1.0 as beta
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
-      LEFT JOIN stocks fm ON ph.symbol = fm.symbol
+      LEFT JOIN company_profile fm ON ph.symbol = fm.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol) symbol, close, volume
         FROM price_daily

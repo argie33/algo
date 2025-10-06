@@ -1044,7 +1044,7 @@ router.get("/sectors", async (req, res) => {
         COUNT(DISTINCT cp.symbol) as stock_count,
         AVG(COALESCE(pd.close, 100)) as avg_price,
         SUM(COALESCE(pd.volume, 1000000)) as total_volume
-      FROM stocks cp
+      FROM company_profile cp
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -1803,7 +1803,7 @@ router.get("/attribution", async (req, res) => {
         c.sector,
         c.industry
       FROM portfolio_holdings h
-      LEFT JOIN stocks c ON h.symbol = c.symbol
+      LEFT JOIN company_profile c ON h.symbol = c.symbol
       WHERE h.user_id = $1
       ORDER BY h.weight DESC
     `;

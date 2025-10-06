@@ -37,7 +37,7 @@ router.get("/market", async (req, res) => {
         SUM(COALESCE(s.market_cap, 0)) as total_market_cap,
         SUM(COALESCE(pd.volume, 0)) as total_volume,
         COUNT(*) as active_stocks
-      FROM stocks fm
+      FROM company_profile fm
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, volume

@@ -6316,7 +6316,7 @@ router.get("/factors", async (req, res) => {
         COALESCE(s.beta, 1.0) as beta,
         15.0 as pe_ratio
       FROM portfolio_holdings ph
-      LEFT JOIN stocks s ON ph.symbol = s.symbol
+      LEFT JOIN company_profile s ON ph.symbol = s.symbol
       WHERE ph.user_id = $1 AND ph.quantity > 0
     `;
 

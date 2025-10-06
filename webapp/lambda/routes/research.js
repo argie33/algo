@@ -147,7 +147,7 @@ router.get("/analyst", async (req, res) => {
         s.sector,
         s.industry,
         s.market_cap
-      FROM stocks fm
+      FROM company_profile fm
       WHERE s.symbol = $1 AND s.market_cap > 0
       ORDER BY s.market_cap DESC
       LIMIT $2

@@ -41,3 +41,26 @@ Processing request: GET /api/sentiment/fear-greed
 Database connection verified for database-dependent endpoint
 😊 Sentiment analysis for fear-greed, period: 7d
 ::1 - - [06/Oct/2025:18:44:51 +0000] "GET /api/sentiment/fear-greed HTTP/1.1" 200 705 "-" "curl/8.5.0"
+Processing request: GET /api/market/sentiment
+Database connection verified for database-dependent endpoint
+😊 Market sentiment endpoint called
+::1 - - [06/Oct/2025:19:12:38 +0000] "GET /api/market/sentiment HTTP/1.1" 200 262 "-" "curl/8.5.0"
+Processing request: GET /api/market/sentiment
+Database connection verified for database-dependent endpoint
+😊 Market sentiment endpoint called
+::1 - - [06/Oct/2025:19:14:22 +0000] "GET /api/market/sentiment HTTP/1.1" 200 262 "-" "curl/8.5.0"
+Processing request: GET /api/market/aaii
+Database connection verified for database-dependent endpoint
+::1 - - [06/Oct/2025:19:14:34 +0000] "GET /api/market/aaii HTTP/1.1" 200 89 "-" "curl/8.5.0"
+Processing request: GET /api/market/sentiment
+Database connection verified for database-dependent endpoint
+😊 Market sentiment endpoint called
+::1 - - [06/Oct/2025:19:14:56 +0000] "GET /api/market/sentiment HTTP/1.1" 200 262 "-" "curl/8.5.0"
+Processing request: GET /api/market/sentiment
+Database connection verified for database-dependent endpoint
+😊 Market sentiment endpoint called
+::1 - - [06/Oct/2025:19:15:11 +0000] "GET /api/market/sentiment HTTP/1.1" 200 262 "-" "curl/8.5.0"
+Processing request: GET /api/market/sentiment
+Database connection verified for database-dependent endpoint
+😊 Market sentiment endpoint called
+::1 - - [06/Oct/2025:19:15:25 +0000] "GET /api/market/sentiment HTTP/1.1" 200 262 "-" "curl/8.5.0"

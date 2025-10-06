@@ -122,7 +122,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
         COUNT(CASE WHEN COALESCE(s.quarterly_revenue_growth, 0) > 0 THEN 1 END) as bullish_count,
         COUNT(CASE WHEN COALESCE(s.quarterly_revenue_growth, 0) < 0 THEN 1 END) as bearish_count,
         COUNT(*) as total_positions
-      FROM stocks s
+      FROM company_profile s
       WHERE s.market_cap > 0
     `);
 

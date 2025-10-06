@@ -69,7 +69,7 @@ router.get("/:sector/stocks", async (req, res) => {
         s.industry,
         COALESCE(pd.close, 100) as price,
         COALESCE(pd.volume, 1000000) as volume
-      FROM stocks s
+      FROM company_profile s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -185,7 +185,7 @@ router.get("/analysis", async (req, res) => {
         END as monthly_change_pct,
         50.0 as avg_rsi,
         0.0 as avg_momentum
-      FROM stocks s
+      FROM company_profile s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -297,7 +297,7 @@ router.get("/list", async (req, res) => {
                     SELECT DISTINCT symbol FROM price_daily 
                     WHERE date >= CURRENT_DATE - INTERVAL '7 days'
                 ) THEN 1 END) as active_companies
-            FROM stocks 
+            FROM company_profile 
             WHERE sector IS NOT NULL 
                 AND sector != ''
                 AND industry IS NOT NULL 
@@ -415,7 +415,7 @@ router.get("/performance", async (req, res) => {
         -- Simulate gaining/losing stocks
         GREATEST(1, FLOOR(COUNT(DISTINCT s.symbol) * 0.6)) as gaining_stocks,
         GREATEST(0, FLOOR(COUNT(DISTINCT s.symbol) * 0.4)) as losing_stocks
-      FROM stocks s
+      FROM company_profile s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -438,7 +438,7 @@ router.get("/performance", async (req, res) => {
 
       // Check if we have stocks data
       const companyProfileCheck = await query(
-        "SELECT COUNT(*) as count FROM stocks WHERE sector IS NOT NULL AND sector != ''"
+        "SELECT COUNT(*) as count FROM company_profile WHERE sector IS NOT NULL AND sector != ''"
       );
       console.log(`📊 Company profiles with sectors: ${companyProfileCheck.rows[0]?.count || 0}`);
 
@@ -572,7 +572,7 @@ router.get("/:sector/details", async (req, res) => {
         0 as risk_adjusted_momentum,
         0 as momentum_strength
 
-      FROM stocks s
+      FROM company_profile s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -722,7 +722,7 @@ router.get("/allocation", async (req, res) => {
         AVG(ph.average_cost) as avg_cost_basis,
         SUM(ph.quantity * COALESCE(pd.close, ph.average_cost)) - SUM(ph.quantity * ph.average_cost) as unrealized_pnl
       FROM portfolio_holdings ph
-      LEFT JOIN stocks s ON ph.symbol = s.symbol
+      LEFT JOIN company_profile s ON ph.symbol = s.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, date
