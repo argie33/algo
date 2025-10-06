@@ -142,6 +142,19 @@ jobs:
             CHANGED_LOADERS=$(echo -e "$CHANGED_LOADERS_FROM_PY\n$CHANGED_LOADERS_FROM_REQ\n$CHANGED_LOADERS_FROM_DOCKERFILE" | grep -v '^$' | sort | uniq || true)
             echo "Debug: Combined changed loaders: $CHANGED_LOADERS"
 
+            # Filter to only loaders that have Dockerfiles
+            VALIDATED_LOADERS=""
+            for loader in $CHANGED_LOADERS; do
+              if [[ -f "Dockerfile.$loader" ]]; then
+                VALIDATED_LOADERS="$VALIDATED_LOADERS $loader"
+                echo "✓ Validated loader: $loader (Dockerfile.$ loader exists)"
+              else
+                echo "✗ Skipping loader: $loader (no Dockerfile.$loader found)"
+              fi
+            done
+            CHANGED_LOADERS=$(echo $VALIDATED_LOADERS | tr ' ' '\n' | sort | uniq || true)
+            echo "Debug: Validated loaders with Dockerfiles: $CHANGED_LOADERS"
+
             if [[ -n "$CHANGED_LOADERS" ]]; then
               LOADERS_TO_RUN="$CHANGED_LOADERS"
               echo "Auto-detected changed loaders: $LOADERS_TO_RUN"
