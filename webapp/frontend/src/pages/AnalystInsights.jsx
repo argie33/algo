@@ -95,27 +95,59 @@ const AnalystInsights = () => {
     }
   };
 
-  const getActionIcon = (action) => {
+  const getActionIcon = (action, fromGrade, toGrade) => {
     if (!action) return <ShowChartIcon />;
 
     const actionLower = action.toLowerCase();
-    if (actionLower.includes('upgrade') || actionLower.includes('buy')) {
+
+    // Check action field first
+    if (actionLower === 'up' || actionLower.includes('upgrade')) {
       return <TrendingUpIcon sx={{ color: 'success.main' }} />;
-    } else if (actionLower.includes('downgrade') || actionLower.includes('sell')) {
+    } else if (actionLower === 'down' || actionLower.includes('downgrade')) {
       return <TrendingDownIcon sx={{ color: 'error.main' }} />;
     }
+
+    // Check grade changes if action is maintain/reit/init
+    if (fromGrade && toGrade) {
+      const gradeOrder = ['Sell', 'Underperform', 'Hold', 'Neutral', 'Market Perform', 'Perform', 'Buy', 'Outperform', 'Overweight', 'Strong Buy'];
+      const fromIndex = gradeOrder.findIndex(g => fromGrade.includes(g));
+      const toIndex = gradeOrder.findIndex(g => toGrade.includes(g));
+
+      if (toIndex > fromIndex && fromIndex !== -1) {
+        return <TrendingUpIcon sx={{ color: 'success.main' }} />;
+      } else if (toIndex < fromIndex && toIndex !== -1) {
+        return <TrendingDownIcon sx={{ color: 'error.main' }} />;
+      }
+    }
+
     return <ShowChartIcon sx={{ color: 'info.main' }} />;
   };
 
-  const getActionColor = (action) => {
+  const getActionColor = (action, fromGrade, toGrade) => {
     if (!action) return 'default';
 
     const actionLower = action.toLowerCase();
-    if (actionLower.includes('upgrade') || actionLower.includes('buy')) {
+
+    // Check action field first
+    if (actionLower === 'up' || actionLower.includes('upgrade')) {
       return 'success';
-    } else if (actionLower.includes('downgrade') || actionLower.includes('sell')) {
+    } else if (actionLower === 'down' || actionLower.includes('downgrade')) {
       return 'error';
     }
+
+    // Check grade changes if action is maintain/reit/init
+    if (fromGrade && toGrade) {
+      const gradeOrder = ['Sell', 'Underperform', 'Hold', 'Neutral', 'Market Perform', 'Perform', 'Buy', 'Outperform', 'Overweight', 'Strong Buy'];
+      const fromIndex = gradeOrder.findIndex(g => fromGrade.includes(g));
+      const toIndex = gradeOrder.findIndex(g => toGrade.includes(g));
+
+      if (toIndex > fromIndex && fromIndex !== -1) {
+        return 'success';
+      } else if (toIndex < fromIndex && toIndex !== -1) {
+        return 'error';
+      }
+    }
+
     return 'info';
   };
 
@@ -317,10 +349,10 @@ const AnalystInsights = () => {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {getActionIcon(upgrade.action)}
+                        {getActionIcon(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
                         <Chip
-                          label={upgrade.action || 'N/A'}
-                          color={getActionColor(upgrade.action)}
+                          label={upgrade.action === 'main' ? 'maint' : (upgrade.action || 'N/A')}
+                          color={getActionColor(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
                           size="small"
                         />
                       </Box>
