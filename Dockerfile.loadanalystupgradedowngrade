@@ -10,4 +10,4 @@ COPY Dockerfile.loadanalystupgradedowngrade requirements-loadanalystupgradedowng
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadanalystupgradedowngrade.txt
 
 # Set the entrypoint
-ENTRYPOINT ["python", "loadanalystupgradedowngrade.py"]
+ENTRYPOINT ["python", "loadanalystupgradedowngrade.py"]# Trigger rebuild Mon Oct  6 13:52:53 CDT 2025
