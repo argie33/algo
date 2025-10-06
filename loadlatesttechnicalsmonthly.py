@@ -13,10 +13,23 @@ from datetime import datetime, timedelta
 
 import boto3
 import psycopg2
+import psycopg2.extensions
 import yfinance as yf
 import pandas as pd
 import numpy as np
 from psycopg2.extras import RealDictCursor, execute_values
+
+# Register numpy type adapters for psycopg2
+def adapt_numpy_int64(numpy_int64):
+    return psycopg2.extensions.AsIs(int(numpy_int64))
+
+def adapt_numpy_float64(numpy_float64):
+    return psycopg2.extensions.AsIs(float(numpy_float64))
+
+psycopg2.extensions.register_adapter(np.int64, adapt_numpy_int64)
+psycopg2.extensions.register_adapter(np.int32, adapt_numpy_int64)
+psycopg2.extensions.register_adapter(np.float64, adapt_numpy_float64)
+psycopg2.extensions.register_adapter(np.float32, adapt_numpy_float64)
 
 # Script metadata & logging setup
 SCRIPT_NAME = "loadlatesttechnicalsmonthly.py"
