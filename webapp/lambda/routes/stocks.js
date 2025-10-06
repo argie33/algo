@@ -2281,23 +2281,29 @@ router.get("/screener", authenticateToken, async (req, res) => {
 
     paramCount++;
     const screenerQuery = `
+      WITH latest_prices AS (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume, date
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+          AND close >= $1
+          AND close <= $2
+          AND volume >= $3
+        ORDER BY symbol, date DESC
+        LIMIT 1000
+      )
       SELECT
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
         cp.sector,
-        pd.close as current_price,
-        pd.volume,
+        lp.close as current_price,
+        lp.volume,
         COALESCE(md.market_cap, 0) as market_cap
-      FROM company_profile cp
-      JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol, close, volume, date
-        FROM price_daily
-        ORDER BY symbol, date DESC
-      ) pd ON cp.ticker = pd.symbol
+      FROM latest_prices lp
+      JOIN company_profile cp ON lp.symbol = cp.ticker
       LEFT JOIN market_data md ON cp.ticker = md.ticker
-      WHERE ${whereConditions.join(" AND ")}
-      ORDER BY pd.volume DESC
+      ${sector ? 'WHERE cp.sector = $4' : ''}
+      ORDER BY lp.volume DESC
       LIMIT $${paramCount}
     `;
 
