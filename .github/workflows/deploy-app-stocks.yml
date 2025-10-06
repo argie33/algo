@@ -111,7 +111,7 @@ jobs:
           else
             # Auto-detect based on file changes (even if infrastructure changed)
             echo "Debug: Checking for changed loader files..."
-            ALL_CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            ALL_CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD || echo "")
             echo "Debug: All changed files: $ALL_CHANGED_FILES"
 
             # Check for direct loader file changes
@@ -122,6 +122,10 @@ jobs:
             REQUIREMENTS_FILES=$(echo "$ALL_CHANGED_FILES" | grep 'requirements-load.*\.txt$' || true)
             echo "Debug: Requirements files found: $REQUIREMENTS_FILES"
 
+            # Check for Dockerfile changes (Dockerfile.buyselldaily -> buyselldaily)
+            DOCKERFILE_CHANGES=$(echo "$ALL_CHANGED_FILES" | grep 'Dockerfile\.' || true)
+            echo "Debug: Dockerfile changes found: $DOCKERFILE_CHANGES"
+
             # Extract loaders from direct loader file changes (strip directory paths first)
             CHANGED_LOADERS_FROM_PY=$(echo "$LOADER_FILES" | xargs -n1 basename 2>/dev/null | sed 's/^load//' | sed 's/\.py$//' | sort || true)
             echo "Debug: Loaders from .py files: $CHANGED_LOADERS_FROM_PY"
@@ -130,8 +134,12 @@ jobs:
             CHANGED_LOADERS_FROM_REQ=$(echo "$REQUIREMENTS_FILES" | sed 's/^requirements-load//' | sed 's/\.txt$//' | sort || true)
             echo "Debug: Loaders from requirements files: $CHANGED_LOADERS_FROM_REQ"
 
-            # Combine both sources of changed loaders
-            CHANGED_LOADERS=$(echo -e "$CHANGED_LOADERS_FROM_PY\n$CHANGED_LOADERS_FROM_REQ" | grep -v '^$' | sort | uniq || true)
+            # Extract loaders from Dockerfile changes (Dockerfile.buyselldaily -> buyselldaily)
+            CHANGED_LOADERS_FROM_DOCKERFILE=$(echo "$DOCKERFILE_CHANGES" | sed 's/^Dockerfile\.//' | sort || true)
+            echo "Debug: Loaders from Dockerfiles: $CHANGED_LOADERS_FROM_DOCKERFILE"
+
+            # Combine all three sources of changed loaders
+            CHANGED_LOADERS=$(echo -e "$CHANGED_LOADERS_FROM_PY\n$CHANGED_LOADERS_FROM_REQ\n$CHANGED_LOADERS_FROM_DOCKERFILE" | grep -v '^$' | sort | uniq || true)
             echo "Debug: Combined changed loaders: $CHANGED_LOADERS"
 
             if [[ -n "$CHANGED_LOADERS" ]]; then
