@@ -1103,11 +1103,12 @@ def main():
         insert_symbol_results(cur, sym, tf, df)
         conn.commit()
 
-        # Calculate swing trading metrics for this symbol
-        logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
-        update_swing_metrics_for_symbol(cur, sym, tf)
-        conn.commit()
-        logging.info(f"  [main] Done calculating swing metrics for {sym} {tf}")
+        # DISABLED: Swing metrics calculation takes >2min per symbol (timeout issue)
+        # TODO: Optimize swing metrics SQL query or run as separate batch process
+        # logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
+        # update_swing_metrics_for_symbol(cur, sym, tf)
+        # conn.commit()
+        # logging.info(f"  [main] Done calculating swing metrics for {sym} {tf}")
 
         _, rets, durs, _, _ = backtest_fixed_capital(df)
         results[tf]["rets"].extend(rets)
