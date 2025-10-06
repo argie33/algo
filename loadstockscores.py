@@ -744,17 +744,21 @@ def get_stock_data_from_database(conn, symbol):
 
         cur.close()
 
+        # Clamp all scores to 0-100 and ensure DECIMAL(5,2) compatibility (max 999.99)
+        def clamp_score(score):
+            return max(0, min(100, float(score)))
+
         return {
             'symbol': symbol,
-            'composite_score': float(round(composite_score, 2)),
-            'momentum_score': float(round(momentum_score, 2)),
-            'trend_score': float(round(trend_score, 2)),
-            'value_score': float(round(value_score, 2)),
-            'quality_score': float(round(quality_score, 2)),
-            'growth_score': float(round(growth_score, 2)),
-            'relative_strength_score': float(round(relative_strength_score, 2)),
-            'positioning_score': float(round(positioning_score, 2)),
-            'sentiment_score': float(round(sentiment_score, 2)),
+            'composite_score': float(round(clamp_score(composite_score), 2)),
+            'momentum_score': float(round(clamp_score(momentum_score), 2)),
+            'trend_score': float(round(clamp_score(trend_score), 2)),
+            'value_score': float(round(clamp_score(value_score), 2)),
+            'quality_score': float(round(clamp_score(quality_score), 2)),
+            'growth_score': float(round(clamp_score(growth_score), 2)),
+            'relative_strength_score': float(round(clamp_score(relative_strength_score), 2)),
+            'positioning_score': float(round(clamp_score(positioning_score), 2)),
+            'sentiment_score': float(round(clamp_score(sentiment_score), 2)),
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
