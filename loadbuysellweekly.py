@@ -361,7 +361,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 ) AS INTEGER) as stage_number,
 
                 -- Mansfield RS from technical data
-                NULL as mansfield_rs as mansfield_rs,
+                NULL as mansfield_rs,
 
                 -- Distance from MAs
                 ROUND(((sd.current_price - td.ema_21) / NULLIF(td.ema_21, 0) * 100)::NUMERIC, 2) as pct_from_ema_21,
