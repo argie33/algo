@@ -360,23 +360,14 @@ router.get("/", async (req, res) => {
         (row) => row.table_name
       );
       if (existingTables.length > 0) {
-        // Use fast table statistics instead of slow COUNT(*) queries
+        // Use actual COUNT(*) queries to get real row counts
         const countQueries = existingTables.map((tableName) =>
           Promise.race([
-            // Use pg_stat_user_tables for much faster table statistics
-            query(
-              `
-              SELECT
-                COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
-              FROM pg_stat_user_tables
-              WHERE relname = $1
-            `,
-              [tableName]
-            ),
+            query(`SELECT COUNT(*) as count FROM ${tableName}`),
             new Promise((_, reject) =>
               setTimeout(
-                () => reject(new Error(`Stats timeout for ${tableName}`)),
-                500 // Reduced timeout since stats are much faster
+                () => reject(new Error(`Count timeout for ${tableName}`)),
+                2000
               )
             ),
           ])
@@ -384,12 +375,12 @@ router.get("/", async (req, res) => {
               table: tableName,
               count:
                 result.rows.length > 0
-                  ? parseInt(result.rows[0].estimated_count) || 0
+                  ? parseInt(result.rows[0].count) || 0
                   : 0,
             }))
             .catch((err) => ({
               table: tableName,
-              count: 0, // Default to 0 instead of null for cleaner response
+              count: 0,
               error: err.message,
             }))
         );
