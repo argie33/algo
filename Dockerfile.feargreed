@@ -1,1 +1,13 @@
-# Trigger feargreed Mon Oct 6 23:20 CDT 2025
+# Dockerfile.feargreed
+FROM public.ecr.aws/lambda/python:3.11
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy requirements and script
+COPY requirements-loadfeargreed.txt loadfeargreed.py ./
+
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadfeargreed.txt
+
+# Set the entrypoint
+ENTRYPOINT ["python", "loadfeargreed.py"]
