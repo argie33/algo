@@ -43,7 +43,21 @@ SECTOR_ETFS = {
 
 
 def get_db_config():
-    """Fetch database credentials from AWS Secrets Manager"""
+    """Fetch database credentials from AWS Secrets Manager or use local environment"""
+    # Check if running locally
+    if os.getenv("USE_LOCAL_DB") == "true" or all(
+        key in os.environ for key in ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"]
+    ):
+        logging.info("Using local database configuration from environment variables")
+        return {
+            "host": os.getenv("DB_HOST", "localhost"),
+            "port": int(os.getenv("DB_PORT", 5432)),
+            "user": os.getenv("DB_USER", "postgres"),
+            "password": os.getenv("DB_PASSWORD", "postgres"),
+            "dbname": os.getenv("DB_NAME", "stocks"),
+        }
+
+    # AWS Secrets Manager for production
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
     sec = json.loads(resp["SecretString"])
