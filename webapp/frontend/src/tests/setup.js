@@ -169,7 +169,9 @@ if (typeof global.document !== "undefined") {
 beforeEach(() => {
   // Ensure ResizeObserver mock is applied for each test
   global.ResizeObserver = MockResizeObserver;
-  window.ResizeObserver = MockResizeObserver;
+  if (typeof window !== 'undefined') {
+    window.ResizeObserver = MockResizeObserver;
+  }
 
   // Reset React internal state to prevent "Should not already be working" errors
   const internals =

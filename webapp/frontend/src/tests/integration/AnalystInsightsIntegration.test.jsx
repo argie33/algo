@@ -1,7 +1,12 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 import AnalystInsights from '../../pages/AnalystInsights';
+import api from '../../services/api';
+
+// Mock the api service
+vi.mock('../../services/api');
 
 // Integration test with real API structure
 const renderWithRouter = (component) => {
@@ -112,17 +117,16 @@ describe('AnalystInsights Integration Tests', () => {
   };
 
   beforeEach(() => {
-    // Mock fetch with actual API structure
-    global.fetch = vi.fn((url) => {
+    // Mock axios api with actual API structure
+    api.get.mockImplementation((url) => {
       if (url.includes('/api/analysts/upgrades')) {
         return Promise.resolve({
-          ok: true,
-          json: async () => mockRealApiResponse.upgrades
+          data: mockRealApiResponse.upgrades
         });
-      } else if (url.includes('/api/analysts/AAPL')) {
+      } else if (url.includes('/api/analysts/')) {
+        // Symbol-specific endpoint
         return Promise.resolve({
-          ok: true,
-          json: async () => mockRealApiResponse.symbolSpecific
+          data: mockRealApiResponse.symbolSpecific
         });
       }
       return Promise.reject(new Error('Unknown endpoint'));
@@ -130,7 +134,7 @@ describe('AnalystInsights Integration Tests', () => {
   });
 
   afterEach(() => {
-    fetch.mockClear();
+    vi.clearAllMocks();
   });
 
   test('integrates with real analyst API endpoints correctly', async () => {
@@ -138,7 +142,7 @@ describe('AnalystInsights Integration Tests', () => {
 
     // Verify API calls are made to correct endpoints
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
+      expect(api.get).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
     });
 
     // Verify data from real API structure is displayed
@@ -154,7 +158,7 @@ describe('AnalystInsights Integration Tests', () => {
 
     await waitFor(() => {
       // Should call API with pagination parameters
-      expect(fetch).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
+      expect(api.get).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
     });
 
     // Verify pagination data is handled correctly
@@ -172,7 +176,7 @@ describe('AnalystInsights Integration Tests', () => {
 
     // Verify symbol-specific API call
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/analysts/AAPL');
+      expect(api.get).toHaveBeenCalledWith('/api/analysts/AAPL');
     });
   });
 
@@ -202,17 +206,16 @@ describe('AnalystInsights Integration Tests', () => {
   });
 
   test('handles real API error responses correctly', async () => {
-    fetch.mockImplementation(() =>
-      Promise.resolve({
-        ok: false,
+    api.get.mockRejectedValue({
+      response: {
         status: 500,
-        json: async () => ({
+        data: {
           success: false,
           error: "Failed to fetch analyst upgrades",
           details: "Database connection failed"
-        })
-      })
-    );
+        }
+      }
+    });
 
     renderWithRouter(<AnalystInsights />);
 
@@ -238,7 +241,7 @@ describe('AnalystInsights Integration Tests', () => {
     // The source information should be available in the data structure
     // even if not directly displayed, it validates API contract
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
+      expect(api.get).toHaveBeenCalledWith('/api/analysts/upgrades?page=1&limit=50');
     });
   });
 });

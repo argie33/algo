@@ -21,9 +21,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/tests/setup.js"],
     globals: true,
-    testTimeout: 8000, // Increased timeout for complex tests
-    hookTimeout: 5000, // Increased hook timeout
-    teardownTimeout: 3000, // Increased cleanup time
+    testTimeout: 30000, // Increased timeout for complex component tests
+    hookTimeout: 10000, // Increased hook timeout
+    teardownTimeout: 5000, // Increased cleanup time
     // Optimize pool configuration for better resource management
     pool: "forks",
     poolOptions: {

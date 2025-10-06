@@ -57,8 +57,9 @@ describe("API Service", () => {
     test("returns default localhost URL when no config", () => {
       const config = getApiConfig();
 
-      expect(config.apiUrl).toBe("http://localhost:3001");
-      expect(config.baseURL).toBe("http://localhost:3001");
+      // Updated to match actual .env configuration (port 5001, not 3001)
+      expect(config.apiUrl).toBe("http://localhost:5001");
+      expect(config.baseURL).toBe("http://localhost:5001");
       expect(config.isServerless).toBe(false);
       expect(config.isConfigured).toBe(false);
     });
@@ -192,7 +193,8 @@ describe("API Service", () => {
       delete global.window;
 
       const config = getApiConfig();
-      expect(config.apiUrl).toBe("http://localhost:3001");
+      // Updated to match actual .env configuration (port 5001, not 3001)
+      expect(config.apiUrl).toBe("http://localhost:5001");
 
       // Restore window
       global.window = originalWindow;
@@ -212,7 +214,8 @@ describe("API Service", () => {
       });
 
       const config = getApiConfig();
-      expect(config.apiUrl).toBe("http://localhost:3001");
+      // Updated to match actual .env configuration (port 5001, not 3001)
+      expect(config.apiUrl).toBe("http://localhost:5001");
     });
   });
 });

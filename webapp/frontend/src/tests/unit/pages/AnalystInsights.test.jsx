@@ -1,10 +1,12 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 import AnalystInsights from '../../../pages/AnalystInsights';
+import api from '../../../services/api';
 
-// Mock fetch for API calls
-global.fetch = vi.fn();
+// Mock the API service
+vi.mock('../../../services/api');
 
 const renderWithRouter = (component) => {
   return render(
@@ -16,7 +18,7 @@ const renderWithRouter = (component) => {
 
 describe('AnalystInsights Component', () => {
   beforeEach(() => {
-    fetch.mockClear();
+    vi.clearAllMocks();
   });
 
   const mockUpgradesData = {
@@ -56,32 +58,17 @@ describe('AnalystInsights Component', () => {
   };
 
   test('renders page title and description', async () => {
-    fetch.mockImplementation((url) => {
-      if (url.includes('/api/analysts/upgrades')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockUpgradesData
-        });
-      }
-    });
+    api.get.mockResolvedValue({ data: mockUpgradesData });
 
     renderWithRouter(<AnalystInsights />);
 
     await waitFor(() => {
       expect(screen.getByText('Analyst Insights')).toBeInTheDocument();
-      expect(screen.getByText('Analyst Insights')).toBeInTheDocument();
     });
   });
 
   test('displays summary cards with correct data', async () => {
-    fetch.mockImplementation((url) => {
-      if (url.includes('/api/analysts/upgrades')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockUpgradesData
-        });
-      }
-    });
+    api.get.mockResolvedValue({ data: mockUpgradesData });
 
     renderWithRouter(<AnalystInsights />);
 
@@ -100,14 +87,7 @@ describe('AnalystInsights Component', () => {
   });
 
   test('displays upgrades/downgrades table with real YFinance data structure', async () => {
-    fetch.mockImplementation((url) => {
-      if (url.includes('/api/analysts/upgrades')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockUpgradesData
-        });
-      }
-    });
+    api.get.mockResolvedValue({ data: mockUpgradesData });
 
     renderWithRouter(<AnalystInsights />);
 
@@ -133,14 +113,7 @@ describe('AnalystInsights Component', () => {
   });
 
   test('search functionality filters symbols correctly', async () => {
-    fetch.mockImplementation((url) => {
-      if (url.includes('/api/analysts/upgrades')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockUpgradesData
-        });
-      }
-    });
+    api.get.mockResolvedValue({ data: mockUpgradesData });
 
     renderWithRouter(<AnalystInsights />);
 
@@ -158,14 +131,7 @@ describe('AnalystInsights Component', () => {
   });
 
   test('action filter dropdown works correctly', async () => {
-    fetch.mockImplementation((url) => {
-      if (url.includes('/api/analysts/upgrades')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockUpgradesData
-        });
-      }
-    });
+    api.get.mockResolvedValue({ data: mockUpgradesData });
 
     renderWithRouter(<AnalystInsights />);
 
@@ -179,9 +145,7 @@ describe('AnalystInsights Component', () => {
   });
 
   test('handles API errors gracefully', async () => {
-    fetch.mockImplementation(() => {
-      return Promise.reject(new Error('API Error'));
-    });
+    api.get.mockRejectedValue(new Error('API Error'));
 
     renderWithRouter(<AnalystInsights />);
 
@@ -191,26 +155,17 @@ describe('AnalystInsights Component', () => {
   });
 
   test('clicking on symbol triggers symbol data fetch', async () => {
-    fetch.mockImplementation((url) => {
-      if (url.includes('/api/analysts/upgrades')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockUpgradesData
-        });
-      } else if (url.includes('/api/analysts/AAPL')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            success: true,
-            symbol: 'AAPL',
-            data: {
-              upgrades_downgrades: mockUpgradesData.data.filter(u => u.symbol === 'AAPL'),
-              revenue_estimates: []
-            }
-          })
-        });
+    const mockSymbolData = {
+      success: true,
+      symbol: 'AAPL',
+      data: {
+        upgrades_downgrades: mockUpgradesData.data.filter(u => u.symbol === 'AAPL'),
+        revenue_estimates: []
       }
-    });
+    };
+
+    api.get.mockResolvedValueOnce({ data: mockUpgradesData })
+            .mockResolvedValueOnce({ data: mockSymbolData });
 
     renderWithRouter(<AnalystInsights />);
 
@@ -221,19 +176,12 @@ describe('AnalystInsights Component', () => {
 
     // Verify the symbol-specific API call was made
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/analysts/AAPL');
+      expect(api.get).toHaveBeenCalledWith('/api/analysts/AAPL');
     });
   });
 
   test('displays correct action icons and colors', async () => {
-    fetch.mockImplementation((url) => {
-      if (url.includes('/api/analysts/upgrades')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockUpgradesData
-        });
-      }
-    });
+    api.get.mockResolvedValue({ data: mockUpgradesData });
 
     renderWithRouter(<AnalystInsights />);
 
@@ -248,14 +196,7 @@ describe('AnalystInsights Component', () => {
   });
 
   test('no longer displays revenue estimates section', async () => {
-    fetch.mockImplementation((url) => {
-      if (url.includes('/api/analysts/upgrades')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockUpgradesData
-        });
-      }
-    });
+    api.get.mockResolvedValue({ data: mockUpgradesData });
 
     renderWithRouter(<AnalystInsights />);
 
