@@ -1957,7 +1957,7 @@ router.get("/sentiment", async (req, res) => {
 
     // Get latest NAAIM data
     const naaimQuery = `
-      SELECT 
+      SELECT
         naaim_number_mean as exposure_index,
         naaim_number_mean as mean_exposure,
         bearish as bearish_exposure,
@@ -1975,6 +1975,22 @@ router.get("/sentiment", async (req, res) => {
       // Table might not exist
     }
 
+    // Get latest AAII data
+    const aaiiQuery = `
+      SELECT bullish, neutral, bearish, date
+      FROM aaii_sentiment
+      ORDER BY date DESC
+      LIMIT 1
+    `;
+
+    let aaii = null;
+    try {
+      const aaiiResult = await query(aaiiQuery);
+      aaii = aaiiResult.rows[0] || null;
+    } catch (e) {
+      // Table might not exist
+    }
+
     if (!fearGreed || !naaim) {
       return res.notFound("No data found for this query");
     }
@@ -1984,6 +2000,7 @@ router.get("/sentiment", async (req, res) => {
       data: {
         fear_greed: fearGreed,
         naaim: naaim,
+        aaii: aaii,
       },
       timestamp: new Date().toISOString(),
     });
