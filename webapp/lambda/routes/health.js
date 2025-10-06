@@ -360,14 +360,19 @@ router.get("/", async (req, res) => {
         (row) => row.table_name
       );
       if (existingTables.length > 0) {
-        // Use actual COUNT(*) queries to get real row counts
+        // Use fast reltuples estimate from pg_class for row counts
         const countQueries = existingTables.map((tableName) =>
           Promise.race([
-            query(`SELECT COUNT(*) as count FROM ${tableName}`),
+            query(
+              `SELECT COALESCE(reltuples::bigint, 0) as estimated_count
+               FROM pg_class
+               WHERE relname = $1`,
+              [tableName]
+            ),
             new Promise((_, reject) =>
               setTimeout(
-                () => reject(new Error(`Count timeout for ${tableName}`)),
-                2000
+                () => reject(new Error(`Stats timeout for ${tableName}`)),
+                500
               )
             ),
           ])
@@ -375,7 +380,7 @@ router.get("/", async (req, res) => {
               table: tableName,
               count:
                 result.rows.length > 0
-                  ? parseInt(result.rows[0].count) || 0
+                  ? parseInt(result.rows[0].estimated_count) || 0
                   : 0,
             }))
             .catch((err) => ({
@@ -389,9 +394,9 @@ router.get("/", async (req, res) => {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Table count global timeout")),
-              10000
+              5000
             )
-          ), // 10 second timeout
+          ),
         ]);
         tableResults.forEach((result) => {
           tables[result.table] =
