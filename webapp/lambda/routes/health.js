@@ -394,7 +394,7 @@ router.get("/", async (req, res) => {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Table count global timeout")),
-              5000
+              30000
             )
           ),
         ]);
