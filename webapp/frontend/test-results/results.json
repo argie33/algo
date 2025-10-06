@@ -1,0 +1,1408 @@
+{
+  "config": {
+    "configFile": "/home/stocks/algo/webapp/frontend/playwright.config.js",
+    "rootDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 3,
+    "metadata": {
+      "actualWorkers": 16
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "desktop-chrome",
+        "name": "desktop-chrome",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 300000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "desktop-firefox",
+        "name": "desktop-firefox",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 300000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "desktop-safari",
+        "name": "desktop-safari",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 300000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "tablet-chrome",
+        "name": "tablet-chrome",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 300000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "mobile-chrome",
+        "name": "mobile-chrome",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 300000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "mobile-safari",
+        "name": "mobile-safari",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 300000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "visual-desktop",
+        "name": "visual-desktop",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.visual\\.spec\\.js/"
+        ],
+        "timeout": 300000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "performance",
+        "name": "performance",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.perf\\.spec\\.js/"
+        ],
+        "timeout": 300000
+      },
+      {
+        "outputDir": "/home/stocks/algo/webapp/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 16
+        },
+        "id": "accessibility",
+        "name": "accessibility",
+        "testDir": "/home/stocks/algo/webapp/frontend/src/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.accessibility\\.spec\\.js/"
+        ],
+        "timeout": 300000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.55.0",
+    "workers": 16,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "api/data-integration.spec.js",
+      "file": "api/data-integration.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Financial Platform - Data Integration",
+          "file": "api/data-integration.spec.js",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should load market data on dashboard",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7056,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "📊 Testing market data integration...\n"
+                        },
+                        {
+                          "text": "📈 Market data elements found: 1\n"
+                        },
+                        {
+                          "text": "📊 Chart elements found: 56\n"
+                        },
+                        {
+                          "text": "🔴 Real-time indicators: 0\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.264Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "12cd284fc739e6d2122a-3d5f627019294ae6b195",
+              "file": "api/data-integration.spec.js",
+              "line": 49,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "features/Dashboard.spec.js",
+      "file": "features/Dashboard.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Dashboard and Homepage E2E Tests",
+          "file": "features/Dashboard.spec.js",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should load the homepage with correct title",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 7297,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.201Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "63409b78fa198c67fa48-c43aa01fdafddbdcc3d6",
+              "file": "features/Dashboard.spec.js",
+              "line": 19,
+              "column": 3
+            },
+            {
+              "title": "should handle navigation elements",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 7719,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.312Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "63409b78fa198c67fa48-1715cdf722ee320528ed",
+              "file": "features/Dashboard.spec.js",
+              "line": 54,
+              "column": 3
+            },
+            {
+              "title": "should be responsive across different viewports",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 10174,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.225Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "63409b78fa198c67fa48-3b847c14ee71be2aa02b",
+              "file": "features/Dashboard.spec.js",
+              "line": 99,
+              "column": 3
+            },
+            {
+              "title": "should have correct document title",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 5999,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.197Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "63409b78fa198c67fa48-a595e18affe8e143458e",
+              "file": "features/Dashboard.spec.js",
+              "line": 142,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "features/RealTimeDashboard.spec.js",
+      "file": "features/RealTimeDashboard.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Real-Time Dashboard Page E2E Tests",
+          "file": "features/RealTimeDashboard.spec.js",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should load Real-Time Dashboard page without errors",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "passed",
+                      "duration": 8355,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "🧪 Testing Real-Time Dashboard at /realtime...\n"
+                        },
+                        {
+                          "text": "📊 Real-Time Dashboard: 0 total errors, 0 MUI Tabs errors\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.229Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "47137527226ef3191115-881295431d9adb7a425f",
+              "file": "features/RealTimeDashboard.spec.js",
+              "line": 21,
+              "column": 3
+            },
+            {
+              "title": "should display real-time dashboard elements",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 6,
+                      "status": "passed",
+                      "duration": 7560,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.317Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "47137527226ef3191115-ed3c286952e3d231deb4",
+              "file": "features/RealTimeDashboard.spec.js",
+              "line": 82,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "features/ScoresDashboard.spec.js",
+      "file": "features/ScoresDashboard.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Scores Dashboard Page E2E Tests",
+          "file": "features/ScoresDashboard.spec.js",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should load Scores Dashboard page without errors",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 7,
+                      "status": "passed",
+                      "duration": 7067,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "🧪 Testing Scores Dashboard at /scores...\n"
+                        },
+                        {
+                          "text": "📊 Scores Dashboard: 0 total console messages, 0 critical errors\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.320Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "db04964ed77ae5ebcad1-a37fd66fe45891b7b9b5",
+              "file": "features/ScoresDashboard.spec.js",
+              "line": 21,
+              "column": 3
+            },
+            {
+              "title": "should display scores dashboard with list view and search",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 8,
+                      "status": "passed",
+                      "duration": 7301,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.267Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "db04964ed77ae5ebcad1-e7c73a362fe4517d2437",
+              "file": "features/ScoresDashboard.spec.js",
+              "line": 82,
+              "column": 3
+            },
+            {
+              "title": "should expand accordion and show factor details",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 9,
+                      "status": "failed",
+                      "duration": 9912,
+                      "error": {
+                        "message": "Error: expect.toBeVisible: Error: strict mode violation: locator('text=/Factor Analysis/i') resolved to 5 elements:\n    1) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for AAPL</h6> aka getByRole('heading', { name: 'Factor Analysis for AAPL' })\n    2) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for TSLA</h6> aka getByText('Factor Analysis for TSLA')\n    3) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for NVDA</h6> aka getByText('Factor Analysis for NVDA')\n    4) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for GOOGL</h6> aka getByText('Factor Analysis for GOOGL')\n    5) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for MSFT</h6> aka getByText('Factor Analysis for MSFT')\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=/Factor Analysis/i')\u001b[22m\n",
+                        "stack": "Error: expect.toBeVisible: Error: strict mode violation: locator('text=/Factor Analysis/i') resolved to 5 elements:\n    1) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for AAPL</h6> aka getByRole('heading', { name: 'Factor Analysis for AAPL' })\n    2) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for TSLA</h6> aka getByText('Factor Analysis for TSLA')\n    3) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for NVDA</h6> aka getByText('Factor Analysis for NVDA')\n    4) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for GOOGL</h6> aka getByText('Factor Analysis for GOOGL')\n    5) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for MSFT</h6> aka getByText('Factor Analysis for MSFT')\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=/Factor Analysis/i')\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js:136:34",
+                        "location": {
+                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js",
+                          "column": 34,
+                          "line": 136
+                        },
+                        "snippet": "  134 |     // Check for factor analysis content\n  135 |     const factorAnalysis = page.locator('text=/Factor Analysis/i');\n> 136 |     await expect(factorAnalysis).toBeVisible();\n      |                                  ^\n  137 |\n  138 |     // Check for individual factors\n  139 |     const momentumFactor = page.locator('text=/Momentum/i');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js",
+                            "column": 34,
+                            "line": 136
+                          },
+                          "message": "Error: expect.toBeVisible: Error: strict mode violation: locator('text=/Factor Analysis/i') resolved to 5 elements:\n    1) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for AAPL</h6> aka getByRole('heading', { name: 'Factor Analysis for AAPL' })\n    2) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for TSLA</h6> aka getByText('Factor Analysis for TSLA')\n    3) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for NVDA</h6> aka getByText('Factor Analysis for NVDA')\n    4) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for GOOGL</h6> aka getByText('Factor Analysis for GOOGL')\n    5) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for MSFT</h6> aka getByText('Factor Analysis for MSFT')\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=/Factor Analysis/i')\u001b[22m\n\n\n  134 |     // Check for factor analysis content\n  135 |     const factorAnalysis = page.locator('text=/Factor Analysis/i');\n> 136 |     await expect(factorAnalysis).toBeVisible();\n      |                                  ^\n  137 |\n  138 |     // Check for individual factors\n  139 |     const momentumFactor = page.locator('text=/Momentum/i');\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js:136:34"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.343Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-ScoresDashboard-S-15653-ion-and-show-factor-details-desktop-chrome/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-ScoresDashboard-S-15653-ion-and-show-factor-details-desktop-chrome/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-ScoresDashboard-S-15653-ion-and-show-factor-details-desktop-chrome/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js",
+                        "column": 34,
+                        "line": 136
+                      }
+                    },
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5705,
+                      "error": {
+                        "message": "Error: expect.toBeVisible: Error: strict mode violation: locator('text=/Factor Analysis/i') resolved to 5 elements:\n    1) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for AAPL</h6> aka getByRole('heading', { name: 'Factor Analysis for AAPL' })\n    2) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for TSLA</h6> aka getByText('Factor Analysis for TSLA')\n    3) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for NVDA</h6> aka getByText('Factor Analysis for NVDA')\n    4) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for GOOGL</h6> aka getByText('Factor Analysis for GOOGL')\n    5) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for MSFT</h6> aka getByText('Factor Analysis for MSFT')\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=/Factor Analysis/i')\u001b[22m\n",
+                        "stack": "Error: expect.toBeVisible: Error: strict mode violation: locator('text=/Factor Analysis/i') resolved to 5 elements:\n    1) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for AAPL</h6> aka getByRole('heading', { name: 'Factor Analysis for AAPL' })\n    2) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for TSLA</h6> aka getByText('Factor Analysis for TSLA')\n    3) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for NVDA</h6> aka getByText('Factor Analysis for NVDA')\n    4) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for GOOGL</h6> aka getByText('Factor Analysis for GOOGL')\n    5) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for MSFT</h6> aka getByText('Factor Analysis for MSFT')\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=/Factor Analysis/i')\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js:136:34",
+                        "location": {
+                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js",
+                          "column": 34,
+                          "line": 136
+                        },
+                        "snippet": "  134 |     // Check for factor analysis content\n  135 |     const factorAnalysis = page.locator('text=/Factor Analysis/i');\n> 136 |     await expect(factorAnalysis).toBeVisible();\n      |                                  ^\n  137 |\n  138 |     // Check for individual factors\n  139 |     const momentumFactor = page.locator('text=/Momentum/i');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js",
+                            "column": 34,
+                            "line": 136
+                          },
+                          "message": "Error: expect.toBeVisible: Error: strict mode violation: locator('text=/Factor Analysis/i') resolved to 5 elements:\n    1) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for AAPL</h6> aka getByRole('heading', { name: 'Factor Analysis for AAPL' })\n    2) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for TSLA</h6> aka getByText('Factor Analysis for TSLA')\n    3) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for NVDA</h6> aka getByText('Factor Analysis for NVDA')\n    4) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for GOOGL</h6> aka getByText('Factor Analysis for GOOGL')\n    5) <h6 class=\"MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-1qqswhy-MuiTypography-root\">Factor Analysis for MSFT</h6> aka getByText('Factor Analysis for MSFT')\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('text=/Factor Analysis/i')\u001b[22m\n\n\n  134 |     // Check for factor analysis content\n  135 |     const factorAnalysis = page.locator('text=/Factor Analysis/i');\n> 136 |     await expect(factorAnalysis).toBeVisible();\n      |                                  ^\n  137 |\n  138 |     // Check for individual factors\n  139 |     const momentumFactor = page.locator('text=/Momentum/i');\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js:136:34"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2025-10-06T14:40:19.034Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-ScoresDashboard-S-15653-ion-and-show-factor-details-desktop-chrome-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-ScoresDashboard-S-15653-ion-and-show-factor-details-desktop-chrome-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-ScoresDashboard-S-15653-ion-and-show-factor-details-desktop-chrome-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-ScoresDashboard-S-15653-ion-and-show-factor-details-desktop-chrome-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/ScoresDashboard.spec.js",
+                        "column": 34,
+                        "line": 136
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "db04964ed77ae5ebcad1-eeb2bb96127f314568c5",
+              "file": "features/ScoresDashboard.spec.js",
+              "line": 115,
+              "column": 3
+            },
+            {
+              "title": "should filter stocks with search functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 10,
+                      "status": "passed",
+                      "duration": 10455,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.242Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "db04964ed77ae5ebcad1-eaa58773e58dc1aec27e",
+              "file": "features/ScoresDashboard.spec.js",
+              "line": 154,
+              "column": 3
+            },
+            {
+              "title": "should not display peer comparison or methodology sections",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 11,
+                      "parallelIndex": 11,
+                      "status": "passed",
+                      "duration": 8666,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.240Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "db04964ed77ae5ebcad1-f47eb766682574a12e08",
+              "file": "features/ScoresDashboard.spec.js",
+              "line": 186,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "infrastructure/error-monitoring.spec.js",
+      "file": "infrastructure/error-monitoring.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Console Error Detection",
+          "file": "infrastructure/error-monitoring.spec.js",
+          "line": 173,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should have no critical console errors on Dashboard",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 12,
+                      "parallelIndex": 12,
+                      "status": "failed",
+                      "duration": 12535,
+                      "error": {
+                        "message": "Error: Too many high-severity console errors on Dashboard. Maximum 2 allowed for test environment.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: <= \u001b[32m2\u001b[39m\nReceived:    \u001b[31m7\u001b[39m",
+                        "stack": "Error: Too many high-severity console errors on Dashboard. Maximum 2 allowed for test environment.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: <= \u001b[32m2\u001b[39m\nReceived:    \u001b[31m7\u001b[39m\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:337:9",
+                        "location": {
+                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
+                          "column": 9,
+                          "line": 337
+                        },
+                        "snippet": "  335 |         report.summary.highErrors,\n  336 |         `Too many high-severity console errors on ${pageInfo.name}. Maximum 2 allowed for test environment.`\n> 337 |       ).toBeLessThanOrEqual(2);\n      |         ^\n  338 |\n  339 |       // Network errors should be minimal (some expected due to test environment)\n  340 |       expect("
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
+                            "column": 9,
+                            "line": 337
+                          },
+                          "message": "Error: Too many high-severity console errors on Dashboard. Maximum 2 allowed for test environment.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: <= \u001b[32m2\u001b[39m\nReceived:    \u001b[31m7\u001b[39m\n\n  335 |         report.summary.highErrors,\n  336 |         `Too many high-severity console errors on ${pageInfo.name}. Maximum 2 allowed for test environment.`\n> 337 |       ).toBeLessThanOrEqual(2);\n      |         ^\n  338 |\n  339 |       // Network errors should be minimal (some expected due to test environment)\n  340 |       expect(\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:337:9"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "\n📊 Console Error Report for Dashboard:\n"
+                        },
+                        {
+                          "text": "   Total Issues: 7\n"
+                        },
+                        {
+                          "text": "   Errors: 7 (0 critical)\n"
+                        },
+                        {
+                          "text": "   Warnings: 0\n"
+                        },
+                        {
+                          "text": "   Network Errors: 0\n"
+                        },
+                        {
+                          "text": "\n❌ Console Errors:\n"
+                        },
+                        {
+                          "text": "   1. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s AAPL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   2. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s GOOGL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   3. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s MSFT \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   4. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s AAPL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   5. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s GOOGL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   6. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s MSFT \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   7. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s AAPL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "\n💡 Recommendations:\n"
+                        },
+                        {
+                          "text": "   1. [high] Found 7 React-related errors. Check component lifecycle and hooks usage.\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.248Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-1ec92-console-errors-on-Dashboard-desktop-chrome/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-1ec92-console-errors-on-Dashboard-desktop-chrome/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-1ec92-console-errors-on-Dashboard-desktop-chrome/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
+                        "column": 9,
+                        "line": 337
+                      }
+                    },
+                    {
+                      "workerIndex": 17,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 10760,
+                      "error": {
+                        "message": "Error: Too many high-severity console errors on Dashboard. Maximum 2 allowed for test environment.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: <= \u001b[32m2\u001b[39m\nReceived:    \u001b[31m7\u001b[39m",
+                        "stack": "Error: Too many high-severity console errors on Dashboard. Maximum 2 allowed for test environment.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: <= \u001b[32m2\u001b[39m\nReceived:    \u001b[31m7\u001b[39m\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:337:9",
+                        "location": {
+                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
+                          "column": 9,
+                          "line": 337
+                        },
+                        "snippet": "  335 |         report.summary.highErrors,\n  336 |         `Too many high-severity console errors on ${pageInfo.name}. Maximum 2 allowed for test environment.`\n> 337 |       ).toBeLessThanOrEqual(2);\n      |         ^\n  338 |\n  339 |       // Network errors should be minimal (some expected due to test environment)\n  340 |       expect("
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
+                            "column": 9,
+                            "line": 337
+                          },
+                          "message": "Error: Too many high-severity console errors on Dashboard. Maximum 2 allowed for test environment.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: <= \u001b[32m2\u001b[39m\nReceived:    \u001b[31m7\u001b[39m\n\n  335 |         report.summary.highErrors,\n  336 |         `Too many high-severity console errors on ${pageInfo.name}. Maximum 2 allowed for test environment.`\n> 337 |       ).toBeLessThanOrEqual(2);\n      |         ^\n  338 |\n  339 |       // Network errors should be minimal (some expected due to test environment)\n  340 |       expect(\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:337:9"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "\n📊 Console Error Report for Dashboard:\n"
+                        },
+                        {
+                          "text": "   Total Issues: 7\n"
+                        },
+                        {
+                          "text": "   Errors: 7 (0 critical)\n"
+                        },
+                        {
+                          "text": "   Warnings: 0\n"
+                        },
+                        {
+                          "text": "   Network Errors: 0\n"
+                        },
+                        {
+                          "text": "\n❌ Console Errors:\n"
+                        },
+                        {
+                          "text": "   1. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s AAPL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   2. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s GOOGL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   3. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s MSFT \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   4. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s AAPL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   5. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s GOOGL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   6. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s MSFT \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "   7. [high] Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s AAPL \n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:2815:24)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at CardContent2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4587:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Paper2 (http://localhost:5173/node_modules/.vite/deps/chunk-VXUOF3JD.js?v=39563c85:137:17)\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Card2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:4283:17)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Grid2 (http://localhost:5173/node_modules/.vite/deps/@mui_material.js?v=1243eb03:7373:22)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at Dashboard (http://localhost:5173/src/pages/Dashboard.jsx:1035:3)\n    at ProtectedRoute (http://localhost:5173/src/components/auth/ProtectedRoute.jsx:1:190)\n    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4088:5)\n    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4558:5)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Container3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1995:19)\n    at main\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at div\n    at http://localhost:5173/node_modules/.vite/deps/chunk-HY3LT27B.js?v=39563c85:1474:49\n    at Box3 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:645:19)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n    at App (http://localhost:5173/src/App.jsx?t=1759760512855:316:39)\n    at AuthProvider (http://localhost:5173/src/contexts/AuthContext.jsx:118:32)\n    at DefaultPropsProvider (http://localhost:5173/node_modules/.vite/deps/chunk-6JTJDH4E.js?v=39563c85:3286:3)\n    at RtlProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1016:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:968:5)\n    at ThemeProvider2 (http://localhost:5173/node_modules/.vite/deps/chunk-UXKL2W62.js?v=39563c85:1101:5)\n    at ThemeProvider (http://localhost:5173/node_modules/.vite/deps/chunk-ST7DVCDN.js?v=39563c85:275:12)\n    at QueryClientProvider (http://localhost:5173/node_modules/.vite/deps/@tanstack_react-query.js?v=adcdb542:3016:3)\n    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:4501:15)\n    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7fba00ce:5247:5)\n    at ErrorBoundary (http://localhost:5173/src/components/ErrorBoundary.jsx:21:5)\n"
+                        },
+                        {
+                          "text": "      Types: react\n"
+                        },
+                        {
+                          "text": "\n💡 Recommendations:\n"
+                        },
+                        {
+                          "text": "   1. [high] Found 7 React-related errors. Check component lifecycle and hooks usage.\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2025-10-06T14:40:21.625Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-1ec92-console-errors-on-Dashboard-desktop-chrome-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-1ec92-console-errors-on-Dashboard-desktop-chrome-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-1ec92-console-errors-on-Dashboard-desktop-chrome-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-1ec92-console-errors-on-Dashboard-desktop-chrome-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
+                        "column": 9,
+                        "line": 337
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "0bab488ead9a955808e2-c79a8ee27389d9ee2035",
+              "file": "infrastructure/error-monitoring.spec.js",
+              "line": 237,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "infrastructure/load-testing.spec.js",
+      "file": "infrastructure/load-testing.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Load Testing - High Traffic Scenarios",
+          "file": "infrastructure/load-testing.spec.js",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Dashboard should handle rapid navigation load",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 13,
+                      "parallelIndex": 13,
+                      "status": "passed",
+                      "duration": 16044,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "🚀 Testing rapid navigation load...\n"
+                        },
+                        {
+                          "text": "📊 Navigation 1 to /portfolio: 4946ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 2 to /market: 1080ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 3 to /settings: 971ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 4 to /technical: 660ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 5 to /stocks: 695ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 6 to /portfolio: 545ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 7 to /market: 523ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 8 to /settings: 517ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 9 to /technical: 599ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 10 to /stocks: 571ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 11 to /portfolio: 712ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 12 to /market: 565ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 13 to /settings: 492ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 14 to /technical: 546ms\n"
+                        },
+                        {
+                          "text": "📊 Navigation 15 to /stocks: 526ms\n"
+                        },
+                        {
+                          "text": "📈 Load Test Results - Avg: 930ms, Max: 4946ms, Min: 492ms\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.308Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a4fa8bab9aa8b3d5b852-7b2eff11a40bded3690c",
+              "file": "infrastructure/load-testing.spec.js",
+              "line": 80,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "infrastructure/mobile-responsive.spec.js",
+      "file": "infrastructure/mobile-responsive.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Mobile-Specific Testing",
+          "file": "infrastructure/mobile-responsive.spec.js",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Mobile dashboard should load and display key metrics",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 14,
+                      "parallelIndex": 14,
+                      "status": "passed",
+                      "duration": 8937,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "📱 Testing mobile dashboard...\n"
+                        },
+                        {
+                          "text": "📱 Mobile menu elements found: 0\n"
+                        },
+                        {
+                          "text": "📱 Touch-friendly targets: 2/10\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.264Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f619b944e9b28dbfd12e-5260c00355e15f961434",
+              "file": "infrastructure/mobile-responsive.spec.js",
+              "line": 94,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "infrastructure/performance.spec.js",
+      "file": "infrastructure/performance.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Performance Tests",
+          "file": "infrastructure/performance.spec.js",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Dashboard should load within performance budget",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 15,
+                      "parallelIndex": 15,
+                      "status": "passed",
+                      "duration": 6044,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "🚀 Dashboard loaded in 4915ms\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:08.281Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4831e9df9afc88307e3a-2cad3e1ab86ebd2d0749",
+              "file": "infrastructure/performance.spec.js",
+              "line": 37,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "mobile-responsiveness.spec.js",
+      "file": "mobile-responsiveness.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Mobile Responsiveness - iPhone 12",
+          "file": "mobile-responsiveness.spec.js",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Dashboard should be readable and functional on mobile",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 1832,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Dashboard - Scroll width: 390, Client width: 390\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:14.651Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "cab64a8186c2cf0c3a1c-ef4a975a74ea44dfca87",
+              "file": "mobile-responsiveness.spec.js",
+              "line": 9,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Tablet Responsiveness - iPad",
+          "file": "mobile-responsiveness.spec.js",
+          "line": 155,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Dashboard should utilize tablet space effectively",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "desktop-chrome",
+                  "projectName": "desktop-chrome",
+                  "results": [
+                    {
+                      "workerIndex": 15,
+                      "parallelIndex": 15,
+                      "status": "passed",
+                      "duration": 1810,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Tablet Dashboard - Scroll width: 768, Client width: 768\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-06T14:40:14.684Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "cab64a8186c2cf0c3a1c-1969f7b54f9bb9026e2c",
+              "file": "mobile-responsiveness.spec.js",
+              "line": 160,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2025-10-06T14:40:07.241Z",
+    "duration": 25362.456000000002,
+    "expected": 16,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}
