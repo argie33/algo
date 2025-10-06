@@ -761,6 +761,9 @@ jobs:
             "info")
               CONTAINER_NAME="loadinfo-loader"
               ;;
+            "aaii")
+              CONTAINER_NAME="aaiidata-loader"
+              ;;
             *)
               CONTAINER_NAME="${{ matrix.loader }}-loader"
               ;;
@@ -809,13 +812,23 @@ jobs:
 
           echo "📝 Registered new task definition: $NEW_TASK_DEF_ARN"
 
+          # Map loader name to script name (handle special cases)
+          case "${{ matrix.loader }}" in
+            "aaii")
+              SCRIPT_NAME="loadaaiidata.py"
+              ;;
+            *)
+              SCRIPT_NAME="load${{ matrix.loader }}.py"
+              ;;
+          esac
+
           # Run ECS task with the updated task definition
           TASK_ARN=$(aws ecs run-task \
             --cluster "${{ steps.infra.outputs.cluster }}" \
             --task-definition "$NEW_TASK_DEF_ARN" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"$CONTAINER_NAME\",\"command\":[\"python3\",\"load${{ matrix.loader }}.py\"]}]}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"$CONTAINER_NAME\",\"command\":[\"python3\",\"$SCRIPT_NAME\"]}]}" \
             --query "tasks[0].taskArn" \
             --output text)
 
