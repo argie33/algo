@@ -40,22 +40,32 @@ logging.basicConfig(
 ###############################################################################
 # ─── Environment & Secrets ───────────────────────────────────────────────────
 ###############################################################################
-FRED_API_KEY = os.environ.get("FRED_API_KEY")
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 if not FRED_API_KEY:
     logging.warning(
-        "FRED_API_KEY environment variable is not set. Proceeding with risk-free rate = 0."
+        "FRED_API_KEY environment variable is not set. Risk-free rate will be set to 0."
     )
-SECRET_ARN = os.environ["DB_SECRET_ARN"]
 
-sm_client = boto3.client("secretsmanager")
-secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
-creds = json.loads(secret_resp["SecretString"])
+# Check if we're in AWS (has DB_SECRET_ARN)
+if os.environ.get("DB_SECRET_ARN"):
+    # AWS mode - use Secrets Manager
+    SECRET_ARN = os.environ["DB_SECRET_ARN"]
+    sm_client = boto3.client("secretsmanager")
+    secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
+    creds = json.loads(secret_resp["SecretString"])
 
-DB_USER = creds["username"]
-DB_PASSWORD = creds["password"]
-DB_HOST = creds["host"]
-DB_PORT = int(creds.get("port", 5432))
-DB_NAME = creds["dbname"]
+    DB_USER = creds["username"]
+    DB_PASSWORD = creds["password"]
+    DB_HOST = creds["host"]
+    DB_PORT = int(creds.get("port", 5432))
+    DB_NAME = creds["dbname"]
+else:
+    # Local mode - use environment variables
+    DB_HOST = os.environ.get("DB_HOST", "localhost")
+    DB_PORT = int(os.environ.get("DB_PORT", 5432))
+    DB_NAME = os.environ.get("DB_NAME", "stocks")
+    DB_USER = os.environ.get("DB_USER", "stocks")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "stocks")
 
 
 def get_db_connection():
