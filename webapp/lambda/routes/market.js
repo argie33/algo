@@ -945,12 +945,12 @@ router.get("/sentiment/history", async (req, res) => {
   console.log(`Sentiment history endpoint called for ${days} days`);
 
   try {
-    // Get fear & greed data
+    // Get fear & greed data - get all available data (no date filter)
     const fearGreedQuery = `
       SELECT
         date,
         index_value as value,
-        CASE 
+        CASE
           WHEN index_value >= 75 THEN 'Extreme Greed'
           WHEN index_value >= 55 THEN 'Greed'
           WHEN index_value >= 45 THEN 'Neutral'
@@ -958,7 +958,6 @@ router.get("/sentiment/history", async (req, res) => {
           ELSE 'Extreme Fear'
         END as classification
       FROM fear_greed_index
-      WHERE date >= NOW() - INTERVAL '${days} days'
       ORDER BY date DESC
       LIMIT 100
     `;
@@ -983,15 +982,14 @@ router.get("/sentiment/history", async (req, res) => {
       });
     }
 
-    // Get NAAIM data
+    // Get NAAIM data - get all available data (no date filter)
     const naaimQuery = `
-      SELECT 
+      SELECT
         date,
         naaim_number_mean as exposure_index,
         naaim_number_mean as mean_exposure,
         bearish as bearish_exposure
       FROM naaim
-      WHERE date >= NOW() - INTERVAL '${days} days'
       ORDER BY date DESC
       LIMIT 100
     `;
