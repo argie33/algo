@@ -114,8 +114,8 @@ jobs:
             ALL_CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD || echo "")
             echo "Debug: All changed files: $ALL_CHANGED_FILES"
 
-            # Check for direct loader file changes
-            LOADER_FILES=$(echo "$ALL_CHANGED_FILES" | grep 'load.*\.py$' || true)
+            # Check for direct loader file changes (must start with "load")
+            LOADER_FILES=$(echo "$ALL_CHANGED_FILES" | grep '^load.*\.py$\|/load.*\.py$' || true)
             echo "Debug: Loader files found: $LOADER_FILES"
 
             # Check for requirements file changes that affect specific loaders
