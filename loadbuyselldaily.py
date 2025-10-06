@@ -75,14 +75,14 @@ else:
 
 
 def get_db_connection():
-    # Set statement timeout to 30 seconds (30000 ms)
+    # Set statement timeout to 2 minutes (120000 ms) for complex queries
     conn = psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
         dbname=DB_NAME,
-        options="-c statement_timeout=30000",
+        options="-c statement_timeout=120000",
     )
     return conn
 
@@ -95,16 +95,28 @@ def get_symbols_from_db(limit=None):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # Only get symbols with sufficient price/technical data for signal generation
+        # Optimized query: Use EXISTS subqueries instead of expensive JOINs + GROUP BY
+        # This avoids materializing large join tables and expensive COUNT operations
         q = """
-            SELECT DISTINCT s.symbol
+            SELECT s.symbol
             FROM stock_symbols s
-            INNER JOIN price_daily p ON s.symbol = p.symbol
-            INNER JOIN technical_data_daily t ON s.symbol = t.symbol
             WHERE s.exchange IN ('NASDAQ', 'N', 'A', 'P')
               AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
-            GROUP BY s.symbol
-            HAVING COUNT(DISTINCT p.date) >= 60
+              AND EXISTS (
+                  SELECT 1 FROM price_daily p
+                  WHERE p.symbol = s.symbol
+                  LIMIT 1
+              )
+              AND EXISTS (
+                  SELECT 1 FROM technical_data_daily t
+                  WHERE t.symbol = s.symbol
+                  LIMIT 1
+              )
+              AND (
+                  SELECT COUNT(DISTINCT date)
+                  FROM price_daily
+                  WHERE symbol = s.symbol
+              ) >= 60
             ORDER BY s.symbol
         """
         if limit:
