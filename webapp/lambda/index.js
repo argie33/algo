@@ -50,6 +50,7 @@ const signalsRoutes = require("./routes/signals");
 const stockRoutes = require("./routes/stocks");
 const technicalRoutes = require("./routes/technical");
 const tradingRoutes = require("./routes/trading");
+const tradingSignalsRealRoutes = require("./routes/trading-signals-real"); // Real DB signals
 const tradesRoutes = require("./routes/trades");
 const watchlistRoutes = require("./routes/watchlist");
 const websocketRoutes = require("./routes/websocket");
@@ -536,7 +537,7 @@ app.use("/api/analysts", analystRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/financials", financialRoutes);
-app.use("/api/trading", tradingRoutes);
+app.use("/api/trading", tradingSignalsRealRoutes); // Use real DB signals instead of mock
 app.use("/api/technical", technicalRoutes);
 app.use("/api/watchlist", watchlistRoutes);
 app.use("/api/watchlists", watchlistRoutes);
