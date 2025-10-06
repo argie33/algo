@@ -633,16 +633,16 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             FROM {price_table} pd
             WHERE pd.symbol = %(symbol)s
         ),
-        stage_data AS (
+        stage_calc AS (
             SELECT
                 sd.symbol, sd.date,
-                es.stage, es.confidence as stage_confidence, es.substage, es.sata_score,
                 sd.current_price, sd.open, sd.high, sd.low, sd.volume, sd.inposition,
                 sd.signal, sd.buylevel, sd.stoplevel,
                 td.sma_20, td.sma_50, td.sma_150, td.sma_200, td.sma_20_prev, td.sma_50_prev, td.sma_200_prev,
                 td.ema_21, td.rsi, td.adx, td.atr, td.mansfield_rs,
                 vd.volume_avg_50,
-                hd.high_52week
+                hd.high_52week,
+                es.stage, es.confidence, es.substage, es.sata_score
             FROM signal_data sd
             JOIN technical_data td ON sd.symbol = td.symbol AND sd.date = td.date
             JOIN volume_data vd ON sd.symbol = vd.symbol AND sd.date = vd.date
@@ -665,7 +665,10 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 'Unknown',
                 td.rsi::NUMERIC,
                 td.mansfield_rs::NUMERIC
-            ) AS es
+            ) es
+        ),
+        stage_data AS (
+            SELECT * FROM stage_calc
         ),
         calculated_metrics AS (
             SELECT
