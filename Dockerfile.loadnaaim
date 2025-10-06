@@ -10,4 +10,5 @@ COPY Dockerfile.loadnaaim requirements-loadnaaim.txt loadnaaim.py ./
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadnaaim.txt
 
 # Set the entrypoint
-ENTRYPOINT ["python", "loadnaaim.py"] # Trigger rebuild Mon Oct  6 13:52:43 CDT 2025
+ENTRYPOINT ["python", "loadnaaim.py"]
+# Trigger rebuild Mon Oct  6 14:20:00 CDT 2025 - Deploy to load sentiment data
