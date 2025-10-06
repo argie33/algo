@@ -275,7 +275,7 @@ const ScoresDashboard = () => {
       // Import the API function
       const { default: api } = await import("../services/api");
 
-      // Fetch scores data from our backend
+      // Fetch all scores data from backend (no limit - filtering done on frontend)
       const response = await api.get("/api/scores");
 
       if (response?.data?.success && response.data.data?.stocks) {

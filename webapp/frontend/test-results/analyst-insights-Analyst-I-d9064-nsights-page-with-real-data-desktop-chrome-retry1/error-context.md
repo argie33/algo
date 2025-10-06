@@ -1,0 +1,485 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Analyst Insights
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
+            - img [ref=e20] [cursor=pointer]
+        - listitem [ref=e22]:
+          - button "Market Overview" [ref=e23] [cursor=pointer]:
+            - img [ref=e25] [cursor=pointer]
+            - paragraph [ref=e28] [cursor=pointer]: Market Overview
+        - listitem [ref=e29]:
+          - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+            - img [ref=e32] [cursor=pointer]
+            - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
+        - listitem [ref=e36]:
+          - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+            - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
+        - listitem [ref=e43]:
+          - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
+            - img [ref=e47] [cursor=pointer]
+        - listitem [ref=e49]:
+          - button "Stock Analysis" [ref=e50] [cursor=pointer]:
+            - img [ref=e52] [cursor=pointer]
+            - paragraph [ref=e55] [cursor=pointer]: Stock Analysis
+        - listitem [ref=e56]:
+          - button "Technical Analysis" [ref=e57] [cursor=pointer]:
+            - img [ref=e59] [cursor=pointer]
+            - paragraph [ref=e62] [cursor=pointer]: Technical Analysis
+        - listitem [ref=e63]:
+          - button "Stock Scores" [ref=e64] [cursor=pointer]:
+            - img [ref=e66] [cursor=pointer]
+            - paragraph [ref=e69] [cursor=pointer]: Stock Scores
+        - listitem [ref=e70]:
+          - button "Earnings Hub" [ref=e71] [cursor=pointer]:
+            - img [ref=e73] [cursor=pointer]
+            - paragraph [ref=e76] [cursor=pointer]: Earnings Hub
+        - listitem [ref=e77]:
+          - button "Trading Signals" [ref=e78] [cursor=pointer]:
+            - img [ref=e80] [cursor=pointer]
+            - paragraph [ref=e83] [cursor=pointer]: Trading Signals
+        - listitem [ref=e84]:
+          - button "Financial Data" [ref=e85] [cursor=pointer]:
+            - img [ref=e87] [cursor=pointer]
+            - paragraph [ref=e90] [cursor=pointer]: Financial Data
+        - listitem [ref=e91]:
+          - button "Sentiment Analysis" [ref=e92] [cursor=pointer]:
+            - img [ref=e94] [cursor=pointer]
+            - paragraph [ref=e98] [cursor=pointer]: Sentiment Analysis
+        - listitem [ref=e99]:
+          - button "Analyst Insights" [ref=e100] [cursor=pointer]:
+            - img [ref=e102] [cursor=pointer]
+            - paragraph [ref=e105] [cursor=pointer]: Analyst Insights
+        - listitem [ref=e106]:
+          - button "Collapse Portfolio section" [ref=e107] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e109] [cursor=pointer]
+            - img [ref=e110] [cursor=pointer]
+        - listitem [ref=e112]:
+          - button "Portfolio Holdings" [ref=e113] [cursor=pointer]:
+            - img [ref=e115] [cursor=pointer]
+            - paragraph [ref=e118] [cursor=pointer]: Portfolio Holdings
+        - listitem [ref=e119]:
+          - button "Trade History" [ref=e120] [cursor=pointer]:
+            - img [ref=e122] [cursor=pointer]
+            - paragraph [ref=e125] [cursor=pointer]: Trade History
+        - listitem [ref=e126]:
+          - button "Order Management" [ref=e127] [cursor=pointer]:
+            - img [ref=e129] [cursor=pointer]
+            - paragraph [ref=e132] [cursor=pointer]: Order Management
+        - listitem [ref=e133]:
+          - button "Optimization Tools" [ref=e134] [cursor=pointer]:
+            - img [ref=e136] [cursor=pointer]
+            - paragraph [ref=e139] [cursor=pointer]: Optimization Tools
+        - listitem [ref=e140]:
+          - button "Expand Tools section" [ref=e141] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e143] [cursor=pointer]
+            - img [ref=e144] [cursor=pointer]
+  - main [ref=e146]:
+    - generic [ref=e149]:
+      - heading "Analyst Insights" [level=1] [ref=e151]:
+        - img [ref=e152]
+        - text: Analyst Insights
+      - generic [ref=e154]:
+        - generic [ref=e158]:
+          - img [ref=e160]
+          - generic [ref=e162]:
+            - heading "0" [level=6] [ref=e163]
+            - paragraph [ref=e164]: Recent Upgrades
+        - generic [ref=e168]:
+          - img [ref=e170]
+          - generic [ref=e172]:
+            - heading "0" [level=6] [ref=e173]
+            - paragraph [ref=e174]: Recent Downgrades
+        - generic [ref=e178]:
+          - img [ref=e180]
+          - generic [ref=e182]:
+            - heading "33" [level=6] [ref=e183]
+            - paragraph [ref=e184]: Active Firms
+        - generic [ref=e188]:
+          - img [ref=e190]
+          - generic [ref=e192]:
+            - heading "50" [level=6] [ref=e193]
+            - paragraph [ref=e194]: Total Actions
+      - generic [ref=e195]:
+        - generic [ref=e197]:
+          - img [ref=e199]
+          - textbox "Search by symbol..." [ref=e201]
+          - group
+        - generic [ref=e202]:
+          - generic [ref=e203]: Action Filter
+          - generic [ref=e204]:
+            - combobox "Action Filter All Actions" [ref=e205] [cursor=pointer]: All Actions
+            - textbox: all
+            - img
+            - group:
+              - generic: Action Filter
+      - generic [ref=e207]:
+        - heading "Recent Analyst Actions" [level=6] [ref=e208]:
+          - img [ref=e209]
+          - text: Recent Analyst Actions
+        - table [ref=e212]:
+          - rowgroup [ref=e213]:
+            - row "Symbol Firm Action From Grade To Grade Date Details" [ref=e214]:
+              - columnheader "Symbol" [ref=e215]
+              - columnheader "Firm" [ref=e216]
+              - columnheader "Action" [ref=e217]
+              - columnheader "From Grade" [ref=e218]
+              - columnheader "To Grade" [ref=e219]
+              - columnheader "Date" [ref=e220]
+              - columnheader "Details" [ref=e221]
+          - rowgroup [ref=e222]:
+            - row "ANGO Canaccord Genuity maint Buy Buy 10/3/2025 No details available" [ref=e223]:
+              - cell "ANGO" [ref=e224]:
+                - paragraph [ref=e225] [cursor=pointer]: ANGO
+              - cell "Canaccord Genuity" [ref=e226]:
+                - paragraph [ref=e227]: Canaccord Genuity
+              - cell "maint" [ref=e228]:
+                - generic [ref=e229]:
+                  - img [ref=e230]
+                  - generic [ref=e233]: maint
+              - cell "Buy" [ref=e234]:
+                - paragraph [ref=e235]: Buy
+              - cell "Buy" [ref=e236]:
+                - paragraph [ref=e237]: Buy
+              - cell "10/3/2025" [ref=e238]:
+                - paragraph [ref=e239]: 10/3/2025
+              - cell "No details available" [ref=e240]:
+                - paragraph [ref=e241]: N/A
+            - row "AMZN Goldman Sachs maint Buy Buy 10/3/2025 No details available" [ref=e242]:
+              - cell "AMZN" [ref=e243]:
+                - paragraph [ref=e244] [cursor=pointer]: AMZN
+              - cell "Goldman Sachs" [ref=e245]:
+                - paragraph [ref=e246]: Goldman Sachs
+              - cell "maint" [ref=e247]:
+                - generic [ref=e248]:
+                  - img [ref=e249]
+                  - generic [ref=e252]: maint
+              - cell "Buy" [ref=e253]:
+                - paragraph [ref=e254]: Buy
+              - cell "Buy" [ref=e255]:
+                - paragraph [ref=e256]: Buy
+              - cell "10/3/2025" [ref=e257]:
+                - paragraph [ref=e258]: 10/3/2025
+              - cell "No details available" [ref=e259]:
+                - paragraph [ref=e260]: N/A
+            - row "AMLX B of A Securities maint Buy Buy 10/3/2025 No details available" [ref=e261]:
+              - cell "AMLX" [ref=e262]:
+                - paragraph [ref=e263] [cursor=pointer]: AMLX
+              - cell "B of A Securities" [ref=e264]:
+                - paragraph [ref=e265]: B of A Securities
+              - cell "maint" [ref=e266]:
+                - generic [ref=e267]:
+                  - img [ref=e268]
+                  - generic [ref=e271]: maint
+              - cell "Buy" [ref=e272]:
+                - paragraph [ref=e273]: Buy
+              - cell "Buy" [ref=e274]:
+                - paragraph [ref=e275]: Buy
+              - cell "10/3/2025" [ref=e276]:
+                - paragraph [ref=e277]: 10/3/2025
+              - cell "No details available" [ref=e278]:
+                - paragraph [ref=e279]: N/A
+            - row "AMAT Cantor Fitzgerald reit Overweight Overweight 10/3/2025 No details available" [ref=e280]:
+              - cell "AMAT" [ref=e281]:
+                - paragraph [ref=e282] [cursor=pointer]: AMAT
+              - cell "Cantor Fitzgerald" [ref=e283]:
+                - paragraph [ref=e284]: Cantor Fitzgerald
+              - cell "reit" [ref=e285]:
+                - generic [ref=e286]:
+                  - img [ref=e287]
+                  - generic [ref=e290]: reit
+              - cell "Overweight" [ref=e291]:
+                - paragraph [ref=e292]: Overweight
+              - cell "Overweight" [ref=e293]:
+                - paragraph [ref=e294]: Overweight
+              - cell "10/3/2025" [ref=e295]:
+                - paragraph [ref=e296]: 10/3/2025
+              - cell "No details available" [ref=e297]:
+                - paragraph [ref=e298]: N/A
+            - row "ALGT Susquehanna maint Neutral Neutral 10/3/2025 No details available" [ref=e299]:
+              - cell "ALGT" [ref=e300]:
+                - paragraph [ref=e301] [cursor=pointer]: ALGT
+              - cell "Susquehanna" [ref=e302]:
+                - paragraph [ref=e303]: Susquehanna
+              - cell "maint" [ref=e304]:
+                - generic [ref=e305]:
+                  - img [ref=e306]
+                  - generic [ref=e309]: maint
+              - cell "Neutral" [ref=e310]:
+                - paragraph [ref=e311]: Neutral
+              - cell "Neutral" [ref=e312]:
+                - paragraph [ref=e313]: Neutral
+              - cell "10/3/2025" [ref=e314]:
+                - paragraph [ref=e315]: 10/3/2025
+              - cell "No details available" [ref=e316]:
+                - paragraph [ref=e317]: N/A
+            - row "ACHC Raymond James maint Outperform Outperform 10/3/2025 No details available" [ref=e318]:
+              - cell "ACHC" [ref=e319]:
+                - paragraph [ref=e320] [cursor=pointer]: ACHC
+              - cell "Raymond James" [ref=e321]:
+                - paragraph [ref=e322]: Raymond James
+              - cell "maint" [ref=e323]:
+                - generic [ref=e324]:
+                  - img [ref=e325]
+                  - generic [ref=e328]: maint
+              - cell "Outperform" [ref=e329]:
+                - paragraph [ref=e330]: Outperform
+              - cell "Outperform" [ref=e331]:
+                - paragraph [ref=e332]: Outperform
+              - cell "10/3/2025" [ref=e333]:
+                - paragraph [ref=e334]: 10/3/2025
+              - cell "No details available" [ref=e335]:
+                - paragraph [ref=e336]: N/A
+            - row "AAL Susquehanna maint Neutral Neutral 10/3/2025 No details available" [ref=e337]:
+              - cell "AAL" [ref=e338]:
+                - paragraph [ref=e339] [cursor=pointer]: AAL
+              - cell "Susquehanna" [ref=e340]:
+                - paragraph [ref=e341]: Susquehanna
+              - cell "maint" [ref=e342]:
+                - generic [ref=e343]:
+                  - img [ref=e344]
+                  - generic [ref=e347]: maint
+              - cell "Neutral" [ref=e348]:
+                - paragraph [ref=e349]: Neutral
+              - cell "Neutral" [ref=e350]:
+                - paragraph [ref=e351]: Neutral
+              - cell "10/3/2025" [ref=e352]:
+                - paragraph [ref=e353]: 10/3/2025
+              - cell "No details available" [ref=e354]:
+                - paragraph [ref=e355]: N/A
+            - row "GOOGL Morgan Stanley maint Overweight Overweight 10/2/2025 No details available" [ref=e356]:
+              - cell "GOOGL" [ref=e357]:
+                - paragraph [ref=e358] [cursor=pointer]: GOOGL
+              - cell "Morgan Stanley" [ref=e359]:
+                - paragraph [ref=e360]: Morgan Stanley
+              - cell "maint" [ref=e361]:
+                - generic [ref=e362]:
+                  - img [ref=e363]
+                  - generic [ref=e366]: maint
+              - cell "Overweight" [ref=e367]:
+                - paragraph [ref=e368]: Overweight
+              - cell "Overweight" [ref=e369]:
+                - paragraph [ref=e370]: Overweight
+              - cell "10/2/2025" [ref=e371]:
+                - paragraph [ref=e372]: 10/2/2025
+              - cell "No details available" [ref=e373]:
+                - paragraph [ref=e374]: N/A
+            - row "ACLS Benchmark up Hold Buy 10/2/2025 No details available" [ref=e375]:
+              - cell "ACLS" [ref=e376]:
+                - paragraph [ref=e377] [cursor=pointer]: ACLS
+              - cell "Benchmark" [ref=e378]:
+                - paragraph [ref=e379]: Benchmark
+              - cell "up" [ref=e380]:
+                - generic [ref=e381]:
+                  - img [ref=e382]
+                  - generic [ref=e385]: up
+              - cell "Hold" [ref=e386]:
+                - paragraph [ref=e387]: Hold
+              - cell "Buy" [ref=e388]:
+                - paragraph [ref=e389]: Buy
+              - cell "10/2/2025" [ref=e390]:
+                - paragraph [ref=e391]: 10/2/2025
+              - cell "No details available" [ref=e392]:
+                - paragraph [ref=e393]: N/A
+            - row "ACLS DA Davidson maint Buy Buy 10/2/2025 No details available" [ref=e394]:
+              - cell "ACLS" [ref=e395]:
+                - paragraph [ref=e396] [cursor=pointer]: ACLS
+              - cell "DA Davidson" [ref=e397]:
+                - paragraph [ref=e398]: DA Davidson
+              - cell "maint" [ref=e399]:
+                - generic [ref=e400]:
+                  - img [ref=e401]
+                  - generic [ref=e404]: maint
+              - cell "Buy" [ref=e405]:
+                - paragraph [ref=e406]: Buy
+              - cell "Buy" [ref=e407]:
+                - paragraph [ref=e408]: Buy
+              - cell "10/2/2025" [ref=e409]:
+                - paragraph [ref=e410]: 10/2/2025
+              - cell "No details available" [ref=e411]:
+                - paragraph [ref=e412]: N/A
+            - row "ABSI JP Morgan init N/A Overweight 10/2/2025 No details available" [ref=e413]:
+              - cell "ABSI" [ref=e414]:
+                - paragraph [ref=e415] [cursor=pointer]: ABSI
+              - cell "JP Morgan" [ref=e416]:
+                - paragraph [ref=e417]: JP Morgan
+              - cell "init" [ref=e418]:
+                - generic [ref=e419]:
+                  - img [ref=e420]
+                  - generic [ref=e423]: init
+              - cell "N/A" [ref=e424]:
+                - paragraph [ref=e425]: N/A
+              - cell "Overweight" [ref=e426]:
+                - paragraph [ref=e427]: Overweight
+              - cell "10/2/2025" [ref=e428]:
+                - paragraph [ref=e429]: 10/2/2025
+              - cell "No details available" [ref=e430]:
+                - paragraph [ref=e431]: N/A
+            - row "ALGT Barclays maint Equal-Weight Equal-Weight 10/1/2025 No details available" [ref=e432]:
+              - cell "ALGT" [ref=e433]:
+                - paragraph [ref=e434] [cursor=pointer]: ALGT
+              - cell "Barclays" [ref=e435]:
+                - paragraph [ref=e436]: Barclays
+              - cell "maint" [ref=e437]:
+                - generic [ref=e438]:
+                  - img [ref=e439]
+                  - generic [ref=e442]: maint
+              - cell "Equal-Weight" [ref=e443]:
+                - paragraph [ref=e444]: Equal-Weight
+              - cell "Equal-Weight" [ref=e445]:
+                - paragraph [ref=e446]: Equal-Weight
+              - cell "10/1/2025" [ref=e447]:
+                - paragraph [ref=e448]: 10/1/2025
+              - cell "No details available" [ref=e449]:
+                - paragraph [ref=e450]: N/A
+            - row "ALGT B of A Securities maint Underperform Underperform 10/1/2025 No details available" [ref=e451]:
+              - cell "ALGT" [ref=e452]:
+                - paragraph [ref=e453] [cursor=pointer]: ALGT
+              - cell "B of A Securities" [ref=e454]:
+                - paragraph [ref=e455]: B of A Securities
+              - cell "maint" [ref=e456]:
+                - generic [ref=e457]:
+                  - img [ref=e458]
+                  - generic [ref=e461]: maint
+              - cell "Underperform" [ref=e462]:
+                - paragraph [ref=e463]: Underperform
+              - cell "Underperform" [ref=e464]:
+                - paragraph [ref=e465]: Underperform
+              - cell "10/1/2025" [ref=e466]:
+                - paragraph [ref=e467]: 10/1/2025
+              - cell "No details available" [ref=e468]:
+                - paragraph [ref=e469]: N/A
+            - row "ADSK HSBC up Hold Buy 10/1/2025 No details available" [ref=e470]:
+              - cell "ADSK" [ref=e471]:
+                - paragraph [ref=e472] [cursor=pointer]: ADSK
+              - cell "HSBC" [ref=e473]:
+                - paragraph [ref=e474]: HSBC
+              - cell "up" [ref=e475]:
+                - generic [ref=e476]:
+                  - img [ref=e477]
+                  - generic [ref=e480]: up
+              - cell "Hold" [ref=e481]:
+                - paragraph [ref=e482]: Hold
+              - cell "Buy" [ref=e483]:
+                - paragraph [ref=e484]: Buy
+              - cell "10/1/2025" [ref=e485]:
+                - paragraph [ref=e486]: 10/1/2025
+              - cell "No details available" [ref=e487]:
+                - paragraph [ref=e488]: N/A
+            - row "AARD Jones Trading init N/A Buy 10/1/2025 No details available" [ref=e489]:
+              - cell "AARD" [ref=e490]:
+                - paragraph [ref=e491] [cursor=pointer]: AARD
+              - cell "Jones Trading" [ref=e492]:
+                - paragraph [ref=e493]: Jones Trading
+              - cell "init" [ref=e494]:
+                - generic [ref=e495]:
+                  - img [ref=e496]
+                  - generic [ref=e499]: init
+              - cell "N/A" [ref=e500]:
+                - paragraph [ref=e501]: N/A
+              - cell "Buy" [ref=e502]:
+                - paragraph [ref=e503]: Buy
+              - cell "10/1/2025" [ref=e504]:
+                - paragraph [ref=e505]: 10/1/2025
+              - cell "No details available" [ref=e506]:
+                - paragraph [ref=e507]: N/A
+            - row "AAL Jefferies maint Hold Hold 10/1/2025 No details available" [ref=e508]:
+              - cell "AAL" [ref=e509]:
+                - paragraph [ref=e510] [cursor=pointer]: AAL
+              - cell "Jefferies" [ref=e511]:
+                - paragraph [ref=e512]: Jefferies
+              - cell "maint" [ref=e513]:
+                - generic [ref=e514]:
+                  - img [ref=e515]
+                  - generic [ref=e518]: maint
+              - cell "Hold" [ref=e519]:
+                - paragraph [ref=e520]: Hold
+              - cell "Hold" [ref=e521]:
+                - paragraph [ref=e522]: Hold
+              - cell "10/1/2025" [ref=e523]:
+                - paragraph [ref=e524]: 10/1/2025
+              - cell "No details available" [ref=e525]:
+                - paragraph [ref=e526]: N/A
+            - row "ANAB HC Wainwright & Co. maint Buy Buy 9/30/2025 No details available" [ref=e527]:
+              - cell "ANAB" [ref=e528]:
+                - paragraph [ref=e529] [cursor=pointer]: ANAB
+              - cell "HC Wainwright & Co." [ref=e530]:
+                - paragraph [ref=e531]: HC Wainwright & Co.
+              - cell "maint" [ref=e532]:
+                - generic [ref=e533]:
+                  - img [ref=e534]
+                  - generic [ref=e537]: maint
+              - cell "Buy" [ref=e538]:
+                - paragraph [ref=e539]: Buy
+              - cell "Buy" [ref=e540]:
+                - paragraph [ref=e541]: Buy
+              - cell "9/30/2025" [ref=e542]:
+                - paragraph [ref=e543]: 9/30/2025
+              - cell "No details available" [ref=e544]:
+                - paragraph [ref=e545]: N/A
+            - row "ANAB Wedbush reit Outperform Outperform 9/30/2025 No details available" [ref=e546]:
+              - cell "ANAB" [ref=e547]:
+                - paragraph [ref=e548] [cursor=pointer]: ANAB
+              - cell "Wedbush" [ref=e549]:
+                - paragraph [ref=e550]: Wedbush
+              - cell "reit" [ref=e551]:
+                - generic [ref=e552]:
+                  - img [ref=e553]
+                  - generic [ref=e556]: reit
+              - cell "Outperform" [ref=e557]:
+                - paragraph [ref=e558]: Outperform
+              - cell "Outperform" [ref=e559]:
+                - paragraph [ref=e560]: Outperform
+              - cell "9/30/2025" [ref=e561]:
+                - paragraph [ref=e562]: 9/30/2025
+              - cell "No details available" [ref=e563]:
+                - paragraph [ref=e564]: N/A
+            - row "AMZN Mizuho init N/A Outperform 9/30/2025 No details available" [ref=e565]:
+              - cell "AMZN" [ref=e566]:
+                - paragraph [ref=e567] [cursor=pointer]: AMZN
+              - cell "Mizuho" [ref=e568]:
+                - paragraph [ref=e569]: Mizuho
+              - cell "init" [ref=e570]:
+                - generic [ref=e571]:
+                  - img [ref=e572]
+                  - generic [ref=e575]: init
+              - cell "N/A" [ref=e576]:
+                - paragraph [ref=e577]: N/A
+              - cell "Outperform" [ref=e578]:
+                - paragraph [ref=e579]: Outperform
+              - cell "9/30/2025" [ref=e580]:
+                - paragraph [ref=e581]: 9/30/2025
+              - cell "No details available" [ref=e582]:
+                - paragraph [ref=e583]: N/A
+            - row "ADPT Guggenheim init N/A Buy 9/30/2025 No details available" [ref=e584]:
+              - cell "ADPT" [ref=e585]:
+                - paragraph [ref=e586] [cursor=pointer]: ADPT
+              - cell "Guggenheim" [ref=e587]:
+                - paragraph [ref=e588]: Guggenheim
+              - cell "init" [ref=e589]:
+                - generic [ref=e590]:
+                  - img [ref=e591]
+                  - generic [ref=e594]: init
+              - cell "N/A" [ref=e595]:
+                - paragraph [ref=e596]: N/A
+              - cell "Buy" [ref=e597]:
+                - paragraph [ref=e598]: Buy
+              - cell "9/30/2025" [ref=e599]:
+                - paragraph [ref=e600]: 9/30/2025
+              - cell "No details available" [ref=e601]:
+                - paragraph [ref=e602]: N/A
+```

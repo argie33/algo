@@ -24,9 +24,6 @@ router.get("/", async (req, res) => {
       console.log("📊 Stock Scores List endpoint called - using real stock_scores table");
     }
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-    const offset = (page - 1) * limit;
     const search = req.query.search || '';
 
     // Query stock scores with proper field names from loadstockscores.py
@@ -69,8 +66,8 @@ router.get("/", async (req, res) => {
       paramIndex++;
     }
 
-    stocksQuery += ` ORDER BY composite_score DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    queryParams.push(limit, offset);
+    stocksQuery += ` ORDER BY composite_score DESC`;
+    // No LIMIT or OFFSET - return all results for frontend filtering
 
     const stocksResult = await query(stocksQuery, queryParams);
 
@@ -131,30 +128,12 @@ router.get("/", async (req, res) => {
       score_date: row.score_date
     }));
 
-    // Count total records for pagination
-    let countQuery = `SELECT COUNT(*) as total FROM stock_scores`;
-    const countParams = [];
-    if (search) {
-      countQuery += ` WHERE symbol ILIKE $1`;
-      countParams.push(`%${search.toUpperCase()}%`);
-    }
-
-    const countResult = await query(countQuery, countParams);
-    const total = parseInt(countResult.rows[0]?.total) || 0;
-    const totalPages = Math.ceil(total / limit);
-
+    // Return all results - no pagination needed for small dataset
     res.json({
       success: true,
       data: {
         stocks: stocksList,
         viewType: "list"
-      },
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasMore: page < totalPages,
       },
       summary: {
         totalStocks: stocksList.length,
