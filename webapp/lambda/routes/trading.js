@@ -236,217 +236,117 @@ router.get("/signals", async (req, res) => {
       });
     }
 
-    // Generate realistic trading signals
-    const generateTradingSignals = (
-      count,
-      filterSymbol,
-      filterType,
-      timeframeFilter
-    ) => {
-      const symbols = filterSymbol
-        ? [filterSymbol]
-        : [
-            "AAPL",
-            "MSFT",
-            "GOOGL",
-            "AMZN",
-            "TSLA",
-            "NVDA",
-            "META",
-            "NFLX",
-            "AMD",
-            "CRM",
-            "ORCL",
-            "ADBE",
-            "PYPL",
-            "INTC",
-            "CSCO",
-            "PEP",
-            "KO",
-            "DIS",
-            "WMT",
-            "HD",
-          ];
+    // Query buy_sell_daily table for real trading signals
+    let queryText = `
+      SELECT
+        symbol,
+        date,
+        signal,
+        close,
+        rsi,
+        volume,
+        target_price,
+        buylevel,
+        selllevel,
+        stoplevel,
+        entry_quality_score
+      FROM buy_sell_daily
+      WHERE timeframe = 'Daily'
+    `;
 
-      const signalTypes = filterType
-        ? [filterType]
-        : ["buy", "sell", "hold", "strong_buy", "strong_sell"];
-      const timeframes =
-        timeframeFilter && timeframeFilter !== "daily"
-          ? [timeframeFilter]
-          : ["1min", "5min", "15min", "1hour", "daily"];
+    const queryParams = [];
+    let paramIndex = 1;
 
-      const signals = [];
-      const now = new Date();
+    if (symbol) {
+      queryText += ` AND symbol = $${paramIndex}`;
+      queryParams.push(symbol.toUpperCase());
+      paramIndex++;
+    }
 
-      for (let i = 0; i < count; i++) {
-        const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-        const signalType =
-          signalTypes[Math.floor(Math.random() * signalTypes.length)];
-        const timeframe =
-          timeframes[Math.floor(Math.random() * timeframes.length)];
+    if (signal_type) {
+      queryText += ` AND signal = $${paramIndex}`;
+      queryParams.push(signal_type.toLowerCase());
+      paramIndex++;
+    }
 
-        // Generate signal timestamp (within last 24 hours)
-        const signalTime = new Date(
-          now.getTime() - Math.random() * 24 * 60 * 60 * 1000
-        );
+    queryText += ` ORDER BY date DESC LIMIT $${paramIndex}`;
+    queryParams.push(limitNum);
 
-        // Generate realistic price and confidence based on signal type
-        const basePrice = 50 + Math.random() * 200;
-        let confidence, strength, target_price, stop_loss;
+    console.log('📊 Executing query:', queryText.replace(/\s+/g, ' '), queryParams);
 
-        switch (signalType) {
-          case "strong_buy":
-            confidence = 0.85 + Math.random() * 0.15;
-            strength = "strong";
-            target_price = basePrice * (1.05 + Math.random() * 0.15);
-            stop_loss = basePrice * (0.95 - Math.random() * 0.05);
-            break;
-          case "buy":
-            confidence = 0.65 + Math.random() * 0.2;
-            strength = "moderate";
-            target_price = basePrice * (1.03 + Math.random() * 0.07);
-            stop_loss = basePrice * (0.97 - Math.random() * 0.03);
-            break;
-          case "strong_sell":
-            confidence = 0.85 + Math.random() * 0.15;
-            strength = "strong";
-            target_price = basePrice * (0.85 - Math.random() * 0.15);
-            stop_loss = basePrice * (1.05 + Math.random() * 0.05);
-            break;
-          case "sell":
-            confidence = 0.65 + Math.random() * 0.2;
-            strength = "moderate";
-            target_price = basePrice * (0.93 - Math.random() * 0.07);
-            stop_loss = basePrice * (1.03 + Math.random() * 0.03);
-            break;
-          case "hold":
-            confidence = 0.5 + Math.random() * 0.3;
-            strength = "weak";
-            target_price = basePrice * (0.98 + Math.random() * 0.04);
-            stop_loss = basePrice * (0.98 + Math.random() * 0.04);
-            break;
-        }
+    const result = await query(queryText, queryParams);
 
-        // Technical indicators that might have generated this signal
-        const indicators = [
-          "RSI",
-          "MACD",
-          "Bollinger Bands",
-          "Moving Average",
-          "Volume",
-          "Stochastic",
-          "Williams %R",
-          "Momentum",
-          "CCI",
-        ];
-        const triggerIndicators = indicators
-          .sort(() => 0.5 - Math.random())
-          .slice(0, 2 + Math.floor(Math.random() * 2));
+    if (!result || !result.rows) {
+      console.error('❌ Database query returned null');
+      return res.status(500).json({
+        success: false,
+        error: "Database error - no results",
+      });
+    }
 
-        signals.push({
-          id: `sig_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 8)}`,
-          symbol: symbol,
-          signal_type: signalType,
-          timeframe: timeframe,
-          price: Math.round(basePrice * 100) / 100,
-          target_price: Math.round(target_price * 100) / 100,
-          stop_loss: Math.round(stop_loss * 100) / 100,
-          confidence: Math.round(confidence * 100) / 100,
-          strength: strength,
-          generated_at: signalTime.toISOString(),
-          expires_at: new Date(
-            signalTime.getTime() +
-              (timeframe === "daily" ? 24 : timeframe === "1hour" ? 1 : 0.5) *
-                60 *
-                60 *
-                1000
-          ).toISOString(),
-          indicators: triggerIndicators,
-          reasoning: `${triggerIndicators.join(" and ")} indicating ${signalType} opportunity`,
-          risk_level:
-            confidence > 0.8 ? "low" : confidence > 0.6 ? "medium" : "high",
-          volume_factor: Math.round((0.5 + Math.random() * 1.5) * 100) / 100,
-          market_conditions: ["bullish", "bearish", "sideways", "volatile"][
-            Math.floor(Math.random() * 4)
-          ],
-        });
-      }
+    if (result.rows.length === 0) {
+      console.warn('⚠️ No trading signals found for filters:', { symbol, signal_type });
+      return res.json({
+        success: true,
+        data: [],
+        count: 0,
+        message: "No signals found matching filters",
+      });
+    }
 
-      return signals.sort(
-        (a, b) => new Date(b.generated_at) - new Date(a.generated_at)
-      );
-    };
+    // Transform database rows to frontend format
+    const signals = result.rows.map(row => {
+      const signalType = row.signal ? row.signal.toLowerCase() : 'hold';
+      const price = parseFloat(row.close) || 0;
+      const targetPrice = parseFloat(row.target_price) || (signalType === 'buy' ? price * 1.08 : price * 0.92);
+      const stopLoss = parseFloat(row.stoplevel) || (signalType === 'buy' ? price * 0.95 : price * 1.05);
 
-    const signals = generateTradingSignals(
-      limitNum,
-      symbol,
-      signal_type,
-      timeframe
-    );
+      const qualityScore = parseInt(row.entry_quality_score) || 50;
+      const confidence = Math.min(qualityScore / 100, 0.95);
+
+      return {
+        id: `sig_${row.symbol}_${row.date}`,
+        symbol: row.symbol,
+        signal_type: signalType,
+        timeframe: timeframe,
+        price: price,
+        target_price: targetPrice,
+        stop_loss: stopLoss,
+        confidence: Math.round(confidence * 100) / 100,
+        strength: confidence > 0.7 ? 'strong' : confidence > 0.5 ? 'moderate' : 'weak',
+        date: row.date,
+        generated_at: row.date,
+        indicators: {
+          rsi: row.rsi ? parseFloat(row.rsi) : null,
+          entry_quality_score: qualityScore,
+        },
+        volume: row.volume ? parseInt(row.volume) : null,
+        risk_level: confidence > 0.7 ? 'low' : confidence > 0.5 ? 'medium' : 'high',
+        buy_level: row.buylevel ? parseFloat(row.buylevel) : null,
+        sell_level: row.selllevel ? parseFloat(row.selllevel) : null,
+      };
+    });
 
     // Calculate signal analytics
     const analytics = {
       total_signals: signals.length,
-      signal_breakdown: {
-        buy_signals: signals.filter((s) => s.signal_type.includes("buy"))
-          .length,
-        sell_signals: signals.filter((s) => s.signal_type.includes("sell"))
-          .length,
-        hold_signals: signals.filter((s) => s.signal_type === "hold").length,
-      },
-      confidence_distribution: {
-        high_confidence: signals.filter((s) => s.confidence >= 0.8).length,
-        medium_confidence: signals.filter(
-          (s) => s.confidence >= 0.6 && s.confidence < 0.8
-        ).length,
-        low_confidence: signals.filter((s) => s.confidence < 0.6).length,
-      },
-      timeframe_distribution: signals.reduce((acc, signal) => {
-        acc[signal.timeframe] = (acc[signal.timeframe] || 0) + 1;
-        return acc;
-      }, {}),
-      risk_distribution: signals.reduce((acc, signal) => {
-        acc[signal.risk_level] = (acc[signal.risk_level] || 0) + 1;
-        return acc;
-      }, {}),
-      top_symbols: Object.entries(
-        signals.reduce((acc, signal) => {
-          acc[signal.symbol] = (acc[signal.symbol] || 0) + 1;
-          return acc;
-        }, {})
-      )
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 10),
-      average_confidence:
-        Math.round(
-          (signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length) *
-            100
-        ) / 100,
+      buy_signals: signals.filter(s => s.signal_type === 'buy').length,
+      sell_signals: signals.filter(s => s.signal_type === 'sell').length,
+      hold_signals: signals.filter(s => s.signal_type === 'hold').length,
+      avg_confidence: signals.length > 0
+        ? Math.round((signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length) * 100) / 100
+        : 0,
     };
+
+    console.log(`✅ Returned ${signals.length} signals from database`);
 
     res.json({
       success: true,
       data: signals,
       analytics: analytics,
-      filters: {
-        symbol: symbol || "all",
-        signal_type: signal_type || "all",
-        timeframe: timeframe,
-        limit: limitNum,
-      },
       count: signals.length,
+      data_source: 'buy_sell_daily',
       timestamp: new Date().toISOString(),
-      methodology: {
-        signal_generation:
-          "Advanced algorithmic analysis of market conditions and technical indicators",
-        indicator_types:
-          "RSI, MACD, Bollinger Bands, Moving Averages, Volume Analysis, Momentum",
-        confidence_calculation:
-          "Multi-factor scoring based on indicator convergence and historical accuracy",
-        risk_assessment:
-          "Based on volatility, liquidity, and market conditions",
-      },
     });
   } catch (error) {
     console.error("Error fetching trading signals:", error);

@@ -1,0 +1,183 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Order Management
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
+            - img [ref=e20] [cursor=pointer]
+        - listitem [ref=e22]:
+          - button "Market Overview" [ref=e23] [cursor=pointer]:
+            - img [ref=e25] [cursor=pointer]
+            - paragraph [ref=e28] [cursor=pointer]: Market Overview
+        - listitem [ref=e29]:
+          - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+            - img [ref=e32] [cursor=pointer]
+            - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
+        - listitem [ref=e36]:
+          - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+            - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
+        - listitem [ref=e43]:
+          - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
+            - img [ref=e47] [cursor=pointer]
+        - listitem [ref=e49]:
+          - button "Stock Analysis" [ref=e50] [cursor=pointer]:
+            - img [ref=e52] [cursor=pointer]
+            - paragraph [ref=e55] [cursor=pointer]: Stock Analysis
+        - listitem [ref=e56]:
+          - button "Technical Analysis" [ref=e57] [cursor=pointer]:
+            - img [ref=e59] [cursor=pointer]
+            - paragraph [ref=e62] [cursor=pointer]: Technical Analysis
+        - listitem [ref=e63]:
+          - button "Stock Scores" [ref=e64] [cursor=pointer]:
+            - img [ref=e66] [cursor=pointer]
+            - paragraph [ref=e69] [cursor=pointer]: Stock Scores
+        - listitem [ref=e70]:
+          - button "Earnings Hub" [ref=e71] [cursor=pointer]:
+            - img [ref=e73] [cursor=pointer]
+            - paragraph [ref=e76] [cursor=pointer]: Earnings Hub
+        - listitem [ref=e77]:
+          - button "Trading Signals" [ref=e78] [cursor=pointer]:
+            - img [ref=e80] [cursor=pointer]
+            - paragraph [ref=e83] [cursor=pointer]: Trading Signals
+        - listitem [ref=e84]:
+          - button "Financial Data" [ref=e85] [cursor=pointer]:
+            - img [ref=e87] [cursor=pointer]
+            - paragraph [ref=e90] [cursor=pointer]: Financial Data
+        - listitem [ref=e91]:
+          - button "Sentiment Analysis" [ref=e92] [cursor=pointer]:
+            - img [ref=e94] [cursor=pointer]
+            - paragraph [ref=e98] [cursor=pointer]: Sentiment Analysis
+        - listitem [ref=e99]:
+          - button "Analyst Insights" [ref=e100] [cursor=pointer]:
+            - img [ref=e102] [cursor=pointer]
+            - paragraph [ref=e105] [cursor=pointer]: Analyst Insights
+        - listitem [ref=e106]:
+          - button "Collapse Portfolio section" [ref=e107] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e109] [cursor=pointer]
+            - img [ref=e110] [cursor=pointer]
+        - listitem [ref=e112]:
+          - button "Portfolio Holdings" [ref=e113] [cursor=pointer]:
+            - img [ref=e115] [cursor=pointer]
+            - paragraph [ref=e118] [cursor=pointer]: Portfolio Holdings
+        - listitem [ref=e119]:
+          - button "Trade History" [ref=e120] [cursor=pointer]:
+            - img [ref=e122] [cursor=pointer]
+            - paragraph [ref=e125] [cursor=pointer]: Trade History
+        - listitem [ref=e126]:
+          - button "Order Management" [ref=e127] [cursor=pointer]:
+            - img [ref=e129] [cursor=pointer]
+            - paragraph [ref=e132] [cursor=pointer]: Order Management
+        - listitem [ref=e133]:
+          - button "Optimization Tools" [ref=e134] [cursor=pointer]:
+            - img [ref=e136] [cursor=pointer]
+            - paragraph [ref=e139] [cursor=pointer]: Optimization Tools
+        - listitem [ref=e140]:
+          - button "Expand Tools section" [ref=e141] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e143] [cursor=pointer]
+            - img [ref=e144] [cursor=pointer]
+  - main [ref=e146]:
+    - generic [ref=e149]:
+      - generic [ref=e150]:
+        - heading "Order Management" [level=1] [ref=e151]
+        - heading "Execute trades, manage orders, and monitor positions" [level=6] [ref=e152]
+      - generic [ref=e153]:
+        - generic [ref=e156]:
+          - generic [ref=e157]:
+            - img [ref=e158]
+            - heading "Buying Power" [level=6] [ref=e160]
+          - heading "$0.00" [level=4] [ref=e161]
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - img [ref=e166]
+            - heading "Cash" [level=6] [ref=e168]
+          - heading "$0.00" [level=4] [ref=e169]
+        - generic [ref=e172]:
+          - generic [ref=e173]:
+            - img [ref=e174]
+            - heading "Portfolio Value" [level=6] [ref=e176]
+          - heading "$0.00" [level=4] [ref=e177]
+        - generic [ref=e180]:
+          - generic [ref=e181]:
+            - img [ref=e182]
+            - heading "Day Trades" [level=6] [ref=e184]
+          - heading "/3" [level=4] [ref=e185]
+          - generic [ref=e186]: Standard Account
+      - generic [ref=e187]:
+        - button "New Order" [ref=e188] [cursor=pointer]:
+          - img [ref=e190] [cursor=pointer]
+          - text: New Order
+        - button "Refresh" [ref=e192] [cursor=pointer]:
+          - img [ref=e194] [cursor=pointer]
+          - text: Refresh
+        - button "Export Orders" [ref=e196] [cursor=pointer]:
+          - img [ref=e198] [cursor=pointer]
+          - text: Export Orders
+      - tablist [ref=e203]:
+        - tab "Open Orders" [selected] [ref=e204] [cursor=pointer]:
+          - img [ref=e205] [cursor=pointer]
+          - text: Open Orders
+        - tab "Order History" [ref=e207] [cursor=pointer]:
+          - img [ref=e208] [cursor=pointer]
+          - text: Order History
+        - tab "Positions" [ref=e210] [cursor=pointer]:
+          - img [ref=e211] [cursor=pointer]
+          - text: Positions
+        - tab "Settings" [ref=e213] [cursor=pointer]:
+          - img [ref=e214] [cursor=pointer]
+          - text: Settings
+      - tabpanel [ref=e217]:
+        - generic [ref=e219]:
+          - generic [ref=e222]: Open Orders
+          - generic [ref=e223]:
+            - generic [ref=e224]:
+              - generic [ref=e226]:
+                - img [ref=e228]
+                - textbox "Search orders..." [ref=e230]
+                - group
+              - generic [ref=e231]:
+                - generic [ref=e232]: Status
+                - generic [ref=e233]:
+                  - combobox [ref=e234] [cursor=pointer]: All Status
+                  - textbox: all
+                  - img
+                  - group:
+                    - generic: Status
+              - generic [ref=e235]:
+                - generic [ref=e236]: Side
+                - generic [ref=e237]:
+                  - combobox [ref=e238] [cursor=pointer]: All
+                  - textbox: all
+                  - img
+                  - group:
+                    - generic: Side
+            - table [ref=e240]:
+              - rowgroup [ref=e241]:
+                - row "Order ID Symbol Side Quantity Order Type Price Status Submitted Actions" [ref=e242]:
+                  - columnheader "Order ID" [ref=e243]
+                  - columnheader "Symbol" [ref=e244]
+                  - columnheader "Side" [ref=e245]
+                  - columnheader "Quantity" [ref=e246]
+                  - columnheader "Order Type" [ref=e247]
+                  - columnheader "Price" [ref=e248]
+                  - columnheader "Status" [ref=e249]
+                  - columnheader "Submitted" [ref=e250]
+                  - columnheader "Actions" [ref=e251]
+              - rowgroup [ref=e252]:
+                - row [ref=e253]:
+                  - cell [ref=e254]:
+                    - progressbar [ref=e255]:
+                      - img [ref=e256]
+```

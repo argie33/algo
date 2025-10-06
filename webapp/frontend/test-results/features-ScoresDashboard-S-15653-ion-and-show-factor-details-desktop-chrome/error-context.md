@@ -129,7 +129,7 @@
       - heading "All Stocks (5)" [level=5] [ref=e183]
       - generic [ref=e184]:
         - generic [ref=e185]:
-          - 'button "65 AAPL Score: 64.5 $258.02 +0.35% Quality: 88.0 Momentum: 67.6 Value: 25.0 Growth: 65.0 Rel Strength: 74.7 Positioning: 77.5 Sentiment: 37.5 Technical: 14.7% Risk: 23.8% Trading Signal: N/A 10/3/2025" [expanded] [active] [ref=e186] [cursor=pointer]':
+          - 'button "65 AAPL Score: 64.5 $258.02 +0.35% Quality: 88.0 Momentum: 67.6 Value: 25.0 Growth: 65.0 Rel Strength: 74.7 Positioning: 77.5 Sentiment: 37.5 Technical: 14.7% Risk: 23.9% Trading Signal: N/A 10/3/2025" [expanded] [active] [ref=e186] [cursor=pointer]':
             - generic [ref=e188] [cursor=pointer]:
               - generic [ref=e190] [cursor=pointer]:
                 - heading "65" [level=6] [ref=e194] [cursor=pointer]
@@ -168,7 +168,7 @@
                   - generic [ref=e240] [cursor=pointer]: "Technical: 14.7%"
                 - generic [ref=e241] [cursor=pointer]:
                   - img [ref=e242] [cursor=pointer]
-                  - generic [ref=e244] [cursor=pointer]: "Risk: 23.8%"
+                  - generic [ref=e244] [cursor=pointer]: "Risk: 23.9%"
               - generic [ref=e246] [cursor=pointer]:
                 - 'generic "Trading Signal: N/A" [ref=e247] [cursor=pointer]':
                   - img [ref=e248] [cursor=pointer]
@@ -220,7 +220,7 @@
                   - paragraph [ref=e318]: Quality assessment based on company fundamentals and stability
                   - generic [ref=e319]:
                     - paragraph [ref=e320]: 30-Day Volatility
-                    - paragraph [ref=e321]: 23.75%
+                    - paragraph [ref=e321]: 23.93%
                 - generic [ref=e324]:
                   - generic [ref=e325]:
                     - img [ref=e326]
@@ -240,7 +240,7 @@
                   - paragraph [ref=e344]: Risk assessment based on volatility and market conditions
                   - generic [ref=e345]:
                     - paragraph [ref=e346]: 30-Day Volatility
-                    - paragraph [ref=e347]: 23.75%
+                    - paragraph [ref=e347]: 23.93%
                 - generic [ref=e350]:
                   - generic [ref=e351]:
                     - img [ref=e352]
@@ -249,7 +249,7 @@
                   - paragraph [ref=e357]: Growth assessment based on revenue and earnings trends
               - separator [ref=e358]
               - paragraph [ref=e359]: "Last Updated: Invalid Date"
-        - 'button "63 TSLA Score: 63.2 $429.83 -1.42% Quality: 50.0 Momentum: 55.8 Value: 50.0 Growth: 65.0 Rel Strength: 94.3 Positioning: 80.4 Sentiment: 25.0 Technical: 34.3% Risk: 43.7%" [ref=e361] [cursor=pointer]':
+        - 'button "63 TSLA Score: 63.2 $429.83 -1.42% Quality: 50.0 Momentum: 55.8 Value: 50.0 Growth: 65.0 Rel Strength: 94.3 Positioning: 80.4 Sentiment: 25.0 Technical: 34.3% Risk: 44.0% Trading Signal: N/A 10/3/2025" [ref=e361] [cursor=pointer]':
           - generic [ref=e363] [cursor=pointer]:
             - generic [ref=e365] [cursor=pointer]:
               - heading "63" [level=6] [ref=e369] [cursor=pointer]
@@ -288,139 +288,149 @@
                 - generic [ref=e415] [cursor=pointer]: "Technical: 34.3%"
               - generic [ref=e416] [cursor=pointer]:
                 - img [ref=e417] [cursor=pointer]
-                - generic [ref=e419] [cursor=pointer]: "Risk: 43.7%"
-          - img [ref=e422] [cursor=pointer]
-        - 'button "63 NVDA Score: 63.0 $187.62 -0.67% Quality: 80.0 Momentum: 61.0 Value: 50.0 Growth: 55.0 Rel Strength: 64.5 Positioning: 79.3 Sentiment: 50.0 Technical: 7.2% Risk: 27.0%" [ref=e425] [cursor=pointer]':
-          - generic [ref=e427] [cursor=pointer]:
-            - generic [ref=e429] [cursor=pointer]:
-              - heading "63" [level=6] [ref=e433] [cursor=pointer]
-              - generic [ref=e434] [cursor=pointer]:
-                - heading "NVDA" [level=5] [ref=e435] [cursor=pointer]
-                - 'heading "Score: 63.0" [level=6] [ref=e436] [cursor=pointer]'
-                - generic [ref=e437] [cursor=pointer]:
-                  - paragraph [ref=e438] [cursor=pointer]: $187.62
-                  - generic [ref=e439] [cursor=pointer]:
-                    - img [ref=e440] [cursor=pointer]
-                    - paragraph [ref=e442] [cursor=pointer]: "-0.67%"
-            - generic [ref=e444] [cursor=pointer]:
-              - generic [ref=e445] [cursor=pointer]:
-                - img [ref=e446] [cursor=pointer]
-                - generic [ref=e448] [cursor=pointer]: "Quality: 80.0"
-              - generic [ref=e449] [cursor=pointer]:
-                - img [ref=e450] [cursor=pointer]
-                - generic [ref=e452] [cursor=pointer]: "Momentum: 61.0"
-              - generic [ref=e453] [cursor=pointer]:
-                - img [ref=e454] [cursor=pointer]
-                - generic [ref=e456] [cursor=pointer]: "Value: 50.0"
-              - generic [ref=e457] [cursor=pointer]:
-                - img [ref=e458] [cursor=pointer]
-                - generic [ref=e460] [cursor=pointer]: "Growth: 55.0"
-              - generic [ref=e461] [cursor=pointer]:
-                - img [ref=e462] [cursor=pointer]
-                - generic [ref=e464] [cursor=pointer]: "Rel Strength: 64.5"
-              - generic [ref=e465] [cursor=pointer]:
-                - img [ref=e466] [cursor=pointer]
-                - generic [ref=e468] [cursor=pointer]: "Positioning: 79.3"
-              - generic [ref=e469] [cursor=pointer]:
-                - img [ref=e470] [cursor=pointer]
-                - generic [ref=e474] [cursor=pointer]: "Sentiment: 50.0"
+                - generic [ref=e419] [cursor=pointer]: "Risk: 44.0%"
+            - generic [ref=e421] [cursor=pointer]:
+              - 'generic "Trading Signal: N/A" [ref=e422] [cursor=pointer]':
+                - img [ref=e423] [cursor=pointer]
+                - generic [ref=e425] [cursor=pointer]: N/A
+              - generic [ref=e426] [cursor=pointer]: 10/3/2025
+          - img [ref=e428] [cursor=pointer]
+        - 'button "63 NVDA Score: 63.0 $187.62 -0.67% Quality: 80.0 Momentum: 61.0 Value: 50.0 Growth: 55.0 Rel Strength: 64.5 Positioning: 79.3 Sentiment: 50.0 Technical: 7.2% Risk: 27.1% Trading Signal: N/A 10/3/2025" [ref=e431] [cursor=pointer]':
+          - generic [ref=e433] [cursor=pointer]:
+            - generic [ref=e435] [cursor=pointer]:
+              - heading "63" [level=6] [ref=e439] [cursor=pointer]
+              - generic [ref=e440] [cursor=pointer]:
+                - heading "NVDA" [level=5] [ref=e441] [cursor=pointer]
+                - 'heading "Score: 63.0" [level=6] [ref=e442] [cursor=pointer]'
+                - generic [ref=e443] [cursor=pointer]:
+                  - paragraph [ref=e444] [cursor=pointer]: $187.62
+                  - generic [ref=e445] [cursor=pointer]:
+                    - img [ref=e446] [cursor=pointer]
+                    - paragraph [ref=e448] [cursor=pointer]: "-0.67%"
+            - generic [ref=e450] [cursor=pointer]:
+              - generic [ref=e451] [cursor=pointer]:
+                - img [ref=e452] [cursor=pointer]
+                - generic [ref=e454] [cursor=pointer]: "Quality: 80.0"
+              - generic [ref=e455] [cursor=pointer]:
+                - img [ref=e456] [cursor=pointer]
+                - generic [ref=e458] [cursor=pointer]: "Momentum: 61.0"
+              - generic [ref=e459] [cursor=pointer]:
+                - img [ref=e460] [cursor=pointer]
+                - generic [ref=e462] [cursor=pointer]: "Value: 50.0"
+              - generic [ref=e463] [cursor=pointer]:
+                - img [ref=e464] [cursor=pointer]
+                - generic [ref=e466] [cursor=pointer]: "Growth: 55.0"
+              - generic [ref=e467] [cursor=pointer]:
+                - img [ref=e468] [cursor=pointer]
+                - generic [ref=e470] [cursor=pointer]: "Rel Strength: 64.5"
+              - generic [ref=e471] [cursor=pointer]:
+                - img [ref=e472] [cursor=pointer]
+                - generic [ref=e474] [cursor=pointer]: "Positioning: 79.3"
               - generic [ref=e475] [cursor=pointer]:
                 - img [ref=e476] [cursor=pointer]
-                - generic [ref=e479] [cursor=pointer]: "Technical: 7.2%"
-              - generic [ref=e480] [cursor=pointer]:
-                - img [ref=e481] [cursor=pointer]
-                - generic [ref=e483] [cursor=pointer]: "Risk: 27.0%"
-          - img [ref=e486] [cursor=pointer]
-        - 'button "57 GOOGL Score: 57.4 $245.35 -0.14% Quality: 65.0 Momentum: 46.1 Value: 25.0 Growth: 63.0 Rel Strength: 82.9 Positioning: 67.6 Sentiment: 50.0 Technical: 22.9% Risk: 25.3% Trading Signal: N/A 10/3/2025" [ref=e489] [cursor=pointer]':
-          - generic [ref=e491] [cursor=pointer]:
-            - generic [ref=e493] [cursor=pointer]:
-              - heading "57" [level=6] [ref=e497] [cursor=pointer]
-              - generic [ref=e498] [cursor=pointer]:
-                - heading "GOOGL" [level=5] [ref=e499] [cursor=pointer]
-                - 'heading "Score: 57.4" [level=6] [ref=e500] [cursor=pointer]'
-                - generic [ref=e501] [cursor=pointer]:
-                  - paragraph [ref=e502] [cursor=pointer]: $245.35
-                  - generic [ref=e503] [cursor=pointer]:
-                    - img [ref=e504] [cursor=pointer]
-                    - paragraph [ref=e506] [cursor=pointer]: "-0.14%"
-            - generic [ref=e508] [cursor=pointer]:
-              - generic [ref=e509] [cursor=pointer]:
-                - img [ref=e510] [cursor=pointer]
-                - generic [ref=e512] [cursor=pointer]: "Quality: 65.0"
-              - generic [ref=e513] [cursor=pointer]:
-                - img [ref=e514] [cursor=pointer]
-                - generic [ref=e516] [cursor=pointer]: "Momentum: 46.1"
-              - generic [ref=e517] [cursor=pointer]:
-                - img [ref=e518] [cursor=pointer]
-                - generic [ref=e520] [cursor=pointer]: "Value: 25.0"
+                - generic [ref=e480] [cursor=pointer]: "Sentiment: 50.0"
+              - generic [ref=e481] [cursor=pointer]:
+                - img [ref=e482] [cursor=pointer]
+                - generic [ref=e485] [cursor=pointer]: "Technical: 7.2%"
+              - generic [ref=e486] [cursor=pointer]:
+                - img [ref=e487] [cursor=pointer]
+                - generic [ref=e489] [cursor=pointer]: "Risk: 27.1%"
+            - generic [ref=e491] [cursor=pointer]:
+              - 'generic "Trading Signal: N/A" [ref=e492] [cursor=pointer]':
+                - img [ref=e493] [cursor=pointer]
+                - generic [ref=e495] [cursor=pointer]: N/A
+              - generic [ref=e496] [cursor=pointer]: 10/3/2025
+          - img [ref=e498] [cursor=pointer]
+        - 'button "57 GOOGL Score: 57.4 $245.35 -0.14% Quality: 65.0 Momentum: 46.1 Value: 25.0 Growth: 63.0 Rel Strength: 82.9 Positioning: 67.6 Sentiment: 50.0 Technical: 22.9% Risk: 25.2% Trading Signal: N/A 10/3/2025" [ref=e501] [cursor=pointer]':
+          - generic [ref=e503] [cursor=pointer]:
+            - generic [ref=e505] [cursor=pointer]:
+              - heading "57" [level=6] [ref=e509] [cursor=pointer]
+              - generic [ref=e510] [cursor=pointer]:
+                - heading "GOOGL" [level=5] [ref=e511] [cursor=pointer]
+                - 'heading "Score: 57.4" [level=6] [ref=e512] [cursor=pointer]'
+                - generic [ref=e513] [cursor=pointer]:
+                  - paragraph [ref=e514] [cursor=pointer]: $245.35
+                  - generic [ref=e515] [cursor=pointer]:
+                    - img [ref=e516] [cursor=pointer]
+                    - paragraph [ref=e518] [cursor=pointer]: "-0.14%"
+            - generic [ref=e520] [cursor=pointer]:
               - generic [ref=e521] [cursor=pointer]:
                 - img [ref=e522] [cursor=pointer]
-                - generic [ref=e524] [cursor=pointer]: "Growth: 63.0"
+                - generic [ref=e524] [cursor=pointer]: "Quality: 65.0"
               - generic [ref=e525] [cursor=pointer]:
                 - img [ref=e526] [cursor=pointer]
-                - generic [ref=e528] [cursor=pointer]: "Rel Strength: 82.9"
+                - generic [ref=e528] [cursor=pointer]: "Momentum: 46.1"
               - generic [ref=e529] [cursor=pointer]:
                 - img [ref=e530] [cursor=pointer]
-                - generic [ref=e532] [cursor=pointer]: "Positioning: 67.6"
+                - generic [ref=e532] [cursor=pointer]: "Value: 25.0"
               - generic [ref=e533] [cursor=pointer]:
                 - img [ref=e534] [cursor=pointer]
-                - generic [ref=e538] [cursor=pointer]: "Sentiment: 50.0"
-              - generic [ref=e539] [cursor=pointer]:
-                - img [ref=e540] [cursor=pointer]
-                - generic [ref=e543] [cursor=pointer]: "Technical: 22.9%"
-              - generic [ref=e544] [cursor=pointer]:
-                - img [ref=e545] [cursor=pointer]
-                - generic [ref=e547] [cursor=pointer]: "Risk: 25.3%"
-            - generic [ref=e549] [cursor=pointer]:
-              - 'generic "Trading Signal: N/A" [ref=e550] [cursor=pointer]':
-                - img [ref=e551] [cursor=pointer]
-                - generic [ref=e553] [cursor=pointer]: N/A
-              - generic [ref=e554] [cursor=pointer]: 10/3/2025
-          - img [ref=e556] [cursor=pointer]
-        - 'button "53 MSFT Score: 53.4 $517.35 +0.31% Quality: 95.0 Momentum: 51.9 Value: 10.0 Growth: 50.0 Rel Strength: 55.2 Positioning: 73.6 Sentiment: 31.3 Technical: 2.6% Risk: 16.0% Trading Signal: N/A 10/3/2025" [ref=e559] [cursor=pointer]':
-          - generic [ref=e561] [cursor=pointer]:
-            - generic [ref=e563] [cursor=pointer]:
-              - heading "53" [level=6] [ref=e567] [cursor=pointer]
-              - generic [ref=e568] [cursor=pointer]:
-                - heading "MSFT" [level=5] [ref=e569] [cursor=pointer]
-                - 'heading "Score: 53.4" [level=6] [ref=e570] [cursor=pointer]'
-                - generic [ref=e571] [cursor=pointer]:
-                  - paragraph [ref=e572] [cursor=pointer]: $517.35
-                  - generic [ref=e573] [cursor=pointer]:
-                    - img [ref=e574] [cursor=pointer]
-                    - paragraph [ref=e576] [cursor=pointer]: +0.31%
-            - generic [ref=e578] [cursor=pointer]:
-              - generic [ref=e579] [cursor=pointer]:
-                - img [ref=e580] [cursor=pointer]
-                - generic [ref=e582] [cursor=pointer]: "Quality: 95.0"
-              - generic [ref=e583] [cursor=pointer]:
-                - img [ref=e584] [cursor=pointer]
-                - generic [ref=e586] [cursor=pointer]: "Momentum: 51.9"
-              - generic [ref=e587] [cursor=pointer]:
-                - img [ref=e588] [cursor=pointer]
-                - generic [ref=e590] [cursor=pointer]: "Value: 10.0"
+                - generic [ref=e536] [cursor=pointer]: "Growth: 63.0"
+              - generic [ref=e537] [cursor=pointer]:
+                - img [ref=e538] [cursor=pointer]
+                - generic [ref=e540] [cursor=pointer]: "Rel Strength: 82.9"
+              - generic [ref=e541] [cursor=pointer]:
+                - img [ref=e542] [cursor=pointer]
+                - generic [ref=e544] [cursor=pointer]: "Positioning: 67.6"
+              - generic [ref=e545] [cursor=pointer]:
+                - img [ref=e546] [cursor=pointer]
+                - generic [ref=e550] [cursor=pointer]: "Sentiment: 50.0"
+              - generic [ref=e551] [cursor=pointer]:
+                - img [ref=e552] [cursor=pointer]
+                - generic [ref=e555] [cursor=pointer]: "Technical: 22.9%"
+              - generic [ref=e556] [cursor=pointer]:
+                - img [ref=e557] [cursor=pointer]
+                - generic [ref=e559] [cursor=pointer]: "Risk: 25.2%"
+            - generic [ref=e561] [cursor=pointer]:
+              - 'generic "Trading Signal: N/A" [ref=e562] [cursor=pointer]':
+                - img [ref=e563] [cursor=pointer]
+                - generic [ref=e565] [cursor=pointer]: N/A
+              - generic [ref=e566] [cursor=pointer]: 10/3/2025
+          - img [ref=e568] [cursor=pointer]
+        - 'button "53 MSFT Score: 53.4 $517.35 +0.31% Quality: 95.0 Momentum: 51.9 Value: 10.0 Growth: 50.0 Rel Strength: 55.2 Positioning: 73.6 Sentiment: 31.3 Technical: 2.6% Risk: 16.1% Trading Signal: N/A 10/3/2025" [ref=e571] [cursor=pointer]':
+          - generic [ref=e573] [cursor=pointer]:
+            - generic [ref=e575] [cursor=pointer]:
+              - heading "53" [level=6] [ref=e579] [cursor=pointer]
+              - generic [ref=e580] [cursor=pointer]:
+                - heading "MSFT" [level=5] [ref=e581] [cursor=pointer]
+                - 'heading "Score: 53.4" [level=6] [ref=e582] [cursor=pointer]'
+                - generic [ref=e583] [cursor=pointer]:
+                  - paragraph [ref=e584] [cursor=pointer]: $517.35
+                  - generic [ref=e585] [cursor=pointer]:
+                    - img [ref=e586] [cursor=pointer]
+                    - paragraph [ref=e588] [cursor=pointer]: +0.31%
+            - generic [ref=e590] [cursor=pointer]:
               - generic [ref=e591] [cursor=pointer]:
                 - img [ref=e592] [cursor=pointer]
-                - generic [ref=e594] [cursor=pointer]: "Growth: 50.0"
+                - generic [ref=e594] [cursor=pointer]: "Quality: 95.0"
               - generic [ref=e595] [cursor=pointer]:
                 - img [ref=e596] [cursor=pointer]
-                - generic [ref=e598] [cursor=pointer]: "Rel Strength: 55.2"
+                - generic [ref=e598] [cursor=pointer]: "Momentum: 51.9"
               - generic [ref=e599] [cursor=pointer]:
                 - img [ref=e600] [cursor=pointer]
-                - generic [ref=e602] [cursor=pointer]: "Positioning: 73.6"
+                - generic [ref=e602] [cursor=pointer]: "Value: 10.0"
               - generic [ref=e603] [cursor=pointer]:
                 - img [ref=e604] [cursor=pointer]
-                - generic [ref=e608] [cursor=pointer]: "Sentiment: 31.3"
-              - generic [ref=e609] [cursor=pointer]:
-                - img [ref=e610] [cursor=pointer]
-                - generic [ref=e613] [cursor=pointer]: "Technical: 2.6%"
-              - generic [ref=e614] [cursor=pointer]:
-                - img [ref=e615] [cursor=pointer]
-                - generic [ref=e617] [cursor=pointer]: "Risk: 16.0%"
-            - generic [ref=e619] [cursor=pointer]:
-              - 'generic "Trading Signal: N/A" [ref=e620] [cursor=pointer]':
-                - img [ref=e621] [cursor=pointer]
-                - generic [ref=e623] [cursor=pointer]: N/A
-              - generic [ref=e624] [cursor=pointer]: 10/3/2025
-          - img [ref=e626] [cursor=pointer]
+                - generic [ref=e606] [cursor=pointer]: "Growth: 50.0"
+              - generic [ref=e607] [cursor=pointer]:
+                - img [ref=e608] [cursor=pointer]
+                - generic [ref=e610] [cursor=pointer]: "Rel Strength: 55.2"
+              - generic [ref=e611] [cursor=pointer]:
+                - img [ref=e612] [cursor=pointer]
+                - generic [ref=e614] [cursor=pointer]: "Positioning: 73.6"
+              - generic [ref=e615] [cursor=pointer]:
+                - img [ref=e616] [cursor=pointer]
+                - generic [ref=e620] [cursor=pointer]: "Sentiment: 31.3"
+              - generic [ref=e621] [cursor=pointer]:
+                - img [ref=e622] [cursor=pointer]
+                - generic [ref=e625] [cursor=pointer]: "Technical: 2.6%"
+              - generic [ref=e626] [cursor=pointer]:
+                - img [ref=e627] [cursor=pointer]
+                - generic [ref=e629] [cursor=pointer]: "Risk: 16.1%"
+            - generic [ref=e631] [cursor=pointer]:
+              - 'generic "Trading Signal: N/A" [ref=e632] [cursor=pointer]':
+                - img [ref=e633] [cursor=pointer]
+                - generic [ref=e635] [cursor=pointer]: N/A
+              - generic [ref=e636] [cursor=pointer]: 10/3/2025
+          - img [ref=e638] [cursor=pointer]
 ```

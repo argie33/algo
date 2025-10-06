@@ -1,0 +1,1651 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Trading Signals
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
+            - img [ref=e20] [cursor=pointer]
+        - listitem [ref=e22]:
+          - button "Market Overview" [ref=e23] [cursor=pointer]:
+            - img [ref=e25] [cursor=pointer]
+            - paragraph [ref=e28] [cursor=pointer]: Market Overview
+        - listitem [ref=e29]:
+          - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+            - img [ref=e32] [cursor=pointer]
+            - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
+        - listitem [ref=e36]:
+          - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+            - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
+        - listitem [ref=e43]:
+          - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
+            - img [ref=e47] [cursor=pointer]
+        - listitem [ref=e49]:
+          - button "Stock Analysis" [ref=e50] [cursor=pointer]:
+            - img [ref=e52] [cursor=pointer]
+            - paragraph [ref=e55] [cursor=pointer]: Stock Analysis
+        - listitem [ref=e56]:
+          - button "Technical Analysis" [ref=e57] [cursor=pointer]:
+            - img [ref=e59] [cursor=pointer]
+            - paragraph [ref=e62] [cursor=pointer]: Technical Analysis
+        - listitem [ref=e63]:
+          - button "Stock Scores" [ref=e64] [cursor=pointer]:
+            - img [ref=e66] [cursor=pointer]
+            - paragraph [ref=e69] [cursor=pointer]: Stock Scores
+        - listitem [ref=e70]:
+          - button "Earnings Hub" [ref=e71] [cursor=pointer]:
+            - img [ref=e73] [cursor=pointer]
+            - paragraph [ref=e76] [cursor=pointer]: Earnings Hub
+        - listitem [ref=e77]:
+          - button "Trading Signals" [ref=e78] [cursor=pointer]:
+            - img [ref=e80] [cursor=pointer]
+            - paragraph [ref=e83] [cursor=pointer]: Trading Signals
+        - listitem [ref=e84]:
+          - button "Financial Data" [ref=e85] [cursor=pointer]:
+            - img [ref=e87] [cursor=pointer]
+            - paragraph [ref=e90] [cursor=pointer]: Financial Data
+        - listitem [ref=e91]:
+          - button "Sentiment Analysis" [ref=e92] [cursor=pointer]:
+            - img [ref=e94] [cursor=pointer]
+            - paragraph [ref=e98] [cursor=pointer]: Sentiment Analysis
+        - listitem [ref=e99]:
+          - button "Analyst Insights" [ref=e100] [cursor=pointer]:
+            - img [ref=e102] [cursor=pointer]
+            - paragraph [ref=e105] [cursor=pointer]: Analyst Insights
+        - listitem [ref=e106]:
+          - button "Collapse Portfolio section" [ref=e107] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e109] [cursor=pointer]
+            - img [ref=e110] [cursor=pointer]
+        - listitem [ref=e112]:
+          - button "Portfolio Holdings" [ref=e113] [cursor=pointer]:
+            - img [ref=e115] [cursor=pointer]
+            - paragraph [ref=e118] [cursor=pointer]: Portfolio Holdings
+        - listitem [ref=e119]:
+          - button "Trade History" [ref=e120] [cursor=pointer]:
+            - img [ref=e122] [cursor=pointer]
+            - paragraph [ref=e125] [cursor=pointer]: Trade History
+        - listitem [ref=e126]:
+          - button "Order Management" [ref=e127] [cursor=pointer]:
+            - img [ref=e129] [cursor=pointer]
+            - paragraph [ref=e132] [cursor=pointer]: Order Management
+        - listitem [ref=e133]:
+          - button "Optimization Tools" [ref=e134] [cursor=pointer]:
+            - img [ref=e136] [cursor=pointer]
+            - paragraph [ref=e139] [cursor=pointer]: Optimization Tools
+        - listitem [ref=e140]:
+          - button "Expand Tools section" [ref=e141] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e143] [cursor=pointer]
+            - img [ref=e144] [cursor=pointer]
+  - main [ref=e146]:
+    - generic [ref=e149]:
+      - generic [ref=e150]:
+        - heading "🎯 Trading Signals" [level=1] [ref=e151]
+        - heading "AI-powered trading signals with real-time market analysis and institutional-grade insights" [level=6] [ref=e152]
+      - generic [ref=e153]:
+        - generic [ref=e156]:
+          - generic [ref=e157]:
+            - generic [ref=e158]:
+              - img [ref=e159]
+              - generic [ref=e161]: "25"
+            - heading "Active Signals" [level=6] [ref=e162]
+          - heading "25" [level=4] [ref=e163]
+          - paragraph [ref=e164]: 25 in this week
+        - generic [ref=e167]:
+          - generic [ref=e168]:
+            - img [ref=e169]
+            - heading "Buy Signals" [level=6] [ref=e171]
+          - heading "0" [level=4] [ref=e172]
+          - paragraph [ref=e173]: 0% of signals
+        - generic [ref=e176]:
+          - generic [ref=e177]:
+            - img [ref=e178]
+            - heading "Sell Signals" [level=6] [ref=e180]
+          - heading "1" [level=4] [ref=e181]
+          - paragraph [ref=e182]: 4% of signals
+      - generic [ref=e185]:
+        - generic [ref=e186]:
+          - heading "Filters" [level=6] [ref=e187]:
+            - img [ref=e188]
+            - text: Filters
+          - separator [ref=e190]
+        - generic [ref=e193]:
+          - img [ref=e195]
+          - textbox "Search symbols..." [ref=e197]
+          - group
+        - generic [ref=e199]:
+          - generic [ref=e200]: Signal Type
+          - generic [ref=e201]:
+            - combobox [ref=e202] [cursor=pointer]: All Signals
+            - textbox: all
+            - img
+            - group:
+              - generic: Signal Type
+        - generic [ref=e204]:
+          - generic [ref=e205]: Timeframe
+          - generic [ref=e206]:
+            - combobox [ref=e207] [cursor=pointer]: Daily
+            - textbox: daily
+            - img
+            - group:
+              - generic: Timeframe
+        - generic [ref=e208]:
+          - generic [ref=e209] [cursor=pointer]:
+            - checkbox "Active Only" [checked] [ref=e212] [cursor=pointer]
+            - generic [ref=e215] [cursor=pointer]: Active Only
+          - generic [ref=e216]: Show current positions & recent signals
+        - generic [ref=e218]:
+          - generic [ref=e219]: Date Range
+          - generic [ref=e220]:
+            - combobox [ref=e221] [cursor=pointer]: This Week
+            - textbox: week
+            - img
+            - group:
+              - generic: Date Range
+        - button "Search" [ref=e223] [cursor=pointer]: Search
+      - generic [ref=e227]:
+        - table [ref=e229]:
+          - rowgroup [ref=e230]:
+            - row [ref=e231]:
+              - columnheader "Symbol" [ref=e232]
+              - columnheader "Company" [ref=e233]
+              - columnheader "Signal" [ref=e234]
+              - columnheader "Current market price" [ref=e235]:
+                - generic "Current market price" [ref=e236]: Price
+              - columnheader "Entry price for position" [ref=e237]:
+                - generic "Entry price for position" [ref=e238]: Buy Level
+              - columnheader "Stop loss price (7-8% max risk)" [ref=e239]:
+                - generic "Stop loss price (7-8% max risk)" [ref=e240]: Stop
+              - columnheader "25% Target - Sell another 20-25%, let final 25% run with trailing stop" [ref=e241]:
+                - generic "25% Target - Sell another 20-25%, let final 25% run with trailing stop" [ref=e242]: Target (25%)
+              - columnheader "8% Target - Sell 20-25% of position, move stop to breakeven" [ref=e243]:
+                - generic "8% Target - Sell 20-25% of position, move stop to breakeven" [ref=e244]: 8% Target
+              - columnheader "20% Target - Sell another 25-30% of position" [ref=e245]:
+                - generic "20% Target - Sell another 25-30% of position" [ref=e246]: 20% Target
+              - columnheader "Risk/Reward Ratio - Minimum 2:1 acceptable, 3:1+ excellent" [ref=e247]:
+                - generic "Risk/Reward Ratio - Minimum 2:1 acceptable, 3:1+ excellent" [ref=e248]: R/R
+              - columnheader "Risk % - Maximum 8% acceptable, avoid trades >10%" [ref=e249]:
+                - generic "Risk % - Maximum 8% acceptable, avoid trades >10%" [ref=e250]: Risk %
+              - 'columnheader "Market Stage: Stage 2=BUY zone (Advancing phase). Hover to see substage (Early/Mid/Late)" [ref=e251]':
+                - 'generic "Market Stage: Stage 2=BUY zone (Advancing phase). Hover to see substage (Early/Mid/Late)" [ref=e252]': Stage
+              - 'columnheader "SATA Score (0-10): Stage Analysis Technical Attributes score from stageanalysis.com. 8-10 = Strong Stage 2, 4-7 = Stage 1/3, 0-3 = Stage 4" [ref=e253]':
+                - 'generic "SATA Score (0-10): Stage Analysis Technical Attributes score from stageanalysis.com. 8-10 = Strong Stage 2, 4-7 = Stage 1/3, 0-3 = Stage 4" [ref=e254]': SATA
+              - 'columnheader "Mansfield RS: Relative Strength vs S&P 500. >0 = outperforming market, <0 = underperforming" [ref=e255]':
+                - 'generic "Mansfield RS: Relative Strength vs S&P 500. >0 = outperforming market, <0 = underperforming" [ref=e256]': RS
+              - 'columnheader "Volume: Pocket Pivot (200%+ surge) = STRONG BUY, Volume Surge (150%+) = Good, Normal = OK, Dry-up (<70%) = Wait" [ref=e257]':
+                - 'generic "Volume: Pocket Pivot (200%+ surge) = STRONG BUY, Volume Surge (150%+) = Good, Normal = OK, Dry-up (<70%) = Wait" [ref=e258]': Volume
+              - 'columnheader "21 EMA Distance: -1% to +2% = perfect pullback entry, >5% = too extended" [ref=e259]':
+                - 'generic "21 EMA Distance: -1% to +2% = perfect pullback entry, >5% = too extended" [ref=e260]': 21 EMA %
+              - 'columnheader "RSI: 40-55 = BEST buy zone (pullback in uptrend), 55-70 = good, >70 = overbought" [ref=e261]':
+                - 'generic "RSI: 40-55 = BEST buy zone (pullback in uptrend), 55-70 = good, >70 = overbought" [ref=e262]': RSI
+              - 'columnheader "ADX: >30 = very strong trend (best), 25-30 = strong, 20-25 = moderate, <20 = avoid" [ref=e263]':
+                - 'generic "ADX: >30 = very strong trend (best), 25-30 = strong, 20-25 = moderate, <20 = avoid" [ref=e264]': ADX
+              - 'columnheader "Passes 7-point trend template: Price > 50/150/200 SMA, SMAs aligned, Price 0-30% above 200 SMA, 200 SMA rising" [ref=e265]':
+                - 'generic "Passes 7-point trend template: Price > 50/150/200 SMA, SMAs aligned, Price 0-30% above 200 SMA, 200 SMA rising" [ref=e266]': Trend ✓
+              - columnheader "Currently holding this position" [ref=e267]:
+                - generic "Currently holding this position" [ref=e268]: Position
+              - columnheader "Next earnings announcement date" [ref=e269]:
+                - generic "Next earnings announcement date" [ref=e270]: Next Earnings
+              - columnheader "Days until next earnings" [ref=e271]:
+                - generic "Days until next earnings" [ref=e272]: Days
+              - columnheader "Estimated EPS for next earnings" [ref=e273]:
+                - generic "Estimated EPS for next earnings" [ref=e274]: Est. EPS
+              - columnheader "Last EPS surprise percentage" [ref=e275]:
+                - generic "Last EPS surprise percentage" [ref=e276]: EPS Surprise
+              - columnheader "Year-over-year earnings growth" [ref=e277]:
+                - generic "Year-over-year earnings growth" [ref=e278]: Growth YoY
+              - columnheader "Date" [ref=e279]
+          - rowgroup [ref=e280]:
+            - row "AAPL Signal in this week's range $258.02 $241.32 $221.10 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/3/2025" [ref=e281]:
+              - cell "AAPL" [ref=e282]:
+                - button "AAPL" [ref=e283] [cursor=pointer]: AAPL
+              - cell [ref=e284]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e285]:
+                - generic [ref=e287]:
+                  - generic [ref=e288]:
+                    - img [ref=e289]
+                    - generic [ref=e291]: None
+                  - img [ref=e293]
+              - cell "$258.02" [ref=e295]
+              - cell "$241.32" [ref=e296]
+              - cell "$221.10" [ref=e297]
+              - cell "—" [ref=e298]
+              - cell "—" [ref=e299]
+              - cell "—" [ref=e300]
+              - cell "—" [ref=e301]
+              - cell "—" [ref=e302]
+              - cell "Unknown" [ref=e303]:
+                - generic [ref=e306]: —
+              - cell "0" [ref=e307]:
+                - generic [ref=e309]: "0"
+              - cell "0.0" [ref=e310]:
+                - paragraph [ref=e311]: "0.0"
+              - cell "Normal" [ref=e312]:
+                - generic [ref=e314]: Normal
+              - cell "—" [ref=e315]
+              - cell "—" [ref=e316]
+              - cell "—" [ref=e317]
+              - cell "✗" [ref=e318]:
+                - generic [ref=e320]: ✗
+              - cell "YES" [ref=e321]:
+                - generic [ref=e323]: "YES"
+              - cell "—" [ref=e324]:
+                - paragraph [ref=e325]: —
+              - cell "—" [ref=e326]:
+                - generic [ref=e328]: —
+              - cell "—" [ref=e329]:
+                - paragraph [ref=e330]: —
+              - cell "—" [ref=e331]:
+                - paragraph [ref=e332]: —
+              - cell "—" [ref=e333]:
+                - paragraph [ref=e334]: —
+              - cell "10/3/2025" [ref=e335]:
+                - paragraph [ref=e336]: 10/3/2025
+            - row "MSFT Signal in this week's range $517.35 $519.30 $497.71 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/3/2025" [ref=e337]:
+              - cell "MSFT" [ref=e338]:
+                - button "MSFT" [ref=e339] [cursor=pointer]: MSFT
+              - cell [ref=e340]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e341]:
+                - generic [ref=e343]:
+                  - generic [ref=e344]:
+                    - img [ref=e345]
+                    - generic [ref=e347]: None
+                  - img [ref=e349]
+              - cell "$517.35" [ref=e351]
+              - cell "$519.30" [ref=e352]
+              - cell "$497.71" [ref=e353]
+              - cell "—" [ref=e354]
+              - cell "—" [ref=e355]
+              - cell "—" [ref=e356]
+              - cell "—" [ref=e357]
+              - cell "—" [ref=e358]
+              - cell "Unknown" [ref=e359]:
+                - generic [ref=e362]: —
+              - cell "0" [ref=e363]:
+                - generic [ref=e365]: "0"
+              - cell "0.0" [ref=e366]:
+                - paragraph [ref=e367]: "0.0"
+              - cell "Normal" [ref=e368]:
+                - generic [ref=e370]: Normal
+              - cell "—" [ref=e371]
+              - cell "—" [ref=e372]
+              - cell "—" [ref=e373]
+              - cell "✗" [ref=e374]:
+                - generic [ref=e376]: ✗
+              - cell "YES" [ref=e377]:
+                - generic [ref=e379]: "YES"
+              - cell "—" [ref=e380]:
+                - paragraph [ref=e381]: —
+              - cell "—" [ref=e382]:
+                - generic [ref=e384]: —
+              - cell "—" [ref=e385]:
+                - paragraph [ref=e386]: —
+              - cell "—" [ref=e387]:
+                - paragraph [ref=e388]: —
+              - cell "—" [ref=e389]:
+                - paragraph [ref=e390]: —
+              - cell "10/3/2025" [ref=e391]:
+                - paragraph [ref=e392]: 10/3/2025
+            - row "NVDA Signal in this week's range $187.62 $184.55 $167.57 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/3/2025" [ref=e393]:
+              - cell "NVDA" [ref=e394]:
+                - button "NVDA" [ref=e395] [cursor=pointer]: NVDA
+              - cell [ref=e396]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e397]:
+                - generic [ref=e399]:
+                  - generic [ref=e400]:
+                    - img [ref=e401]
+                    - generic [ref=e403]: None
+                  - img [ref=e405]
+              - cell "$187.62" [ref=e407]
+              - cell "$184.55" [ref=e408]
+              - cell "$167.57" [ref=e409]
+              - cell "—" [ref=e410]
+              - cell "—" [ref=e411]
+              - cell "—" [ref=e412]
+              - cell "—" [ref=e413]
+              - cell "—" [ref=e414]
+              - cell "Unknown" [ref=e415]:
+                - generic [ref=e418]: —
+              - cell "0" [ref=e419]:
+                - generic [ref=e421]: "0"
+              - cell "0.0" [ref=e422]:
+                - paragraph [ref=e423]: "0.0"
+              - cell "Normal" [ref=e424]:
+                - generic [ref=e426]: Normal
+              - cell "—" [ref=e427]
+              - cell "—" [ref=e428]
+              - cell "—" [ref=e429]
+              - cell "✗" [ref=e430]:
+                - generic [ref=e432]: ✗
+              - cell "YES" [ref=e433]:
+                - generic [ref=e435]: "YES"
+              - cell "—" [ref=e436]:
+                - paragraph [ref=e437]: —
+              - cell "—" [ref=e438]:
+                - generic [ref=e440]: —
+              - cell "—" [ref=e441]:
+                - paragraph [ref=e442]: —
+              - cell "—" [ref=e443]:
+                - paragraph [ref=e444]: —
+              - cell "—" [ref=e445]:
+                - paragraph [ref=e446]: —
+              - cell "10/3/2025" [ref=e447]:
+                - paragraph [ref=e448]: 10/3/2025
+            - row "TSLA Signal in this week's range $429.83 $444.98 $399.93 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/3/2025" [ref=e449]:
+              - cell "TSLA" [ref=e450]:
+                - button "TSLA" [ref=e451] [cursor=pointer]: TSLA
+              - cell [ref=e452]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e453]:
+                - generic [ref=e455]:
+                  - generic [ref=e456]:
+                    - img [ref=e457]
+                    - generic [ref=e459]: None
+                  - img [ref=e461]
+              - cell "$429.83" [ref=e463]
+              - cell "$444.98" [ref=e464]
+              - cell "$399.93" [ref=e465]
+              - cell "—" [ref=e466]
+              - cell "—" [ref=e467]
+              - cell "—" [ref=e468]
+              - cell "—" [ref=e469]
+              - cell "—" [ref=e470]
+              - cell "Unknown" [ref=e471]:
+                - generic [ref=e474]: —
+              - cell "0" [ref=e475]:
+                - generic [ref=e477]: "0"
+              - cell "0.0" [ref=e478]:
+                - paragraph [ref=e479]: "0.0"
+              - cell "Normal" [ref=e480]:
+                - generic [ref=e482]: Normal
+              - cell "—" [ref=e483]
+              - cell "—" [ref=e484]
+              - cell "—" [ref=e485]
+              - cell "✗" [ref=e486]:
+                - generic [ref=e488]: ✗
+              - cell "YES" [ref=e489]:
+                - generic [ref=e491]: "YES"
+              - cell "—" [ref=e492]:
+                - paragraph [ref=e493]: —
+              - cell "—" [ref=e494]:
+                - generic [ref=e496]: —
+              - cell "—" [ref=e497]:
+                - paragraph [ref=e498]: —
+              - cell "—" [ref=e499]:
+                - paragraph [ref=e500]: —
+              - cell "—" [ref=e501]:
+                - paragraph [ref=e502]: —
+              - cell "10/3/2025" [ref=e503]:
+                - paragraph [ref=e504]: 10/3/2025
+            - row "AAPL Signal in this week's range $257.13 $241.32 $221.19 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/2/2025" [ref=e505]:
+              - cell "AAPL" [ref=e506]:
+                - button "AAPL" [ref=e507] [cursor=pointer]: AAPL
+              - cell [ref=e508]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e509]:
+                - generic [ref=e511]:
+                  - generic [ref=e512]:
+                    - img [ref=e513]
+                    - generic [ref=e515]: None
+                  - img [ref=e517]
+              - cell "$257.13" [ref=e519]
+              - cell "$241.32" [ref=e520]
+              - cell "$221.19" [ref=e521]
+              - cell "—" [ref=e522]
+              - cell "—" [ref=e523]
+              - cell "—" [ref=e524]
+              - cell "—" [ref=e525]
+              - cell "—" [ref=e526]
+              - cell "Unknown" [ref=e527]:
+                - generic [ref=e530]: —
+              - cell "0" [ref=e531]:
+                - generic [ref=e533]: "0"
+              - cell "0.0" [ref=e534]:
+                - paragraph [ref=e535]: "0.0"
+              - cell "Normal" [ref=e536]:
+                - generic [ref=e538]: Normal
+              - cell "—" [ref=e539]
+              - cell "—" [ref=e540]
+              - cell "—" [ref=e541]
+              - cell "✗" [ref=e542]:
+                - generic [ref=e544]: ✗
+              - cell "YES" [ref=e545]:
+                - generic [ref=e547]: "YES"
+              - cell "—" [ref=e548]:
+                - paragraph [ref=e549]: —
+              - cell "—" [ref=e550]:
+                - generic [ref=e552]: —
+              - cell "—" [ref=e553]:
+                - paragraph [ref=e554]: —
+              - cell "—" [ref=e555]:
+                - paragraph [ref=e556]: —
+              - cell "—" [ref=e557]:
+                - paragraph [ref=e558]: —
+              - cell "10/2/2025" [ref=e559]:
+                - paragraph [ref=e560]: 10/2/2025
+            - row "MSFT Signal in this week's range $515.74 $519.30 $497.50 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/2/2025" [ref=e561]:
+              - cell "MSFT" [ref=e562]:
+                - button "MSFT" [ref=e563] [cursor=pointer]: MSFT
+              - cell [ref=e564]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e565]:
+                - generic [ref=e567]:
+                  - generic [ref=e568]:
+                    - img [ref=e569]
+                    - generic [ref=e571]: None
+                  - img [ref=e573]
+              - cell "$515.74" [ref=e575]
+              - cell "$519.30" [ref=e576]
+              - cell "$497.50" [ref=e577]
+              - cell "—" [ref=e578]
+              - cell "—" [ref=e579]
+              - cell "—" [ref=e580]
+              - cell "—" [ref=e581]
+              - cell "—" [ref=e582]
+              - cell "Unknown" [ref=e583]:
+                - generic [ref=e586]: —
+              - cell "0" [ref=e587]:
+                - generic [ref=e589]: "0"
+              - cell "0.0" [ref=e590]:
+                - paragraph [ref=e591]: "0.0"
+              - cell "Normal" [ref=e592]:
+                - generic [ref=e594]: Normal
+              - cell "—" [ref=e595]
+              - cell "—" [ref=e596]
+              - cell "—" [ref=e597]
+              - cell "✗" [ref=e598]:
+                - generic [ref=e600]: ✗
+              - cell "YES" [ref=e601]:
+                - generic [ref=e603]: "YES"
+              - cell "—" [ref=e604]:
+                - paragraph [ref=e605]: —
+              - cell "—" [ref=e606]:
+                - generic [ref=e608]: —
+              - cell "—" [ref=e609]:
+                - paragraph [ref=e610]: —
+              - cell "—" [ref=e611]:
+                - paragraph [ref=e612]: —
+              - cell "—" [ref=e613]:
+                - paragraph [ref=e614]: —
+              - cell "10/2/2025" [ref=e615]:
+                - paragraph [ref=e616]: 10/2/2025
+            - row "NVDA Signal in this week's range $188.89 $184.55 $167.62 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/2/2025" [ref=e617]:
+              - cell "NVDA" [ref=e618]:
+                - button "NVDA" [ref=e619] [cursor=pointer]: NVDA
+              - cell [ref=e620]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e621]:
+                - generic [ref=e623]:
+                  - generic [ref=e624]:
+                    - img [ref=e625]
+                    - generic [ref=e627]: None
+                  - img [ref=e629]
+              - cell "$188.89" [ref=e631]
+              - cell "$184.55" [ref=e632]
+              - cell "$167.62" [ref=e633]
+              - cell "—" [ref=e634]
+              - cell "—" [ref=e635]
+              - cell "—" [ref=e636]
+              - cell "—" [ref=e637]
+              - cell "—" [ref=e638]
+              - cell "Unknown" [ref=e639]:
+                - generic [ref=e642]: —
+              - cell "0" [ref=e643]:
+                - generic [ref=e645]: "0"
+              - cell "0.0" [ref=e646]:
+                - paragraph [ref=e647]: "0.0"
+              - cell "Normal" [ref=e648]:
+                - generic [ref=e650]: Normal
+              - cell "—" [ref=e651]
+              - cell "—" [ref=e652]
+              - cell "—" [ref=e653]
+              - cell "✗" [ref=e654]:
+                - generic [ref=e656]: ✗
+              - cell "YES" [ref=e657]:
+                - generic [ref=e659]: "YES"
+              - cell "—" [ref=e660]:
+                - paragraph [ref=e661]: —
+              - cell "—" [ref=e662]:
+                - generic [ref=e664]: —
+              - cell "—" [ref=e665]:
+                - paragraph [ref=e666]: —
+              - cell "—" [ref=e667]:
+                - paragraph [ref=e668]: —
+              - cell "—" [ref=e669]:
+                - paragraph [ref=e670]: —
+              - cell "10/2/2025" [ref=e671]:
+                - paragraph [ref=e672]: 10/2/2025
+            - row "TSLA Signal in this week's range $436.00 $444.98 $399.96 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/2/2025" [ref=e673]:
+              - cell "TSLA" [ref=e674]:
+                - button "TSLA" [ref=e675] [cursor=pointer]: TSLA
+              - cell [ref=e676]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e677]:
+                - generic [ref=e679]:
+                  - generic [ref=e680]:
+                    - img [ref=e681]
+                    - generic [ref=e683]: None
+                  - img [ref=e685]
+              - cell "$436.00" [ref=e687]
+              - cell "$444.98" [ref=e688]
+              - cell "$399.96" [ref=e689]
+              - cell "—" [ref=e690]
+              - cell "—" [ref=e691]
+              - cell "—" [ref=e692]
+              - cell "—" [ref=e693]
+              - cell "—" [ref=e694]
+              - cell "Unknown" [ref=e695]:
+                - generic [ref=e698]: —
+              - cell "0" [ref=e699]:
+                - generic [ref=e701]: "0"
+              - cell "0.0" [ref=e702]:
+                - paragraph [ref=e703]: "0.0"
+              - cell "Normal" [ref=e704]:
+                - generic [ref=e706]: Normal
+              - cell "—" [ref=e707]
+              - cell "—" [ref=e708]
+              - cell "—" [ref=e709]
+              - cell "✗" [ref=e710]:
+                - generic [ref=e712]: ✗
+              - cell "YES" [ref=e713]:
+                - generic [ref=e715]: "YES"
+              - cell "—" [ref=e716]:
+                - paragraph [ref=e717]: —
+              - cell "—" [ref=e718]:
+                - generic [ref=e720]: —
+              - cell "—" [ref=e721]:
+                - paragraph [ref=e722]: —
+              - cell "—" [ref=e723]:
+                - paragraph [ref=e724]: —
+              - cell "—" [ref=e725]:
+                - paragraph [ref=e726]: —
+              - cell "10/2/2025" [ref=e727]:
+                - paragraph [ref=e728]: 10/2/2025
+            - row "AAPL Signal in this week's range $255.45 $241.32 $221.08 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/1/2025" [ref=e729]:
+              - cell "AAPL" [ref=e730]:
+                - button "AAPL" [ref=e731] [cursor=pointer]: AAPL
+              - cell [ref=e732]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e733]:
+                - generic [ref=e735]:
+                  - generic [ref=e736]:
+                    - img [ref=e737]
+                    - generic [ref=e739]: None
+                  - img [ref=e741]
+              - cell "$255.45" [ref=e743]
+              - cell "$241.32" [ref=e744]
+              - cell "$221.08" [ref=e745]
+              - cell "—" [ref=e746]
+              - cell "—" [ref=e747]
+              - cell "—" [ref=e748]
+              - cell "—" [ref=e749]
+              - cell "—" [ref=e750]
+              - cell "Unknown" [ref=e751]:
+                - generic [ref=e754]: —
+              - cell "0" [ref=e755]:
+                - generic [ref=e757]: "0"
+              - cell "0.0" [ref=e758]:
+                - paragraph [ref=e759]: "0.0"
+              - cell "Normal" [ref=e760]:
+                - generic [ref=e762]: Normal
+              - cell "—" [ref=e763]
+              - cell "—" [ref=e764]
+              - cell "—" [ref=e765]
+              - cell "✗" [ref=e766]:
+                - generic [ref=e768]: ✗
+              - cell "YES" [ref=e769]:
+                - generic [ref=e771]: "YES"
+              - cell "—" [ref=e772]:
+                - paragraph [ref=e773]: —
+              - cell "—" [ref=e774]:
+                - generic [ref=e776]: —
+              - cell "—" [ref=e777]:
+                - paragraph [ref=e778]: —
+              - cell "—" [ref=e779]:
+                - paragraph [ref=e780]: —
+              - cell "—" [ref=e781]:
+                - paragraph [ref=e782]: —
+              - cell "10/1/2025" [ref=e783]:
+                - paragraph [ref=e784]: 10/1/2025
+            - row "MSFT Signal in this week's range $519.71 $519.30 $497.45 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/1/2025" [ref=e785]:
+              - cell "MSFT" [ref=e786]:
+                - button "MSFT" [ref=e787] [cursor=pointer]: MSFT
+              - cell [ref=e788]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e789]:
+                - generic [ref=e791]:
+                  - generic [ref=e792]:
+                    - img [ref=e793]
+                    - generic [ref=e795]: None
+                  - img [ref=e797]
+              - cell "$519.71" [ref=e799]
+              - cell "$519.30" [ref=e800]
+              - cell "$497.45" [ref=e801]
+              - cell "—" [ref=e802]
+              - cell "—" [ref=e803]
+              - cell "—" [ref=e804]
+              - cell "—" [ref=e805]
+              - cell "—" [ref=e806]
+              - cell "Unknown" [ref=e807]:
+                - generic [ref=e810]: —
+              - cell "0" [ref=e811]:
+                - generic [ref=e813]: "0"
+              - cell "0.0" [ref=e814]:
+                - paragraph [ref=e815]: "0.0"
+              - cell "Normal" [ref=e816]:
+                - generic [ref=e818]: Normal
+              - cell "—" [ref=e819]
+              - cell "—" [ref=e820]
+              - cell "—" [ref=e821]
+              - cell "✗" [ref=e822]:
+                - generic [ref=e824]: ✗
+              - cell "YES" [ref=e825]:
+                - generic [ref=e827]: "YES"
+              - cell "—" [ref=e828]:
+                - paragraph [ref=e829]: —
+              - cell "—" [ref=e830]:
+                - generic [ref=e832]: —
+              - cell "—" [ref=e833]:
+                - paragraph [ref=e834]: —
+              - cell "—" [ref=e835]:
+                - paragraph [ref=e836]: —
+              - cell "—" [ref=e837]:
+                - paragraph [ref=e838]: —
+              - cell "10/1/2025" [ref=e839]:
+                - paragraph [ref=e840]: 10/1/2025
+            - row "NVDA Signal in this week's range $187.24 $184.55 $167.73 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/1/2025" [ref=e841]:
+              - cell "NVDA" [ref=e842]:
+                - button "NVDA" [ref=e843] [cursor=pointer]: NVDA
+              - cell [ref=e844]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e845]:
+                - generic [ref=e847]:
+                  - generic [ref=e848]:
+                    - img [ref=e849]
+                    - generic [ref=e851]: None
+                  - img [ref=e853]
+              - cell "$187.24" [ref=e855]
+              - cell "$184.55" [ref=e856]
+              - cell "$167.73" [ref=e857]
+              - cell "—" [ref=e858]
+              - cell "—" [ref=e859]
+              - cell "—" [ref=e860]
+              - cell "—" [ref=e861]
+              - cell "—" [ref=e862]
+              - cell "Unknown" [ref=e863]:
+                - generic [ref=e866]: —
+              - cell "0" [ref=e867]:
+                - generic [ref=e869]: "0"
+              - cell "0.0" [ref=e870]:
+                - paragraph [ref=e871]: "0.0"
+              - cell "Normal" [ref=e872]:
+                - generic [ref=e874]: Normal
+              - cell "—" [ref=e875]
+              - cell "—" [ref=e876]
+              - cell "—" [ref=e877]
+              - cell "✗" [ref=e878]:
+                - generic [ref=e880]: ✗
+              - cell "YES" [ref=e881]:
+                - generic [ref=e883]: "YES"
+              - cell "—" [ref=e884]:
+                - paragraph [ref=e885]: —
+              - cell "—" [ref=e886]:
+                - generic [ref=e888]: —
+              - cell "—" [ref=e889]:
+                - paragraph [ref=e890]: —
+              - cell "—" [ref=e891]:
+                - paragraph [ref=e892]: —
+              - cell "—" [ref=e893]:
+                - paragraph [ref=e894]: —
+              - cell "10/1/2025" [ref=e895]:
+                - paragraph [ref=e896]: 10/1/2025
+            - row "TSLA Signal in this week's range $459.46 $444.98 $400.48 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 10/1/2025" [ref=e897]:
+              - cell "TSLA" [ref=e898]:
+                - button "TSLA" [ref=e899] [cursor=pointer]: TSLA
+              - cell [ref=e900]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e901]:
+                - generic [ref=e903]:
+                  - generic [ref=e904]:
+                    - img [ref=e905]
+                    - generic [ref=e907]: None
+                  - img [ref=e909]
+              - cell "$459.46" [ref=e911]
+              - cell "$444.98" [ref=e912]
+              - cell "$400.48" [ref=e913]
+              - cell "—" [ref=e914]
+              - cell "—" [ref=e915]
+              - cell "—" [ref=e916]
+              - cell "—" [ref=e917]
+              - cell "—" [ref=e918]
+              - cell "Unknown" [ref=e919]:
+                - generic [ref=e922]: —
+              - cell "0" [ref=e923]:
+                - generic [ref=e925]: "0"
+              - cell "0.0" [ref=e926]:
+                - paragraph [ref=e927]: "0.0"
+              - cell "Normal" [ref=e928]:
+                - generic [ref=e930]: Normal
+              - cell "—" [ref=e931]
+              - cell "—" [ref=e932]
+              - cell "—" [ref=e933]
+              - cell "✗" [ref=e934]:
+                - generic [ref=e936]: ✗
+              - cell "YES" [ref=e937]:
+                - generic [ref=e939]: "YES"
+              - cell "—" [ref=e940]:
+                - paragraph [ref=e941]: —
+              - cell "—" [ref=e942]:
+                - generic [ref=e944]: —
+              - cell "—" [ref=e945]:
+                - paragraph [ref=e946]: —
+              - cell "—" [ref=e947]:
+                - paragraph [ref=e948]: —
+              - cell "—" [ref=e949]:
+                - paragraph [ref=e950]: —
+              - cell "10/1/2025" [ref=e951]:
+                - paragraph [ref=e952]: 10/1/2025
+            - row "AAPL Signal in this week's range $254.63 $241.32 $221.11 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/30/2025" [ref=e953]:
+              - cell "AAPL" [ref=e954]:
+                - button "AAPL" [ref=e955] [cursor=pointer]: AAPL
+              - cell [ref=e956]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e957]:
+                - generic [ref=e959]:
+                  - generic [ref=e960]:
+                    - img [ref=e961]
+                    - generic [ref=e963]: None
+                  - img [ref=e965]
+              - cell "$254.63" [ref=e967]
+              - cell "$241.32" [ref=e968]
+              - cell "$221.11" [ref=e969]
+              - cell "—" [ref=e970]
+              - cell "—" [ref=e971]
+              - cell "—" [ref=e972]
+              - cell "—" [ref=e973]
+              - cell "—" [ref=e974]
+              - cell "Unknown" [ref=e975]:
+                - generic [ref=e978]: —
+              - cell "0" [ref=e979]:
+                - generic [ref=e981]: "0"
+              - cell "0.0" [ref=e982]:
+                - paragraph [ref=e983]: "0.0"
+              - cell "Normal" [ref=e984]:
+                - generic [ref=e986]: Normal
+              - cell "—" [ref=e987]
+              - cell "—" [ref=e988]
+              - cell "—" [ref=e989]
+              - cell "✗" [ref=e990]:
+                - generic [ref=e992]: ✗
+              - cell "YES" [ref=e993]:
+                - generic [ref=e995]: "YES"
+              - cell "—" [ref=e996]:
+                - paragraph [ref=e997]: —
+              - cell "—" [ref=e998]:
+                - generic [ref=e1000]: —
+              - cell "—" [ref=e1001]:
+                - paragraph [ref=e1002]: —
+              - cell "—" [ref=e1003]:
+                - paragraph [ref=e1004]: —
+              - cell "—" [ref=e1005]:
+                - paragraph [ref=e1006]: —
+              - cell "9/30/2025" [ref=e1007]:
+                - paragraph [ref=e1008]: 9/30/2025
+            - row "GOOGL Signal in this week's range $243.10 $256.00 $190.87 — — — — — Unknown 0 0.0 Normal — — — ✗ NO — — — — — 9/30/2025" [ref=e1009]:
+              - cell "GOOGL" [ref=e1010]:
+                - button "GOOGL" [ref=e1011] [cursor=pointer]: GOOGL
+              - cell [ref=e1012]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1013]:
+                - generic [ref=e1015]:
+                  - generic [ref=e1016]:
+                    - img [ref=e1017]
+                    - generic [ref=e1019]: Sell
+                  - img [ref=e1021]
+              - cell "$243.10" [ref=e1023]
+              - cell "$256.00" [ref=e1024]
+              - cell "$190.87" [ref=e1025]
+              - cell "—" [ref=e1026]
+              - cell "—" [ref=e1027]
+              - cell "—" [ref=e1028]
+              - cell "—" [ref=e1029]
+              - cell "—" [ref=e1030]
+              - cell "Unknown" [ref=e1031]:
+                - generic [ref=e1034]: —
+              - cell "0" [ref=e1035]:
+                - generic [ref=e1037]: "0"
+              - cell "0.0" [ref=e1038]:
+                - paragraph [ref=e1039]: "0.0"
+              - cell "Normal" [ref=e1040]:
+                - generic [ref=e1042]: Normal
+              - cell "—" [ref=e1043]
+              - cell "—" [ref=e1044]
+              - cell "—" [ref=e1045]
+              - cell "✗" [ref=e1046]:
+                - generic [ref=e1048]: ✗
+              - cell "NO" [ref=e1049]:
+                - generic [ref=e1051]: "NO"
+              - cell "—" [ref=e1052]:
+                - paragraph [ref=e1053]: —
+              - cell "—" [ref=e1054]:
+                - generic [ref=e1056]: —
+              - cell "—" [ref=e1057]:
+                - paragraph [ref=e1058]: —
+              - cell "—" [ref=e1059]:
+                - paragraph [ref=e1060]: —
+              - cell "—" [ref=e1061]:
+                - paragraph [ref=e1062]: —
+              - cell "9/30/2025" [ref=e1063]:
+                - paragraph [ref=e1064]: 9/30/2025
+            - row "MSFT Signal in this week's range $517.95 $519.30 $497.71 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/30/2025" [ref=e1065]:
+              - cell "MSFT" [ref=e1066]:
+                - button "MSFT" [ref=e1067] [cursor=pointer]: MSFT
+              - cell [ref=e1068]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1069]:
+                - generic [ref=e1071]:
+                  - generic [ref=e1072]:
+                    - img [ref=e1073]
+                    - generic [ref=e1075]: None
+                  - img [ref=e1077]
+              - cell "$517.95" [ref=e1079]
+              - cell "$519.30" [ref=e1080]
+              - cell "$497.71" [ref=e1081]
+              - cell "—" [ref=e1082]
+              - cell "—" [ref=e1083]
+              - cell "—" [ref=e1084]
+              - cell "—" [ref=e1085]
+              - cell "—" [ref=e1086]
+              - cell "Unknown" [ref=e1087]:
+                - generic [ref=e1090]: —
+              - cell "0" [ref=e1091]:
+                - generic [ref=e1093]: "0"
+              - cell "0.0" [ref=e1094]:
+                - paragraph [ref=e1095]: "0.0"
+              - cell "Normal" [ref=e1096]:
+                - generic [ref=e1098]: Normal
+              - cell "—" [ref=e1099]
+              - cell "—" [ref=e1100]
+              - cell "—" [ref=e1101]
+              - cell "✗" [ref=e1102]:
+                - generic [ref=e1104]: ✗
+              - cell "YES" [ref=e1105]:
+                - generic [ref=e1107]: "YES"
+              - cell "—" [ref=e1108]:
+                - paragraph [ref=e1109]: —
+              - cell "—" [ref=e1110]:
+                - generic [ref=e1112]: —
+              - cell "—" [ref=e1113]:
+                - paragraph [ref=e1114]: —
+              - cell "—" [ref=e1115]:
+                - paragraph [ref=e1116]: —
+              - cell "—" [ref=e1117]:
+                - paragraph [ref=e1118]: —
+              - cell "9/30/2025" [ref=e1119]:
+                - paragraph [ref=e1120]: 9/30/2025
+            - row "NVDA Signal in this week's range $186.58 $184.55 $167.77 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/30/2025" [ref=e1121]:
+              - cell "NVDA" [ref=e1122]:
+                - button "NVDA" [ref=e1123] [cursor=pointer]: NVDA
+              - cell [ref=e1124]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1125]:
+                - generic [ref=e1127]:
+                  - generic [ref=e1128]:
+                    - img [ref=e1129]
+                    - generic [ref=e1131]: None
+                  - img [ref=e1133]
+              - cell "$186.58" [ref=e1135]
+              - cell "$184.55" [ref=e1136]
+              - cell "$167.77" [ref=e1137]
+              - cell "—" [ref=e1138]
+              - cell "—" [ref=e1139]
+              - cell "—" [ref=e1140]
+              - cell "—" [ref=e1141]
+              - cell "—" [ref=e1142]
+              - cell "Unknown" [ref=e1143]:
+                - generic [ref=e1146]: —
+              - cell "0" [ref=e1147]:
+                - generic [ref=e1149]: "0"
+              - cell "0.0" [ref=e1150]:
+                - paragraph [ref=e1151]: "0.0"
+              - cell "Normal" [ref=e1152]:
+                - generic [ref=e1154]: Normal
+              - cell "—" [ref=e1155]
+              - cell "—" [ref=e1156]
+              - cell "—" [ref=e1157]
+              - cell "✗" [ref=e1158]:
+                - generic [ref=e1160]: ✗
+              - cell "YES" [ref=e1161]:
+                - generic [ref=e1163]: "YES"
+              - cell "—" [ref=e1164]:
+                - paragraph [ref=e1165]: —
+              - cell "—" [ref=e1166]:
+                - generic [ref=e1168]: —
+              - cell "—" [ref=e1169]:
+                - paragraph [ref=e1170]: —
+              - cell "—" [ref=e1171]:
+                - paragraph [ref=e1172]: —
+              - cell "—" [ref=e1173]:
+                - paragraph [ref=e1174]: —
+              - cell "9/30/2025" [ref=e1175]:
+                - paragraph [ref=e1176]: 9/30/2025
+            - row "TSLA Signal in this week's range $444.72 $444.98 $400.49 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/30/2025" [ref=e1177]:
+              - cell "TSLA" [ref=e1178]:
+                - button "TSLA" [ref=e1179] [cursor=pointer]: TSLA
+              - cell [ref=e1180]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1181]:
+                - generic [ref=e1183]:
+                  - generic [ref=e1184]:
+                    - img [ref=e1185]
+                    - generic [ref=e1187]: None
+                  - img [ref=e1189]
+              - cell "$444.72" [ref=e1191]
+              - cell "$444.98" [ref=e1192]
+              - cell "$400.49" [ref=e1193]
+              - cell "—" [ref=e1194]
+              - cell "—" [ref=e1195]
+              - cell "—" [ref=e1196]
+              - cell "—" [ref=e1197]
+              - cell "—" [ref=e1198]
+              - cell "Unknown" [ref=e1199]:
+                - generic [ref=e1202]: —
+              - cell "0" [ref=e1203]:
+                - generic [ref=e1205]: "0"
+              - cell "0.0" [ref=e1206]:
+                - paragraph [ref=e1207]: "0.0"
+              - cell "Normal" [ref=e1208]:
+                - generic [ref=e1210]: Normal
+              - cell "—" [ref=e1211]
+              - cell "—" [ref=e1212]
+              - cell "—" [ref=e1213]
+              - cell "✗" [ref=e1214]:
+                - generic [ref=e1216]: ✗
+              - cell "YES" [ref=e1217]:
+                - generic [ref=e1219]: "YES"
+              - cell "—" [ref=e1220]:
+                - paragraph [ref=e1221]: —
+              - cell "—" [ref=e1222]:
+                - generic [ref=e1224]: —
+              - cell "—" [ref=e1225]:
+                - paragraph [ref=e1226]: —
+              - cell "—" [ref=e1227]:
+                - paragraph [ref=e1228]: —
+              - cell "—" [ref=e1229]:
+                - paragraph [ref=e1230]: —
+              - cell "9/30/2025" [ref=e1231]:
+                - paragraph [ref=e1232]: 9/30/2025
+            - row "AAPL Signal in this week's range $254.43 $241.32 $220.71 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/29/2025" [ref=e1233]:
+              - cell "AAPL" [ref=e1234]:
+                - button "AAPL" [ref=e1235] [cursor=pointer]: AAPL
+              - cell [ref=e1236]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1237]:
+                - generic [ref=e1239]:
+                  - generic [ref=e1240]:
+                    - img [ref=e1241]
+                    - generic [ref=e1243]: None
+                  - img [ref=e1245]
+              - cell "$254.43" [ref=e1247]
+              - cell "$241.32" [ref=e1248]
+              - cell "$220.71" [ref=e1249]
+              - cell "—" [ref=e1250]
+              - cell "—" [ref=e1251]
+              - cell "—" [ref=e1252]
+              - cell "—" [ref=e1253]
+              - cell "—" [ref=e1254]
+              - cell "Unknown" [ref=e1255]:
+                - generic [ref=e1258]: —
+              - cell "0" [ref=e1259]:
+                - generic [ref=e1261]: "0"
+              - cell "0.0" [ref=e1262]:
+                - paragraph [ref=e1263]: "0.0"
+              - cell "Normal" [ref=e1264]:
+                - generic [ref=e1266]: Normal
+              - cell "—" [ref=e1267]
+              - cell "—" [ref=e1268]
+              - cell "—" [ref=e1269]
+              - cell "✗" [ref=e1270]:
+                - generic [ref=e1272]: ✗
+              - cell "YES" [ref=e1273]:
+                - generic [ref=e1275]: "YES"
+              - cell "—" [ref=e1276]:
+                - paragraph [ref=e1277]: —
+              - cell "—" [ref=e1278]:
+                - generic [ref=e1280]: —
+              - cell "—" [ref=e1281]:
+                - paragraph [ref=e1282]: —
+              - cell "—" [ref=e1283]:
+                - paragraph [ref=e1284]: —
+              - cell "—" [ref=e1285]:
+                - paragraph [ref=e1286]: —
+              - cell "9/29/2025" [ref=e1287]:
+                - paragraph [ref=e1288]: 9/29/2025
+            - row "GOOGL Signal in this week's range $244.05 $256.00 $190.94 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/29/2025" [ref=e1289]:
+              - cell "GOOGL" [ref=e1290]:
+                - button "GOOGL" [ref=e1291] [cursor=pointer]: GOOGL
+              - cell [ref=e1292]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1293]:
+                - generic [ref=e1295]:
+                  - generic [ref=e1296]:
+                    - img [ref=e1297]
+                    - generic [ref=e1299]: None
+                  - img [ref=e1301]
+              - cell "$244.05" [ref=e1303]
+              - cell "$256.00" [ref=e1304]
+              - cell "$190.94" [ref=e1305]
+              - cell "—" [ref=e1306]
+              - cell "—" [ref=e1307]
+              - cell "—" [ref=e1308]
+              - cell "—" [ref=e1309]
+              - cell "—" [ref=e1310]
+              - cell "Unknown" [ref=e1311]:
+                - generic [ref=e1314]: —
+              - cell "0" [ref=e1315]:
+                - generic [ref=e1317]: "0"
+              - cell "0.0" [ref=e1318]:
+                - paragraph [ref=e1319]: "0.0"
+              - cell "Normal" [ref=e1320]:
+                - generic [ref=e1322]: Normal
+              - cell "—" [ref=e1323]
+              - cell "—" [ref=e1324]
+              - cell "—" [ref=e1325]
+              - cell "✗" [ref=e1326]:
+                - generic [ref=e1328]: ✗
+              - cell "YES" [ref=e1329]:
+                - generic [ref=e1331]: "YES"
+              - cell "—" [ref=e1332]:
+                - paragraph [ref=e1333]: —
+              - cell "—" [ref=e1334]:
+                - generic [ref=e1336]: —
+              - cell "—" [ref=e1337]:
+                - paragraph [ref=e1338]: —
+              - cell "—" [ref=e1339]:
+                - paragraph [ref=e1340]: —
+              - cell "—" [ref=e1341]:
+                - paragraph [ref=e1342]: —
+              - cell "9/29/2025" [ref=e1343]:
+                - paragraph [ref=e1344]: 9/29/2025
+            - row "MSFT Signal in this week's range $514.60 $519.30 $497.85 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/29/2025" [ref=e1345]:
+              - cell "MSFT" [ref=e1346]:
+                - button "MSFT" [ref=e1347] [cursor=pointer]: MSFT
+              - cell [ref=e1348]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1349]:
+                - generic [ref=e1351]:
+                  - generic [ref=e1352]:
+                    - img [ref=e1353]
+                    - generic [ref=e1355]: None
+                  - img [ref=e1357]
+              - cell "$514.60" [ref=e1359]
+              - cell "$519.30" [ref=e1360]
+              - cell "$497.85" [ref=e1361]
+              - cell "—" [ref=e1362]
+              - cell "—" [ref=e1363]
+              - cell "—" [ref=e1364]
+              - cell "—" [ref=e1365]
+              - cell "—" [ref=e1366]
+              - cell "Unknown" [ref=e1367]:
+                - generic [ref=e1370]: —
+              - cell "0" [ref=e1371]:
+                - generic [ref=e1373]: "0"
+              - cell "0.0" [ref=e1374]:
+                - paragraph [ref=e1375]: "0.0"
+              - cell "Normal" [ref=e1376]:
+                - generic [ref=e1378]: Normal
+              - cell "—" [ref=e1379]
+              - cell "—" [ref=e1380]
+              - cell "—" [ref=e1381]
+              - cell "✗" [ref=e1382]:
+                - generic [ref=e1384]: ✗
+              - cell "YES" [ref=e1385]:
+                - generic [ref=e1387]: "YES"
+              - cell "—" [ref=e1388]:
+                - paragraph [ref=e1389]: —
+              - cell "—" [ref=e1390]:
+                - generic [ref=e1392]: —
+              - cell "—" [ref=e1393]:
+                - paragraph [ref=e1394]: —
+              - cell "—" [ref=e1395]:
+                - paragraph [ref=e1396]: —
+              - cell "—" [ref=e1397]:
+                - paragraph [ref=e1398]: —
+              - cell "9/29/2025" [ref=e1399]:
+                - paragraph [ref=e1400]: 9/29/2025
+            - row "NVDA Signal in this week's range $181.85 $184.55 $167.58 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/29/2025" [ref=e1401]:
+              - cell "NVDA" [ref=e1402]:
+                - button "NVDA" [ref=e1403] [cursor=pointer]: NVDA
+              - cell [ref=e1404]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1405]:
+                - generic [ref=e1407]:
+                  - generic [ref=e1408]:
+                    - img [ref=e1409]
+                    - generic [ref=e1411]: None
+                  - img [ref=e1413]
+              - cell "$181.85" [ref=e1415]
+              - cell "$184.55" [ref=e1416]
+              - cell "$167.58" [ref=e1417]
+              - cell "—" [ref=e1418]
+              - cell "—" [ref=e1419]
+              - cell "—" [ref=e1420]
+              - cell "—" [ref=e1421]
+              - cell "—" [ref=e1422]
+              - cell "Unknown" [ref=e1423]:
+                - generic [ref=e1426]: —
+              - cell "0" [ref=e1427]:
+                - generic [ref=e1429]: "0"
+              - cell "0.0" [ref=e1430]:
+                - paragraph [ref=e1431]: "0.0"
+              - cell "Normal" [ref=e1432]:
+                - generic [ref=e1434]: Normal
+              - cell "—" [ref=e1435]
+              - cell "—" [ref=e1436]
+              - cell "—" [ref=e1437]
+              - cell "✗" [ref=e1438]:
+                - generic [ref=e1440]: ✗
+              - cell "YES" [ref=e1441]:
+                - generic [ref=e1443]: "YES"
+              - cell "—" [ref=e1444]:
+                - paragraph [ref=e1445]: —
+              - cell "—" [ref=e1446]:
+                - generic [ref=e1448]: —
+              - cell "—" [ref=e1449]:
+                - paragraph [ref=e1450]: —
+              - cell "—" [ref=e1451]:
+                - paragraph [ref=e1452]: —
+              - cell "—" [ref=e1453]:
+                - paragraph [ref=e1454]: —
+              - cell "9/29/2025" [ref=e1455]:
+                - paragraph [ref=e1456]: 9/29/2025
+            - row "TSLA Signal in this week's range $443.21 $444.98 $400.61 — — — — — Unknown 0 0.0 Normal — — — ✗ YES — — — — — 9/29/2025" [ref=e1457]:
+              - cell "TSLA" [ref=e1458]:
+                - button "TSLA" [ref=e1459] [cursor=pointer]: TSLA
+              - cell [ref=e1460]:
+                - paragraph
+              - cell "Signal in this week's range" [ref=e1461]:
+                - generic [ref=e1463]:
+                  - generic [ref=e1464]:
+                    - img [ref=e1465]
+                    - generic [ref=e1467]: None
+                  - img [ref=e1469]
+              - cell "$443.21" [ref=e1471]
+              - cell "$444.98" [ref=e1472]
+              - cell "$400.61" [ref=e1473]
+              - cell "—" [ref=e1474]
+              - cell "—" [ref=e1475]
+              - cell "—" [ref=e1476]
+              - cell "—" [ref=e1477]
+              - cell "—" [ref=e1478]
+              - cell "Unknown" [ref=e1479]:
+                - generic [ref=e1482]: —
+              - cell "0" [ref=e1483]:
+                - generic [ref=e1485]: "0"
+              - cell "0.0" [ref=e1486]:
+                - paragraph [ref=e1487]: "0.0"
+              - cell "Normal" [ref=e1488]:
+                - generic [ref=e1490]: Normal
+              - cell "—" [ref=e1491]
+              - cell "—" [ref=e1492]
+              - cell "—" [ref=e1493]
+              - cell "✗" [ref=e1494]:
+                - generic [ref=e1496]: ✗
+              - cell "YES" [ref=e1497]:
+                - generic [ref=e1499]: "YES"
+              - cell "—" [ref=e1500]:
+                - paragraph [ref=e1501]: —
+              - cell "—" [ref=e1502]:
+                - generic [ref=e1504]: —
+              - cell "—" [ref=e1505]:
+                - paragraph [ref=e1506]: —
+              - cell "—" [ref=e1507]:
+                - paragraph [ref=e1508]: —
+              - cell "—" [ref=e1509]:
+                - paragraph [ref=e1510]: —
+              - cell "9/29/2025" [ref=e1511]:
+                - paragraph [ref=e1512]: 9/29/2025
+        - generic [ref=e1514]:
+          - paragraph [ref=e1515]: "Rows per page:"
+          - generic [ref=e1516]:
+            - 'combobox "Rows per page: 25" [ref=e1517] [cursor=pointer]': "25"
+            - textbox: "25"
+            - img
+          - paragraph [ref=e1518]: 1–25 of 37131
+          - generic [ref=e1519]:
+            - button "Go to previous page" [disabled]:
+              - img
+            - button "Go to next page" [ref=e1520] [cursor=pointer]:
+              - img [ref=e1521] [cursor=pointer]
+      - generic [ref=e1523]:
+        - heading "Signal Performance Tracking" [level=5] [ref=e1524]
+        - generic [ref=e1525]:
+          - generic [ref=e1526]:
+            - generic [ref=e1529]:
+              - img [ref=e1531]
+              - heading "22" [level=6] [ref=e1533]
+              - generic [ref=e1534]: Total Signals
+            - generic [ref=e1537]:
+              - img [ref=e1539]
+              - heading "12" [level=6] [ref=e1541]
+              - generic [ref=e1542]: Profitable
+            - generic [ref=e1545]:
+              - img [ref=e1547]
+              - heading "-0.5%" [level=6] [ref=e1549]
+              - generic [ref=e1550]: Avg Return
+            - generic [ref=e1553]:
+              - img [ref=e1555]
+              - heading "54.5%" [level=6] [ref=e1557]
+              - generic [ref=e1558]: Win Rate
+            - generic [ref=e1561]:
+              - img [ref=e1563]
+              - heading "+1.3%" [level=6] [ref=e1565]
+              - generic [ref=e1566]: Best Signal
+              - generic [ref=e1567]: AAPL
+            - generic [ref=e1570]:
+              - img [ref=e1572]
+              - heading "-3.0%" [level=6] [ref=e1574]
+              - generic [ref=e1575]: Worst Signal
+              - generic [ref=e1576]: TSLA
+          - generic [ref=e1578]:
+            - heading "Signal Performance Details" [level=6] [ref=e1579]
+            - table [ref=e1581]:
+              - rowgroup [ref=e1582]:
+                - row "Symbol Signal Confidence Signal Date Days Held Current Return Performance" [ref=e1583]:
+                  - columnheader "Symbol" [ref=e1584]
+                  - columnheader "Signal" [ref=e1585]
+                  - columnheader "Confidence" [ref=e1586]
+                  - columnheader "Signal Date" [ref=e1587]
+                  - columnheader "Days Held" [ref=e1588]
+                  - columnheader "Current Return" [ref=e1589]
+                  - columnheader "Performance" [ref=e1590]
+              - rowgroup [ref=e1591]:
+                - row "AAPL None N/A 2025-10-03T05:00:00.000Z 3d +1.3% 7" [ref=e1592]:
+                  - cell "AAPL" [ref=e1593]:
+                    - paragraph [ref=e1594]: AAPL
+                  - cell "None" [ref=e1595]:
+                    - generic [ref=e1596]:
+                      - img [ref=e1597]
+                      - generic [ref=e1600]: None
+                  - cell "N/A" [ref=e1601]:
+                    - paragraph [ref=e1602]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1603]:
+                    - paragraph [ref=e1604]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1605]:
+                    - paragraph [ref=e1606]: 3d
+                  - cell "+1.3%" [ref=e1607]:
+                    - paragraph [ref=e1608]: +1.3%
+                  - cell "7" [ref=e1609]:
+                    - progressbar [ref=e1610]
+                - row "MSFT None N/A 2025-10-03T05:00:00.000Z 3d +0.0% 0" [ref=e1612]:
+                  - cell "MSFT" [ref=e1613]:
+                    - paragraph [ref=e1614]: MSFT
+                  - cell "None" [ref=e1615]:
+                    - generic [ref=e1616]:
+                      - img [ref=e1617]
+                      - generic [ref=e1620]: None
+                  - cell "N/A" [ref=e1621]:
+                    - paragraph [ref=e1622]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1623]:
+                    - paragraph [ref=e1624]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1625]:
+                    - paragraph [ref=e1626]: 3d
+                  - cell "+0.0%" [ref=e1627]:
+                    - paragraph [ref=e1628]: +0.0%
+                  - cell "0" [ref=e1629]:
+                    - progressbar [ref=e1630]
+                - row "NVDA None N/A 2025-10-03T05:00:00.000Z 3d -0.8% 4" [ref=e1632]:
+                  - cell "NVDA" [ref=e1633]:
+                    - paragraph [ref=e1634]: NVDA
+                  - cell "None" [ref=e1635]:
+                    - generic [ref=e1636]:
+                      - img [ref=e1637]
+                      - generic [ref=e1640]: None
+                  - cell "N/A" [ref=e1641]:
+                    - paragraph [ref=e1642]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1643]:
+                    - paragraph [ref=e1644]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1645]:
+                    - paragraph [ref=e1646]: 3d
+                  - cell "-0.8%" [ref=e1647]:
+                    - paragraph [ref=e1648]: "-0.8%"
+                  - cell "4" [ref=e1649]:
+                    - progressbar [ref=e1650]
+                - row "TSLA None N/A 2025-10-03T05:00:00.000Z 3d -3.0% 15" [ref=e1652]:
+                  - cell "TSLA" [ref=e1653]:
+                    - paragraph [ref=e1654]: TSLA
+                  - cell "None" [ref=e1655]:
+                    - generic [ref=e1656]:
+                      - img [ref=e1657]
+                      - generic [ref=e1660]: None
+                  - cell "N/A" [ref=e1661]:
+                    - paragraph [ref=e1662]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1663]:
+                    - paragraph [ref=e1664]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1665]:
+                    - paragraph [ref=e1666]: 3d
+                  - cell "-3.0%" [ref=e1667]:
+                    - paragraph [ref=e1668]: "-3.0%"
+                  - cell "15" [ref=e1669]:
+                    - progressbar [ref=e1670]
+                - row "AAPL None N/A 2025-10-03T05:00:00.000Z 3d +1.3% 7" [ref=e1672]:
+                  - cell "AAPL" [ref=e1673]:
+                    - paragraph [ref=e1674]: AAPL
+                  - cell "None" [ref=e1675]:
+                    - generic [ref=e1676]:
+                      - img [ref=e1677]
+                      - generic [ref=e1680]: None
+                  - cell "N/A" [ref=e1681]:
+                    - paragraph [ref=e1682]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1683]:
+                    - paragraph [ref=e1684]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1685]:
+                    - paragraph [ref=e1686]: 3d
+                  - cell "+1.3%" [ref=e1687]:
+                    - paragraph [ref=e1688]: +1.3%
+                  - cell "7" [ref=e1689]:
+                    - progressbar [ref=e1690]
+                - row "MSFT None N/A 2025-10-03T05:00:00.000Z 3d +0.0% 0" [ref=e1692]:
+                  - cell "MSFT" [ref=e1693]:
+                    - paragraph [ref=e1694]: MSFT
+                  - cell "None" [ref=e1695]:
+                    - generic [ref=e1696]:
+                      - img [ref=e1697]
+                      - generic [ref=e1700]: None
+                  - cell "N/A" [ref=e1701]:
+                    - paragraph [ref=e1702]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1703]:
+                    - paragraph [ref=e1704]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1705]:
+                    - paragraph [ref=e1706]: 3d
+                  - cell "+0.0%" [ref=e1707]:
+                    - paragraph [ref=e1708]: +0.0%
+                  - cell "0" [ref=e1709]:
+                    - progressbar [ref=e1710]
+                - row "NVDA None N/A 2025-10-03T05:00:00.000Z 3d -0.8% 4" [ref=e1712]:
+                  - cell "NVDA" [ref=e1713]:
+                    - paragraph [ref=e1714]: NVDA
+                  - cell "None" [ref=e1715]:
+                    - generic [ref=e1716]:
+                      - img [ref=e1717]
+                      - generic [ref=e1720]: None
+                  - cell "N/A" [ref=e1721]:
+                    - paragraph [ref=e1722]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1723]:
+                    - paragraph [ref=e1724]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1725]:
+                    - paragraph [ref=e1726]: 3d
+                  - cell "-0.8%" [ref=e1727]:
+                    - paragraph [ref=e1728]: "-0.8%"
+                  - cell "4" [ref=e1729]:
+                    - progressbar [ref=e1730]
+                - row "TSLA None N/A 2025-10-03T05:00:00.000Z 3d -3.0% 15" [ref=e1732]:
+                  - cell "TSLA" [ref=e1733]:
+                    - paragraph [ref=e1734]: TSLA
+                  - cell "None" [ref=e1735]:
+                    - generic [ref=e1736]:
+                      - img [ref=e1737]
+                      - generic [ref=e1740]: None
+                  - cell "N/A" [ref=e1741]:
+                    - paragraph [ref=e1742]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1743]:
+                    - paragraph [ref=e1744]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1745]:
+                    - paragraph [ref=e1746]: 3d
+                  - cell "-3.0%" [ref=e1747]:
+                    - paragraph [ref=e1748]: "-3.0%"
+                  - cell "15" [ref=e1749]:
+                    - progressbar [ref=e1750]
+                - row "AAPL None N/A 2025-10-03T05:00:00.000Z 3d +1.3% 7" [ref=e1752]:
+                  - cell "AAPL" [ref=e1753]:
+                    - paragraph [ref=e1754]: AAPL
+                  - cell "None" [ref=e1755]:
+                    - generic [ref=e1756]:
+                      - img [ref=e1757]
+                      - generic [ref=e1760]: None
+                  - cell "N/A" [ref=e1761]:
+                    - paragraph [ref=e1762]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1763]:
+                    - paragraph [ref=e1764]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1765]:
+                    - paragraph [ref=e1766]: 3d
+                  - cell "+1.3%" [ref=e1767]:
+                    - paragraph [ref=e1768]: +1.3%
+                  - cell "7" [ref=e1769]:
+                    - progressbar [ref=e1770]
+                - row "MSFT None N/A 2025-10-03T05:00:00.000Z 3d +0.0% 0" [ref=e1772]:
+                  - cell "MSFT" [ref=e1773]:
+                    - paragraph [ref=e1774]: MSFT
+                  - cell "None" [ref=e1775]:
+                    - generic [ref=e1776]:
+                      - img [ref=e1777]
+                      - generic [ref=e1780]: None
+                  - cell "N/A" [ref=e1781]:
+                    - paragraph [ref=e1782]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1783]:
+                    - paragraph [ref=e1784]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1785]:
+                    - paragraph [ref=e1786]: 3d
+                  - cell "+0.0%" [ref=e1787]:
+                    - paragraph [ref=e1788]: +0.0%
+                  - cell "0" [ref=e1789]:
+                    - progressbar [ref=e1790]
+                - row "NVDA None N/A 2025-10-03T05:00:00.000Z 3d -0.8% 4" [ref=e1792]:
+                  - cell "NVDA" [ref=e1793]:
+                    - paragraph [ref=e1794]: NVDA
+                  - cell "None" [ref=e1795]:
+                    - generic [ref=e1796]:
+                      - img [ref=e1797]
+                      - generic [ref=e1800]: None
+                  - cell "N/A" [ref=e1801]:
+                    - paragraph [ref=e1802]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1803]:
+                    - paragraph [ref=e1804]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1805]:
+                    - paragraph [ref=e1806]: 3d
+                  - cell "-0.8%" [ref=e1807]:
+                    - paragraph [ref=e1808]: "-0.8%"
+                  - cell "4" [ref=e1809]:
+                    - progressbar [ref=e1810]
+                - row "TSLA None N/A 2025-10-03T05:00:00.000Z 3d -3.0% 15" [ref=e1812]:
+                  - cell "TSLA" [ref=e1813]:
+                    - paragraph [ref=e1814]: TSLA
+                  - cell "None" [ref=e1815]:
+                    - generic [ref=e1816]:
+                      - img [ref=e1817]
+                      - generic [ref=e1820]: None
+                  - cell "N/A" [ref=e1821]:
+                    - paragraph [ref=e1822]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1823]:
+                    - paragraph [ref=e1824]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1825]:
+                    - paragraph [ref=e1826]: 3d
+                  - cell "-3.0%" [ref=e1827]:
+                    - paragraph [ref=e1828]: "-3.0%"
+                  - cell "15" [ref=e1829]:
+                    - progressbar [ref=e1830]
+                - row "AAPL None N/A 2025-10-03T05:00:00.000Z 3d +1.3% 7" [ref=e1832]:
+                  - cell "AAPL" [ref=e1833]:
+                    - paragraph [ref=e1834]: AAPL
+                  - cell "None" [ref=e1835]:
+                    - generic [ref=e1836]:
+                      - img [ref=e1837]
+                      - generic [ref=e1840]: None
+                  - cell "N/A" [ref=e1841]:
+                    - paragraph [ref=e1842]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1843]:
+                    - paragraph [ref=e1844]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1845]:
+                    - paragraph [ref=e1846]: 3d
+                  - cell "+1.3%" [ref=e1847]:
+                    - paragraph [ref=e1848]: +1.3%
+                  - cell "7" [ref=e1849]:
+                    - progressbar [ref=e1850]
+                - row "GOOGL None N/A 2025-10-03T05:00:00.000Z 3d +0.4% 2" [ref=e1852]:
+                  - cell "GOOGL" [ref=e1853]:
+                    - paragraph [ref=e1854]: GOOGL
+                  - cell "None" [ref=e1855]:
+                    - generic [ref=e1856]:
+                      - img [ref=e1857]
+                      - generic [ref=e1860]: None
+                  - cell "N/A" [ref=e1861]:
+                    - paragraph [ref=e1862]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1863]:
+                    - paragraph [ref=e1864]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1865]:
+                    - paragraph [ref=e1866]: 3d
+                  - cell "+0.4%" [ref=e1867]:
+                    - paragraph [ref=e1868]: +0.4%
+                  - cell "2" [ref=e1869]:
+                    - progressbar [ref=e1870]
+                - row "MSFT None N/A 2025-10-03T05:00:00.000Z 3d +0.0% 0" [ref=e1872]:
+                  - cell "MSFT" [ref=e1873]:
+                    - paragraph [ref=e1874]: MSFT
+                  - cell "None" [ref=e1875]:
+                    - generic [ref=e1876]:
+                      - img [ref=e1877]
+                      - generic [ref=e1880]: None
+                  - cell "N/A" [ref=e1881]:
+                    - paragraph [ref=e1882]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1883]:
+                    - paragraph [ref=e1884]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1885]:
+                    - paragraph [ref=e1886]: 3d
+                  - cell "+0.0%" [ref=e1887]:
+                    - paragraph [ref=e1888]: +0.0%
+                  - cell "0" [ref=e1889]:
+                    - progressbar [ref=e1890]
+                - row "NVDA None N/A 2025-10-03T05:00:00.000Z 3d -0.8% 4" [ref=e1892]:
+                  - cell "NVDA" [ref=e1893]:
+                    - paragraph [ref=e1894]: NVDA
+                  - cell "None" [ref=e1895]:
+                    - generic [ref=e1896]:
+                      - img [ref=e1897]
+                      - generic [ref=e1900]: None
+                  - cell "N/A" [ref=e1901]:
+                    - paragraph [ref=e1902]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1903]:
+                    - paragraph [ref=e1904]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1905]:
+                    - paragraph [ref=e1906]: 3d
+                  - cell "-0.8%" [ref=e1907]:
+                    - paragraph [ref=e1908]: "-0.8%"
+                  - cell "4" [ref=e1909]:
+                    - progressbar [ref=e1910]
+                - row "TSLA None N/A 2025-10-03T05:00:00.000Z 3d -3.0% 15" [ref=e1912]:
+                  - cell "TSLA" [ref=e1913]:
+                    - paragraph [ref=e1914]: TSLA
+                  - cell "None" [ref=e1915]:
+                    - generic [ref=e1916]:
+                      - img [ref=e1917]
+                      - generic [ref=e1920]: None
+                  - cell "N/A" [ref=e1921]:
+                    - paragraph [ref=e1922]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1923]:
+                    - paragraph [ref=e1924]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1925]:
+                    - paragraph [ref=e1926]: 3d
+                  - cell "-3.0%" [ref=e1927]:
+                    - paragraph [ref=e1928]: "-3.0%"
+                  - cell "15" [ref=e1929]:
+                    - progressbar [ref=e1930]
+                - row "AAPL None N/A 2025-10-03T05:00:00.000Z 3d +1.3% 7" [ref=e1932]:
+                  - cell "AAPL" [ref=e1933]:
+                    - paragraph [ref=e1934]: AAPL
+                  - cell "None" [ref=e1935]:
+                    - generic [ref=e1936]:
+                      - img [ref=e1937]
+                      - generic [ref=e1940]: None
+                  - cell "N/A" [ref=e1941]:
+                    - paragraph [ref=e1942]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1943]:
+                    - paragraph [ref=e1944]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1945]:
+                    - paragraph [ref=e1946]: 3d
+                  - cell "+1.3%" [ref=e1947]:
+                    - paragraph [ref=e1948]: +1.3%
+                  - cell "7" [ref=e1949]:
+                    - progressbar [ref=e1950]
+                - row "GOOGL None N/A 2025-10-03T05:00:00.000Z 3d +0.4% 2" [ref=e1952]:
+                  - cell "GOOGL" [ref=e1953]:
+                    - paragraph [ref=e1954]: GOOGL
+                  - cell "None" [ref=e1955]:
+                    - generic [ref=e1956]:
+                      - img [ref=e1957]
+                      - generic [ref=e1960]: None
+                  - cell "N/A" [ref=e1961]:
+                    - paragraph [ref=e1962]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1963]:
+                    - paragraph [ref=e1964]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1965]:
+                    - paragraph [ref=e1966]: 3d
+                  - cell "+0.4%" [ref=e1967]:
+                    - paragraph [ref=e1968]: +0.4%
+                  - cell "2" [ref=e1969]:
+                    - progressbar [ref=e1970]
+                - row "MSFT None N/A 2025-10-03T05:00:00.000Z 3d +0.0% 0" [ref=e1972]:
+                  - cell "MSFT" [ref=e1973]:
+                    - paragraph [ref=e1974]: MSFT
+                  - cell "None" [ref=e1975]:
+                    - generic [ref=e1976]:
+                      - img [ref=e1977]
+                      - generic [ref=e1980]: None
+                  - cell "N/A" [ref=e1981]:
+                    - paragraph [ref=e1982]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e1983]:
+                    - paragraph [ref=e1984]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e1985]:
+                    - paragraph [ref=e1986]: 3d
+                  - cell "+0.0%" [ref=e1987]:
+                    - paragraph [ref=e1988]: +0.0%
+                  - cell "0" [ref=e1989]:
+                    - progressbar [ref=e1990]
+                - row "NVDA None N/A 2025-10-03T05:00:00.000Z 3d -0.8% 4" [ref=e1992]:
+                  - cell "NVDA" [ref=e1993]:
+                    - paragraph [ref=e1994]: NVDA
+                  - cell "None" [ref=e1995]:
+                    - generic [ref=e1996]:
+                      - img [ref=e1997]
+                      - generic [ref=e2000]: None
+                  - cell "N/A" [ref=e2001]:
+                    - paragraph [ref=e2002]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e2003]:
+                    - paragraph [ref=e2004]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e2005]:
+                    - paragraph [ref=e2006]: 3d
+                  - cell "-0.8%" [ref=e2007]:
+                    - paragraph [ref=e2008]: "-0.8%"
+                  - cell "4" [ref=e2009]:
+                    - progressbar [ref=e2010]
+                - row "TSLA None N/A 2025-10-03T05:00:00.000Z 3d -3.0% 15" [ref=e2012]:
+                  - cell "TSLA" [ref=e2013]:
+                    - paragraph [ref=e2014]: TSLA
+                  - cell "None" [ref=e2015]:
+                    - generic [ref=e2016]:
+                      - img [ref=e2017]
+                      - generic [ref=e2020]: None
+                  - cell "N/A" [ref=e2021]:
+                    - paragraph [ref=e2022]: N/A
+                  - cell "2025-10-03T05:00:00.000Z" [ref=e2023]:
+                    - paragraph [ref=e2024]: 2025-10-03T05:00:00.000Z
+                  - cell "3d" [ref=e2025]:
+                    - paragraph [ref=e2026]: 3d
+                  - cell "-3.0%" [ref=e2027]:
+                    - paragraph [ref=e2028]: "-3.0%"
+                  - cell "15" [ref=e2029]:
+                    - progressbar [ref=e2030]
+```
