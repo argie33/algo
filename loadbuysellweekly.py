@@ -201,7 +201,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 td.symbol, td.date::date as date,
                 td.sma_20, td.sma_50, td.sma_150, td.sma_200,
                 td.ema_21, td.rsi, td.adx, td.atr,
-                td.mansfield_rs,
+                NULL as mansfield_rs,
                 LAG(td.sma_20, 5) OVER (ORDER BY td.date) as sma_20_prev,
                 LAG(td.sma_50, 5) OVER (ORDER BY td.date) as sma_50_prev,
                 LAG(td.sma_200, 10) OVER (ORDER BY td.date) as sma_200_prev
@@ -270,7 +270,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     hd.high_52week,  -- 52-week high
                     'Unknown',  -- sector (to be added later)
                     td.rsi,
-                    td.mansfield_rs  -- Mansfield Relative Strength
+                    NULL  -- Mansfield RS not available
                 )) as market_stage,
 
                 -- Stage confidence score
@@ -291,7 +291,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     hd.high_52week,
                     'Unknown',
                     td.rsi,
-                    td.mansfield_rs
+                    NULL as mansfield_rs
                 )) as stage_confidence,
 
                 -- Substage
@@ -312,7 +312,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     hd.high_52week,
                     'Unknown',
                     td.rsi,
-                    td.mansfield_rs
+                    NULL as mansfield_rs
                 )) as substage,
 
                 -- SATA Score
@@ -333,7 +333,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     hd.high_52week,
                     'Unknown',
                     td.rsi,
-                    td.mansfield_rs
+                    NULL as mansfield_rs
                 )) as sata_score,
 
                 -- Stage Number (extract from stage text: "Stage 2 - Advancing" -> 2)
@@ -355,13 +355,13 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                         hd.high_52week,
                         'Unknown',
                         td.rsi,
-                        td.mansfield_rs
+                        NULL as mansfield_rs
                     ))
                     FROM 'Stage ([0-9])'
                 ) AS INTEGER) as stage_number,
 
                 -- Mansfield RS from technical data
-                td.mansfield_rs as mansfield_rs,
+                NULL as mansfield_rs as mansfield_rs,
 
                 -- Distance from MAs
                 ROUND(((sd.current_price - td.ema_21) / NULLIF(td.ema_21, 0) * 100)::NUMERIC, 2) as pct_from_ema_21,
