@@ -252,6 +252,7 @@ router.get("/signals", async (req, res) => {
         entry_quality_score
       FROM buy_sell_daily
       WHERE timeframe = 'Daily'
+        AND signal IN ('Buy', 'Sell')
     `;
 
     const queryParams = [];
@@ -544,10 +545,13 @@ router.get("/signals/:timeframe", async (req, res) => {
     // Use dynamic column detection for signal field
     const signalColumn = tradingTableColumns.signal_type ? 'signal_type' : 'signal';
 
+    // Always exclude None signals - only show Buy/Sell
+    conditions.push(`bs.${signalColumn} IN ('BUY', 'SELL', 'Buy', 'Sell')`);
+
     if (signal_type === "buy") {
-      conditions.push(`bs.${signalColumn} = 'BUY'`);
+      conditions.push(`bs.${signalColumn} IN ('BUY', 'Buy')`);
     } else if (signal_type === "sell") {
-      conditions.push(`bs.${signalColumn} = 'SELL'`);
+      conditions.push(`bs.${signalColumn} IN ('SELL', 'Sell')`);
     }
 
     if (conditions.length > 0) {
