@@ -109,13 +109,32 @@ const AnalystInsights = () => {
 
     // Check grade changes if action is maintain/reit/init
     if (fromGrade && toGrade) {
-      const gradeOrder = ['Sell', 'Underperform', 'Hold', 'Neutral', 'Market Perform', 'Perform', 'Buy', 'Outperform', 'Overweight', 'Strong Buy'];
-      const fromIndex = gradeOrder.findIndex(g => fromGrade.includes(g));
-      const toIndex = gradeOrder.findIndex(g => toGrade.includes(g));
+      const bullishGrades = ['Buy', 'Outperform', 'Overweight', 'Strong Buy'];
+      const bearishGrades = ['Sell', 'Underperform', 'Underweight'];
+      const neutralGrades = ['Hold', 'Neutral', 'Market Perform', 'Perform', 'Equal-Weight', 'Sector Perform', 'Peer Perform'];
 
+      const gradeOrder = [
+        'Strong Sell', 'Sell', 'Underweight', 'Underperform',
+        'Hold', 'Neutral', 'Equal-Weight', 'Market Perform', 'Sector Perform', 'Peer Perform', 'Perform',
+        'Buy', 'Outperform', 'Overweight', 'Strong Buy'
+      ];
+      const fromIndex = gradeOrder.findIndex(g => fromGrade?.includes(g));
+      const toIndex = gradeOrder.findIndex(g => toGrade?.includes(g));
+
+      // If grade changed, show upgrade/downgrade
       if (toIndex > fromIndex && fromIndex !== -1) {
         return <TrendingUpIcon sx={{ color: 'success.main' }} />;
       } else if (toIndex < fromIndex && toIndex !== -1) {
+        return <TrendingDownIcon sx={{ color: 'error.main' }} />;
+      }
+
+      // If maintained/reiterated/initiated, check if grade is bullish or bearish
+      const isBullish = bullishGrades.some(g => toGrade?.includes(g));
+      const isBearish = bearishGrades.some(g => toGrade?.includes(g));
+
+      if (isBullish) {
+        return <TrendingUpIcon sx={{ color: 'success.main' }} />;
+      } else if (isBearish) {
         return <TrendingDownIcon sx={{ color: 'error.main' }} />;
       }
     }
@@ -137,13 +156,31 @@ const AnalystInsights = () => {
 
     // Check grade changes if action is maintain/reit/init
     if (fromGrade && toGrade) {
-      const gradeOrder = ['Sell', 'Underperform', 'Hold', 'Neutral', 'Market Perform', 'Perform', 'Buy', 'Outperform', 'Overweight', 'Strong Buy'];
-      const fromIndex = gradeOrder.findIndex(g => fromGrade.includes(g));
-      const toIndex = gradeOrder.findIndex(g => toGrade.includes(g));
+      const bullishGrades = ['Buy', 'Outperform', 'Overweight', 'Strong Buy'];
+      const bearishGrades = ['Sell', 'Underperform', 'Underweight'];
 
+      const gradeOrder = [
+        'Strong Sell', 'Sell', 'Underweight', 'Underperform',
+        'Hold', 'Neutral', 'Equal-Weight', 'Market Perform', 'Sector Perform', 'Peer Perform', 'Perform',
+        'Buy', 'Outperform', 'Overweight', 'Strong Buy'
+      ];
+      const fromIndex = gradeOrder.findIndex(g => fromGrade?.includes(g));
+      const toIndex = gradeOrder.findIndex(g => toGrade?.includes(g));
+
+      // If grade changed, show upgrade/downgrade
       if (toIndex > fromIndex && fromIndex !== -1) {
         return 'success';
       } else if (toIndex < fromIndex && toIndex !== -1) {
+        return 'error';
+      }
+
+      // If maintained/reiterated/initiated, check if grade is bullish or bearish
+      const isBullish = bullishGrades.some(g => toGrade?.includes(g));
+      const isBearish = bearishGrades.some(g => toGrade?.includes(g));
+
+      if (isBullish) {
+        return 'success';
+      } else if (isBearish) {
         return 'error';
       }
     }
