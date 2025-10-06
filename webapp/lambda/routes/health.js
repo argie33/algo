@@ -209,11 +209,11 @@ router.get("/", async (req, res) => {
         }
       }
 
-      // Test environment fallback - return healthy status
-      return res.json({
-        success: true,
-        status: "healthy",
-        healthy: true,
+      // Return error - don't mask database connectivity issues
+      return res.status(503).json({
+        success: false,
+        status: "unhealthy",
+        healthy: false,
         service: "Financial Dashboard API",
         environment: process.env.NODE_ENV || "development",
         timestamp: new Date().toISOString(),
