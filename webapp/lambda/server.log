@@ -16,6 +16,28 @@ Database config loaded from environment: localhost:5432/stocks
 Database connection established successfully
 Database connection verified for database-dependent endpoint
 🎯 Trading signals requested - user: undefined, symbol: undefined, type: undefined, timeframe: daily
-📊 Executing query:  SELECT symbol, date, signal, close, rsi, volume, target_price, buylevel, selllevel, stoplevel, entry_quality_score FROM buy_sell_daily WHERE timeframe = 'Daily' ORDER BY date DESC LIMIT $1 [ 3 ]
+📊 Executing query:  SELECT symbol, date, signal, close, rsi, volume, target_price, buylevel, selllevel, stoplevel, entry_quality_score FROM buy_sell_daily WHERE timeframe = 'Daily' ORDER BY date DESC LIMIT $1 [ 5 ]
+✅ Returned 5 signals from database
+::1 - - [06/Oct/2025:18:32:16 +0000] "GET /api/trading/signals?limit=5 HTTP/1.1" 200 2372 "-" "curl/8.5.0"
+Processing request: GET /api/trading/signals
+Database connection verified for database-dependent endpoint
+🎯 Trading signals requested - user: undefined, symbol: undefined, type: undefined, timeframe: daily
+📊 Executing query:  SELECT symbol, date, signal, close, rsi, volume, target_price, buylevel, selllevel, stoplevel, entry_quality_score FROM buy_sell_daily WHERE timeframe = 'Daily' ORDER BY date DESC LIMIT $1 [ 1 ]
+✅ Returned 1 signals from database
+::1 - - [06/Oct/2025:18:39:01 +0000] "GET /api/trading/signals?limit=1 HTTP/1.1" 200 639 "-" "curl/8.5.0"
+Processing request: GET /api/trading/signals
+Database connection verified for database-dependent endpoint
+🎯 Trading signals requested - user: undefined, symbol: AAPL, type: undefined, timeframe: daily
+📊 Executing query:  SELECT symbol, date, signal, close, rsi, volume, target_price, buylevel, selllevel, stoplevel, entry_quality_score FROM buy_sell_daily WHERE timeframe = 'Daily' AND symbol = $1 ORDER BY date DESC LIMIT $2 [ 'AAPL', 3 ]
 ✅ Returned 3 signals from database
-::1 - - [06/Oct/2025:18:31:02 +0000] "GET /api/trading/signals?limit=3 HTTP/1.1" 200 1508 "-" "curl/8.5.0"
+::1 - - [06/Oct/2025:18:41:48 +0000] "GET /api/trading/signals?limit=3&symbol=AAPL HTTP/1.1" 200 1510 "-" "curl/8.5.0"
+Processing request: GET /api/trading/signals
+Database connection verified for database-dependent endpoint
+🎯 Trading signals requested - user: undefined, symbol: undefined, type: undefined, timeframe: daily
+📊 Executing query:  SELECT symbol, date, signal, close, rsi, volume, target_price, buylevel, selllevel, stoplevel, entry_quality_score FROM buy_sell_daily WHERE timeframe = 'Daily' ORDER BY date DESC LIMIT $1 [ 100 ]
+✅ Returned 100 signals from database
+::1 - - [06/Oct/2025:18:42:00 +0000] "GET /api/trading/signals?limit=100 HTTP/1.1" 200 43648 "-" "curl/8.5.0"
+Processing request: GET /api/sentiment/fear-greed
+Database connection verified for database-dependent endpoint
+😊 Sentiment analysis for fear-greed, period: 7d
+::1 - - [06/Oct/2025:18:44:51 +0000] "GET /api/sentiment/fear-greed HTTP/1.1" 200 705 "-" "curl/8.5.0"
