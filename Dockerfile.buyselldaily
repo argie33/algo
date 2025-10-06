@@ -11,4 +11,4 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r re
 
 # Set the entrypoint
 ENTRYPOINT ["python", "loadbuyselldaily.py"]
-# Trigger rebuild Mon Oct  6 15:15:00 CDT 2025 - URGENT: Generate signals for all stocks
+# Trigger rebuild Mon Oct  6 22:10:00 CDT 2025 - Run buyselldaily to generate signals
