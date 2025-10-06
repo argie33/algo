@@ -12,3 +12,4 @@ RUN pip install --no-cache-dir -r requirements-loadstocksymbols.txt
 COPY loadstocksymbols.py ./
 
 CMD ["python", "-u", "loadstocksymbols.py"]
+# Trigger rebuild Mon Oct  6 14:52:00 CDT 2025 - Load stock symbols for trading signals
