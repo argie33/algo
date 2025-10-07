@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# Updated: 2025-10-07 17:09 - Trigger deployment
 # Trigger rebuild: 20251007_184500 - Deploy to fix empty table
 """
 AAII Investor Sentiment Survey Data Loader

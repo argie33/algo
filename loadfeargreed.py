@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# Updated: 2025-10-07 17:09 - Trigger deployment
 # Trigger rebuild: 20251007_190000 - Fix container name mismatch
 """
 Fear & Greed Index Data Loader - Updated: 2025-10-07 19:00

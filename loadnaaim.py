@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# Updated: 2025-10-07 17:09 - Trigger deployment
 # Trigger rebuild: 20251007_190300 - Fix container name and typo
 """
 NAAIM Exposure Index Data Loader - Updated: 2025-10-07 19:03

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# Updated: 2025-10-07 17:09 - Trigger deployment
 # Updated: 2025-10-07 20:20 - Add database indexes for query performance
 # Critical fixes: timeframe filtering + query optimization indexes
 import json
