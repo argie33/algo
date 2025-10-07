@@ -422,3 +422,4 @@ if __name__ == "__main__":
     cur.close()
     conn.close()
     logging.info("All done.")
+Trigger deployment comment for aaii, feargreed, naaim, sectordata loaders
