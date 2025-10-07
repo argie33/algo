@@ -669,35 +669,108 @@ const ScoresDashboard = () => {
                             <Speed sx={{ color: theme.palette.warning.main }} />
                             <Typography variant="h6">Momentum</Typography>
                             <Chip
-                              label={stock.momentum_score.toFixed(1)}
+                              label={stock.momentum_score?.toFixed(1) || 'N/A'}
                               color={stock.momentum_score >= 80 ? "success" : "warning"}
                               size="small"
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            Momentum score based on RSI and price movement indicators
+                            Momentum score based on price trends across multiple timeframes
                           </Typography>
-                          <Box sx={{ mb: 2 }}>
-                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                              <Typography variant="body2">RSI</Typography>
-                              <Typography variant="body2" fontWeight={600}>
-                                {stock.rsi?.toFixed(1) || 'N/A'}
-                              </Typography>
-                            </Box>
-                            <LinearProgress
-                              variant="determinate"
-                              value={stock.rsi || 0}
-                              sx={{
-                                height: 8,
-                                borderRadius: 4,
-                                backgroundColor: alpha(theme.palette.warning.main, 0.1),
-                                "& .MuiLinearProgress-bar": {
-                                  backgroundColor: theme.palette.warning.main,
-                                  borderRadius: 4,
-                                },
-                              }}
-                            />
-                          </Box>
+                          <Grid container spacing={2}>
+                            {stock.jt_momentum_12_1 && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">JT Momentum (12-1)</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.jt_momentum_12_1.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.jt_momentum_12_1}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.warning.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.warning.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.momentum_3m && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">3-Month Momentum</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.momentum_3m.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.momentum_3m}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.warning.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.warning.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.momentum_6m && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">6-Month Momentum</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.momentum_6m.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.momentum_6m}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.warning.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.warning.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.risk_adjusted_momentum && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Risk-Adjusted Momentum</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.risk_adjusted_momentum.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.risk_adjusted_momentum}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.warning.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.warning.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                          </Grid>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -740,20 +813,85 @@ const ScoresDashboard = () => {
                             <AccountBalance sx={{ color: theme.palette.info.main }} />
                             <Typography variant="h6">Value</Typography>
                             <Chip
-                              label={stock.value_score.toFixed(1)}
+                              label={stock.value_score?.toFixed(1) || 'N/A'}
                               color={stock.value_score >= 80 ? "success" : "warning"}
                               size="small"
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            Value assessment based on fundamental metrics
+                            Value assessment based on valuation multiples and intrinsic value
                           </Typography>
-                          {stock.pe_ratio && (
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">P/E Ratio</Typography>
-                              <Typography variant="body2" fontWeight={600}>{stock.pe_ratio.toFixed(1)}</Typography>
-                            </Box>
-                          )}
+                          <Grid container spacing={2}>
+                            {stock.multiples_metric && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Multiples Score</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.multiples_metric.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.multiples_metric}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.info.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.info.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.intrinsic_value && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Intrinsic Value</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.intrinsic_value.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.intrinsic_value}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.info.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.info.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.fair_value && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Fair Value</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.fair_value.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.fair_value}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.info.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.info.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                          </Grid>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -766,18 +904,85 @@ const ScoresDashboard = () => {
                             <Stars sx={{ color: theme.palette.primary.main }} />
                             <Typography variant="h6">Quality</Typography>
                             <Chip
-                              label={stock.quality_score.toFixed(1)}
+                              label={stock.quality_score?.toFixed(1) || 'N/A'}
                               color={stock.quality_score >= 80 ? "success" : "warning"}
                               size="small"
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" paragraph>
-                            Quality assessment based on company fundamentals and stability
+                            Quality assessment based on profitability, consistency, and growth quality
                           </Typography>
-                          <Box>
-                            <Typography variant="body2" color="text.secondary">30-Day Volatility</Typography>
-                            <Typography variant="body2" fontWeight={600}>{stock.volatility_30d?.toFixed(2) || 'N/A'}%</Typography>
-                          </Box>
+                          <Grid container spacing={2}>
+                            {stock.profitability_score && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Profitability Score</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.profitability_score.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.profitability_score}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.primary.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.consistency_score && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Consistency Score</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.consistency_score.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.consistency_score}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.primary.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.growth_quality && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Growth Quality</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.growth_quality.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.growth_quality}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.primary.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                          </Grid>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -834,7 +1039,7 @@ const ScoresDashboard = () => {
                             <TrendingUp sx={{ color: theme.palette.success.main }} />
                             <Typography variant="h6">Growth</Typography>
                             <Chip
-                              label={stock.growth_score.toFixed(1)}
+                              label={stock.growth_score?.toFixed(1) || 'N/A'}
                               color={stock.growth_score >= 80 ? "success" : "warning"}
                               size="small"
                             />
@@ -842,6 +1047,77 @@ const ScoresDashboard = () => {
                           <Typography variant="body2" color="text.secondary" paragraph>
                             Growth assessment based on revenue and earnings trends
                           </Typography>
+                          <Grid container spacing={2}>
+                            {stock.revenue_growth_metric && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Revenue Growth</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.revenue_growth_metric.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.revenue_growth_metric}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.success.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.success.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.earnings_growth_metric && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Earnings Growth</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.earnings_growth_metric.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.earnings_growth_metric}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.success.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.success.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                            {stock.margin_expansion_metric && (
+                              <Grid item xs={12}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                  <Typography variant="body2">Margin Expansion</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {stock.margin_expansion_metric.toFixed(1)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={stock.margin_expansion_metric}
+                                  sx={{
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(theme.palette.success.main, 0.1),
+                                    "& .MuiLinearProgress-bar": {
+                                      backgroundColor: theme.palette.success.main,
+                                      borderRadius: 3,
+                                    },
+                                  }}
+                                />
+                              </Grid>
+                            )}
+                          </Grid>
                         </CardContent>
                       </Card>
                     </Grid>
