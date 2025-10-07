@@ -1,5 +1,5 @@
-# Updated: 2025-10-07 18:09 - Fix xlrd dependency issue
-# Deployment trigger: 2025-10-07 18:09:30
+# Updated: 2025-10-07 18:36 - Trigger AAII loader deployment to fix empty table
+# Deployment trigger: 2025-10-07 18:36:45
 """
 AAII Investor Sentiment Survey Data Loader
 
