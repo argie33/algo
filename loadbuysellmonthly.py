@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-07 19:15 - Add extended columns to buy_sell_monthly table schema
-# Trigger deployment with schema fix for trading signals page
+# Updated: 2025-10-07 19:40 - Fix timeframe filtering: only process Monthly data
+# Critical fix: was inserting Daily/Weekly/Monthly data all into buy_sell_monthly table
 import json
 import logging
 import os
@@ -773,44 +773,39 @@ def main():
 
     for sym in symbols:
         logging.info(f"=== {sym} ===")
-        for tf in ["Daily", "Weekly", "Monthly"]:
-            logging.info(f"  [main] Processing {sym} {tf}")
-            df = process_symbol(sym, tf)
-            logging.info(f"  [main] Done processing {sym} {tf}")
-            if df.empty:
-                logging.info(f"[{tf}] no data")
-                continue
-            insert_symbol_results(cur, sym, tf, df)
+        # Only process Monthly timeframe for this loader
+        tf = "Monthly"
+        logging.info(f"  [main] Processing {sym} {tf}")
+        df = process_symbol(sym, tf)
+        logging.info(f"  [main] Done processing {sym} {tf}")
+        if df.empty:
+            logging.info(f"[{tf}] no data")
+            continue
+        insert_symbol_results(cur, sym, tf, df)
+        conn.commit()
+
+        # Calculate swing trading metrics for this symbol (optional - may fail if columns don't exist)
+        try:
+            logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
+            update_swing_metrics_for_symbol(cur, sym, tf)
             conn.commit()
+            logging.info(f"  [main] Done calculating swing metrics for {sym} {tf}")
+        except Exception as e:
+            logging.warning(f"  [main] Swing metrics calculation skipped for {sym} {tf}: {e}")
+            conn.rollback()
 
-            # Calculate swing trading metrics for this symbol (optional - may fail if columns don't exist)
-            try:
-                logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
-                update_swing_metrics_for_symbol(cur, sym, tf)
-                conn.commit()
-                logging.info(f"  [main] Done calculating swing metrics for {sym} {tf}")
-            except Exception as e:
-                logging.warning(f"  [main] Swing metrics calculation skipped for {sym} {tf}: {e}")
-                conn.rollback()
-
-            _, rets, durs, _, _ = backtest_fixed_capital(df)
-            results[tf]["rets"].extend(rets)
-            results[tf]["durs"].extend(durs)
-            analyze_trade_returns_fixed_capital(rets, durs, f"[{tf}] {sym}", annual_rfr)
+        _, rets, durs, _, _ = backtest_fixed_capital(df)
+        results[tf]["rets"].extend(rets)
+        results[tf]["durs"].extend(durs)
+        analyze_trade_returns_fixed_capital(rets, durs, f"[{tf}] {sym}", annual_rfr)
 
     logging.info("=========================")
     logging.info(" AGGREGATED PERFORMANCE (FIXED $10k PER TRADE) ")
     logging.info("=========================")
-    for tf in ["Daily", "Weekly", "Monthly"]:
-        analyze_trade_returns_fixed_capital(
-            results[tf]["rets"], results[tf]["durs"], f"[{tf} (Overall)]", annual_rfr
-        )
-
-    logging.info("=== Global (All Timeframes) ===")
-    all_rets = [r for tf in results for r in results[tf]["rets"]]
-    all_durs = [d for tf in results for d in results[tf]["durs"]]
+    # Only process Monthly timeframe for this loader
+    tf = "Monthly"
     analyze_trade_returns_fixed_capital(
-        all_rets, all_durs, "[Global (All TFs)]", annual_rfr
+        results[tf]["rets"], results[tf]["durs"], f"[{tf} (Overall)]", annual_rfr
     )
 
     logging.info("Processing complete.")
