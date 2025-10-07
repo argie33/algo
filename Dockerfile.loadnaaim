@@ -17,4 +17,4 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r re
 
 # Set the entrypoint
 ENTRYPOINT ["python", "loadnaaim.py"]
-# Trigger rebuild Mon Oct  6 14:20:00 CDT 2025 - Deploy to load sentiment data
+# Trigger rebuild Mon Oct  7 16:58:00 CDT 2025 - Fix lxml dependencies
