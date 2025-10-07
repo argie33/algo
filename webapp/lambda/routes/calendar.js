@@ -579,7 +579,7 @@ router.get("/earnings-estimates", async (req, res) => {
     let summaryQuery, summaryPromise;
 
     if (req.query.page || req.query.limit) {
-      // Full summary for paginated requests - simplified without earnings_metrics dependency
+      // Full summary for paginated requests
       summaryQuery = `
         SELECT
           ee.symbol,
@@ -587,8 +587,7 @@ router.get("/earnings-estimates", async (req, res) => {
           AVG(ee.growth) as avg_growth,
           AVG(ee.avg_estimate) as avg_estimate,
           MAX(ee.avg_estimate) as max_estimate,
-          MIN(ee.avg_estimate) as min_estimate,
-          NULL::numeric as quality_score
+          MIN(ee.avg_estimate) as min_estimate
         FROM earnings_estimates ee
         ${whereClause}
         GROUP BY ee.symbol
@@ -659,7 +658,6 @@ router.get("/earnings-estimates", async (req, res) => {
         avg_estimate: row.avg_estimate,
         max_estimate: row.max_estimate,
         min_estimate: row.min_estimate,
-        quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
       };
     });
 
