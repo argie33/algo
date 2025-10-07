@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 20251005_165500
+# Trigger rebuild: 20251007_190300 - Fix container name and typo
 """
-NAAIM Exposure Index Data Loader - Updated: 2025-10-04 17:05
+NAAIM Exposure Index Data Loader - Updated: 2025-10-07 19:03
 
 This script scrapes and loads the National Association of Active Investment Managers (NAAIM)
 Exposure Index data into the PostgreSQL database. The NAAIM Exposure Index is a sentiment
