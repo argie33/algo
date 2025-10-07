@@ -191,7 +191,6 @@ const mockMetrics = {
       metrics: [
         {
           report_date: "2024-01-25",
-          earnings_quality_score: 75.5,
           eps_yoy_growth: 8.2,
           revenue_yoy_growth: 6.5,
         },
@@ -201,7 +200,6 @@ const mockMetrics = {
       metrics: [
         {
           report_date: "2024-01-24",
-          earnings_quality_score: 68.2,
           eps_yoy_growth: 6.5,
           revenue_yoy_growth: 5.8,
         },

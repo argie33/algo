@@ -457,22 +457,13 @@ def prepare_db():
             eps_yoy_growth          DOUBLE PRECISION,  -- Year-over-year EPS growth %
             revenue_yoy_growth      DOUBLE PRECISION,  -- Year-over-year Revenue growth %
             earnings_surprise_pct   DOUBLE PRECISION,  -- Earnings surprise %
-            earnings_quality_score  DOUBLE PRECISION,  -- Composite quality score 0-100
             fetched_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, report_date)
         );
         """
     )
 
-    # Create index on quality score for efficient sorting
-    cursor.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_earnings_quality_score
-        ON earnings_metrics(earnings_quality_score DESC NULLS LAST);
-        """
-    )
-
-    logging.info("Table 'earnings_metrics' ready with quality score.")
+    logging.info("Table 'earnings_metrics' ready.")
 
     # Get stock symbols (exclude ETFs)
     cursor.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
@@ -665,7 +656,7 @@ def process_symbol(symbol, conn_pool):
             historical_context = metrics_for_scoring_reversed[-(i+1):][::-1]
 
             # Calculate quality score using this quarter + historical data
-            quality_score = calculate_earnings_quality_score(historical_context) if len(historical_context) > 0 else None
+            # Quality score calculation removed
 
             # Get metrics for this quarter
             quarter_data = metrics_for_scoring[i]
@@ -678,7 +669,6 @@ def process_symbol(symbol, conn_pool):
                     quarter_data['eps_yoy_growth'],
                     quarter_data['revenue_yoy_growth'],
                     quarter_data['earnings_surprise_pct'],
-                    quality_score,
                     datetime.now(),
                 )
             )
@@ -688,17 +678,13 @@ def process_symbol(symbol, conn_pool):
             insert_q = """
                 INSERT INTO earnings_metrics (
                     symbol, report_date, eps_qoq_growth, eps_yoy_growth,
-                    revenue_yoy_growth, earnings_surprise_pct, earnings_quality_score, fetched_at
+                    revenue_yoy_growth, earnings_surprise_pct, fetched_at
                 ) VALUES %s;
             """
             execute_values(cursor, insert_q, data)
             conn.commit()
             num_inserted = len(data)
-
-            # Get latest quality score for logging
-            latest_score = data[-1][6] if data and data[-1][6] is not None else None
-            score_msg = f" (Latest Quality Score: {latest_score:.1f})" if latest_score else ""
-            logging.info(f"✅ {symbol}: Inserted {num_inserted} quarters{score_msg}")
+            logging.info(f"✅ {symbol}: Inserted {num_inserted} quarters")
         else:
             num_inserted = 0
             logging.warning(f"⚠️ {symbol}: No data to insert")

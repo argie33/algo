@@ -102,14 +102,7 @@ function EarningsCalendar() {
     refetchInterval: 300000,
   });
 
-  // Get quality scores from insights data instead of separate API call
-  const qualityScoresData = useMemo(() => {
-    const insights = earningsData?.insights || {};
-    return Object.keys(insights).reduce((acc, symbol) => {
-      acc[symbol] = insights[symbol]?.quality_score || null;
-      return acc;
-    }, {});
-  }, [earningsData]);
+  // Quality score removed from data model
 
   // Fetch detailed data for expanded symbol
   const {
@@ -215,14 +208,10 @@ function EarningsCalendar() {
       symbol,
       company_name: group.company_name,
       estimates: group.estimates || [],
-      quality_score: qualityScoresData?.[symbol] || null,
     }))
     .sort((a, b) => {
-      // Sort by quality score descending (nulls last)
-      if (a.quality_score === null && b.quality_score === null) return 0;
-      if (a.quality_score === null) return 1;
-      if (b.quality_score === null) return -1;
-      return b.quality_score - a.quality_score;
+      // Sort by symbol alphabetically
+      return a.symbol.localeCompare(b.symbol);
     });
 
   if (weeklyLoading && !weeklyCalendarData) {
@@ -302,21 +291,6 @@ function EarningsCalendar() {
         <Grid item xs={12} md={3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <Analytics color="secondary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Avg Quality Score</Typography>
-              </Box>
-              <Typography variant="h4" fontWeight="bold" color="text.primary">
-                {earningsRows.length > 0
-                  ? Math.round(
-                      earningsRows
-                        .filter((row) => row.quality_score !== null)
-                        .reduce((sum, row) => sum + row.quality_score, 0) /
-                        earningsRows.filter((row) => row.quality_score !== null)
-                          .length || 0
-                    )
-                  : 0}
-              </Typography>
               <Typography variant="body2" color="text.secondary">
                 Overall score
               </Typography>
@@ -468,7 +442,6 @@ function EarningsCalendar() {
                     <TableCell width={50}></TableCell>
                     <TableCell>Symbol</TableCell>
                     <TableCell>Company</TableCell>
-                    <TableCell align="center">Quality Score</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -826,9 +799,6 @@ function EarningsCalendar() {
                                               <TableRow>
                                                 <TableCell>Date</TableCell>
                                                 <TableCell align="right">
-                                                  Quality Score
-                                                </TableCell>
-                                                <TableCell align="right">
                                                   EPS YoY
                                                 </TableCell>
                                                 <TableCell align="right">
@@ -845,25 +815,6 @@ function EarningsCalendar() {
                                                   <TableRow key={idx}>
                                                     <TableCell>
                                                       {m.report_date}
-                                                    </TableCell>
-                                                    <TableCell align="right">
-                                                      <Chip
-                                                        label={
-                                                          m.earnings_quality_score
-                                                            ? m.earnings_quality_score.toFixed(
-                                                                1
-                                                              )
-                                                            : "N/A"
-                                                        }
-                                                        size="small"
-                                                        color={
-                                                          m.earnings_quality_score >= 70
-                                                            ? "success"
-                                                            : m.earnings_quality_score >= 50
-                                                              ? "warning"
-                                                              : "error"
-                                                        }
-                                                      />
                                                     </TableCell>
                                                     <TableCell align="right">
                                                       {m.eps_yoy_growth
