@@ -367,9 +367,8 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                         hd.high_52week,
                         'Unknown',
                         td.rsi,
-                        NULL as mansfield_rs
-                    ))
-                    FROM 'Stage ([0-9])'
+                        NULL
+                    )) FROM 'Stage ([0-9])'
                 ) AS INTEGER) as stage_number,
 
                 -- Mansfield RS from technical data
