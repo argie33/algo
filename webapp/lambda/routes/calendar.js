@@ -579,7 +579,7 @@ router.get("/earnings-estimates", async (req, res) => {
     let summaryQuery, summaryPromise;
 
     if (req.query.page || req.query.limit) {
-      // Full summary for paginated requests - join with earnings_metrics for quality scores
+      // Full summary for paginated requests - simplified without earnings_metrics dependency
       summaryQuery = `
         SELECT
           ee.symbol,
@@ -588,19 +588,11 @@ router.get("/earnings-estimates", async (req, res) => {
           AVG(ee.avg_estimate) as avg_estimate,
           MAX(ee.avg_estimate) as max_estimate,
           MIN(ee.avg_estimate) as min_estimate,
-          em.earnings_quality_score as quality_score
+          NULL::numeric as quality_score
         FROM earnings_estimates ee
-        LEFT JOIN LATERAL (
-          SELECT earnings_quality_score
-          FROM earnings_metrics
-          WHERE symbol = ee.symbol
-            AND earnings_quality_score IS NOT NULL
-          ORDER BY report_date DESC
-          LIMIT 1
-        ) em ON true
         ${whereClause}
-        GROUP BY ee.symbol, em.earnings_quality_score
-        ORDER BY em.earnings_quality_score DESC NULLS LAST, ee.symbol ASC
+        GROUP BY ee.symbol
+        ORDER BY ee.symbol ASC
         LIMIT 100
       `;
       summaryPromise = symbol ? query(summaryQuery, [symbol]) : query(summaryQuery);
@@ -632,6 +624,20 @@ router.get("/earnings-estimates", async (req, res) => {
       symbol ? query(countQuery, [symbol]) : query(countQuery),
       summaryPromise,
     ]);
+
+    // Check if any query returned null (database error)
+    if (!estimatesResult || !countResult || !summaryResult) {
+      console.error("One or more queries returned null:", {
+        estimatesResult: !!estimatesResult,
+        countResult: !!countResult,
+        summaryResult: !!summaryResult
+      });
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        details: "One or more required queries returned no results"
+      });
+    }
 
     const total = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(total / limit);
