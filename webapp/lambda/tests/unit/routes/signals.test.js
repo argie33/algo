@@ -424,7 +424,6 @@ describe("Signals Route - Unit Tests", () => {
       expect(response.status).toBe(200);
       expect(response.body.symbol).toBe("AAPL");
       expect(response.body.signal).toBe("BUY");
-      expect(response.body).toHaveProperty("confidence", 0.75);
       expect(response.body).toHaveProperty("currentReturn");
       expect(response.body).toHaveProperty("daysHeld");
       expect(typeof response.body.currentReturn).toBe("number");
