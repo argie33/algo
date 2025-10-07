@@ -127,15 +127,17 @@ router.get("/", async (req, res) => {
     let queryParams = [];
     let paramIndex = 1;
 
+    // PERFORMANCE FIX: Only query last 90 days to avoid timeout on db.t3.micro
+    whereClause = `WHERE date >= CURRENT_DATE - INTERVAL '90 days'`;
+
     if (signalType) {
-      whereClause += `WHERE signal = $${paramIndex}`;
+      whereClause += ` AND signal = $${paramIndex}`;
       queryParams.push(signalType.toUpperCase());
       paramIndex++;
     }
 
     if (symbolFilter) {
-      whereClause += whereClause ? ' AND ' : 'WHERE ';
-      whereClause += `symbol = $${paramIndex}`;
+      whereClause += ` AND symbol = $${paramIndex}`;
       queryParams.push(symbolFilter.toUpperCase());
       paramIndex++;
     }
