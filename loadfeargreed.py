@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 20251005_165500
+# Trigger rebuild: 20251007_184500 - Deploy to update stale data
 """
 Fear & Greed Index Data Loader - Updated: 2025-10-04 17:05
 
