@@ -425,8 +425,8 @@ router.get("/:symbol", async (req, res) => {
         -- Factor metrics from value_metrics table
         vm.value_metric,
         vm.multiples_metric,
-        vm.intrinsic_value_metric,
-        vm.relative_value_metric,
+        vm.intrinsic_value,
+        vm.fair_value,
 
         -- Quality metrics from quality_metrics table
         qm.quality_score as quality_metric,
@@ -455,7 +455,7 @@ router.get("/:symbol", async (req, res) => {
       ) pd ON km.ticker = pd.symbol
       LEFT JOIN market_data md ON km.ticker = md.ticker
       LEFT JOIN LATERAL (
-        SELECT value_metric, multiples_metric, intrinsic_value_metric, relative_value_metric
+        SELECT value_metric, multiples_metric, intrinsic_value, fair_value
         FROM value_metrics
         WHERE symbol = km.ticker
         ORDER BY date DESC
@@ -576,8 +576,8 @@ router.get("/:symbol", async (req, res) => {
 
         // Value factor breakdown
         multiples_metric: parseFloat(metric.multiples_metric) || null,
-        intrinsic_value_metric: parseFloat(metric.intrinsic_value_metric) || null,
-        relative_value_metric: parseFloat(metric.relative_value_metric) || null,
+        intrinsic_value: parseFloat(metric.intrinsic_value) || null,
+        fair_value: parseFloat(metric.fair_value) || null,
 
         // Growth factor breakdown
         revenue_growth_metric: parseFloat(metric.revenue_growth_metric) || null,
