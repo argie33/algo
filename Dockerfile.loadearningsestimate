@@ -11,3 +11,4 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r re
 
 # Set the entrypoint
 ENTRYPOINT ["python", "loadearningsestimate.py"]
+# Trigger Mon Oct 7 02:20 CDT 2025 - Deploy earnings loaders to fix calendar API
