@@ -682,9 +682,15 @@ router.get("/earnings-estimates", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching earnings estimates:", error);
+    console.error("Error details:", error.message);
+    console.error("Error stack:", error.stack);
     return res
       .status(500)
-      .json({ success: false, error: "Failed to fetch earnings estimates" });
+      .json({
+        success: false,
+        error: "Failed to fetch earnings estimates",
+        details: process.env.NODE_ENV === 'production' ? undefined : error.message
+      });
   }
 });
 
