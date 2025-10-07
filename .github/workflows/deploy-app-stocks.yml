@@ -703,7 +703,7 @@ jobs:
             "feargreed")
               TASK_DEF_NAME="FearGreedTaskDefArn"
               ;;
-            "naiam")
+            "naaim")
               TASK_DEF_NAME="NaaimTaskDefArn"
               ;;
             "swingtrader")
@@ -792,6 +792,12 @@ jobs:
           case "${{ matrix.loader }}" in
             "info")
               CONTAINER_NAME="loadinfo-loader"
+              ;;
+            "feargreed")
+              CONTAINER_NAME="feargreeddata-loader"
+              ;;
+            "naaim")
+              CONTAINER_NAME="naaaimdata-loader"
               ;;
             *)
               CONTAINER_NAME="${{ matrix.loader }}-loader"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 20251007_184500 - Deploy to update stale data
+# Trigger rebuild: 20251007_190000 - Fix container name mismatch
 """
-Fear & Greed Index Data Loader - Updated: 2025-10-04 17:05
+Fear & Greed Index Data Loader - Updated: 2025-10-07 19:00
 
 This script scrapes the CNN Fear & Greed Index data using a headless browser
 and loads it into the PostgreSQL database. The Fear & Greed Index is a market
