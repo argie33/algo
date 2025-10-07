@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-04 14:45 - Buy/Sell weekly signal loader with swing metrics
-# Trigger deployment with swing metrics
+# Updated: 2025-10-07 18:30 - Fix type casting for calculate_enhanced_stage (NUMERIC/BIGINT)
+# Trigger deployment with type casting fixes
 import json
 import logging
 import os
