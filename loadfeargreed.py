@@ -1,5 +1,5 @@
-# Updated: 2025-10-07 18:09 - Refresh data
-# Deployment trigger: 2025-10-07 18:09:30
+# Updated: 2025-10-07 18:50 - Fix missing requests dependency
+# Deployment trigger: 2025-10-07 18:50:15
 """
 Fear & Greed Index Data Loader - Updated: 2025-10-07 19:00
 
