@@ -1142,7 +1142,7 @@ function TradingSignals() {
                   setRowsPerPage(parseInt(e.target.value, 10));
                   setPage(0);
                 }}
-                rowsPerPageOptions={[10, 25, 50, 100]}
+                rowsPerPageOptions={[10, 25, 50, 100, { label: 'All', value: -1 }]}
               />
             </CardContent>
           </Card>

@@ -616,7 +616,8 @@ function MarketOverview() {
   // Latest stats for summary cards
   const latestFG = fearGreedHistory[0] || {};
   const latestNAAIM = naaimHistory[0] || {};
-  const latestAAII = aaiiHistory[0] || {};
+  // Get current AAII from sentiment indicators instead of history
+  const latestAAII = sentimentIndicators?.aaii || {};
 
   // Helper to calculate sentiment signal from AAII data
   const getSentimentSignal = (bullish, bearish) => {
@@ -802,71 +803,6 @@ function MarketOverview() {
             </CardContent>
           </Card>
         </Grid>
-
-        {/* AAII Chart */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                AAII Sentiment History
-              </Typography>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Current: <strong style={{ color: "#10B981" }}>{latestAAII.bullish ?? "N/A"}% Bullish</strong>{" | "}
-                  <strong style={{ color: "#8884d8" }}>{latestAAII.neutral ?? "N/A"}% Neutral</strong>{" | "}
-                  <strong style={{ color: "#DC2626" }}>{latestAAII.bearish ?? "N/A"}% Bearish</strong>
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  % of retail investors bullish, neutral, or bearish
-                </Typography>
-              </Box>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart
-                  data={sentimentChartData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis
-                    domain={[0, 100]}
-                    label={{
-                      value: "AAII %",
-                      angle: -90,
-                      position: "insideLeft",
-                      fontSize: 12,
-                    }}
-                  />
-                  <Tooltip formatter={(value, name) => [`${value}%`, name]} />
-                  <Legend verticalAlign="top" height={36} />
-                  <Line
-                    type="monotone"
-                    dataKey="aaii_bullish"
-                    name="Bullish"
-                    stroke="#10B981"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="aaii_bearish"
-                    name="Bearish"
-                    stroke="#DC2626"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="aaii_neutral"
-                    name="Neutral"
-                    stroke="#8884d8"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
     </Box>
   );
@@ -952,40 +888,6 @@ function MarketOverview() {
               <Typography variant="caption" color="text.secondary">
                 Retail investor sentiment survey
               </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Market Cap Distribution
-              </Typography>
-              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                <Typography variant="body2">Large Cap:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {formatCurrency(marketCap.large_cap)}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                <Typography variant="body2">Mid Cap:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {formatCurrency(marketCap.mid_cap)}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                <Typography variant="body2">Small Cap:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {formatCurrency(marketCap.small_cap)}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                <Typography variant="body2">Total:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {formatCurrency(marketCap.total)}
-                </Typography>
-              </Box>
             </CardContent>
           </Card>
         </Grid>
@@ -1279,6 +1181,39 @@ function MarketOverview() {
                     : "N/A"}
                 </Typography>
               </Box>{" "}
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Market Cap Distribution
+              </Typography>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">Large Cap:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.large_cap)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">Mid Cap:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.mid_cap)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">Small Cap:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.small_cap)}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">Total:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {formatCurrency(marketCap.total)}
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>

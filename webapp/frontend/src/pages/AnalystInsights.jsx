@@ -12,6 +12,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   TextField,
   InputAdornment,
   Select,
@@ -42,6 +43,8 @@ const AnalystInsights = () => {
   const [searchSymbol, setSearchSymbol] = useState('');
   const [filterAction, setFilterAction] = useState('all');
   const [page] = useState(1);
+  const [tablePage, setTablePage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   // Fetch all analyst data
   useEffect(() => {
@@ -367,7 +370,10 @@ const AnalystInsights = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredUpgrades.slice(0, 20).map((upgrade, index) => (
+                {(rowsPerPage > 0
+                  ? filteredUpgrades.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage)
+                  : filteredUpgrades
+                ).map((upgrade, index) => (
                   <TableRow key={upgrade.id || index} hover>
                     <TableCell>
                       <Typography
@@ -429,6 +435,18 @@ const AnalystInsights = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={filteredUpgrades.length}
+            page={tablePage}
+            onPageChange={(e, newPage) => setTablePage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setTablePage(0);
+            }}
+            rowsPerPageOptions={[10, 25, 50, 100, { label: 'All', value: -1 }]}
+          />
         </CardContent>
       </Card>
 
