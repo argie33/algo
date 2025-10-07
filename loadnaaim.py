@@ -1,5 +1,5 @@
-# Updated: 2025-10-07 17:09 - Trigger deployment
-# Deployment trigger: 2025-10-07 17:10:06
+# Updated: 2025-10-07 18:09 - Refresh stale data
+# Deployment trigger: 2025-10-07 18:09:30
 """
 NAAIM Exposure Index Data Loader - Updated: 2025-10-07 19:03
 
