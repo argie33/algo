@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-07 19:40 - Fix timeframe filtering: only process Weekly data
-# Critical fix: was inserting Daily/Weekly/Monthly data all into buy_sell_weekly table
+# Updated: 2025-10-07 20:20 - Add database indexes for query performance
+# Critical fixes: timeframe filtering + query optimization indexes
 import json
 import logging
 import os
@@ -145,6 +145,13 @@ def create_buy_sell_table(cur):
       );
     """
     )
+    # Create indexes for query performance
+    logging.info("Creating indexes on buy_sell_weekly...")
+    cur.execute("CREATE INDEX idx_buy_sell_weekly_date ON buy_sell_weekly(date DESC);")
+    cur.execute("CREATE INDEX idx_buy_sell_weekly_symbol ON buy_sell_weekly(symbol);")
+    cur.execute("CREATE INDEX idx_buy_sell_weekly_timeframe ON buy_sell_weekly(timeframe);")
+    cur.execute("CREATE INDEX idx_buy_sell_weekly_signal ON buy_sell_weekly(signal);")
+    logging.info("Indexes created successfully")
 
 
 def insert_symbol_results(cur, symbol, timeframe, df):
