@@ -114,25 +114,37 @@ AAII_EXCEL_URL = "https://www.aaii.com/files/surveys/sentiment.xls"
 # -------------------------------
 def get_db_config():
     """
-    Retrieve database credentials from AWS Secrets Manager.
+    Retrieve database credentials from AWS Secrets Manager or local env vars.
 
     Returns:
         dict: Database connection parameters
 
     Raises:
-        KeyError: If DB_SECRET_ARN environment variable is not set
+        KeyError: If DB_SECRET_ARN environment variable is not set (in AWS mode)
     """
-    secret_str = boto3.client("secretsmanager").get_secret_value(
-        SecretId=os.environ["DB_SECRET_ARN"]
-    )["SecretString"]
-    sec = json.loads(secret_str)
-    return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"],
-    }
+    # Check if we're in AWS (has DB_SECRET_ARN)
+    if os.environ.get("DB_SECRET_ARN"):
+        # AWS mode - use Secrets Manager
+        secret_str = boto3.client("secretsmanager").get_secret_value(
+            SecretId=os.environ["DB_SECRET_ARN"]
+        )["SecretString"]
+        sec = json.loads(secret_str)
+        return {
+            "host": sec["host"],
+            "port": int(sec.get("port", 5432)),
+            "user": sec["username"],
+            "password": sec["password"],
+            "dbname": sec["dbname"],
+        }
+    else:
+        # Local mode - use environment variables
+        return {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "user": os.environ.get("DB_USER", "stocks"),
+            "password": os.environ.get("DB_PASSWORD", "stocks"),
+            "dbname": os.environ.get("DB_NAME", "stocks"),
+        }
 
 
 # -------------------------------
