@@ -303,7 +303,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     hd.high_52week,
                     'Unknown',
                     td.rsi,
-                    NULL as mansfield_rs
+                    NULL
                 )) as stage_confidence,
 
                 -- Substage
@@ -324,7 +324,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     hd.high_52week,
                     'Unknown',
                     td.rsi,
-                    NULL as mansfield_rs
+                    NULL
                 )) as substage,
 
                 -- SATA Score
@@ -345,7 +345,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     hd.high_52week,
                     'Unknown',
                     td.rsi,
-                    NULL as mansfield_rs
+                    NULL
                 )) as sata_score,
 
                 -- Stage Number (extract from stage text: "Stage 2 - Advancing" -> 2)
