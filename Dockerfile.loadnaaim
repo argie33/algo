@@ -5,8 +5,10 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 
 # Install system dependencies for lxml
 RUN yum install -y \
+    gcc \
     libxml2-devel \
     libxslt-devel \
+    python3-devel \
     && yum clean all
 
 # Copy requirements and script
