@@ -3,6 +3,12 @@ FROM public.ecr.aws/lambda/python:3.11
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
+# Install system dependencies for lxml
+RUN yum install -y \
+    libxml2-devel \
+    libxslt-devel \
+    && yum clean all
+
 # Copy requirements and script
 COPY Dockerfile.loadnaaim requirements-loadnaaim.txt loadnaaim.py ./
 
