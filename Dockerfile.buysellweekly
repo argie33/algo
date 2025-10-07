@@ -28,4 +28,5 @@ ENV PYTHONUNBUFFERED=1
 ENV LOG_LEVEL=ERROR
 
 # Run the script
-CMD ["python", "loadbuysellweekly.py"] 
+CMD ["python", "loadbuysellweekly.py"]
+# Trigger Mon Oct 7 01:20 CDT 2025 - Deploy trading signals loaders 
