@@ -1,5 +1,5 @@
 # Updated: 2025-10-07 17:09 - Trigger deployment
-# Updated: 2025-10-07 20:20 - Add database indexes for query performance
+# Deployment trigger: 2025-10-07 17:10:06
 # Critical fixes: timeframe filtering + query optimization indexes
 import json
 import logging

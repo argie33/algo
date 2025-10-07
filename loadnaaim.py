@@ -1,5 +1,5 @@
 # Updated: 2025-10-07 17:09 - Trigger deployment
-# Trigger rebuild: 20251007_190300 - Fix container name and typo
+# Deployment trigger: 2025-10-07 17:10:06
 """
 NAAIM Exposure Index Data Loader - Updated: 2025-10-07 19:03
 
