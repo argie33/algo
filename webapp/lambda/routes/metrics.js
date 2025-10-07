@@ -377,7 +377,7 @@ router.get("/:symbol", async (req, res) => {
     const { symbol } = req.params;
     console.log(`📊 Metrics requested for symbol: ${symbol.toUpperCase()}`);
 
-    // Query comprehensive financial metrics from key_metrics table
+    // Query comprehensive financial metrics from key_metrics table with factor metrics
     const symbolQuery = `
       SELECT
         km.ticker as symbol,
@@ -420,7 +420,19 @@ router.get("/:symbol", async (req, res) => {
         km.revenue_growth_pct,
         km.earnings_growth_pct,
         md.market_cap as market_capitalization,
-        pd.date as last_updated
+        pd.date as last_updated,
+
+        -- Factor metrics from value_metrics table
+        vm.value_metric,
+        vm.multiples_metric,
+        vm.intrinsic_value_metric,
+        vm.relative_value_metric,
+
+        -- Growth metrics from calculate_growth_metrics
+        gm.growth_metric,
+        gm.revenue_growth_metric,
+        gm.earnings_growth_metric,
+        gm.margin_expansion_metric
       FROM key_metrics km
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
@@ -429,6 +441,20 @@ router.get("/:symbol", async (req, res) => {
         ORDER BY symbol, date DESC
       ) pd ON km.ticker = pd.symbol
       LEFT JOIN market_data md ON km.ticker = md.ticker
+      LEFT JOIN LATERAL (
+        SELECT value_metric, multiples_metric, intrinsic_value_metric, relative_value_metric
+        FROM value_metrics
+        WHERE symbol = km.ticker
+        ORDER BY date DESC
+        LIMIT 1
+      ) vm ON true
+      LEFT JOIN LATERAL (
+        SELECT growth_metric, revenue_growth_metric, earnings_growth_metric, margin_expansion_metric
+        FROM growth_metrics
+        WHERE symbol = km.ticker
+        ORDER BY date DESC
+        LIMIT 1
+      ) gm ON true
       WHERE km.ticker = $1
     `;
 
@@ -514,12 +540,24 @@ router.get("/:symbol", async (req, res) => {
         earnings_growth_pct: parseFloat(metric.earnings_growth_pct) || null,
         earnings_growth: parseFloat(metric.earnings_growth_pct) || null,
 
-        // Legacy fields for backward compatibility
-        momentumMetric: 0.5,
-        trendMetric: 0.5,
-        qualityMetric: 0.5,
-        valueMetric: 0.5,
-        growthMetric: 0.5,
+        // Factor metrics from database
+        valueMetric: parseFloat(metric.value_metric) || null,
+        growthMetric: parseFloat(metric.growth_metric) || null,
+        qualityMetric: null, // TODO: Add quality_metrics table
+        momentumMetric: null, // TODO: Add momentum_metrics table
+        trendMetric: null, // TODO: Add from technical indicators
+
+        // Value factor breakdown
+        multiples_metric: parseFloat(metric.multiples_metric) || null,
+        intrinsic_value_metric: parseFloat(metric.intrinsic_value_metric) || null,
+        relative_value_metric: parseFloat(metric.relative_value_metric) || null,
+
+        // Growth factor breakdown
+        revenue_growth_metric: parseFloat(metric.revenue_growth_metric) || null,
+        earnings_growth_metric: parseFloat(metric.earnings_growth_metric) || null,
+        margin_expansion_metric: parseFloat(metric.margin_expansion_metric) || null,
+
+        // Technical indicators (legacy fields)
         rsi: null,
         macd: null,
         sma20: null,
