@@ -428,7 +428,20 @@ router.get("/:symbol", async (req, res) => {
         vm.intrinsic_value_metric,
         vm.relative_value_metric,
 
-        -- Growth metrics from calculate_growth_metrics
+        -- Quality metrics from quality_metrics table
+        qm.quality_score as quality_metric,
+        qm.consistency_score,
+        qm.growth_quality,
+        qm.profitability_score,
+
+        -- Momentum metrics from momentum_metrics table
+        mm.momentum_strength as momentum_metric,
+        mm.jt_momentum_12_1,
+        mm.momentum_3m,
+        mm.momentum_6m,
+        mm.risk_adjusted_momentum,
+
+        -- Growth metrics from growth_metrics table
         gm.growth_metric,
         gm.revenue_growth_metric,
         gm.earnings_growth_metric,
@@ -448,6 +461,20 @@ router.get("/:symbol", async (req, res) => {
         ORDER BY date DESC
         LIMIT 1
       ) vm ON true
+      LEFT JOIN LATERAL (
+        SELECT quality_score, consistency_score, growth_quality, profitability_score
+        FROM quality_metrics
+        WHERE symbol = km.ticker
+        ORDER BY date DESC
+        LIMIT 1
+      ) qm ON true
+      LEFT JOIN LATERAL (
+        SELECT momentum_strength, jt_momentum_12_1, momentum_3m, momentum_6m, risk_adjusted_momentum
+        FROM momentum_metrics
+        WHERE symbol = km.ticker
+        ORDER BY date DESC
+        LIMIT 1
+      ) mm ON true
       LEFT JOIN LATERAL (
         SELECT growth_metric, revenue_growth_metric, earnings_growth_metric, margin_expansion_metric
         FROM growth_metrics
@@ -543,9 +570,9 @@ router.get("/:symbol", async (req, res) => {
         // Factor metrics from database
         valueMetric: parseFloat(metric.value_metric) || null,
         growthMetric: parseFloat(metric.growth_metric) || null,
-        qualityMetric: null, // TODO: Add quality_metrics table
-        momentumMetric: null, // TODO: Add momentum_metrics table
-        trendMetric: null, // TODO: Add from technical indicators
+        qualityMetric: parseFloat(metric.quality_metric) || null,
+        momentumMetric: parseFloat(metric.momentum_metric) || null,
+        trendMetric: null, // TODO: Calculate from technical indicators
 
         // Value factor breakdown
         multiples_metric: parseFloat(metric.multiples_metric) || null,
@@ -556,6 +583,17 @@ router.get("/:symbol", async (req, res) => {
         revenue_growth_metric: parseFloat(metric.revenue_growth_metric) || null,
         earnings_growth_metric: parseFloat(metric.earnings_growth_metric) || null,
         margin_expansion_metric: parseFloat(metric.margin_expansion_metric) || null,
+
+        // Quality factor breakdown
+        consistency_score: parseFloat(metric.consistency_score) || null,
+        growth_quality: parseFloat(metric.growth_quality) || null,
+        profitability_score: parseFloat(metric.profitability_score) || null,
+
+        // Momentum factor breakdown
+        jt_momentum_12_1: parseFloat(metric.jt_momentum_12_1) || null,
+        momentum_3m: parseFloat(metric.momentum_3m) || null,
+        momentum_6m: parseFloat(metric.momentum_6m) || null,
+        risk_adjusted_momentum: parseFloat(metric.risk_adjusted_momentum) || null,
 
         // Technical indicators (legacy fields)
         rsi: null,
