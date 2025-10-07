@@ -145,11 +145,34 @@ jobs:
             # Filter to only loaders that have Dockerfiles
             VALIDATED_LOADERS=""
             for loader in $CHANGED_LOADERS; do
-              if [[ -f "Dockerfile.$loader" ]]; then
+              # Check for Dockerfile with special naming conventions
+              DOCKERFILE_TO_CHECK=""
+              case "$loader" in
+                "aaiidata")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadaaiidata"
+                  ;;
+                "feargreed")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadfeargreed"
+                  ;;
+                "naaim")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadnaaim"
+                  ;;
+                "revenueestimate")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadrevenueestimate"
+                  ;;
+                "sectordata")
+                  DOCKERFILE_TO_CHECK="Dockerfile.sectordata"
+                  ;;
+                *)
+                  DOCKERFILE_TO_CHECK="Dockerfile.$loader"
+                  ;;
+              esac
+
+              if [[ -f "$DOCKERFILE_TO_CHECK" ]]; then
                 VALIDATED_LOADERS="$VALIDATED_LOADERS $loader"
-                echo "✓ Validated loader: $loader (Dockerfile.$ loader exists)"
+                echo "✓ Validated loader: $loader ($DOCKERFILE_TO_CHECK exists)"
               else
-                echo "✗ Skipping loader: $loader (no Dockerfile.$loader found)"
+                echo "✗ Skipping loader: $loader (no $DOCKERFILE_TO_CHECK found)"
               fi
             done
             CHANGED_LOADERS=$(echo $VALIDATED_LOADERS | tr ' ' '\n' | sort | uniq || true)
@@ -408,6 +431,9 @@ jobs:
               "naaim")
                 DOCKERFILE="Dockerfile.loadnaaim"
                 ;;
+              "revenueestimate")
+                DOCKERFILE="Dockerfile.loadrevenueestimate"
+                ;;
               "sectordata")
                 DOCKERFILE="Dockerfile.sectordata"
                 ;;
@@ -498,6 +524,9 @@ jobs:
                 ;;
               "naaim")
                 DOCKERFILE="Dockerfile.loadnaaim"
+                ;;
+              "revenueestimate")
+                DOCKERFILE="Dockerfile.loadrevenueestimate"
                 ;;
               "sectordata")
                 DOCKERFILE="Dockerfile.sectordata"
