@@ -241,13 +241,13 @@ router.get("/", async (req, res) => {
       });
     }
 
-    // Calculate summary statistics
+    // Calculate summary statistics (case-insensitive signal matching)
     const signalData = signalsResult.rows;
     const summary = {
       total_signals: signalData.length,
-      buy_signals: signalData.filter(d => d.signal === 'BUY').length,
-      sell_signals: signalData.filter(d => d.signal === 'SELL').length,
-      hold_signals: signalData.filter(d => d.signal === 'HOLD').length,
+      buy_signals: signalData.filter(d => d.signal && d.signal.toUpperCase() === 'BUY').length,
+      sell_signals: signalData.filter(d => d.signal && d.signal.toUpperCase() === 'SELL').length,
+      hold_signals: signalData.filter(d => d.signal && d.signal.toUpperCase() === 'HOLD').length,
     };
 
     // Format the response data to match AWS API structure with all swing trading metrics
@@ -1835,8 +1835,8 @@ router.get("/list", async (req, res) => {
 
     const summary = {
       total_signals: signals.length,
-      buy_signals: signals.filter(s => s.signal === 'BUY').length,
-      sell_signals: signals.filter(s => s.signal === 'SELL').length,
+      buy_signals: signals.filter(s => s.signal && s.signal.toUpperCase() === 'BUY').length,
+      sell_signals: signals.filter(s => s.signal && s.signal.toUpperCase() === 'SELL').length,
       hold_signals: signals.filter(s => s.signal === 'HOLD').length,
     };
 
@@ -1950,8 +1950,8 @@ router.get("/:symbol", async (req, res) => {
     const signalData = result.rows;
     const summary = {
       total_signals: signalData.length,
-      buy_signals: signalData.filter(d => d.signal === 'BUY').length,
-      sell_signals: signalData.filter(d => d.signal === 'SELL').length,
+      buy_signals: signalData.filter(d => d.signal && d.signal.toUpperCase() === 'BUY').length,
+      sell_signals: signalData.filter(d => d.signal && d.signal.toUpperCase() === 'SELL').length,
       avg_volume: signalData.length > 0 && queryConfig.availableColumns.includes('volume') ?
         (signalData.reduce((sum, d) => sum + parseFloat(d.volume || 0), 0) / signalData.length).toFixed(0) : "N/A",
       avg_price: signalData.length > 0 ?
