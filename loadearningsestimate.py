@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-04 17:05 - Trigger earnings estimates loader for all stocks
+# Updated: 2025-10-07 16:55 - Trigger deployment with BIGINT fix for number_of_analysts
 import gc
 import json
 import logging
@@ -94,7 +94,7 @@ def create_tables(cur):
             low_estimate NUMERIC,
             high_estimate NUMERIC,
             year_ago_eps NUMERIC,
-            number_of_analysts INTEGER,
+            number_of_analysts BIGINT,
             growth NUMERIC,
             fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, period)
