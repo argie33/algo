@@ -473,25 +473,6 @@ function EarningsCalendar() {
                             {row.company_name}
                           </Typography>
                         </TableCell>
-                        <TableCell align="center">
-                          {row.quality_score !== null ? (
-                            <Chip
-                              label={row.quality_score.toFixed(1)}
-                              size="small"
-                              color={
-                                row.quality_score >= 70
-                                  ? "success"
-                                  : row.quality_score >= 50
-                                    ? "warning"
-                                    : "error"
-                              }
-                            />
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">
-                              N/A
-                            </Typography>
-                          )}
-                        </TableCell>
                       </TableRow>
 
                       {/* Expanded Details */}
