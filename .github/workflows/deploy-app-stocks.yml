@@ -87,7 +87,7 @@ jobs:
         id: matrix
         run: |
           # Define supported loaders (those with ECS task definitions)
-          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysellweekly buysellmonthly aaii quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics valuemetrics stockscores analystupgradedowngrade sectordata"
+          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysellweekly buysellmonthly quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics valuemetrics stockscores analystupgradedowngrade sectordata"
 
           # Get all available loaders and filter by supported ones
           ALL_AVAILABLE_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
@@ -408,6 +408,9 @@ jobs:
               "naaim")
                 DOCKERFILE="Dockerfile.loadnaaim"
                 ;;
+              "sectordata")
+                DOCKERFILE="Dockerfile.sectordata"
+                ;;
               *)
                 DOCKERFILE="Dockerfile.$loader"
                 ;;
@@ -495,6 +498,9 @@ jobs:
                 ;;
               "naaim")
                 DOCKERFILE="Dockerfile.loadnaaim"
+                ;;
+              "sectordata")
+                DOCKERFILE="Dockerfile.sectordata"
                 ;;
               *)
                 DOCKERFILE="Dockerfile.$loader"
@@ -665,9 +671,6 @@ jobs:
             "naaaimdata")
               TASK_DEF_NAME="NaaaimDataTaskDefArn"
               ;;
-            "aaii")
-              TASK_DEF_NAME="AaiiTaskDefArn"
-              ;;
             "feargreed")
               TASK_DEF_NAME="FearGreedTaskDefArn"
               ;;
@@ -761,9 +764,6 @@ jobs:
             "info")
               CONTAINER_NAME="loadinfo-loader"
               ;;
-            "aaii")
-              CONTAINER_NAME="aaiidata-loader"
-              ;;
             *)
               CONTAINER_NAME="${{ matrix.loader }}-loader"
               ;;
@@ -814,9 +814,6 @@ jobs:
 
           # Map loader name to script name (handle special cases)
           case "${{ matrix.loader }}" in
-            "aaii")
-              SCRIPT_NAME="loadaaiidata.py"
-              ;;
             *)
               SCRIPT_NAME="load${{ matrix.loader }}.py"
               ;;
