@@ -5,3 +5,4 @@ FROM ${ECR_REGISTRY}:base-loader-latest
 # Copy only the Python script (dependencies already in base)
 COPY loadpriceweekly.py .
 ENTRYPOINT ["python", "loadpriceweekly.py"]
+# Trigger Mon Oct 7 01:45 CDT 2025 - Deploy price loaders for weekly/monthly signals
