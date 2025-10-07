@@ -695,7 +695,7 @@ router.get("/:symbol", async (req, res, next) => {
       });
     }
 
-    // Get stock data from confirmed tables only - using stocks table for AWS
+    // Get stock data with metrics and 52-week high/low
     const stockQuery = `
       SELECT
         cp.ticker as symbol,
@@ -712,9 +712,14 @@ router.get("/:symbol", async (req, res, next) => {
         md.market_cap,
         COALESCE(pd.close, md.current_price, 0) as current_price,
         COALESCE(pd.volume, 0) as volume,
-        NULL as pe_ratio,
-        NULL as earnings_per_share,
-        NULL as dividend_yield,
+
+        -- Metrics from key_metrics table
+        km.trailing_pe as pe_ratio,
+        km.eps_trailing as earnings_per_share,
+        km.dividend_yield,
+        km.book_value,
+        km.beta,
+
         'NASDAQ' as exchange,
         COALESCE(pd.close, md.current_price, 0) as previous_close,
 
@@ -724,10 +729,15 @@ router.get("/:symbol", async (req, res, next) => {
         pd.low,
         pd.close,
         pd.adj_close,
-        pd.date as price_date
+        pd.date as price_date,
+
+        -- 52-week high/low from price data
+        pw.high_52week,
+        pw.low_52week
 
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       LEFT JOIN LATERAL (
         SELECT open, high, low, close, adj_close, volume, date
         FROM price_daily pd2
@@ -735,6 +745,14 @@ router.get("/:symbol", async (req, res, next) => {
         ORDER BY pd2.date DESC
         LIMIT 1
       ) pd ON true
+      LEFT JOIN LATERAL (
+        SELECT
+          MAX(high) as high_52week,
+          MIN(low) as low_52week
+        FROM price_daily pd3
+        WHERE pd3.symbol = cp.ticker
+          AND pd3.date >= CURRENT_DATE - INTERVAL '52 weeks'
+      ) pw ON true
       WHERE cp.ticker = $1
     `;
 
@@ -779,10 +797,14 @@ router.get("/:symbol", async (req, res, next) => {
         volume: stock.volume,
         previous_close: stock.previous_close,
         market_cap: stock.market_cap,
-        pe_ratio: null,
-        eps: stock.eps,
-        dividend_yield: stock.dividend_yield,
-        beta: stock.beta,
+        pe_ratio: parseFloat(stock.pe_ratio) || null,
+        eps: parseFloat(stock.earnings_per_share) || null,
+        earnings_per_share: parseFloat(stock.earnings_per_share) || null,
+        dividend_yield: parseFloat(stock.dividend_yield) || null,
+        book_value: parseFloat(stock.book_value) || null,
+        beta: parseFloat(stock.beta) || null,
+        high52Week: parseFloat(stock.high_52week) || null,
+        low52Week: parseFloat(stock.low_52week) || null,
         date: stock.price_date
       },
       timestamp: new Date().toISOString()
