@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-07 18:30 - Fix type casting for calculate_enhanced_stage (NUMERIC/BIGINT)
-# Trigger deployment with type casting fixes
+# Updated: 2025-10-07 19:15 - Add extended columns to buy_sell_monthly table schema
+# Trigger deployment with schema fix for trading signals page
 import json
 import logging
 import os
@@ -123,7 +123,19 @@ def create_buy_sell_table(cur):
         signal       VARCHAR(10),
         buylevel     REAL,
         stoplevel    REAL,
+        selllevel    REAL,
         inposition   BOOLEAN,
+        -- Swing Trading Metrics (O'Neill/Minervini) - Monthly subset
+        target_price REAL,
+        current_price REAL,
+        risk_reward_ratio NUMERIC(6,2),
+        market_stage VARCHAR(30),
+        pct_from_sma_200 NUMERIC(6,2),
+        entry_quality_score INTEGER,
+        profit_target_20pct REAL,
+        current_gain_loss_pct NUMERIC(6,2),
+        risk_pct NUMERIC(6,2),
+        passes_minervini_template BOOLEAN DEFAULT FALSE,
         UNIQUE(symbol, timeframe, date)
       );
     """
