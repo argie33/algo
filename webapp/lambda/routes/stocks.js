@@ -985,24 +985,17 @@ router.get("/", async (req, res) => {
         COALESCE(km.earnings_growth_pct, 0) as earnings_growth_pct,
         COALESCE(km.revenue_growth_pct, 0) as revenue_growth_pct,
 
-        -- Price data from price_daily
-        pd.open,
-        pd.high,
-        pd.low,
-        pd.close,
-        pd.adj_close,
-        pd.date as price_date
+        -- Price data from market_data (removed slow LATERAL join to price_daily)
+        md.open_price as open,
+        md.day_high as high,
+        md.day_low as low,
+        md.current_price as close,
+        md.current_price as adj_close,
+        CURRENT_DATE as price_date
 
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-      LEFT JOIN LATERAL (
-        SELECT symbol, date, open, high, low, close, adj_close, volume
-        FROM price_daily
-        WHERE symbol = cp.ticker
-        ORDER BY date DESC
-        LIMIT 1
-      ) pd ON true
       ${whereClause.replace(/symbol/g, 'cp.ticker')}
       ORDER BY cp.ticker ASC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
