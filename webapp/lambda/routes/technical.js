@@ -200,7 +200,8 @@ router.get("/daily", async (req, res) => {
       WITH latest_dates AS (
         SELECT symbol, MAX(date) as max_date
         FROM technical_data_daily
-        ${whereClause}
+        WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        ${whereClause ? 'AND ' + whereClause.replace('WHERE ', '') : ''}
         GROUP BY symbol
         ORDER BY symbol ${order}
         LIMIT $1 OFFSET $2
@@ -281,7 +282,8 @@ router.get("/daily", async (req, res) => {
       `
       SELECT COUNT(DISTINCT symbol) as total
       FROM technical_data_daily
-      ${whereClause}
+      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+      ${whereClause ? 'AND ' + whereClause.replace('WHERE ', '') : ''}
       `,
       countParams
     );
