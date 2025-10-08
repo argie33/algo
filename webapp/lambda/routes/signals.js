@@ -100,6 +100,15 @@ router.get("/", async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
 
+    // REQUIRE symbol filter - table too large to scan without it
+    if (!symbolFilter) {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol parameter required. Example: /api/signals?symbol=AAPL",
+        hint: "The buy_sell_daily table is too large to query without filtering by symbol",
+      });
+    }
+
     // Safely map timeframes to table names to prevent SQL injection
     const timeframeMap = {
       daily: "buy_sell_daily",
@@ -169,17 +178,13 @@ router.get("/", async (req, res) => {
         rsi, adx
       `;
     } else {
-      // Daily has all columns
+      // Daily - reduced columns for performance (was timing out with 38 columns)
       selectColumns = `
-        symbol, date, timeframe, signal, open, high, low, close, volume,
-        buylevel, stoplevel, inposition,
-        selllevel, target_price, current_price, risk_reward_ratio,
-        market_stage, stage_confidence, substage, sata_score, stage_number, mansfield_rs,
-        pct_from_ema_21, pct_from_sma_50, pct_from_sma_200,
-        volume_ratio, volume_analysis, entry_quality_score,
+        symbol, date, timeframe, signal, close, volume,
+        buylevel, stoplevel, target_price, current_price,
+        market_stage, entry_quality_score,
         profit_target_8pct, profit_target_20pct, current_gain_loss_pct,
-        risk_pct, position_size_recommendation, passes_minervini_template,
-        rsi, adx, atr, daily_range_pct, volatility_profile
+        passes_minervini_template
       `;
     }
 
@@ -187,7 +192,7 @@ router.get("/", async (req, res) => {
       SELECT ${selectColumns}
       FROM ${tableName}
       ${whereClause}
-      ORDER BY date DESC, symbol
+      ORDER BY date DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
