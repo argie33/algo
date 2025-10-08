@@ -689,12 +689,12 @@ router.get("/overview", async (req, res) => {
     try {
       const marketCapResult = await query(`
         SELECT
-          SUM(CASE WHEN market_cap >= 10000000000 THEN market_cap ELSE 0 END) as large_cap,
-          SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
-          SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
-          SUM(market_cap) as total
-        FROM company_profile
-        WHERE market_cap IS NOT NULL AND market_cap > 0
+          SUM(CASE WHEN md.market_cap >= 10000000000 THEN md.market_cap ELSE 0 END) as large_cap,
+          SUM(CASE WHEN md.market_cap >= 2000000000 AND md.market_cap < 10000000000 THEN md.market_cap ELSE 0 END) as mid_cap,
+          SUM(CASE WHEN md.market_cap < 2000000000 THEN md.market_cap ELSE 0 END) as small_cap,
+          SUM(md.market_cap) as total
+        FROM market_data md
+        WHERE md.market_cap IS NOT NULL AND md.market_cap > 0
       `);
 
       if (marketCapResult.rows.length > 0 && marketCapResult.rows[0].total > 0) {
@@ -5653,14 +5653,14 @@ router.get("/search", async (req, res) => {
 
     // Search in company_profile table
     const result = await query(
-      `SELECT symbol, sector, industry
+      `SELECT ticker as symbol, sector, industry
        FROM company_profile
-       WHERE symbol LIKE $1 OR sector LIKE $1
+       WHERE ticker LIKE $1 OR sector LIKE $1
        ORDER BY
-         CASE WHEN symbol = $2 THEN 1
-              WHEN symbol LIKE $3 THEN 2
+         CASE WHEN ticker = $2 THEN 1
+              WHEN ticker LIKE $3 THEN 2
               ELSE 3 END,
-         symbol
+         ticker
        LIMIT $4 OFFSET $5`,
       [
         searchTerm,

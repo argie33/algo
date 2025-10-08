@@ -1022,17 +1022,18 @@ router.get("/heatmap", authenticateToken, async (req, res) => {
     // Get sector performance data for heatmap
     const heatmapQuery = `
       SELECT
-        COALESCE(sector, 'Other') as sector,
+        COALESCE(cp.sector, 'Other') as sector,
         COUNT(*) as stock_count,
-        AVG(current_price) as avg_price,
-        AVG(volume) as avg_volume,
-        AVG(market_cap) as avg_market_cap,
-        SUM(market_cap) as total_market_cap
-      FROM company_profile
-      WHERE sector IS NOT NULL
-        AND current_price IS NOT NULL
-        AND market_cap IS NOT NULL
-      GROUP BY sector
+        AVG(md.current_price) as avg_price,
+        AVG(md.volume) as avg_volume,
+        AVG(md.market_cap) as avg_market_cap,
+        SUM(md.market_cap) as total_market_cap
+      FROM company_profile cp
+      LEFT JOIN market_data md ON cp.ticker = md.ticker
+      WHERE cp.sector IS NOT NULL
+        AND md.current_price IS NOT NULL
+        AND md.market_cap IS NOT NULL
+      GROUP BY cp.sector
       ORDER BY total_market_cap DESC
     `;
 
