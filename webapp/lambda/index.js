@@ -747,3 +747,4 @@ if (require.main === module) {
 }
 // Force redeploy Thu Oct  2 18:22:58 CDT 2025
 // Emergency fix 1759448244
+// Trigger Lambda deployment - test schema fixes
