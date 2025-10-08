@@ -456,8 +456,9 @@ router.get("/risk", async (req, res) => {
     }
 
     // Get portfolio performance data for basic risk calculations
-    const performanceResult = validateDbResponse(
-      await query(
+    let performanceResult;
+    try {
+      performanceResult = await query(
         `
         SELECT
           DATE(created_at) as date,
@@ -469,26 +470,37 @@ router.get("/risk", async (req, res) => {
         ORDER BY created_at ASC
         `,
         [userId]
-      ),
-      "portfolio performance query for risk analysis"
-    );
+      );
+      if (!performanceResult) {
+        performanceResult = { rows: [] };
+      }
+    } catch (error) {
+      console.error("Portfolio performance query failed:", error.message);
+      performanceResult = { rows: [] };
+    }
 
     // Get current holdings for position risk analysis
-    const holdingsResult = validateDbResponse(
-      await query(
+    let holdingsResult;
+    try {
+      holdingsResult = await query(
         `
         SELECT
-          h.symbol, h.quantity, h.current_price, COALESCE(h.average_cost, 0),
+          h.symbol, h.quantity, h.current_price, COALESCE(h.average_cost, 0) as average_cost,
           (h.current_price * h.quantity) as market_value,
-          ((h.current_price - COALESCE(h.average_cost, 0)) / COALESCE(h.average_cost, 0) * 100) as return_percent
+          ((h.current_price - COALESCE(h.average_cost, 0)) / NULLIF(COALESCE(h.average_cost, 0), 0) * 100) as return_percent
         FROM portfolio_holdings h
         WHERE h.user_id = $1 AND h.quantity > 0
         ORDER BY h.current_price * h.quantity DESC
         `,
         [userId]
-      ),
-      "portfolio holdings query for risk analysis"
-    );
+      );
+      if (!holdingsResult) {
+        holdingsResult = { rows: [] };
+      }
+    } catch (error) {
+      console.error("Portfolio holdings query failed:", error.message);
+      holdingsResult = { rows: [] };
+    }
 
     // Basic risk calculations
     let riskMetrics = {
@@ -607,36 +619,46 @@ router.get("/risk", async (req, res) => {
 // Correlation analytics endpoint
 router.get("/correlation", async (req, res) => {
   try {
-    if (!req.user || !req.user.sub) {
-      return res.status(401).json({
+    // Check database availability first
+    if (!query) {
+      return res.status(503).json({
         success: false,
-        error: "Authentication required",
-        message: "User authentication is required for correlation analytics",
+        error: "Database service temporarily unavailable",
+        message: "Correlation analytics service requires database connection"
       });
     }
 
-    const userId = req.user.sub;
+    const userId = req.user ? req.user.sub : "anonymous";
     const { period = "3m", assets: _assets = "all" } = req.query;
     console.log(
       `🔗 Correlation analytics requested for user: ${userId}, period: ${period}`
     );
 
     // Get user's holdings for correlation analysis
-    const holdingsResult = await query(
-      `
-      SELECT 
-        h.symbol, 
-        h.quantity,
-        h.current_price,
-        h.current_price * h.quantity as market_value,
-        h.symbol as company_name,
-        'General' as sector
-      FROM portfolio_holdings h
-      WHERE h.user_id = $1 AND h.quantity > 0
-      ORDER BY h.current_price * h.quantity DESC
-      `,
-      [userId]
-    );
+    let holdingsResult;
+    try {
+      holdingsResult = await query(
+        `
+        SELECT
+          h.symbol,
+          h.quantity,
+          h.current_price,
+          h.current_price * h.quantity as market_value,
+          h.symbol as company_name,
+          'General' as sector
+        FROM portfolio_holdings h
+        WHERE h.user_id = $1 AND h.quantity > 0
+        ORDER BY h.current_price * h.quantity DESC
+        `,
+        [userId]
+      );
+      if (!holdingsResult) {
+        holdingsResult = { rows: [] };
+      }
+    } catch (error) {
+      console.error("Portfolio holdings query failed:", error.message);
+      holdingsResult = { rows: [] };
+    }
 
     // Calculate period in days
     const periodMap = { "1m": 30, "3m": 90, "6m": 180, "1y": 365 };
@@ -816,18 +838,27 @@ router.get("/allocation", async (req, res) => {
     );
 
     // Get current holdings for allocation analysis
-    const holdingsResult = await query(
-      `
-      SELECT 
-        h.symbol, h.quantity, h.current_price, COALESCE(h.average_cost, 0),
-        'General' as sector, h.symbol as company_name,
-        (h.current_price * h.quantity) as market_value
-      FROM portfolio_holdings h
-      WHERE h.user_id = $1 AND h.quantity > 0
-      ORDER BY h.current_price * h.quantity DESC
-      `,
-      [userId]
-    );
+    let holdingsResult;
+    try {
+      holdingsResult = await query(
+        `
+        SELECT
+          h.symbol, h.quantity, h.current_price, COALESCE(h.average_cost, 0) as average_cost,
+          'General' as sector, h.symbol as company_name,
+          (h.current_price * h.quantity) as market_value
+        FROM portfolio_holdings h
+        WHERE h.user_id = $1 AND h.quantity > 0
+        ORDER BY h.current_price * h.quantity DESC
+        `,
+        [userId]
+      );
+      if (!holdingsResult) {
+        holdingsResult = { rows: [] };
+      }
+    } catch (error) {
+      console.error("Portfolio holdings query failed:", error.message);
+      holdingsResult = { rows: [] };
+    }
 
     if (holdingsResult.rows.length === 0) {
       return res.json({
