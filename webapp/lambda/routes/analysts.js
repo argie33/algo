@@ -45,7 +45,7 @@ router.get("/upgrades", async (req, res) => {
         details,
         fetched_at
       FROM analyst_upgrade_downgrade
-      WHERE date >= CURRENT_DATE - INTERVAL '180 days'
+      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
       ORDER BY date DESC, fetched_at DESC
       LIMIT $1 OFFSET $2
     `;
@@ -102,11 +102,13 @@ router.get("/downgrades", async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Get real downgrade data from database
+    // PERFORMANCE FIX: Add 30-day filter to avoid timeout on large table
     const downgradesQuery = `
       SELECT
         id, symbol, firm, action, from_grade, to_grade, date, details, analyst_name, fetched_at
       FROM analyst_upgrade_downgrade
-      WHERE action ILIKE '%downgrade%' OR action ILIKE '%sell%' OR action ILIKE '%reduce%'
+      WHERE (action ILIKE '%downgrade%' OR action ILIKE '%sell%' OR action ILIKE '%reduce%')
+        AND date >= CURRENT_DATE - INTERVAL '30 days'
       ORDER BY date DESC, fetched_at DESC
       LIMIT $1 OFFSET $2
     `;
@@ -120,14 +122,9 @@ router.get("/downgrades", async (req, res) => {
       });
     }
 
-    // Count total downgrade records
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM analyst_upgrade_downgrade
-      WHERE action ILIKE '%downgrade%' OR action ILIKE '%sell%' OR action ILIKE '%reduce%'
-    `;
-    const countResult = await query(countQuery);
-    const total = parseInt(countResult?.rows[0]?.total) || 0;
+    // PERFORMANCE FIX: Remove COUNT query - use hasMore pagination instead
+    const hasMore = result.rows.length === limit;
+    const total = null; // Not calculating total to avoid timeout
 
     res.json({
       success: true,
