@@ -533,7 +533,7 @@ describe("Strategy Builder Routes", () => {
       });
 
       expect(mockQuery).toHaveBeenCalledWith(
-        "SELECT DISTINCT symbol FROM stocks WHERE market_cap > 0 ORDER BY symbol LIMIT 100"
+        "SELECT DISTINCT ticker as symbol FROM company_profile WHERE market_cap > 0 ORDER BY ticker LIMIT 100"
       );
     });
 

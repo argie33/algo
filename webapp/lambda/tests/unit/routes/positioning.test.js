@@ -494,7 +494,7 @@ describe("Positioning Routes", () => {
       await request(app).get("/api/positioning/summary").set("Authorization", "Bearer dev-bypass-token").expect(200);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("FROM stocks")
+        expect.stringContaining("FROM company_profile")
       );
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining(
