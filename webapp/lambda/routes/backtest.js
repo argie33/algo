@@ -617,7 +617,7 @@ router.get("/symbols", async (req, res) => {
 
     const sqlQuery = `
       SELECT DISTINCT symbol, symbol as short_name
-      FROM stocks
+      FROM company_profile
       WHERE symbol ILIKE $1
       ORDER BY symbol
       LIMIT $2

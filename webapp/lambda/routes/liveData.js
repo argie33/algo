@@ -165,7 +165,7 @@ router.get("/symbols", async (req, res) => {
         NULL as pe_ratio,
         NULL as dividend_yield,
         NULL as beta
-      FROM stocks
+      FROM company_profile
     `;
 
     const queryParams = [];

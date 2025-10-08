@@ -693,7 +693,7 @@ router.get("/overview", async (req, res) => {
           SUM(CASE WHEN market_cap >= 2000000000 AND market_cap < 10000000000 THEN market_cap ELSE 0 END) as mid_cap,
           SUM(CASE WHEN market_cap < 2000000000 THEN market_cap ELSE 0 END) as small_cap,
           SUM(market_cap) as total
-        FROM stocks
+        FROM company_profile
         WHERE market_cap IS NOT NULL AND market_cap > 0
       `);
 
@@ -5651,10 +5651,10 @@ router.get("/search", async (req, res) => {
     const maxLimit = Math.min(parseInt(limit) || 10, 50);
     const searchOffset = Math.max(parseInt(offset) || 0, 0);
 
-    // Search in stocks table
+    // Search in company_profile table
     const result = await query(
       `SELECT symbol, sector, industry
-       FROM stocks
+       FROM company_profile
        WHERE symbol LIKE $1 OR sector LIKE $1
        ORDER BY
          CASE WHEN symbol = $2 THEN 1

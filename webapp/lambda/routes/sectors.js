@@ -1028,7 +1028,7 @@ router.get("/heatmap", authenticateToken, async (req, res) => {
         AVG(volume) as avg_volume,
         AVG(market_cap) as avg_market_cap,
         SUM(market_cap) as total_market_cap
-      FROM stocks
+      FROM company_profile
       WHERE sector IS NOT NULL
         AND current_price IS NOT NULL
         AND market_cap IS NOT NULL
