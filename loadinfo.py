@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-07 18:15 - Trigger deployment for market_data and key_metrics
+# Deployment trigger: 2025-10-07 18:15:00
 # Updated: 2025-10-04 17:00 - Trigger company info loader - populate stocks table for Stock Explorer
 # Updated: 2025-10-02 23:05 - ULTRA-CONSERVATIVE rate limiting: batch=3, pause=15s, extract delay=1s
 # Updated: 2025-10-02 20:55 - Fix rate limiting with per-symbol delays and better detection

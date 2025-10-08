@@ -1406,37 +1406,7 @@ router.get("/performance/:symbol", async (req, res) => {
 // Signal performance endpoint (overall)
 router.get("/performance", async (req, res) => {
   try {
-    // Ensure database is initialized before running queries
-    try {
-      getPool(); // This will throw if not initialized
-    } catch (initError) {
-      console.log("Database not initialized, initializing now...");
-      try {
-        await initializeDatabase();
-      } catch (dbInitError) {
-        console.error("Failed to initialize database:", dbInitError.message);
-        // Return empty data with error message
-        return res.json({
-          success: true,
-          data: {
-            overall_performance: {
-              success_rate: 0,
-              average_return: 0,
-              total_signals: 0,
-              sharpe_ratio: 0,
-              win_loss_ratio: 0
-            },
-            signal_breakdown: [],
-            performance_metrics: {}
-          },
-          timeframe: req.query.timeframe || "daily",
-          data_source: 'database',
-          message: "Database connection not available",
-          error_details: dbInitError.message,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
+    // Database connection is handled automatically by the query() function
 
     const inputTimeframe = req.query.timeframe || "daily";
 

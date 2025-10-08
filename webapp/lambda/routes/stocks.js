@@ -888,6 +888,7 @@ router.get("/", async (req, res) => {
     let search = validated.search || "";
     let sector = validated.sector || "";
     let exchange = validated.exchange || "";
+    let symbol = validated.symbol || "";
 
     // Sanitize search input to prevent invalid UTF8 sequences
     // eslint-disable-next-line no-control-regex
@@ -899,8 +900,14 @@ router.get("/", async (req, res) => {
     const params = [];
     let paramCount = 0;
 
-    // Add search filter
-    if (search) {
+    // Add exact symbol filter (takes precedence over search)
+    if (symbol) {
+      paramCount++;
+      whereClause += ` AND symbol = $${paramCount}`;
+      params.push(symbol.toUpperCase());
+    }
+    // Add search filter (partial match)
+    else if (search) {
       paramCount++;
       whereClause += ` AND symbol ILIKE $${paramCount}`;
       params.push(`%${search}%`);
