@@ -3509,16 +3509,9 @@ router.get("/:timeframe", async (req, res) => {
       });
     }
 
-    // Get total count
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM ${tableName} t
-      LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
-      ${whereClause}
-    `;
-    const countResult = await query(countQuery, params);
-    const total =
-      countResult && countResult.rows ? parseInt(countResult.rows[0].total) : 0;
+    // PERFORMANCE FIX: Skip COUNT query - it times out on price_daily (22M rows)
+    // Use hasMore pagination instead
+    const total = null;
 
     // Get technical data - map column names from price_daily table
     const dataQuery = `
@@ -3555,8 +3548,7 @@ router.get("/:timeframe", async (req, res) => {
     const finalParams = [...params, maxLimit, offset];
     const dataResult = await query(dataQuery, finalParams);
 
-    const totalPages = Math.ceil(total / maxLimit);
-
+    // PERFORMANCE FIX: Use hasMore instead of totalPages (no COUNT query)
     if (
       !dataResult ||
       !Array.isArray(dataResult.rows) ||
@@ -3567,9 +3559,7 @@ router.get("/:timeframe", async (req, res) => {
         pagination: {
           page: parseInt(page),
           limit: maxLimit,
-          total: 0,
-          totalPages: 0,
-          hasNext: false,
+          hasMore: false,
           hasPrev: false,
         },
         metadata: {
@@ -3589,14 +3579,15 @@ router.get("/:timeframe", async (req, res) => {
       });
     }
 
+    // PERFORMANCE FIX: Use hasMore pagination (no COUNT query)
+    const hasMore = dataResult.rows.length === maxLimit;
+
     res.success({
       data: dataResult.rows,
       pagination: {
         page: parseInt(page),
         limit: maxLimit,
-        total,
-        totalPages,
-        hasNext: parseInt(page) < totalPages,
+        hasMore,
         hasPrev: parseInt(page) > 1,
       },
       metadata: {
