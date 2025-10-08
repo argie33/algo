@@ -108,6 +108,7 @@ router.get("/data", async (req, res) => {
           SELECT DISTINCT ON (symbol)
             symbol, close, volume
           FROM price_daily
+          WHERE date >= CURRENT_DATE - INTERVAL '90 days'
           ORDER BY symbol, date DESC
         ) sp ON cp.ticker = sp.symbol
         WHERE md.market_cap IS NOT NULL
