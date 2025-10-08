@@ -524,7 +524,7 @@ router.get("/ping", (req, res) => {
 
 // Get comprehensive market overview using real loader table structures
 router.get("/overview", async (req, res) => {
-  console.log("Market overview endpoint called - REAL LOADER TABLES");
+  console.log("Market overview endpoint called - OPTIMIZED PARALLEL");
 
   try {
     // Check if database is available
@@ -538,15 +538,11 @@ router.get("/overview", async (req, res) => {
     }
 
     const startTime = Date.now();
-    let sentimentIndicators = {};
-    let indices = [];
-    let marketBreadth = {};
-    let marketCap = {};
-    let economicIndicators = [];
 
-    // Query 1: Fear & Greed Index from loadfeargreed.py table
-    try {
-      const fearGreedResult = await query(`
+    // Run all queries in parallel for maximum speed
+    const [fearGreedResult, naaimResult, aaiiResult, indicesResult, breadthResult, marketCapResult, economicResult] = await Promise.all([
+      // Query 1: Fear & Greed Index
+      query(`
         SELECT index_value as value,
           CASE
             WHEN index_value >= 75 THEN 'Extreme Greed'
@@ -559,23 +555,10 @@ router.get("/overview", async (req, res) => {
         FROM fear_greed_index
         ORDER BY date DESC
         LIMIT 1
-      `);
+      `).catch(e => { console.error("Fear & Greed failed:", e.message); return { rows: [] }; }),
 
-      if (fearGreedResult.rows.length > 0) {
-        const fg = fearGreedResult.rows[0];
-        sentimentIndicators.fear_greed = {
-          value: fg.value,
-          value_text: fg.value_text,
-          timestamp: fg.timestamp
-        };
-      }
-    } catch (e) {
-      console.error("Fear & Greed query failed:", e.message);
-    }
-
-    // Query 2: NAAIM data from loadnaaim.py table
-    try {
-      const naaimResult = await query(`
+      // Query 2: NAAIM data
+      query(`
         SELECT naaim_number_mean as average,
           bullish as bullish_8100,
           bearish,
@@ -583,45 +566,18 @@ router.get("/overview", async (req, res) => {
         FROM naaim
         ORDER BY date DESC
         LIMIT 1
-      `);
+      `).catch(e => { console.error("NAAIM failed:", e.message); return { rows: [] }; }),
 
-      if (naaimResult.rows.length > 0) {
-        const naaim = naaimResult.rows[0];
-        sentimentIndicators.naaim = {
-          average: naaim.average,
-          bullish_8100: naaim.bullish_8100,
-          bearish: naaim.bearish,
-          week_ending: naaim.week_ending
-        };
-      }
-    } catch (e) {
-      console.error("NAAIM query failed:", e.message);
-    }
-
-    // Query 3: AAII sentiment from loadaaiidata.py table
-    try {
-      const aaiiResult = await query(`
+      // Query 3: AAII sentiment
+      query(`
         SELECT bullish, neutral, bearish, date
         FROM aaii_sentiment
         ORDER BY date DESC
         LIMIT 1
-      `);
+      `).catch(e => { console.error("AAII failed:", e.message); return { rows: [] }; }),
 
-      if (aaiiResult.rows.length > 0) {
-        sentimentIndicators.aaii = {
-          bullish: aaiiResult.rows[0].bullish,
-          neutral: aaiiResult.rows[0].neutral,
-          bearish: aaiiResult.rows[0].bearish,
-          date: aaiiResult.rows[0].date
-        };
-      }
-    } catch (e) {
-      console.error("AAII query failed:", e.message);
-    }
-
-    // Query 4: Market indices from market_data table (loadmarket.py)
-    try {
-      const indicesResult = await query(`
+      // Query 4: Market indices
+      query(`
         SELECT
           md.ticker as symbol,
           md.ticker as name,
@@ -640,28 +596,10 @@ router.get("/overview", async (req, res) => {
           ORDER BY symbol, date DESC
         ) md
         ORDER BY md.ticker
-      `);
+      `).catch(e => { console.error("Indices failed:", e.message); return { rows: [] }; }),
 
-      indices = indicesResult.rows.map(row => ({
-        symbol: row.symbol,
-        name: row.name || row.symbol,
-        price: parseFloat(row.price) || 0,
-        change: parseFloat(row.change) || 0,
-        changePercent: parseFloat(row.changepercent) || 0
-      }));
-    } catch (e) {
-      console.error("Indices query failed:", e.message);
-      return res.status(500).json({
-        success: false,
-        error: "Failed to fetch market indices",
-        details: e.message,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Query 5: Market breadth from price_daily table (simplified for performance)
-    try {
-      const breadthResult = await query(`
+      // Query 5: Market breadth
+      query(`
         SELECT
           COUNT(*) as total_stocks,
           COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
@@ -670,29 +608,10 @@ router.get("/overview", async (req, res) => {
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
           AND close IS NOT NULL AND open IS NOT NULL
-      `);
+      `).catch(e => { console.error("Breadth failed:", e.message); return { rows: [] }; }),
 
-      if (breadthResult.rows.length > 0) {
-        const breadth = breadthResult.rows[0];
-        const advancing = parseInt(breadth.advancing) || 0;
-        const declining = parseInt(breadth.declining) || 0;
-
-        marketBreadth = {
-          total_stocks: parseInt(breadth.total_stocks) || 0,
-          advancing: advancing,
-          declining: declining,
-          unchanged: parseInt(breadth.unchanged) || 0,
-          advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : "N/A",
-          average_change_percent: "0.00"
-        };
-      }
-    } catch (e) {
-      console.error("Market breadth query failed:", e.message);
-    }
-
-    // Query 6: Market cap from market_data table (loadmarket.py)
-    try {
-      const marketCapResult = await query(`
+      // Query 6: Market cap
+      query(`
         SELECT
           SUM(CASE WHEN md.market_cap >= 10000000000 THEN md.market_cap ELSE 0 END) as large_cap,
           SUM(CASE WHEN md.market_cap >= 2000000000 AND md.market_cap < 10000000000 THEN md.market_cap ELSE 0 END) as mid_cap,
@@ -700,42 +619,97 @@ router.get("/overview", async (req, res) => {
           SUM(md.market_cap) as total
         FROM market_data md
         WHERE md.market_cap IS NOT NULL AND md.market_cap > 0
-      `);
+      `).catch(e => { console.error("Market cap failed:", e.message); return { rows: [] }; }),
 
-      if (marketCapResult.rows.length > 0 && marketCapResult.rows[0].total > 0) {
-        const cap = marketCapResult.rows[0];
-        marketCap = {
-          large_cap: parseFloat(cap.large_cap) || 0,
-          mid_cap: parseFloat(cap.mid_cap) || 0,
-          small_cap: parseFloat(cap.small_cap) || 0,
-          total: parseFloat(cap.total) || 0
-        };
-      }
-    } catch (e) {
-      console.error("Market cap query failed:", e.message);
-    }
-
-    // Query 7: Economic indicators from loadecondata.py table
-    try {
-      const economicResult = await query(`
+      // Query 7: Economic indicators
+      query(`
         SELECT series_id as name, value, 'Index' as unit, date as timestamp
         FROM economic_data
         ORDER BY date DESC
         LIMIT 10
-      `);
+      `).catch(e => { console.error("Economic failed:", e.message); return { rows: [] }; })
+    ]);
 
-      economicIndicators = economicResult.rows.map(row => ({
-        name: row.name,
-        value: row.value,
-        unit: row.unit,
-        timestamp: row.timestamp
-      }));
-    } catch (e) {
-      console.error("Economic query failed:", e.message);
+    // Process Fear & Greed
+    let sentimentIndicators = {};
+    if (fearGreedResult.rows.length > 0) {
+      const fg = fearGreedResult.rows[0];
+      sentimentIndicators.fear_greed = {
+        value: fg.value,
+        value_text: fg.value_text,
+        timestamp: fg.timestamp
+      };
     }
 
+    // Process NAAIM
+    if (naaimResult.rows.length > 0) {
+      const naaim = naaimResult.rows[0];
+      sentimentIndicators.naaim = {
+        average: naaim.average,
+        bullish_8100: naaim.bullish_8100,
+        bearish: naaim.bearish,
+        week_ending: naaim.week_ending
+      };
+    }
+
+    // Process AAII
+    if (aaiiResult.rows.length > 0) {
+      sentimentIndicators.aaii = {
+        bullish: aaiiResult.rows[0].bullish,
+        neutral: aaiiResult.rows[0].neutral,
+        bearish: aaiiResult.rows[0].bearish,
+        date: aaiiResult.rows[0].date
+      };
+    }
+
+    // Process indices
+    const indices = indicesResult.rows.map(row => ({
+      symbol: row.symbol,
+      name: row.name || row.symbol,
+      price: parseFloat(row.price) || 0,
+      change: parseFloat(row.change) || 0,
+      changePercent: parseFloat(row.changepercent) || 0
+    }));
+
+    // Process market breadth
+    let marketBreadth = {};
+    if (breadthResult.rows.length > 0) {
+      const breadth = breadthResult.rows[0];
+      const advancing = parseInt(breadth.advancing) || 0;
+      const declining = parseInt(breadth.declining) || 0;
+
+      marketBreadth = {
+        total_stocks: parseInt(breadth.total_stocks) || 0,
+        advancing: advancing,
+        declining: declining,
+        unchanged: parseInt(breadth.unchanged) || 0,
+        advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : "N/A",
+        average_change_percent: "0.00"
+      };
+    }
+
+    // Process market cap
+    let marketCap = {};
+    if (marketCapResult.rows.length > 0 && marketCapResult.rows[0].total > 0) {
+      const cap = marketCapResult.rows[0];
+      marketCap = {
+        large_cap: parseFloat(cap.large_cap) || 0,
+        mid_cap: parseFloat(cap.mid_cap) || 0,
+        small_cap: parseFloat(cap.small_cap) || 0,
+        total: parseFloat(cap.total) || 0
+      };
+    }
+
+    // Process economic indicators
+    const economicIndicators = economicResult.rows.map(row => ({
+      name: row.name,
+      value: row.value,
+      unit: row.unit,
+      timestamp: row.timestamp
+    }));
+
     const totalTime = Date.now() - startTime;
-    console.log(`Market overview completed in ${totalTime}ms using real loader tables`);
+    console.log(`Market overview completed in ${totalTime}ms using parallel queries`);
 
     const responseData = {
       indices: indices,
