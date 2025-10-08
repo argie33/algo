@@ -598,7 +598,7 @@ router.get("/overview", async (req, res) => {
         ORDER BY md.ticker
       `).catch(e => { console.error("Indices failed:", e.message); return { rows: [] }; }),
 
-      // Query 5: Market breadth
+      // Query 5: Market breadth - Use latest date only for speed
       query(`
         SELECT
           COUNT(*) as total_stocks,
@@ -606,7 +606,7 @@ router.get("/overview", async (req, res) => {
           COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
           COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged
         FROM price_daily
-        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        WHERE date = (SELECT MAX(date) FROM price_daily WHERE date >= CURRENT_DATE - INTERVAL '7 days')
           AND close IS NOT NULL AND open IS NOT NULL
       `).catch(e => { console.error("Breadth failed:", e.message); return { rows: [] }; }),
 

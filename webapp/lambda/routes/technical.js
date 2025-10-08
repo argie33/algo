@@ -276,14 +276,13 @@ router.get("/daily", async (req, res) => {
       queryParams
     );
 
-    // Get total count for pagination
+    // Get total count for pagination - use stocks table for much faster count
     const countParams = queryParams.slice(2); // Remove limit and offset parameters
     countResult = await query(
       `
-      SELECT COUNT(DISTINCT symbol) as total
-      FROM technical_data_daily
-      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-      ${whereClause ? 'AND ' + whereClause.replace('WHERE ', '') : ''}
+      SELECT COUNT(*) as total
+      FROM stocks
+      ${whereClause ? whereClause.replace('WHERE ', 'WHERE ') : ''}
       `,
       countParams
     );
