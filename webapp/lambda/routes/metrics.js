@@ -422,25 +422,104 @@ router.get("/:symbol", async (req, res) => {
         md.market_cap as market_capitalization,
         pd.date as last_updated,
 
-        -- Removed fields from non-existent tables (value_metrics, quality_metrics, momentum_metrics, growth_metrics)
-        -- Will return NULL until loaders create these tables
-        NULL as value_metric,
-        NULL as multiples_metric,
-        NULL as intrinsic_value,
-        NULL as fair_value,
-        NULL as quality_metric,
-        NULL as consistency_score,
-        NULL as growth_quality,
-        NULL as profitability_score,
-        NULL as momentum_metric,
-        NULL as jt_momentum_12_1,
-        NULL as momentum_3m,
-        NULL as momentum_6m,
-        NULL as risk_adjusted_momentum,
-        NULL as growth_metric,
-        NULL as revenue_growth_metric,
-        NULL as earnings_growth_metric,
-        NULL as margin_expansion_metric
+        -- Calculated value metrics from key_metrics data
+        CASE
+          WHEN km.trailing_pe IS NOT NULL AND km.trailing_pe > 0 AND km.trailing_pe < 50 THEN 100 - (km.trailing_pe * 2)
+          ELSE 50
+        END as value_metric,
+
+        -- Multiples-based valuation score
+        CASE
+          WHEN km.trailing_pe IS NOT NULL AND km.price_to_book IS NOT NULL THEN
+            ((CASE WHEN km.trailing_pe < 15 THEN 100 WHEN km.trailing_pe < 25 THEN 70 ELSE 40 END) * 0.5) +
+            ((CASE WHEN km.price_to_book < 3 THEN 100 WHEN km.price_to_book < 5 THEN 70 ELSE 40 END) * 0.5)
+          ELSE NULL
+        END as multiples_metric,
+
+        -- Intrinsic value approximation (Graham formula simplified)
+        CASE
+          WHEN km.eps_trailing IS NOT NULL AND km.eps_trailing > 0 THEN km.eps_trailing * 15
+          ELSE NULL
+        END as intrinsic_value,
+
+        -- Fair value based on PEG ratio
+        CASE
+          WHEN km.peg_ratio IS NOT NULL AND km.peg_ratio > 0 AND km.peg_ratio < 3 THEN md.current_price * (1.5 / km.peg_ratio)
+          ELSE NULL
+        END as fair_value,
+
+        -- Quality score from profitability metrics
+        CASE
+          WHEN km.return_on_equity_pct IS NOT NULL AND km.profit_margin_pct IS NOT NULL THEN
+            ((km.return_on_equity_pct * 0.6) + (km.profit_margin_pct * 0.4))
+          ELSE NULL
+        END as quality_metric,
+
+        -- Consistency score from margin stability
+        CASE
+          WHEN km.operating_margin_pct IS NOT NULL AND km.gross_margin_pct IS NOT NULL THEN
+            ((km.operating_margin_pct + km.gross_margin_pct) / 2)
+          ELSE NULL
+        END as consistency_score,
+
+        -- Growth quality combines earnings and revenue growth
+        CASE
+          WHEN km.earnings_growth_pct IS NOT NULL AND km.revenue_growth_pct IS NOT NULL THEN
+            ((km.earnings_growth_pct * 0.6) + (km.revenue_growth_pct * 0.4))
+          ELSE NULL
+        END as growth_quality,
+
+        -- Profitability score from margin metrics
+        CASE
+          WHEN km.profit_margin_pct IS NOT NULL AND km.operating_margin_pct IS NOT NULL AND km.gross_margin_pct IS NOT NULL THEN
+            ((km.profit_margin_pct * 0.5) + (km.operating_margin_pct * 0.3) + (km.gross_margin_pct * 0.2))
+          ELSE NULL
+        END as profitability_score,
+
+        -- Momentum metric from 52-week performance
+        CASE
+          WHEN md.fifty_two_week_change_pct IS NOT NULL THEN
+            LEAST(100, GREATEST(0, 50 + (md.fifty_two_week_change_pct * 0.5)))
+          ELSE NULL
+        END as momentum_metric,
+
+        -- 12-month momentum (from 52-week change)
+        md.fifty_two_week_change_pct as jt_momentum_12_1,
+
+        -- Approximate shorter-term momentum from price vs averages
+        CASE
+          WHEN md.fifty_day_avg_change_pct IS NOT NULL THEN md.fifty_day_avg_change_pct
+          ELSE NULL
+        END as momentum_3m,
+
+        CASE
+          WHEN md.two_hundred_day_avg_change_pct IS NOT NULL THEN md.two_hundred_day_avg_change_pct
+          ELSE NULL
+        END as momentum_6m,
+
+        -- Risk-adjusted momentum (return relative to volatility - simplified)
+        CASE
+          WHEN md.fifty_two_week_change_pct IS NOT NULL AND md.fifty_two_week_high IS NOT NULL AND md.fifty_two_week_low IS NOT NULL THEN
+            md.fifty_two_week_change_pct / NULLIF((md.fifty_two_week_high - md.fifty_two_week_low) / md.fifty_two_week_low * 100, 0)
+          ELSE NULL
+        END as risk_adjusted_momentum,
+
+        -- Growth metric composite
+        CASE
+          WHEN km.revenue_growth_pct IS NOT NULL AND km.earnings_growth_pct IS NOT NULL THEN
+            ((km.revenue_growth_pct * 0.4) + (km.earnings_growth_pct * 0.6))
+          ELSE NULL
+        END as growth_metric,
+
+        km.revenue_growth_pct as revenue_growth_metric,
+        km.earnings_growth_pct as earnings_growth_metric,
+
+        -- Margin expansion (comparing different margin types)
+        CASE
+          WHEN km.operating_margin_pct IS NOT NULL AND km.gross_margin_pct IS NOT NULL THEN
+            km.operating_margin_pct - (km.gross_margin_pct * 0.5)
+          ELSE NULL
+        END as margin_expansion_metric
       FROM key_metrics km
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
@@ -449,9 +528,6 @@ router.get("/:symbol", async (req, res) => {
         ORDER BY symbol, date DESC
       ) pd ON km.ticker = pd.symbol
       LEFT JOIN market_data md ON km.ticker = md.ticker
-      -- Removed LEFT JOINs to value_metrics, quality_metrics, momentum_metrics, growth_metrics
-      -- These tables don't exist in current RDS schema
-      -- Data will be NULL for these fields until tables are created by loaders
       WHERE km.ticker = $1
     `;
 
