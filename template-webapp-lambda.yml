@@ -19,26 +19,6 @@ Parameters:
     Type: String
     Description: RDS database endpoint (imported from stocks app stack)
 
-  VpcId:
-    Type: String
-    Description: VPC ID for Lambda to access RDS
-    Default: vpc-01bac8b5a4479dad9
-
-  PrivateSubnet1:
-    Type: String
-    Description: Private subnet 1 for Lambda
-    Default: subnet-0be1cad3b0ca9ac61
-
-  PrivateSubnet2:
-    Type: String
-    Description: Private subnet 2 for Lambda
-    Default: subnet-0cf1b5ba87e9d367d
-
-  LambdaSecurityGroup:
-    Type: String
-    Description: Security group for Lambda to access RDS
-    Default: sg-04d7a43380b1057ad
-
 Globals:
   Function:
     Timeout: 30
@@ -177,12 +157,6 @@ Resources:
       FunctionName: !Sub 'stocks-webapp-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-        SubnetIds:
-          - !Ref PrivateSubnet1
-          - !Ref PrivateSubnet2
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn
@@ -218,14 +192,6 @@ Resources:
                 - cognito-idp:AdminUpdateUserAttributes
                 - cognito-idp:AdminDeleteUser
               Resource: !GetAtt UserPool.Arn
-            - Effect: Allow
-              Action:
-                - ec2:CreateNetworkInterface
-                - ec2:DescribeNetworkInterfaces
-                - ec2:DeleteNetworkInterface
-                - ec2:AssignPrivateIpAddresses
-                - ec2:UnassignPrivateIpAddresses
-              Resource: '*'
       Events:
         ApiProxy:
           Type: Api
