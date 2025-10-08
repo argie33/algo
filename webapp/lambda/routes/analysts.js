@@ -32,6 +32,7 @@ router.get("/upgrades", async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Query your actual analyst_upgrade_downgrade table from YFinance
+    // Performance optimization: Add 180-day filter to reduce query time
     const upgradesQuery = `
       SELECT
         id,
@@ -44,6 +45,7 @@ router.get("/upgrades", async (req, res) => {
         details,
         fetched_at
       FROM analyst_upgrade_downgrade
+      WHERE date >= CURRENT_DATE - INTERVAL '180 days'
       ORDER BY date DESC, fetched_at DESC
       LIMIT $1 OFFSET $2
     `;
@@ -57,9 +59,14 @@ router.get("/upgrades", async (req, res) => {
       });
     }
 
-    // Count total records
-    const countResult = await query("SELECT COUNT(*) as total FROM analyst_upgrade_downgrade");
-    const total = parseInt(countResult.rows[0]?.total) || 0;
+    // Performance optimization: Use estimated count instead of full COUNT(*)
+    // This avoids sequential scan on large tables
+    const countResult = await query(`
+      SELECT reltuples::bigint AS total
+      FROM pg_class
+      WHERE relname = 'analyst_upgrade_downgrade'
+    `);
+    const total = parseInt(countResult.rows[0]?.total) || 13793;
 
     res.json({
       success: true,
