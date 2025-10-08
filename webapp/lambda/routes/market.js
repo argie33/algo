@@ -176,13 +176,13 @@ router.get("/summary", async (req, res) => {
           date
         FROM price_daily
         WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA')
-          AND date = (SELECT MAX(date) FROM price_daily WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'))
+          AND date >= CURRENT_DATE - INTERVAL '7 days' WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'))
           AND close IS NOT NULL
         ORDER BY symbol
       `;
       indicesResult = await executeQueryWithTimeout(query(indicesQuery), "indices");
 
-      // Get market breadth data
+      // Get market breadth data - optimized for db.t3.micro
       const breadthQuery = `
         SELECT
           COUNT(*) as total_stocks,
@@ -192,8 +192,10 @@ router.get("/summary", async (req, res) => {
           AVG(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END) as avg_change_percent,
           SUM(volume) as total_volume
         FROM price_daily
-        WHERE date = (SELECT MAX(date) FROM price_daily)
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
           AND close IS NOT NULL AND volume > 0
+        ORDER BY date DESC
+        LIMIT 10000
       `;
       breadthResult = await executeQueryWithTimeout(query(breadthQuery), "breadth");
 
@@ -208,7 +210,7 @@ router.get("/summary", async (req, res) => {
         JOIN company_profile cp ON md.symbol = cp.symbol
         WHERE cp.sector IS NOT NULL
           AND md.volume > 0
-          AND md.date = (SELECT MAX(date) FROM price_daily)
+          AND md.date >= CURRENT_DATE - INTERVAL '7 days'
         GROUP BY cp.sector
         ORDER BY avg_change_percent DESC
         LIMIT 15
@@ -414,7 +416,7 @@ router.get("/overview-fixed", async (req, res) => {
           COUNT(CASE WHEN (CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) = 0 THEN 1 END) as unchanged,
           AVG(CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) as average_change_percent
         FROM price_daily
-        WHERE date = (SELECT MAX(date) FROM price_daily)
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
           AND CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END IS NOT NULL
       `;
       const breadthResult = await query(breadthQuery);
@@ -666,7 +668,7 @@ router.get("/overview", async (req, res) => {
           COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
           COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged
         FROM price_daily
-        WHERE date = (SELECT MAX(date) FROM price_daily)
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
           AND close IS NOT NULL AND open IS NOT NULL
       `);
 
@@ -1413,7 +1415,7 @@ router.get("/breadth", async (req, res) => {
         FROM price_daily pd1
         LEFT JOIN price_daily pd2 ON pd1.symbol = pd2.symbol
           AND pd2.date = pd1.date - INTERVAL '1 day'
-        WHERE pd1.date = (SELECT MAX(date) FROM price_daily)
+        WHERE pd1.date >= CURRENT_DATE - INTERVAL '7 days'
           AND pd1.close_price IS NOT NULL
       )
       SELECT
@@ -1742,7 +1744,7 @@ router.get("/volatility", async (req, res) => {
         date
       FROM price_daily
       WHERE symbol = '^VIX'
-        AND date = (SELECT MAX(date) FROM price_daily)
+        AND date >= CURRENT_DATE - INTERVAL '7 days')
     `;
 
     const result = await query(volatilityQuery);
@@ -1753,7 +1755,7 @@ router.get("/volatility", async (req, res) => {
         STDDEV(CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) as market_volatility,
         AVG(ABS(CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END)) as avg_absolute_change
       FROM price_daily
-      WHERE date = (SELECT MAX(date) FROM price_daily)
+      WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         AND CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END IS NOT NULL
     `;
 
@@ -1858,7 +1860,7 @@ router.get("/indicators", async (req, res) => {
         pd.date
       FROM price_daily pd
       JOIN company_profile s ON pd.symbol = s.ticker
-      WHERE pd.date = (SELECT MAX(date) FROM price_daily)
+      WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
       ORDER BY pd.symbol
     `;
 
@@ -1872,7 +1874,7 @@ router.get("/indicators", async (req, res) => {
         COUNT(CASE WHEN (CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) < 0 THEN 1 END) as declining,
         AVG(CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) as avg_change
       FROM price_daily
-      WHERE date = (SELECT MAX(date) FROM price_daily)
+      WHERE date >= CURRENT_DATE - INTERVAL '7 days'
     `;
 
     const breadthResult = await query(breadthQuery);
@@ -5268,7 +5270,7 @@ router.get("/quotes", async (req, res) => {
                 change_percent, high_price as high, low_price as low, open_price as open
          FROM price_daily 
          WHERE symbol IN (${placeholders})
-         AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = price_daily.symbol)`,
+         AND date >= CURRENT_DATE - INTERVAL '7 days' WHERE symbol = price_daily.symbol)`,
         symbolList
       );
     } catch (dbError) {
@@ -5440,7 +5442,7 @@ router.get("/trending", async (req, res) => {
           p.date
         FROM company_profile s
         JOIN price_daily p ON s.ticker = p.symbol
-        WHERE p.date = (SELECT MAX(date) FROM price_daily WHERE symbol = s.ticker)
+        WHERE p.date >= CURRENT_DATE - INTERVAL '7 days'
         AND p.volume > 1000000  -- High volume threshold
         ORDER BY (p.volume * ABS(p.change_percent)) DESC  -- Trending score
         LIMIT $1
@@ -5508,7 +5510,7 @@ router.get("/gainers", async (req, res) => {
       result = await query(
         `SELECT symbol, close as price, change_percent, volume
          FROM price_daily 
-         WHERE date = (SELECT MAX(date) FROM price_daily)
+         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
          AND change_percent > 0
          ORDER BY change_percent DESC
          LIMIT $1`,
@@ -5578,7 +5580,7 @@ router.get("/losers", async (req, res) => {
       result = await query(
         `SELECT symbol, close as price, change_percent, volume
          FROM price_daily 
-         WHERE date = (SELECT MAX(date) FROM price_daily)
+         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
          AND change_percent < 0
          ORDER BY change_percent ASC
          LIMIT $1`,
