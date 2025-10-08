@@ -100,15 +100,6 @@ router.get("/", async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
 
-    // REQUIRE symbol filter - table too large to scan without it
-    if (!symbolFilter) {
-      return res.status(400).json({
-        success: false,
-        error: "Symbol parameter required. Example: /api/signals?symbol=AAPL",
-        hint: "The buy_sell_daily table is too large to query without filtering by symbol",
-      });
-    }
-
     // Safely map timeframes to table names to prevent SQL injection
     const timeframeMap = {
       daily: "buy_sell_daily",
@@ -136,8 +127,13 @@ router.get("/", async (req, res) => {
     let queryParams = [];
     let paramIndex = 1;
 
-    // PERFORMANCE FIX: Only query last 90 days to avoid timeout on db.t3.micro
-    whereClause = `WHERE date >= CURRENT_DATE - INTERVAL '90 days'`;
+    // PERFORMANCE FIX: Only query most recent date to avoid timeout on massive table
+    // If symbol provided, use 90 days; otherwise just most recent date
+    if (symbolFilter) {
+      whereClause = `WHERE date >= CURRENT_DATE - INTERVAL '90 days'`;
+    } else {
+      whereClause = `WHERE date = (SELECT MAX(date) FROM ${tableName})`;
+    }
 
     if (signalType) {
       whereClause += ` AND signal = $${paramIndex}`;
