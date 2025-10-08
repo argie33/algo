@@ -422,30 +422,25 @@ router.get("/:symbol", async (req, res) => {
         md.market_cap as market_capitalization,
         pd.date as last_updated,
 
-        -- Factor metrics from value_metrics table
-        vm.value_metric,
-        vm.multiples_metric,
-        vm.intrinsic_value,
-        vm.fair_value,
-
-        -- Quality metrics from quality_metrics table
-        qm.quality_score as quality_metric,
-        qm.consistency_score,
-        qm.growth_quality,
-        qm.profitability_score,
-
-        -- Momentum metrics from momentum_metrics table
-        mm.momentum_strength as momentum_metric,
-        mm.jt_momentum_12_1,
-        mm.momentum_3m,
-        mm.momentum_6m,
-        mm.risk_adjusted_momentum,
-
-        -- Growth metrics from growth_metrics table
-        gm.growth_metric,
-        gm.revenue_growth_metric,
-        gm.earnings_growth_metric,
-        gm.margin_expansion_metric
+        -- Removed fields from non-existent tables (value_metrics, quality_metrics, momentum_metrics, growth_metrics)
+        -- Will return NULL until loaders create these tables
+        NULL as value_metric,
+        NULL as multiples_metric,
+        NULL as intrinsic_value,
+        NULL as fair_value,
+        NULL as quality_metric,
+        NULL as consistency_score,
+        NULL as growth_quality,
+        NULL as profitability_score,
+        NULL as momentum_metric,
+        NULL as jt_momentum_12_1,
+        NULL as momentum_3m,
+        NULL as momentum_6m,
+        NULL as risk_adjusted_momentum,
+        NULL as growth_metric,
+        NULL as revenue_growth_metric,
+        NULL as earnings_growth_metric,
+        NULL as margin_expansion_metric
       FROM key_metrics km
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
