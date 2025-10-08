@@ -894,12 +894,12 @@ router.get("/sectors", async (req, res) => {
       });
     }
 
-    // Get sector performance data from stocks table
+    // Get sector performance data from company_profile table
     const sectorsQuery = `
       SELECT
         sector,
         COUNT(*) as company_count
-      FROM stocks
+      FROM company_profile
       WHERE sector IS NOT NULL
         AND sector != ''
       GROUP BY sector
@@ -907,6 +907,16 @@ router.get("/sectors", async (req, res) => {
     `;
 
     const sectorsResult = await query(sectorsQuery);
+
+    // Check if query returned data
+    if (!sectorsResult || !sectorsResult.rows) {
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        message: "Unable to fetch sector data",
+        timestamp: new Date().toISOString()
+      });
+    }
 
     // Format sector data
     const sectors = sectorsResult.rows.map(row => ({
