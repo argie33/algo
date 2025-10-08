@@ -3401,7 +3401,8 @@ router.get("/:timeframe", async (req, res) => {
     const maxLimit = Math.min(parseInt(limit), 200);
 
     // Build WHERE clause
-    let whereClause = "WHERE 1=1";
+    // PERFORMANCE FIX: Always add date filter to prevent full table scan
+    let whereClause = "WHERE t.date >= CURRENT_DATE - INTERVAL '90 days'";
     const params = [];
     let paramIndex = 1;
 
@@ -3412,9 +3413,13 @@ router.get("/:timeframe", async (req, res) => {
       paramIndex++;
     }
 
-    // Date filters
+    // Date filters (override default 90 day filter if provided)
     if (start_date) {
-      whereClause += ` AND t.date >= $${paramIndex}`;
+      // Replace default date filter with user's start date
+      whereClause = whereClause.replace(
+        "WHERE t.date >= CURRENT_DATE - INTERVAL '90 days'",
+        `WHERE t.date >= $${paramIndex}`
+      );
       params.push(start_date);
       paramIndex++;
     }
