@@ -5738,12 +5738,12 @@ router.get("/indices", async (req, res) => {
     let result;
     if (symbol) {
       result = await query(
-        "SELECT * FROM market_data WHERE UPPER(symbol) = UPPER($1)",
+        "SELECT * FROM market_data WHERE UPPER(ticker) = UPPER($1)",
         [symbol]
       );
     } else {
       result = await query(
-        "SELECT * FROM market_data ORDER BY symbol LIMIT 50"
+        "SELECT * FROM market_data ORDER BY ticker LIMIT 50"
       );
     }
 
