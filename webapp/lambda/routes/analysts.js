@@ -467,14 +467,15 @@ router.get("/:symbol/overview", async (req, res) => {
       `, [symbolUpper]),
 
       // Upgrades/downgrades
-      // PERFORMANCE FIX: Add 180-day filter to avoid timeout on large table
+      // PERFORMANCE FIX: Add 90-day filter + LIMIT to avoid timeout on large table
       query(`
         SELECT id, symbol, firm, action, from_grade, to_grade,
                date, details, fetched_at
         FROM analyst_upgrade_downgrade
         WHERE UPPER(symbol) = $1
-          AND date >= CURRENT_DATE - INTERVAL '180 days'
+          AND date >= CURRENT_DATE - INTERVAL '90 days'
         ORDER BY date DESC
+        LIMIT 50
       `, [symbolUpper]),
 
       // Earnings history
@@ -528,14 +529,14 @@ router.get("/:symbol/recommendations", async (req, res) => {
     const symbolUpper = symbol.toUpperCase();
 
     // Get upgrades/downgrades from YFinance
-    // PERFORMANCE FIX: Add 180-day filter to avoid timeout on large table
+    // PERFORMANCE FIX: Add 90-day filter to avoid timeout on large table
     const upgradesResult = await query(`
       SELECT
         id, symbol, firm, action, from_grade, to_grade,
         date, details, fetched_at
       FROM analyst_upgrade_downgrade
       WHERE UPPER(symbol) = $1
-        AND date >= CURRENT_DATE - INTERVAL '180 days'
+        AND date >= CURRENT_DATE - INTERVAL '90 days'
       ORDER BY date DESC, fetched_at DESC
       LIMIT 50
     `, [symbolUpper]);
@@ -568,15 +569,16 @@ router.get("/:symbol", async (req, res) => {
     // Get all REAL analyst data for this symbol from your actual YFinance tables
     const [upgradesResult, revenueEstimatesResult, epsEstimatesResult] = await Promise.all([
       // Upgrades/downgrades from YFinance
-      // PERFORMANCE FIX: Add 180-day filter to avoid timeout on large table
+      // PERFORMANCE FIX: Add 90-day filter + LIMIT to avoid timeout on large table
       query(`
         SELECT
           id, symbol, firm, action, from_grade, to_grade,
           date, details, fetched_at
         FROM analyst_upgrade_downgrade
         WHERE UPPER(symbol) = $1
-          AND date >= CURRENT_DATE - INTERVAL '180 days'
+          AND date >= CURRENT_DATE - INTERVAL '90 days'
         ORDER BY date DESC, fetched_at DESC
+        LIMIT 50
       `, [symbolUpper]),
 
       // Revenue estimates with analyst counts from YFinance (limit to key periods)
