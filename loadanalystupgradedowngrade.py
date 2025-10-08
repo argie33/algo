@@ -158,6 +158,10 @@ def create_table(cur):
             details      TEXT,
             fetched_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE INDEX idx_analyst_upgrade_downgrade_date ON analyst_upgrade_downgrade (date DESC);
+        CREATE INDEX idx_analyst_upgrade_downgrade_symbol ON analyst_upgrade_downgrade (symbol);
+        CREATE INDEX idx_analyst_upgrade_downgrade_symbol_date ON analyst_upgrade_downgrade (symbol, date DESC);
     """
     )
 
