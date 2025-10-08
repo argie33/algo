@@ -454,34 +454,9 @@ router.get("/:symbol", async (req, res) => {
         ORDER BY symbol, date DESC
       ) pd ON km.ticker = pd.symbol
       LEFT JOIN market_data md ON km.ticker = md.ticker
-      LEFT JOIN LATERAL (
-        SELECT value_metric, multiples_metric, intrinsic_value, fair_value
-        FROM value_metrics
-        WHERE symbol = km.ticker
-        ORDER BY date DESC
-        LIMIT 1
-      ) vm ON true
-      LEFT JOIN LATERAL (
-        SELECT quality_score, consistency_score, growth_quality, profitability_score
-        FROM quality_metrics
-        WHERE symbol = km.ticker
-        ORDER BY date DESC
-        LIMIT 1
-      ) qm ON true
-      LEFT JOIN LATERAL (
-        SELECT momentum_strength, jt_momentum_12_1, momentum_3m, momentum_6m, risk_adjusted_momentum
-        FROM momentum_metrics
-        WHERE symbol = km.ticker
-        ORDER BY date DESC
-        LIMIT 1
-      ) mm ON true
-      LEFT JOIN LATERAL (
-        SELECT growth_metric, revenue_growth_metric, earnings_growth_metric, margin_expansion_metric
-        FROM growth_metrics
-        WHERE symbol = km.ticker
-        ORDER BY date DESC
-        LIMIT 1
-      ) gm ON true
+      -- Removed LEFT JOINs to value_metrics, quality_metrics, momentum_metrics, growth_metrics
+      -- These tables don't exist in current RDS schema
+      -- Data will be NULL for these fields until tables are created by loaders
       WHERE km.ticker = $1
     `;
 
