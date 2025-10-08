@@ -1027,7 +1027,7 @@ router.get("/", async (req, res) => {
     console.log(
       "Executing comprehensive stocks query with timeout protection..."
     );
-    const queryTimeout = 3000; // 3 second timeout for AWS Lambda
+    const queryTimeout = 10000; // 10 second timeout for complex joins
 
     // Execute with error handling
     let stocksResult;

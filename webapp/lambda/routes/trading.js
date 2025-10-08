@@ -253,6 +253,7 @@ router.get("/signals", async (req, res) => {
       FROM buy_sell_daily
       WHERE timeframe = 'Daily'
         AND signal IN ('Buy', 'Sell')
+        AND date >= CURRENT_DATE - INTERVAL '90 days'
     `;
 
     const queryParams = [];
