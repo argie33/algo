@@ -192,18 +192,12 @@ router.get("/", async (req, res) => {
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM ${tableName}
-      ${whereClause}
-    `;
+    // PERFORMANCE FIX: Removed COUNT query - it times out on 11M+ row table
+    // Use simple pagination without total count (faster, no timeout risk)
 
-    let signalsResult, countResult;
+    let signalsResult;
     try {
-      [signalsResult, countResult] = await Promise.all([
-        query(signalsQuery, [...queryParams, limit, offset]),
-        query(countQuery, queryParams)
-      ]);
+      signalsResult = await query(signalsQuery, [...queryParams, limit, offset]);
     } catch (queryError) {
       console.error(`❌ Query failed for ${timeframe} signals:`, queryError.message);
       console.error('Query:', signalsQuery.substring(0, 200));
@@ -215,30 +209,16 @@ router.get("/", async (req, res) => {
       });
     }
 
-    if (!countResult || !countResult.rows) {
-      return res.status(503).json({
-        success: false,
-        error: "Database query failed",
-        details: "Count query returned null result",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    const total = parseInt(countResult.rows[0].total) || 0;
-    const totalPages = Math.ceil(total / limit);
-
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.status(200).json({
         success: true,
         data: [],
-        total: 0,
         message: `No ${timeframe} signals currently available. Signals will appear after data loading.`,
         timeframe,
         pagination: {
           page,
           limit,
-          total: 0,
-          totalPages: 0
+          hasMore: false
         },
         timestamp: new Date().toISOString(),
       });
@@ -328,6 +308,9 @@ router.get("/", async (req, res) => {
       sector: "Technology", // Would come from company_profile JOIN
     }));
 
+    // PERFORMANCE FIX: Use hasMore indicator instead of total count
+    const hasMore = formattedData.length === limit;
+
     return res.json({
       success: true,
       data: formattedData,
@@ -335,9 +318,7 @@ router.get("/", async (req, res) => {
       pagination: {
         page,
         limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
+        hasMore,
         hasPrev: page > 1,
       },
       timeframe,
