@@ -446,21 +446,25 @@ router.get("/:symbol/overview", async (req, res) => {
       `, [symbolUpper]),
 
       // EPS revisions (same as earnings estimates)
+      // PERFORMANCE FIX: Add LIMIT to avoid timeout
       query(`
         SELECT symbol, period, avg_estimate, low_estimate, high_estimate,
                number_of_analysts, year_ago_eps, growth, fetched_at
         FROM earnings_estimates
         WHERE UPPER(symbol) = $1
         ORDER BY period DESC
+        LIMIT 20
       `, [symbolUpper]),
 
       // EPS trend (historical earnings estimates)
+      // PERFORMANCE FIX: Add LIMIT to avoid timeout
       query(`
         SELECT symbol, period, avg_estimate, low_estimate, high_estimate,
                number_of_analysts, year_ago_eps, growth, fetched_at
         FROM earnings_estimates
         WHERE UPPER(symbol) = $1
         ORDER BY period ASC
+        LIMIT 20
       `, [symbolUpper]),
 
       // Upgrades/downgrades
@@ -476,12 +480,14 @@ router.get("/:symbol/overview", async (req, res) => {
       `, [symbolUpper]),
 
       // Earnings history
+      // PERFORMANCE FIX: Add LIMIT to avoid timeout
       query(`
         SELECT id, symbol, date, eps_estimate, eps_actual,
                eps_difference, surprise_percent, fetched_at
         FROM earnings_history
         WHERE UPPER(symbol) = $1
         ORDER BY date DESC
+        LIMIT 20
       `, [symbolUpper])
     ]);
 
