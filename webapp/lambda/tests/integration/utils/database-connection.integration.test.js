@@ -375,7 +375,7 @@ describe("Database Comprehensive Integration Tests", () => {
         [testSymbol]
       );
       const stockResult = await query(
-        "SELECT * FROM stocks WHERE symbol = $1",
+        "SELECT * FROM company_profile WHERE ticker = $1",
         [testSymbol]
       );
       const priceResult = await query(

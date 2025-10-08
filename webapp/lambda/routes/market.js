@@ -77,10 +77,10 @@ router.get("/data", async (req, res) => {
     console.log("📊 Market data endpoint called");
 
     // Check required tables
-    const requiredTables = ["stocks", "price_daily"];
+    const requiredTables = ["company_profile", "price_daily", "market_data"];
     const tableStatus = await checkRequiredTables(requiredTables);
 
-    if (!tableStatus.stocks && !tableStatus.price_daily) {
+    if (!tableStatus.company_profile && !tableStatus.price_daily) {
       return res.status(503).json({
         success: false,
         error: "Market data tables not available",
@@ -92,25 +92,26 @@ router.get("/data", async (req, res) => {
     // Get basic market data from available tables
     let marketData = [];
 
-    if (tableStatus.stocks) {
+    if (tableStatus.company_profile && tableStatus.market_data) {
       const marketResult = await query(`
         SELECT
-               s.ticker,
-               s.ticker as name,
+               cp.ticker,
+               cp.ticker as name,
                sp.close as current_price,
                0 as change_percent,
                0 as change_amount,
                sp.volume,
-               s.market_cap
-        FROM company_profile s
+               md.market_cap
+        FROM company_profile cp
+        INNER JOIN market_data md ON cp.ticker = md.ticker
         LEFT JOIN (
           SELECT DISTINCT ON (symbol)
             symbol, close, volume
           FROM price_daily
           ORDER BY symbol, date DESC
-        ) sp ON s.ticker = sp.symbol
-        WHERE s.market_cap IS NOT NULL
-        ORDER BY s.market_cap DESC NULLS LAST
+        ) sp ON cp.ticker = sp.symbol
+        WHERE md.market_cap IS NOT NULL
+        ORDER BY md.market_cap DESC NULLS LAST
         LIMIT 50
       `);
       marketData = marketResult.rows || [];
@@ -130,7 +131,7 @@ router.get("/data", async (req, res) => {
       success: true,
       data: transformedData,
       metadata: {
-        source: tableStatus.price_daily ? "price_daily" : "stocks",
+        source: tableStatus.price_daily ? "price_daily" : "company_profile",
         count: transformedData.length,
         tables_available: tableStatus,
       },
@@ -310,7 +311,8 @@ router.get("/debug", async (req, res) => {
       "economic_data",
       "fear_greed_index",
       "naaim",
-      "stocks",
+      "company_profile",
+      "market_data",
       "aaii_sentiment",
     ];
 

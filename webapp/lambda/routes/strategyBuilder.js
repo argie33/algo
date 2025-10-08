@@ -492,7 +492,7 @@ router.get("/available-symbols", authenticateToken, async (req, res) => {
 
     // Get available symbols from database
     const result = await query(
-      "SELECT DISTINCT ticker as symbol FROM company_profile WHERE market_cap > 0 ORDER BY ticker LIMIT 100"
+      "SELECT DISTINCT cp.ticker as symbol FROM company_profile cp INNER JOIN market_data md ON cp.ticker = md.ticker WHERE md.market_cap > 0 ORDER BY cp.ticker LIMIT 100"
     );
 
     // Handle cases where query returns null or empty results (database unavailable/empty)
