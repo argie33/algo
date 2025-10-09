@@ -43,7 +43,7 @@ class AIStrategyGenerator {
         actions: ["buy", "sell", "hold"],
       },
       etf: {
-        indicators: ["sma", "ema", "sector_rotation", "relative_strength"],
+        indicators: ["sma", "ema", "sector_rotation"],
         timeframes: ["15min", "1hour", "1day"],
         actions: ["buy", "sell", "hold"],
       },

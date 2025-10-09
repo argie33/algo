@@ -14,12 +14,12 @@ Data Sources:
 - earnings: PE ratios, EPS growth, earnings consistency
 - earnings_history: Growth trends and earnings surprise patterns
 
-Scoring Methodology (0-100 scale):
-1. Momentum Score (20%): RSI + MACD + Price momentum across timeframes
-2. Value Score (15%): PE ratio + PEG-adjusted valuation
-3. Quality Score (15%): Volatility risk + Liquidity + Price stability
-4. Growth Score (18%): Earnings growth + Momentum + Consistency
-5. Relative Strength Score (17%): Outperformance vs S&P 500 + Sector relative performance
+Scoring Methodology (0-100 scale) - 6 Factor Model:
+1. Momentum Score (21%): RSI + MACD + Price momentum across timeframes
+2. Trend Score (15%): Multi-timeframe trend analysis + MA alignment
+3. Growth Score (19%): Earnings growth + Momentum + Consistency
+4. Value Score (15%): PE ratio + PEG-adjusted valuation
+5. Quality Score (15%): Volatility risk + Liquidity + Price stability
 6. Positioning Score (10%): Institutional holdings changes + Market positioning trends
 7. Sentiment Score (5%): Analyst ratings + Market sentiment indicators
 
@@ -109,7 +109,6 @@ def create_stock_scores_table(conn):
                 value_score DECIMAL(5,2),
                 quality_score DECIMAL(5,2),
                 growth_score DECIMAL(5,2),
-                relative_strength_score DECIMAL(5,2),
                 positioning_score DECIMAL(5,2),
                 sentiment_score DECIMAL(5,2),
                 rsi DECIMAL(5,2),
@@ -631,59 +630,6 @@ def get_stock_data_from_database(conn, symbol):
         growth_score = earnings_component + momentum_component + consistency_bonus
         growth_score = max(0, min(100, growth_score))
 
-        # Relative Strength Score (Performance vs S&P 500)
-        relative_strength_score = 50  # Start neutral
-
-        # Get SPY (S&P 500) price data for comparison
-        cur.execute("""
-            SELECT close
-            FROM price_daily
-            WHERE symbol = 'SPY'
-            AND date <= CURRENT_DATE
-            ORDER BY date DESC
-            LIMIT 30
-        """)
-        spy_data = cur.fetchall()
-
-        if spy_data and len(spy_data) >= 2:
-            spy_prices = [float(row[0]) for row in spy_data if row[0] is not None]
-
-            # Calculate SPY 30-day return
-            if len(spy_prices) >= 30:
-                spy_return_30d = ((spy_prices[0] - spy_prices[29]) / spy_prices[29]) * 100
-            elif len(spy_prices) >= 2:
-                spy_return_30d = ((spy_prices[0] - spy_prices[-1]) / spy_prices[-1]) * 100
-            else:
-                spy_return_30d = 0
-
-            # Calculate relative outperformance (alpha)
-            alpha = price_change_30d - spy_return_30d
-
-            # Score based on alpha (outperformance)
-            # Strong outperformance: alpha > 10% = 80-100 points
-            # Moderate outperformance: alpha 0-10% = 50-80 points
-            # Underperformance: alpha < 0% = 0-50 points
-            if alpha > 20:
-                relative_strength_score = 90 + min(alpha - 20, 10)  # 90-100 for exceptional
-            elif alpha > 10:
-                relative_strength_score = 80 + (alpha - 10)  # 80-90 for strong
-            elif alpha > 0:
-                relative_strength_score = 50 + (alpha * 3)  # 50-80 for moderate
-            elif alpha > -10:
-                relative_strength_score = 50 + (alpha * 5)  # 0-50 for slight under
-            else:
-                relative_strength_score = max(0, 50 + (alpha * 2.5))  # 0 for severe under
-        else:
-            # Fallback: use absolute performance if SPY data unavailable
-            if price_change_30d > 10:
-                relative_strength_score = 70 + min(price_change_30d - 10, 30)
-            elif price_change_30d > 0:
-                relative_strength_score = 50 + (price_change_30d * 2)
-            else:
-                relative_strength_score = max(0, 50 + (price_change_30d * 2))
-
-        relative_strength_score = max(0, min(100, relative_strength_score))
-
         # Positioning Score (Institutional holdings + trends)
         positioning_score = 50  # Start neutral
 
@@ -729,13 +675,13 @@ def get_stock_data_from_database(conn, symbol):
 
         sentiment_score = max(0, min(100, sentiment_score))
 
-        # Composite Score (optimized weighted average with 7 factors)
-        # Weights: Momentum (20%), Growth (18%), Relative Strength (17%), Value (15%),
+        # Composite Score (6-factor weighted average)
+        # Weights: Momentum (21%), Trend (15%), Growth (19%), Value (15%),
         #          Quality (15%), Positioning (10%), Sentiment (5%)
         composite_score = (
-            momentum_score * 0.20 +                 # Short-term momentum
-            growth_score * 0.18 +                   # Growth drivers
-            relative_strength_score * 0.17 +        # Relative strength
+            momentum_score * 0.21 +                 # Short-term momentum
+            trend_score * 0.15 +                    # Trend alignment
+            growth_score * 0.19 +                   # Growth drivers
             value_score * 0.15 +                    # Valuation
             quality_score * 0.15 +                  # Quality/Risk
             positioning_score * 0.10 +              # Institutional positioning
@@ -756,7 +702,6 @@ def get_stock_data_from_database(conn, symbol):
             'value_score': float(round(clamp_score(value_score), 2)),
             'quality_score': float(round(clamp_score(quality_score), 2)),
             'growth_score': float(round(clamp_score(growth_score), 2)),
-            'relative_strength_score': float(round(clamp_score(relative_strength_score), 2)),
             'positioning_score': float(round(clamp_score(positioning_score), 2)),
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)),
             'rsi': float(rsi) if rsi is not None else None,
@@ -787,13 +732,13 @@ def save_stock_score(conn, score_data):
         upsert_sql = """
         INSERT INTO stock_scores (
             symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
-            relative_strength_score, positioning_score, sentiment_score,
+            positioning_score, sentiment_score,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio, score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
-            %(relative_strength_score)s, %(positioning_score)s, %(sentiment_score)s,
+            %(positioning_score)s, %(sentiment_score)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s, CURRENT_DATE, CURRENT_TIMESTAMP
@@ -804,7 +749,6 @@ def save_stock_score(conn, score_data):
             value_score = EXCLUDED.value_score,
             quality_score = EXCLUDED.quality_score,
             growth_score = EXCLUDED.growth_score,
-            relative_strength_score = EXCLUDED.relative_strength_score,
             positioning_score = EXCLUDED.positioning_score,
             sentiment_score = EXCLUDED.sentiment_score,
             rsi = EXCLUDED.rsi,

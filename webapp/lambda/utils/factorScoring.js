@@ -66,11 +66,10 @@ const FACTOR_DEFINITIONS = {
     description: "Price and earnings momentum indicators",
     weight: 0.1,
     factors: {
-      price_momentum_3m: { weight: 0.3 },
-      price_momentum_6m: { weight: 0.25 },
-      price_momentum_12m: { weight: 0.2 },
-      earnings_revision_trend: { weight: 0.15 },
-      relative_strength: { weight: 0.1 },
+      price_momentum_3m: { weight: 0.325 },
+      price_momentum_6m: { weight: 0.275 },
+      price_momentum_12m: { weight: 0.225 },
+      earnings_revision_trend: { weight: 0.175 },
     },
   },
 
