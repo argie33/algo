@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-04 13:50 - Financial data loader
+# Updated: 2025-10-09 12:05 - Fixed Decimal type handling
 """
-Earnings Metrics Loader - Updated 2025-10-04 02:00
+Earnings Metrics Loader - Updated 2025-10-09
 Award-winning earnings quality scoring with industry best practices
 
 Key Improvements:
+- Fixed Decimal type handling in safe_numeric() for psycopg2 compatibility
 - Fixed revenue growth matching to correct quarter (was using same value for all quarters)
 - Improved scoring algorithm with proper missing data handling
 - Wider normalization ranges for growth stocks (-30% to 60% EPS YoY)
@@ -18,7 +19,7 @@ Methodology:
 - Growth Consistency: 15% - Predictable growth streak
 - EPS Acceleration (QoQ): 10% - Recent momentum
 """
-# Trigger deployment - 2025-10-06 01:06
+# Trigger deployment - 2025-10-09 12:05
 import concurrent.futures
 import gc
 import json
@@ -90,13 +91,13 @@ def get_db_config():
 
 def safe_numeric(value):
     """
-    Safely convert value to float, handling None, NaN, and invalid strings.
+    Safely convert value to float, handling None, NaN, Decimal, and invalid strings.
 
     This is critical for earnings data which may have missing values, nulls,
     or non-numeric strings that would otherwise cause calculation errors.
 
     Args:
-        value: Input value of any type (int, float, str, None)
+        value: Input value of any type (int, float, Decimal, str, None)
 
     Returns:
         float or None: Converted float value, or None if conversion fails
@@ -104,6 +105,7 @@ def safe_numeric(value):
 
     Examples:
         safe_numeric(42) -> 42.0
+        safe_numeric(Decimal("3.14")) -> 3.14
         safe_numeric("3.14") -> 3.14
         safe_numeric("N/A") -> None
         safe_numeric(np.nan) -> None
@@ -111,6 +113,10 @@ def safe_numeric(value):
     """
     if value is None:
         return None
+    # Handle Decimal type from psycopg2
+    from decimal import Decimal
+    if isinstance(value, Decimal):
+        return float(value)
     if isinstance(value, (int, float)):
         return None if np.isnan(value) else float(value)
     if isinstance(value, str):

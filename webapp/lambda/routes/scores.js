@@ -27,33 +27,36 @@ router.get("/", async (req, res) => {
     const search = req.query.search || '';
 
     // Query stock scores with proper field names from loadstockscores.py
+    // JOIN with company_profile to get company names
     let stocksQuery = `
       SELECT
-        symbol,
-        composite_score,
-        momentum_score,
-        trend_score,
-        value_score,
-        quality_score,
-        growth_score,
-        relative_strength_score,
-        positioning_score,
-        sentiment_score,
-        rsi,
-        macd,
-        sma_20,
-        sma_50,
-        current_price,
-        price_change_1d,
-        price_change_5d,
-        price_change_30d,
-        volatility_30d,
-        market_cap,
-        pe_ratio,
-        volume_avg_30d,
-        score_date,
-        last_updated
-      FROM stock_scores
+        ss.symbol,
+        cp.short_name as company_name,
+        ss.composite_score,
+        ss.momentum_score,
+        ss.trend_score,
+        ss.value_score,
+        ss.quality_score,
+        ss.growth_score,
+        ss.relative_strength_score,
+        ss.positioning_score,
+        ss.sentiment_score,
+        ss.rsi,
+        ss.macd,
+        ss.sma_20,
+        ss.sma_50,
+        ss.current_price,
+        ss.price_change_1d,
+        ss.price_change_5d,
+        ss.price_change_30d,
+        ss.volatility_30d,
+        ss.market_cap,
+        ss.pe_ratio,
+        ss.volume_avg_30d,
+        ss.score_date,
+        ss.last_updated
+      FROM stock_scores ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
     `;
 
     const queryParams = [];
@@ -61,12 +64,12 @@ router.get("/", async (req, res) => {
 
     // Add search filter if provided
     if (search) {
-      stocksQuery += ` WHERE symbol ILIKE $${paramIndex}`;
+      stocksQuery += ` WHERE ss.symbol ILIKE $${paramIndex}`;
       queryParams.push(`%${search.toUpperCase()}%`);
       paramIndex++;
     }
 
-    stocksQuery += ` ORDER BY composite_score DESC`;
+    stocksQuery += ` ORDER BY ss.composite_score DESC`;
     // No LIMIT or OFFSET - return all results for frontend filtering
 
     const stocksResult = await query(stocksQuery, queryParams);
@@ -103,6 +106,7 @@ router.get("/", async (req, res) => {
     // Map results to flat format matching frontend expectations
     const stocksList = stocksResult.rows.map(row => ({
       symbol: row.symbol,
+      company_name: row.company_name,
       composite_score: parseFloat(row.composite_score) || 0,
       momentum_score: parseFloat(row.momentum_score) || 0,
       trend_score: parseFloat(row.trend_score) || 0,
@@ -174,32 +178,34 @@ router.get("/:symbol", async (req, res) => {
 
     const symbolQuery = `
       SELECT
-        symbol,
-        composite_score,
-        momentum_score,
-        trend_score,
-        value_score,
-        quality_score,
-        growth_score,
-        relative_strength_score,
-        positioning_score,
-        sentiment_score,
-        rsi,
-        macd,
-        sma_20,
-        sma_50,
-        current_price,
-        price_change_1d,
-        price_change_5d,
-        price_change_30d,
-        volatility_30d,
-        market_cap,
-        pe_ratio,
-        volume_avg_30d,
-        score_date,
-        last_updated
-      FROM stock_scores
-      WHERE symbol = $1
+        ss.symbol,
+        cp.short_name as company_name,
+        ss.composite_score,
+        ss.momentum_score,
+        ss.trend_score,
+        ss.value_score,
+        ss.quality_score,
+        ss.growth_score,
+        ss.relative_strength_score,
+        ss.positioning_score,
+        ss.sentiment_score,
+        ss.rsi,
+        ss.macd,
+        ss.sma_20,
+        ss.sma_50,
+        ss.current_price,
+        ss.price_change_1d,
+        ss.price_change_5d,
+        ss.price_change_30d,
+        ss.volatility_30d,
+        ss.market_cap,
+        ss.pe_ratio,
+        ss.volume_avg_30d,
+        ss.score_date,
+        ss.last_updated
+      FROM stock_scores ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      WHERE ss.symbol = $1
     `;
 
     const result = await query(symbolQuery, [symbol.toUpperCase()]);
@@ -219,6 +225,7 @@ router.get("/:symbol", async (req, res) => {
       success: true,
       data: {
         symbol: row.symbol,
+        company_name: row.company_name,
         composite_score: parseFloat(row.composite_score) || 0,
         momentum_score: parseFloat(row.momentum_score) || 0,
         trend_score: parseFloat(row.trend_score) || 0,
