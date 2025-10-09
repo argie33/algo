@@ -150,7 +150,7 @@ router.get("/", async (req, res) => {
         dataSource: "stock_scores_real_table",
         searchTerm: search || null,
         lastUpdated: stocksList.length > 0 ? stocksList[0].lastUpdated : null,
-        factorAnalysis: "seven_factor_scoring_system"
+        factorAnalysis: "six_factor_scoring_system"
       },
       timestamp: new Date().toISOString(),
     });
