@@ -667,14 +667,30 @@ def process_symbol(symbol, conn_pool):
             # Get metrics for this quarter
             quarter_data = metrics_for_scoring[i]
 
+            # Convert NaN to None for proper NULL handling in psycopg2
+            eps_qoq = quarter_data['eps_qoq_growth']
+            eps_yoy = quarter_data['eps_yoy_growth']
+            revenue_yoy = quarter_data['revenue_yoy_growth']
+            surprise_pct = quarter_data['earnings_surprise_pct']
+
+            # Handle NaN values - convert to None for SQL NULL
+            if eps_qoq is not None and (isinstance(eps_qoq, float) and np.isnan(eps_qoq)):
+                eps_qoq = None
+            if eps_yoy is not None and (isinstance(eps_yoy, float) and np.isnan(eps_yoy)):
+                eps_yoy = None
+            if revenue_yoy is not None and (isinstance(revenue_yoy, float) and np.isnan(revenue_yoy)):
+                revenue_yoy = None
+            if surprise_pct is not None and (isinstance(surprise_pct, float) and np.isnan(surprise_pct)):
+                surprise_pct = None
+
             data.append(
                 (
                     symbol,
                     report_date.date(),
-                    quarter_data['eps_qoq_growth'],
-                    quarter_data['eps_yoy_growth'],
-                    quarter_data['revenue_yoy_growth'],
-                    quarter_data['earnings_surprise_pct'],
+                    eps_qoq,
+                    eps_yoy,
+                    revenue_yoy,
+                    surprise_pct,
                     datetime.now(),
                 )
             )
