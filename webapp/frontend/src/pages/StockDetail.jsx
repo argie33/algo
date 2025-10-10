@@ -50,6 +50,7 @@ import {
   formatCurrency,
   formatNumber,
   formatPercent,
+  formatDecimalAsPercent,
 } from "../utils/formatters";
 
 // Use centralized error logging (logger will be defined in component)
@@ -82,6 +83,19 @@ function StockDetail() {
     enabled: !!symbol,
     onError: (error) => logger.queryError("stockMetrics", error, { symbol }),
   });
+
+  // Fetch stock scores (6-factor system)
+  const {
+    data: stockScores,
+    isLoading: scoresLoading,
+    error: _scoresError,
+  } = useQuery({
+    queryKey: ["stockScores", symbol],
+    queryFn: () => api.get(`/api/scores/${symbol}`),
+    enabled: !!symbol,
+    onError: (error) => logger.queryError("stockScores", error, { symbol }),
+  });
+
   // Fetch financial data
   const {
     data: financials,
@@ -189,6 +203,18 @@ function StockDetail() {
     },
     enabled: !!symbol,
     onError: (error) => logger.queryError("stockEvents", error, { symbol }),
+  });
+
+  // Fetch positioning data
+  const {
+    data: positioningData,
+    isLoading: _positioningLoading,
+    error: _positioningError,
+  } = useQuery({
+    queryKey: ["positioning", symbol],
+    queryFn: () => api.getPositioningData(symbol),
+    enabled: !!symbol,
+    onError: (error) => logger.queryError("positioning", error, { symbol }),
   });
 
   if (profileLoading) {
@@ -1217,42 +1243,16 @@ function StockDetail() {
                 <Divider sx={{ mb: 3 }} />
                 <Grid container spacing={3}>
                   {(() => {
-                    // Calculate real factor scores based on available metrics
-                    const qualityScore = Math.min(
-                      100,
-                      Math.max(
-                        0,
-                        (currentMetrics.return_on_equity || 0.1) * 300 +
-                          (currentMetrics.gross_margin || 0.2) * 100 +
-                          (100 -
-                            Math.min(
-                              100,
-                              (currentMetrics.debt_to_equity || 0.5) * 100
-                            ))
-                      )
-                    );
+                    // Get real factor scores from stock_scores API (6-factor system)
+                    const scoresData = stockScores?.data?.data;
 
-                    const growthScore = Math.min(
-                      100,
-                      Math.max(
-                        0,
-                        (currentMetrics.revenue_growth || 0.05) * 500 +
-                          (currentMetrics.earnings_growth || 0.05) * 500
-                      )
-                    );
-
-                    const valueScore = Math.min(
-                      100,
-                      Math.max(
-                        0,
-                        100 - Math.min(100, (currentMetrics.pe_ratio || 20) * 3)
-                      )
-                    );
-
-                    // Default scores when real data unavailable
-                    const momentumScore = 50; // Neutral momentum score
-                    const sentimentScore = 50; // Neutral sentiment score
-                    const positioningScore = 50; // Neutral positioning score
+                    const qualityScore = scoresData?.quality_score || 50;
+                    const growthScore = scoresData?.growth_score || 50;
+                    const valueScore = scoresData?.value_score || 50;
+                    const momentumScore = scoresData?.momentum_score || 50;
+                    const sentimentScore = scoresData?.sentiment_score || 50;
+                    const positioningScore = scoresData?.positioning_score || 50;
+                    const trendScore = scoresData?.trend_score || 50;
 
                     return [
                       {
@@ -1379,24 +1379,56 @@ function StockDetail() {
                       {
                         factor: "Positioning",
                         score: Math.round(positioningScore),
-                        color: "error",
+                        color: positioningScore >= 70 ? "success" : positioningScore >= 50 ? "info" : "error",
                         description:
                           "Institutional flows, short interest, options activity",
-                        trend: "stable",
-                        percentile: 51,
+                        trend: positioningData?.positioning_metrics?.short_interest_change < 0 ? "improving" : "stable",
+                        percentile: Math.round(positioningScore * 0.8), // Approximate percentile from score
                         components: [
                           {
-                            name: "Institutional Flow",
+                            name: "Institutional Ownership",
                             value:
+                              positioningData?.positioning_metrics?.institutional_ownership ||
                               currentMetrics.institutional_ownership || 0.65,
                             weight: 0.4,
                           },
                           {
                             name: "Short Interest",
-                            value: currentMetrics.short_interest || 0.03,
+                            value: positioningData?.positioning_metrics?.short_percent_of_float ||
+                                   currentMetrics.short_interest || 0.03,
                             weight: 0.3,
                           },
-                          { name: "Options Skew", value: 0.12, weight: 0.3 },
+                          {
+                            name: "Insider Ownership",
+                            value: positioningData?.positioning_metrics?.insider_ownership || 0.05,
+                            weight: 0.3
+                          },
+                        ],
+                      },
+                      {
+                        factor: "Trend",
+                        score: Math.round(trendScore),
+                        color: trendScore >= 70 ? "success" : trendScore >= 50 ? "info" : "error",
+                        description:
+                          "Technical trend analysis, moving averages, price action",
+                        trend: trendScore >= 60 ? "improving" : trendScore >= 40 ? "stable" : "deteriorating",
+                        percentile: Math.round(trendScore * 0.85), // Approximate percentile from score
+                        components: [
+                          {
+                            name: "SMA 20",
+                            value: scoresData?.sma_20 || stockData.price,
+                            weight: 0.3,
+                          },
+                          {
+                            name: "SMA 50",
+                            value: scoresData?.sma_50 || stockData.price,
+                            weight: 0.3,
+                          },
+                          {
+                            name: "MACD",
+                            value: scoresData?.macd || 0,
+                            weight: 0.4,
+                          },
                         ],
                       },
                     ];
@@ -1829,7 +1861,9 @@ function StockDetail() {
                         fontWeight="bold"
                       >
                         {
-                          currentMetrics.institutional_ownership
+                          positioningData?.positioning_metrics?.institutional_ownership
+                            ? `${formatDecimalAsPercent(positioningData.positioning_metrics.institutional_ownership)}`
+                            : currentMetrics.institutional_ownership
                             ? `${formatPercent(currentMetrics.institutional_ownership)}`
                             : "N/A"
                         }
@@ -1840,7 +1874,8 @@ function StockDetail() {
                       <LinearProgress
                         variant="determinate"
                         value={
-                          (currentMetrics.institutional_ownership || 0) * 100
+                          (positioningData?.positioning_metrics?.institutional_ownership ||
+                           currentMetrics.institutional_ownership || 0) * 100
                         }
                         color="primary"
                         sx={{ mb: 1 }}
@@ -1859,7 +1894,9 @@ function StockDetail() {
                         fontWeight="bold"
                       >
                         {
-                          currentMetrics.insider_ownership
+                          positioningData?.positioning_metrics?.insider_ownership
+                            ? `${formatDecimalAsPercent(positioningData.positioning_metrics.insider_ownership)}`
+                            : currentMetrics.insider_ownership
                             ? `${formatPercent(currentMetrics.insider_ownership)}`
                             : "N/A"
                         }
@@ -1870,7 +1907,8 @@ function StockDetail() {
                       <LinearProgress
                         variant="determinate"
                         value={
-                          (currentMetrics.insider_ownership || 0) *
+                          (positioningData?.positioning_metrics?.insider_ownership ||
+                           currentMetrics.insider_ownership || 0) *
                           100 *
                           10
                         }
@@ -1891,7 +1929,9 @@ function StockDetail() {
                         fontWeight="bold"
                       >
                         {
-                          currentMetrics.short_interest
+                          positioningData?.positioning_metrics?.short_percent_of_float
+                            ? `${formatDecimalAsPercent(positioningData.positioning_metrics.short_percent_of_float)}`
+                            : currentMetrics.short_interest
                             ? `${formatPercent(currentMetrics.short_interest)}`
                             : "N/A"
                         }
@@ -1902,7 +1942,8 @@ function StockDetail() {
                       <LinearProgress
                         variant="determinate"
                         value={
-                          (currentMetrics.short_interest || 0) *
+                          (positioningData?.positioning_metrics?.short_percent_of_float ||
+                           currentMetrics.short_interest || 0) *
                           100 *
                           5
                         }
