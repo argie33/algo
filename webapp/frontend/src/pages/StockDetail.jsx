@@ -1754,6 +1754,450 @@ function StockDetail() {
             </Card>
           </Grid>
 
+          {/* Value Factor Breakdown */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Value Factor Analysis
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>P/E Ratio</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={stockScores?.data?.data?.pe_ratio?.toFixed(2) || "N/A"}
+                            color={
+                              stockScores?.data?.data?.pe_ratio < 20
+                                ? "success"
+                                : stockScores?.data?.data?.pe_ratio < 30
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            vs 20 market avg
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Price/Book Ratio</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={currentMetrics.price_to_book?.toFixed(2) || "N/A"}
+                            color={
+                              currentMetrics.price_to_book < 3
+                                ? "success"
+                                : "warning"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            vs 3.0 benchmark
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>EV/EBITDA</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={currentMetrics.ev_to_ebitda?.toFixed(2) || "N/A"}
+                            color="success"
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            vs 15 market avg
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Value Score</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={stockScores?.data?.data?.value_score || "N/A"}
+                            color={
+                              stockScores?.data?.data?.value_score >= 70
+                                ? "success"
+                                : stockScores?.data?.data?.value_score >= 50
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            0-100 scale
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Momentum Factor Breakdown */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Momentum Factor Analysis
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>RSI (14-day)</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={stockScores?.data?.data?.rsi?.toFixed(2) || "N/A"}
+                            color={
+                              stockScores?.data?.data?.rsi > 70
+                                ? "error"
+                                : stockScores?.data?.data?.rsi < 30
+                                  ? "warning"
+                                  : "success"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            30-70 neutral zone
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>1-Day Change</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={`${(stockScores?.data?.data?.price_change_1d || 0).toFixed(2)}%`}
+                            color={
+                              stockScores?.data?.data?.price_change_1d > 0
+                                ? "success"
+                                : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>5-Day Change</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={`${(stockScores?.data?.data?.price_change_5d || 0).toFixed(2)}%`}
+                            color={
+                              stockScores?.data?.data?.price_change_5d > 0
+                                ? "success"
+                                : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>30-Day Change</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={`${(stockScores?.data?.data?.price_change_30d || 0).toFixed(2)}%`}
+                            color={
+                              stockScores?.data?.data?.price_change_30d > 0
+                                ? "success"
+                                : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Momentum Score</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={stockScores?.data?.data?.momentum_score?.toFixed(1) || "N/A"}
+                            color={
+                              stockScores?.data?.data?.momentum_score >= 70
+                                ? "success"
+                                : stockScores?.data?.data?.momentum_score >= 50
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            0-100 scale
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Trend Factor Breakdown */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Trend Factor Analysis
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Current Price</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={`$${stockScores?.data?.data?.current_price?.toFixed(2) || "N/A"}`}
+                            color="primary"
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>SMA 20</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={`$${stockScores?.data?.data?.sma_20?.toFixed(2) || "N/A"}`}
+                            color={
+                              stockScores?.data?.data?.current_price > stockScores?.data?.data?.sma_20
+                                ? "success"
+                                : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            {stockScores?.data?.data?.current_price > stockScores?.data?.data?.sma_20 ? "Above" : "Below"}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>SMA 50</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={`$${stockScores?.data?.data?.sma_50?.toFixed(2) || "N/A"}`}
+                            color={
+                              stockScores?.data?.data?.current_price > stockScores?.data?.data?.sma_50
+                                ? "success"
+                                : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            {stockScores?.data?.data?.current_price > stockScores?.data?.data?.sma_50 ? "Above" : "Below"}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>MACD</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={stockScores?.data?.data?.macd?.toFixed(2) || "N/A"}
+                            color={
+                              stockScores?.data?.data?.macd > 0
+                                ? "success"
+                                : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            {stockScores?.data?.data?.macd > 0 ? "Bullish" : "Bearish"}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Trend Score</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={stockScores?.data?.data?.trend_score?.toFixed(1) || "N/A"}
+                            color={
+                              stockScores?.data?.data?.trend_score >= 70
+                                ? "success"
+                                : stockScores?.data?.data?.trend_score >= 50
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            0-100 scale
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Positioning Factor Breakdown */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Positioning Factor Analysis
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Institutional Ownership</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={currentMetrics.institutional_ownership ? `${(currentMetrics.institutional_ownership * 100).toFixed(1)}%` : "N/A"}
+                            color="success"
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Insider Ownership</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={currentMetrics.insider_ownership ? `${(currentMetrics.insider_ownership * 100).toFixed(1)}%` : "N/A"}
+                            color="success"
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Short Interest</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={currentMetrics.short_interest ? `${(currentMetrics.short_interest * 100).toFixed(1)}%` : "N/A"}
+                            color={
+                              currentMetrics.short_interest > 0.1
+                                ? "warning"
+                                : "success"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Positioning Score</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={stockScores?.data?.data?.positioning_score?.toFixed(1) || "N/A"}
+                            color={
+                              stockScores?.data?.data?.positioning_score >= 70
+                                ? "success"
+                                : stockScores?.data?.data?.positioning_score >= 50
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            0-100 scale
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Sentiment Factor Breakdown */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Sentiment Factor Analysis
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Analyst Ratings</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={currentMetrics.analyst_rating || "N/A"}
+                            color="success"
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>News Sentiment</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={currentMetrics.news_sentiment || "Neutral"}
+                            color="info"
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Social Media Buzz</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={currentMetrics.social_sentiment || "Moderate"}
+                            color="info"
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Sentiment Score</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={stockScores?.data?.data?.sentiment_score?.toFixed(1) || "N/A"}
+                            color={
+                              stockScores?.data?.data?.sentiment_score >= 70
+                                ? "success"
+                                : stockScores?.data?.data?.sentiment_score >= 50
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            0-100 scale
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+
           {/* Advanced Factor Insights */}
           <Grid item xs={12}>
             <Card>
