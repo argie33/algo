@@ -1762,6 +1762,29 @@ function StockDetail() {
                   Value Factor Analysis
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={[
+                        {
+                          metric: 'Value Score',
+                          score: stockScores?.data?.data?.value_score || 0,
+                          target: 70,
+                          good: 50
+                        }
+                      ]}
+                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="metric" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Bar dataKey="score" fill={stockScores?.data?.data?.value_score >= 70 ? "#4caf50" : stockScores?.data?.data?.value_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
+                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
+                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
@@ -1864,6 +1887,29 @@ function StockDetail() {
                   Momentum Factor Analysis
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={[
+                        {
+                          metric: 'Momentum Score',
+                          score: stockScores?.data?.data?.momentum_score || 0,
+                          target: 70,
+                          good: 50
+                        }
+                      ]}
+                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="metric" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Bar dataKey="score" fill={stockScores?.data?.data?.momentum_score >= 70 ? "#4caf50" : stockScores?.data?.data?.momentum_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
+                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
+                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
@@ -1966,6 +2012,29 @@ function StockDetail() {
                   Trend Factor Analysis
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={[
+                        {
+                          metric: 'Trend Score',
+                          score: stockScores?.data?.data?.trend_score || 0,
+                          target: 70,
+                          good: 50
+                        }
+                      ]}
+                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="metric" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Bar dataKey="score" fill={stockScores?.data?.data?.trend_score >= 70 ? "#4caf50" : stockScores?.data?.data?.trend_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
+                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
+                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
@@ -2072,6 +2141,29 @@ function StockDetail() {
                   Positioning Factor Analysis
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={[
+                        {
+                          metric: 'Positioning Score',
+                          score: stockScores?.data?.data?.positioning_score || 0,
+                          target: 70,
+                          good: 50
+                        }
+                      ]}
+                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="metric" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Bar dataKey="score" fill={stockScores?.data?.data?.positioning_score >= 70 ? "#4caf50" : stockScores?.data?.data?.positioning_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
+                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
+                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
@@ -2118,6 +2210,29 @@ function StockDetail() {
                   Sentiment Factor Analysis
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={[
+                        {
+                          metric: 'Sentiment Score',
+                          score: stockScores?.data?.data?.sentiment_score || 0,
+                          target: 70,
+                          good: 50
+                        }
+                      ]}
+                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="metric" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Bar dataKey="score" fill={stockScores?.data?.data?.sentiment_score >= 70 ? "#4caf50" : stockScores?.data?.data?.sentiment_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
+                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
+                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
