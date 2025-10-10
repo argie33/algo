@@ -50,10 +50,61 @@ import {
   formatCurrency,
   formatNumber,
   formatPercent,
-  formatDecimalAsPercent,
 } from "../utils/formatters";
 
 // Use centralized error logging (logger will be defined in component)
+
+// Custom tooltip for 3-tier benchmarks
+const BenchmarkTooltip = ({ active, payload, benchmarks }) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const metricName = payload[0].payload.name;
+  const value = payload[0].value;
+
+  // Map display names to API keys
+  const metricMap = {
+    "ROE": "roe",
+    "Gross Margin": "gross_margin",
+    "Op. Margin": "operating_margin",
+    "Net Margin": "profit_margin"
+  };
+
+  const apiKey = metricMap[metricName];
+  const benchmarkData = benchmarks?.data?.data?.benchmarks?.[apiKey];
+
+  return (
+    <Box
+      sx={{
+        bgcolor: 'background.paper',
+        p: 1.5,
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 1,
+        boxShadow: 2,
+      }}
+    >
+      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+        {metricName}
+      </Typography>
+      <Typography variant="body2" sx={{ mb: 1 }}>
+        Current: <strong>{value.toFixed(1)}%</strong>
+      </Typography>
+      <Divider sx={{ my: 0.5 }} />
+      <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+        <strong>Sector Median:</strong> {benchmarkData?.sector?.toFixed(1) || "N/A"}%
+        {benchmarkData?.sector && (value > benchmarkData.sector ? " ✓" : " ✗")}
+      </Typography>
+      <Typography variant="caption" display="block">
+        <strong>1yr Historical:</strong> {benchmarkData?.historical_1yr?.toFixed(1) || "N/A"}%
+        {benchmarkData?.historical_1yr && (value > benchmarkData.historical_1yr ? " ↑" : " ↓")}
+      </Typography>
+      <Typography variant="caption" display="block">
+        <strong>Market Average:</strong> {benchmarkData?.market?.toFixed(1) || "N/A"}%
+        {benchmarkData?.market && (value > benchmarkData.market ? " ↑" : " ↓")}
+      </Typography>
+    </Box>
+  );
+};
 
 function StockDetail() {
   const logger = createComponentLogger("StockDetail");
@@ -180,6 +231,18 @@ function StockDetail() {
     enabled: !!symbol,
     onError: (error) =>
       logger.queryError("stockPricesRecent", error, { symbol }),
+  });
+
+  // Fetch 3-tier benchmarks (sector, historical, market)
+  const {
+    data: benchmarks,
+    isLoading: benchmarksLoading,
+    error: _benchmarksError,
+  } = useQuery({
+    queryKey: ["stockBenchmarks", symbol],
+    queryFn: () => api.get(`/api/benchmarks/${symbol}`),
+    enabled: !!symbol,
+    onError: (error) => logger.queryError("stockBenchmarks", error, { symbol }),
   });
 
   // Fetch stock events (earnings, dividends, splits, etc.)
@@ -1252,7 +1315,6 @@ function StockDetail() {
                     const momentumScore = scoresData?.momentum_score || 50;
                     const sentimentScore = scoresData?.sentiment_score || 50;
                     const positioningScore = scoresData?.positioning_score || 50;
-                    const trendScore = scoresData?.trend_score || 50;
 
                     return [
                       {
@@ -1518,30 +1580,30 @@ function StockDetail() {
                           name: "ROE",
                           value:
                             (currentMetrics.return_on_equity || 0.15) * 100,
-                          benchmark: 15,
+                          benchmark: benchmarks?.data?.data?.benchmarks?.roe?.sector || 15,
                         },
                         {
                           name: "Gross Margin",
                           value: (currentMetrics.gross_margin || 0.25) * 100,
-                          benchmark: 20,
+                          benchmark: benchmarks?.data?.data?.benchmarks?.gross_margin?.sector || 20,
                         },
                         {
                           name: "Op. Margin",
                           value:
                             (currentMetrics.operating_margin || 0.12) * 100,
-                          benchmark: 10,
+                          benchmark: benchmarks?.data?.data?.benchmarks?.operating_margin?.sector || 10,
                         },
                         {
                           name: "Net Margin",
                           value: (currentMetrics.net_margin || 0.08) * 100,
-                          benchmark: 5,
+                          benchmark: benchmarks?.data?.data?.benchmarks?.profit_margin?.sector || 5,
                         },
                       ]}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <RechartsTooltip formatter={(value) => `${value.toFixed(1)}%`} />
+                      <RechartsTooltip content={<BenchmarkTooltip benchmarks={benchmarks} />} />
                       <Bar dataKey="value" fill="#1976d2" />
                       <Bar dataKey="benchmark" fill="#e0e0e0" opacity={0.5} />
                     </BarChart>
@@ -1561,7 +1623,7 @@ function StockDetail() {
                                 : "N/A"
                             }
                             color={
-                              currentMetrics.return_on_equity > 0.15
+                              currentMetrics.return_on_equity > (benchmarks?.data?.data?.benchmarks?.roe?.sector || 15) / 100
                                 ? "success"
                                 : "default"
                             }
@@ -1569,9 +1631,17 @@ function StockDetail() {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            vs 15% benchmark
-                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.3 }}>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>S:</strong> {benchmarks?.data?.data?.benchmarks?.roe?.sector?.toFixed(1) || "15.0"}% {(currentMetrics.return_on_equity * 100) > (benchmarks?.data?.data?.benchmarks?.roe?.sector || 15) ? "✓" : "✗"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>H:</strong> {benchmarks?.data?.data?.benchmarks?.roe?.historical_1yr?.toFixed(1) || "N/A"}% {benchmarks?.data?.data?.benchmarks?.roe?.historical_1yr && (currentMetrics.return_on_equity * 100) > benchmarks.data.data.benchmarks.roe.historical_1yr ? "↑" : "↓"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>M:</strong> {benchmarks?.data?.data?.benchmarks?.roe?.market?.toFixed(1) || "N/A"}% {benchmarks?.data?.data?.benchmarks?.roe?.market && (currentMetrics.return_on_equity * 100) > benchmarks.data.data.benchmarks.roe.market ? "↑" : "↓"}
+                            </Typography>
+                          </Box>
                         </TableCell>
                       </TableRow>
                       <TableRow>
@@ -1804,9 +1874,17 @@ function StockDetail() {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            vs 20 market avg
-                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.3 }}>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>S:</strong> {benchmarks?.data?.data?.benchmarks?.pe_ratio?.sector?.toFixed(1) || "20.0"} {metrics?.data?.pe_ratio && (metrics.data.pe_ratio < (benchmarks?.data?.data?.benchmarks?.pe_ratio?.sector || 20)) ? "✓" : "✗"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>H:</strong> {benchmarks?.data?.data?.benchmarks?.pe_ratio?.historical_1yr?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.pe_ratio?.historical_1yr && metrics?.data?.pe_ratio && (metrics.data.pe_ratio < benchmarks.data.data.benchmarks.pe_ratio.historical_1yr) ? "↓" : "↑"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>M:</strong> {benchmarks?.data?.data?.benchmarks?.pe_ratio?.market?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.pe_ratio?.market && metrics?.data?.pe_ratio && (metrics.data.pe_ratio < benchmarks.data.data.benchmarks.pe_ratio.market) ? "↓" : "↑"}
+                            </Typography>
+                          </Box>
                         </TableCell>
                       </TableRow>
                       <TableRow>
@@ -1815,9 +1893,9 @@ function StockDetail() {
                           <Chip
                             label={metrics?.data?.price_to_book?.toFixed(2) || "N/A"}
                             color={
-                              metrics?.data?.price_to_book && metrics.data.price_to_book < 3
+                              metrics?.data?.price_to_book && metrics.data.price_to_book < (benchmarks?.data?.data?.benchmarks?.price_to_book?.sector || 3)
                                 ? "success"
-                                : metrics?.data?.price_to_book && metrics.data.price_to_book < 5
+                                : metrics?.data?.price_to_book && metrics.data.price_to_book < (benchmarks?.data?.data?.benchmarks?.price_to_book?.sector || 5)
                                   ? "warning"
                                   : "error"
                             }
@@ -1825,9 +1903,17 @@ function StockDetail() {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            vs 3.0 benchmark
-                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.3 }}>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>S:</strong> {benchmarks?.data?.data?.benchmarks?.price_to_book?.sector?.toFixed(1) || "3.0"} {metrics?.data?.price_to_book && (metrics.data.price_to_book < (benchmarks?.data?.data?.benchmarks?.price_to_book?.sector || 3)) ? "✓" : "✗"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>H:</strong> {benchmarks?.data?.data?.benchmarks?.price_to_book?.historical_1yr?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.price_to_book?.historical_1yr && metrics?.data?.price_to_book && (metrics.data.price_to_book < benchmarks.data.data.benchmarks.price_to_book.historical_1yr) ? "↓" : "↑"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>M:</strong> {benchmarks?.data?.data?.benchmarks?.price_to_book?.market?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.price_to_book?.market && metrics?.data?.price_to_book && (metrics.data.price_to_book < benchmarks.data.data.benchmarks.price_to_book.market) ? "↓" : "↑"}
+                            </Typography>
+                          </Box>
                         </TableCell>
                       </TableRow>
                       <TableRow>
@@ -1836,9 +1922,9 @@ function StockDetail() {
                           <Chip
                             label={metrics?.data?.ev_to_ebitda?.toFixed(2) || "N/A"}
                             color={
-                              metrics?.data?.ev_to_ebitda && metrics.data.ev_to_ebitda < 15
+                              metrics?.data?.ev_to_ebitda && metrics.data.ev_to_ebitda < (benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.sector || 15)
                                 ? "success"
-                                : metrics?.data?.ev_to_ebitda && metrics.data.ev_to_ebitda < 20
+                                : metrics?.data?.ev_to_ebitda && metrics.data.ev_to_ebitda < (benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.sector || 20)
                                   ? "warning"
                                   : "error"
                             }
@@ -1846,9 +1932,17 @@ function StockDetail() {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            vs 15 market avg
-                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.3 }}>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>S:</strong> {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.sector?.toFixed(1) || "15.0"} {metrics?.data?.ev_to_ebitda && (metrics.data.ev_to_ebitda < (benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.sector || 15)) ? "✓" : "✗"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>H:</strong> {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.historical_1yr?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.historical_1yr && metrics?.data?.ev_to_ebitda && (metrics.data.ev_to_ebitda < benchmarks.data.data.benchmarks.ev_to_ebitda.historical_1yr) ? "↓" : "↑"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+                              <strong>M:</strong> {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.market?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.market && metrics?.data?.ev_to_ebitda && (metrics.data.ev_to_ebitda < benchmarks.data.data.benchmarks.ev_to_ebitda.market) ? "↓" : "↑"}
+                            </Typography>
+                          </Box>
                         </TableCell>
                       </TableRow>
                       <TableRow>
@@ -1985,135 +2079,6 @@ function StockDetail() {
                               stockScores?.data?.data?.momentum_score >= 70
                                 ? "success"
                                 : stockScores?.data?.data?.momentum_score >= 50
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            0-100 scale
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Trend Factor Breakdown */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Trend Factor Analysis
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                <Box mb={3}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart
-                      data={[
-                        {
-                          metric: 'Trend Score',
-                          score: stockScores?.data?.data?.trend_score || 0,
-                          target: 70,
-                          good: 50
-                        }
-                      ]}
-                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="metric" />
-                      <YAxis domain={[0, 100]} />
-                      <Tooltip />
-                      <Bar dataKey="score" fill={stockScores?.data?.data?.trend_score >= 70 ? "#4caf50" : stockScores?.data?.data?.trend_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
-                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
-                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-                <TableContainer>
-                  <Table size="small">
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>Current Price</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`$${stockScores?.data?.data?.current_price?.toFixed(2) || "N/A"}`}
-                            color="primary"
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>SMA 20</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`$${stockScores?.data?.data?.sma_20?.toFixed(2) || "N/A"}`}
-                            color={
-                              stockScores?.data?.data?.current_price > stockScores?.data?.data?.sma_20
-                                ? "success"
-                                : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            {stockScores?.data?.data?.current_price > stockScores?.data?.data?.sma_20 ? "Above" : "Below"}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>SMA 50</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`$${stockScores?.data?.data?.sma_50?.toFixed(2) || "N/A"}`}
-                            color={
-                              stockScores?.data?.data?.current_price > stockScores?.data?.data?.sma_50
-                                ? "success"
-                                : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            {stockScores?.data?.data?.current_price > stockScores?.data?.data?.sma_50 ? "Above" : "Below"}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>MACD</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={stockScores?.data?.data?.macd?.toFixed(2) || "N/A"}
-                            color={
-                              stockScores?.data?.data?.macd > 0
-                                ? "success"
-                                : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            {stockScores?.data?.data?.macd > 0 ? "Bullish" : "Bearish"}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Trend Score</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={stockScores?.data?.data?.trend_score?.toFixed(1) || "N/A"}
-                            color={
-                              stockScores?.data?.data?.trend_score >= 70
-                                ? "success"
-                                : stockScores?.data?.data?.trend_score >= 50
                                   ? "warning"
                                   : "error"
                             }
