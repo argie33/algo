@@ -27,13 +27,12 @@ describe("Positioning Routes", () => {
       expect([200, 404].includes(response.status)).toBe(true);
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty("institutional_positioning");
+        expect(response.body).toHaveProperty("positioning_metrics");
+        expect(response.body).toHaveProperty("positioning_score");
+        expect(response.body).toHaveProperty("institutional_holders");
         expect(response.body).toHaveProperty("retail_sentiment");
         expect(response.body).toHaveProperty("metadata");
-        expect(Array.isArray(response.body.institutional_positioning)).toBe(
-          true
-        );
-        expect(Array.isArray(response.body.retail_sentiment)).toBe(true);
+        expect(Array.isArray(response.body.institutional_holders)).toBe(true);
 
         // Validate metadata structure
         expect(response.body.metadata).toHaveProperty("symbol");
@@ -75,10 +74,8 @@ describe("Positioning Routes", () => {
       expect([200, 404].includes(response.status)).toBe(true);
 
       if (response.status === 200) {
-        // Should respect limit - institutional positions should be <= 10
-        expect(
-          response.body.institutional_positioning.length
-        ).toBeLessThanOrEqual(10);
+        // Should respect limit - institutional holders should be <= 10
+        expect(response.body.institutional_holders.length).toBeLessThanOrEqual(10);
       }
     });
 
@@ -96,36 +93,43 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        // Validate institutional positioning structure
-        if (response.body.institutional_positioning.length > 0) {
-          const institutional = response.body.institutional_positioning[0];
-          expect(institutional).toHaveProperty("symbol");
-          expect(institutional).toHaveProperty("institution_type");
-          expect(institutional).toHaveProperty("position_size");
+        // Validate positioning_metrics structure
+        if (response.body.positioning_metrics) {
+          const metrics = response.body.positioning_metrics;
+          expect(metrics).toHaveProperty("symbol");
+          expect(metrics).toHaveProperty("institutional_ownership");
+          expect(metrics).toHaveProperty("insider_ownership");
+          expect(metrics).toHaveProperty("short_percent_of_float");
+        }
+
+        // Validate institutional_holders structure
+        if (response.body.institutional_holders.length > 0) {
+          const holder = response.body.institutional_holders[0];
+          expect(holder).toHaveProperty("symbol");
+          expect(holder).toHaveProperty("institution_type");
+          expect(holder).toHaveProperty("position_size");
+          expect(holder).toHaveProperty("institution_name");
         }
 
         // Validate retail sentiment structure
-        if (response.body.retail_sentiment.length > 0) {
-          const sentiment = response.body.retail_sentiment[0];
+        if (response.body.retail_sentiment) {
+          const sentiment = response.body.retail_sentiment;
           expect(sentiment).toHaveProperty("symbol");
           expect(sentiment).toHaveProperty("bullish_percentage");
           expect(sentiment).toHaveProperty("bearish_percentage");
           expect(sentiment).toHaveProperty("net_sentiment");
         }
 
+        // Validate positioning_score
+        expect(typeof response.body.positioning_score).toBe("number");
+        expect(response.body.positioning_score).toBeGreaterThanOrEqual(0);
+        expect(response.body.positioning_score).toBeLessThanOrEqual(100);
+
         // Validate metadata
-        expect(response.body.metadata.total_records).toHaveProperty(
-          "institutional"
-        );
-        expect(response.body.metadata.total_records).toHaveProperty(
-          "sentiment"
-        );
-        expect(typeof response.body.metadata.total_records.institutional).toBe(
-          "number"
-        );
-        expect(typeof response.body.metadata.total_records.sentiment).toBe(
-          "number"
-        );
+        expect(response.body.metadata.total_records).toHaveProperty("institutional");
+        expect(response.body.metadata.total_records).toHaveProperty("sentiment");
+        expect(typeof response.body.metadata.total_records.institutional).toBe("number");
+        expect(typeof response.body.metadata.total_records.sentiment).toBe("number");
       }
     });
 
@@ -186,18 +190,13 @@ describe("Positioning Routes", () => {
         );
 
         // Validate key metrics structure
-        expect(response.body.key_metrics).toHaveProperty(
-          "institutional_avg_change"
-        );
-        expect(response.body.key_metrics).toHaveProperty(
-          "retail_net_sentiment"
-        );
-        expect(typeof response.body.key_metrics.institutional_avg_change).toBe(
-          "number"
-        );
-        expect(typeof response.body.key_metrics.retail_net_sentiment).toBe(
-          "number"
-        );
+        expect(response.body.key_metrics).toHaveProperty("avg_institutional_ownership");
+        expect(response.body.key_metrics).toHaveProperty("avg_insider_ownership");
+        expect(response.body.key_metrics).toHaveProperty("avg_short_interest");
+        expect(response.body.key_metrics).toHaveProperty("avg_short_change");
+        expect(response.body.key_metrics).toHaveProperty("retail_net_sentiment");
+        expect(typeof response.body.key_metrics.avg_institutional_ownership).toBe("number");
+        expect(typeof response.body.key_metrics.retail_net_sentiment).toBe("number");
 
         // Validate data freshness structure
         expect(response.body.data_freshness).toHaveProperty(
@@ -216,7 +215,7 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        const validFlowValues = ["BULLISH", "BEARISH"];
+        const validFlowValues = ["BULLISH", "MODERATELY_BULLISH", "NEUTRAL", "MODERATELY_BEARISH", "BEARISH"];
         const validSentimentValues = ["BULLISH", "BEARISH", "MIXED"];
         const validOverallValues = [
           "BULLISH",
@@ -324,16 +323,15 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        // Should always have these properties even if empty
-        expect(response.body).toHaveProperty("institutional_positioning");
+        // Should always have these properties
+        expect(response.body).toHaveProperty("positioning_metrics");
+        expect(response.body).toHaveProperty("positioning_score");
+        expect(response.body).toHaveProperty("institutional_holders");
         expect(response.body).toHaveProperty("retail_sentiment");
         expect(response.body).toHaveProperty("metadata");
 
-        // Arrays should always be arrays
-        expect(Array.isArray(response.body.institutional_positioning)).toBe(
-          true
-        );
-        expect(Array.isArray(response.body.retail_sentiment)).toBe(true);
+        // institutional_holders should always be an array
+        expect(Array.isArray(response.body.institutional_holders)).toBe(true);
       }
     });
 
@@ -343,13 +341,12 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token");
 
       if (response.status === 200) {
-        expect(response.body.data_freshness).toHaveProperty(
-          "institutional_positions"
-        );
+        expect(response.body.data_freshness).toHaveProperty("institutional_positions");
         expect(response.body.data_freshness).toHaveProperty("retail_readings");
-        expect(response.body.data_freshness.retail_readings).toBe(
-          "last_30_days"
-        );
+        expect(response.body.data_freshness).toHaveProperty("high_institutional_count");
+        expect(response.body.data_freshness).toHaveProperty("high_short_count");
+        expect(typeof response.body.data_freshness.institutional_positions).toBe("number");
+        expect(typeof response.body.data_freshness.retail_readings).toBe("number");
       }
     });
   });

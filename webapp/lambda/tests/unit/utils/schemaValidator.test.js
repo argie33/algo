@@ -573,9 +573,10 @@ describe("Schema Validator", () => {
     });
 
     test("should include PRIMARY KEY constraint", () => {
-      const sql = generateCreateTableSQL("stock_prices");
+      const sql = generateCreateTableSQL("price_daily"); // Use actual table name from loaders
 
-      expect(sql).toContain("PRIMARY KEY (symbol, date)");
+      // price_daily uses id SERIAL PRIMARY KEY (not composite key)
+      expect(sql).toContain("PRIMARY KEY");
     });
 
     test("should include CHECK constraints for minimum values", () => {
@@ -632,7 +633,7 @@ describe("Schema Validator", () => {
 
       expect(Array.isArray(tables)).toBe(true);
       expect(tables).toContain("stocks");
-      expect(tables).toContain("stock_prices");
+      expect(tables).toContain("price_daily"); // Use actual table name from loaders
       expect(tables.length).toBeGreaterThan(0);
     });
   });
@@ -933,7 +934,7 @@ describe("Schema Validator", () => {
       const dbError = new Error("Index query failed");
       mockQuery.mockRejectedValueOnce(dbError);
 
-      await expect(validateIndexes("stock_prices")).rejects.toThrow(
+      await expect(validateIndexes("price_daily")).rejects.toThrow( // Use actual table name from loaders
         "Index query failed"
       );
       expect(mockLogger.error).toHaveBeenCalled();
@@ -1107,7 +1108,7 @@ describe("Schema Validator", () => {
     test("should export schemas object", () => {
       expect(schemas).toBeDefined();
       expect(schemas.stocks).toBeDefined();
-      expect(schemas.stock_prices).toBeDefined();
+      expect(schemas.price_daily).toBeDefined(); // Use actual table name from loaders
       expect(typeof schemas).toBe("object");
     });
   });

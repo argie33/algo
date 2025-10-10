@@ -1,0 +1,522 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic: Dashboard
+        - button "Sign In" [ref=e6] [cursor=pointer]:
+          - img [ref=e8] [cursor=pointer]
+          - text: Sign In
+    - navigation [ref=e10]:
+      - generic [ref=e12]:
+        - generic [ref=e14]: Financial Platform
+        - list [ref=e15]:
+          - listitem [ref=e16]:
+            - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+              - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
+              - img [ref=e20] [cursor=pointer]
+          - listitem [ref=e22]:
+            - button "Market Overview" [ref=e23] [cursor=pointer]:
+              - img [ref=e25] [cursor=pointer]
+              - paragraph [ref=e28] [cursor=pointer]: Market Overview
+          - listitem [ref=e29]:
+            - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+              - img [ref=e32] [cursor=pointer]
+              - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
+          - listitem [ref=e36]:
+            - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+              - img [ref=e39] [cursor=pointer]
+              - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
+          - listitem [ref=e43]:
+            - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
+              - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
+              - img [ref=e47] [cursor=pointer]
+          - listitem [ref=e49]:
+            - button "Stock Analysis" [ref=e50] [cursor=pointer]:
+              - img [ref=e52] [cursor=pointer]
+              - paragraph [ref=e55] [cursor=pointer]: Stock Analysis
+          - listitem [ref=e56]:
+            - button "Technical Analysis" [ref=e57] [cursor=pointer]:
+              - img [ref=e59] [cursor=pointer]
+              - paragraph [ref=e62] [cursor=pointer]: Technical Analysis
+          - listitem [ref=e63]:
+            - button "Stock Scores" [ref=e64] [cursor=pointer]:
+              - img [ref=e66] [cursor=pointer]
+              - paragraph [ref=e69] [cursor=pointer]: Stock Scores
+          - listitem [ref=e70]:
+            - button "Earnings Hub" [ref=e71] [cursor=pointer]:
+              - img [ref=e73] [cursor=pointer]
+              - paragraph [ref=e76] [cursor=pointer]: Earnings Hub
+          - listitem [ref=e77]:
+            - button "Trading Signals" [ref=e78] [cursor=pointer]:
+              - img [ref=e80] [cursor=pointer]
+              - paragraph [ref=e83] [cursor=pointer]: Trading Signals
+          - listitem [ref=e84]:
+            - button "Financial Data" [ref=e85] [cursor=pointer]:
+              - img [ref=e87] [cursor=pointer]
+              - paragraph [ref=e90] [cursor=pointer]: Financial Data
+          - listitem [ref=e91]:
+            - button "Sentiment Analysis" [ref=e92] [cursor=pointer]:
+              - img [ref=e94] [cursor=pointer]
+              - paragraph [ref=e98] [cursor=pointer]: Sentiment Analysis
+          - listitem [ref=e99]:
+            - button "Analyst Insights" [ref=e100] [cursor=pointer]:
+              - img [ref=e102] [cursor=pointer]
+              - paragraph [ref=e105] [cursor=pointer]: Analyst Insights
+          - listitem [ref=e106]:
+            - button "Collapse Portfolio section" [ref=e107] [cursor=pointer]:
+              - heading "Portfolio" [level=6] [ref=e109] [cursor=pointer]
+              - img [ref=e110] [cursor=pointer]
+          - listitem [ref=e112]:
+            - button "Portfolio Holdings" [ref=e113] [cursor=pointer]:
+              - img [ref=e115] [cursor=pointer]
+              - paragraph [ref=e118] [cursor=pointer]: Portfolio Holdings
+          - listitem [ref=e119]:
+            - button "Trade History" [ref=e120] [cursor=pointer]:
+              - img [ref=e122] [cursor=pointer]
+              - paragraph [ref=e125] [cursor=pointer]: Trade History
+          - listitem [ref=e126]:
+            - button "Order Management" [ref=e127] [cursor=pointer]:
+              - img [ref=e129] [cursor=pointer]
+              - paragraph [ref=e132] [cursor=pointer]: Order Management
+          - listitem [ref=e133]:
+            - button "Optimization Tools" [ref=e134] [cursor=pointer]:
+              - img [ref=e136] [cursor=pointer]
+              - paragraph [ref=e139] [cursor=pointer]: Optimization Tools
+          - listitem [ref=e140]:
+            - button "Expand Tools section" [ref=e141] [cursor=pointer]:
+              - heading "Tools" [level=6] [ref=e143] [cursor=pointer]
+              - img [ref=e144] [cursor=pointer]
+    - main [ref=e146]:
+      - generic [ref=e149]:
+        - generic [ref=e150]:
+          - generic [ref=e151]:
+            - img [ref=e152]
+            - generic [ref=e154]:
+              - heading "AAL" [level=1] [ref=e155]
+              - heading "American Airlines Group, Inc." [level=6] [ref=e156]
+          - generic [ref=e157]:
+            - heading "N/A" [level=4] [ref=e158]
+            - generic [ref=e159]:
+              - img [ref=e160]
+              - heading "N/A (NaN%)" [level=6] [ref=e162]
+          - generic [ref=e163]:
+            - generic [ref=e165]: Industrials
+            - generic [ref=e167]: Airlines
+            - generic [ref=e169]: United States
+        - generic [ref=e171]:
+          - heading "Company Overview" [level=6] [ref=e172]
+          - paragraph [ref=e173]: American Airlines Group Inc., through its subsidiaries, operates as a network air carrier in the United States, Latin America, Atlantic, and Pacific. The company provides scheduled air transportation services for passengers and cargo through its hubs in Charlotte, Chicago, Dallas/Fort Worth, Los Angeles, Miami, New York, Philadelphia, Phoenix, and Washington, D.C., as well as through partner gateways in London, Doha, Madrid, Seattle/Tacoma, Sydney, and Tokyo. It also operates a mainline fleet of 977 aircraft. The company was formerly known as AMR Corporation and changed its name to American Airlines Group Inc. in December 2013. American Airlines Group Inc. was founded in 1926 and is headquartered in Fort Worth, Texas.
+        - generic [ref=e174]:
+          - heading "Key Statistics & Metrics" [level=5] [ref=e175]:
+            - img [ref=e176]
+            - text: Key Statistics & Metrics
+          - generic [ref=e181]:
+            - heading "Key Statistics" [level=6] [ref=e182]
+            - table [ref=e184]:
+              - rowgroup [ref=e185]:
+                - row "Market Cap N/A" [ref=e186]:
+                  - rowheader "Market Cap" [ref=e187]
+                  - cell "N/A" [ref=e188]
+                - row "P/E Ratio N/A" [ref=e189]:
+                  - rowheader "P/E Ratio" [ref=e190]
+                  - cell "N/A" [ref=e191]
+                - row "EPS N/A" [ref=e192]:
+                  - rowheader "EPS" [ref=e193]
+                  - cell "N/A" [ref=e194]
+                - row "Dividend Yield N/A" [ref=e195]:
+                  - rowheader "Dividend Yield" [ref=e196]
+                  - cell "N/A" [ref=e197]
+                - row "Book Value N/A" [ref=e198]:
+                  - rowheader "Book Value" [ref=e199]
+                  - cell "N/A" [ref=e200]
+                - row "52-Week High N/A" [ref=e201]:
+                  - rowheader "52-Week High" [ref=e202]
+                  - cell "N/A" [ref=e203]
+                - row "52-Week Low N/A" [ref=e204]:
+                  - rowheader "52-Week Low" [ref=e205]
+                  - cell "N/A" [ref=e206]
+                - row "Revenue TTM N/A" [ref=e207]:
+                  - rowheader "Revenue TTM" [ref=e208]
+                  - cell "N/A" [ref=e209]
+                - row "Net Income TTM N/A" [ref=e210]:
+                  - rowheader "Net Income TTM" [ref=e211]
+                  - cell "N/A" [ref=e212]
+                - row "Free Cash Flow N/A" [ref=e213]:
+                  - rowheader "Free Cash Flow" [ref=e214]
+                  - cell "N/A" [ref=e215]
+        - generic [ref=e217]:
+          - heading "Price & Volume" [level=5] [ref=e218]:
+            - img [ref=e219]
+            - text: Price & Volume
+          - generic [ref=e224]:
+            - heading "Recent Price Chart (30 Days)" [level=6] [ref=e225]
+            - paragraph [ref=e227]: Price chart data not available
+          - generic [ref=e231]:
+            - heading "Recent Price & Volume Data (OHLCV)" [level=6] [ref=e232]
+            - paragraph [ref=e234]: OHLCV data not available
+        - generic [ref=e235]:
+          - heading "Financial Statements" [level=5] [ref=e236]:
+            - img [ref=e237]
+            - text: Financial Statements
+          - generic [ref=e239]:
+            - heading "Annual Statements - AAL" [level=6] [ref=e240]
+            - generic [ref=e241]:
+              - generic [ref=e244]:
+                - heading "Income Statement (Annual)" [level=6] [ref=e245]:
+                  - img [ref=e246]
+                  - text: Income Statement (Annual)
+                - separator [ref=e248]
+                - generic [ref=e249]:
+                  - generic [ref=e250]:
+                    - heading "2024" [level=6] [ref=e251]
+                    - table [ref=e253]:
+                      - rowgroup [ref=e254]:
+                        - row "cost Of Revenue $42.75B" [ref=e255]:
+                          - cell "cost Of Revenue" [ref=e256]
+                          - cell "$42.75B" [ref=e257]
+                    - separator [ref=e258]
+                  - generic [ref=e259]:
+                    - heading "2023" [level=6] [ref=e260]
+                    - table [ref=e262]:
+                      - rowgroup [ref=e263]:
+                        - row "cost Of Revenue $40.98B" [ref=e264]:
+                          - cell "cost Of Revenue" [ref=e265]
+                          - cell "$40.98B" [ref=e266]
+                    - separator [ref=e267]
+                  - generic [ref=e268]:
+                    - heading "2022" [level=6] [ref=e269]
+                    - table [ref=e271]:
+                      - rowgroup [ref=e272]:
+                        - row "cost Of Revenue $39.93B" [ref=e273]:
+                          - cell "cost Of Revenue" [ref=e274]
+                          - cell "$39.93B" [ref=e275]
+              - generic [ref=e278]:
+                - heading "Balance Sheet (Annual)" [level=6] [ref=e279]:
+                  - img [ref=e280]
+                  - text: Balance Sheet (Annual)
+                - separator [ref=e282]
+                - paragraph [ref=e283]: No balance sheet data available
+              - generic [ref=e286]:
+                - heading "Cash Flow (Annual)" [level=6] [ref=e287]:
+                  - img [ref=e288]
+                  - text: Cash Flow (Annual)
+                - separator [ref=e290]
+                - paragraph [ref=e291]: No cash flow data available
+            - generic [ref=e292]:
+              - generic [ref=e295]:
+                - heading "Revenue Trend" [level=6] [ref=e296]
+                - application [ref=e299]:
+                  - generic [ref=e304]:
+                    - generic [ref=e307]: "2021"
+                    - generic [ref=e310]: "2022"
+                    - generic [ref=e313]: "2023"
+                    - generic [ref=e316]: "2024"
+                  - generic [ref=e318]:
+                    - generic [ref=e321]: "0"
+                    - generic [ref=e324]: "1"
+                    - generic [ref=e327]: "2"
+                    - generic [ref=e330]: "3"
+                    - generic [ref=e333]: "4"
+              - generic [ref=e342]:
+                - heading "Net Income Trend" [level=6] [ref=e343]
+                - application [ref=e346]:
+                  - generic [ref=e351]:
+                    - generic [ref=e354]: "2021"
+                    - generic [ref=e357]: "2022"
+                    - generic [ref=e360]: "2023"
+                    - generic [ref=e363]: "2024"
+                  - generic [ref=e365]:
+                    - generic [ref=e368]: "0"
+                    - generic [ref=e371]: "1"
+                    - generic [ref=e374]: "2"
+                    - generic [ref=e377]: "3"
+                    - generic [ref=e380]: "4"
+        - generic [ref=e387]:
+          - heading "Financial Ratios" [level=5] [ref=e388]:
+            - img [ref=e389]
+            - text: Financial Ratios
+          - generic [ref=e393]:
+            - generic [ref=e395]:
+              - paragraph [ref=e396]: Current Ratio
+              - heading "N/A" [level=6] [ref=e397]
+            - generic [ref=e399]:
+              - paragraph [ref=e400]: Debt to Equity
+              - heading "N/A" [level=6] [ref=e401]
+            - generic [ref=e403]:
+              - paragraph [ref=e404]: ROE
+              - heading "N/A" [level=6] [ref=e405]
+            - generic [ref=e407]:
+              - paragraph [ref=e408]: ROA
+              - heading "N/A" [level=6] [ref=e409]
+            - generic [ref=e411]:
+              - paragraph [ref=e412]: Gross Margin
+              - heading "N/A" [level=6] [ref=e413]
+            - generic [ref=e415]:
+              - paragraph [ref=e416]: Operating Margin
+              - heading "N/A" [level=6] [ref=e417]
+            - generic [ref=e419]:
+              - paragraph [ref=e420]: Net Margin
+              - heading "N/A" [level=6] [ref=e421]
+            - generic [ref=e423]:
+              - paragraph [ref=e424]: Asset Turnover
+              - heading "N/A" [level=6] [ref=e425]
+        - generic [ref=e426]:
+          - heading "Institutional Factor Analysis" [level=5] [ref=e427]:
+            - img [ref=e428]
+            - text: Institutional Factor Analysis
+          - paragraph [ref=e430]: Multi-factor quantitative analysis using institutional methodologies
+          - generic [ref=e431]:
+            - generic [ref=e434]:
+              - heading "Composite Factor Score" [level=6] [ref=e435]
+              - generic [ref=e437]:
+                - heading "65" [level=2] [ref=e438]
+                - paragraph [ref=e439]: Overall Score (0-100)
+              - progressbar [ref=e440]
+              - paragraph [ref=e443]: Weighted composite of Quality (30%), Growth (25%), Value (20%), Momentum (15%), Sentiment (5%), Positioning (5%)
+            - generic [ref=e446]:
+              - heading "Multi-Factor Quantitative Analysis" [level=6] [ref=e447]
+              - separator [ref=e448]
+              - generic [ref=e449]:
+                - generic [ref=e452]:
+                  - generic [ref=e453]:
+                    - heading "Quality" [level=6] [ref=e454]
+                    - generic [ref=e455]:
+                      - generic [ref=e457]: "100"
+                      - img [ref=e458]
+                  - progressbar [ref=e460]
+                  - paragraph [ref=e462]: ROE, margins, debt levels, earnings quality
+                  - generic [ref=e463]:
+                    - paragraph [ref=e464]: Percentile Rank
+                    - paragraph [ref=e465]: 78th
+                  - generic [ref=e466]: "Components: ROE, Gross Margin, Debt/Equity, Current Ratio"
+                - generic [ref=e469]:
+                  - generic [ref=e470]:
+                    - heading "Growth" [level=6] [ref=e471]
+                    - generic [ref=e472]:
+                      - generic [ref=e474]: "50"
+                      - img [ref=e475]
+                  - progressbar [ref=e477]
+                  - paragraph [ref=e479]: Revenue, earnings, and EPS growth trajectories
+                  - generic [ref=e480]:
+                    - paragraph [ref=e481]: Percentile Rank
+                    - paragraph [ref=e482]: 65th
+                  - generic [ref=e483]: "Components: Revenue Growth, EPS Growth, Sales Growth 5Y"
+                - generic [ref=e486]:
+                  - generic [ref=e487]:
+                    - heading "Value" [level=6] [ref=e488]
+                    - generic [ref=e489]:
+                      - generic [ref=e491]: "40"
+                      - img [ref=e492]
+                  - progressbar [ref=e494]
+                  - paragraph [ref=e496]: P/E, P/B, EV/EBITDA, and DCF valuations
+                  - generic [ref=e497]:
+                    - paragraph [ref=e498]: Percentile Rank
+                    - paragraph [ref=e499]: 42th
+                  - generic [ref=e500]: "Components: P/E Ratio, P/B Ratio, EV/EBITDA"
+                - generic [ref=e503]:
+                  - generic [ref=e504]:
+                    - heading "Momentum" [level=6] [ref=e505]
+                    - generic [ref=e506]:
+                      - generic [ref=e508]: "50"
+                      - img [ref=e509]
+                  - progressbar [ref=e511]
+                  - paragraph [ref=e513]: Price trends, earnings revisions, estimate changes
+                  - generic [ref=e514]:
+                    - paragraph [ref=e515]: Percentile Rank
+                    - paragraph [ref=e516]: 72th
+                  - generic [ref=e517]: "Components: 3M Price Return, 12M Price Return, Earnings Revisions"
+                - generic [ref=e520]:
+                  - generic [ref=e521]:
+                    - heading "Sentiment" [level=6] [ref=e522]
+                    - generic [ref=e523]:
+                      - generic [ref=e525]: "50"
+                      - img [ref=e526]
+                  - progressbar [ref=e528]
+                  - paragraph [ref=e530]: Analyst ratings, social sentiment, media coverage
+                  - generic [ref=e531]:
+                    - paragraph [ref=e532]: Percentile Rank
+                    - paragraph [ref=e533]: 58th
+                  - generic [ref=e534]: "Components: Analyst Rating, Social Sentiment, News Sentiment"
+                - generic [ref=e537]:
+                  - generic [ref=e538]:
+                    - heading "Positioning" [level=6] [ref=e539]
+                    - generic [ref=e540]:
+                      - generic [ref=e542]: "50"
+                      - img [ref=e543]
+                  - progressbar [ref=e545]
+                  - paragraph [ref=e547]: Institutional flows, short interest, options activity
+                  - generic [ref=e548]:
+                    - paragraph [ref=e549]: Percentile Rank
+                    - paragraph [ref=e550]: 40th
+                  - generic [ref=e551]: "Components: Institutional Ownership, Short Interest, Insider Ownership"
+            - generic [ref=e554]:
+              - heading "Quality Factor Breakdown" [level=6] [ref=e555]
+              - separator [ref=e556]
+              - application [ref=e560]:
+                - generic [ref=e565]:
+                  - generic [ref=e568]: ROE
+                  - generic [ref=e571]: Gross Margin
+                  - generic [ref=e574]: Op. Margin
+                  - generic [ref=e577]: Net Margin
+                - generic [ref=e579]:
+                  - generic [ref=e582]: "0"
+                  - generic [ref=e585]: "7"
+                  - generic [ref=e588]: "14"
+                  - generic [ref=e591]: "21"
+                  - generic [ref=e594]: "28"
+              - table [ref=e618]:
+                - rowgroup [ref=e619]:
+                  - row "Return on Equity N/A vs 15% benchmark" [ref=e620]:
+                    - cell "Return on Equity" [ref=e621]
+                    - cell "N/A" [ref=e622]:
+                      - generic [ref=e624]: N/A
+                    - cell "vs 15% benchmark" [ref=e625]:
+                      - generic [ref=e626]: vs 15% benchmark
+                  - row "Debt-to-Equity N/A vs 0.3 optimal" [ref=e627]:
+                    - cell "Debt-to-Equity" [ref=e628]
+                    - cell "N/A" [ref=e629]:
+                      - generic [ref=e631]: N/A
+                    - cell "vs 0.3 optimal" [ref=e632]:
+                      - generic [ref=e633]: vs 0.3 optimal
+                  - row "Interest Coverage N/A vs 5x minimum" [ref=e634]:
+                    - cell "Interest Coverage" [ref=e635]
+                    - cell "N/A" [ref=e636]:
+                      - generic [ref=e638]: N/A
+                    - cell "vs 5x minimum" [ref=e639]:
+                      - generic [ref=e640]: vs 5x minimum
+                  - row "Altman Z-Score 2.8 Safe zone (>2.6)" [ref=e641]:
+                    - cell "Altman Z-Score" [ref=e642]
+                    - cell "2.8" [ref=e643]:
+                      - generic [ref=e645]: "2.8"
+                    - cell "Safe zone (>2.6)" [ref=e646]:
+                      - generic [ref=e647]: Safe zone (>2.6)
+            - generic [ref=e650]:
+              - heading "Growth Factor Analysis" [level=6] [ref=e651]
+              - separator [ref=e652]
+              - application [ref=e656]
+              - table [ref=e661]:
+                - rowgroup [ref=e662]:
+                  - row "Revenue CAGR (5Y) N/A" [ref=e663]:
+                    - cell "Revenue CAGR (5Y)" [ref=e664]
+                    - cell "N/A" [ref=e665]:
+                      - generic [ref=e667]: N/A
+                    - cell [ref=e668]
+                  - row "EPS CAGR (5Y) N/A" [ref=e669]:
+                    - cell "EPS CAGR (5Y)" [ref=e670]
+                    - cell "N/A" [ref=e671]:
+                      - generic [ref=e673]: N/A
+                    - cell [ref=e674]
+                  - row "FCF Growth (3Y) N/A" [ref=e675]:
+                    - cell "FCF Growth (3Y)" [ref=e676]
+                    - cell "N/A" [ref=e677]:
+                      - generic [ref=e679]: N/A
+                    - cell [ref=e680]
+                  - row "PEG Ratio 1.8 vs 1.0 fair value" [ref=e681]:
+                    - cell "PEG Ratio" [ref=e682]
+                    - cell "1.8" [ref=e683]:
+                      - generic [ref=e685]: "1.8"
+                    - cell "vs 1.0 fair value" [ref=e686]:
+                      - generic [ref=e687]: vs 1.0 fair value
+            - generic [ref=e690]:
+              - heading "Factor-Based Investment Insights" [level=6] [ref=e691]
+              - separator [ref=e692]
+              - generic [ref=e693]:
+                - generic [ref=e695]:
+                  - generic [ref=e696]:
+                    - img [ref=e697]
+                    - heading "Quality Premium" [level=6] [ref=e699]
+                  - paragraph [ref=e700]: High-quality companies with strong balance sheets and consistent profitability typically command valuation premiums during market stress.
+                  - generic [ref=e702]: "Strong Quality Score: 82/100"
+                - generic [ref=e704]:
+                  - generic [ref=e705]:
+                    - img [ref=e706]
+                    - heading "Value Opportunity" [level=6] [ref=e708]
+                  - paragraph [ref=e709]: Current valuation metrics suggest potential value opportunity, but consider quality and growth factors for comprehensive assessment.
+                  - generic [ref=e711]: "Value Score: 45/100"
+                - generic [ref=e713]:
+                  - generic [ref=e714]:
+                    - img [ref=e715]
+                    - heading "Momentum Strength" [level=6] [ref=e717]
+                  - paragraph [ref=e718]: Strong price and earnings momentum suggest continued outperformance, though momentum factors can be cyclical.
+                  - generic [ref=e720]: "Momentum Score: 78/100"
+            - generic [ref=e723]:
+              - heading "Institutional Positioning & Flow Analysis" [level=6] [ref=e724]
+              - separator [ref=e725]
+              - generic [ref=e726]:
+                - generic [ref=e728]:
+                  - heading "N/A" [level=3] [ref=e729]
+                  - paragraph [ref=e730]: Institutional Ownership
+                  - progressbar [ref=e731]
+                  - generic [ref=e733]: Above 60% indicates institutional confidence
+                - generic [ref=e735]:
+                  - heading "N/A" [level=3] [ref=e736]
+                  - paragraph [ref=e737]: Insider Ownership
+                  - progressbar [ref=e738]
+                  - generic [ref=e740]: 2-5% range indicates aligned interests
+                - generic [ref=e742]:
+                  - heading "N/A" [level=3] [ref=e743]
+                  - paragraph [ref=e744]: Short Interest
+                  - progressbar [ref=e745]
+                  - generic [ref=e747]: Below 5% suggests limited bearish sentiment
+              - generic [ref=e748]:
+                - heading "Recent Institutional Activity (90 Days)" [level=6] [ref=e749]
+                - generic:
+                  - table:
+                    - rowgroup
+        - generic [ref=e750]:
+          - heading "Analyst Coverage & Recommendations" [level=5] [ref=e751]:
+            - img [ref=e752]
+            - text: Analyst Coverage & Recommendations
+          - generic [ref=e755]:
+            - generic [ref=e758]:
+              - heading "Earnings Estimates" [level=6] [ref=e759]
+              - separator [ref=e760]
+              - paragraph [ref=e761]: No earnings estimates available
+            - generic [ref=e764]:
+              - heading "Revenue Estimates" [level=6] [ref=e765]
+              - separator [ref=e766]
+              - paragraph [ref=e767]: No revenue estimates available
+            - generic [ref=e770]:
+              - heading "EPS Revisions" [level=6] [ref=e771]
+              - separator [ref=e772]
+              - paragraph [ref=e773]: No EPS revisions available
+            - generic [ref=e776]:
+              - heading "Growth Estimates" [level=6] [ref=e777]
+              - separator [ref=e778]
+              - paragraph [ref=e779]: No growth estimates available
+            - generic [ref=e782]:
+              - heading "Analyst Recommendations" [level=6] [ref=e783]
+              - separator [ref=e784]
+              - paragraph [ref=e785]: No analyst recommendations available
+            - generic [ref=e788]:
+              - heading "Earnings History" [level=6] [ref=e789]
+              - separator [ref=e790]
+              - paragraph [ref=e791]: No earnings history available
+            - generic [ref=e794]:
+              - heading "EPS Trends" [level=6] [ref=e795]
+              - separator [ref=e796]
+              - paragraph [ref=e797]: No EPS trends available
+            - generic [ref=e800]:
+              - heading "Earnings Metrics" [level=6] [ref=e801]
+              - separator [ref=e802]
+              - paragraph [ref=e803]: No earnings metrics available
+        - generic [ref=e804]:
+          - heading "Upcoming Events" [level=5] [ref=e805]:
+            - img [ref=e806]
+            - text: Upcoming Events
+          - table [ref=e811]:
+            - rowgroup [ref=e812]:
+              - row "Event Type Date Details Days Until" [ref=e813]:
+                - columnheader "Event Type" [ref=e814]
+                - columnheader "Date" [ref=e815]
+                - columnheader "Details" [ref=e816]
+                - columnheader "Days Until" [ref=e817]
+            - rowgroup [ref=e818]:
+              - row "No upcoming events scheduled" [ref=e819]:
+                - cell "No upcoming events scheduled" [ref=e820]:
+                  - paragraph [ref=e821]: No upcoming events scheduled
+  - generic [ref=e822]: "1"
+```

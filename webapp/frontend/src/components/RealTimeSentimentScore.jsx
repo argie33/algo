@@ -36,7 +36,7 @@ const RealTimeSentimentScore = ({
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("connecting");
-  const [_realtimeUpdates, _setRealtimeUpdates] = useState(0);
+  const [realtimeUpdates, _setRealtimeUpdates] = useState(0);
 
   // Fetch sentiment data from API
   const fetchSentiment = useCallback(async () => {

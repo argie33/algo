@@ -50,6 +50,17 @@ export const formatPercentageChange = (value, decimals = 2) => {
 // Alias for formatPercentage
 export const formatPercent = formatPercentage;
 
+// Format decimal values as percentages (e.g., 0.927 -> 92.70%)
+// Use this for API values that are already in decimal format
+export const formatDecimalAsPercent = (value, decimals = 2) => {
+  if (value === null || value === undefined) return "N/A";
+
+  const num = parseFloat(value);
+  if (isNaN(num)) return "N/A";
+
+  return numeral(num).format(`0.${"0".repeat(decimals)}%`);
+};
+
 // Format large numbers with abbreviations
 export const formatNumber = (value, decimals = 2) => {
   if (value === null || value === undefined) return "N/A";

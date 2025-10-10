@@ -31,57 +31,87 @@ describe("Positioning Routes", () => {
   });
 
   describe("GET /api/positioning/stocks", () => {
-    // Mock data matching positioning_metrics table schema from loadpositioning.py
+    // Mock positioning_metrics data
+    const mockPositioningMetrics = {
+      symbol: "AAPL",
+      date: "2025-10-08",
+      institutional_ownership: 0.6234,
+      institutional_float_held: 0.6156,
+      institution_count: 3456,
+      insider_ownership: 0.0045,
+      shares_short: 123456789,
+      shares_short_prior_month: 120000000,
+      short_ratio: 1.23,
+      short_percent_of_float: 0.0234,
+      short_interest_change: 0.0288,
+      float_shares: 5270000000,
+      shares_outstanding: 15550000000,
+    };
+
+    // Mock institutional_positioning data
     const mockInstitutionalData = [
       {
         symbol: "AAPL",
-        institution_type: "Institutional",
-        institution_name: "Major Institution",
-        position_size: 1000000,
-        position_change_percent: 5.5,
-        market_share: 2.1,
-        filing_date: "2023-12-01",
-        quarter: "Q4",
+        institution_type: "MUTUAL_FUND",
+        institution_name: "Vanguard Group Inc",
+        position_size: 1250000000,
+        position_change_percent: 2.5,
+        market_share: 0.08,
+        filing_date: "2025-09-30",
+        quarter: "2025Q3",
       },
     ];
 
-    // Mock data matching retail_sentiment table schema from loadsentiment.py
-    const mockSentimentData = [
-      {
-        symbol: "AAPL",
-        bullish_percentage: 60.5,
-        bearish_percentage: 25.3,
-        neutral_percentage: 14.2,
-        net_sentiment: 35.2,
-        sentiment_change: 2.1,
-        source: "retail_tracker",
-        date: "2023-12-15",
-      },
-    ];
+    // Mock retail_sentiment data
+    const mockSentimentData = {
+      symbol: "AAPL",
+      bullish_percentage: 60.5,
+      bearish_percentage: 20.3,
+      neutral_percentage: 19.2,
+      net_sentiment: 40.2,
+      sentiment_change: 5.3,
+      source: "yfinance_derived",
+      date: "2025-10-08",
+    };
 
-    it("should return positioning data successfully", async () => {
+    it("should return positioning data with positioning_score successfully", async () => {
       mockQuery
-        .mockResolvedValueOnce({ rows: mockInstitutionalData })
-        .mockResolvedValueOnce({ rows: mockSentimentData });
+        .mockResolvedValueOnce({ rows: [mockPositioningMetrics] }) // positioning_metrics
+        .mockResolvedValueOnce({ rows: mockInstitutionalData }) // institutional_positioning
+        .mockResolvedValueOnce({ rows: [mockSentimentData] }); // retail_sentiment
 
       const response = await request(app)
         .get("/api/positioning/stocks")
         .expect(200);
 
-      expect(response.body).toHaveProperty("institutional_positioning");
+      expect(response.body).toHaveProperty("positioning_metrics");
+      expect(response.body).toHaveProperty("positioning_score");
+      expect(response.body).toHaveProperty("institutional_holders");
       expect(response.body).toHaveProperty("retail_sentiment");
       expect(response.body).toHaveProperty("metadata");
-      expect(response.body.institutional_positioning).toEqual(
-        mockInstitutionalData
-      );
+
+      // Verify positioning_metrics
+      expect(response.body.positioning_metrics.symbol).toBe("AAPL");
+      expect(response.body.positioning_metrics.institutional_ownership).toBe(0.6234);
+
+      // Verify positioning_score is calculated
+      expect(response.body.positioning_score).toBeGreaterThan(0);
+      expect(response.body.positioning_score).toBeLessThanOrEqual(100);
+
+      // Verify institutional_holders
+      expect(response.body.institutional_holders).toEqual(mockInstitutionalData);
+
+      // Verify retail_sentiment
       expect(response.body.retail_sentiment).toEqual(mockSentimentData);
+
       expect(response.body.metadata.symbol).toBe("all");
     });
 
     it("should handle symbol parameter correctly", async () => {
       mockQuery
+        .mockResolvedValueOnce({ rows: [mockPositioningMetrics] })
         .mockResolvedValueOnce({ rows: mockInstitutionalData })
-        .mockResolvedValueOnce({ rows: mockSentimentData });
+        .mockResolvedValueOnce({ rows: [mockSentimentData] });
 
       const response = await request(app)
         .get("/api/positioning/stocks?symbol=AAPL")
@@ -89,30 +119,32 @@ describe("Positioning Routes", () => {
 
       expect(response.body.metadata.symbol).toBe("AAPL");
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("WHERE symbol = $1"),
+        expect.stringContaining("AND pm.symbol = $1"),
         expect.arrayContaining(["AAPL"])
       );
     });
 
     it("should handle pagination parameters", async () => {
       mockQuery
+        .mockResolvedValueOnce({ rows: [mockPositioningMetrics] })
         .mockResolvedValueOnce({ rows: mockInstitutionalData })
-        .mockResolvedValueOnce({ rows: mockSentimentData });
+        .mockResolvedValueOnce({ rows: [mockSentimentData] });
 
       await request(app)
         .get("/api/positioning/stocks?limit=25&page=2")
         .expect(200);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("LIMIT $1 OFFSET $2"),
+        expect.stringContaining("LIMIT"),
         expect.arrayContaining([25, 25]) // page 2 with limit 25 = offset 25
       );
     });
 
     it("should handle timeframe parameter", async () => {
       mockQuery
+        .mockResolvedValueOnce({ rows: [mockPositioningMetrics] })
         .mockResolvedValueOnce({ rows: mockInstitutionalData })
-        .mockResolvedValueOnce({ rows: mockSentimentData });
+        .mockResolvedValueOnce({ rows: [mockSentimentData] });
 
       const response = await request(app)
         .get("/api/positioning/stocks?timeframe=weekly")
@@ -125,9 +157,7 @@ describe("Positioning Routes", () => {
     });
 
     it("should handle database query failures with 500 error", async () => {
-      mockQuery
-        .mockRejectedValueOnce(new Error("Institutional query failed"))
-        .mockRejectedValueOnce(new Error("Sentiment query failed"));
+      mockQuery.mockRejectedValueOnce(new Error("Query failed"));
 
       const response = await request(app)
         .get("/api/positioning/stocks")
@@ -144,6 +174,7 @@ describe("Positioning Routes", () => {
     it("should return 404 when no data is found", async () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
 
       const response = await request(app)
@@ -152,12 +183,11 @@ describe("Positioning Routes", () => {
 
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("No positioning data found");
-      expect(response.body.message).toBe("Both positioning_metrics and retail_sentiment tables returned no data");
+      expect(response.body.message).toBe("No positioning data available for this symbol");
     });
 
     it("should handle database errors properly", async () => {
-      mockQuery
-        .mockRejectedValueOnce(new Error("Institutional failed"));
+      mockQuery.mockRejectedValueOnce(new Error("Database failed"));
 
       const response = await request(app)
         .get("/api/positioning/stocks")
@@ -173,8 +203,9 @@ describe("Positioning Routes", () => {
 
     it("should include correct metadata structure", async () => {
       mockQuery
+        .mockResolvedValueOnce({ rows: [mockPositioningMetrics] })
         .mockResolvedValueOnce({ rows: mockInstitutionalData })
-        .mockResolvedValueOnce({ rows: mockSentimentData });
+        .mockResolvedValueOnce({ rows: [mockSentimentData] });
 
       const response = await request(app)
         .get("/api/positioning/stocks?symbol=TSLA&timeframe=monthly")
@@ -217,19 +248,22 @@ describe("Positioning Routes", () => {
 
     it("should use default values when parameters are not provided", async () => {
       mockQuery
+        .mockResolvedValueOnce({ rows: [mockPositioningMetrics] })
         .mockResolvedValueOnce({ rows: mockInstitutionalData })
-        .mockResolvedValueOnce({ rows: mockSentimentData });
+        .mockResolvedValueOnce({ rows: [mockSentimentData] });
 
       await request(app).get("/api/positioning/stocks").expect(200);
 
+      // Check that institutional query has limit and offset
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("LIMIT $1 OFFSET $2"),
-        [50, 0] // default limit 50, page 1 (offset 0)
+        expect.stringContaining("LIMIT"),
+        expect.arrayContaining([50, 0]) // default limit 50, page 1 (offset 0)
       );
     });
 
     it("should handle large page numbers correctly", async () => {
       mockQuery
+        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
 
@@ -238,20 +272,67 @@ describe("Positioning Routes", () => {
         .expect(404);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("LIMIT $1 OFFSET $2"),
-        [10, 990] // page 100 with limit 10 = offset 990
+        expect.stringContaining("LIMIT"),
+        expect.arrayContaining([10, 990]) // page 100 with limit 10 = offset 990
       );
+    });
+
+    it("should calculate positioning score correctly", async () => {
+      const highScoreMetrics = {
+        ...mockPositioningMetrics,
+        institutional_ownership: 0.85, // >0.7 = +30
+        insider_ownership: 0.12, // >0.1 = +15
+        short_percent_of_float: 0.015, // <0.02 = +10
+        short_interest_change: -0.12, // <-0.1 = +15
+      };
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [highScoreMetrics] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get("/api/positioning/stocks?symbol=AAPL")
+        .expect(200);
+
+      // Score = 50 + 30 + 15 + 10 + 15 = 120, capped at 100
+      expect(response.body.positioning_score).toBe(100);
+    });
+
+    it("should handle null metrics gracefully", async () => {
+      const nullMetrics = {
+        symbol: "TEST",
+        institutional_ownership: null,
+        insider_ownership: null,
+        short_percent_of_float: null,
+        short_interest_change: null,
+      };
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [nullMetrics] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get("/api/positioning/stocks?symbol=TEST")
+        .expect(200);
+
+      // Should return neutral score when all null
+      expect(response.body.positioning_score).toBe(50);
     });
   });
 
   describe("GET /api/positioning/summary", () => {
-    // Mock summary data using stocks table for institutional flow
+    // Mock summary data from positioning_metrics table
     const mockInstitutionalSummary = {
       rows: [
         {
-          avg_change: 2.5,
-          bullish_count: 15,
-          bearish_count: 8,
+          avg_institutional_ownership: 0.62,
+          avg_insider_ownership: 0.03,
+          avg_short_interest: 0.05,
+          avg_short_change: -0.02,
+          high_institutional_count: 15,
+          high_short_count: 8,
           total_positions: 25,
         },
       ],
@@ -264,6 +345,7 @@ describe("Positioning Routes", () => {
           avg_bullish: 45.2,
           avg_bearish: 30.1,
           avg_net_sentiment: 15.1,
+          total_readings: 100,
         },
       ],
     };
@@ -281,13 +363,21 @@ describe("Positioning Routes", () => {
       expect(response.body).toHaveProperty("market_overview");
       expect(response.body).toHaveProperty("key_metrics");
       expect(response.body).toHaveProperty("data_freshness");
-      expect(response.body.market_overview.institutional_flow).toBe("BULLISH");
-      expect(response.body.key_metrics.institutional_avg_change).toBe(2.5);
+      expect(response.body.market_overview.institutional_flow).toBe("MODERATELY_BULLISH");
+      expect(response.body.key_metrics.avg_institutional_ownership).toBe(0.62);
+      expect(response.body.key_metrics.avg_insider_ownership).toBe(0.03);
+      expect(response.body.key_metrics.avg_short_interest).toBe(0.05);
+      expect(response.body.key_metrics.avg_short_change).toBe(-0.02);
+      expect(response.body.key_metrics.retail_net_sentiment).toBe(15.1);
     });
 
     it("should calculate bullish overall positioning", async () => {
       const bullishInstitutional = {
-        rows: [{ ...mockInstitutionalSummary.rows[0], avg_change: 3.0 }],
+        rows: [{
+          ...mockInstitutionalSummary.rows[0],
+          avg_institutional_ownership: 0.65, // >60%
+          avg_short_change: -0.06 // <-5%
+        }],
       };
       const bullishRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: 45.0 }],
@@ -307,7 +397,11 @@ describe("Positioning Routes", () => {
 
     it("should calculate moderately bullish positioning", async () => {
       const modBullishInstitutional = {
-        rows: [{ ...mockInstitutionalSummary.rows[0], avg_change: 1.0 }],
+        rows: [{
+          ...mockInstitutionalSummary.rows[0],
+          avg_institutional_ownership: 0.55, // >50%
+          avg_short_change: 0.0 // neutral
+        }],
       };
       const modBullishRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: 25.0 }],
@@ -329,7 +423,11 @@ describe("Positioning Routes", () => {
 
     it("should calculate bearish positioning", async () => {
       const bearishInstitutional = {
-        rows: [{ ...mockInstitutionalSummary.rows[0], avg_change: -3.0 }],
+        rows: [{
+          ...mockInstitutionalSummary.rows[0],
+          avg_short_interest: 0.16, // >15%
+          avg_institutional_ownership: 0.45
+        }],
       };
       const bearishRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: -25.0 }],
@@ -349,7 +447,11 @@ describe("Positioning Routes", () => {
 
     it("should calculate moderately bearish positioning", async () => {
       const modBearishInstitutional = {
-        rows: [{ ...mockInstitutionalSummary.rows[0], avg_change: -1.0 }],
+        rows: [{
+          ...mockInstitutionalSummary.rows[0],
+          avg_short_interest: 0.11, // >10%
+          avg_institutional_ownership: 0.45
+        }],
       };
       const modBearishRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: -10.0 }],
@@ -371,7 +473,12 @@ describe("Positioning Routes", () => {
 
     it("should default to neutral positioning", async () => {
       const neutralInstitutional = {
-        rows: [{ ...mockInstitutionalSummary.rows[0], avg_change: 0.5 }],
+        rows: [{
+          ...mockInstitutionalSummary.rows[0],
+          avg_institutional_ownership: 0.45,
+          avg_short_interest: 0.08,
+          avg_short_change: 0.0
+        }],
       };
       const neutralRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: 5.0 }],
@@ -393,16 +500,24 @@ describe("Positioning Routes", () => {
       const nullInstitutional = {
         rows: [
           {
-            avg_change: null,
-            bullish_count: null,
-            bearish_count: null,
+            avg_institutional_ownership: null,
+            avg_insider_ownership: null,
+            avg_short_interest: null,
+            avg_short_change: null,
+            high_institutional_count: null,
+            high_short_count: null,
             total_positions: null,
           },
         ],
       };
       const nullRetail = {
         rows: [
-          { avg_bullish: null, avg_bearish: null, avg_net_sentiment: null },
+          {
+            avg_bullish: null,
+            avg_bearish: null,
+            avg_net_sentiment: null,
+            total_readings: null,
+          },
         ],
       };
 
@@ -415,9 +530,13 @@ describe("Positioning Routes", () => {
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
 
-      expect(response.body.key_metrics.institutional_avg_change).toBe(0);
+      expect(response.body.key_metrics.avg_institutional_ownership).toBe(0);
+      expect(response.body.key_metrics.avg_insider_ownership).toBe(0);
+      expect(response.body.key_metrics.avg_short_interest).toBe(0);
+      expect(response.body.key_metrics.avg_short_change).toBe(0);
       expect(response.body.key_metrics.retail_net_sentiment).toBe(0);
       expect(response.body.data_freshness.institutional_positions).toBe(0);
+      expect(response.body.data_freshness.retail_readings).toBe(0);
     });
 
     it("should calculate retail sentiment classifications correctly", async () => {
@@ -486,7 +605,7 @@ describe("Positioning Routes", () => {
       );
     });
 
-    it("should use correct SQL queries with fundamental metrics and retail sentiment", async () => {
+    it("should use correct SQL queries with positioning_metrics and retail sentiment", async () => {
       mockQuery
         .mockResolvedValueOnce(mockInstitutionalSummary)
         .mockResolvedValueOnce(mockRetailSummary);
@@ -494,11 +613,14 @@ describe("Positioning Routes", () => {
       await request(app).get("/api/positioning/summary").set("Authorization", "Bearer dev-bypass-token").expect(200);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("FROM company_profile")
+        expect.stringContaining("FROM positioning_metrics pm")
+      );
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining("FROM retail_sentiment")
       );
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining(
-          "WHERE date >= CURRENT_DATE - INTERVAL '30 days'"
+          "WHERE pm.date >= CURRENT_DATE - INTERVAL '30 days'"
         )
       );
     });
@@ -524,8 +646,13 @@ describe("Positioning Routes", () => {
 
       expect(response.body).toHaveProperty("key_metrics");
       expect(response.body.key_metrics).toHaveProperty(
-        "institutional_avg_change"
+        "avg_institutional_ownership"
       );
+      expect(response.body.key_metrics).toHaveProperty(
+        "avg_insider_ownership"
+      );
+      expect(response.body.key_metrics).toHaveProperty("avg_short_interest");
+      expect(response.body.key_metrics).toHaveProperty("avg_short_change");
       expect(response.body.key_metrics).toHaveProperty("retail_net_sentiment");
 
       expect(response.body).toHaveProperty("data_freshness");
@@ -533,6 +660,10 @@ describe("Positioning Routes", () => {
         "institutional_positions"
       );
       expect(response.body.data_freshness).toHaveProperty("retail_readings");
+      expect(response.body.data_freshness).toHaveProperty(
+        "high_institutional_count"
+      );
+      expect(response.body.data_freshness).toHaveProperty("high_short_count");
     });
   });
 });

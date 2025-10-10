@@ -855,57 +855,121 @@ router.get("/allocation", async (req, res) => {
 // Sector rotation analysis
 router.get("/rotation", async (req, res) => {
   try {
+    // Check database availability
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Sector rotation service requires database connection"
+      });
+    }
+
     const { timeframe = "3m" } = req.query;
     console.log(
       `🔄 Sector rotation analysis requested, timeframe: ${timeframe}`
     );
 
+    // Check if sector_performance table exists and has data
+    const checkQuery = `
+      SELECT COUNT(*) as count
+      FROM information_schema.tables
+      WHERE table_name = 'sector_performance'
+    `;
+    const tableCheck = await query(checkQuery);
+
+    if (!tableCheck.rows[0] || tableCheck.rows[0].count === '0') {
+      return res.status(404).json({
+        success: false,
+        error: "No sector rotation data available in database",
+        message: "Sector performance table not found. Please run the loadsectordata.py loader first.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Query real sector rotation data from sector_performance table
+    const rotationQuery = `
+      SELECT
+        symbol,
+        sector_name,
+        momentum,
+        money_flow,
+        relative_strength,
+        performance_1d,
+        performance_5d,
+        performance_20d,
+        rsi,
+        price,
+        change_percent,
+        total_assets,
+        fetched_at
+      FROM sector_performance
+      ORDER BY relative_strength DESC
+    `;
+
+    const result = await query(rotationQuery);
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No sector rotation data available in database",
+        message: "Sector performance data is empty. Please run the loadsectordata.py loader to populate data.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Format sector rankings
+    const sectorRankings = result.rows.map(row => ({
+      sector: row.sector_name,
+      symbol: row.symbol,
+      momentum: row.momentum,
+      relative_strength: parseFloat(row.relative_strength || 0),
+      flow_direction: row.money_flow,
+      rsi: parseFloat(row.rsi || 0),
+      performance: {
+        daily: parseFloat(row.performance_1d || 0),
+        weekly: parseFloat(row.performance_5d || 0),
+        monthly: parseFloat(row.performance_20d || 0),
+      },
+      price: parseFloat(row.price || 0),
+      change_percent: parseFloat(row.change_percent || 0),
+      total_assets: row.total_assets,
+    }));
+
+    // Determine market cycle based on sector performance
+    const avgRelativeStrength = sectorRankings.reduce((sum, s) => sum + s.relative_strength, 0) / sectorRankings.length;
+    const inflowCount = sectorRankings.filter(s => s.flow_direction === 'Inflow').length;
+    const outflowCount = sectorRankings.filter(s => s.flow_direction === 'Outflow').length;
+
+    let currentPhase = "MID_CYCLE";
+    let confidence = 0.7;
+
+    if (avgRelativeStrength > 5 && inflowCount > outflowCount * 2) {
+      currentPhase = "EARLY_CYCLE";
+      confidence = 0.85;
+    } else if (avgRelativeStrength < -5 && outflowCount > inflowCount * 2) {
+      currentPhase = "RECESSION";
+      confidence = 0.8;
+    } else if (avgRelativeStrength > 0 && inflowCount > outflowCount) {
+      currentPhase = "MID_CYCLE";
+      confidence = 0.75;
+    } else {
+      currentPhase = "LATE_CYCLE";
+      confidence = 0.7;
+    }
+
     const rotationData = {
       timeframe: timeframe,
       analysis_date: new Date().toISOString(),
-
-      sector_rankings: [
-        {
-          sector: "Technology",
-          momentum: 8.2,
-          relative_strength: 92.5,
-          flow_direction: "INFLOW",
-        },
-        {
-          sector: "Healthcare",
-          momentum: 6.1,
-          relative_strength: 87.3,
-          flow_direction: "INFLOW",
-        },
-        {
-          sector: "Financials",
-          momentum: -2.4,
-          relative_strength: 45.8,
-          flow_direction: "OUTFLOW",
-        },
-        {
-          sector: "Energy",
-          momentum: -4.7,
-          relative_strength: 38.2,
-          flow_direction: "OUTFLOW",
-        },
-        {
-          sector: "Consumer Discretionary",
-          momentum: 3.8,
-          relative_strength: 74.1,
-          flow_direction: "NEUTRAL",
-        },
-      ],
-
+      sector_rankings: sectorRankings,
       market_cycle: {
-        current_phase: ["EARLY_CYCLE", "MID_CYCLE", "LATE_CYCLE", "RECESSION"][
-          Math.floor(0)
-        ],
-        confidence: 0,
-        duration_estimate: Math.floor(60 + 0),
+        current_phase: currentPhase,
+        confidence: confidence,
+        avg_relative_strength: avgRelativeStrength.toFixed(2),
+        inflow_sectors: inflowCount,
+        outflow_sectors: outflowCount,
+        neutral_sectors: sectorRankings.length - inflowCount - outflowCount,
       },
-
-      last_updated: new Date().toISOString(),
+      last_updated: result.rows[0]?.fetched_at || new Date().toISOString(),
     };
 
     res.json({

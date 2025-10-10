@@ -106,7 +106,7 @@ vi.mock("recharts", async () => {
       data-stroke={stroke}
       {...props}
     />
-  ),
+  )
 }));
 
 describe("HistoricalPriceChart", () => {

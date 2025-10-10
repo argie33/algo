@@ -1056,52 +1056,10 @@ ON CONFLICT (symbol, ex_dividend_date) DO NOTHING;
 CREATE INDEX IF NOT EXISTS idx_dividend_calendar_symbol_date ON dividend_calendar(symbol, ex_dividend_date);
 
 -- Add missing columns to price_daily table for route compatibility
+-- price_daily table uses: open, high, low, close, adj_close (from Python loaders)
+-- No need to create aliased columns like open_price, close_price, etc.
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'price_daily'
-        AND column_name = 'open_price'
-    ) THEN
-        ALTER TABLE price_daily ADD COLUMN open_price DOUBLE PRECISION;
-        UPDATE price_daily SET open_price = open WHERE open_price IS NULL;
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'price_daily'
-        AND column_name = 'high_price'
-    ) THEN
-        ALTER TABLE price_daily ADD COLUMN high_price DOUBLE PRECISION;
-        UPDATE price_daily SET high_price = high WHERE high_price IS NULL;
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'price_daily'
-        AND column_name = 'low_price'
-    ) THEN
-        ALTER TABLE price_daily ADD COLUMN low_price DOUBLE PRECISION;
-        UPDATE price_daily SET low_price = low WHERE low_price IS NULL;
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'price_daily'
-        AND column_name = 'close_price'
-    ) THEN
-        ALTER TABLE price_daily ADD COLUMN close_price DOUBLE PRECISION;
-        UPDATE price_daily SET close_price = close WHERE close_price IS NULL;
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'price_daily'
-        AND column_name = 'adj_close_price'
-    ) THEN
-        ALTER TABLE price_daily ADD COLUMN adj_close_price DOUBLE PRECISION;
-        UPDATE price_daily SET adj_close_price = adj_close WHERE adj_close_price IS NULL;
-    END IF;
 
     IF NOT EXISTS (
         SELECT column_name FROM information_schema.columns
@@ -1123,12 +1081,8 @@ BEGIN
 END $$;
 
 -- Force update all the aliased columns after table creation
-UPDATE price_daily SET price = close WHERE price IS NULL OR price != close;
-UPDATE price_daily SET open_price = open WHERE open_price IS NULL OR open_price != open;
-UPDATE price_daily SET high_price = high WHERE high_price IS NULL OR high_price != high;
-UPDATE price_daily SET low_price = low WHERE low_price IS NULL OR low_price != low;
-UPDATE price_daily SET close_price = close WHERE close_price IS NULL OR close_price != close;
-UPDATE price_daily SET adj_close_price = adj_close WHERE adj_close_price IS NULL OR adj_close_price != adj_close;
+-- price_daily table uses columns: open, high, low, close, adj_close (not open_price, close_price, etc.)
+-- These columns already exist in the correct format from the Python loader
 
 -- Force update portfolio_holdings columns after table creation
 UPDATE portfolio_holdings SET cost_basis = average_cost * quantity

@@ -375,6 +375,56 @@ const API_CONTRACTS = {
       data: "array",
     },
   },
+
+  // Positioning endpoints
+  "GET /api/positioning": {
+    expectedStatus: 200,
+    requiredFields: ["message", "status", "endpoints", "timestamp"],
+    responseSchema: {
+      message: "string",
+      status: "string",
+      endpoints: "array",
+      timestamp: "string",
+    },
+  },
+
+  "GET /api/positioning/stocks": {
+    expectedStatus: [200, 404],
+    conditionalFields: {
+      200: ["positioning_metrics", "positioning_score", "institutional_holders", "retail_sentiment", "metadata"],
+      404: ["success", "error", "message"],
+    },
+    responseSchema: {
+      positioning_score: "number",
+      institutional_holders: "array",
+      metadata: "object",
+    },
+  },
+
+  "GET /api/positioning/summary": {
+    expectedStatus: [200, 401],
+    conditionalFields: {
+      200: ["market_overview", "key_metrics", "data_freshness", "last_updated"],
+      401: ["error"],
+    },
+    responseSchema: {
+      market_overview: "object",
+      key_metrics: "object",
+      data_freshness: "object",
+      last_updated: "string",
+    },
+  },
+
+  "GET /api/positioning/data": {
+    expectedStatus: 200,
+    requiredFields: ["success", "data", "metadata", "timestamp"],
+    responseSchema: {
+      success: "boolean",
+      data: "object",
+      metadata: "object",
+      timestamp: "string",
+    },
+  },
 };
 
 // Contract validation functions

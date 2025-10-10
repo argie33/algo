@@ -4333,3 +4333,41 @@ export const getTradingPositions = async () => {
     throw new Error(handleApiError(error, "Failed to fetch trading positions"));
   }
 };
+
+// ============================================
+// Positioning API Methods
+// ============================================
+
+export const getPositioningData = async (symbol, params = {}) => {
+  try {
+    const response = await api.get(`/api/positioning/stocks`, {
+      params: { symbol, ...params },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching positioning data for ${symbol}:`, error);
+    throw new Error(handleApiError(error, "Failed to fetch positioning data"));
+  }
+};
+
+export const getPositioningSummary = async () => {
+  try {
+    const response = await api.get("/api/positioning/summary");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching positioning summary:", error);
+    throw new Error(handleApiError(error, "Failed to fetch positioning summary"));
+  }
+};
+
+export const getTopPositioningMovers = async (limit = 20) => {
+  try {
+    const response = await api.get("/api/positioning/data", {
+      params: { limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching top positioning movers:", error);
+    throw new Error(handleApiError(error, "Failed to fetch positioning movers"));
+  }
+};

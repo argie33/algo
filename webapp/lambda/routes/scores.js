@@ -85,18 +85,18 @@ router.get("/", async (req, res) => {
     if (stocksResult.rows.length === 0) {
       return res.json({
         success: true,
-        data: { stocks: [] },
-        pagination: {
-          page: page,
-          limit: limit,
-          total: 0,
-          totalPages: 0,
-          hasMore: false
-        },
+        data: { stocks: [], viewType: "list" },
         summary: {
           totalStocks: 0,
           averageScore: 0,
-          topPerformer: null
+          topScore: 0,
+          scoreRange: "0 - 0"
+        },
+        metadata: {
+          dataSource: "stock_scores_real_table",
+          searchTerm: search || null,
+          lastUpdated: null,
+          factorAnalysis: "six_factor_scoring_system"
         },
         timestamp: new Date().toISOString(),
       });

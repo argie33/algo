@@ -113,7 +113,7 @@ function EarningsCalendar() {
     queryFn: async () => {
       if (!expandedSymbol) return null;
 
-      const [history, epsRevisions, epsTrend, metrics] = await Promise.all([
+      const [history, epsRevisions, epsTrend, revenueEstimates] = await Promise.all([
         fetch(
           `${API_BASE}/api/calendar/earnings-history?symbol=${expandedSymbol}`
         ).then((r) => (r.ok ? r.json() : { data: {} })),
@@ -128,11 +128,11 @@ function EarningsCalendar() {
           )}/eps-trend`
         ).then((r) => (r.ok ? r.json() : { data: [] })),
         fetch(
-          `${API_BASE}/api/calendar/earnings-metrics?symbol=${expandedSymbol}`
-        ).then((r) => (r.ok ? r.json() : { data: {} })),
+          `${API_BASE}/api/analysts/revenue-estimates?symbol=${expandedSymbol}`
+        ).then((r) => (r.ok ? r.json() : { data: [] })),
       ]);
 
-      return { history, epsRevisions, epsTrend, metrics };
+      return { history, epsRevisions, epsTrend, revenueEstimates };
     },
     enabled: !!expandedSymbol,
     staleTime: 60000,
@@ -535,15 +535,21 @@ function EarningsCalendar() {
                                                       />
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                      <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
-                                                        {getSurpriseIcon(est.growth)}
-                                                        <Typography
-                                                          variant="body2"
-                                                          sx={{ color: getSurpriseColor(est.growth) }}
-                                                        >
-                                                          {formatPercentage(est.growth / 100)}
+                                                      {est.growth != null ? (
+                                                        <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                                                          {getSurpriseIcon(est.growth)}
+                                                          <Typography
+                                                            variant="body2"
+                                                            sx={{ color: getSurpriseColor(est.growth) }}
+                                                          >
+                                                            {formatPercentage(est.growth / 100)}
+                                                          </Typography>
+                                                        </Box>
+                                                      ) : (
+                                                        <Typography variant="body2" color="text.secondary">
+                                                          N/A
                                                         </Typography>
-                                                      </Box>
+                                                      )}
                                                     </TableCell>
                                                   </TableRow>
                                                 ))
@@ -765,12 +771,12 @@ function EarningsCalendar() {
                                     </Accordion>
                                   </Grid>
 
-                                  {/* Earnings Metrics */}
+                                  {/* Revenue Estimates */}
                                   <Grid item xs={12} md={6}>
                                     <Accordion defaultExpanded>
                                       <AccordionSummary expandIcon={<ExpandMore />}>
                                         <Typography variant="subtitle1" fontWeight="bold">
-                                          Earnings Quality Metrics
+                                          Revenue Estimates
                                         </Typography>
                                       </AccordionSummary>
                                       <AccordionDetails>
@@ -778,34 +784,46 @@ function EarningsCalendar() {
                                           <Table size="small">
                                             <TableHead>
                                               <TableRow>
-                                                <TableCell>Date</TableCell>
+                                                <TableCell>Period</TableCell>
                                                 <TableCell align="right">
-                                                  EPS YoY
+                                                  Avg Est
                                                 </TableCell>
                                                 <TableCell align="right">
-                                                  Rev YoY
+                                                  Range
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                  Analysts
                                                 </TableCell>
                                               </TableRow>
                                             </TableHead>
                                             <TableBody>
-                                              {symbolDetails.metrics?.data?.[
-                                                expandedSymbol
-                                              ]?.metrics
+                                              {symbolDetails.revenueEstimates?.data
                                                 ?.slice(0, 4)
-                                                .map((m, idx) => (
+                                                .map((r, idx) => (
                                                   <TableRow key={idx}>
                                                     <TableCell>
-                                                      {m.report_date}
+                                                      <Chip
+                                                        label={r.period}
+                                                        size="small"
+                                                        variant="outlined"
+                                                      />
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                      {m.eps_yoy_growth
-                                                        ? `${m.eps_yoy_growth.toFixed(1)}%`
-                                                        : "N/A"}
+                                                      <Typography variant="body2" fontWeight="bold">
+                                                        {formatCurrency(r.avg_estimate, 0)}
+                                                      </Typography>
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                      {m.revenue_yoy_growth
-                                                        ? `${m.revenue_yoy_growth.toFixed(1)}%`
-                                                        : "N/A"}
+                                                      <Typography variant="caption" color="text.secondary">
+                                                        {formatCurrency(r.low_estimate, 0)} - {formatCurrency(r.high_estimate, 0)}
+                                                      </Typography>
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                      <Chip
+                                                        label={r.number_of_analysts}
+                                                        size="small"
+                                                        variant="outlined"
+                                                      />
                                                     </TableCell>
                                                   </TableRow>
                                                 )) || (
@@ -814,7 +832,7 @@ function EarningsCalendar() {
                                                     colSpan={4}
                                                     align="center"
                                                   >
-                                                    No metrics data
+                                                    No revenue estimates data
                                                   </TableCell>
                                                 </TableRow>
                                               )}
