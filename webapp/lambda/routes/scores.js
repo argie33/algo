@@ -222,6 +222,58 @@ router.get("/:symbol", async (req, res) => {
       success: true,
       data: {
         symbol: row.symbol,
+        companyName: row.company_name,
+        compositeScore: parseFloat(row.composite_score) || 0,
+        currentPrice: parseFloat(row.current_price) || 0,
+        priceChange1d: parseFloat(row.price_change_1d) || 0,
+        volume: parseInt(row.volume_avg_30d) || 0,
+        marketCap: parseInt(row.market_cap) || 0,
+        peRatio: parseFloat(row.pe_ratio) || null,
+        lastUpdated: row.last_updated,
+        scoreDate: row.score_date,
+        // Nested factors object for tests
+        factors: {
+          momentum: {
+            score: parseFloat(row.momentum_score) || 0,
+            components: { rsi: parseFloat(row.rsi) || 0 }
+          },
+          trend: {
+            score: parseFloat(row.trend_score) || 0,
+            components: {
+              sma20: parseFloat(row.sma_20) || 0,
+              sma50: parseFloat(row.sma_50) || 0,
+              macd: parseFloat(row.macd) || null
+            }
+          },
+          value: {
+            score: parseFloat(row.value_score) || 0,
+            components: { peRatio: parseFloat(row.pe_ratio) || null }
+          },
+          quality: {
+            score: parseFloat(row.quality_score) || 0,
+            components: {}
+          },
+          growth: {
+            score: parseFloat(row.growth_score) || 0,
+            components: {}
+          },
+          positioning: {
+            score: parseFloat(row.positioning_score) || 0,
+            components: {}
+          },
+          sentiment: {
+            score: parseFloat(row.sentiment_score) || 0,
+            components: {}
+          }
+        },
+        // Nested performance object for tests
+        performance: {
+          priceChange1d: parseFloat(row.price_change_1d) || 0,
+          priceChange5d: parseFloat(row.price_change_5d) || 0,
+          priceChange30d: parseFloat(row.price_change_30d) || 0,
+          volatility30d: parseFloat(row.volatility_30d) || 0
+        },
+        // Keep snake_case versions for backward compatibility with frontend
         company_name: row.company_name,
         composite_score: parseFloat(row.composite_score) || 0,
         momentum_score: parseFloat(row.momentum_score) || 0,

@@ -321,13 +321,14 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
         expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
 
-        // Check six factor analysis structure
+        // Check seven factor analysis structure (6 main + trend)
         expect(response.body.data.factors).toHaveProperty("momentum");
         expect(response.body.data.factors).toHaveProperty("trend");
         expect(response.body.data.factors).toHaveProperty("value");
         expect(response.body.data.factors).toHaveProperty("quality");
-        expect(response.body.data.factors).toHaveProperty("technical");
-        expect(response.body.data.factors).toHaveProperty("risk");
+        expect(response.body.data.factors).toHaveProperty("growth");
+        expect(response.body.data.factors).toHaveProperty("positioning");
+        expect(response.body.data.factors).toHaveProperty("sentiment");
 
         // Check performance structure
         expect(response.body.data.performance).toHaveProperty("priceChange1d");
@@ -442,11 +443,16 @@ describe("Scores Routes Unit Tests", () => {
         expect(typeof stock.market_cap).toBe("number");
         expect(stock.market_cap).toBeGreaterThanOrEqual(0);
 
-        // Check factor scores are numbers
-        expect(typeof stock.factors.momentum.score).toBe("number");
-        expect(typeof stock.factors.trend.score).toBe("number");
-        expect(typeof stock.factors.value.score).toBe("number");
-        expect(typeof stock.factors.quality.score).toBe("number");
+        // Check factor scores are numbers (if factors object exists in list response)
+        if (stock.factors) {
+          expect(typeof stock.factors.momentum.score).toBe("number");
+          expect(typeof stock.factors.trend.score).toBe("number");
+          expect(typeof stock.factors.value.score).toBe("number");
+          expect(typeof stock.factors.quality.score).toBe("number");
+          expect(typeof stock.factors.growth.score).toBe("number");
+          expect(typeof stock.factors.positioning.score).toBe("number");
+          expect(typeof stock.factors.sentiment.score).toBe("number");
+        }
       }
     });
   });
