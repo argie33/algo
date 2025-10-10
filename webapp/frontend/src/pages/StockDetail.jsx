@@ -1790,11 +1790,13 @@ function StockDetail() {
                         <TableCell>Price/Book Ratio</TableCell>
                         <TableCell align="right">
                           <Chip
-                            label={currentMetrics.price_to_book?.toFixed(2) || "N/A"}
+                            label={metrics?.data?.price_to_book?.toFixed(2) || "N/A"}
                             color={
-                              currentMetrics.price_to_book < 3
+                              metrics?.data?.price_to_book && metrics.data.price_to_book < 3
                                 ? "success"
-                                : "warning"
+                                : metrics?.data?.price_to_book && metrics.data.price_to_book < 5
+                                  ? "warning"
+                                  : "error"
                             }
                             size="small"
                           />
@@ -1809,8 +1811,14 @@ function StockDetail() {
                         <TableCell>EV/EBITDA</TableCell>
                         <TableCell align="right">
                           <Chip
-                            label={currentMetrics.ev_to_ebitda?.toFixed(2) || "N/A"}
-                            color="success"
+                            label={metrics?.data?.ev_to_ebitda?.toFixed(2) || "N/A"}
+                            color={
+                              metrics?.data?.ev_to_ebitda && metrics.data.ev_to_ebitda < 15
+                                ? "success"
+                                : metrics?.data?.ev_to_ebitda && metrics.data.ev_to_ebitda < 20
+                                  ? "warning"
+                                  : "error"
+                            }
                             size="small"
                           />
                         </TableCell>
@@ -2068,40 +2076,6 @@ function StockDetail() {
                   <Table size="small">
                     <TableBody>
                       <TableRow>
-                        <TableCell>Institutional Ownership</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={currentMetrics.institutional_ownership ? `${(currentMetrics.institutional_ownership * 100).toFixed(1)}%` : "N/A"}
-                            color="success"
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Insider Ownership</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={currentMetrics.insider_ownership ? `${(currentMetrics.insider_ownership * 100).toFixed(1)}%` : "N/A"}
-                            color="success"
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Short Interest</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={currentMetrics.short_interest ? `${(currentMetrics.short_interest * 100).toFixed(1)}%` : "N/A"}
-                            color={
-                              currentMetrics.short_interest > 0.1
-                                ? "warning"
-                                : "success"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
                         <TableCell>Positioning Score</TableCell>
                         <TableCell align="right">
                           <Chip
@@ -2119,6 +2093,13 @@ function StockDetail() {
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
                             0-100 scale
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            Positioning score reflects institutional ownership patterns, insider activity, and short interest data.
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -2141,36 +2122,6 @@ function StockDetail() {
                   <Table size="small">
                     <TableBody>
                       <TableRow>
-                        <TableCell>Analyst Ratings</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={currentMetrics.analyst_rating || "N/A"}
-                            color="success"
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>News Sentiment</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={currentMetrics.news_sentiment || "Neutral"}
-                            color="info"
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Social Media Buzz</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={currentMetrics.social_sentiment || "Moderate"}
-                            color="info"
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
                         <TableCell>Sentiment Score</TableCell>
                         <TableCell align="right">
                           <Chip
@@ -2188,6 +2139,13 @@ function StockDetail() {
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
                             0-100 scale
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            Sentiment score aggregates analyst ratings, news sentiment, and social media activity.
                           </Typography>
                         </TableCell>
                       </TableRow>
