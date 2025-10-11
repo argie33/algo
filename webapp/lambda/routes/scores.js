@@ -40,14 +40,6 @@ router.get("/", async (req, res) => {
         ss.growth_score,
         ss.positioning_score,
         ss.sentiment_score,
-        ss.momentum_short_term,
-        ss.momentum_medium_term,
-        ss.momentum_oscillator,
-        ss.momentum_trend_strength,
-        ss.momentum_macd_analysis,
-        ss.momentum_volume_conf,
-        ss.momentum_relative_strength,
-        ss.momentum_consistency,
         ss.rsi,
         ss.macd,
         ss.sma_20,
@@ -149,17 +141,6 @@ router.get("/", async (req, res) => {
       macd: parseFloat(row.macd) || null,
       last_updated: row.last_updated,
       score_date: row.score_date,
-      // Add momentum components for frontend chart display (8 components)
-      momentum_components: {
-        short_term: parseFloat(row.momentum_short_term) || 0,
-        medium_term: parseFloat(row.momentum_medium_term) || 0,
-        oscillator: parseFloat(row.momentum_oscillator) || 0,
-        trend_strength: parseFloat(row.momentum_trend_strength) || 0,
-        macd_analysis: parseFloat(row.momentum_macd_analysis) || 0,
-        volume_conf: parseFloat(row.momentum_volume_conf) || 0,
-        relative_strength: parseFloat(row.momentum_relative_strength) || 0,
-        consistency: parseFloat(row.momentum_consistency) || 0
-      },
       // Add positioning components for frontend chart display
       positioning_components: {
         institutional_ownership: parseFloat(row.institutional_ownership) || null,
@@ -224,14 +205,6 @@ router.get("/:symbol", async (req, res) => {
         ss.growth_score,
         ss.positioning_score,
         ss.sentiment_score,
-        ss.momentum_short_term,
-        ss.momentum_medium_term,
-        ss.momentum_oscillator,
-        ss.momentum_trend_strength,
-        ss.momentum_macd_analysis,
-        ss.momentum_volume_conf,
-        ss.momentum_relative_strength,
-        ss.momentum_consistency,
         ss.rsi,
         ss.macd,
         ss.sma_20,
@@ -296,17 +269,7 @@ router.get("/:symbol", async (req, res) => {
         factors: {
           momentum: {
             score: parseFloat(row.momentum_score) || 0,
-            components: {
-              short_term: parseFloat(row.momentum_short_term) || 0,
-              medium_term: parseFloat(row.momentum_medium_term) || 0,
-              oscillator: parseFloat(row.momentum_oscillator) || 0,
-              trend_strength: parseFloat(row.momentum_trend_strength) || 0,
-              macd_analysis: parseFloat(row.momentum_macd_analysis) || 0,
-              volume_conf: parseFloat(row.momentum_volume_conf) || 0,
-              relative_strength: parseFloat(row.momentum_relative_strength) || 0,
-              consistency: parseFloat(row.momentum_consistency) || 0,
-              rsi: parseFloat(row.rsi) || 0
-            }
+            components: { rsi: parseFloat(row.rsi) || 0 }
           },
           value: {
             score: parseFloat(row.value_score) || 0,

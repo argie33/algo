@@ -111,16 +111,6 @@ def create_stock_scores_table(conn):
                 growth_score DECIMAL(5,2),
                 positioning_score DECIMAL(5,2),
                 sentiment_score DECIMAL(5,2),
-                -- Momentum component breakdown (8 components)
-                momentum_short_term DECIMAL(5,2),
-                momentum_medium_term DECIMAL(5,2),
-                momentum_oscillator DECIMAL(5,2),
-                momentum_trend_strength DECIMAL(5,2),
-                momentum_macd_analysis DECIMAL(5,2),
-                momentum_volume_conf DECIMAL(5,2),
-                momentum_relative_strength DECIMAL(5,2),
-                momentum_consistency DECIMAL(5,2),
-                -- Technical indicators
                 rsi DECIMAL(5,2),
                 macd DECIMAL(10,4),
                 sma_20 DECIMAL(10,2),
@@ -263,23 +253,17 @@ def get_stock_data_from_database(conn, symbol):
         # Get current price (most recent)
         current_price = float(df['close'].iloc[-1])
 
-        # Calculate price changes across multiple timeframes
+        # Calculate price changes
         price_change_1d = ((current_price - float(df['close'].iloc[-2])) / float(df['close'].iloc[-2]) * 100) if len(df) >= 2 else 0
         price_change_5d = ((current_price - float(df['close'].iloc[-6])) / float(df['close'].iloc[-6]) * 100) if len(df) >= 6 else 0
-        price_change_10d = ((current_price - float(df['close'].iloc[-11])) / float(df['close'].iloc[-11]) * 100) if len(df) >= 11 else 0
-        price_change_20d = ((current_price - float(df['close'].iloc[-21])) / float(df['close'].iloc[-21]) * 100) if len(df) >= 21 else 0
         price_change_30d = ((current_price - float(df['close'].iloc[-31])) / float(df['close'].iloc[-31]) * 100) if len(df) >= 31 else 0
-        price_change_60d = ((current_price - float(df['close'].iloc[-61])) / float(df['close'].iloc[-61]) * 100) if len(df) >= 61 else 0
 
         # Calculate volume average (last 30 days)
         volume_avg_30d = int(df['volume'].tail(30).mean()) if len(df) >= 30 else int(df['volume'].mean())
 
-        # Get latest technical data - FETCH ALL MOMENTUM INDICATORS
+        # Get latest technical data
         cur.execute("""
-            SELECT
-                rsi, macd, macd_hist, sma_20, sma_50, sma_200,
-                adx, plus_di, minus_di, mfi, roc, mom,
-                ad, cmf, mansfield_rs, atr
+            SELECT rsi, macd, sma_20, sma_50, atr
             FROM technical_data_daily
             WHERE symbol = %s
             ORDER BY date DESC
@@ -287,28 +271,15 @@ def get_stock_data_from_database(conn, symbol):
         """, (symbol,))
 
         tech_data = cur.fetchone()
-        if tech_data and len(tech_data) >= 16:
-            (rsi, macd, macd_hist, sma_20, sma_50, sma_200,
-             adx, plus_di, minus_di, mfi, roc, mom,
-             ad, cmf, mansfield_rs, atr) = tech_data
+        if tech_data and len(tech_data) >= 5:
+            rsi, macd, sma_20, sma_50, atr = tech_data
         else:
-            # Fallback: Calculate basic technical indicators from price data
+            # Calculate basic technical indicators from price data
             prices = df['close'].astype(float).values
             rsi = calculate_rsi(prices)
             macd = calculate_macd(prices)
-            macd_hist = None
             sma_20 = df['close'].tail(20).mean() if len(df) >= 20 else current_price
             sma_50 = df['close'].tail(50).mean() if len(df) >= 50 else current_price
-            sma_200 = df['close'].tail(200).mean() if len(df) >= 200 else None
-            adx = None
-            plus_di = None
-            minus_di = None
-            mfi = None
-            roc = None
-            mom = None
-            ad = None
-            cmf = None
-            mansfield_rs = None
             atr = None
 
         # Calculate volatility from price data
@@ -422,188 +393,45 @@ def get_stock_data_from_database(conn, symbol):
 
         # Calculate individual scores (0-100 scale)
 
-        # ========== ENHANCED MOMENTUM SCORE - 8 COMPONENT ANALYSIS ==========
-        # Industry-leading momentum calculation using all available technical indicators
-        # Components: Short-term price (20), Medium-term price (15), Oscillators (15),
-        #             Trend strength (12), MACD analysis (12), Volume confirmation (10),
-        #             Relative strength (10), Momentum consistency (6)
+        # Momentum Score (RSI + MACD + Price Momentum)
+        momentum_score = 50  # Start neutral
 
-        momentum_score = 0  # Build from components
-
-        # 1. SHORT-TERM PRICE MOMENTUM (0-20 points)
-        short_term_score = 10  # Start neutral
-        # 1-day momentum
-        if price_change_1d > 2:
-            short_term_score += min(5, price_change_1d * 0.5)
-        elif price_change_1d < -2:
-            short_term_score -= min(5, abs(price_change_1d) * 0.5)
-        # 5-day momentum
-        if price_change_5d > 5:
-            short_term_score += min(5, price_change_5d * 0.3)
-        elif price_change_5d < -5:
-            short_term_score -= min(5, abs(price_change_5d) * 0.3)
-        short_term_score = max(0, min(20, short_term_score))
-        momentum_score += short_term_score
-
-        # 2. MEDIUM-TERM PRICE MOMENTUM (0-15 points)
-        if price_change_20d is not None and price_change_30d is not None:
-            medium_term_score = 7.5  # Neutral
-            if price_change_30d > 15:
-                medium_term_score = 15
-            elif price_change_30d > 10:
-                medium_term_score = 13
-            elif price_change_30d > 5:
-                medium_term_score = 11
-            elif price_change_30d > 0:
-                medium_term_score = 9
-            elif price_change_30d > -5:
-                medium_term_score = 6
-            elif price_change_30d > -10:
-                medium_term_score = 3
-            else:
-                medium_term_score = 0
-            momentum_score += medium_term_score
-        else:
-            momentum_score += 7.5  # Neutral default
-
-        # 3. OSCILLATOR SIGNALS (0-15 points)
-        oscillator_score = 0
-        # RSI component (0-8 points)
+        # RSI component (0-40 points)
         if rsi is not None:
-            if 50 < rsi < 70:
-                oscillator_score += 8  # Strong bullish zone
-            elif 40 < rsi <= 50:
-                oscillator_score += 6  # Mildly bullish
-            elif 70 <= rsi < 80:
-                oscillator_score += 6  # Overbought but strong
-            elif 30 < rsi <= 40:
-                oscillator_score += 4  # Oversold bounce potential
-            elif rsi >= 80:
-                oscillator_score += 3  # Very overbought
-            else:  # rsi <= 30
-                oscillator_score += 2  # Very oversold
-        else:
-            oscillator_score += 4  # Neutral default
-
-        # MFI component (0-7 points) - volume-weighted RSI
-        if mfi is not None:
-            if 50 < mfi < 80:
-                oscillator_score += 7  # Strong money flow
-            elif 40 < mfi <= 50:
-                oscillator_score += 5
-            elif mfi >= 80:
-                oscillator_score += 4  # Overbought
-            elif mfi > 20:
-                oscillator_score += 2
+            if rsi > 70:
+                rsi_score = 35 + (min(rsi, 100) - 70) * 0.17  # 35-40 for strong
+            elif rsi > 60:
+                rsi_score = 30 + (rsi - 60)  # 30-35 for bullish
+            elif rsi > 50:
+                rsi_score = 25 + (rsi - 50) * 0.5  # 25-30 for mild bullish
+            elif rsi > 40:
+                rsi_score = 20 + (rsi - 40) * 0.5  # 20-25 for neutral/weak
+            elif rsi > 30:
+                rsi_score = 10 + (rsi - 30)  # 10-20 for oversold (potential bounce)
             else:
-                oscillator_score += 1  # Very weak money flow
+                rsi_score = max(0, rsi * 0.33)  # 0-10 for very oversold
         else:
-            oscillator_score += 3.5  # Neutral default
+            rsi_score = 20  # Default neutral
 
-        oscillator_score = min(15, oscillator_score)
-        momentum_score += oscillator_score
-
-        # 4. TREND STRENGTH (0-12 points)
-        trend_strength_score = 0
-        # ADX component (0-6 points)
-        if adx is not None:
-            if adx > 50:
-                trend_strength_score += 6  # Very strong trend
-            elif adx > 25:
-                trend_strength_score += 5  # Strong trend
-            elif adx > 20:
-                trend_strength_score += 3  # Moderate trend
-            else:
-                trend_strength_score += 1  # Weak/no trend
-        else:
-            trend_strength_score += 3  # Neutral default
-
-        # Directional movement (0-6 points)
-        if plus_di is not None and minus_di is not None:
-            if plus_di > minus_di:
-                di_diff = plus_di - minus_di
-                trend_strength_score += min(6, di_diff / 5)
-            else:
-                di_diff = minus_di - plus_di
-                trend_strength_score -= min(6, di_diff / 5)
-
-        trend_strength_score = max(0, min(12, trend_strength_score))
-        momentum_score += trend_strength_score
-
-        # 5. MACD ANALYSIS (0-12 points)
-        macd_score = 6  # Neutral
-        if macd is not None and macd_hist is not None:
-            # MACD position (0-6 points)
+        # MACD component (0-30 points)
+        macd_score = 15  # Default neutral
+        if macd is not None:
             if macd > 0:
-                macd_score += min(3, macd * 0.5)
+                macd_score = 20 + min(macd * 2, 10)  # 20-30 for positive MACD
             else:
-                macd_score -= min(3, abs(macd) * 0.5)
-            # MACD histogram momentum (0-6 points)
-            if macd_hist > 0:
-                macd_score += min(3, macd_hist * 2)
-            else:
-                macd_score -= min(3, abs(macd_hist) * 2)
-        macd_score = max(0, min(12, macd_score))
-        momentum_score += macd_score
+                macd_score = max(0, 15 + macd * 2)  # 0-15 for negative MACD
 
-        # 6. VOLUME CONFIRMATION (0-10 points)
-        volume_conf_score = 5  # Neutral
-        # Accumulation/Distribution
-        if ad is not None:
-            if ad > 0:
-                volume_conf_score += 2
-            else:
-                volume_conf_score -= 2
-        # Chaikin Money Flow
-        if cmf is not None:
-            if cmf > 0.1:
-                volume_conf_score += 3
-            elif cmf > 0:
-                volume_conf_score += 1
-            elif cmf < -0.1:
-                volume_conf_score -= 3
-            else:
-                volume_conf_score -= 1
-        volume_conf_score = max(0, min(10, volume_conf_score))
-        momentum_score += volume_conf_score
-
-        # 7. RELATIVE STRENGTH (0-10 points)
-        rs_score = 5  # Neutral
-        if mansfield_rs is not None:
-            if mansfield_rs > 20:
-                rs_score = 10  # Strong outperformance
-            elif mansfield_rs > 10:
-                rs_score = 8
-            elif mansfield_rs > 0:
-                rs_score = 6
-            elif mansfield_rs > -10:
-                rs_score = 4
-            elif mansfield_rs > -20:
-                rs_score = 2
-            else:
-                rs_score = 0  # Strong underperformance
-        momentum_score += rs_score
-
-        # 8. MOMENTUM CONSISTENCY (0-6 points)
-        # Multi-timeframe alignment check
-        consistency_score = 0
-        positive_count = sum([
-            1 if price_change_1d > 0 else 0,
-            1 if price_change_5d > 0 else 0,
-            1 if price_change_20d > 0 else 0,
-            1 if price_change_30d > 0 else 0
-        ])
-        if positive_count == 4:
-            consistency_score = 6  # All timeframes positive
-        elif positive_count == 3:
-            consistency_score = 4  # Most timeframes positive
-        elif positive_count == 2:
-            consistency_score = 2  # Mixed
+        # Price momentum component (0-30 points)
+        momentum_score = rsi_score + macd_score
+        if price_change_5d > 5:
+            momentum_score += min(10, price_change_5d * 0.5)
+        elif price_change_5d > 0:
+            momentum_score += price_change_5d
+        elif price_change_5d > -5:
+            momentum_score += max(-10, price_change_5d)
         else:
-            consistency_score = 0  # Mostly negative
-        momentum_score += consistency_score
+            momentum_score += max(-15, price_change_5d * 0.5)
 
-        # Final momentum score clamped to 0-100
         momentum_score = max(0, min(100, momentum_score))
 
         # Trend Score (multi-timeframe analysis + MA alignment)
@@ -956,16 +784,6 @@ def get_stock_data_from_database(conn, symbol):
             'growth_score': float(round(clamp_score(growth_score), 2)),
             'positioning_score': float(round(clamp_score(positioning_score), 2)),
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)),
-            # Momentum component breakdown
-            'momentum_short_term': float(round(short_term_score, 2)),
-            'momentum_medium_term': float(round(medium_term_score if 'medium_term_score' in locals() else 7.5, 2)),
-            'momentum_oscillator': float(round(oscillator_score, 2)),
-            'momentum_trend_strength': float(round(trend_strength_score, 2)),
-            'momentum_macd_analysis': float(round(macd_score, 2)),
-            'momentum_volume_conf': float(round(volume_conf_score, 2)),
-            'momentum_relative_strength': float(round(rs_score, 2)),
-            'momentum_consistency': float(round(consistency_score, 2)),
-            # Technical indicators
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
@@ -995,16 +813,12 @@ def save_stock_score(conn, score_data):
         INSERT INTO stock_scores (
             symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
             positioning_score, sentiment_score,
-            momentum_short_term, momentum_medium_term, momentum_oscillator, momentum_trend_strength,
-            momentum_macd_analysis, momentum_volume_conf, momentum_relative_strength, momentum_consistency,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio, score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
             %(positioning_score)s, %(sentiment_score)s,
-            %(momentum_short_term)s, %(momentum_medium_term)s, %(momentum_oscillator)s, %(momentum_trend_strength)s,
-            %(momentum_macd_analysis)s, %(momentum_volume_conf)s, %(momentum_relative_strength)s, %(momentum_consistency)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s, CURRENT_DATE, CURRENT_TIMESTAMP
@@ -1017,14 +831,6 @@ def save_stock_score(conn, score_data):
             growth_score = EXCLUDED.growth_score,
             positioning_score = EXCLUDED.positioning_score,
             sentiment_score = EXCLUDED.sentiment_score,
-            momentum_short_term = EXCLUDED.momentum_short_term,
-            momentum_medium_term = EXCLUDED.momentum_medium_term,
-            momentum_oscillator = EXCLUDED.momentum_oscillator,
-            momentum_trend_strength = EXCLUDED.momentum_trend_strength,
-            momentum_macd_analysis = EXCLUDED.momentum_macd_analysis,
-            momentum_volume_conf = EXCLUDED.momentum_volume_conf,
-            momentum_relative_strength = EXCLUDED.momentum_relative_strength,
-            momentum_consistency = EXCLUDED.momentum_consistency,
             rsi = EXCLUDED.rsi,
             macd = EXCLUDED.macd,
             sma_20 = EXCLUDED.sma_20,
