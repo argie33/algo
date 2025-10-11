@@ -1,12 +1,16 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Alert,
   Box,
   Card,
   CardContent,
   Chip,
   Container,
+  Divider,
   Grid,
   LinearProgress,
   Table,
@@ -20,6 +24,7 @@ import {
 import {
   TrendingUp,
   TrendingDown,
+  ExpandMore,
   ShowChart,
   BarChart,
 } from "@mui/icons-material";
@@ -337,11 +342,11 @@ const SectorAnalysis = () => {
         </Grid>
       </Grid>
 
-      {/* Sector Rotation Analysis */}
+      {/* Top Sector Rankings */}
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            Sector Rotation Analysis
+            Top Sector Rankings
           </Typography>
           {rotationLoading ? (
             <Box display="flex" justifyContent="center" py={4}>
@@ -349,31 +354,36 @@ const SectorAnalysis = () => {
             </Box>
           ) : rotationError ? (
             <Alert severity="error">
-              Failed to load sector rotation data: {rotationError?.message || rotationError?.error || String(rotationError)}
+              Failed to load sector data: {rotationError?.message || rotationError?.error || String(rotationError)}
             </Alert>
           ) : !rotationData?.data?.sectorRotation?.length ? (
             <Alert severity="warning">
-              No sector rotation data available in database
+              No sector data available in database
             </Alert>
           ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: "grey.50" }}>
-                    <TableCell sx={{ fontWeight: 600 }}>Sector</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Momentum</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Money Flow</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      Performance
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(rotationData?.data?.sectorRotation || []).map(
-                    (sector, index) => (
-                      <TableRow key={index} hover>
-                        <TableCell>{sector.sector}</TableCell>
-                        <TableCell>
+            <Box>
+              {(rotationData?.data?.sectorRotation || []).map((sector, index) => {
+                // Find matching industry data for this sector
+                const sectorIndustries = (industryData?.data?.industries || []).filter(
+                  (ind) => ind.sector === sector.sector
+                );
+
+                return (
+                  <Accordion key={index}>
+                    <AccordionSummary
+                      expandIcon={<ExpandMore />}
+                      sx={{
+                        backgroundColor: "grey.50",
+                        "&:hover": { backgroundColor: "grey.100" },
+                      }}
+                    >
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={12} sm={3}>
+                          <Typography variant="body1" fontWeight="bold">
+                            {sector.sector}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4} sm={2}>
                           <Chip
                             label={sector.momentum}
                             color={
@@ -385,8 +395,8 @@ const SectorAnalysis = () => {
                             }
                             size="small"
                           />
-                        </TableCell>
-                        <TableCell>
+                        </Grid>
+                        <Grid item xs={4} sm={2}>
                           <Chip
                             label={sector.flow}
                             color={
@@ -398,27 +408,130 @@ const SectorAnalysis = () => {
                             }
                             size="small"
                           />
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            color: getChangeColor(sector.performance),
-                            fontWeight: 600,
-                          }}
-                        >
-                          {formatPercentage(sector.performance)}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                        </Grid>
+                        <Grid item xs={4} sm={2}>
+                          <Typography
+                            variant="body2"
+                            fontWeight="bold"
+                            sx={{ color: getChangeColor(sector.performance) }}
+                          >
+                            {formatPercentage(sector.performance)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={3}>
+                          <Chip
+                            label={`${sectorIndustries.length} industries`}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </Grid>
+                      </Grid>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Box sx={{ p: 2 }}>
+                        <Typography variant="h6" gutterBottom>
+                          Top Industries in {sector.sector}
+                        </Typography>
+                        {sectorIndustries.length > 0 ? (
+                          <TableContainer>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Industry</TableCell>
+                                  <TableCell align="center">RS Rating</TableCell>
+                                  <TableCell align="center">Momentum</TableCell>
+                                  <TableCell align="center">Trend</TableCell>
+                                  <TableCell align="right">20-Day %</TableCell>
+                                  <TableCell align="right">Stocks</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {sectorIndustries.slice(0, 5).map((industry, idx) => {
+                                  const rsColor =
+                                    industry.rs_rating >= 80
+                                      ? "success.main"
+                                      : industry.rs_rating >= 60
+                                        ? "info.main"
+                                        : industry.rs_rating >= 40
+                                          ? "warning.main"
+                                          : "error.main";
+
+                                  return (
+                                    <TableRow key={idx}>
+                                      <TableCell>
+                                        <Typography variant="body2" fontWeight="bold">
+                                          {industry.industry}
+                                        </Typography>
+                                      </TableCell>
+                                      <TableCell align="center">
+                                        <Chip
+                                          label={industry.rs_rating}
+                                          size="small"
+                                          sx={{
+                                            bgcolor: rsColor,
+                                            color: "white",
+                                            fontWeight: "bold",
+                                          }}
+                                        />
+                                      </TableCell>
+                                      <TableCell align="center">
+                                        <Chip
+                                          label={industry.momentum}
+                                          color={
+                                            industry.momentum === "Strong"
+                                              ? "success"
+                                              : industry.momentum === "Moderate"
+                                                ? "info"
+                                                : "default"
+                                          }
+                                          size="small"
+                                        />
+                                      </TableCell>
+                                      <TableCell align="center">
+                                        <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                          {industry.trend === "Uptrend" && (
+                                            <TrendingUp color="success" fontSize="small" />
+                                          )}
+                                          {industry.trend === "Downtrend" && (
+                                            <TrendingDown color="error" fontSize="small" />
+                                          )}
+                                          <Typography variant="body2">{industry.trend}</Typography>
+                                        </Box>
+                                      </TableCell>
+                                      <TableCell
+                                        align="right"
+                                        sx={{
+                                          color: getChangeColor(industry.performance_20d),
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {formatPercentage(industry.performance_20d)}
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        {industry.stock_count}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            No industry data available for this sector
+                          </Typography>
+                        )}
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
+                );
+              })}
+            </Box>
           )}
         </CardContent>
       </Card>
 
-      {/* Industry Rankings (IBD-style) */}
+      {/* Top Industry Rankings */}
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
@@ -437,125 +550,244 @@ const SectorAnalysis = () => {
               No industry performance data available yet. Run loadindustrydata.py loader.
             </Alert>
           ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: "grey.50" }}>
-                    <TableCell sx={{ fontWeight: 600 }}>Rank</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Industry</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Sector</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>
-                      RS Rating
-                    </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>
-                      Momentum
-                    </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>
-                      Trend
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      20-Day %
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      Stocks
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(industryData?.data?.industries || []).map(
-                    (industry, index) => {
-                      const rsColor =
-                        industry.rs_rating >= 80
-                          ? "success.main"
-                          : industry.rs_rating >= 60
-                            ? "info.main"
-                            : industry.rs_rating >= 40
-                              ? "warning.main"
-                              : "error.main";
+            <Box>
+              {(industryData?.data?.industries || []).map((industry, index) => {
+                const rsColor =
+                  industry.rs_rating >= 80
+                    ? "success.main"
+                    : industry.rs_rating >= 60
+                      ? "info.main"
+                      : industry.rs_rating >= 40
+                        ? "warning.main"
+                        : "error.main";
 
-                      return (
-                        <TableRow key={index} hover>
-                          <TableCell>
-                            <Chip
-                              label={`#${industry.overall_rank}`}
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight="bold">
-                              {industry.industry}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color="text.secondary">
-                              {industry.sector}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            <Chip
-                              label={industry.rs_rating || "N/A"}
-                              size="small"
-                              sx={{
-                                bgcolor: rsColor,
-                                color: "white",
-                                fontWeight: "bold",
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell align="center">
-                            <Chip
-                              label={industry.momentum || "N/A"}
-                              color={
-                                industry.momentum === "Strong"
-                                  ? "success"
-                                  : industry.momentum === "Moderate"
-                                    ? "info"
-                                    : "default"
-                              }
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell align="center">
-                            <Box
-                              display="flex"
-                              alignItems="center"
-                              justifyContent="center"
-                              gap={0.5}
-                            >
-                              {industry.trend === "Uptrend" && (
-                                <TrendingUp color="success" fontSize="small" />
-                              )}
-                              {industry.trend === "Downtrend" && (
-                                <TrendingDown color="error" fontSize="small" />
-                              )}
-                              <Typography variant="body2">
-                                {industry.trend || "N/A"}
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell
-                            align="right"
+                return (
+                  <Accordion key={index}>
+                    <AccordionSummary
+                      expandIcon={<ExpandMore />}
+                      sx={{
+                        backgroundColor: "grey.50",
+                        "&:hover": { backgroundColor: "grey.100" },
+                      }}
+                    >
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={12} sm={1}>
+                          <Chip
+                            label={`#${industry.overall_rank}`}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={3}>
+                          <Typography variant="body1" fontWeight="bold">
+                            {industry.industry}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {industry.sector}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4} sm={2}>
+                          <Chip
+                            label={`RS ${industry.rs_rating}`}
+                            size="small"
                             sx={{
-                              color: getChangeColor(industry.performance_20d),
-                              fontWeight: 600,
+                              bgcolor: rsColor,
+                              color: "white",
+                              fontWeight: "bold",
                             }}
+                          />
+                        </Grid>
+                        <Grid item xs={4} sm={2}>
+                          <Chip
+                            label={industry.momentum}
+                            color={
+                              industry.momentum === "Strong"
+                                ? "success"
+                                : industry.momentum === "Moderate"
+                                  ? "info"
+                                  : "default"
+                            }
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={4} sm={2}>
+                          <Box display="flex" alignItems="center" gap={0.5}>
+                            {industry.trend === "Uptrend" && (
+                              <TrendingUp color="success" fontSize="small" />
+                            )}
+                            {industry.trend === "Downtrend" && (
+                              <TrendingDown color="error" fontSize="small" />
+                            )}
+                            <Typography variant="body2">{industry.trend}</Typography>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={12} sm={2}>
+                          <Typography
+                            variant="body2"
+                            fontWeight="bold"
+                            sx={{ color: getChangeColor(industry.performance_20d) }}
                           >
                             {formatPercentage(industry.performance_20d)}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2">
-                              {industry.stock_count || 0}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Box sx={{ p: 2 }}>
+                        <Grid container spacing={3}>
+                          {/* Performance Metrics */}
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="subtitle2" gutterBottom fontWeight="bold">
+                              Performance Metrics
                             </Typography>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    }
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  1-Day Performance:
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight="bold"
+                                  sx={{ color: getChangeColor(industry.performance_1d) }}
+                                >
+                                  {formatPercentage(industry.performance_1d)}
+                                </Typography>
+                              </Box>
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  5-Day Performance:
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight="bold"
+                                  sx={{ color: getChangeColor(industry.performance_5d) }}
+                                >
+                                  {formatPercentage(industry.performance_5d)}
+                                </Typography>
+                              </Box>
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  20-Day Performance:
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight="bold"
+                                  sx={{ color: getChangeColor(industry.performance_20d) }}
+                                >
+                                  {formatPercentage(industry.performance_20d)}
+                                </Typography>
+                              </Box>
+                              <Divider />
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  RS vs SPY:
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight="bold"
+                                  sx={{ color: getChangeColor(industry.rs_vs_spy) }}
+                                >
+                                  {formatPercentage(industry.rs_vs_spy)}
+                                </Typography>
+                              </Box>
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  Avg Change %:
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight="bold"
+                                  sx={{ color: getChangeColor(industry.avg_change_percent) }}
+                                >
+                                  {formatPercentage(industry.avg_change_percent)}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Grid>
+
+                          {/* Volume & Market Cap */}
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="subtitle2" gutterBottom fontWeight="bold">
+                              Volume & Market Metrics
+                            </Typography>
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  Stock Count:
+                                </Typography>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {industry.stock_count}
+                                </Typography>
+                              </Box>
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  Total Volume:
+                                </Typography>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {formatNumber(industry.total_volume)}
+                                </Typography>
+                              </Box>
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  Avg Volume:
+                                </Typography>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {formatNumber(industry.avg_volume)}
+                                </Typography>
+                              </Box>
+                              <Divider />
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  Total Market Cap:
+                                </Typography>
+                                <Typography variant="body2" fontWeight="bold">
+                                  ${formatNumber(industry.total_market_cap / 1e9, 1)}B
+                                </Typography>
+                              </Box>
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2" color="text.secondary">
+                                  Avg Market Cap:
+                                </Typography>
+                                <Typography variant="body2" fontWeight="bold">
+                                  ${formatNumber(industry.avg_market_cap / 1e9, 1)}B
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Grid>
+
+                          {/* Top Stocks in Industry */}
+                          <Grid item xs={12}>
+                            <Typography variant="subtitle2" gutterBottom fontWeight="bold">
+                              Top Stocks in {industry.industry}
+                            </Typography>
+                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1 }}>
+                              {(industry.stock_symbols || []).slice(0, 10).map((symbol, idx) => (
+                                <Chip
+                                  key={idx}
+                                  label={symbol}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ fontFamily: "monospace" }}
+                                />
+                              ))}
+                              {industry.stock_symbols?.length > 10 && (
+                                <Chip
+                                  label={`+${industry.stock_symbols.length - 10} more`}
+                                  size="small"
+                                  variant="outlined"
+                                  color="primary"
+                                />
+                              )}
+                            </Box>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
+                );
+              })}
+            </Box>
           )}
           {industryData?.data?.summary && (
             <Box
@@ -581,141 +813,6 @@ const SectorAnalysis = () => {
         </CardContent>
       </Card>
 
-      {/* Detailed Sector Table */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Detailed Sector Breakdown
-          </Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>
-                    <strong>Sector</strong>
-                  </TableCell>
-                  <TableCell>
-                    <strong>ETF</strong>
-                  </TableCell>
-                  <TableCell align="right">
-                    <strong>Price</strong>
-                  </TableCell>
-                  <TableCell align="right">
-                    <strong>Change</strong>
-                  </TableCell>
-                  <TableCell align="right">
-                    <strong>Change %</strong>
-                  </TableCell>
-                  <TableCell align="right">
-                    <strong>Volume</strong>
-                  </TableCell>
-                  <TableCell align="right">
-                    <strong>Market Cap</strong>
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(sectorData || []).map((sector, index) => {
-                  const hasError = sector.error;
-                  const isPositive = sector.changePercent >= 0;
-
-                  return (
-                    <TableRow key={sector.sector || `sector-${index}`} hover>
-                      <TableCell>
-                        <Box display="flex" alignItems="center" gap={2}>
-                          <Box
-                            width={16}
-                            height={16}
-                            borderRadius="50%"
-                            bgcolor={sector.color}
-                          />
-                          <Typography variant="body1" fontWeight="bold">
-                            {sector.sector}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography variant="body2" fontWeight="bold">
-                          {sector.etfSymbol}
-                        </Typography>
-                      </TableCell>
-
-                      <TableCell align="right">
-                        {hasError ? (
-                          <Typography color="error">--</Typography>
-                        ) : (
-                          <Typography fontWeight="bold">
-                            {formatCurrency(sector.price)}
-                          </Typography>
-                        )}
-                      </TableCell>
-
-                      <TableCell align="right">
-                        {hasError ? (
-                          <Typography color="error">--</Typography>
-                        ) : (
-                          <Box
-                            display="flex"
-                            alignItems="center"
-                            justifyContent="flex-end"
-                            gap={1}
-                          >
-                            {isPositive ? (
-                              <TrendingUp color="success" fontSize="small" />
-                            ) : (
-                              <TrendingDown color="error" fontSize="small" />
-                            )}
-                            <Typography
-                              color={isPositive ? "success.main" : "error.main"}
-                              fontWeight="bold"
-                            >
-                              {formatCurrency(Math.abs(sector.change))}
-                            </Typography>
-                          </Box>
-                        )}
-                      </TableCell>
-
-                      <TableCell align="right">
-                        {hasError ? (
-                          <Typography color="error">--</Typography>
-                        ) : (
-                          <Typography
-                            color={isPositive ? "success.main" : "error.main"}
-                            fontWeight="bold"
-                          >
-                            {formatPercentage(Math.abs(sector.changePercent))}
-                          </Typography>
-                        )}
-                      </TableCell>
-
-                      <TableCell align="right">
-                        {hasError ? (
-                          <Typography color="error">--</Typography>
-                        ) : (
-                          <Typography variant="body2">
-                            {formatNumber(sector.volume)}
-                          </Typography>
-                        )}
-                      </TableCell>
-
-                      <TableCell align="right">
-                        {hasError ? (
-                          <Typography color="error">--</Typography>
-                        ) : (
-                          <Typography variant="body2">
-                            ${formatNumber(sector.marketCap / 1e12, 1)}T
-                          </Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
     </Container>
   );
 };
