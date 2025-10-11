@@ -434,15 +434,24 @@ def load_company_info(symbols, cur, conn):
                         five_year_avg_dividend_yield, ex_dividend_date_ms,
                         last_annual_dividend_amt, last_annual_dividend_yield,
                         last_dividend_amt, last_dividend_date_ms,
-                        dividend_date_ms, payout_ratio
+                        dividend_date_ms, payout_ratio,
+                        held_percent_insiders, held_percent_institutions,
+                        shares_short, shares_short_prior_month,
+                        short_ratio, short_percent_of_float,
+                        implied_shares_outstanding, float_shares
                     ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                             %s,%s,%s,%s,%s)
+                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (ticker) DO UPDATE SET
                         trailing_pe = EXCLUDED.trailing_pe,
                         forward_pe = EXCLUDED.forward_pe,
-                        eps_trailing = EXCLUDED.eps_trailing
+                        eps_trailing = EXCLUDED.eps_trailing,
+                        held_percent_insiders = EXCLUDED.held_percent_insiders,
+                        held_percent_institutions = EXCLUDED.held_percent_institutions,
+                        shares_short = EXCLUDED.shares_short,
+                        short_ratio = EXCLUDED.short_ratio,
+                        short_percent_of_float = EXCLUDED.short_percent_of_float
                 """,
                     (
                         orig_sym,
@@ -498,6 +507,14 @@ def load_company_info(symbols, cur, conn):
                         info.get("lastDividendDate"),
                         info.get("dividendDate"),
                         info.get("payoutRatio"),
+                        info.get("heldPercentInsiders"),
+                        info.get("heldPercentInstitutions"),
+                        info.get("sharesShort"),
+                        info.get("sharesShortPriorMonth"),
+                        info.get("shortRatio"),
+                        info.get("shortPercentOfFloat"),
+                        info.get("impliedSharesOutstanding"),
+                        info.get("floatShares"),
                     ),
                 )
 
@@ -799,7 +816,15 @@ if __name__ == "__main__":
             last_dividend_amt NUMERIC,
             last_dividend_date_ms BIGINT,
             dividend_date_ms BIGINT,
-            payout_ratio NUMERIC
+            payout_ratio NUMERIC,
+            held_percent_insiders NUMERIC,
+            held_percent_institutions NUMERIC,
+            shares_short BIGINT,
+            shares_short_prior_month BIGINT,
+            short_ratio NUMERIC,
+            short_percent_of_float NUMERIC,
+            implied_shares_outstanding BIGINT,
+            float_shares BIGINT
         );
     """
     )
