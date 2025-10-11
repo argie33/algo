@@ -2533,6 +2533,226 @@ function StockDetail() {
               </CardContent>
             </Card>
           </Grid>
+
+          {/* Insider Transactions - NEW! */}
+          {positioningData?.insider_transactions?.length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Recent Insider Transactions (90 Days)
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  <TableContainer sx={{ maxHeight: 400 }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
+                          <TableCell sx={{ fontWeight: "bold" }}>Insider</TableCell>
+                          <TableCell sx={{ fontWeight: "bold" }}>Type</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: "bold" }}>Shares</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: "bold" }}>Value</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {positioningData.insider_transactions.slice(0, 10).map((txn, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>
+                              {txn.transaction_date ? new Date(txn.transaction_date).toLocaleDateString() : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
+                                {txn.insider_name || 'Unknown'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                {txn.position || ''}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={txn.transaction_type || 'N/A'}
+                                size="small"
+                                color={
+                                  txn.transaction_type?.toLowerCase().includes('buy') ||
+                                  txn.transaction_type?.toLowerCase().includes('purchase')
+                                    ? "success"
+                                    : txn.transaction_type?.toLowerCase().includes('sell') ||
+                                      txn.transaction_type?.toLowerCase().includes('sale')
+                                    ? "error"
+                                    : "default"
+                                }
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              {txn.shares ? txn.shares.toLocaleString() : 'N/A'}
+                            </TableCell>
+                            <TableCell align="right">
+                              {txn.value ? `$${(txn.value / 1000).toFixed(0)}K` : 'N/A'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                    Recent buying by insiders may indicate confidence in the company's prospects
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* Insider Roster - NEW! */}
+          {positioningData?.insider_roster?.length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Key Insiders & Holdings
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  <TableContainer sx={{ maxHeight: 400 }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: "bold" }}>Name</TableCell>
+                          <TableCell sx={{ fontWeight: "bold" }}>Position</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: "bold" }}>Shares Owned</TableCell>
+                          <TableCell sx={{ fontWeight: "bold" }}>Latest Action</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {positioningData.insider_roster.slice(0, 10).map((insider, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>
+                              <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
+                                {insider.insider_name || 'Unknown'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="caption" color="text.secondary">
+                                {insider.position || 'N/A'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight="bold">
+                                {insider.shares_owned_directly ? insider.shares_owned_directly.toLocaleString() : 'N/A'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="caption" color="text.secondary">
+                                {insider.most_recent_transaction || 'N/A'}
+                              </Typography>
+                              {insider.latest_transaction_date && (
+                                <Typography variant="caption" display="block" color="text.secondary">
+                                  {new Date(insider.latest_transaction_date).toLocaleDateString()}
+                                </Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                    Insiders with significant holdings typically have aligned interests with shareholders
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* Positioning Score Breakdown - NEW! */}
+          {positioningData?.score_breakdown && (
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Positioning Score Components
+                  </Typography>
+                  <Divider sx={{ mb: 3 }} />
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box textAlign="center" p={2}>
+                        <Typography variant="h4" color="primary" fontWeight="bold">
+                          {positioningData.score_breakdown.institutional || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" mb={1}>
+                          Institutional Quality
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={(positioningData.score_breakdown.institutional || 0) * 4}
+                          color="primary"
+                          sx={{ mb: 1 }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          Ownership % + Institution Count
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box textAlign="center" p={2}>
+                        <Typography variant="h4" color="success.main" fontWeight="bold">
+                          {positioningData.score_breakdown.insider || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" mb={1}>
+                          Insider Conviction
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.max(0, (positioningData.score_breakdown.insider || 0) * 4)}
+                          color="success"
+                          sx={{ mb: 1 }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          Ownership % + Buy/Sell Activity
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box textAlign="center" p={2}>
+                        <Typography variant="h4" color="info.main" fontWeight="bold">
+                          {positioningData.score_breakdown.short_interest || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" mb={1}>
+                          Short Interest
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.max(0, (positioningData.score_breakdown.short_interest || 0) * 4)}
+                          color="info"
+                          sx={{ mb: 1 }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          Level + Trend Analysis
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box textAlign="center" p={2}>
+                        <Typography variant="h4" color="warning.main" fontWeight="bold">
+                          {positioningData.score_breakdown.smart_money || 0}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" mb={1}>
+                          Smart Money Flow
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.max(0, (positioningData.score_breakdown.smart_money || 0) * 4)}
+                          color="warning"
+                          sx={{ mb: 1 }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          Mutual Fund + Hedge Fund Positioning
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
         </Grid>
       </Box>
 
