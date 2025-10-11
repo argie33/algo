@@ -78,6 +78,18 @@ const SectorAnalysis = () => {
     retry: false,
   });
 
+  // Fetch industry performance data (IBD-style rankings)
+  const { data: industryData, isLoading: industryLoading, error: industryError } = useQuery({
+    queryKey: ["industry-performance"],
+    queryFn: async () => {
+      const response = await api.get("/api/market/industries?limit=20&sortBy=overall_rank");
+      return response.data;
+    },
+    staleTime: 60000,
+    enabled: true,
+    retry: false,
+  });
+
   useEffect(() => {
     loadSectorData();
 
@@ -402,6 +414,172 @@ const SectorAnalysis = () => {
                 </TableBody>
               </Table>
             </TableContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Industry Rankings (IBD-style) */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Top Industry Rankings
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            IBD-style industry group rankings showing best performing industries
+          </Typography>
+          {industryLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <LinearProgress sx={{ width: "50%" }} />
+            </Box>
+          ) : industryError ? (
+            <Alert severity="warning">
+              Industry rankings not available. Run loadindustrydata.py to populate data.
+            </Alert>
+          ) : !industryData?.data?.industries?.length ? (
+            <Alert severity="info">
+              No industry performance data available yet. Run loadindustrydata.py loader.
+            </Alert>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: "grey.50" }}>
+                    <TableCell sx={{ fontWeight: 600 }}>Rank</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Industry</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Sector</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>
+                      RS Rating
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>
+                      Momentum
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>
+                      Trend
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      20-Day %
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      Stocks
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(industryData?.data?.industries || []).map(
+                    (industry, index) => {
+                      const rsColor =
+                        industry.rs_rating >= 80
+                          ? "success.main"
+                          : industry.rs_rating >= 60
+                            ? "info.main"
+                            : industry.rs_rating >= 40
+                              ? "warning.main"
+                              : "error.main";
+
+                      return (
+                        <TableRow key={index} hover>
+                          <TableCell>
+                            <Chip
+                              label={`#${industry.overall_rank}`}
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="bold">
+                              {industry.industry}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">
+                              {industry.sector}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              label={industry.rs_rating || "N/A"}
+                              size="small"
+                              sx={{
+                                bgcolor: rsColor,
+                                color: "white",
+                                fontWeight: "bold",
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              label={industry.momentum || "N/A"}
+                              color={
+                                industry.momentum === "Strong"
+                                  ? "success"
+                                  : industry.momentum === "Moderate"
+                                    ? "info"
+                                    : "default"
+                              }
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="center"
+                              gap={0.5}
+                            >
+                              {industry.trend === "Uptrend" && (
+                                <TrendingUp color="success" fontSize="small" />
+                              )}
+                              {industry.trend === "Downtrend" && (
+                                <TrendingDown color="error" fontSize="small" />
+                              )}
+                              <Typography variant="body2">
+                                {industry.trend || "N/A"}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell
+                            align="right"
+                            sx={{
+                              color: getChangeColor(industry.performance_20d),
+                              fontWeight: 600,
+                            }}
+                          >
+                            {formatPercentage(industry.performance_20d)}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2">
+                              {industry.stock_count || 0}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+          {industryData?.data?.summary && (
+            <Box
+              sx={{
+                mt: 2,
+                pt: 2,
+                borderTop: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                Showing top {industryData.data.industries?.length || 0} of{" "}
+                {industryData.data.summary.total_industries} industries |{" "}
+                Avg 20-Day Performance:{" "}
+                <strong>
+                  {formatPercentage(
+                    industryData.data.summary.avg_performance_20d
+                  )}
+                </strong>
+              </Typography>
+            </Box>
           )}
         </CardContent>
       </Card>

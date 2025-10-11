@@ -860,6 +860,147 @@ router.get("/sectors/performance", async (req, res) => {
   }
 });
 
+// Get industry performance rankings (IBD-style)
+router.get("/industries", async (req, res) => {
+  console.log("🏭 Industry performance endpoint called");
+
+  try {
+    const { sector, limit = 50, sortBy = "overall_rank" } = req.query;
+
+    // Check if industry_performance table exists
+    const tableExists = await query(
+      `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'industry_performance'
+      ) as industry_performance_exists;
+    `,
+      []
+    );
+
+    if (!tableExists.rows[0].industry_performance_exists) {
+      return res.status(503).json({
+        success: false,
+        error: "Industry performance service unavailable",
+        message: "Required database table missing: industry_performance. Run loadindustrydata.py loader.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build query with optional sector filter
+    let industryQuery = `
+      SELECT
+        sector,
+        industry,
+        industry_key,
+        stock_count,
+        stock_symbols,
+        avg_change_percent,
+        median_change_percent,
+        total_volume,
+        avg_volume,
+        performance_1d,
+        performance_5d,
+        performance_20d,
+        rs_rating,
+        rs_vs_spy,
+        momentum,
+        trend,
+        sector_rank,
+        overall_rank,
+        total_market_cap,
+        avg_market_cap,
+        fetched_at
+      FROM industry_performance
+    `;
+
+    const params = [];
+    if (sector) {
+      industryQuery += ` WHERE sector = $1`;
+      params.push(sector);
+    }
+
+    // Add sorting
+    const validSortFields = ["overall_rank", "sector_rank", "performance_1d", "performance_5d", "performance_20d", "rs_rating"];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : "overall_rank";
+    const sortOrder = sortField.includes("rank") ? "ASC" : "DESC";
+    industryQuery += ` ORDER BY ${sortField} ${sortOrder}`;
+
+    // Add limit
+    industryQuery += ` LIMIT $${params.length + 1}`;
+    params.push(parseInt(limit));
+
+    let result;
+    try {
+      result = await query(industryQuery, params);
+    } catch (error) {
+      console.error("Industry performance query error:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Industry performance query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No industry data found",
+        message: sector
+          ? `No industry performance data available for sector: ${sector}. Run loadindustrydata.py loader.`
+          : "No industry performance data available. Run loadindustrydata.py loader.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get summary statistics
+    const summaryQuery = `
+      SELECT
+        COUNT(*) as total_industries,
+        COUNT(DISTINCT sector) as total_sectors,
+        AVG(performance_1d) as avg_performance_1d,
+        AVG(performance_20d) as avg_performance_20d,
+        MAX(performance_20d) as best_performance,
+        MIN(performance_20d) as worst_performance
+      FROM industry_performance
+      ${sector ? 'WHERE sector = $1' : ''}
+    `;
+
+    const summaryParams = sector ? [sector] : [];
+    const summaryResult = await query(summaryQuery, summaryParams);
+    const summary = summaryResult.rows[0] || {};
+
+    // Process successful result
+    return res.json({
+      success: true,
+      data: {
+        industries: result.rows,
+        summary: {
+          total_industries: parseInt(summary.total_industries) || 0,
+          total_sectors: parseInt(summary.total_sectors) || 0,
+          avg_performance_1d: parseFloat(summary.avg_performance_1d) || 0,
+          avg_performance_20d: parseFloat(summary.avg_performance_20d) || 0,
+          best_performance: parseFloat(summary.best_performance) || 0,
+          worst_performance: parseFloat(summary.worst_performance) || 0,
+          filter: sector ? `Sector: ${sector}` : "All sectors",
+        },
+      },
+      count: result.rows.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching industry performance:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Route: GET /market/sectors (market sectors overview)
 router.get("/sectors", async (req, res) => {
   try {
