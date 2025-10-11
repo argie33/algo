@@ -800,7 +800,7 @@ router.get("/sectors/performance", async (req, res) => {
         change,
         change_percent,
         volume,
-        market_cap,
+        total_assets as market_cap,
         momentum,
         money_flow,
         performance_1d,
