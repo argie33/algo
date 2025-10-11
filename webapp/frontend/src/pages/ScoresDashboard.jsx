@@ -50,6 +50,16 @@ import {
   FilterList,
   ClearAll,
 } from "@mui/icons-material";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 
 // Trading Signal Component
 const TradingSignal = ({ signal, confidence = 0.75, size = "medium", showConfidence = false }) => {
@@ -262,7 +272,6 @@ const ScoresDashboard = () => {
       symbol: stock.symbol,
       composite_score: stock.compositeScore || 0,
       momentum_score: stock.factors?.momentum?.score || 0,
-      trend_score: stock.factors?.trend?.score || 0,
       value_score: stock.factors?.value?.score || 0,
       quality_score: stock.factors?.quality?.score || 0,
       growth_score: 75.0,
@@ -344,18 +353,17 @@ const ScoresDashboard = () => {
         const generateSignal = (stock) => {
           const composite = stock.composite_score;
           const momentum = stock.momentum_score;
-          const trend = stock.trend_score;
 
-          // Strong buy: High composite score (>80) with strong momentum and trend
-          if (composite >= 80 && momentum >= 75 && trend >= 75) {
+          // Strong buy: High composite score (>80) with strong momentum
+          if (composite >= 80 && momentum >= 75) {
             return { signal: "BUY", confidence: 0.85 };
           }
           // Buy: Good composite score (>70) with positive momentum
           if (composite >= 70 && momentum >= 65) {
             return { signal: "BUY", confidence: 0.75 };
           }
-          // Sell: Low composite score (<50) or weak momentum with downtrend
-          if (composite < 50 || (momentum < 40 && trend < 40)) {
+          // Sell: Low composite score (<50) or weak momentum
+          if (composite < 50 || momentum < 40) {
             return { signal: "SELL", confidence: 0.70 };
           }
           // Hold: Everything else
@@ -423,7 +431,6 @@ const ScoresDashboard = () => {
   const topValue = getTopPerformers("value_score");
   const topGrowth = getTopPerformers("growth_score");
   const topPositioning = getTopPerformers("positioning_score");
-  const topTrend = getTopPerformers("trend_score");
   const topSentiment = getTopPerformers("sentiment_score");
 
   const handleAccordionChange = (symbol) => (event, isExpanded) => {
@@ -1033,37 +1040,6 @@ const ScoresDashboard = () => {
                         </Box>
                       </Grid>
 
-                      {/* Trend Score */}
-                      <Grid item xs={6} sm={4}>
-                        <Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                              Trend
-                            </Typography>
-                            <Typography variant="caption" fontWeight={700}>
-                              {(stock.trend_score || 0).toFixed(0)}
-                            </Typography>
-                          </Box>
-                          <LinearProgress
-                            variant="determinate"
-                            value={stock.trend_score || 0}
-                            sx={{
-                              height: 8,
-                              borderRadius: 1,
-                              backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                              "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.trend_score || 0) >= 80
-                                  ? theme.palette.success.main
-                                  : (stock.trend_score || 0) >= 60
-                                  ? theme.palette.warning.main
-                                  : theme.palette.error.main,
-                                borderRadius: 1,
-                              },
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-
                       {/* Sentiment Score */}
                       <Grid item xs={6} sm={4}>
                         <Box>
@@ -1118,7 +1094,7 @@ const ScoresDashboard = () => {
                               size="small"
                             />
                           </Box>
-                          <Typography variant="body2" color="text.secondary" paragraph>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Quality assessment based on profitability, consistency, and financial health
                           </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
@@ -1129,6 +1105,78 @@ const ScoresDashboard = () => {
                               • Market Cap: ${((stock.market_cap || 0) / 1e9).toFixed(2)}B
                             </Typography>
                           </Box>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* Quality Chart */}
+                          <Box sx={{ mt: 2 }}>
+                            <ResponsiveContainer width="100%" height={200}>
+                              <BarChart
+                                data={[
+                                  {
+                                    name: "Quality Score",
+                                    value: stock.quality_score || 0,
+                                    benchmark: 70
+                                  },
+                                  {
+                                    name: "Volatility (Inv)",
+                                    value: Math.max(0, 100 - (stock.volatility_30d || 0) * 2),
+                                    benchmark: 60
+                                  },
+                                ]}
+                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                <RechartsTooltip />
+                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
+                                <Bar dataKey="value" name="Actual">
+                                  {[
+                                    <Cell key="quality" fill={stock.quality_score >= 80 ? theme.palette.success.main : stock.quality_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />,
+                                    <Cell key="volatility" fill={Math.max(0, 100 - (stock.volatility_30d || 0) * 2) >= 80 ? theme.palette.success.main : Math.max(0, 100 - (stock.volatility_30d || 0) * 2) >= 60 ? theme.palette.warning.main : theme.palette.error.main} />
+                                  ]}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </Box>
+
+                          {/* Quality Table */}
+                          <TableContainer sx={{ mt: 2 }}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Metric</TableCell>
+                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell align="right">Benchmark</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>Quality Score</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.quality_score || 0).toFixed(1)}
+                                      size="small"
+                                      color={stock.quality_score >= 80 ? "success" : stock.quality_score >= 60 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">70</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Volatility (Inverted)</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={Math.max(0, 100 - (stock.volatility_30d || 0) * 2).toFixed(1)}
+                                      size="small"
+                                      color={Math.max(0, 100 - (stock.volatility_30d || 0) * 2) >= 80 ? "success" : Math.max(0, 100 - (stock.volatility_30d || 0) * 2) >= 60 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">60</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -1146,7 +1194,7 @@ const ScoresDashboard = () => {
                               size="small"
                             />
                           </Box>
-                          <Typography variant="body2" color="text.secondary" paragraph>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Momentum score based on price trends and technical indicators
                           </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
@@ -1160,37 +1208,95 @@ const ScoresDashboard = () => {
                               • 30D Change: {formatChange(stock.price_change_30d || 0)}
                             </Typography>
                           </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
 
-                    {/* Trend Factor */}
-                    <Grid item xs={12} md={6}>
-                      <Card>
-                        <CardContent>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                            <ShowChart sx={{ color: theme.palette.primary.main }} />
-                            <Typography variant="h6">Trend Analysis</Typography>
-                            <Chip
-                              label={(stock.trend_score || 0).toFixed(1)}
-                              color={(stock.trend_score || 0) >= 80 ? "success" : "warning"}
-                              size="small"
-                            />
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* Momentum Chart */}
+                          <Box sx={{ mt: 2 }}>
+                            <ResponsiveContainer width="100%" height={200}>
+                              <BarChart
+                                data={[
+                                  {
+                                    name: "Momentum Score",
+                                    value: stock.momentum_score || 0,
+                                    benchmark: 70
+                                  },
+                                  {
+                                    name: "RSI",
+                                    value: stock.rsi || 0,
+                                    benchmark: 50
+                                  },
+                                  {
+                                    name: "1D % (Scaled)",
+                                    value: Math.min(100, Math.max(0, 50 + (stock.price_change_1d || 0) * 10)),
+                                    benchmark: 50
+                                  },
+                                ]}
+                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                <RechartsTooltip />
+                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
+                                <Bar dataKey="value" name="Actual">
+                                  {[
+                                    <Cell key="momentum" fill={stock.momentum_score >= 80 ? theme.palette.success.main : stock.momentum_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />,
+                                    <Cell key="rsi" fill={(stock.rsi || 0) >= 70 ? theme.palette.success.main : (stock.rsi || 0) >= 30 ? theme.palette.warning.main : theme.palette.error.main} />,
+                                    <Cell key="change" fill={(stock.price_change_1d || 0) >= 0 ? theme.palette.success.main : theme.palette.error.main} />
+                                  ]}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
                           </Box>
-                          <Typography variant="body2" color="text.secondary" paragraph>
-                            Technical trend analysis based on moving averages and price action
-                          </Typography>
-                          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                            <Typography variant="body2" color="text.secondary">
-                              • SMA 20: ${stock.sma_20?.toFixed(2) || "N/A"}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              • SMA 50: ${stock.sma_50?.toFixed(2) || "N/A"}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              • Current Price: ${stock.current_price?.toFixed(2) || "N/A"}
-                            </Typography>
-                          </Box>
+
+                          {/* Momentum Table */}
+                          <TableContainer sx={{ mt: 2 }}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Metric</TableCell>
+                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell align="right">Benchmark</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>Momentum Score</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.momentum_score || 0).toFixed(1)}
+                                      size="small"
+                                      color={stock.momentum_score >= 80 ? "success" : stock.momentum_score >= 60 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">70</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>RSI</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.rsi || 0).toFixed(1)}
+                                      size="small"
+                                      color={(stock.rsi || 0) >= 70 ? "success" : (stock.rsi || 0) >= 30 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">50</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>1D Change %</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.price_change_1d || 0).toFixed(2) + "%"}
+                                      size="small"
+                                      color={(stock.price_change_1d || 0) >= 0 ? "success" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">0%</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -1208,7 +1314,7 @@ const ScoresDashboard = () => {
                               size="small"
                             />
                           </Box>
-                          <Typography variant="body2" color="text.secondary" paragraph>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Valuation metrics and intrinsic value analysis
                           </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
@@ -1219,6 +1325,78 @@ const ScoresDashboard = () => {
                               • Avg Volume (30d): {((stock.volume_avg_30d || 0) / 1e6).toFixed(2)}M
                             </Typography>
                           </Box>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* Value Chart */}
+                          <Box sx={{ mt: 2 }}>
+                            <ResponsiveContainer width="100%" height={200}>
+                              <BarChart
+                                data={[
+                                  {
+                                    name: "Value Score",
+                                    value: stock.value_score || 0,
+                                    benchmark: 70
+                                  },
+                                  {
+                                    name: "P/E (Inv)",
+                                    value: stock.pe_ratio ? Math.min(100, Math.max(0, 100 - stock.pe_ratio)) : 50,
+                                    benchmark: 70
+                                  },
+                                ]}
+                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                <RechartsTooltip />
+                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
+                                <Bar dataKey="value" name="Actual">
+                                  {[
+                                    <Cell key="value" fill={stock.value_score >= 80 ? theme.palette.success.main : stock.value_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />,
+                                    <Cell key="pe" fill={stock.pe_ratio && stock.pe_ratio < 30 ? theme.palette.success.main : theme.palette.warning.main} />
+                                  ]}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </Box>
+
+                          {/* Value Table */}
+                          <TableContainer sx={{ mt: 2 }}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Metric</TableCell>
+                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell align="right">Benchmark</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>Value Score</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.value_score || 0).toFixed(1)}
+                                      size="small"
+                                      color={stock.value_score >= 80 ? "success" : stock.value_score >= 60 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">70</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>P/E Ratio</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={stock.pe_ratio ? stock.pe_ratio.toFixed(1) : "N/A"}
+                                      size="small"
+                                      color={stock.pe_ratio && stock.pe_ratio < 30 ? "success" : "warning"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">30</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -1236,7 +1414,7 @@ const ScoresDashboard = () => {
                               size="small"
                             />
                           </Box>
-                          <Typography variant="body2" color="text.secondary" paragraph>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Revenue and earnings growth trajectory analysis
                           </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
@@ -1247,6 +1425,78 @@ const ScoresDashboard = () => {
                               • 30D Change: {formatChange(stock.price_change_30d || 0)}
                             </Typography>
                           </Box>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* Growth Chart */}
+                          <Box sx={{ mt: 2 }}>
+                            <ResponsiveContainer width="100%" height={200}>
+                              <BarChart
+                                data={[
+                                  {
+                                    name: "Growth Score",
+                                    value: stock.growth_score || 0,
+                                    benchmark: 70
+                                  },
+                                  {
+                                    name: "30D Growth",
+                                    value: Math.min(100, Math.max(0, 50 + (stock.price_change_30d || 0))),
+                                    benchmark: 50
+                                  },
+                                ]}
+                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                <RechartsTooltip />
+                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
+                                <Bar dataKey="value" name="Actual">
+                                  {[
+                                    <Cell key="growth" fill={stock.growth_score >= 80 ? theme.palette.success.main : stock.growth_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />,
+                                    <Cell key="change" fill={(stock.price_change_30d || 0) > 0 ? theme.palette.success.main : theme.palette.error.main} />
+                                  ]}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </Box>
+
+                          {/* Growth Table */}
+                          <TableContainer sx={{ mt: 2 }}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Metric</TableCell>
+                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell align="right">Benchmark</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>Growth Score</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.growth_score || 0).toFixed(1)}
+                                      size="small"
+                                      color={stock.growth_score >= 80 ? "success" : stock.growth_score >= 60 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">70</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>30D Change %</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.price_change_30d || 0).toFixed(2) + "%"}
+                                      size="small"
+                                      color={(stock.price_change_30d || 0) > 0 ? "success" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">0%</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -1264,7 +1514,7 @@ const ScoresDashboard = () => {
                               size="small"
                             />
                           </Box>
-                          <Typography variant="body2" color="text.secondary" paragraph>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Institutional positioning and market structure analysis
                           </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
@@ -1275,6 +1525,61 @@ const ScoresDashboard = () => {
                               • Smart money positioning indicators
                             </Typography>
                           </Box>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* Positioning Chart */}
+                          <Box sx={{ mt: 2 }}>
+                            <ResponsiveContainer width="100%" height={200}>
+                              <BarChart
+                                data={[
+                                  {
+                                    name: "Positioning Score",
+                                    value: stock.positioning_score || 0,
+                                    benchmark: 70
+                                  },
+                                ]}
+                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                <RechartsTooltip />
+                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
+                                <Bar dataKey="value" name="Actual">
+                                  {[
+                                    <Cell key="positioning" fill={stock.positioning_score >= 80 ? theme.palette.success.main : stock.positioning_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />
+                                  ]}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </Box>
+
+                          {/* Positioning Table */}
+                          <TableContainer sx={{ mt: 2 }}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Metric</TableCell>
+                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell align="right">Benchmark</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>Positioning Score</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.positioning_score || 0).toFixed(1)}
+                                      size="small"
+                                      color={stock.positioning_score >= 80 ? "success" : stock.positioning_score >= 60 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">70</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -1292,7 +1597,7 @@ const ScoresDashboard = () => {
                               size="small"
                             />
                           </Box>
-                          <Typography variant="body2" color="text.secondary" paragraph>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Aggregated market sentiment from multiple data sources
                           </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
@@ -1303,6 +1608,61 @@ const ScoresDashboard = () => {
                               • Social media sentiment tracking
                             </Typography>
                           </Box>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* Sentiment Chart */}
+                          <Box sx={{ mt: 2 }}>
+                            <ResponsiveContainer width="100%" height={200}>
+                              <BarChart
+                                data={[
+                                  {
+                                    name: "Sentiment Score",
+                                    value: stock.sentiment_score || 0,
+                                    benchmark: 70
+                                  },
+                                ]}
+                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                <RechartsTooltip />
+                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
+                                <Bar dataKey="value" name="Actual">
+                                  {[
+                                    <Cell key="sentiment" fill={(stock.sentiment_score || 0) >= 80 ? theme.palette.success.main : (stock.sentiment_score || 0) >= 60 ? theme.palette.warning.main : theme.palette.error.main} />
+                                  ]}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </Box>
+
+                          {/* Sentiment Table */}
+                          <TableContainer sx={{ mt: 2 }}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Metric</TableCell>
+                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell align="right">Benchmark</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>Sentiment Score</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.sentiment_score || 0).toFixed(1)}
+                                      size="small"
+                                      color={(stock.sentiment_score || 0) >= 80 ? "success" : (stock.sentiment_score || 0) >= 60 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">70</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -1507,44 +1867,6 @@ const ScoresDashboard = () => {
                           label={stock.positioning_score.toFixed(1)}
                           size="small"
                           color={stock.positioning_score >= 80 ? "success" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Trend Leaders */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <ShowChart sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
-              <Typography variant="h6">Trend Leaders</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {topTrend.slice(0, 10).map((stock, index) => (
-                    <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={(stock.trend_score || 0).toFixed(1)}
-                          size="small"
-                          color={(stock.trend_score || 0) >= 80 ? "success" : "warning"}
                         />
                       </TableCell>
                     </TableRow>

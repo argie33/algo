@@ -370,7 +370,6 @@ router.get("/:symbol/eps-trend", async (req, res) => {
       data: data,
       trend_analysis: {
         trend,
-        trend_score: Math.round(trendScore),
         avg_growth_rate: Math.round(avgGrowth * 100) / 100,
         data_points: data.length,
         avg_analysts_per_period: Math.round(avgAnalysts),

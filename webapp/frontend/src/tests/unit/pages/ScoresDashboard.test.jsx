@@ -57,7 +57,6 @@ vi.mock("../../../services/api", () => {
                 company_name: "Apple Inc.",
                 composite_score: 88.7,
                 momentum_score: 85.2,
-                trend_score: 90.1,
                 value_score: 78.3,
                 quality_score: 88.7,
                 growth_score: 82.1,
@@ -78,7 +77,6 @@ vi.mock("../../../services/api", () => {
                 company_name: "Microsoft Corporation",
                 composite_score: 91.2,
                 momentum_score: 88.5,
-                trend_score: 92.8,
                 value_score: 85.1,
                 quality_score: 91.2,
                 growth_score: 89.5,
@@ -219,7 +217,6 @@ describe("Bullseye Stock Screener Page", () => {
       expect(screen.getAllByText(/^Value$/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/^Growth$/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/^Positioning$/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/^Trend$/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/^Sentiment$/i).length).toBeGreaterThan(0);
     });
   });
@@ -394,10 +391,9 @@ describe("Bullseye Stock Screener Page", () => {
         fireEvent.click(expandButton);
 
         await waitFor(() => {
-          // Check for all 7 factor analysis cards (removed Relative Strength)
+          // Check for all 6 factor analysis cards
           expect(screen.getByText(/Quality & Fundamentals/i)).toBeInTheDocument();
           expect(screen.getByText(/Price Action & Momentum/i)).toBeInTheDocument();
-          expect(screen.getByText(/Trend Analysis/i)).toBeInTheDocument();
           expect(screen.getByText(/Value Assessment/i)).toBeInTheDocument();
           expect(screen.getByText(/Growth Potential/i)).toBeInTheDocument();
           expect(screen.getByText(/Market Positioning/i)).toBeInTheDocument();

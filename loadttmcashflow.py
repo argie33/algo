@@ -40,6 +40,17 @@ RETRY_DELAY = 1.0
 
 
 def get_db_config():
+    """Fetch database credentials from AWS Secrets Manager or use local config"""
+    if os.environ.get("USE_LOCAL_DB") == "true" or not os.environ.get("DB_SECRET_ARN"):
+        logging.info("Using local database configuration")
+        return {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", "5432")),
+            "user": os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", "password"),
+            "dbname": os.environ.get("DB_NAME", "stocks"),
+        }
+
     secret_str = boto3.client("secretsmanager").get_secret_value(
         SecretId=os.environ["DB_SECRET_ARN"]
     )["SecretString"]

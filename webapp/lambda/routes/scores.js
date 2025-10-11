@@ -34,7 +34,6 @@ router.get("/", async (req, res) => {
         cp.short_name as company_name,
         ss.composite_score,
         ss.momentum_score,
-        ss.trend_score,
         ss.value_score,
         ss.quality_score,
         ss.growth_score,
@@ -108,7 +107,6 @@ router.get("/", async (req, res) => {
       company_name: row.company_name,
       composite_score: parseFloat(row.composite_score) || 0,
       momentum_score: parseFloat(row.momentum_score) || 0,
-      trend_score: parseFloat(row.trend_score) || 0,
       value_score: parseFloat(row.value_score) || 0,
       quality_score: parseFloat(row.quality_score) || 0,
       growth_score: parseFloat(row.growth_score),
@@ -180,7 +178,6 @@ router.get("/:symbol", async (req, res) => {
         cp.short_name as company_name,
         ss.composite_score,
         ss.momentum_score,
-        ss.trend_score,
         ss.value_score,
         ss.quality_score,
         ss.growth_score,
@@ -237,14 +234,6 @@ router.get("/:symbol", async (req, res) => {
             score: parseFloat(row.momentum_score) || 0,
             components: { rsi: parseFloat(row.rsi) || 0 }
           },
-          trend: {
-            score: parseFloat(row.trend_score) || 0,
-            components: {
-              sma20: parseFloat(row.sma_20) || 0,
-              sma50: parseFloat(row.sma_50) || 0,
-              macd: parseFloat(row.macd) || null
-            }
-          },
           value: {
             score: parseFloat(row.value_score) || 0,
             components: { peRatio: parseFloat(row.pe_ratio) || null }
@@ -277,7 +266,6 @@ router.get("/:symbol", async (req, res) => {
         company_name: row.company_name,
         composite_score: parseFloat(row.composite_score) || 0,
         momentum_score: parseFloat(row.momentum_score) || 0,
-        trend_score: parseFloat(row.trend_score) || 0,
         value_score: parseFloat(row.value_score) || 0,
         quality_score: parseFloat(row.quality_score) || 0,
         growth_score: parseFloat(row.growth_score) || 0,

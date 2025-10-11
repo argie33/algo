@@ -87,7 +87,7 @@ jobs:
         id: matrix
         run: |
           # Define supported loaders (those with ECS task definitions)
-          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate revenueestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysellweekly buysellmonthly quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics momentummetrics growthmetrics valuemetrics stockscores benchmarks analystupgradedowngrade sectordata realtime financials historical"
+          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate revenueestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysellweekly buysellmonthly quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics momentummetrics growthmetrics valuemetrics stockscores benchmarks analystupgradedowngrade sectordata dailycompanydata financials historical"
 
           # Get all available loaders and filter by supported ones
           ALL_AVAILABLE_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
@@ -377,7 +377,7 @@ jobs:
               StockScoresImageTag=latest \
               BenchmarksImageTag=benchmarks-latest \
               AnalystUpgradeDowngradeImageTag=analystupgradedowngrade-latest \
-              LoadRealtimeImageTag=realtime-latest \
+              LoadDailyCompanyDataImageTag=dailycompanydata-latest \
               LoadFinancialsImageTag=financials-latest \
               LoadHistoricalImageTag=historical-latest \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
@@ -441,8 +441,8 @@ jobs:
               "sectordata")
                 DOCKERFILE="Dockerfile.sectordata"
                 ;;
-              "realtime")
-                DOCKERFILE="Dockerfile.realtime"
+              "dailycompanydata")
+                DOCKERFILE="Dockerfile.dailycompanydata"
                 ;;
               "financials")
                 DOCKERFILE="Dockerfile.financials"
@@ -544,8 +544,8 @@ jobs:
               "sectordata")
                 DOCKERFILE="Dockerfile.sectordata"
                 ;;
-              "realtime")
-                DOCKERFILE="Dockerfile.realtime"
+              "dailycompanydata")
+                DOCKERFILE="Dockerfile.dailycompanydata"
                 ;;
               "financials")
                 DOCKERFILE="Dockerfile.financials"
@@ -770,8 +770,8 @@ jobs:
             "analystupgradedowngrade")
               TASK_DEF_NAME="AnalystUpgradeDowngradeTaskDefArn"
               ;;
-            "realtime")
-              TASK_DEF_NAME="LoadRealtimeTaskDefArn"
+            "dailycompanydata")
+              TASK_DEF_NAME="LoadDailyCompanyDataTaskDefArn"
               ;;
             "financials")
               TASK_DEF_NAME="LoadFinancialsTaskDefArn"
@@ -833,8 +833,8 @@ jobs:
             "naaim")
               CONTAINER_NAME="naaaimdata-loader"
               ;;
-            "realtime")
-              CONTAINER_NAME="loadrealtime-loader"
+            "dailycompanydata")
+              CONTAINER_NAME="loaddailycompanydata-loader"
               ;;
             "financials")
               CONTAINER_NAME="loadfinancials-loader"

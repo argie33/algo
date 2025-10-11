@@ -96,9 +96,9 @@ Parameters:
   AnalystUpgradeDowngradeImageTag:
     Type: String
     Description: "Tag for analyst upgrade/downgrade loader image"
-  LoadRealtimeImageTag:
+  LoadDailyCompanyDataImageTag:
     Type: String
-    Description: "Tag for realtime consolidated loader image"
+    Description: "Tag for daily company data consolidated loader image"
   LoadFinancialsImageTag:
     Type: String
     Description: "Tag for financials consolidated loader image"
@@ -2753,10 +2753,10 @@ Resources:
   # Consolidated Loaders                  #
   #########################################
 
-  LoadRealtimeTaskDefinition:
+  LoadDailyCompanyDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: loadrealtime-loader
+      Family: loaddailycompanydata-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -2768,8 +2768,8 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: loadrealtime-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadRealtimeImageTag]]
+        - Name: loaddailycompanydata-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadDailyCompanyDataImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2777,20 +2777,19 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/loadrealtime-loader
+              awslogs-group: /ecs/loaddailycompanydata-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
 
-  LoadRealtimeLoaderService:
+  LoadDailyCompanyDataLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: loadrealtime-loader
+      ServiceName: loaddailycompanydata-loader
       Cluster: !ImportValue StocksCore-ClusterName
-      TaskDefinition: !Ref LoadRealtimeTaskDefinition
+      TaskDefinition: !Ref LoadDailyCompanyDataTaskDefinition
       DesiredCount: 0
       LaunchType: FARGATE
-      TaskDefinition: !Ref LoadRealtimeTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -3508,11 +3507,11 @@ Outputs:
     Export:
       Name: BenchmarksTaskDefArn
 
-  LoadRealtimeTaskDefArn:
-    Description: ARN of the ECS TaskDefinition for realtime loader
-    Value: !Ref LoadRealtimeTaskDefinition
+  LoadDailyCompanyDataTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for daily company data loader
+    Value: !Ref LoadDailyCompanyDataTaskDefinition
     Export:
-      Name: LoadRealtimeTaskDefArn
+      Name: LoadDailyCompanyDataTaskDefArn
 
   LoadFinancialsTaskDefArn:
     Description: ARN of the ECS TaskDefinition for financials loader

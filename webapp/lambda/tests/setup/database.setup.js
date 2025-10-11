@@ -310,14 +310,13 @@ async function populateLoaderTestData() {
     `);
 
     await query(`
-      INSERT INTO stock_scores (symbol, composite_score, momentum_score, trend_score, value_score, quality_score, rsi, macd, sma_20, sma_50, volume_avg_30d, current_price, price_change_1d, price_change_5d, price_change_30d, volatility_30d, market_cap, pe_ratio, score_date, last_updated) VALUES
-      ('AAPL', 88.7, 85.2, 90.1, 78.3, 88.7, 65.4, 2.45, 174.5, 170.2, 45000000, 175.50, 1.2, 3.5, 8.2, 18.5, 3400000000000, 28.5, CURRENT_DATE, CURRENT_TIMESTAMP),
-      ('MSFT', 91.2, 88.5, 92.8, 85.1, 91.2, 72.1, 5.67, 418.3, 415.8, 25000000, 420.75, 2.1, 5.2, 12.1, 22.3, 3200000000000, 35.8, CURRENT_DATE, CURRENT_TIMESTAMP),
-      ('GOOGL', 82.5, 78.9, 84.2, 75.6, 82.5, 58.3, 1.23, 142.8, 140.5, 20000000, 143.50, -0.5, 2.1, 4.8, 24.1, 1800000000000, 24.2, CURRENT_DATE, CURRENT_TIMESTAMP)
+      INSERT INTO stock_scores (symbol, composite_score, momentum_score, value_score, quality_score, rsi, macd, sma_20, sma_50, volume_avg_30d, current_price, price_change_1d, price_change_5d, price_change_30d, volatility_30d, market_cap, pe_ratio, score_date, last_updated) VALUES
+      ('AAPL', 88.7, 85.2, 78.3, 88.7, 65.4, 2.45, 174.5, 170.2, 45000000, 175.50, 1.2, 3.5, 8.2, 18.5, 3400000000000, 28.5, CURRENT_DATE, CURRENT_TIMESTAMP),
+      ('MSFT', 91.2, 88.5, 85.1, 91.2, 72.1, 5.67, 418.3, 415.8, 25000000, 420.75, 2.1, 5.2, 12.1, 22.3, 3200000000000, 35.8, CURRENT_DATE, CURRENT_TIMESTAMP),
+      ('GOOGL', 82.5, 78.9, 75.6, 82.5, 58.3, 1.23, 142.8, 140.5, 20000000, 143.50, -0.5, 2.1, 4.8, 24.1, 1800000000000, 24.2, CURRENT_DATE, CURRENT_TIMESTAMP)
       ON CONFLICT (symbol) DO UPDATE SET
         composite_score = EXCLUDED.composite_score,
         momentum_score = EXCLUDED.momentum_score,
-        trend_score = EXCLUDED.trend_score,
         value_score = EXCLUDED.value_score,
         quality_score = EXCLUDED.quality_score,
         rsi = EXCLUDED.rsi,

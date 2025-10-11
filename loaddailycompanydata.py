@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Real-Time Data Loader (Daily Updates)
+Daily Company Data Loader
 Consolidates daily-update loaders into single efficient loader
+
+Loads company info, positioning data, and analyst estimates with one API call per symbol.
 
 Replaces:
 - loadinfo.py (ticker.info)
@@ -9,7 +11,12 @@ Replaces:
 - loadearningsestimate.py (earnings estimates)
 - loadrevenueestimate.py (revenue estimates)
 
-Single API call per symbol gets ALL daily data
+Data Loaded:
+- Company profile & market data (from ticker.info)
+- Institutional & mutual fund holdings with type classification
+- Insider transactions & roster (buy/sell activity + current holdings)
+- Positioning metrics (institutional/insider ownership, short interest)
+- Earnings & revenue estimates
 
 NEW POSITIONING DATA AVAILABLE:
 - insider_transactions: Individual insider buy/sell events (90-day window for analysis)
@@ -46,7 +53,7 @@ import yfinance as yf
 from psycopg2.extras import RealDictCursor, execute_values
 
 # Script metadata
-SCRIPT_NAME = "loadrealtime.py"
+SCRIPT_NAME = "loaddailycompanydata.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",

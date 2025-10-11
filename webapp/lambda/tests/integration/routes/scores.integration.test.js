@@ -144,12 +144,13 @@ describe("Scores Routes Integration", () => {
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
         expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
 
-        // Check six factor scores are present (removed relative_strength)
+        // Check six factor scores are present
         expect(response.body.data).toHaveProperty("momentum_score");
-        expect(response.body.data).toHaveProperty("trend_score");
         expect(response.body.data).toHaveProperty("value_score");
         expect(response.body.data).toHaveProperty("quality_score");
         expect(response.body.data).toHaveProperty("growth_score");
+        expect(response.body.data).toHaveProperty("positioning_score");
+        expect(response.body.data).toHaveProperty("sentiment_score");
 
         // Check technical indicators are present
         expect(response.body.data).toHaveProperty("rsi");

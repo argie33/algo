@@ -119,7 +119,6 @@ describe("Price Route - Unit Tests", () => {
               current_price: 150.0,
               avg_volume: 45000000,
               volatility: 0.25,
-              trend_score: 75,
               support_level: 145.0,
               resistance_level: 155.0,
             }

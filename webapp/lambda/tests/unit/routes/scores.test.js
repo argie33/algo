@@ -149,7 +149,6 @@ describe("Scores Routes Unit Tests", () => {
         expect(stock).toHaveProperty("volume_avg_30d");
         expect(stock).toHaveProperty("market_cap");
         expect(stock).toHaveProperty("momentum_score");
-        expect(stock).toHaveProperty("trend_score");
         expect(stock).toHaveProperty("value_score");
         expect(stock).toHaveProperty("quality_score");
         expect(stock).toHaveProperty("growth_score");
@@ -321,9 +320,8 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
         expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
 
-        // Check seven factor analysis structure (6 main + trend)
+        // Check six factor analysis structure
         expect(response.body.data.factors).toHaveProperty("momentum");
-        expect(response.body.data.factors).toHaveProperty("trend");
         expect(response.body.data.factors).toHaveProperty("value");
         expect(response.body.data.factors).toHaveProperty("quality");
         expect(response.body.data.factors).toHaveProperty("growth");
@@ -446,7 +444,6 @@ describe("Scores Routes Unit Tests", () => {
         // Check factor scores are numbers (if factors object exists in list response)
         if (stock.factors) {
           expect(typeof stock.factors.momentum.score).toBe("number");
-          expect(typeof stock.factors.trend.score).toBe("number");
           expect(typeof stock.factors.value.score).toBe("number");
           expect(typeof stock.factors.quality.score).toBe("number");
           expect(typeof stock.factors.growth.score).toBe("number");
