@@ -13,12 +13,13 @@ const _logger = require("./logger");
 async function calculateComprehensiveScores(symbol) {
   try {
     // Get all necessary data for scoring
-    const [basicInfo, financialData, technicalData, sentimentData] =
+    const [basicInfo, financialData, technicalData, sentimentData, positioningData] =
       await Promise.all([
         getBasicInfo(symbol),
         getFinancialMetrics(symbol),
         getTechnicalIndicators(symbol),
         getSentimentData(symbol),
+        getPositioningData(symbol),
       ]);
 
     if (!basicInfo) {
@@ -32,10 +33,7 @@ async function calculateComprehensiveScores(symbol) {
     const valueScore = calculateValueScore(basicInfo, financialData);
     const momentumScore = calculateMomentumScore(basicInfo, technicalData);
     const sentimentScore = calculateSentimentScore(sentimentData);
-    const positioningScore = calculatePositioningScore(
-      basicInfo,
-      technicalData
-    );
+    const positioningScore = calculatePositioningScore(positioningData);
 
     // Calculate weighted composite score
     const compositeScore = calculateCompositeScore({
@@ -174,6 +172,42 @@ async function getSentimentData(symbol) {
   }
 }
 
+async function getPositioningData(symbol) {
+  try {
+    const [metrics, institutional, insiderTxns] = await Promise.all([
+      query(
+        `SELECT * FROM positioning_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
+        [symbol]
+      ),
+      query(
+        `SELECT institution_type, position_change_percent
+         FROM institutional_positioning
+         WHERE symbol = $1
+         ORDER BY filing_date DESC
+         LIMIT 20`,
+        [symbol]
+      ),
+      query(
+        `SELECT transaction_type, value, transaction_date
+         FROM insider_transactions
+         WHERE symbol = $1
+         AND transaction_date >= CURRENT_DATE - INTERVAL '3 months'
+         ORDER BY transaction_date DESC`,
+        [symbol]
+      ),
+    ]);
+
+    return {
+      metrics: metrics.length > 0 ? metrics[0] : null,
+      institutional: institutional || [],
+      insiderTxns: insiderTxns || [],
+    };
+  } catch (error) {
+    console.error(`Error getting positioning data for ${symbol}:`, error);
+    return { metrics: null, institutional: [], insiderTxns: [] };
+  }
+}
+
 // Individual scoring components
 function calculateQualityScore(basicInfo, financialData) {
   let score = 0.5; // Base score
@@ -299,21 +333,109 @@ function calculateSentimentScore(sentimentData) {
   return Math.min(Math.max(score, 0), 1);
 }
 
-function calculatePositioningScore(basicInfo, technicalData) {
-  let score = 0.5; // Base score
+function calculatePositioningScore(positioningData) {
+  let rawScore = 50; // Start neutral (0-100 scale)
 
-  // Simple positioning calculation
-  if (technicalData) {
-    if (
-      technicalData.price_vs_sma_200 !== null &&
-      technicalData.price_vs_sma_200 !== undefined
-    ) {
-      const priceVsSma200 = parseFloat(technicalData.price_vs_sma_200);
-      score = priceVsSma200 > 0 ? Math.min(1, 0.5 + priceVsSma200 * 2) : 0.3;
-    }
+  if (!positioningData || !positioningData.metrics) {
+    return 0.5; // Return neutral if no data
   }
 
-  return Math.min(Math.max(score, 0), 1);
+  const metrics = positioningData.metrics;
+  const institutional = positioningData.institutional || [];
+  const insiderTxns = positioningData.insiderTxns || [];
+
+  // 1. Institutional Quality Score (0-25 points)
+  const instOwn = parseFloat(metrics.institutional_ownership || 0);
+  const instCount = parseInt(metrics.institution_count || 0);
+
+  let instScore = 0;
+  if (instOwn > 0.7) instScore += 15;
+  else if (instOwn > 0.5) instScore += 10;
+  else if (instOwn > 0.3) instScore += 5;
+  else if (instOwn < 0.2) instScore -= 5;
+
+  if (instCount > 500) instScore += 10;
+  else if (instCount > 200) instScore += 7;
+  else if (instCount > 100) instScore += 5;
+  else if (instCount > 50) instScore += 3;
+
+  rawScore += Math.min(25, instScore);
+
+  // 2. Insider Conviction Score (0-25 points)
+  const insiderOwn = parseFloat(metrics.insider_ownership || 0);
+
+  let insiderScore = 0;
+  if (insiderOwn > 0.15) insiderScore += 10;
+  else if (insiderOwn > 0.1) insiderScore += 7;
+  else if (insiderOwn > 0.05) insiderScore += 5;
+  else if (insiderOwn > 0.02) insiderScore += 3;
+
+  // Recent insider buying activity
+  const buys = insiderTxns.filter(t =>
+    t.transaction_type?.toLowerCase().includes('buy') ||
+    t.transaction_type?.toLowerCase().includes('purchase')
+  );
+  const sells = insiderTxns.filter(t =>
+    t.transaction_type?.toLowerCase().includes('sell') ||
+    t.transaction_type?.toLowerCase().includes('sale')
+  );
+
+  const buyValue = buys.reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
+  const sellValue = sells.reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
+
+  if (buyValue > sellValue * 2) insiderScore += 15;
+  else if (buyValue > sellValue) insiderScore += 10;
+  else if (sellValue > buyValue * 2) insiderScore -= 10;
+  else if (sellValue > buyValue) insiderScore -= 5;
+
+  rawScore += Math.min(25, Math.max(-10, insiderScore));
+
+  // 3. Short Interest Score (0-25 points)
+  const shortPct = parseFloat(metrics.short_percent_of_float || 0);
+  const shortChange = parseFloat(metrics.short_interest_change || 0);
+
+  let shortScore = 0;
+  if (shortPct > 0.3) shortScore -= 15;
+  else if (shortPct > 0.2) shortScore -= 10;
+  else if (shortPct > 0.1) shortScore -= 5;
+  else if (shortPct < 0.02) shortScore += 10;
+
+  if (shortChange < -0.15) shortScore += 15;
+  else if (shortChange < -0.1) shortScore += 10;
+  else if (shortChange < -0.05) shortScore += 5;
+  else if (shortChange > 0.15) shortScore -= 15;
+  else if (shortChange > 0.1) shortScore -= 10;
+  else if (shortChange > 0.05) shortScore -= 5;
+
+  rawScore += Math.min(25, Math.max(-20, shortScore));
+
+  // 4. Smart Money Flow Score (0-25 points)
+  let smartMoneyScore = 0;
+
+  const mutualFunds = institutional.filter(i => i.institution_type === 'MUTUAL_FUND');
+  const hedgeFunds = institutional.filter(i => i.institution_type === 'HEDGE_FUND');
+
+  const mfAccumulating = mutualFunds.filter(mf => (parseFloat(mf.position_change_percent) || 0) > 5).length;
+  const mfDistributing = mutualFunds.filter(mf => (parseFloat(mf.position_change_percent) || 0) < -5).length;
+
+  if (mfAccumulating > mfDistributing * 2) smartMoneyScore += 10;
+  else if (mfAccumulating > mfDistributing) smartMoneyScore += 5;
+  else if (mfDistributing > mfAccumulating * 2) smartMoneyScore -= 10;
+  else if (mfDistributing > mfAccumulating) smartMoneyScore -= 5;
+
+  const hfAccumulating = hedgeFunds.filter(hf => (parseFloat(hf.position_change_percent) || 0) > 5).length;
+  const hfDistributing = hedgeFunds.filter(hf => (parseFloat(hf.position_change_percent) || 0) < -5).length;
+
+  if (hfAccumulating > hfDistributing * 2) smartMoneyScore += 15;
+  else if (hfAccumulating > hfDistributing) smartMoneyScore += 10;
+  else if (hfDistributing > hfAccumulating * 2) smartMoneyScore -= 15;
+  else if (hfDistributing > hfAccumulating) smartMoneyScore -= 10;
+
+  rawScore += Math.min(25, Math.max(-15, smartMoneyScore));
+
+  // Convert from 0-100 scale to 0-1 scale
+  const finalScore = Math.max(0, Math.min(100, rawScore)) / 100;
+  return finalScore;
 }
 
 function calculateCompositeScore(scores) {

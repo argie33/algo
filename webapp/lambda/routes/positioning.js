@@ -82,6 +82,46 @@ router.get("/stocks", async (req, res) => {
     institutionalQuery += ` ORDER BY ip.filing_date DESC, ip.position_size DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limitNum, offset);
 
+    // Get insider transactions (NEW!)
+    let insiderTxnQuery = `
+      SELECT
+        symbol,
+        insider_name,
+        position,
+        transaction_type,
+        shares,
+        value,
+        transaction_date,
+        ownership_type
+      FROM insider_transactions
+    `;
+
+    let insiderParams = [];
+    if (symbol) {
+      insiderTxnQuery += ` WHERE symbol = $1`;
+      insiderParams.push(symbol);
+    }
+    insiderTxnQuery += ` ORDER BY transaction_date DESC LIMIT 20`;
+
+    // Get insider roster (NEW!)
+    let insiderRosterQuery = `
+      SELECT
+        symbol,
+        insider_name,
+        position,
+        most_recent_transaction,
+        latest_transaction_date,
+        shares_owned_directly
+      FROM insider_roster
+    `;
+
+    let rosterParams = [];
+    if (symbol) {
+      insiderRosterQuery += ` WHERE symbol = $1`;
+      rosterParams.push(symbol);
+    }
+    insiderRosterQuery += ` ORDER BY shares_owned_directly DESC LIMIT 20`;
+
     // Get retail sentiment
     let sentimentQuery = `
       SELECT
@@ -103,9 +143,11 @@ router.get("/stocks", async (req, res) => {
     }
     sentimentQuery += ` ORDER BY date DESC LIMIT 10`;
 
-    const [metricsResult, institutionalResult, sentimentResult] = await Promise.all([
+    const [metricsResult, institutionalResult, insiderTxnResult, insiderRosterResult, sentimentResult] = await Promise.all([
       query(metricsQuery, metricsParams),
       query(institutionalQuery, params),
+      query(insiderTxnQuery, insiderParams),
+      query(insiderRosterQuery, rosterParams),
       query(sentimentQuery, sentimentParams)
     ]);
 
@@ -118,39 +160,116 @@ router.get("/stocks", async (req, res) => {
       });
     }
 
-    // Calculate positioning score if we have metrics
+    // Calculate positioning score with new data
     let positioningScore = null;
+    let scoreBreakdown = {};
     const metrics = metricsResult.rows[0];
 
     if (metrics) {
       let score = 50; // Start neutral
 
-      // Institutional ownership (0-30 points)
+      // 1. Institutional Quality Score (0-25 points)
       const instOwn = parseFloat(metrics.institutional_ownership || 0);
-      if (instOwn > 0.7) score += 30;
-      else if (instOwn > 0.5) score += 20;
-      else if (instOwn > 0.3) score += 10;
-      else if (instOwn < 0.2) score -= 10;
+      const instCount = parseInt(metrics.institution_count || 0);
 
-      // Insider ownership (0-15 points)
+      // Base institutional ownership score
+      let instScore = 0;
+      if (instOwn > 0.7) instScore += 15;
+      else if (instOwn > 0.5) instScore += 10;
+      else if (instOwn > 0.3) instScore += 5;
+      else if (instOwn < 0.2) instScore -= 5;
+
+      // Institution diversity bonus (more holders = better)
+      if (instCount > 500) instScore += 10;
+      else if (instCount > 200) instScore += 7;
+      else if (instCount > 100) instScore += 5;
+      else if (instCount > 50) instScore += 3;
+
+      score += Math.min(25, instScore);
+      scoreBreakdown.institutional = Math.min(25, instScore);
+
+      // 2. Insider Conviction Score (0-25 points)
       const insiderOwn = parseFloat(metrics.insider_ownership || 0);
-      if (insiderOwn > 0.1) score += 15;
-      else if (insiderOwn > 0.05) score += 10;
-      else if (insiderOwn > 0.02) score += 5;
 
-      // Short interest (-20 to +10 points)
+      // Base insider ownership score
+      let insiderScore = 0;
+      if (insiderOwn > 0.15) insiderScore += 10;
+      else if (insiderOwn > 0.1) insiderScore += 7;
+      else if (insiderOwn > 0.05) insiderScore += 5;
+      else if (insiderOwn > 0.02) insiderScore += 3;
+
+      // Recent insider buying activity (NEW!)
+      const recentTxns = insiderTxnResult.rows.filter(txn => {
+        const txnDate = new Date(txn.transaction_date);
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        return txnDate >= threeMonthsAgo;
+      });
+
+      const buys = recentTxns.filter(t => t.transaction_type?.toLowerCase().includes('buy') ||
+                                           t.transaction_type?.toLowerCase().includes('purchase'));
+      const sells = recentTxns.filter(t => t.transaction_type?.toLowerCase().includes('sell') ||
+                                            t.transaction_type?.toLowerCase().includes('sale'));
+
+      const buyValue = buys.reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
+      const sellValue = sells.reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
+
+      if (buyValue > sellValue * 2) insiderScore += 15; // Heavy buying
+      else if (buyValue > sellValue) insiderScore += 10; // Net buying
+      else if (sellValue > buyValue * 2) insiderScore -= 10; // Heavy selling
+      else if (sellValue > buyValue) insiderScore -= 5; // Net selling
+
+      score += Math.min(25, Math.max(-10, insiderScore));
+      scoreBreakdown.insider = Math.min(25, Math.max(-10, insiderScore));
+
+      // 3. Short Interest Score (0-25 points)
       const shortPct = parseFloat(metrics.short_percent_of_float || 0);
-      if (shortPct > 0.2) score -= 20; // Heavy short
-      else if (shortPct > 0.1) score -= 10;
-      else if (shortPct > 0.05) score -= 5;
-      else if (shortPct < 0.02) score += 10; // Very low short
-
-      // Short interest trend (0-15 points)
       const shortChange = parseFloat(metrics.short_interest_change || 0);
-      if (shortChange < -0.1) score += 15; // Shorts covering
-      else if (shortChange < -0.05) score += 10;
-      else if (shortChange > 0.1) score -= 15; // Shorts increasing
-      else if (shortChange > 0.05) score -= 10;
+
+      let shortScore = 0;
+      // Short interest level
+      if (shortPct > 0.3) shortScore -= 15; // Extreme short
+      else if (shortPct > 0.2) shortScore -= 10; // Heavy short
+      else if (shortPct > 0.1) shortScore -= 5;
+      else if (shortPct < 0.02) shortScore += 10; // Very low short
+
+      // Short interest trend
+      if (shortChange < -0.15) shortScore += 15; // Major covering
+      else if (shortChange < -0.1) shortScore += 10; // Shorts covering
+      else if (shortChange < -0.05) shortScore += 5;
+      else if (shortChange > 0.15) shortScore -= 15; // Major increase
+      else if (shortChange > 0.1) shortScore -= 10; // Shorts increasing
+      else if (shortChange > 0.05) shortScore -= 5;
+
+      score += Math.min(25, Math.max(-20, shortScore));
+      scoreBreakdown.short_interest = Math.min(25, Math.max(-20, shortScore));
+
+      // 4. Smart Money Flow Score (0-25 points) (NEW!)
+      let smartMoneyScore = 0;
+
+      // Mutual fund and institutional flows
+      const mutualFunds = institutionalResult.rows.filter(i => i.institution_type === 'MUTUAL_FUND');
+      const hedgeFunds = institutionalResult.rows.filter(i => i.institution_type === 'HEDGE_FUND');
+
+      const mfAccumulating = mutualFunds.filter(mf => (parseFloat(mf.position_change_percent) || 0) > 5).length;
+      const mfDistributing = mutualFunds.filter(mf => (parseFloat(mf.position_change_percent) || 0) < -5).length;
+
+      if (mfAccumulating > mfDistributing * 2) smartMoneyScore += 10; // Heavy accumulation
+      else if (mfAccumulating > mfDistributing) smartMoneyScore += 5; // Net accumulation
+      else if (mfDistributing > mfAccumulating * 2) smartMoneyScore -= 10; // Heavy distribution
+      else if (mfDistributing > mfAccumulating) smartMoneyScore -= 5; // Net distribution
+
+      // Hedge fund positioning
+      const hfAccumulating = hedgeFunds.filter(hf => (parseFloat(hf.position_change_percent) || 0) > 5).length;
+      const hfDistributing = hedgeFunds.filter(hf => (parseFloat(hf.position_change_percent) || 0) < -5).length;
+
+      if (hfAccumulating > hfDistributing * 2) smartMoneyScore += 15;
+      else if (hfAccumulating > hfDistributing) smartMoneyScore += 10;
+      else if (hfDistributing > hfAccumulating * 2) smartMoneyScore -= 15;
+      else if (hfDistributing > hfAccumulating) smartMoneyScore -= 10;
+
+      score += Math.min(25, Math.max(-15, smartMoneyScore));
+      scoreBreakdown.smart_money = Math.min(25, Math.max(-15, smartMoneyScore));
 
       positioningScore = Math.max(0, Math.min(100, score));
     }
@@ -158,13 +277,18 @@ router.get("/stocks", async (req, res) => {
     res.json({
       positioning_metrics: metricsResult.rows[0] || null,
       positioning_score: positioningScore,
+      score_breakdown: scoreBreakdown,
       institutional_holders: institutionalResult.rows,
+      insider_transactions: insiderTxnResult.rows,
+      insider_roster: insiderRosterResult.rows,
       retail_sentiment: sentimentResult.rows[0] || null,
       metadata: {
         symbol: symbol || "all",
         timeframe: timeframe,
         total_records: {
           institutional: institutionalResult.rows.length,
+          insider_transactions: insiderTxnResult.rows.length,
+          insider_roster: insiderRosterResult.rows.length,
           sentiment: sentimentResult.rows.length,
         },
         last_updated: new Date().toISOString(),
