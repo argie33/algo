@@ -424,9 +424,6 @@ const SectorAnalysis = () => {
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
             Top Industry Rankings
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            IBD-style industry group rankings showing best performing industries
-          </Typography>
           {industryLoading ? (
             <Box display="flex" justifyContent="center" py={4}>
               <LinearProgress sx={{ width: "50%" }} />
