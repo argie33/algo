@@ -28,6 +28,7 @@ router.get("/", async (req, res) => {
 
     // Query stock scores with proper field names from loadstockscores.py
     // JOIN with company_profile to get company names
+    // JOIN with positioning_metrics to get positioning components
     let stocksQuery = `
       SELECT
         ss.symbol,
@@ -52,9 +53,23 @@ router.get("/", async (req, res) => {
         ss.pe_ratio,
         ss.volume_avg_30d,
         ss.score_date,
-        ss.last_updated
+        ss.last_updated,
+        pm.institutional_ownership,
+        pm.insider_ownership,
+        pm.short_percent_of_float,
+        pm.institution_count
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          institutional_ownership,
+          insider_ownership,
+          short_percent_of_float,
+          institution_count
+        FROM positioning_metrics
+        ORDER BY symbol, date DESC
+      ) pm ON ss.symbol = pm.symbol
     `;
 
     const queryParams = [];
@@ -125,7 +140,14 @@ router.get("/", async (req, res) => {
       sma_50: parseFloat(row.sma_50) || 0,
       macd: parseFloat(row.macd) || null,
       last_updated: row.last_updated,
-      score_date: row.score_date
+      score_date: row.score_date,
+      // Add positioning components for frontend chart display
+      positioning_components: {
+        institutional_ownership: parseFloat(row.institutional_ownership) || null,
+        insider_ownership: parseFloat(row.insider_ownership) || null,
+        short_percent_of_float: parseFloat(row.short_percent_of_float) || null,
+        institution_count: parseInt(row.institution_count) || null
+      }
     }));
 
     // Return all results - no pagination needed for small dataset
@@ -196,9 +218,24 @@ router.get("/:symbol", async (req, res) => {
         ss.pe_ratio,
         ss.volume_avg_30d,
         ss.score_date,
-        ss.last_updated
+        ss.last_updated,
+        -- Add positioning components from positioning_metrics table
+        pm.institutional_ownership,
+        pm.insider_ownership,
+        pm.short_percent_of_float,
+        pm.institution_count
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          institutional_ownership,
+          insider_ownership,
+          short_percent_of_float,
+          institution_count
+        FROM positioning_metrics
+        ORDER BY symbol, date DESC
+      ) pm ON ss.symbol = pm.symbol
       WHERE ss.symbol = $1
     `;
 
@@ -248,7 +285,12 @@ router.get("/:symbol", async (req, res) => {
           },
           positioning: {
             score: parseFloat(row.positioning_score) || 0,
-            components: {}
+            components: {
+              institutional_ownership: parseFloat(row.institutional_ownership) || null,
+              insider_ownership: parseFloat(row.insider_ownership) || null,
+              short_percent_of_float: parseFloat(row.short_percent_of_float) || null,
+              institution_count: parseInt(row.institution_count) || null
+            }
           },
           sentiment: {
             score: parseFloat(row.sentiment_score) || 0,

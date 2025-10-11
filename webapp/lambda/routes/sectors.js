@@ -26,7 +26,8 @@ try {
   query = null;
 }
 
-// Helper function to validate database response
+// Helper function to validate database response (currently unused but kept for future use)
+// eslint-disable-next-line no-unused-vars
 function validateDbResponse(result, context = "database query") {
   if (!result || typeof result !== 'object' || !Array.isArray(result.rows)) {
     throw new Error(`Database response validation failed for ${context}: result is null, undefined, or missing rows array`);
@@ -513,11 +514,12 @@ router.get("/performance", async (req, res) => {
     const loserSectors = result.rows.filter(
       (row) => parseFloat(row.performance_pct) < 0
     ).length;
-    const avgMarketReturn =
-      result.rows.reduce(
-        (sum, row) => sum + parseFloat(row.performance_pct),
-        0
-      ) / totalSectors;
+    // avgMarketReturn could be added to metadata in future
+    // const avgMarketReturn =
+    //   result.rows.reduce(
+    //     (sum, row) => sum + parseFloat(row.performance_pct),
+    //     0
+    //   ) / totalSectors;
 
     // Return data array directly to match test expectations
     res.json({
