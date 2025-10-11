@@ -1323,27 +1323,25 @@ function StockDetail() {
                         color: "primary",
                         description:
                           "ROE, margins, debt levels, earnings quality",
-                        trend: "stable",
-                        percentile: 78,
                         components: [
                           {
                             name: "ROE",
-                            value: currentMetrics.return_on_equity || 0.15,
+                            value: currentMetrics.return_on_equity || 0,
                             weight: 0.3,
                           },
                           {
                             name: "Gross Margin",
-                            value: currentMetrics.gross_margin || 0.25,
+                            value: currentMetrics.gross_margin || 0,
                             weight: 0.25,
                           },
                           {
                             name: "Debt/Equity",
-                            value: currentMetrics.debt_to_equity || 0.4,
+                            value: currentMetrics.debt_to_equity || 0,
                             weight: 0.25,
                           },
                           {
                             name: "Current Ratio",
-                            value: currentMetrics.current_ratio || 1.8,
+                            value: currentMetrics.current_ratio || 0,
                             weight: 0.2,
                           },
                         ],
@@ -1354,22 +1352,20 @@ function StockDetail() {
                         color: "success",
                         description:
                           "Revenue, earnings, and EPS growth trajectories",
-                        trend: "improving",
-                        percentile: 65,
                         components: [
                           {
                             name: "Revenue Growth",
-                            value: currentMetrics.revenue_growth || 0.08,
+                            value: currentMetrics.revenue_growth || 0,
                             weight: 0.4,
                           },
                           {
                             name: "EPS Growth",
-                            value: currentMetrics.earnings_growth || 0.12,
+                            value: currentMetrics.earnings_growth || 0,
                             weight: 0.4,
                           },
                           {
                             name: "Sales Growth 5Y",
-                            value: currentMetrics.sales_growth_5y || 0.06,
+                            value: currentMetrics.sales_growth_5y || 0,
                             weight: 0.2,
                           },
                         ],
@@ -1379,20 +1375,15 @@ function StockDetail() {
                         score: Math.round(valueScore),
                         color: "warning",
                         description: "P/E, P/B, EV/EBITDA, and DCF valuations",
-                        trend: "deteriorating",
-                        percentile: 42,
                         components: [
                           {
                             name: "P/E Ratio",
-                            value: currentMetrics.pe_ratio || 18,
+                            value: currentMetrics.pe_ratio || 0,
                             weight: 0.4,
                           },
                           {
                             name: "P/B Ratio",
-                            value:
-                              stockData.price /
-                              (currentMetrics.book_value ||
-                                stockData.price * 0.3),
+                            value: currentMetrics.book_value ? stockData.price / currentMetrics.book_value : 0,
                             weight: 0.3,
                           },
                           { name: "EV/EBITDA", value: currentMetrics.ev_ebitda || 0, weight: 0.3 }
@@ -1404,20 +1395,10 @@ function StockDetail() {
                         color: "info",
                         description:
                           "Price trends, earnings revisions, estimate changes",
-                        trend: "improving",
-                        percentile: 72,
                         components: [
-                          { name: "3M Price Return", value: 0.08, weight: 0.3 },
-                          {
-                            name: "12M Price Return",
-                            value: 0.15,
-                            weight: 0.3,
-                          },
-                          {
-                            name: "Earnings Revisions",
-                            value: 0.05,
-                            weight: 0.4,
-                          },
+                          { name: "RSI", value: scoresData?.rsi || 0, weight: 0.4 },
+                          { name: "MACD", value: scoresData?.macd || 0, weight: 0.3 },
+                          { name: "Price Change", value: stockData.price_change_1d || 0, weight: 0.3 },
                         ],
                       },
                       {
@@ -1426,16 +1407,10 @@ function StockDetail() {
                         color: "secondary",
                         description:
                           "Analyst ratings, social sentiment, media coverage",
-                        trend: "stable",
-                        percentile: 58,
                         components: [
-                          { name: "Analyst Rating", value: 3.2, weight: 0.4 },
-                          {
-                            name: "Social Sentiment",
-                            value: 0.15,
-                            weight: 0.3,
-                          },
-                          { name: "News Sentiment", value: 0.22, weight: 0.3 },
+                          { name: "Analyst Rating", value: currentMetrics.analyst_rating || 0, weight: 0.4 },
+                          { name: "Social Sentiment", value: currentMetrics.social_sentiment || 0, weight: 0.3 },
+                          { name: "News Sentiment", value: currentMetrics.news_sentiment || 0, weight: 0.3 },
                         ],
                       },
                       {
@@ -1443,52 +1418,48 @@ function StockDetail() {
                         score: Math.round(positioningScore),
                         color: positioningScore >= 70 ? "success" : positioningScore >= 50 ? "info" : "error",
                         description:
-                          "Institutional flows, short interest, options activity",
-                        trend: positioningData?.positioning_metrics?.short_interest_change < 0 ? "improving" : "stable",
-                        percentile: Math.round(positioningScore * 0.8), // Approximate percentile from score
+                          "Institutional flows, insider activity, short interest",
                         components: [
                           {
                             name: "Institutional Ownership",
                             value:
                               positioningData?.positioning_metrics?.institutional_ownership ||
-                              currentMetrics.institutional_ownership || 0.65,
+                              currentMetrics.institutional_ownership || 0,
                             weight: 0.4,
                           },
                           {
                             name: "Short Interest",
                             value: positioningData?.positioning_metrics?.short_percent_of_float ||
-                                   currentMetrics.short_interest || 0.03,
+                                   currentMetrics.short_interest || 0,
                             weight: 0.3,
                           },
                           {
                             name: "Insider Ownership",
-                            value: positioningData?.positioning_metrics?.insider_ownership || 0.05,
+                            value: positioningData?.positioning_metrics?.insider_ownership || 0,
                             weight: 0.3
                           },
                         ],
                       },
                       {
-                        factor: "Trend",
+                        factor: "Technical",
                         score: Math.round(trendScore),
                         color: trendScore >= 70 ? "success" : trendScore >= 50 ? "info" : "error",
                         description:
-                          "Technical trend analysis, moving averages, price action",
-                        trend: trendScore >= 60 ? "improving" : trendScore >= 40 ? "stable" : "deteriorating",
-                        percentile: Math.round(trendScore * 0.85), // Approximate percentile from score
+                          "Moving averages, RSI, MACD signals",
                         components: [
                           {
                             name: "SMA 20",
-                            value: scoresData?.sma_20 || stockData.price,
+                            value: scoresData?.sma_20 || 0,
                             weight: 0.3,
                           },
                           {
                             name: "SMA 50",
-                            value: scoresData?.sma_50 || stockData.price,
+                            value: scoresData?.sma_50 || 0,
                             weight: 0.3,
                           },
                           {
-                            name: "MACD",
-                            value: scoresData?.macd || 0,
+                            name: "RSI",
+                            value: scoresData?.rsi || 0,
                             weight: 0.4,
                           },
                         ],
