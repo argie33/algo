@@ -128,6 +128,18 @@ def safe_int(value, default=None):
         return default
 
 
+def safe_date(value, default=None):
+    """Safely convert pandas Timestamp to date, handling NaT"""
+    if value is None or pd.isna(value):
+        return default
+    try:
+        if hasattr(value, 'date'):
+            return value.date()
+        return value
+    except (ValueError, TypeError, AttributeError):
+        return default
+
+
 def pyval(val):
     """Convert numpy types to native Python types"""
     if isinstance(val, (np.generic,)):
@@ -479,26 +491,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         # 4. Insert insider transactions (NEW!)
         if insider_transactions is not None and not insider_transactions.empty:
             try:
-                # Create table if not exists
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS insider_transactions (
-                        id SERIAL PRIMARY KEY,
-                        symbol VARCHAR(20),
-                        insider_name VARCHAR(200),
-                        position VARCHAR(200),
-                        transaction_type VARCHAR(50),
-                        shares BIGINT,
-                        value NUMERIC,
-                        transaction_date DATE,
-                        ownership_type VARCHAR(10),
-                        transaction_text TEXT,
-                        url TEXT,
-                        created_at TIMESTAMP DEFAULT NOW()
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_insider_txns_symbol ON insider_transactions(symbol);
-                    CREATE INDEX IF NOT EXISTS idx_insider_txns_date ON insider_transactions(transaction_date DESC);
-                """)
-
                 insider_txn_data = []
                 for _, row in insider_transactions.iterrows():
                     insider_txn_data.append((
@@ -508,7 +500,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         str(row.get('Transaction', '')),
                         safe_int(row.get('Shares')),
                         safe_float(row.get('Value')),
-                        row.get('Start Date'),
+                        safe_date(row.get('Start Date')),
                         str(row.get('Ownership', '')),
                         str(row.get('Text', '')),
                         str(row.get('URL', '')),
@@ -560,9 +552,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         str(row.get('Name', '')),
                         str(row.get('Position', '')),
                         str(row.get('Most Recent Transaction', '')),
-                        row.get('Latest Transaction Date'),
+                        safe_date(row.get('Latest Transaction Date')),
                         safe_int(row.get('Shares Owned Directly')),
-                        row.get('Position Direct Date'),
+                        safe_date(row.get('Position Direct Date')),
                         str(row.get('URL', '')),
                     ))
 
@@ -760,6 +752,48 @@ if __name__ == "__main__":
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # Schema migrations for missing columns
+    logging.info("Running schema migrations...")
+    try:
+        cur.execute("""
+            ALTER TABLE key_metrics
+            ADD COLUMN IF NOT EXISTS held_percent_insiders DECIMAL(8,6),
+            ADD COLUMN IF NOT EXISTS held_percent_institutions DECIMAL(8,6),
+            ADD COLUMN IF NOT EXISTS shares_short BIGINT,
+            ADD COLUMN IF NOT EXISTS shares_short_prior_month BIGINT,
+            ADD COLUMN IF NOT EXISTS short_ratio DECIMAL(8,2),
+            ADD COLUMN IF NOT EXISTS short_percent_of_float DECIMAL(8,6),
+            ADD COLUMN IF NOT EXISTS implied_shares_outstanding BIGINT,
+            ADD COLUMN IF NOT EXISTS float_shares BIGINT;
+        """)
+
+        # Drop and recreate insider_transactions with correct schema
+        cur.execute("""
+            DROP TABLE IF EXISTS insider_transactions CASCADE;
+            CREATE TABLE insider_transactions (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(20),
+                insider_name VARCHAR(200),
+                position VARCHAR(200),
+                transaction_type VARCHAR(50),
+                shares BIGINT,
+                value NUMERIC,
+                transaction_date DATE,
+                ownership_type VARCHAR(10),
+                transaction_text TEXT,
+                url TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+            CREATE INDEX idx_insider_txns_symbol ON insider_transactions(symbol);
+            CREATE INDEX idx_insider_txns_date ON insider_transactions(transaction_date DESC);
+        """)
+
+        conn.commit()
+        logging.info("✅ Schema migrations complete")
+    except Exception as e:
+        logging.error(f"Schema migration error: {e}")
+        conn.rollback()
 
     # Get symbols
     cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') LIMIT 10;")
