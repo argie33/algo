@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Daily Company Data Loader
+Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 
 Loads company info, positioning data, and analyst estimates with one API call per symbol.
