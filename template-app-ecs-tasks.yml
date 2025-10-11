@@ -2786,7 +2786,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: loaddailycompanydata-loader
-      Cluster: !ImportValue StocksCore-ClusterName
+      Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadDailyCompanyDataTaskDefinition
       DesiredCount: 0
       LaunchType: FARGATE
@@ -2832,7 +2832,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: loadfinancials-loader
-      Cluster: !ImportValue StocksCore-ClusterName
+      Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadFinancialsTaskDefinition
       DesiredCount: 0
       LaunchType: FARGATE
@@ -2879,7 +2879,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       ServiceName: loadhistorical-loader
-      Cluster: !ImportValue StocksCore-ClusterName
+      Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadHistoricalTaskDefinition
       DesiredCount: 0
       LaunchType: FARGATE
