@@ -449,6 +449,9 @@ def prepare_db():
         macd_hist       DOUBLE PRECISION,
         mom             DOUBLE PRECISION,
         roc             DOUBLE PRECISION,
+        roc_20d         DOUBLE PRECISION,
+        roc_60d         DOUBLE PRECISION,
+        roc_120d        DOUBLE PRECISION,
         adx             DOUBLE PRECISION,
         plus_di         DOUBLE PRECISION,
         minus_di        DOUBLE PRECISION,
@@ -637,11 +640,22 @@ def process_symbol(symbol, conn_pool, sp500_benchmark=None):
         # MACD - calculate once and reuse
         df["macd"], df["macd_signal"], df["macd_hist"] = fast_macd(df["close"])
 
-        # Momentum indicators
+        # Momentum indicators - Multiple timeframes for momentum scoring
         df["mom"] = df["close"] - df["close"].shift(10)  # 10-period momentum
         df["roc"] = (
             (df["close"] - df["close"].shift(10)) / df["close"].shift(10)
         ) * 100  # 10-period ROC
+
+        # Additional ROC timeframes for momentum factor analysis
+        df["roc_20d"] = (
+            (df["close"] - df["close"].shift(20)) / df["close"].shift(20)
+        ) * 100  # 20-day (1-month) ROC
+        df["roc_60d"] = (
+            (df["close"] - df["close"].shift(60)) / df["close"].shift(60)
+        ) * 100  # 60-day (3-month) ROC
+        df["roc_120d"] = (
+            (df["close"] - df["close"].shift(120)) / df["close"].shift(120)
+        ) * 100  # 120-day (6-month) ROC
 
         # ADX + DMI - calculate once
         df["adx"], df["plus_di"], df["minus_di"] = fast_adx(
@@ -703,7 +717,8 @@ def process_symbol(symbol, conn_pool, sp500_benchmark=None):
         INSERT INTO technical_data_daily (
           symbol, date,
           rsi, macd, macd_signal, macd_hist,
-          mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi,
+          mom, roc, roc_20d, roc_60d, roc_120d,
+          adx, plus_di, minus_di, atr, ad, cmf, mfi,
           td_sequential, td_combo, marketwatch, dm,
           sma_10, sma_20, sma_50, sma_150, sma_200,
           ema_4, ema_9, ema_21,
@@ -734,6 +749,9 @@ def process_symbol(symbol, conn_pool, sp500_benchmark=None):
                     sanitize_value(row.get("macd_hist")),
                     sanitize_value(row.get("mom")),
                     sanitize_value(row.get("roc")),
+                    sanitize_value(row.get("roc_20d")),
+                    sanitize_value(row.get("roc_60d")),
+                    sanitize_value(row.get("roc_120d")),
                     sanitize_value(row.get("adx")),
                     sanitize_value(row.get("plus_di")),
                     sanitize_value(row.get("minus_di")),

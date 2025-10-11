@@ -260,7 +260,7 @@ const ScoresDashboard = () => {
   // Transform data to handle both old and new API formats
   const transformStockData = (stock) => {
     if (stock.composite_score !== undefined) {
-      return stock; // Return real data as-is, no fallbacks
+      return stock; // Return real data as-is (includes momentum_components, positioning_components)
     }
 
     return {
@@ -286,6 +286,8 @@ const ScoresDashboard = () => {
       macd: stock.factors?.technical?.macd || null,
       last_updated: stock.lastUpdated,
       score_date: stock.scoreDate,
+      momentum_components: stock.factors?.momentum?.components || stock.momentum_components || {},
+      positioning_components: stock.positioning_components || {},
     };
   };
 
@@ -1176,7 +1178,7 @@ const ScoresDashboard = () => {
                         <CardContent>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
                             <Speed sx={{ color: theme.palette.warning.main }} />
-                            <Typography variant="h6">Price Action & Momentum</Typography>
+                            <Typography variant="h6">Momentum (5-Component System)</Typography>
                             <Chip
                               label={stock.momentum_score?.toFixed(1) || "N/A"}
                               color={stock.momentum_score >= 80 ? "success" : "warning"}
@@ -1184,97 +1186,215 @@ const ScoresDashboard = () => {
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Momentum score based on price trends and technical indicators
+                            Industry-standard 5-component momentum scoring system
                           </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
                             <Typography variant="body2" color="text.secondary">
-                              • RSI: {stock.rsi?.toFixed(1) || "N/A"}
+                              • Short-term (25pts): {stock.momentum_components?.short_term?.toFixed(1) || "N/A"}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              • 1D Change: {formatChange(stock.price_change_1d || 0)}
+                              • Medium-term (25pts): {stock.momentum_components?.medium_term?.toFixed(1) || "N/A"}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              • 30D Change: {formatChange(stock.price_change_30d || 0)}
+                              • Longer-term (20pts): {stock.momentum_components?.longer_term?.toFixed(1) || "N/A"}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • Relative Strength (20pts): {stock.momentum_components?.relative_strength?.toFixed(1) || "N/A"}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • Consistency (10pts): {stock.momentum_components?.consistency?.toFixed(1) || "N/A"}
                             </Typography>
                           </Box>
 
                           <Divider sx={{ my: 2 }} />
 
-                          {/* Momentum Chart */}
+                          {/* Momentum 5-Component Chart */}
                           <Box sx={{ mt: 2 }}>
-                            <ResponsiveContainer width="100%" height={200}>
+                            <ResponsiveContainer width="100%" height={250}>
                               <BarChart
                                 data={[
                                   {
-                                    name: "Momentum Score",
-                                    value: stock.momentum_score || 0
+                                    name: "Short-term",
+                                    value: stock.momentum_components?.short_term || 0,
+                                    max: 25
                                   },
                                   {
-                                    name: "RSI",
-                                    value: stock.rsi || 0
+                                    name: "Medium-term",
+                                    value: stock.momentum_components?.medium_term || 0,
+                                    max: 25
                                   },
                                   {
-                                    name: "1D Change %",
-                                    value: Math.abs(stock.price_change_1d || 0)
+                                    name: "Longer-term",
+                                    value: stock.momentum_components?.longer_term || 0,
+                                    max: 20
+                                  },
+                                  {
+                                    name: "Rel. Strength",
+                                    value: stock.momentum_components?.relative_strength || 0,
+                                    max: 20
+                                  },
+                                  {
+                                    name: "Consistency",
+                                    value: stock.momentum_components?.consistency || 0,
+                                    max: 10
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
-                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                <YAxis domain={[0, 25]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="value" name="Value">
+                                <Bar dataKey="value" name="Score">
                                   {[
-                                    <Cell key="momentum" fill={theme.palette.primary.main} />,
-                                    <Cell key="rsi" fill={theme.palette.success.main} />,
-                                    <Cell key="change" fill={theme.palette.warning.main} />
+                                    <Cell key="short" fill={theme.palette.primary.main} />,
+                                    <Cell key="medium" fill={theme.palette.info.main} />,
+                                    <Cell key="longer" fill={theme.palette.success.main} />,
+                                    <Cell key="relative" fill={theme.palette.warning.main} />,
+                                    <Cell key="consistency" fill={theme.palette.secondary.main} />
                                   ]}
                                 </Bar>
                               </BarChart>
                             </ResponsiveContainer>
                           </Box>
 
-                          {/* Momentum Table */}
+                          {/* Momentum Component Table */}
                           <TableContainer sx={{ mt: 2 }}>
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell>Metric</TableCell>
-                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell>Component</TableCell>
+                                  <TableCell align="right">Score</TableCell>
+                                  <TableCell align="right">Max</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
                                 <TableRow>
-                                  <TableCell>Momentum Score</TableCell>
+                                  <TableCell>Short-term (RSI + MACD)</TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={(stock.momentum_score || 0).toFixed(1)}
+                                      label={(stock.momentum_components?.short_term || 0).toFixed(1)}
                                       size="small"
                                       color="primary"
                                     />
                                   </TableCell>
+                                  <TableCell align="right">25</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                  <TableCell>RSI</TableCell>
+                                  <TableCell>Medium-term (10-20d ROC)</TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={(stock.rsi || 0).toFixed(1)}
+                                      label={(stock.momentum_components?.medium_term || 0).toFixed(1)}
+                                      size="small"
+                                      color="info"
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">25</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Longer-term (60-120d ROC)</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.momentum_components?.longer_term || 0).toFixed(1)}
                                       size="small"
                                       color="success"
                                     />
                                   </TableCell>
+                                  <TableCell align="right">20</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                  <TableCell>1D Change %</TableCell>
+                                  <TableCell>Relative Strength (vs S&P 500)</TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={(stock.price_change_1d || 0).toFixed(2) + "%"}
+                                      label={(stock.momentum_components?.relative_strength || 0).toFixed(1)}
                                       size="small"
                                       color="warning"
                                     />
                                   </TableCell>
+                                  <TableCell align="right">20</TableCell>
                                 </TableRow>
+                                <TableRow>
+                                  <TableCell>Consistency (Multi-timeframe)</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.momentum_components?.consistency || 0).toFixed(1)}
+                                      size="small"
+                                      color="secondary"
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">10</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* ROC Indicators */}
+                          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+                            Rate of Change (ROC) Indicators:
+                          </Typography>
+                          <TableContainer>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Period</TableCell>
+                                  <TableCell align="right">ROC %</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>10-day</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={stock.momentum_components?.roc_10d ? `${stock.momentum_components.roc_10d.toFixed(2)}%` : "N/A"}
+                                      size="small"
+                                      color={(stock.momentum_components?.roc_10d || 0) >= 0 ? "success" : "error"}
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>20-day (1-month)</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={stock.momentum_components?.roc_20d ? `${stock.momentum_components.roc_20d.toFixed(2)}%` : "N/A"}
+                                      size="small"
+                                      color={(stock.momentum_components?.roc_20d || 0) >= 0 ? "success" : "error"}
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>60-day (3-month)</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={stock.momentum_components?.roc_60d ? `${stock.momentum_components.roc_60d.toFixed(2)}%` : "N/A"}
+                                      size="small"
+                                      color={(stock.momentum_components?.roc_60d || 0) >= 0 ? "success" : "error"}
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>120-day (6-month)</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={stock.momentum_components?.roc_120d ? `${stock.momentum_components.roc_120d.toFixed(2)}%` : "N/A"}
+                                      size="small"
+                                      color={(stock.momentum_components?.roc_120d || 0) >= 0 ? "success" : "error"}
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                                {stock.momentum_components?.mansfield_rs !== null && stock.momentum_components?.mansfield_rs !== undefined && (
+                                  <TableRow>
+                                    <TableCell>Mansfield RS</TableCell>
+                                    <TableCell align="right">
+                                      <Chip
+                                        label={stock.momentum_components.mansfield_rs.toFixed(2)}
+                                        size="small"
+                                        color={(stock.momentum_components.mansfield_rs || 0) >= 0 ? "success" : "error"}
+                                      />
+                                    </TableCell>
+                                  </TableRow>
+                                )}
                               </TableBody>
                             </Table>
                           </TableContainer>

@@ -274,7 +274,8 @@ def get_stock_data_from_database(conn, symbol):
 
         # Get latest technical data including momentum indicators
         cur.execute("""
-            SELECT rsi, macd, macd_hist, sma_20, sma_50, atr, mom, roc, mansfield_rs
+            SELECT rsi, macd, macd_hist, sma_20, sma_50, atr, mom, roc,
+                   roc_20d, roc_60d, roc_120d, mansfield_rs
             FROM technical_data_daily
             WHERE symbol = %s
             ORDER BY date DESC
@@ -282,8 +283,8 @@ def get_stock_data_from_database(conn, symbol):
         """, (symbol,))
 
         tech_data = cur.fetchone()
-        if tech_data and len(tech_data) >= 9:
-            rsi, macd, macd_hist, sma_20, sma_50, atr, mom_10d, roc_10d, mansfield_rs = tech_data
+        if tech_data and len(tech_data) >= 12:
+            rsi, macd, macd_hist, sma_20, sma_50, atr, mom_10d, roc_10d, roc_20d, roc_60d, roc_120d, mansfield_rs = tech_data
         else:
             # Calculate basic technical indicators from price data
             prices = df['close'].astype(float).values
@@ -295,23 +296,22 @@ def get_stock_data_from_database(conn, symbol):
             atr = None
             mom_10d = None
             roc_10d = None
+            roc_20d = None
+            roc_60d = None
+            roc_120d = None
             mansfield_rs = None
 
-        # Calculate longer-term momentum from price data (20-day, 60-day, 120-day ROC)
+            # Calculate ROC for multiple timeframes if not in technical_data_daily
+            if len(df) >= 21:
+                roc_20d = ((prices[-1] - prices[-21]) / prices[-21]) * 100
+            if len(df) >= 61:
+                roc_60d = ((prices[-1] - prices[-61]) / prices[-61]) * 100
+            if len(df) >= 121:
+                roc_120d = ((prices[-1] - prices[-121]) / prices[-121]) * 100
+
+        # Calculate volatility from price data
         prices = df['close'].astype(float).values
         volatility_30d = calculate_volatility(prices)
-
-        # Calculate ROC for multiple timeframes
-        roc_20d = None  # 1-month momentum
-        roc_60d = None  # 3-month momentum
-        roc_120d = None  # 6-month momentum
-
-        if len(df) >= 21:
-            roc_20d = ((prices[-1] - prices[-21]) / prices[-21]) * 100
-        if len(df) >= 61:
-            roc_60d = ((prices[-1] - prices[-61]) / prices[-61]) * 100
-        if len(df) >= 121:
-            roc_120d = ((prices[-1] - prices[-121]) / prices[-121]) * 100
 
         # Get earnings data for PE ratio and growth calculation
         cur.execute("""
