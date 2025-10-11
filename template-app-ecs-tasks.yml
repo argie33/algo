@@ -3507,3 +3507,21 @@ Outputs:
     Value: !Ref BenchmarksTaskDefinition
     Export:
       Name: BenchmarksTaskDefArn
+
+  LoadRealtimeTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for realtime loader
+    Value: !Ref LoadRealtimeTaskDefinition
+    Export:
+      Name: LoadRealtimeTaskDefArn
+
+  LoadFinancialsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for financials loader
+    Value: !Ref LoadFinancialsTaskDefinition
+    Export:
+      Name: LoadFinancialsTaskDefArn
+
+  LoadHistoricalTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for historical loader
+    Value: !Ref LoadHistoricalTaskDefinition
+    Export:
+      Name: LoadHistoricalTaskDefArn
