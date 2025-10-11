@@ -1486,13 +1486,6 @@ function StockDetail() {
                                 size="small"
                                 sx={{ fontWeight: "bold" }}
                               />
-                              {factor.trend === "improving" ? (
-                                <TrendingUp color="success" fontSize="small" />
-                              ) : factor.trend === "deteriorating" ? (
-                                <TrendingDown color="error" fontSize="small" />
-                              ) : (
-                                <Analytics color="action" fontSize="small" />
-                              )}
                             </Box>
                           </Box>
 
@@ -1511,14 +1504,6 @@ function StockDetail() {
                             {factor.description}
                           </Typography>
 
-                          <Box display="flex" justifyContent="between" mb={1}>
-                            <Typography variant="body2" color="text.secondary">
-                              Percentile Rank
-                            </Typography>
-                            <Typography variant="body2" fontWeight="bold">
-                              {factor.percentile}th
-                            </Typography>
-                          </Box>
 
                           <Typography variant="caption" color="text.secondary">
                             Components:{" "}
@@ -1550,23 +1535,23 @@ function StockDetail() {
                         {
                           name: "ROE",
                           value:
-                            (currentMetrics.return_on_equity || 0.15) * 100,
+                            (currentMetrics.return_on_equity || 0) * 100,
                           benchmark: benchmarks?.data?.data?.benchmarks?.roe?.sector || 15,
                         },
                         {
                           name: "Gross Margin",
-                          value: (currentMetrics.gross_margin || 0.25) * 100,
+                          value: (currentMetrics.gross_margin || 0) * 100,
                           benchmark: benchmarks?.data?.data?.benchmarks?.gross_margin?.sector || 20,
                         },
                         {
                           name: "Op. Margin",
                           value:
-                            (currentMetrics.operating_margin || 0.12) * 100,
+                            (currentMetrics.operating_margin || 0) * 100,
                           benchmark: benchmarks?.data?.data?.benchmarks?.operating_margin?.sector || 10,
                         },
                         {
                           name: "Net Margin",
-                          value: (currentMetrics.net_margin || 0.08) * 100,
+                          value: (currentMetrics.net_margin || 0) * 100,
                           benchmark: benchmarks?.data?.data?.benchmarks?.profit_margin?.sector || 5,
                         },
                       ]}
