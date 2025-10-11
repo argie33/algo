@@ -102,10 +102,20 @@ const SectorAnalysis = () => {
         try {
           console.log(`Trying sector endpoint: ${endpoint}`);
           const resp = await api.get(endpoint);
-          if (resp?.data && (resp.data.success || resp.data.data)) {
-            sectorResponse = resp.data.data?.sectors || resp.data.sectors || resp.data;
-            console.log(`✅ Success with endpoint: ${endpoint}`, sectorResponse);
-            break;
+          if (resp?.data) {
+            // Handle different response structures
+            if (resp.data.data?.sectors) {
+              sectorResponse = resp.data.data.sectors;
+            } else if (resp.data.sectors) {
+              sectorResponse = resp.data.sectors;
+            } else if (Array.isArray(resp.data)) {
+              sectorResponse = resp.data;
+            }
+
+            if (sectorResponse && Array.isArray(sectorResponse) && sectorResponse.length > 0) {
+              console.log(`✅ Success with endpoint: ${endpoint}`, sectorResponse.length, "sectors");
+              break;
+            }
           }
         } catch (err) {
           console.warn(`Failed endpoint ${endpoint}:`, err.message);
@@ -114,17 +124,20 @@ const SectorAnalysis = () => {
 
       // If API call succeeded, transform the data
       if (sectorResponse && Array.isArray(sectorResponse)) {
-        const sectors = sectorResponse.map((s) => ({
-          sector: s.sector || s.name,
-          etfSymbol: s.symbol || s.etf_symbol || "N/A",
-          price: s.price || s.last_price || 100,
-          change: s.change || s.price_change || 0,
-          changePercent: s.changePercent || s.change_percent || s.performance || 0,
-          volume: s.volume || s.total_volume || 1000000,
-          marketCap: s.marketCap || s.market_cap || 50000000000,
-          color: sectorETFs[s.symbol]?.color || "#666",
-          dataSource: "api",
-        }));
+        const sectors = sectorResponse.map((s) => {
+          const symbol = s.etf_symbol || s.symbol || "N/A";
+          return {
+            sector: s.sector || s.sector_name || s.name || "Unknown",
+            etfSymbol: symbol,
+            price: s.price || s.last_price || 0,
+            change: s.change || s.price_change || 0,
+            changePercent: s.change_percent || s.changePercent || s.performance || 0,
+            volume: s.volume || s.total_volume || 0,
+            marketCap: s.market_cap || s.marketCap || s.total_assets || 0,
+            color: sectorETFs[symbol]?.color || "#666",
+            dataSource: "api",
+          };
+        });
 
         setSectorData(sectors);
         setLastUpdate(new Date());
