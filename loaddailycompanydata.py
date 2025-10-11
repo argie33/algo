@@ -4,6 +4,7 @@ Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 
 Loads company info, positioning data, and analyst estimates with one API call per symbol.
+Updated: Removed LIMIT to load all stocks - positioning data critical for AWS deployment
 
 Replaces:
 - loadinfo.py (ticker.info)
@@ -795,8 +796,8 @@ if __name__ == "__main__":
         logging.error(f"Schema migration error: {e}")
         conn.rollback()
 
-    # Get symbols
-    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') LIMIT 10;")
+    # Get symbols - load all non-ETF symbols
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol LIMIT 100;")
     symbols = [r["symbol"] for r in cur.fetchall()]
 
     logging.info(f"Loading real-time data for {len(symbols)} symbols")
