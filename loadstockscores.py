@@ -123,6 +123,17 @@ def create_stock_scores_table(conn):
                 volatility_30d DECIMAL(5,2),
                 market_cap BIGINT,
                 pe_ratio DECIMAL(8,2),
+                -- Momentum component breakdown (5-component system)
+                momentum_short_term DECIMAL(5,2),
+                momentum_medium_term DECIMAL(5,2),
+                momentum_longer_term DECIMAL(5,2),
+                momentum_relative_strength DECIMAL(5,2),
+                momentum_consistency DECIMAL(5,2),
+                roc_10d DECIMAL(8,2),
+                roc_20d DECIMAL(8,2),
+                roc_60d DECIMAL(8,2),
+                roc_120d DECIMAL(8,2),
+                mansfield_rs DECIMAL(8,2),
                 score_date DATE DEFAULT CURRENT_DATE,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -261,9 +272,9 @@ def get_stock_data_from_database(conn, symbol):
         # Calculate volume average (last 30 days)
         volume_avg_30d = int(df['volume'].tail(30).mean()) if len(df) >= 30 else int(df['volume'].mean())
 
-        # Get latest technical data
+        # Get latest technical data including momentum indicators
         cur.execute("""
-            SELECT rsi, macd, sma_20, sma_50, atr
+            SELECT rsi, macd, macd_hist, sma_20, sma_50, atr, mom, roc, mansfield_rs
             FROM technical_data_daily
             WHERE symbol = %s
             ORDER BY date DESC
@@ -271,20 +282,36 @@ def get_stock_data_from_database(conn, symbol):
         """, (symbol,))
 
         tech_data = cur.fetchone()
-        if tech_data and len(tech_data) >= 5:
-            rsi, macd, sma_20, sma_50, atr = tech_data
+        if tech_data and len(tech_data) >= 9:
+            rsi, macd, macd_hist, sma_20, sma_50, atr, mom_10d, roc_10d, mansfield_rs = tech_data
         else:
             # Calculate basic technical indicators from price data
             prices = df['close'].astype(float).values
             rsi = calculate_rsi(prices)
             macd = calculate_macd(prices)
+            macd_hist = None
             sma_20 = df['close'].tail(20).mean() if len(df) >= 20 else current_price
             sma_50 = df['close'].tail(50).mean() if len(df) >= 50 else current_price
             atr = None
+            mom_10d = None
+            roc_10d = None
+            mansfield_rs = None
 
-        # Calculate volatility from price data
+        # Calculate longer-term momentum from price data (20-day, 60-day, 120-day ROC)
         prices = df['close'].astype(float).values
         volatility_30d = calculate_volatility(prices)
+
+        # Calculate ROC for multiple timeframes
+        roc_20d = None  # 1-month momentum
+        roc_60d = None  # 3-month momentum
+        roc_120d = None  # 6-month momentum
+
+        if len(df) >= 21:
+            roc_20d = ((prices[-1] - prices[-21]) / prices[-21]) * 100
+        if len(df) >= 61:
+            roc_60d = ((prices[-1] - prices[-61]) / prices[-61]) * 100
+        if len(df) >= 121:
+            roc_120d = ((prices[-1] - prices[-121]) / prices[-121]) * 100
 
         # Get earnings data for PE ratio and growth calculation
         cur.execute("""
@@ -393,45 +420,173 @@ def get_stock_data_from_database(conn, symbol):
 
         # Calculate individual scores (0-100 scale)
 
-        # Momentum Score (RSI + MACD + Price Momentum)
-        momentum_score = 50  # Start neutral
+        # ============================================================
+        # Momentum Score - 5-Component Industry-Standard System
+        # Based on momentum ETF methodologies (MTUM, PDP, JMOM)
+        # ============================================================
 
-        # RSI component (0-40 points)
+        # Component 1: Short-Term Momentum (25 points) - Days/Weeks
+        # Uses RSI (14-day) and MACD for immediate price velocity
+        short_term_momentum = 12.5  # Start neutral
+
+        # RSI sub-component (0-12.5 points)
         if rsi is not None:
             if rsi > 70:
-                rsi_score = 35 + (min(rsi, 100) - 70) * 0.17  # 35-40 for strong
+                rsi_score = 11 + (min(rsi, 100) - 70) * 0.05  # 11-12.5 for strong
             elif rsi > 60:
-                rsi_score = 30 + (rsi - 60)  # 30-35 for bullish
+                rsi_score = 9 + (rsi - 60) * 0.2  # 9-11 for bullish
             elif rsi > 50:
-                rsi_score = 25 + (rsi - 50) * 0.5  # 25-30 for mild bullish
+                rsi_score = 7 + (rsi - 50) * 0.2  # 7-9 for mild bullish
             elif rsi > 40:
-                rsi_score = 20 + (rsi - 40) * 0.5  # 20-25 for neutral/weak
+                rsi_score = 5 + (rsi - 40) * 0.2  # 5-7 for neutral
             elif rsi > 30:
-                rsi_score = 10 + (rsi - 30)  # 10-20 for oversold (potential bounce)
+                rsi_score = 3 + (rsi - 30) * 0.2  # 3-5 for oversold
             else:
-                rsi_score = max(0, rsi * 0.33)  # 0-10 for very oversold
+                rsi_score = max(0, rsi * 0.1)  # 0-3 for very oversold
         else:
-            rsi_score = 20  # Default neutral
+            rsi_score = 6.25  # Default neutral
 
-        # MACD component (0-30 points)
-        macd_score = 15  # Default neutral
-        if macd is not None:
+        # MACD sub-component (0-12.5 points)
+        macd_score = 6.25  # Default neutral
+        if macd is not None and macd_hist is not None:
             if macd > 0:
-                macd_score = 20 + min(macd * 2, 10)  # 20-30 for positive MACD
+                macd_score = 6.25 + min(abs(macd) * 0.5, 6.25)  # 6.25-12.5 for positive
             else:
-                macd_score = max(0, 15 + macd * 2)  # 0-15 for negative MACD
+                macd_score = max(0, 6.25 + macd * 0.5)  # 0-6.25 for negative
 
-        # Price momentum component (0-30 points)
-        momentum_score = rsi_score + macd_score
-        if price_change_5d > 5:
-            momentum_score += min(10, price_change_5d * 0.5)
-        elif price_change_5d > 0:
-            momentum_score += price_change_5d
-        elif price_change_5d > -5:
-            momentum_score += max(-10, price_change_5d)
-        else:
-            momentum_score += max(-15, price_change_5d * 0.5)
+            # Bonus for MACD histogram (momentum acceleration)
+            if macd_hist and macd_hist > 0:
+                macd_score = min(12.5, macd_score + 0.5)
 
+        short_term_momentum = rsi_score + macd_score
+
+        # Component 2: Medium-Term Momentum (25 points) - Weeks
+        # Uses 10-day MOM and ROC for sustained momentum
+        medium_term_momentum = 12.5  # Start neutral
+
+        if mom_10d is not None and roc_10d is not None:
+            # MOM sub-component (0-12.5 points)
+            if roc_10d > 8:
+                mom_score = 12.5  # Strong upward momentum
+            elif roc_10d > 5:
+                mom_score = 10 + (roc_10d - 5) * 0.83
+            elif roc_10d > 2:
+                mom_score = 8 + (roc_10d - 2) * 0.67
+            elif roc_10d > 0:
+                mom_score = 6.25 + (roc_10d) * 0.88
+            elif roc_10d > -2:
+                mom_score = 4 + (roc_10d + 2) * 1.12
+            elif roc_10d > -5:
+                mom_score = 2 + (roc_10d + 5) * 0.67
+            elif roc_10d > -8:
+                mom_score = 0.5 + (roc_10d + 8) * 0.5
+            else:
+                mom_score = 0  # Strong downward momentum
+
+            medium_term_momentum = mom_score
+
+        # Component 3: Longer-Term Momentum (20 points) - Months
+        # Uses 60-day and 120-day ROC for established trends
+        longer_term_momentum = 10  # Start neutral
+
+        if roc_60d is not None and roc_120d is not None:
+            # Weight 60-day slightly more than 120-day (60% vs 40%)
+            # 60-day ROC (0-12 points)
+            if roc_60d > 20:
+                roc60_score = 12
+            elif roc_60d > 10:
+                roc60_score = 9 + (roc_60d - 10) * 0.3
+            elif roc_60d > 0:
+                roc60_score = 6 + (roc_60d) * 0.3
+            elif roc_60d > -10:
+                roc60_score = 3 + (roc_60d + 10) * 0.3
+            elif roc_60d > -20:
+                roc60_score = 1 + (roc_60d + 20) * 0.2
+            else:
+                roc60_score = 0
+
+            # 120-day ROC (0-8 points)
+            if roc_120d > 30:
+                roc120_score = 8
+            elif roc_120d > 15:
+                roc120_score = 6 + (roc_120d - 15) * 0.13
+            elif roc_120d > 0:
+                roc120_score = 4 + (roc_120d) * 0.13
+            elif roc_120d > -15:
+                roc120_score = 2 + (roc_120d + 15) * 0.13
+            elif roc_120d > -30:
+                roc120_score = 0.5 + (roc_120d + 30) * 0.1
+            else:
+                roc120_score = 0
+
+            longer_term_momentum = roc60_score + roc120_score
+        elif roc_60d is not None:
+            # Only have 60-day data, scale to full 20 points
+            if roc_60d > 20:
+                longer_term_momentum = 20
+            elif roc_60d > 0:
+                longer_term_momentum = 10 + (roc_60d) * 0.5
+            elif roc_60d > -20:
+                longer_term_momentum = max(0, 10 + (roc_60d) * 0.5)
+            else:
+                longer_term_momentum = 0
+
+        # Component 4: Relative Strength (20 points) - vs S&P 500
+        # Mansfield RS - identifies market outperformers
+        relative_strength = 10  # Start neutral
+
+        if mansfield_rs is not None:
+            # Mansfield RS typically ranges from -50 to +50
+            # Positive = outperforming market, Negative = underperforming
+            if mansfield_rs > 20:
+                relative_strength = 20  # Strong outperformance
+            elif mansfield_rs > 10:
+                relative_strength = 16 + (mansfield_rs - 10) * 0.4
+            elif mansfield_rs > 5:
+                relative_strength = 13 + (mansfield_rs - 5) * 0.6
+            elif mansfield_rs > 0:
+                relative_strength = 10 + (mansfield_rs) * 0.6
+            elif mansfield_rs > -5:
+                relative_strength = 7 + (mansfield_rs + 5) * 0.6
+            elif mansfield_rs > -10:
+                relative_strength = 4 + (mansfield_rs + 10) * 0.6
+            elif mansfield_rs > -20:
+                relative_strength = 1 + (mansfield_rs + 20) * 0.3
+            else:
+                relative_strength = 0  # Strong underperformance
+
+        # Component 5: Momentum Consistency (10 points) - Multi-timeframe alignment
+        # Bonus when multiple timeframes agree, penalty for conflicting signals
+        consistency_score = 5  # Start neutral
+
+        # Check alignment across timeframes
+        timeframe_signals = []
+        if roc_10d is not None:
+            timeframe_signals.append(1 if roc_10d > 0 else -1)
+        if roc_60d is not None:
+            timeframe_signals.append(1 if roc_60d > 0 else -1)
+        if roc_120d is not None:
+            timeframe_signals.append(1 if roc_120d > 0 else -1)
+
+        if len(timeframe_signals) >= 2:
+            signal_sum = sum(timeframe_signals)
+            signal_count = len(timeframe_signals)
+
+            if abs(signal_sum) == signal_count:
+                # All timeframes agree (all positive or all negative)
+                consistency_score = 10
+            elif abs(signal_sum) == signal_count - 1:
+                # Mostly aligned (2 out of 3 agree)
+                consistency_score = 7
+            elif signal_sum == 0:
+                # Mixed signals - conflicting momentum
+                consistency_score = 3
+            else:
+                consistency_score = 5
+
+        # Calculate final momentum score (0-100 scale)
+        momentum_score = (short_term_momentum + medium_term_momentum +
+                         longer_term_momentum + relative_strength + consistency_score)
         momentum_score = max(0, min(100, momentum_score))
 
         # Trend Score (multi-timeframe analysis + MA alignment)
@@ -795,7 +950,18 @@ def get_stock_data_from_database(conn, symbol):
             'price_change_30d': float(round(price_change_30d, 2)),
             'volatility_30d': float(volatility_30d) if volatility_30d is not None else None,
             'market_cap': int(market_cap) if market_cap else None,
-            'pe_ratio': float(round(pe_ratio, 2)) if pe_ratio else None
+            'pe_ratio': float(round(pe_ratio, 2)) if pe_ratio else None,
+            # Momentum components
+            'momentum_short_term': float(round(short_term_momentum, 2)),
+            'momentum_medium_term': float(round(medium_term_momentum, 2)),
+            'momentum_longer_term': float(round(longer_term_momentum, 2)),
+            'momentum_relative_strength': float(round(relative_strength, 2)),
+            'momentum_consistency': float(round(consistency_score, 2)),
+            'roc_10d': float(round(roc_10d, 2)) if roc_10d is not None else None,
+            'roc_20d': float(round(roc_20d, 2)) if roc_20d is not None else None,
+            'roc_60d': float(round(roc_60d, 2)) if roc_60d is not None else None,
+            'roc_120d': float(round(roc_120d, 2)) if roc_120d is not None else None,
+            'mansfield_rs': float(round(mansfield_rs, 2)) if mansfield_rs is not None else None
         }
 
     except Exception as e:
@@ -815,13 +981,21 @@ def save_stock_score(conn, score_data):
             positioning_score, sentiment_score,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
-            market_cap, pe_ratio, score_date, last_updated
+            market_cap, pe_ratio,
+            momentum_short_term, momentum_medium_term, momentum_longer_term,
+            momentum_relative_strength, momentum_consistency,
+            roc_10d, roc_20d, roc_60d, roc_120d, mansfield_rs,
+            score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
             %(positioning_score)s, %(sentiment_score)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
-            %(market_cap)s, %(pe_ratio)s, CURRENT_DATE, CURRENT_TIMESTAMP
+            %(market_cap)s, %(pe_ratio)s,
+            %(momentum_short_term)s, %(momentum_medium_term)s, %(momentum_longer_term)s,
+            %(momentum_relative_strength)s, %(momentum_consistency)s,
+            %(roc_10d)s, %(roc_20d)s, %(roc_60d)s, %(roc_120d)s, %(mansfield_rs)s,
+            CURRENT_DATE, CURRENT_TIMESTAMP
         ) ON CONFLICT (symbol) DO UPDATE SET
             composite_score = EXCLUDED.composite_score,
             momentum_score = EXCLUDED.momentum_score,
@@ -843,6 +1017,16 @@ def save_stock_score(conn, score_data):
             volatility_30d = EXCLUDED.volatility_30d,
             market_cap = EXCLUDED.market_cap,
             pe_ratio = EXCLUDED.pe_ratio,
+            momentum_short_term = EXCLUDED.momentum_short_term,
+            momentum_medium_term = EXCLUDED.momentum_medium_term,
+            momentum_longer_term = EXCLUDED.momentum_longer_term,
+            momentum_relative_strength = EXCLUDED.momentum_relative_strength,
+            momentum_consistency = EXCLUDED.momentum_consistency,
+            roc_10d = EXCLUDED.roc_10d,
+            roc_20d = EXCLUDED.roc_20d,
+            roc_60d = EXCLUDED.roc_60d,
+            roc_120d = EXCLUDED.roc_120d,
+            mansfield_rs = EXCLUDED.mansfield_rs,
             score_date = CURRENT_DATE,
             last_updated = CURRENT_TIMESTAMP
         """

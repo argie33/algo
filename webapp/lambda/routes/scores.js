@@ -54,6 +54,17 @@ router.get("/", async (req, res) => {
         ss.volume_avg_30d,
         ss.score_date,
         ss.last_updated,
+        -- Momentum components (5-component breakdown)
+        ss.momentum_short_term,
+        ss.momentum_medium_term,
+        ss.momentum_longer_term,
+        ss.momentum_relative_strength,
+        ss.momentum_consistency,
+        ss.roc_10d,
+        ss.roc_20d,
+        ss.roc_60d,
+        ss.roc_120d,
+        ss.mansfield_rs,
         pm.institutional_ownership,
         pm.insider_ownership,
         pm.short_percent_of_float,
@@ -141,6 +152,19 @@ router.get("/", async (req, res) => {
       macd: parseFloat(row.macd) || null,
       last_updated: row.last_updated,
       score_date: row.score_date,
+      // Momentum component breakdown (5-component system)
+      momentum_components: {
+        short_term: parseFloat(row.momentum_short_term) || null,
+        medium_term: parseFloat(row.momentum_medium_term) || null,
+        longer_term: parseFloat(row.momentum_longer_term) || null,
+        relative_strength: parseFloat(row.momentum_relative_strength) || null,
+        consistency: parseFloat(row.momentum_consistency) || null,
+        roc_10d: parseFloat(row.roc_10d) || null,
+        roc_20d: parseFloat(row.roc_20d) || null,
+        roc_60d: parseFloat(row.roc_60d) || null,
+        roc_120d: parseFloat(row.roc_120d) || null,
+        mansfield_rs: parseFloat(row.mansfield_rs) || null
+      },
       // Add positioning components for frontend chart display
       positioning_components: {
         institutional_ownership: parseFloat(row.institutional_ownership) || null,
@@ -219,6 +243,17 @@ router.get("/:symbol", async (req, res) => {
         ss.volume_avg_30d,
         ss.score_date,
         ss.last_updated,
+        -- Momentum components (5-component breakdown)
+        ss.momentum_short_term,
+        ss.momentum_medium_term,
+        ss.momentum_longer_term,
+        ss.momentum_relative_strength,
+        ss.momentum_consistency,
+        ss.roc_10d,
+        ss.roc_20d,
+        ss.roc_60d,
+        ss.roc_120d,
+        ss.mansfield_rs,
         -- Add positioning components from positioning_metrics table
         pm.institutional_ownership,
         pm.insider_ownership,
@@ -269,7 +304,18 @@ router.get("/:symbol", async (req, res) => {
         factors: {
           momentum: {
             score: parseFloat(row.momentum_score) || 0,
-            components: { rsi: parseFloat(row.rsi) || 0 }
+            components: {
+              short_term: parseFloat(row.momentum_short_term) || null,
+              medium_term: parseFloat(row.momentum_medium_term) || null,
+              longer_term: parseFloat(row.momentum_longer_term) || null,
+              relative_strength: parseFloat(row.momentum_relative_strength) || null,
+              consistency: parseFloat(row.momentum_consistency) || null,
+              rsi: parseFloat(row.rsi) || 0,
+              roc_10d: parseFloat(row.roc_10d) || null,
+              roc_60d: parseFloat(row.roc_60d) || null,
+              roc_120d: parseFloat(row.roc_120d) || null,
+              mansfield_rs: parseFloat(row.mansfield_rs) || null
+            }
           },
           value: {
             score: parseFloat(row.value_score) || 0,
