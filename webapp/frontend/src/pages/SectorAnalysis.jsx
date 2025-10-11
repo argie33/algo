@@ -72,15 +72,15 @@ const SectorAnalysis = () => {
     "Communication Services": "#00BCD4",
   };
 
-  // Fetch sector rotation data - NO AUTH REQUIRED
+  // Fetch sector performance data aggregated from industries
   const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
-    queryKey: ["sector-rotation"],
+    queryKey: ["sector-performance"],
     queryFn: async () => {
-      const response = await getMarketResearchIndicators();
-      return response;
+      const response = await api.get("/api/market/sectors?limit=20&sortBy=overall_rank");
+      return response.data;
     },
     staleTime: 60000,
-    enabled: true, // No auth required
+    enabled: true,
     retry: false,
   });
 
@@ -324,13 +324,13 @@ const SectorAnalysis = () => {
             <Alert severity="error">
               Failed to load sector data: {rotationError?.message || rotationError?.error || String(rotationError)}
             </Alert>
-          ) : !rotationData?.data?.sectorRotation?.length ? (
+          ) : !rotationData?.data?.sectors?.length ? (
             <Alert severity="warning">
-              No sector data available in database
+              No sector data available in database. Run loadindustrydata.py loader.
             </Alert>
           ) : (
             <Box>
-              {(rotationData?.data?.sectorRotation || []).map((sector, index) => {
+              {(rotationData?.data?.sectors || []).map((sector, index) => {
                 // Find matching industry data for this sector
                 const sectorIndustries = (industryData?.data?.industries || []).filter(
                   (ind) => ind.sector === sector.sector
@@ -346,10 +346,35 @@ const SectorAnalysis = () => {
                       }}
                     >
                       <Grid container spacing={2} alignItems="center">
-                        <Grid item xs={12} sm={3}>
+                        <Grid item xs={12} sm={1}>
+                          <Chip
+                            label={`#${sector.overall_rank}`}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={2}>
                           <Typography variant="body1" fontWeight="bold">
                             {sector.sector}
                           </Typography>
+                        </Grid>
+                        <Grid item xs={4} sm={2}>
+                          <Chip
+                            label={`RS ${sector.rs_rating}`}
+                            size="small"
+                            sx={{
+                              bgcolor: sector.rs_rating >= 80
+                                ? "success.main"
+                                : sector.rs_rating >= 60
+                                  ? "info.main"
+                                  : sector.rs_rating >= 40
+                                    ? "warning.main"
+                                    : "error.main",
+                              color: "white",
+                              fontWeight: "bold",
+                            }}
+                          />
                         </Grid>
                         <Grid item xs={4} sm={2}>
                           <Chip
@@ -381,14 +406,14 @@ const SectorAnalysis = () => {
                           <Typography
                             variant="body2"
                             fontWeight="bold"
-                            sx={{ color: getChangeColor(sector.performance) }}
+                            sx={{ color: getChangeColor(sector.performance_20d) }}
                           >
-                            {formatPercentage(sector.performance)}
+                            {formatPercentage(sector.performance_20d)}
                           </Typography>
                         </Grid>
-                        <Grid item xs={12} sm={3}>
+                        <Grid item xs={12} sm={1}>
                           <Chip
-                            label={`${sectorIndustries.length} industries`}
+                            label={`${sector.industry_count} ind`}
                             size="small"
                             variant="outlined"
                           />

@@ -1001,70 +1001,172 @@ router.get("/industries", async (req, res) => {
   }
 });
 
-// Route: GET /market/sectors (market sectors overview)
+// Route: GET /market/sectors (aggregated sector performance from industry data)
 router.get("/sectors", async (req, res) => {
-  try {
-    console.log("Market sectors endpoint called");
+  console.log("🏢 Market sectors endpoint called (aggregated from industries)");
 
-    // Check if database is available
-    if (!query) {
+  try {
+    const { limit = 20, sortBy = "overall_rank" } = req.query;
+
+    // Check if industry_performance table exists
+    const tableExists = await query(
+      `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'industry_performance'
+      ) as industry_performance_exists;
+    `,
+      []
+    );
+
+    if (!tableExists.rows[0].industry_performance_exists) {
       return res.status(503).json({
         success: false,
-        error: "Database connection not available",
-        message: "Unable to fetch sector data - database service is unavailable. Please try again later or contact support if the issue persists.",
-        timestamp: new Date().toISOString()
+        error: "Sector performance service unavailable",
+        message: "Required database table missing: industry_performance. Run loadindustrydata.py loader.",
+        timestamp: new Date().toISOString(),
       });
     }
 
-    // Get sector performance data from company_profile table
+    // Aggregate industry performance data by sector
     const sectorsQuery = `
+      WITH sector_stocks AS (
+        SELECT
+          sector,
+          unnest(stock_symbols) as symbol
+        FROM industry_performance
+        WHERE sector IS NOT NULL AND sector != ''
+      )
       SELECT
-        sector,
-        COUNT(*) as company_count
-      FROM company_profile
-      WHERE sector IS NOT NULL
-        AND sector != ''
-      GROUP BY sector
-      ORDER BY company_count DESC
+        ip.sector,
+        COUNT(DISTINCT ip.industry) as industry_count,
+        SUM(ip.stock_count) as stock_count,
+        (
+          SELECT array_agg(DISTINCT symbol ORDER BY symbol)
+          FROM sector_stocks ss
+          WHERE ss.sector = ip.sector
+        ) as stock_symbols,
+        AVG(ip.avg_change_percent) as avg_change_percent,
+        AVG(ip.performance_1d) as performance_1d,
+        AVG(ip.performance_5d) as performance_5d,
+        AVG(ip.performance_20d) as performance_20d,
+        AVG(ip.rs_rating) as rs_rating,
+        AVG(ip.rs_vs_spy) as rs_vs_spy,
+        SUM(ip.total_volume) as total_volume,
+        AVG(ip.avg_volume) as avg_volume,
+        SUM(ip.total_market_cap) as total_market_cap,
+        AVG(ip.avg_market_cap) as avg_market_cap,
+        MAX(ip.fetched_at) as fetched_at,
+        -- Calculate momentum based on average industry momentum
+        CASE
+          WHEN AVG(CASE WHEN ip.momentum = 'Strong' THEN 3 WHEN ip.momentum = 'Moderate' THEN 2 ELSE 1 END) >= 2.5 THEN 'Strong'
+          WHEN AVG(CASE WHEN ip.momentum = 'Strong' THEN 3 WHEN ip.momentum = 'Moderate' THEN 2 ELSE 1 END) >= 1.5 THEN 'Moderate'
+          ELSE 'Weak'
+        END as momentum,
+        -- Calculate trend based on average industry trend
+        CASE
+          WHEN AVG(CASE WHEN ip.trend = 'Uptrend' THEN 1 WHEN ip.trend = 'Downtrend' THEN -1 ELSE 0 END) > 0.3 THEN 'Uptrend'
+          WHEN AVG(CASE WHEN ip.trend = 'Uptrend' THEN 1 WHEN ip.trend = 'Downtrend' THEN -1 ELSE 0 END) < -0.3 THEN 'Downtrend'
+          ELSE 'Sideways'
+        END as trend,
+        -- Flow direction based on performance trends
+        CASE
+          WHEN AVG(ip.performance_5d) > 2 THEN 'Inflow'
+          WHEN AVG(ip.performance_5d) < -2 THEN 'Outflow'
+          ELSE 'Neutral'
+        END as flow
+      FROM industry_performance ip
+      WHERE ip.sector IS NOT NULL AND ip.sector != ''
+      GROUP BY ip.sector
     `;
 
-    const sectorsResult = await query(sectorsQuery);
-
-    // Check if query returned data
-    if (!sectorsResult || !sectorsResult.rows) {
+    let sectorsResult;
+    try {
+      sectorsResult = await query(sectorsQuery);
+    } catch (error) {
+      console.error("Sector aggregation query error:", error.message);
       return res.status(500).json({
         success: false,
-        error: "Database query failed",
-        message: "Unable to fetch sector data",
-        timestamp: new Date().toISOString()
+        error: "Sector aggregation query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
       });
     }
 
-    // Format sector data
-    const sectors = sectorsResult.rows.map(row => ({
-      sector: row.sector,
-      companies: parseInt(row.company_count) || 0,
-      marketCapNote: "Market cap data not available - requires additional data source integration"
-    }));
+    if (!sectorsResult || !Array.isArray(sectorsResult.rows) || sectorsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No sector data found",
+        message: "No sector performance data available. Run loadindustrydata.py loader.",
+        timestamp: new Date().toISOString(),
+      });
+    }
 
-    res.json({
+    // Add sector ranks
+    const sectors = sectorsResult.rows
+      .map(row => ({
+        sector: row.sector,
+        industry_count: parseInt(row.industry_count) || 0,
+        stock_count: parseInt(row.stock_count) || 0,
+        stock_symbols: row.stock_symbols || [],
+        avg_change_percent: parseFloat(row.avg_change_percent) || 0,
+        performance_1d: parseFloat(row.performance_1d) || 0,
+        performance_5d: parseFloat(row.performance_5d) || 0,
+        performance_20d: parseFloat(row.performance_20d) || 0,
+        rs_rating: Math.round(parseFloat(row.rs_rating) || 0),
+        rs_vs_spy: parseFloat(row.rs_vs_spy) || 0,
+        momentum: row.momentum || 'Weak',
+        trend: row.trend || 'Sideways',
+        flow: row.flow || 'Neutral',
+        total_volume: parseInt(row.total_volume) || 0,
+        avg_volume: parseInt(row.avg_volume) || 0,
+        total_market_cap: parseInt(row.total_market_cap) || 0,
+        avg_market_cap: parseInt(row.avg_market_cap) || 0,
+        fetched_at: row.fetched_at,
+      }))
+      .sort((a, b) => b.performance_20d - a.performance_20d)
+      .map((sector, index) => ({
+        ...sector,
+        overall_rank: index + 1,
+      }));
+
+    // Apply sorting
+    const validSortFields = ["overall_rank", "performance_1d", "performance_5d", "performance_20d", "rs_rating"];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : "overall_rank";
+    const sortOrder = sortField === "overall_rank" ? 1 : -1;
+
+    sectors.sort((a, b) => sortOrder * (a[sortField] - b[sortField]));
+
+    // Apply limit
+    const limitedSectors = sectors.slice(0, parseInt(limit));
+
+    // Get summary statistics
+    const summary = {
+      total_sectors: sectors.length,
+      total_industries: sectors.reduce((sum, s) => sum + s.industry_count, 0),
+      total_stocks: sectors.reduce((sum, s) => sum + s.stock_count, 0),
+      avg_performance_1d: sectors.reduce((sum, s) => sum + s.performance_1d, 0) / sectors.length,
+      avg_performance_20d: sectors.reduce((sum, s) => sum + s.performance_20d, 0) / sectors.length,
+      best_performance: Math.max(...sectors.map(s => s.performance_20d)),
+      worst_performance: Math.min(...sectors.map(s => s.performance_20d)),
+    };
+
+    return res.json({
       success: true,
       data: {
-        sectors,
-        summary: {
-          totalSectors: sectors.length,
-          totalCompanies: sectors.reduce((sum, s) => sum + s.companies, 0),
-          note: "Market cap calculations not available with current data sources"
-        }
+        sectors: limitedSectors,
+        summary,
       },
+      count: limitedSectors.length,
       timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("Error fetching market sectors:", error);
     return res.status(500).json({
       success: false,
-      error: "Failed to fetch market sectors: " + error.message,
+      error: "Internal server error",
+      details: error.message,
       timestamp: new Date().toISOString(),
     });
   }
