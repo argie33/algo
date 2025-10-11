@@ -1110,13 +1110,11 @@ const ScoresDashboard = () => {
                                 data={[
                                   {
                                     name: "Quality Score",
-                                    value: stock.quality_score || 0,
-                                    benchmark: 70
+                                    value: stock.quality_score || 0
                                   },
                                   {
-                                    name: "Volatility (Inv)",
-                                    value: Math.max(0, 100 - (stock.volatility_30d || 0) * 2),
-                                    benchmark: 60
+                                    name: "Volatility",
+                                    value: stock.volatility_30d || 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
@@ -1125,11 +1123,10 @@ const ScoresDashboard = () => {
                                 <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
                                 <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
-                                <Bar dataKey="value" name="Actual">
+                                <Bar dataKey="value" name="Value">
                                   {[
-                                    <Cell key="quality" fill={stock.quality_score >= 80 ? theme.palette.success.main : stock.quality_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />,
-                                    <Cell key="volatility" fill={Math.max(0, 100 - (stock.volatility_30d || 0) * 2) >= 80 ? theme.palette.success.main : Math.max(0, 100 - (stock.volatility_30d || 0) * 2) >= 60 ? theme.palette.warning.main : theme.palette.error.main} />
+                                    <Cell key="quality" fill={theme.palette.primary.main} />,
+                                    <Cell key="volatility" fill={theme.palette.success.main} />
                                   ]}
                                 </Bar>
                               </BarChart>
@@ -1143,7 +1140,6 @@ const ScoresDashboard = () => {
                                 <TableRow>
                                   <TableCell>Metric</TableCell>
                                   <TableCell align="right">Value</TableCell>
-                                  <TableCell align="right">Benchmark</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
@@ -1153,21 +1149,19 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={(stock.quality_score || 0).toFixed(1)}
                                       size="small"
-                                      color={stock.quality_score >= 80 ? "success" : stock.quality_score >= 60 ? "warning" : "error"}
+                                      color="primary"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">70</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                  <TableCell>Volatility (Inverted)</TableCell>
+                                  <TableCell>Volatility (30d)</TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={Math.max(0, 100 - (stock.volatility_30d || 0) * 2).toFixed(1)}
+                                      label={stock.volatility_30d ? `${stock.volatility_30d.toFixed(1)}%` : "N/A"}
                                       size="small"
-                                      color={Math.max(0, 100 - (stock.volatility_30d || 0) * 2) >= 80 ? "success" : Math.max(0, 100 - (stock.volatility_30d || 0) * 2) >= 60 ? "warning" : "error"}
+                                      color="success"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">60</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>
@@ -1213,18 +1207,15 @@ const ScoresDashboard = () => {
                                 data={[
                                   {
                                     name: "Momentum Score",
-                                    value: stock.momentum_score || 0,
-                                    benchmark: 70
+                                    value: stock.momentum_score || 0
                                   },
                                   {
                                     name: "RSI",
-                                    value: stock.rsi || 0,
-                                    benchmark: 50
+                                    value: stock.rsi || 0
                                   },
                                   {
-                                    name: "1D % (Scaled)",
-                                    value: Math.min(100, Math.max(0, 50 + (stock.price_change_1d || 0) * 10)),
-                                    benchmark: 50
+                                    name: "1D Change %",
+                                    value: Math.abs(stock.price_change_1d || 0)
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
@@ -1233,12 +1224,11 @@ const ScoresDashboard = () => {
                                 <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
                                 <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
-                                <Bar dataKey="value" name="Actual">
+                                <Bar dataKey="value" name="Value">
                                   {[
-                                    <Cell key="momentum" fill={stock.momentum_score >= 80 ? theme.palette.success.main : stock.momentum_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />,
-                                    <Cell key="rsi" fill={(stock.rsi || 0) >= 70 ? theme.palette.success.main : (stock.rsi || 0) >= 30 ? theme.palette.warning.main : theme.palette.error.main} />,
-                                    <Cell key="change" fill={(stock.price_change_1d || 0) >= 0 ? theme.palette.success.main : theme.palette.error.main} />
+                                    <Cell key="momentum" fill={theme.palette.primary.main} />,
+                                    <Cell key="rsi" fill={theme.palette.success.main} />,
+                                    <Cell key="change" fill={theme.palette.warning.main} />
                                   ]}
                                 </Bar>
                               </BarChart>
@@ -1252,7 +1242,6 @@ const ScoresDashboard = () => {
                                 <TableRow>
                                   <TableCell>Metric</TableCell>
                                   <TableCell align="right">Value</TableCell>
-                                  <TableCell align="right">Benchmark</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
@@ -1262,10 +1251,9 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={(stock.momentum_score || 0).toFixed(1)}
                                       size="small"
-                                      color={stock.momentum_score >= 80 ? "success" : stock.momentum_score >= 60 ? "warning" : "error"}
+                                      color="primary"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">70</TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>RSI</TableCell>
@@ -1273,10 +1261,9 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={(stock.rsi || 0).toFixed(1)}
                                       size="small"
-                                      color={(stock.rsi || 0) >= 70 ? "success" : (stock.rsi || 0) >= 30 ? "warning" : "error"}
+                                      color="success"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">50</TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>1D Change %</TableCell>
@@ -1284,10 +1271,9 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={(stock.price_change_1d || 0).toFixed(2) + "%"}
                                       size="small"
-                                      color={(stock.price_change_1d || 0) >= 0 ? "success" : "error"}
+                                      color="warning"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">0%</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>
@@ -1330,13 +1316,11 @@ const ScoresDashboard = () => {
                                 data={[
                                   {
                                     name: "Value Score",
-                                    value: stock.value_score || 0,
-                                    benchmark: 70
+                                    value: stock.value_score || 0
                                   },
                                   {
-                                    name: "P/E (Inv)",
-                                    value: stock.pe_ratio ? Math.min(100, Math.max(0, 100 - stock.pe_ratio)) : 50,
-                                    benchmark: 70
+                                    name: "P/E Ratio",
+                                    value: stock.pe_ratio ? Math.min(100, stock.pe_ratio) : 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
@@ -1345,11 +1329,10 @@ const ScoresDashboard = () => {
                                 <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
                                 <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
-                                <Bar dataKey="value" name="Actual">
+                                <Bar dataKey="value" name="Value">
                                   {[
-                                    <Cell key="value" fill={stock.value_score >= 80 ? theme.palette.success.main : stock.value_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />,
-                                    <Cell key="pe" fill={stock.pe_ratio && stock.pe_ratio < 30 ? theme.palette.success.main : theme.palette.warning.main} />
+                                    <Cell key="value" fill={theme.palette.primary.main} />,
+                                    <Cell key="pe" fill={theme.palette.success.main} />
                                   ]}
                                 </Bar>
                               </BarChart>
@@ -1363,7 +1346,6 @@ const ScoresDashboard = () => {
                                 <TableRow>
                                   <TableCell>Metric</TableCell>
                                   <TableCell align="right">Value</TableCell>
-                                  <TableCell align="right">Benchmark</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
@@ -1373,10 +1355,9 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={(stock.value_score || 0).toFixed(1)}
                                       size="small"
-                                      color={stock.value_score >= 80 ? "success" : stock.value_score >= 60 ? "warning" : "error"}
+                                      color="primary"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">70</TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>P/E Ratio</TableCell>
@@ -1384,10 +1365,9 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={stock.pe_ratio ? stock.pe_ratio.toFixed(1) : "N/A"}
                                       size="small"
-                                      color={stock.pe_ratio && stock.pe_ratio < 30 ? "success" : "warning"}
+                                      color="success"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">30</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>
@@ -1430,13 +1410,11 @@ const ScoresDashboard = () => {
                                 data={[
                                   {
                                     name: "Growth Score",
-                                    value: stock.growth_score || 0,
-                                    benchmark: 70
+                                    value: stock.growth_score || 0
                                   },
                                   {
-                                    name: "30D Growth",
-                                    value: Math.min(100, Math.max(0, 50 + (stock.price_change_30d || 0))),
-                                    benchmark: 50
+                                    name: "30D Change %",
+                                    value: Math.abs(stock.price_change_30d || 0)
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
@@ -1445,11 +1423,10 @@ const ScoresDashboard = () => {
                                 <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
                                 <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
-                                <Bar dataKey="value" name="Actual">
+                                <Bar dataKey="value" name="Value">
                                   {[
-                                    <Cell key="growth" fill={stock.growth_score >= 80 ? theme.palette.success.main : stock.growth_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />,
-                                    <Cell key="change" fill={(stock.price_change_30d || 0) > 0 ? theme.palette.success.main : theme.palette.error.main} />
+                                    <Cell key="growth" fill={theme.palette.primary.main} />,
+                                    <Cell key="change" fill={theme.palette.success.main} />
                                   ]}
                                 </Bar>
                               </BarChart>
@@ -1463,7 +1440,6 @@ const ScoresDashboard = () => {
                                 <TableRow>
                                   <TableCell>Metric</TableCell>
                                   <TableCell align="right">Value</TableCell>
-                                  <TableCell align="right">Benchmark</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
@@ -1473,10 +1449,9 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={(stock.growth_score || 0).toFixed(1)}
                                       size="small"
-                                      color={stock.growth_score >= 80 ? "success" : stock.growth_score >= 60 ? "warning" : "error"}
+                                      color="primary"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">70</TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>30D Change %</TableCell>
@@ -1484,10 +1459,9 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={(stock.price_change_30d || 0).toFixed(2) + "%"}
                                       size="small"
-                                      color={(stock.price_change_30d || 0) > 0 ? "success" : "error"}
+                                      color="success"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">0%</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>
@@ -1514,10 +1488,16 @@ const ScoresDashboard = () => {
                           </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
                             <Typography variant="body2" color="text.secondary">
-                              • Ownership concentration metrics
+                              • Institutional Ownership: {stock.positioning_components?.institutional_ownership?.toFixed(1) || "N/A"}%
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              • Smart money positioning indicators
+                              • Insider Ownership: {stock.positioning_components?.insider_ownership?.toFixed(1) || "N/A"}%
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • Short % of Float: {stock.positioning_components?.short_percent_of_float?.toFixed(1) || "N/A"}%
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • Institution Count: {stock.positioning_components?.institution_count || "N/A"}
                             </Typography>
                           </Box>
 
@@ -1525,13 +1505,24 @@ const ScoresDashboard = () => {
 
                           {/* Positioning Chart */}
                           <Box sx={{ mt: 2 }}>
-                            <ResponsiveContainer width="100%" height={200}>
+                            <ResponsiveContainer width="100%" height={250}>
                               <BarChart
                                 data={[
                                   {
-                                    name: "Positioning Score",
-                                    value: stock.positioning_score || 0,
-                                    benchmark: 70
+                                    name: "Inst. Own %",
+                                    value: stock.positioning_components?.institutional_ownership || 0
+                                  },
+                                  {
+                                    name: "Insider Own %",
+                                    value: stock.positioning_components?.insider_ownership || 0
+                                  },
+                                  {
+                                    name: "Short % Float",
+                                    value: stock.positioning_components?.short_percent_of_float || 0
+                                  },
+                                  {
+                                    name: "Inst. Count",
+                                    value: Math.min(100, (stock.positioning_components?.institution_count || 0) / 5)
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
@@ -1540,10 +1531,12 @@ const ScoresDashboard = () => {
                                 <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
                                 <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
-                                <Bar dataKey="value" name="Actual">
+                                <Bar dataKey="value" name="Value">
                                   {[
-                                    <Cell key="positioning" fill={stock.positioning_score >= 80 ? theme.palette.success.main : stock.positioning_score >= 60 ? theme.palette.warning.main : theme.palette.error.main} />
+                                    <Cell key="inst" fill={theme.palette.primary.main} />,
+                                    <Cell key="insider" fill={theme.palette.success.main} />,
+                                    <Cell key="short" fill={theme.palette.warning.main} />,
+                                    <Cell key="count" fill={theme.palette.info.main} />
                                   ]}
                                 </Bar>
                               </BarChart>
@@ -1557,20 +1550,48 @@ const ScoresDashboard = () => {
                                 <TableRow>
                                   <TableCell>Metric</TableCell>
                                   <TableCell align="right">Value</TableCell>
-                                  <TableCell align="right">Benchmark</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
                                 <TableRow>
-                                  <TableCell>Positioning Score</TableCell>
+                                  <TableCell>Institutional Ownership</TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={(stock.positioning_score || 0).toFixed(1)}
+                                      label={stock.positioning_components?.institutional_ownership ? `${stock.positioning_components.institutional_ownership.toFixed(1)}%` : "N/A"}
                                       size="small"
-                                      color={stock.positioning_score >= 80 ? "success" : stock.positioning_score >= 60 ? "warning" : "error"}
+                                      color="primary"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">70</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Insider Ownership</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={stock.positioning_components?.insider_ownership ? `${stock.positioning_components.insider_ownership.toFixed(1)}%` : "N/A"}
+                                      size="small"
+                                      color="success"
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Short % of Float</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={stock.positioning_components?.short_percent_of_float ? `${stock.positioning_components.short_percent_of_float.toFixed(1)}%` : "N/A"}
+                                      size="small"
+                                      color="warning"
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Institution Count</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={stock.positioning_components?.institution_count || "N/A"}
+                                      size="small"
+                                      color="info"
+                                    />
+                                  </TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>
@@ -1613,8 +1634,7 @@ const ScoresDashboard = () => {
                                 data={[
                                   {
                                     name: "Sentiment Score",
-                                    value: stock.sentiment_score || 0,
-                                    benchmark: 70
+                                    value: stock.sentiment_score || 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
@@ -1623,10 +1643,9 @@ const ScoresDashboard = () => {
                                 <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
                                 <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="benchmark" fill={alpha(theme.palette.grey[400], 0.3)} name="Benchmark" />
-                                <Bar dataKey="value" name="Actual">
+                                <Bar dataKey="value" name="Value">
                                   {[
-                                    <Cell key="sentiment" fill={(stock.sentiment_score || 0) >= 80 ? theme.palette.success.main : (stock.sentiment_score || 0) >= 60 ? theme.palette.warning.main : theme.palette.error.main} />
+                                    <Cell key="sentiment" fill={theme.palette.primary.main} />
                                   ]}
                                 </Bar>
                               </BarChart>
@@ -1640,7 +1659,6 @@ const ScoresDashboard = () => {
                                 <TableRow>
                                   <TableCell>Metric</TableCell>
                                   <TableCell align="right">Value</TableCell>
-                                  <TableCell align="right">Benchmark</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
@@ -1650,10 +1668,9 @@ const ScoresDashboard = () => {
                                     <Chip
                                       label={(stock.sentiment_score || 0).toFixed(1)}
                                       size="small"
-                                      color={(stock.sentiment_score || 0) >= 80 ? "success" : (stock.sentiment_score || 0) >= 60 ? "warning" : "error"}
+                                      color="primary"
                                     />
                                   </TableCell>
-                                  <TableCell align="right">70</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>

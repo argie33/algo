@@ -360,32 +360,36 @@ def get_stock_data_from_database(conn, symbol):
             logger.warning(f"Analyst recommendations table query failed for {symbol}: {e}")
             analyst_score = None
 
-        # Get institutional positioning data for Positioning Score
+        # Get real positioning data from positioning_metrics table
         try:
             cur.execute("""
-                SELECT position_change_percent, market_share, institution_type
-                FROM institutional_positioning
+                SELECT
+                    institutional_ownership,
+                    insider_ownership,
+                    short_percent_of_float,
+                    institution_count
+                FROM positioning_metrics
                 WHERE symbol = %s
-                AND filing_date >= CURRENT_DATE - INTERVAL '90 days'
-                ORDER BY filing_date DESC
-                LIMIT 20
+                ORDER BY date DESC
+                LIMIT 1
             """, (symbol,))
-            positioning_data = cur.fetchall()
-            inst_position_change = None
-            inst_market_share = None
+            positioning_data = cur.fetchone()
+            institutional_ownership = None
+            insider_ownership = None
+            short_percent_of_float = None
+            institution_count = None
             if positioning_data:
-                # Calculate average position change and market share
-                position_changes = [float(row[0]) for row in positioning_data if row[0] is not None]
-                market_shares = [float(row[1]) for row in positioning_data if row[1] is not None]
-                if position_changes:
-                    inst_position_change = sum(position_changes) / len(position_changes)
-                if market_shares:
-                    inst_market_share = sum(market_shares) / len(market_shares)
+                institutional_ownership = float(positioning_data[0]) if positioning_data[0] is not None else None
+                insider_ownership = float(positioning_data[1]) if positioning_data[1] is not None else None
+                short_percent_of_float = float(positioning_data[2]) if positioning_data[2] is not None else None
+                institution_count = int(positioning_data[3]) if positioning_data[3] is not None else None
         except psycopg2.Error as e:
             conn.rollback()
-            logger.warning(f"Institutional positioning table query failed for {symbol}: {e}")
-            inst_position_change = None
-            inst_market_share = None
+            logger.warning(f"Positioning metrics table query failed for {symbol}: {e}")
+            institutional_ownership = None
+            insider_ownership = None
+            short_percent_of_float = None
+            institution_count = None
 
         # Calculate individual scores (0-100 scale)
 
@@ -630,27 +634,89 @@ def get_stock_data_from_database(conn, symbol):
         growth_score = earnings_component + momentum_component + consistency_bonus
         growth_score = max(0, min(100, growth_score))
 
-        # Positioning Score (Institutional holdings + trends)
-        positioning_score = 50  # Start neutral
+        # Positioning Score (Real institutional and insider data)
+        # NO FALLBACK VALUES - if data is missing, positioning_score will be None
+        positioning_score = None
 
-        if inst_position_change is not None:
-            # Institutional buying (+) or selling (-) trend
-            if inst_position_change > 5:
-                positioning_score += min(30, inst_position_change * 2)  # Strong buying
-            elif inst_position_change > 0:
-                positioning_score += inst_position_change * 3  # Moderate buying
-            elif inst_position_change > -5:
-                positioning_score += inst_position_change * 3  # Moderate selling
-            else:
-                positioning_score += max(-30, inst_position_change * 2)  # Strong selling
+        # Only calculate if we have at least some positioning data
+        if any([institutional_ownership is not None,
+                insider_ownership is not None,
+                short_percent_of_float is not None,
+                institution_count is not None]):
 
-        if inst_market_share is not None:
-            # Higher institutional ownership can be positive (confidence) up to a point
-            # Normalize market share to 0-20 points (assuming 0-100% range)
-            market_share_component = min(20, inst_market_share * 100 * 0.2)
-            positioning_score += market_share_component
+            inst_score = 0
+            insider_score = 0
+            short_score = 0
+            count_score = 0
 
-        positioning_score = max(0, min(100, positioning_score))
+            # Institutional ownership component (0-35 points)
+            # Optimal range: 40-70% (strong institutional support but not too crowded)
+            if institutional_ownership is not None:
+                if 40 <= institutional_ownership <= 70:
+                    inst_score = 35  # Optimal institutional ownership
+                elif 30 <= institutional_ownership < 40:
+                    inst_score = 30  # Good institutional ownership
+                elif 70 < institutional_ownership <= 80:
+                    inst_score = 28  # High but acceptable
+                elif 20 <= institutional_ownership < 30:
+                    inst_score = 22  # Moderate institutional ownership
+                elif 80 < institutional_ownership <= 90:
+                    inst_score = 20  # Very high (crowded trade risk)
+                elif institutional_ownership < 20:
+                    inst_score = 15  # Low institutional interest
+                else:  # > 90%
+                    inst_score = 10  # Extremely crowded
+
+            # Insider ownership component (0-25 points)
+            # Higher is better (skin in the game)
+            if insider_ownership is not None:
+                if insider_ownership >= 15:
+                    insider_score = 25  # Very strong insider ownership
+                elif insider_ownership >= 10:
+                    insider_score = 22  # Strong insider ownership
+                elif insider_ownership >= 5:
+                    insider_score = 18  # Good insider ownership
+                elif insider_ownership >= 2:
+                    insider_score = 12  # Moderate insider ownership
+                elif insider_ownership >= 1:
+                    insider_score = 8   # Low insider ownership
+                else:
+                    insider_score = 3   # Very low/no insider ownership
+
+            # Short interest component (0-25 points)
+            # Lower is better (less bearish pressure)
+            if short_percent_of_float is not None:
+                if short_percent_of_float < 2:
+                    short_score = 25  # Very low short interest
+                elif short_percent_of_float < 5:
+                    short_score = 22  # Low short interest
+                elif short_percent_of_float < 10:
+                    short_score = 18  # Moderate short interest
+                elif short_percent_of_float < 15:
+                    short_score = 12  # High short interest
+                elif short_percent_of_float < 20:
+                    short_score = 6   # Very high short interest
+                else:
+                    short_score = 0   # Extremely high short interest
+
+            # Institution count component (0-15 points)
+            # More institutions = broader confidence
+            if institution_count is not None:
+                if institution_count >= 500:
+                    count_score = 15  # Very broad institutional support
+                elif institution_count >= 300:
+                    count_score = 13  # Broad institutional support
+                elif institution_count >= 200:
+                    count_score = 10  # Good institutional support
+                elif institution_count >= 100:
+                    count_score = 7   # Moderate institutional support
+                elif institution_count >= 50:
+                    count_score = 4   # Limited institutional support
+                else:
+                    count_score = 0   # Very limited institutional support
+
+            positioning_score = inst_score + insider_score + short_score + count_score
+            positioning_score = max(0, min(100, positioning_score))
 
         # Sentiment Score (Analyst ratings + Market sentiment)
         sentiment_score = 50  # Start neutral
@@ -678,15 +744,29 @@ def get_stock_data_from_database(conn, symbol):
         # Composite Score (6-factor weighted average)
         # Weights: Momentum (21%), Trend (15%), Growth (19%), Value (15%),
         #          Quality (15%), Positioning (10%), Sentiment (5%)
-        composite_score = (
-            momentum_score * 0.21 +                 # Short-term momentum
-            trend_score * 0.15 +                    # Trend alignment
-            growth_score * 0.19 +                   # Growth drivers
-            value_score * 0.15 +                    # Valuation
-            quality_score * 0.15 +                  # Quality/Risk
-            positioning_score * 0.10 +              # Institutional positioning
-            sentiment_score * 0.05                  # Market sentiment
-        )
+        # If positioning_score is None, redistribute its 10% weight proportionally to other factors
+        if positioning_score is not None:
+            composite_score = (
+                momentum_score * 0.21 +                 # Short-term momentum
+                trend_score * 0.15 +                    # Trend alignment
+                growth_score * 0.19 +                   # Growth drivers
+                value_score * 0.15 +                    # Valuation
+                quality_score * 0.15 +                  # Quality/Risk
+                positioning_score * 0.10 +              # Institutional positioning
+                sentiment_score * 0.05                  # Market sentiment
+            )
+        else:
+            # Redistribute positioning's 10% weight proportionally across other factors
+            # New weights: Momentum (23.33%), Trend (16.67%), Growth (21.11%), Value (16.67%),
+            #              Quality (16.67%), Sentiment (5.56%)
+            composite_score = (
+                momentum_score * 0.2333 +               # Short-term momentum
+                trend_score * 0.1667 +                  # Trend alignment
+                growth_score * 0.2111 +                 # Growth drivers
+                value_score * 0.1667 +                  # Valuation
+                quality_score * 0.1667 +                # Quality/Risk
+                sentiment_score * 0.0556                # Market sentiment
+            )
 
         cur.close()
 
