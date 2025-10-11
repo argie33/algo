@@ -96,6 +96,15 @@ Parameters:
   AnalystUpgradeDowngradeImageTag:
     Type: String
     Description: "Tag for analyst upgrade/downgrade loader image"
+  LoadRealtimeImageTag:
+    Type: String
+    Description: "Tag for realtime consolidated loader image"
+  LoadFinancialsImageTag:
+    Type: String
+    Description: "Tag for financials consolidated loader image"
+  LoadHistoricalImageTag:
+    Type: String
+    Description: "Tag for historical consolidated loader image"
 
   FREDApiKey:
     Type: String
@@ -2731,6 +2740,151 @@ Resources:
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref BenchmarksTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  #########################################
+  # Consolidated Loaders                  #
+  #########################################
+
+  LoadRealtimeTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: loadrealtime-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: loadrealtime-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadRealtimeImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/loadrealtime-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  LoadRealtimeLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: loadrealtime-loader
+      Cluster: !ImportValue StocksCore-ClusterName
+      TaskDefinition: !Ref LoadRealtimeTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      TaskDefinition: !Ref LoadRealtimeTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  LoadFinancialsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: loadfinancials-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: loadfinancials-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadFinancialsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/loadfinancials-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  LoadFinancialsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: loadfinancials-loader
+      Cluster: !ImportValue StocksCore-ClusterName
+      TaskDefinition: !Ref LoadFinancialsTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      TaskDefinition: !Ref LoadFinancialsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  LoadHistoricalTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: loadhistorical-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: loadhistorical-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadHistoricalImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/loadhistorical-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  LoadHistoricalLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: loadhistorical-loader
+      Cluster: !ImportValue StocksCore-ClusterName
+      TaskDefinition: !Ref LoadHistoricalTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      TaskDefinition: !Ref LoadHistoricalTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:

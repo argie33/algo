@@ -1,0 +1,13 @@
+# Dockerfile.historical
+FROM public.ecr.aws/lambda/python:3.11
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy requirements and script
+COPY Dockerfile.historical requirements-loadhistorical.txt loadhistorical.py ./
+
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadhistorical.txt
+
+# Set the entrypoint
+ENTRYPOINT ["python", "loadhistorical.py"]

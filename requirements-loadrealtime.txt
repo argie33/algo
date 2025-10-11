@@ -1,0 +1,5 @@
+# Realtime loader requirements - consolidated daily updates
+yfinance==0.2.64
+psycopg2-binary==2.9.9
+boto3==1.34.69
+pandas
