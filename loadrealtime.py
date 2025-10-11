@@ -10,8 +10,21 @@ Replaces:
 - loadrevenueestimate.py (revenue estimates)
 
 Single API call per symbol gets ALL daily data
+
+NEW POSITIONING DATA AVAILABLE:
+- insider_transactions: Individual insider buy/sell events (90-day window for analysis)
+- insider_roster: Current insider holdings roster with position details
+- institutional_positioning: Enhanced with institution_type (MUTUAL_FUND, HEDGE_FUND, PENSION_FUND)
+- positioning_metrics: Core positioning metrics (institutional ownership, short interest, etc.)
+
+These tables power the enhanced 4-component positioning score:
+1. Institutional Quality (25 pts): ownership % + institution diversity
+2. Insider Conviction (25 pts): ownership % + recent buy/sell activity
+3. Short Interest (25 pts): level + trend analysis
+4. Smart Money Flow (25 pts): mutual fund + hedge fund positioning
+
 Author: Financial Dashboard System
-Updated: 2025-10-10
+Updated: 2025-10-11
 """
 
 import gc
