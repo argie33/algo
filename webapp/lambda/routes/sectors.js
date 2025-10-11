@@ -1,5 +1,23 @@
 const express = require("express");
 
+/**
+ * Sectors API Routes
+ *
+ * IMPORTANT: This file has been cleaned of ALL fallback/mock data
+ * - No COALESCE with hardcoded fallbacks
+ * - No CASE WHEN simulated performance values
+ * - All data comes directly from database tables
+ * - NULL values are acceptable and expected when data is missing
+ *
+ * Data dependencies:
+ * - company_profile table (ticker, sector, industry)
+ * - price_daily table (close, volume, date)
+ * - technical_indicators table (rsi, momentum, macd, sma values)
+ * - sector_performance table (for rotation analysis)
+ *
+ * Updated: 2025-10-11 - Removed all fallbacks and mock data
+ */
+
 let query;
 try {
   ({ query } = require("../utils/database"));
@@ -67,8 +85,8 @@ router.get("/:sector/stocks", async (req, res) => {
         s.symbol as name,
         s.sector,
         s.industry,
-        COALESCE(pd.close, 100) as price,
-        COALESCE(pd.volume, 1000000) as volume
+        pd.close as price,
+        pd.volume as volume
       FROM company_profile s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
@@ -166,37 +184,49 @@ router.get("/analysis", async (req, res) => {
       return Promise.race([queryPromise, timeoutPromise]);
     };
 
-    // Simplified query for AWS compatibility using stocks
+    // Query for sector analysis using real data only
     const sectorAnalysisQuery = `
       SELECT
         s.sector,
-        COUNT(DISTINCT s.symbol) as stock_count,
-        AVG(COALESCE(pd.close, 100)) as avg_price,
-        SUM(COALESCE(pd.volume, 1000000)) as total_volume,
-        -- Simulate performance based on sector for AWS compatibility
-        CASE
-          WHEN s.sector = 'Technology' THEN 2.5
-          WHEN s.sector = 'Healthcare' THEN 1.8
-          WHEN s.sector = 'Financials' THEN 1.2
-          WHEN s.sector = 'Consumer Discretionary' THEN 0.8
-          WHEN s.sector = 'Industrial' THEN 0.5
-          WHEN s.sector = 'Energy' THEN -0.3
-          ELSE (RANDOM() * 4 - 2)
-        END as monthly_change_pct,
-        50.0 as avg_rsi,
-        0.0 as avg_momentum
+        COUNT(DISTINCT s.ticker) as stock_count,
+        AVG(pd.close) as avg_price,
+        SUM(pd.volume) as total_volume,
+        AVG(ti.rsi) as avg_rsi,
+        AVG(ti.momentum) as avg_momentum,
+        AVG(
+          CASE
+            WHEN pd_old.close > 0 THEN
+              ((pd.close - pd_old.close) / pd_old.close * 100)
+            ELSE NULL
+          END
+        ) as monthly_change_pct
       FROM company_profile s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
-        WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '37 days'
+          AND date < CURRENT_DATE - INTERVAL '30 days'
+        ORDER BY symbol, date DESC
+      ) pd_old ON s.ticker = pd_old.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (ticker)
+          ticker, rsi, momentum
+        FROM technical_indicators
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        ORDER BY ticker, date DESC
+      ) ti ON s.ticker = ti.ticker
       WHERE s.sector IS NOT NULL AND s.sector != ''
       GROUP BY s.sector
-      HAVING COUNT(DISTINCT s.symbol) >= 1
-      ORDER BY monthly_change_pct DESC
+      HAVING COUNT(DISTINCT s.ticker) >= 1
+      ORDER BY monthly_change_pct DESC NULLS LAST
       LIMIT 20
     `;
 
@@ -394,39 +424,52 @@ router.get("/performance", async (req, res) => {
 
     const days = periodDays[period];
 
-    // Simplified query for AWS compatibility - get sector data from stocks
+    // Query for sector performance using real data only
+    const olderDays = days + 7;
     const result = await query(
       `
       SELECT
         s.sector,
-        COUNT(DISTINCT s.symbol) as stock_count,
-        AVG(COALESCE(pd.close, 100)) as avg_price,
-        SUM(COALESCE(pd.volume, 1000000)) as total_volume,
-        -- Simulate performance data for AWS compatibility
-        CASE
-          WHEN s.sector = 'Technology' THEN 2.5
-          WHEN s.sector = 'Healthcare' THEN 1.8
-          WHEN s.sector = 'Financials' THEN 1.2
-          WHEN s.sector = 'Consumer Discretionary' THEN 0.8
-          WHEN s.sector = 'Industrial' THEN 0.5
-          WHEN s.sector = 'Energy' THEN -0.3
-          ELSE (RANDOM() * 4 - 2)
-        END as performance_pct,
-        -- Simulate gaining/losing stocks
-        GREATEST(1, FLOOR(COUNT(DISTINCT s.symbol) * 0.6)) as gaining_stocks,
-        GREATEST(0, FLOOR(COUNT(DISTINCT s.symbol) * 0.4)) as losing_stocks
+        COUNT(DISTINCT s.ticker) as stock_count,
+        AVG(pd.close) as avg_price,
+        SUM(pd.volume) as total_volume,
+        AVG(
+          CASE
+            WHEN pd_old.close > 0 THEN
+              ((pd.close - pd_old.close) / pd_old.close * 100)
+            ELSE NULL
+          END
+        ) as performance_pct,
+        COUNT(DISTINCT CASE
+          WHEN pd.close > pd_old.close THEN s.ticker
+          ELSE NULL
+        END) as gaining_stocks,
+        COUNT(DISTINCT CASE
+          WHEN pd.close < pd_old.close THEN s.ticker
+          ELSE NULL
+        END) as losing_stocks
       FROM company_profile s
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
         FROM price_daily
-        WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '${olderDays} days'
+          AND date < CURRENT_DATE - INTERVAL '${days} days'
+        ORDER BY symbol, date DESC
+      ) pd_old ON s.ticker = pd_old.symbol
       WHERE s.sector IS NOT NULL AND s.sector != ''
+        AND pd.close IS NOT NULL
+        AND pd_old.close IS NOT NULL
       GROUP BY s.sector
-      HAVING COUNT(DISTINCT s.symbol) >= 1
-      ORDER BY performance_pct DESC
+      HAVING COUNT(DISTINCT s.ticker) >= 1
+      ORDER BY performance_pct DESC NULLS LAST
       LIMIT $1
       `,
       [parseInt(limit)]
@@ -537,7 +580,7 @@ router.get("/:sector/details", async (req, res) => {
       return Promise.race([queryPromise, timeoutPromise]);
     };
 
-    // Simplified query for AWS compatibility using stocks table
+    // Query for sector details using real data only
     const sectorDetailQuery = `
       SELECT
         s.symbol,
@@ -545,32 +588,31 @@ router.get("/:sector/details", async (req, res) => {
         s.industry,
         'US' as market,
         'USA' as country,
-        COALESCE(pd.close, 100) as current_price,
-        COALESCE(pd.volume, 1000000) as volume,
+        pd.close as current_price,
+        pd.volume as volume,
         pd.date as price_date,
 
-        -- Simplified performance metrics
+        -- Calculate performance from real data
         CASE
-          WHEN s.symbol LIKE 'A%' THEN 2.5
-          WHEN s.symbol LIKE 'B%' THEN 1.8
-          WHEN s.symbol LIKE 'C%' THEN 1.2
-          ELSE (RANDOM() * 4 - 2)
+          WHEN pd_old.close > 0 THEN
+            ((pd.close - pd_old.close) / pd_old.close * 100)
+          ELSE NULL
         END as monthly_change,
 
-        -- Technical indicators with defaults
-        50.0 as rsi,
-        0.0 as momentum,
-        0.01 as macd,
-        0.01 as macd_signal,
-        COALESCE(pd.close, 100) * 1.02 as sma_20,
-        COALESCE(pd.close, 100) * 1.01 as sma_50,
+        -- Technical indicators from database
+        ti.rsi,
+        ti.momentum,
+        ti.macd,
+        ti.macd_signal,
+        ti.sma_20,
+        ti.sma_50,
 
-        -- Placeholder momentum data
-        0 as jt_momentum_12_1,
-        0 as momentum_3m,
-        0 as momentum_6m,
-        0 as risk_adjusted_momentum,
-        0 as momentum_strength
+        -- Momentum data from database
+        ti.jt_momentum_12_1,
+        ti.momentum_3m,
+        ti.momentum_6m,
+        ti.risk_adjusted_momentum,
+        ti.momentum_strength
 
       FROM company_profile s
       LEFT JOIN (
@@ -580,7 +622,25 @@ router.get("/:sector/details", async (req, res) => {
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC
       ) pd ON s.symbol = pd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '37 days'
+          AND date < CURRENT_DATE - INTERVAL '30 days'
+        ORDER BY symbol, date DESC
+      ) pd_old ON s.symbol = pd_old.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (ticker)
+          ticker, rsi, momentum, macd, macd_signal, sma_20, sma_50,
+          jt_momentum_12_1, momentum_3m, momentum_6m,
+          risk_adjusted_momentum, momentum_strength
+        FROM technical_indicators
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        ORDER BY ticker, date DESC
+      ) ti ON s.symbol = ti.ticker
       WHERE s.sector = $1
+        AND pd.close IS NOT NULL
       ORDER BY s.symbol
       LIMIT $2
     `;
@@ -711,16 +771,16 @@ router.get("/allocation", async (req, res) => {
     const userId = req.user.sub;
     console.log(`📊 Sector allocation requested for user: ${userId}`);
 
-    // Get user's portfolio holdings with sector information using stocks
+    // Get user's portfolio holdings with sector information using real data
     const allocationQuery = `
       SELECT
-        COALESCE(s.sector, 'Unknown') as sector,
+        s.sector,
         COUNT(DISTINCT ph.symbol) as stock_count,
         SUM(ph.quantity * ph.average_cost) as total_cost,
-        SUM(ph.quantity * COALESCE(pd.close, ph.average_cost)) as current_value,
+        SUM(ph.quantity * pd.close) as current_value,
         SUM(ph.quantity) as total_shares,
         AVG(ph.average_cost) as avg_cost_basis,
-        SUM(ph.quantity * COALESCE(pd.close, ph.average_cost)) - SUM(ph.quantity * ph.average_cost) as unrealized_pnl
+        SUM(ph.quantity * pd.close) - SUM(ph.quantity * ph.average_cost) as unrealized_pnl
       FROM portfolio_holdings ph
       LEFT JOIN company_profile s ON ph.symbol = s.symbol
       LEFT JOIN (
@@ -730,7 +790,10 @@ router.get("/allocation", async (req, res) => {
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC
       ) pd ON ph.symbol = pd.symbol
-      WHERE ph.user_id = $1 AND ph.quantity > 0
+      WHERE ph.user_id = $1
+        AND ph.quantity > 0
+        AND pd.close IS NOT NULL
+        AND s.sector IS NOT NULL
       GROUP BY s.sector
       ORDER BY current_value DESC
     `;
@@ -993,22 +1056,109 @@ router.get("/leaders", async (req, res) => {
     const { period = "1d" } = req.query;
     console.log(`🏆 Sector leaders requested, period: ${period}`);
 
+    // Convert period to days
+    const periodDays = {
+      "1d": 1,
+      "1w": 7,
+      "1m": 30,
+      "3m": 90,
+      "6m": 180,
+      "1y": 365,
+    };
+    const days = periodDays[period] || 1;
+
+    // Query real sector performance data
+    const leadersQuery = `
+      SELECT
+        s.sector,
+        AVG(
+          CASE
+            WHEN pd_old.close > 0 THEN
+              ((pd.close - pd_old.close) / pd_old.close * 100)
+            ELSE NULL
+          END
+        ) as return_pct,
+        SUM(pd.volume) as volume_flow
+      FROM company_profile s
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        ORDER BY symbol, date DESC
+      ) pd ON s.ticker = pd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '${days + 7} days'
+          AND date < CURRENT_DATE - INTERVAL '${days} days'
+        ORDER BY symbol, date DESC
+      ) pd_old ON s.ticker = pd_old.symbol
+      WHERE s.sector IS NOT NULL
+        AND pd.close IS NOT NULL
+        AND pd_old.close IS NOT NULL
+      GROUP BY s.sector
+      ORDER BY return_pct DESC NULLS LAST
+      LIMIT 5
+    `;
+
+    const result = await query(leadersQuery);
+
+    // Calculate breadth metrics
+    const breadthQuery = `
+      SELECT
+        COUNT(DISTINCT CASE WHEN return_pct > 0 THEN sector END) as advancing,
+        COUNT(DISTINCT CASE WHEN return_pct < 0 THEN sector END) as declining,
+        COUNT(DISTINCT CASE WHEN return_pct = 0 THEN sector END) as neutral
+      FROM (
+        SELECT
+          s.sector,
+          AVG(
+            CASE
+              WHEN pd_old.close > 0 THEN
+                ((pd.close - pd_old.close) / pd_old.close * 100)
+              ELSE NULL
+            END
+          ) as return_pct
+        FROM company_profile s
+        LEFT JOIN (
+          SELECT DISTINCT ON (symbol) symbol, close
+          FROM price_daily
+          WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+          ORDER BY symbol, date DESC
+        ) pd ON s.ticker = pd.symbol
+        LEFT JOIN (
+          SELECT DISTINCT ON (symbol) symbol, close
+          FROM price_daily
+          WHERE date >= CURRENT_DATE - INTERVAL '${days + 7} days'
+            AND date < CURRENT_DATE - INTERVAL '${days} days'
+          ORDER BY symbol, date DESC
+        ) pd_old ON s.ticker = pd_old.symbol
+        WHERE s.sector IS NOT NULL
+          AND pd.close IS NOT NULL
+          AND pd_old.close IS NOT NULL
+        GROUP BY s.sector
+      ) sector_returns
+    `;
+
+    const breadthResult = await query(breadthQuery);
+    const breadth = breadthResult.rows[0] || { advancing: 0, declining: 0, neutral: 0 };
+
     const leadersData = {
       period: period,
-
-      top_performing_sectors: [
-        { sector: "Technology", return: 0, volume_flow: 2.4e9 },
-        { sector: "Healthcare", return: 0, volume_flow: 1.8e9 },
-        { sector: "Consumer Discretionary", return: 0, volume_flow: 1.5e9 },
-      ],
-
+      top_performing_sectors: result.rows.map(row => ({
+        sector: row.sector,
+        return: parseFloat(row.return_pct || 0).toFixed(2),
+        volume_flow: parseInt(row.volume_flow || 0)
+      })),
       sector_breadth: {
-        advancing_sectors: 7,
-        declining_sectors: 4,
-        neutral_sectors: 0,
-        breadth_ratio: 1.75,
+        advancing_sectors: parseInt(breadth.advancing || 0),
+        declining_sectors: parseInt(breadth.declining || 0),
+        neutral_sectors: parseInt(breadth.neutral || 0),
+        breadth_ratio: breadth.declining > 0 ?
+          (breadth.advancing / breadth.declining).toFixed(2) : 0,
       },
-
       last_updated: new Date().toISOString(),
     };
 
@@ -1033,22 +1183,62 @@ router.get("/laggards", async (req, res) => {
     const { period = "1d" } = req.query;
     console.log(`📉 Sector laggards requested, period: ${period}`);
 
+    // Convert period to days
+    const periodDays = {
+      "1d": 1,
+      "1w": 7,
+      "1m": 30,
+      "3m": 90,
+      "6m": 180,
+      "1y": 365,
+    };
+    const days = periodDays[period] || 1;
+
+    // Query real sector performance data for worst performers
+    const laggardsQuery = `
+      SELECT
+        s.sector,
+        AVG(
+          CASE
+            WHEN pd_old.close > 0 THEN
+              ((pd.close - pd_old.close) / pd_old.close * 100)
+            ELSE NULL
+          END
+        ) as return_pct,
+        SUM(pd.volume) as volume_flow
+      FROM company_profile s
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        ORDER BY symbol, date DESC
+      ) pd ON s.ticker = pd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '${days + 7} days'
+          AND date < CURRENT_DATE - INTERVAL '${days} days'
+        ORDER BY symbol, date DESC
+      ) pd_old ON s.ticker = pd_old.symbol
+      WHERE s.sector IS NOT NULL
+        AND pd.close IS NOT NULL
+        AND pd_old.close IS NOT NULL
+      GROUP BY s.sector
+      ORDER BY return_pct ASC NULLS LAST
+      LIMIT 5
+    `;
+
+    const result = await query(laggardsQuery);
+
     const laggardsData = {
       period: period,
-
-      worst_performing_sectors: [
-        { sector: "Energy", return: 0, volume_flow: -1.2e9 },
-        { sector: "Utilities", return: 0, volume_flow: -0.8e9 },
-        { sector: "Materials", return: 0, volume_flow: -0.6e9 },
-      ],
-
-      underperformance_factors: [
-        "Rising interest rates",
-        "Regulatory concerns",
-        "Supply chain disruptions",
-        "Commodity price pressures",
-      ],
-
+      worst_performing_sectors: result.rows.map(row => ({
+        sector: row.sector,
+        return: parseFloat(row.return_pct || 0).toFixed(2),
+        volume_flow: parseInt(row.volume_flow || 0)
+      })),
       last_updated: new Date().toISOString(),
     };
 

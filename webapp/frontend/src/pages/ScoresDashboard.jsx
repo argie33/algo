@@ -260,12 +260,7 @@ const ScoresDashboard = () => {
   // Transform data to handle both old and new API formats
   const transformStockData = (stock) => {
     if (stock.composite_score !== undefined) {
-      return {
-        ...stock,
-        growth_score: stock.growth_score || 75.0,
-        positioning_score: stock.positioning_score || 70.0,
-        sentiment_score: stock.sentiment_score || 70.0,
-      };
+      return stock; // Return real data as-is, no fallbacks
     }
 
     return {
@@ -274,9 +269,9 @@ const ScoresDashboard = () => {
       momentum_score: stock.factors?.momentum?.score || 0,
       value_score: stock.factors?.value?.score || 0,
       quality_score: stock.factors?.quality?.score || 0,
-      growth_score: 75.0,
-      positioning_score: 70.0,
-      sentiment_score: 70.0,
+      growth_score: stock.growth_score || 0,
+      positioning_score: stock.positioning_score || 0,
+      sentiment_score: stock.sentiment_score || 0,
       current_price: stock.currentPrice || 0,
       price_change_1d: stock.priceChange1d || 0,
       price_change_5d: stock.factors?.technical?.priceChange5d || 0,

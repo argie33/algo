@@ -57,18 +57,19 @@ const SectorAnalysis = () => {
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  // Sector ETF mapping for real data
-  const sectorETFs = {
-    XLK: { name: "Technology", color: "#2196F3" },
-    XLV: { name: "Healthcare", color: "#4CAF50" },
-    XLF: { name: "Financials", color: "#FF9800" },
-    XLY: { name: "Consumer Discretionary", color: "#9C27B0" },
-    XLP: { name: "Consumer Staples", color: "#795548" },
-    XLE: { name: "Energy", color: "#FF5722" },
-    XLI: { name: "Industrials", color: "#607D8B" },
-    XLB: { name: "Materials", color: "#8BC34A" },
-    XLU: { name: "Utilities", color: "#FFC107" },
-    XLRE: { name: "Real Estate", color: "#E91E63" },
+  // Sector color mapping (for visualization consistency)
+  const sectorColors = {
+    "Technology": "#2196F3",
+    "Healthcare": "#4CAF50",
+    "Financials": "#FF9800",
+    "Consumer Discretionary": "#9C27B0",
+    "Consumer Staples": "#795548",
+    "Energy": "#FF5722",
+    "Industrials": "#607D8B",
+    "Materials": "#8BC34A",
+    "Utilities": "#FFC107",
+    "Real Estate": "#E91E63",
+    "Communication Services": "#00BCD4",
   };
 
   // Fetch sector rotation data - NO AUTH REQUIRED
@@ -97,7 +98,6 @@ const SectorAnalysis = () => {
 
   useEffect(() => {
     loadSectorData();
-
   }, []);
 
   const loadSectorData = async () => {
@@ -105,67 +105,35 @@ const SectorAnalysis = () => {
       setError(null);
       setLoading(true);
 
-      console.log("Loading sector analysis data (no auth required)");
+      console.log("Loading sector analysis data from /api/sectors/performance");
 
-      // Try multiple endpoints for sector data
-      let sectorResponse = null;
-      const endpoints = [
-        "/api/market/sectors/performance",
-        "/api/market/sectors",
-        "/api/analytics/sectors",
-      ];
+      // Use the correct backend endpoint
+      const resp = await api.get("/api/sectors/performance");
 
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`Trying sector endpoint: ${endpoint}`);
-          const resp = await api.get(endpoint);
-          if (resp?.data) {
-            // Handle different response structures
-            if (resp.data.data?.sectors) {
-              sectorResponse = resp.data.data.sectors;
-            } else if (resp.data.sectors) {
-              sectorResponse = resp.data.sectors;
-            } else if (Array.isArray(resp.data)) {
-              sectorResponse = resp.data;
-            }
-
-            if (sectorResponse && Array.isArray(sectorResponse) && sectorResponse.length > 0) {
-              console.log(`✅ Success with endpoint: ${endpoint}`, sectorResponse.length, "sectors");
-              break;
-            }
-          }
-        } catch (err) {
-          console.warn(`Failed endpoint ${endpoint}:`, err.message);
-        }
-      }
-
-      // If API call succeeded, transform the data
-      if (sectorResponse && Array.isArray(sectorResponse)) {
-        const sectors = sectorResponse.map((s) => {
-          const symbol = s.etf_symbol || s.symbol || "N/A";
-          return {
-            sector: s.sector || s.sector_name || s.name || "Unknown",
-            etfSymbol: symbol,
-            price: s.price || s.last_price || 0,
-            change: s.change || s.price_change || 0,
-            changePercent: s.change_percent || s.changePercent || s.performance || 0,
-            volume: s.volume || s.total_volume || 0,
-            marketCap: s.market_cap || s.marketCap || s.total_assets || 0,
-            color: sectorETFs[symbol]?.color || "#666",
-            dataSource: "api",
-          };
-        });
+      if (resp?.data?.data && Array.isArray(resp.data.data)) {
+        const sectors = resp.data.data.map((s) => ({
+          sector: s.sector || "Unknown",
+          price: parseFloat(s.avg_price || 0),
+          change: 0,
+          changePercent: parseFloat(s.performance_pct || 0),
+          volume: parseInt(s.total_volume || 0),
+          marketCap: parseInt(s.stock_count || 0) * 1e9, // Rough estimate
+          color: sectorColors[s.sector] || "#666",
+          dataSource: "database",
+          stockCount: parseInt(s.stock_count || 0),
+          gainingStocks: parseInt(s.gaining_stocks || 0),
+          losingStocks: parseInt(s.losing_stocks || 0),
+        }));
 
         setSectorData(sectors);
         setLastUpdate(new Date());
         console.log("✅ Sector data loaded:", sectors.length);
-        return;
+      } else {
+        throw new Error("Invalid response structure from API");
       }
-
-      throw new Error("No valid sector data from API");
     } catch (error) {
       console.error("Failed to load sector data:", error);
-      setError(`Database error: ${error.message}`);
+      setError(`Failed to load sector data: ${error.message}`);
       setSectorData([]);
     } finally {
       setLoading(false);

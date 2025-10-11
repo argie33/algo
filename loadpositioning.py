@@ -9,6 +9,9 @@ Available data:
 - Short interest metrics
 - Float and shares outstanding
 
+Critical for positioning scores in ScoresDashboard
+Trigger: Ensure this loader runs daily to populate positioning_metrics table
+
 Author: Financial Dashboard System
 """
 
