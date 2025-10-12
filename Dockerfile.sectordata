@@ -1,15 +1,13 @@
-FROM public.ecr.aws/lambda/python:3.12-arm64
+# Dockerfile.sectordata
+FROM public.ecr.aws/lambda/python:3.11
 
-# Install system dependencies
-RUN dnf install -y gcc gcc-c++ python3-devel postgresql-devel && \
-    dnf clean all
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Copy requirements and install Python dependencies
-COPY requirements-loadsectordata.txt ${LAMBDA_TASK_ROOT}/requirements.txt
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Copy requirements and script
+COPY Dockerfile.sectordata requirements-loadsectordata.txt loadsectordata.py ./
 
-# Copy the loader script
-COPY loadsectordata.py ${LAMBDA_TASK_ROOT}/
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadsectordata.txt
 
-# Set the CMD to the handler function
-CMD [ "loadsectordata.lambda_handler" ]
+# Set the entrypoint
+ENTRYPOINT ["python", "loadsectordata.py"]
