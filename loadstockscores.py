@@ -133,6 +133,8 @@ def create_stock_scores_table(conn):
                 roc_20d DECIMAL(8,2),
                 roc_60d DECIMAL(8,2),
                 roc_120d DECIMAL(8,2),
+                roc_252d DECIMAL(8,2),
+                mom DECIMAL(10,2),
                 mansfield_rs DECIMAL(8,2),
                 -- Value component breakdown (5-component system)
                 value_pe_relative DOUBLE PRECISION,
@@ -281,7 +283,7 @@ def get_stock_data_from_database(conn, symbol):
         # Get latest technical data including momentum indicators
         cur.execute("""
             SELECT rsi, macd, macd_hist, sma_20, sma_50, atr, mom, roc,
-                   roc_20d, roc_60d, roc_120d, mansfield_rs
+                   roc_20d, roc_60d, roc_120d, roc_252d, mansfield_rs
             FROM technical_data_daily
             WHERE symbol = %s
             ORDER BY date DESC
@@ -289,8 +291,8 @@ def get_stock_data_from_database(conn, symbol):
         """, (symbol,))
 
         tech_data = cur.fetchone()
-        if tech_data and len(tech_data) >= 12:
-            rsi, macd, macd_hist, sma_20, sma_50, atr, mom_10d, roc_10d, roc_20d, roc_60d, roc_120d, mansfield_rs = tech_data
+        if tech_data and len(tech_data) >= 13:
+            rsi, macd, macd_hist, sma_20, sma_50, atr, mom_10d, roc_10d, roc_20d, roc_60d, roc_120d, roc_252d, mansfield_rs = tech_data
         else:
             # Calculate basic technical indicators from price data
             prices = df['close'].astype(float).values
@@ -305,6 +307,7 @@ def get_stock_data_from_database(conn, symbol):
             roc_20d = None
             roc_60d = None
             roc_120d = None
+            roc_252d = None
             mansfield_rs = None
 
             # Calculate ROC for multiple timeframes if not in technical_data_daily
@@ -314,6 +317,8 @@ def get_stock_data_from_database(conn, symbol):
                 roc_60d = ((prices[-1] - prices[-61]) / prices[-61]) * 100
             if len(df) >= 121:
                 roc_120d = ((prices[-1] - prices[-121]) / prices[-121]) * 100
+            if len(df) >= 253:
+                roc_252d = ((prices[-1] - prices[-253]) / prices[-253]) * 100
 
         prices = df['close'].astype(float).values
         volatility_30d = calculate_volatility(prices)
@@ -1040,6 +1045,8 @@ def get_stock_data_from_database(conn, symbol):
             'roc_20d': float(round(roc_20d, 2)) if roc_20d is not None else None,
             'roc_60d': float(round(roc_60d, 2)) if roc_60d is not None else None,
             'roc_120d': float(round(roc_120d, 2)) if roc_120d is not None else None,
+            'roc_252d': float(round(roc_252d, 2)) if roc_252d is not None else None,
+            'mom': float(round(mom_10d, 2)) if mom_10d is not None else None,
             'mansfield_rs': float(round(mansfield_rs, 2)) if mansfield_rs is not None else None,
             # Value components (5-component breakdown)
             'value_pe_relative': float(round(pe_score, 2)),
@@ -1069,7 +1076,7 @@ def save_stock_score(conn, score_data):
             market_cap, pe_ratio,
             momentum_short_term, momentum_medium_term, momentum_longer_term,
             momentum_relative_strength, momentum_consistency,
-            roc_10d, roc_20d, roc_60d, roc_120d, mansfield_rs,
+            roc_10d, roc_20d, roc_60d, roc_120d, roc_252d, mom, mansfield_rs,
             value_pe_relative, value_pb_relative, value_ev_relative, value_peg_score, value_dcf_score,
             score_date, last_updated
         ) VALUES (
@@ -1080,7 +1087,7 @@ def save_stock_score(conn, score_data):
             %(market_cap)s, %(pe_ratio)s,
             %(momentum_short_term)s, %(momentum_medium_term)s, %(momentum_longer_term)s,
             %(momentum_relative_strength)s, %(momentum_consistency)s,
-            %(roc_10d)s, %(roc_20d)s, %(roc_60d)s, %(roc_120d)s, %(mansfield_rs)s,
+            %(roc_10d)s, %(roc_20d)s, %(roc_60d)s, %(roc_120d)s, %(roc_252d)s, %(mom)s, %(mansfield_rs)s,
             %(value_pe_relative)s, %(value_pb_relative)s, %(value_ev_relative)s, %(value_peg_score)s, %(value_dcf_score)s,
             CURRENT_DATE, CURRENT_TIMESTAMP
         ) ON CONFLICT (symbol) DO UPDATE SET
@@ -1113,6 +1120,8 @@ def save_stock_score(conn, score_data):
             roc_20d = EXCLUDED.roc_20d,
             roc_60d = EXCLUDED.roc_60d,
             roc_120d = EXCLUDED.roc_120d,
+            roc_252d = EXCLUDED.roc_252d,
+            mom = EXCLUDED.mom,
             mansfield_rs = EXCLUDED.mansfield_rs,
             value_pe_relative = EXCLUDED.value_pe_relative,
             value_pb_relative = EXCLUDED.value_pb_relative,

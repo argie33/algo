@@ -59,6 +59,8 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Cell,
+  Label,
+  LabelList,
 } from "recharts";
 
 // Trading Signal Component
@@ -256,6 +258,44 @@ const ScoresDashboard = () => {
   const [minGrowthScore, setMinGrowthScore] = useState(0);
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [selectedSector, setSelectedSector] = useState("all");
+
+  // Calculate market averages for each score category
+  const calculateMarketAverages = (stocks) => {
+    if (!stocks || stocks.length === 0) return {};
+
+    const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+    const avg = (arr) => arr.length > 0 ? sum(arr) / arr.length : 0;
+
+    return {
+      quality: avg(stocks.map(s => s.quality_score || 0).filter(v => v > 0)),
+      momentum: avg(stocks.map(s => s.momentum_score || 0).filter(v => v > 0)),
+      value: avg(stocks.map(s => s.value_score || 0).filter(v => v > 0)),
+      growth: avg(stocks.map(s => s.growth_score || 0).filter(v => v > 0)),
+      positioning: avg(stocks.map(s => s.positioning_score || 0).filter(v => v > 0)),
+      sentiment: avg(stocks.map(s => s.sentiment_score || 0).filter(v => v > 0)),
+    };
+  };
+
+  // Calculate sector averages for each score category
+  const calculateSectorAverages = (stocks, sector) => {
+    if (!sector || sector === 'all' || !stocks || stocks.length === 0) return {};
+
+    const sectorStocks = stocks.filter(s => s.sector === sector);
+    if (sectorStocks.length === 0) return {};
+
+    const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+    const avg = (arr) => arr.length > 0 ? sum(arr) / arr.length : 0;
+
+    return {
+      quality: avg(sectorStocks.map(s => s.quality_score || 0).filter(v => v > 0)),
+      momentum: avg(sectorStocks.map(s => s.momentum_score || 0).filter(v => v > 0)),
+      value: avg(sectorStocks.map(s => s.value_score || 0).filter(v => v > 0)),
+      growth: avg(sectorStocks.map(s => s.growth_score || 0).filter(v => v > 0)),
+      positioning: avg(sectorStocks.map(s => s.positioning_score || 0).filter(v => v > 0)),
+      sentiment: avg(sectorStocks.map(s => s.sentiment_score || 0).filter(v => v > 0)),
+    };
+  };
 
   // Transform data to handle both old and new API formats
   const transformStockData = (stock) => {
@@ -393,6 +433,9 @@ const ScoresDashboard = () => {
     }
   };
 
+  // Extract unique sectors from scores
+  const sectors = [...new Set(scores.map((stock) => stock.sector).filter(Boolean))].sort();
+
   // Filter and sort scores
   const filteredAndSortedScores = scores
     .filter((stock) => {
@@ -402,8 +445,9 @@ const ScoresDashboard = () => {
       const matchesQuality = stock.quality_score >= minQualityScore;
       const matchesValue = stock.value_score >= minValueScore;
       const matchesGrowth = stock.growth_score >= minGrowthScore;
+      const matchesSector = selectedSector === "all" || stock.sector === selectedSector;
 
-      return matchesSearch && matchesComposite && matchesMomentum && matchesQuality && matchesValue && matchesGrowth;
+      return matchesSearch && matchesComposite && matchesMomentum && matchesQuality && matchesValue && matchesGrowth && matchesSector;
     })
     .sort((a, b) => {
       let comparison = 0;
@@ -416,19 +460,36 @@ const ScoresDashboard = () => {
   // Get displayed stocks (paginated)
   const displayedStocks = showAllStocks ? filteredAndSortedScores : filteredAndSortedScores.slice(0, displayLimit);
 
-  // Get top performers for each category
-  const getTopPerformers = (scoreField, count = 10) => {
-    return [...scores]
+  // Get top performers for each category with optional sector filtering
+  const getTopPerformers = (scoreField, count = 10, sector = null) => {
+    const filteredScores = sector && sector !== "all"
+      ? scores.filter((stock) => stock.sector === sector)
+      : scores;
+
+    return [...filteredScores]
       .sort((a, b) => (b[scoreField] || 0) - (a[scoreField] || 0))
       .slice(0, count);
   };
 
-  const topQuality = getTopPerformers("quality_score");
-  const topMomentum = getTopPerformers("momentum_score");
-  const topValue = getTopPerformers("value_score");
-  const topGrowth = getTopPerformers("growth_score");
-  const topPositioning = getTopPerformers("positioning_score");
-  const topSentiment = getTopPerformers("sentiment_score");
+  // Get top performers by sector
+  const getTopPerformersBySector = (count = 5) => {
+    const bySector = {};
+    sectors.forEach((sector) => {
+      bySector[sector] = [...scores]
+        .filter((stock) => stock.sector === sector)
+        .sort((a, b) => (b.composite_score || 0) - (a.composite_score || 0))
+        .slice(0, count);
+    });
+    return bySector;
+  };
+
+  const topQuality = getTopPerformers("quality_score", 10, selectedSector);
+  const topMomentum = getTopPerformers("momentum_score", 10, selectedSector);
+  const topValue = getTopPerformers("value_score", 10, selectedSector);
+  const topGrowth = getTopPerformers("growth_score", 10, selectedSector);
+  const topPositioning = getTopPerformers("positioning_score", 10, selectedSector);
+  const topSentiment = getTopPerformers("sentiment_score", 10, selectedSector);
+  const topBySector = getTopPerformersBySector(5);
 
   const handleAccordionChange = (symbol) => (event, isExpanded) => {
     setExpandedStock(isExpanded ? symbol : null);
@@ -441,6 +502,7 @@ const ScoresDashboard = () => {
     setMinQualityScore(0);
     setMinValueScore(0);
     setMinGrowthScore(0);
+    setSelectedSector("all");
   };
 
   const formatChange = (change) => {
@@ -687,6 +749,16 @@ const ScoresDashboard = () => {
             </Select>
           </FormControl>
 
+          <FormControl variant="outlined" size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Sector</InputLabel>
+            <Select value={selectedSector} label="Sector" onChange={(e) => setSelectedSector(e.target.value)}>
+              <MenuItem value="all">All Sectors</MenuItem>
+              {sectors.map((sector) => (
+                <MenuItem key={sector} value={sector}>{sector}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
           <Tooltip title="Advanced Filters">
             <IconButton
               onClick={() => setShowFilters(!showFilters)}
@@ -696,7 +768,7 @@ const ScoresDashboard = () => {
             </IconButton>
           </Tooltip>
 
-          {(searchTerm || minCompositeScore > 0 || minMomentumScore > 0 || minQualityScore > 0 || minValueScore > 0 || minGrowthScore > 0) && (
+          {(searchTerm || minCompositeScore > 0 || minMomentumScore > 0 || minQualityScore > 0 || minValueScore > 0 || minGrowthScore > 0 || selectedSector !== "all") && (
             <Tooltip title="Clear All Filters">
               <IconButton onClick={clearFilters} color="error" size="small">
                 <ClearAll />
@@ -1077,92 +1149,135 @@ const ScoresDashboard = () => {
                     Factor Analysis for {stock.symbol}
                   </Typography>
 
-                  <Grid container spacing={3}>
-                    {/* Quality Factor */}
-                    <Grid item xs={12} md={6}>
-                      <Card>
-                        <CardContent>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                            <Stars sx={{ color: theme.palette.primary.main }} />
-                            <Typography variant="h6">Quality & Fundamentals</Typography>
-                            <Chip
-                              label={stock.quality_score?.toFixed(1) || "N/A"}
-                              color={stock.quality_score >= 80 ? "success" : "warning"}
-                              size="small"
-                            />
-                          </Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Financial strength evaluation measuring profitability, balance sheet health, and operational efficiency
-                          </Typography>
+                  {(() => {
+                    const marketAvgs = calculateMarketAverages(scores);
+                    const sectorAvgs = calculateSectorAverages(scores, stock.sector);
 
-                          <Divider sx={{ my: 2 }} />
+                    return (
+                      <>
+                      <Grid container spacing={3}>
+                        {/* Quality Factor */}
+                        <Grid item xs={12} md={6}>
+                          <Card>
+                            <CardContent>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+                                <Stars sx={{ color: theme.palette.primary.main }} />
+                                <Typography variant="h6">Quality & Fundamentals</Typography>
+                                <Chip
+                                  label={stock.quality_score?.toFixed(1) || "N/A"}
+                                  color={stock.quality_score >= 80 ? "success" : "warning"}
+                                  size="small"
+                                />
+                              </Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Financial strength evaluation measuring profitability, balance sheet health, and operational efficiency
+                              </Typography>
 
-                          {/* Quality Chart */}
-                          <Box sx={{ mt: 2 }}>
-                            <ResponsiveContainer width="100%" height={200}>
-                              <BarChart
-                                data={[
-                                  {
-                                    name: "Quality Score",
-                                    value: stock.quality_score || 0
-                                  },
-                                  {
-                                    name: "Volatility",
-                                    value: stock.volatility_30d || 0
-                                  },
-                                ]}
-                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
-                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
-                                <RechartsTooltip />
-                                <Bar dataKey="value" name="Value">
-                                  {[
-                                    <Cell key="quality" fill={theme.palette.primary.main} />,
-                                    <Cell key="volatility" fill={theme.palette.success.main} />
-                                  ]}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </Box>
+                              <Divider sx={{ my: 2 }} />
 
-                          {/* Quality Table */}
-                          <TableContainer sx={{ mt: 2 }}>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Metric</TableCell>
-                                  <TableCell align="right">Value</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell>Quality Score</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.quality_score || 0).toFixed(1)}
-                                      size="small"
-                                      color="primary"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Volatility (30d)</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={stock.volatility_30d ? `${stock.volatility_30d.toFixed(1)}%` : "N/A"}
-                                      size="small"
-                                      color="success"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </CardContent>
-                      </Card>
-                    </Grid>
+                              {/* Quality Comparison Chart */}
+                              <Box sx={{ mt: 2 }}>
+                                <Typography variant="caption" color="text.secondary" gutterBottom>
+                                  Score Comparison
+                                </Typography>
+                                <ResponsiveContainer width="100%" height={200}>
+                                  <BarChart
+                                    data={[
+                                      {
+                                        name: stock.symbol,
+                                        value: stock.quality_score || 0
+                                      },
+                                      {
+                                        name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
+                                        value: sectorAvgs.quality || 0
+                                      },
+                                      {
+                                        name: "Market Avg",
+                                        value: marketAvgs.quality || 0
+                                      },
+                                    ]}
+                                    margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
+                                    <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                    <RechartsTooltip />
+                                    <Bar dataKey="value" name="Quality Score">
+                                      {[
+                                        <Cell key="stock" fill={theme.palette.primary.main} />,
+                                        <Cell key="sector" fill={theme.palette.info.main} />,
+                                        <Cell key="market" fill={theme.palette.success.light} />
+                                      ]}
+                                      <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value.toFixed(1)} />
+                                    </Bar>
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </Box>
+
+                              {/* Quality Input Metrics Table */}
+                              <TableContainer sx={{ mt: 2 }}>
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>Quality Metric</TableCell>
+                                      <TableCell align="right">Value</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    <TableRow>
+                                      <TableCell>30-Day Volatility (Historical Volatility)</TableCell>
+                                      <TableCell align="right">
+                                        {stock.volatility_30d ? `${stock.volatility_30d.toFixed(1)}%` : "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Average Volume 30-Day (Liquidity)</TableCell>
+                                      <TableCell align="right">{(stock.volume_avg_30d || 0).toLocaleString()}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Price Change 30-Day % (Price Stability)</TableCell>
+                                      <TableCell align="right">{(stock.price_change_30d || 0).toFixed(2)}%</TableCell>
+                                    </TableRow>
+                                    {stock.quality_inputs && (
+                                      <>
+                                        {stock.quality_inputs.roe !== undefined && (
+                                          <TableRow>
+                                            <TableCell>ROE (Return on Equity)</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.roe?.toFixed(1)}%</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.roa !== undefined && (
+                                          <TableRow>
+                                            <TableCell>ROA (Return on Assets)</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.roa?.toFixed(1)}%</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.profit_margin !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Net Profit Margin</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.profit_margin?.toFixed(1)}%</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.debt_to_equity !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Debt-to-Equity Ratio</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.debt_to_equity?.toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.current_ratio !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Current Ratio (Liquidity)</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.current_ratio?.toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        )}
+                                      </>
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </TableContainer>
+                            </CardContent>
+                          </Card>
+                        </Grid>
 
                     {/* Momentum Factor */}
                     <Grid item xs={12} md={6}>
@@ -1183,153 +1298,137 @@ const ScoresDashboard = () => {
 
                           <Divider sx={{ my: 2 }} />
 
-                          {/* Momentum Metrics Chart */}
+                          {/* Momentum Score Comparison Chart */}
                           <Box sx={{ mt: 2 }}>
-                            <ResponsiveContainer width="100%" height={250}>
+                            <Typography variant="caption" color="text.secondary" gutterBottom>
+                              Score Comparison
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={200}>
                               <BarChart
                                 data={[
                                   {
-                                    name: "RSI",
-                                    value: stock.rsi || stock.momentum_components?.rsi || 0
+                                    name: stock.symbol,
+                                    value: stock.momentum_score || 0
                                   },
                                   {
-                                    name: "MACD",
-                                    value: Math.abs(stock.macd || 0) * 10
+                                    name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
+                                    value: sectorAvgs.momentum || 0
                                   },
                                   {
-                                    name: "ROC_10",
-                                    value: Math.max(0, Math.min(100, (stock.momentum_components?.roc_10d || 0) + 50))
-                                  },
-                                  {
-                                    name: "ROC_20",
-                                    value: Math.max(0, Math.min(100, (stock.momentum_components?.roc_20d || 0) + 50))
-                                  },
-                                  {
-                                    name: "ROC_60",
-                                    value: Math.max(0, Math.min(100, (stock.momentum_components?.roc_60d || 0) + 50))
-                                  },
-                                  {
-                                    name: "ROC_120",
-                                    value: Math.max(0, Math.min(100, (stock.momentum_components?.roc_120d || 0) + 50))
-                                  },
-                                  {
-                                    name: "Mansfield",
-                                    value: Math.max(0, Math.min(100, (stock.momentum_components?.mansfield_rs || 0) + 50))
+                                    name: "Market Avg",
+                                    value: marketAvgs.momentum || 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
-                                <YAxis domain={[0, 100]} style={{ fontSize: "0.7rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="value" fill={theme.palette.warning.main} />
+                                <Bar dataKey="value" name="Momentum Score">
+                                  {[
+                                    <Cell key="stock" fill={theme.palette.warning.main} />,
+                                    <Cell key="sector" fill={theme.palette.primary.main} />,
+                                    <Cell key="market" fill={theme.palette.success.light} />
+                                  ]}
+                                  <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value.toFixed(1)} />
+                                </Bar>
                               </BarChart>
                             </ResponsiveContainer>
                           </Box>
 
-                          {/* Momentum Metrics Table */}
-                          <TableContainer sx={{ mt: 2 }}>
+                          {/* Momentum Input Metrics Table */}
+                          <TableContainer sx={{ mt: 2, maxHeight: 400, overflow: 'auto' }}>
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell>Indicator</TableCell>
+                                  <TableCell>Momentum Indicator</TableCell>
                                   <TableCell align="right">Value</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
                                 <TableRow>
-                                  <TableCell>RSI</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.rsi || stock.momentum_components?.rsi || 0).toFixed(1)}
-                                      size="small"
-                                      color="primary"
-                                    />
-                                  </TableCell>
+                                  <TableCell>RSI 14-Day (Relative Strength Index)</TableCell>
+                                  <TableCell align="right">{(stock.rsi || stock.momentum_components?.rsi || 0).toFixed(1)}</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                  <TableCell>MACD</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.macd || 0).toFixed(2)}
-                                      size="small"
-                                      color={(stock.macd || 0) >= 0 ? "success" : "error"}
-                                    />
-                                  </TableCell>
+                                  <TableCell>MACD (Moving Avg Convergence Divergence)</TableCell>
+                                  <TableCell align="right">{(stock.macd || 0).toFixed(4)}</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                  <TableCell>MOM (10d)</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={stock.momentum_components?.mom || stock.mom ? `${(stock.momentum_components?.mom || stock.mom).toFixed(2)}` : "N/A"}
-                                      size="small"
-                                      color={(stock.momentum_components?.mom || stock.mom || 0) >= 0 ? "success" : "error"}
-                                    />
-                                  </TableCell>
+                                  <TableCell>SMA 20-Day (Simple Moving Average)</TableCell>
+                                  <TableCell align="right">${(stock.sma_20 || 0).toFixed(2)}</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                  <TableCell>ROC_10</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={stock.momentum_components?.roc_10d ? `${stock.momentum_components.roc_10d.toFixed(2)}%` : "N/A"}
-                                      size="small"
-                                      color={(stock.momentum_components?.roc_10d || 0) >= 0 ? "success" : "error"}
-                                    />
-                                  </TableCell>
+                                  <TableCell>SMA 50-Day (Simple Moving Average)</TableCell>
+                                  <TableCell align="right">${(stock.sma_50 || 0).toFixed(2)}</TableCell>
                                 </TableRow>
-                                <TableRow>
-                                  <TableCell>ROC_20</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={stock.momentum_components?.roc_20d ? `${stock.momentum_components.roc_20d.toFixed(2)}%` : "N/A"}
-                                      size="small"
-                                      color={(stock.momentum_components?.roc_20d || 0) >= 0 ? "success" : "error"}
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>ROC_60</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={stock.momentum_components?.roc_60d ? `${stock.momentum_components.roc_60d.toFixed(2)}%` : "N/A"}
-                                      size="small"
-                                      color={(stock.momentum_components?.roc_60d || 0) >= 0 ? "success" : "error"}
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>ROC_120</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={stock.momentum_components?.roc_120d ? `${stock.momentum_components.roc_120d.toFixed(2)}%` : "N/A"}
-                                      size="small"
-                                      color={(stock.momentum_components?.roc_120d || 0) >= 0 ? "success" : "error"}
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>ROC_252 (12-mo)</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={stock.momentum_components?.roc_252d || stock.roc_252d ? `${(stock.momentum_components?.roc_252d || stock.roc_252d).toFixed(2)}%` : "N/A"}
-                                      size="small"
-                                      color={(stock.momentum_components?.roc_252d || stock.roc_252d || 0) >= 0 ? "success" : "error"}
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                {stock.momentum_components?.mansfield_rs !== null && stock.momentum_components?.mansfield_rs !== undefined && (
+                                {stock.momentum_components?.roc_10d !== undefined && (
                                   <TableRow>
-                                    <TableCell>Mansfield_RS</TableCell>
-                                    <TableCell align="right">
-                                      <Chip
-                                        label={stock.momentum_components.mansfield_rs.toFixed(2)}
-                                        size="small"
-                                        color={(stock.momentum_components.mansfield_rs || 0) >= 0 ? "success" : "error"}
-                                      />
-                                    </TableCell>
+                                    <TableCell>ROC 10-Day (Rate of Change)</TableCell>
+                                    <TableCell align="right">{stock.momentum_components.roc_10d.toFixed(2)}%</TableCell>
                                   </TableRow>
                                 )}
+                                {stock.momentum_components?.roc_20d !== undefined && (
+                                  <TableRow>
+                                    <TableCell>ROC 20-Day (Rate of Change)</TableCell>
+                                    <TableCell align="right">{stock.momentum_components.roc_20d.toFixed(2)}%</TableCell>
+                                  </TableRow>
+                                )}
+                                {stock.momentum_components?.roc_60d !== undefined && (
+                                  <TableRow>
+                                    <TableCell>ROC 60-Day (Rate of Change)</TableCell>
+                                    <TableCell align="right">{stock.momentum_components.roc_60d.toFixed(2)}%</TableCell>
+                                  </TableRow>
+                                )}
+                                {stock.momentum_components?.roc_120d !== null && stock.momentum_components?.roc_120d !== undefined && (
+                                  <TableRow>
+                                    <TableCell>ROC 120-Day (Rate of Change)</TableCell>
+                                    <TableCell align="right">{stock.momentum_components.roc_120d.toFixed(2)}%</TableCell>
+                                  </TableRow>
+                                )}
+                                {stock.momentum_components?.mansfield_rs !== null && stock.momentum_components?.mansfield_rs !== undefined && (
+                                  <TableRow>
+                                    <TableCell>Mansfield RS (Relative Strength vs S&P 500)</TableCell>
+                                    <TableCell align="right">{stock.momentum_components.mansfield_rs.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                )}
+                                <TableRow>
+                                  <TableCell>Current Price</TableCell>
+                                  <TableCell align="right">${(stock.current_price || 0).toFixed(2)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Price % Above/Below SMA 20</TableCell>
+                                  <TableCell align="right">
+                                    {stock.sma_20 ? `${(((stock.current_price - stock.sma_20) / stock.sma_20) * 100).toFixed(2)}%` : "N/A"}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Price % Above/Below SMA 50</TableCell>
+                                  <TableCell align="right">
+                                    {stock.sma_50 ? `${(((stock.current_price - stock.sma_50) / stock.sma_50) * 100).toFixed(2)}%` : "N/A"}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Price Change 1-Day %</TableCell>
+                                  <TableCell align="right">{(stock.price_change_1d || 0).toFixed(2)}%</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Price Change 5-Day %</TableCell>
+                                  <TableCell align="right">{(stock.price_change_5d || 0).toFixed(2)}%</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Price Change 30-Day %</TableCell>
+                                  <TableCell align="right">{(stock.price_change_30d || 0).toFixed(2)}%</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>30-Day Volatility (Historical Volatility)</TableCell>
+                                  <TableCell align="right">{stock.volatility_30d ? `${stock.volatility_30d.toFixed(1)}%` : "N/A"}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Average Volume (30-Day)</TableCell>
+                                  <TableCell align="right">{(stock.volume_avg_30d || 0).toLocaleString()}</TableCell>
+                                </TableRow>
                               </TableBody>
                             </Table>
                           </TableContainer>
@@ -1356,142 +1455,115 @@ const ScoresDashboard = () => {
 
                           <Divider sx={{ my: 2 }} />
 
-                          {/* Value 6-Component Chart */}
+                          {/* Value Score Comparison Chart */}
                           <Box sx={{ mt: 2 }}>
-                            <ResponsiveContainer width="100%" height={250}>
+                            <Typography variant="caption" color="text.secondary" gutterBottom>
+                              Score Comparison
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={200}>
                               <BarChart
                                 data={[
                                   {
-                                    name: "PE Rel.",
-                                    value: stock.value_components?.pe_relative || 0,
-                                    max: 20
+                                    name: stock.symbol,
+                                    value: stock.value_score || 0
                                   },
                                   {
-                                    name: "PB Rel.",
-                                    value: stock.value_components?.pb_relative || 0,
-                                    max: 15
+                                    name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
+                                    value: sectorAvgs.value || 0
                                   },
                                   {
-                                    name: "EV Rel.",
-                                    value: stock.value_components?.ev_relative || 0,
-                                    max: 15
-                                  },
-                                  {
-                                    name: "FCF",
-                                    value: stock.value_components?.fcf_yield_score || 0,
-                                    max: 18
-                                  },
-                                  {
-                                    name: "PEG",
-                                    value: stock.value_components?.peg_score || 0,
-                                    max: 15
-                                  },
-                                  {
-                                    name: "DCF",
-                                    value: stock.value_components?.dcf_score || 0,
-                                    max: 17
+                                    name: "Market Avg",
+                                    value: marketAvgs.value || 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
-                                <YAxis domain={[0, 20]} style={{ fontSize: "0.75rem" }} />
+                                <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="value" name="Score">
+                                <Bar dataKey="value" name="Value Score">
                                   {[
-                                    <Cell key="pe" fill={theme.palette.primary.main} />,
-                                    <Cell key="pb" fill={theme.palette.info.main} />,
-                                    <Cell key="ev" fill={theme.palette.success.main} />,
-                                    <Cell key="fcf" fill={theme.palette.error.main} />,
-                                    <Cell key="peg" fill={theme.palette.warning.main} />,
-                                    <Cell key="dcf" fill={theme.palette.secondary.main} />
+                                    <Cell key="stock" fill={theme.palette.info.main} />,
+                                    <Cell key="sector" fill={theme.palette.primary.main} />,
+                                    <Cell key="market" fill={theme.palette.success.light} />
                                   ]}
+                                  <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value.toFixed(1)} />
                                 </Bar>
                               </BarChart>
                             </ResponsiveContainer>
                           </Box>
 
-                          {/* Value Table */}
-                          <TableContainer sx={{ mt: 2 }}>
+                          {/* Value Input Metrics Table */}
+                          <TableContainer sx={{ mt: 2, maxHeight: 400, overflow: 'auto' }}>
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell>Component</TableCell>
-                                  <TableCell align="right">Score</TableCell>
+                                  <TableCell>Valuation Metric</TableCell>
+                                  <TableCell align="right">Stock</TableCell>
+                                  <TableCell align="right">Sector</TableCell>
+                                  <TableCell align="right">Market</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
-                                <TableRow>
-                                  <TableCell>PE Relative</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.value_components?.pe_relative || 0).toFixed(1)}
-                                      size="small"
-                                      color="primary"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>PB Relative</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.value_components?.pb_relative || 0).toFixed(1)}
-                                      size="small"
-                                      color="info"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>EV/EBITDA Relative</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.value_components?.ev_relative || 0).toFixed(1)}
-                                      size="small"
-                                      color="success"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>FCF Yield</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.value_components?.fcf_yield_score || 0).toFixed(1)}
-                                      size="small"
-                                      color="error"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>PEG Ratio</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.value_components?.peg_score || 0).toFixed(1)}
-                                      size="small"
-                                      color="warning"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>DCF Intrinsic Value</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.value_components?.dcf_score || 0).toFixed(1)}
-                                      size="small"
-                                      color="secondary"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell><strong>Total Value Score</strong></TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.value_score || 0).toFixed(1)}
-                                      size="small"
-                                      color={stock.value_score >= 80 ? "success" : stock.value_score >= 60 ? "warning" : "error"}
-                                    />
-                                  </TableCell>
-                                </TableRow>
+                                {stock.value_inputs && (
+                                  <>
+                                    <TableRow>
+                                      <TableCell>P/E Ratio (Price-to-Earnings)</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.stock_pe?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.sector_pe?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.market_pe?.toFixed(2) || "N/A"}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>P/B Ratio (Price-to-Book)</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.stock_pb?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.sector_pb?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.market_pb?.toFixed(2) || "N/A"}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>P/S Ratio (Price-to-Sales)</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.stock_ps?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.sector_ps?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.market_ps?.toFixed(2) || "N/A"}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>EV/EBITDA (Enterprise Value to EBITDA)</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.stock_ev_ebitda?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.sector_ev_ebitda?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">N/A</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>FCF Yield (Free Cash Flow Yield)</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.stock_fcf_yield?.toFixed(2) || "N/A"}%</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.sector_fcf_yield?.toFixed(2) || "N/A"}%</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.market_fcf_yield?.toFixed(2) || "N/A"}%</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Dividend Yield</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.stock_dividend_yield?.toFixed(2) || "N/A"}%</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.sector_dividend_yield?.toFixed(2) || "N/A"}%</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.market_dividend_yield?.toFixed(2) || "N/A"}%</TableCell>
+                                    </TableRow>
+                                    {stock.value_inputs.earnings_growth_pct !== null && stock.value_inputs.earnings_growth_pct !== undefined && (
+                                      <TableRow>
+                                        <TableCell>Earnings Growth % (Annual)</TableCell>
+                                        <TableCell align="right" colSpan={3}>{stock.value_inputs.earnings_growth_pct.toFixed(1)}%</TableCell>
+                                      </TableRow>
+                                    )}
+                                    <TableRow>
+                                      <TableCell>PEG Ratio (P/E to Growth)</TableCell>
+                                      <TableCell align="right" colSpan={3}>{stock.value_inputs.peg_ratio?.toFixed(2) || "N/A"}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>DCF Intrinsic Value (Discounted Cash Flow)</TableCell>
+                                      <TableCell align="right" colSpan={3}>${stock.value_inputs.dcf_intrinsic_value?.toFixed(2) || "N/A"}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>DCF Discount/Premium %</TableCell>
+                                      <TableCell align="right" colSpan={3}>{stock.value_inputs.dcf_discount_pct?.toFixed(1) || 0}%</TableCell>
+                                    </TableRow>
+                                  </>
+                                )}
                               </TableBody>
                             </Table>
                           </TableContainer>
@@ -1518,37 +1590,46 @@ const ScoresDashboard = () => {
 
                           <Divider sx={{ my: 2 }} />
 
-                          {/* Growth Chart */}
+                          {/* Growth Score Comparison Chart */}
                           <Box sx={{ mt: 2 }}>
+                            <Typography variant="caption" color="text.secondary" gutterBottom>
+                              Score Comparison
+                            </Typography>
                             <ResponsiveContainer width="100%" height={200}>
                               <BarChart
                                 data={[
                                   {
-                                    name: "Growth Score",
+                                    name: stock.symbol,
                                     value: stock.growth_score || 0
                                   },
                                   {
-                                    name: "30D Change %",
-                                    value: Math.abs(stock.price_change_30d || 0)
+                                    name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
+                                    value: sectorAvgs.growth || 0
+                                  },
+                                  {
+                                    name: "Market Avg",
+                                    value: marketAvgs.growth || 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
+                                <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
                                 <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="value" name="Value">
+                                <Bar dataKey="value" name="Growth Score">
                                   {[
-                                    <Cell key="growth" fill={theme.palette.primary.main} />,
-                                    <Cell key="change" fill={theme.palette.success.main} />
+                                    <Cell key="stock" fill={theme.palette.success.main} />,
+                                    <Cell key="sector" fill={theme.palette.primary.main} />,
+                                    <Cell key="market" fill={theme.palette.info.light} />
                                   ]}
+                                  <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value.toFixed(1)} />
                                 </Bar>
                               </BarChart>
                             </ResponsiveContainer>
                           </Box>
 
-                          {/* Growth Table */}
+                          {/* Growth Metrics Table */}
                           <TableContainer sx={{ mt: 2 }}>
                             <Table size="small">
                               <TableHead>
@@ -1559,24 +1640,16 @@ const ScoresDashboard = () => {
                               </TableHead>
                               <TableBody>
                                 <TableRow>
-                                  <TableCell>Growth Score</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.growth_score || 0).toFixed(1)}
-                                      size="small"
-                                      color="primary"
-                                    />
-                                  </TableCell>
+                                  <TableCell>1D Change %</TableCell>
+                                  <TableCell align="right">{(stock.price_change_1d || 0).toFixed(2)}%</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>5D Change %</TableCell>
+                                  <TableCell align="right">{(stock.price_change_5d || 0).toFixed(2)}%</TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>30D Change %</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.price_change_30d || 0).toFixed(2) + "%"}
-                                      size="small"
-                                      color="success"
-                                    />
-                                  </TableCell>
+                                  <TableCell align="right">{(stock.price_change_30d || 0).toFixed(2)}%</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>
@@ -1604,46 +1677,40 @@ const ScoresDashboard = () => {
 
                           <Divider sx={{ my: 2 }} />
 
-                          {/* Positioning Chart */}
+                          {/* Positioning Score Comparison Chart */}
                           <Box sx={{ mt: 2 }}>
-                            <ResponsiveContainer width="100%" height={250}>
+                            <Typography variant="caption" color="text.secondary" gutterBottom>
+                              Score Comparison
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={200}>
                               <BarChart
                                 data={[
                                   {
-                                    name: "Inst. Own %",
-                                    value: stock.positioning_components?.institutional_ownership || 0
+                                    name: stock.symbol,
+                                    value: stock.positioning_score || 0
                                   },
                                   {
-                                    name: "Insider Own %",
-                                    value: stock.positioning_components?.insider_ownership || 0
+                                    name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
+                                    value: sectorAvgs.positioning || 0
                                   },
                                   {
-                                    name: "Short % Float",
-                                    value: stock.positioning_components?.short_percent_of_float || 0
-                                  },
-                                  {
-                                    name: "Days to Cover",
-                                    value: Math.min(100, (stock.positioning_components?.days_to_cover || stock.positioning_components?.short_ratio || 0) * 10)
-                                  },
-                                  {
-                                    name: "Inst. Count",
-                                    value: Math.min(100, (stock.positioning_components?.institution_count || 0) / 5)
+                                    name: "Market Avg",
+                                    value: marketAvgs.positioning || 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
-                                <YAxis domain={[0, 100]} style={{ fontSize: "0.7rem" }} />
+                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="value" name="Value">
+                                <Bar dataKey="value" name="Positioning Score">
                                   {[
-                                    <Cell key="inst" fill={theme.palette.primary.main} />,
-                                    <Cell key="insider" fill={theme.palette.success.main} />,
-                                    <Cell key="short" fill={theme.palette.warning.main} />,
-                                    <Cell key="days" fill={theme.palette.error.main} />,
-                                    <Cell key="count" fill={theme.palette.info.main} />
+                                    <Cell key="stock" fill={theme.palette.secondary.main} />,
+                                    <Cell key="sector" fill={theme.palette.primary.main} />,
+                                    <Cell key="market" fill={theme.palette.info.light} />
                                   ]}
+                                  <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value.toFixed(1)} />
                                 </Bar>
                               </BarChart>
                             </ResponsiveContainer>
@@ -1654,59 +1721,33 @@ const ScoresDashboard = () => {
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell>Metric</TableCell>
+                                  <TableCell>Positioning Metric</TableCell>
                                   <TableCell align="right">Value</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
                                 <TableRow>
-                                  <TableCell>Institutional Ownership</TableCell>
+                                  <TableCell>Institutional Ownership %</TableCell>
                                   <TableCell align="right">
-                                    <Chip
-                                      label={stock.positioning_components?.institutional_ownership ? `${stock.positioning_components.institutional_ownership.toFixed(1)}%` : "N/A"}
-                                      size="small"
-                                      color="primary"
-                                    />
+                                    {stock.positioning_components?.institutional_ownership ? `${(stock.positioning_components.institutional_ownership * 100).toFixed(1)}%` : "N/A"}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
-                                  <TableCell>Insider Ownership</TableCell>
+                                  <TableCell>Insider Ownership %</TableCell>
                                   <TableCell align="right">
-                                    <Chip
-                                      label={stock.positioning_components?.insider_ownership ? `${stock.positioning_components.insider_ownership.toFixed(1)}%` : "N/A"}
-                                      size="small"
-                                      color="success"
-                                    />
+                                    {stock.positioning_components?.insider_ownership ? `${(stock.positioning_components.insider_ownership * 100).toFixed(1)}%` : "N/A"}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>Short % of Float</TableCell>
                                   <TableCell align="right">
-                                    <Chip
-                                      label={stock.positioning_components?.short_percent_of_float ? `${stock.positioning_components.short_percent_of_float.toFixed(1)}%` : "N/A"}
-                                      size="small"
-                                      color="warning"
-                                    />
+                                    {stock.positioning_components?.short_percent_of_float ? `${(stock.positioning_components.short_percent_of_float * 100).toFixed(1)}%` : "N/A"}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>Days to Cover (Short Ratio)</TableCell>
                                   <TableCell align="right">
-                                    <Chip
-                                      label={stock.positioning_components?.days_to_cover?.toFixed(2) || stock.positioning_components?.short_ratio?.toFixed(2) || "N/A"}
-                                      size="small"
-                                      color="error"
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Institution Count</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={stock.positioning_components?.institution_count || "N/A"}
-                                      size="small"
-                                      color="info"
-                                    />
+                                    {stock.positioning_components?.days_to_cover?.toFixed(2) || stock.positioning_components?.short_ratio?.toFixed(2) || "N/A"}
                                   </TableCell>
                                 </TableRow>
                               </TableBody>
@@ -1735,32 +1776,46 @@ const ScoresDashboard = () => {
 
                           <Divider sx={{ my: 2 }} />
 
-                          {/* Sentiment Chart */}
+                          {/* Sentiment Score Comparison Chart */}
                           <Box sx={{ mt: 2 }}>
+                            <Typography variant="caption" color="text.secondary" gutterBottom>
+                              Score Comparison
+                            </Typography>
                             <ResponsiveContainer width="100%" height={200}>
                               <BarChart
                                 data={[
                                   {
-                                    name: "Sentiment Score",
+                                    name: stock.symbol,
                                     value: stock.sentiment_score || 0
+                                  },
+                                  {
+                                    name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
+                                    value: sectorAvgs.sentiment || 0
+                                  },
+                                  {
+                                    name: "Market Avg",
+                                    value: marketAvgs.sentiment || 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
+                                <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
                                 <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="value" name="Value">
+                                <Bar dataKey="value" name="Sentiment Score">
                                   {[
-                                    <Cell key="sentiment" fill={theme.palette.primary.main} />
+                                    <Cell key="stock" fill={theme.palette.success.main} />,
+                                    <Cell key="sector" fill={theme.palette.primary.main} />,
+                                    <Cell key="market" fill={theme.palette.warning.light} />
                                   ]}
+                                  <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value.toFixed(1)} />
                                 </Bar>
                               </BarChart>
                             </ResponsiveContainer>
                           </Box>
 
-                          {/* Sentiment Table */}
+                          {/* Sentiment Inputs Table */}
                           <TableContainer sx={{ mt: 2 }}>
                             <Table size="small">
                               <TableHead>
@@ -1771,13 +1826,10 @@ const ScoresDashboard = () => {
                               </TableHead>
                               <TableBody>
                                 <TableRow>
-                                  <TableCell>Sentiment Score</TableCell>
-                                  <TableCell align="right">
-                                    <Chip
-                                      label={(stock.sentiment_score || 0).toFixed(1)}
-                                      size="small"
-                                      color="primary"
-                                    />
+                                  <TableCell colSpan={2} align="center">
+                                    <Typography variant="caption" color="text.secondary">
+                                      Detailed sentiment metrics coming soon
+                                    </Typography>
                                   </TableCell>
                                 </TableRow>
                               </TableBody>
@@ -1793,6 +1845,9 @@ const ScoresDashboard = () => {
                   <Typography variant="body2" color="text.secondary">
                     Last Updated: {new Date(stock.last_updated).toLocaleDateString()}
                   </Typography>
+                  </>
+                );
+              })()}
                 </Box>
               </AccordionDetails>
             </Accordion>
@@ -1801,9 +1856,72 @@ const ScoresDashboard = () => {
         )}
       </Box>
 
+      {/* Top Performers by Sector */}
+      <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
+        Top Performers by Sector
+      </Typography>
+
+      <Grid container spacing={3} sx={{ mb: 6 }}>
+        {sectors.slice(0, 6).map((sector) => {
+          const sectorStocks = topBySector[sector] || [];
+          return (
+            <Grid item xs={12} md={6} key={sector}>
+              <Paper sx={{ p: 3 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+                  <Assessment sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
+                  <Typography variant="h6">{sector}</Typography>
+                  <Chip
+                    label={`${sectorStocks.length} stocks`}
+                    size="small"
+                    color="default"
+                  />
+                </Box>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Rank</TableCell>
+                        <TableCell>Symbol</TableCell>
+                        <TableCell align="right">Score</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {sectorStocks.map((stock, index) => (
+                        <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>
+                            <Typography fontWeight={600}>{stock.symbol}</Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Chip
+                              label={stock.composite_score.toFixed(1)}
+                              size="small"
+                              color={stock.composite_score >= 80 ? "success" : stock.composite_score >= 60 ? "warning" : "error"}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            </Grid>
+          );
+        })}
+      </Grid>
+
       {/* Top Performers by Category */}
       <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
         Top Performers by Category
+        {selectedSector !== "all" && (
+          <Chip
+            label={`Filtered: ${selectedSector}`}
+            size="small"
+            color="primary"
+            sx={{ ml: 2 }}
+            onDelete={() => setSelectedSector("all")}
+          />
+        )}
       </Typography>
 
       <Grid container spacing={3}>
