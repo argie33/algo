@@ -22,21 +22,32 @@ logger = logging.getLogger("loadstocksymbols")
 
 # ─── Config ────────────────────────────────────────────────────────────────────
 DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
-if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN not set; aborting")
-    sys.exit(1)
 
 
 def get_db_cfg():
-    client = boto3.client("secretsmanager")
-    secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
-    return (
-        secret["host"],
-        secret.get("port", "5432"),
-        secret["username"],
-        secret["password"],
-        secret["dbname"],
-    )
+    """Get database configuration - works in AWS and locally"""
+    if DB_SECRET_ARN:
+        # AWS mode - use Secrets Manager
+        logger.info("Using AWS Secrets Manager for database configuration")
+        client = boto3.client("secretsmanager")
+        secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+        return (
+            secret["host"],
+            secret.get("port", "5432"),
+            secret["username"],
+            secret["password"],
+            secret["dbname"],
+        )
+    else:
+        # Local mode - use environment variables or defaults
+        logger.info("Using local database configuration from environment variables")
+        return (
+            os.environ.get("DB_HOST", "localhost"),
+            os.environ.get("DB_PORT", "5432"),
+            os.environ.get("DB_USER", "postgres"),
+            os.environ.get("DB_PASSWORD", "password"),
+            os.environ.get("DB_NAME", "stocks"),
+        )
 
 
 PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_cfg()
