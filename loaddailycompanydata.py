@@ -754,9 +754,55 @@ if __name__ == "__main__":
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Schema migrations for missing columns
+    # Schema migrations - create missing tables first
     logging.info("Running schema migrations...")
     try:
+        # Create institutional_positioning table if not exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS institutional_positioning (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(20),
+                institution_type VARCHAR(20),
+                institution_name VARCHAR(200),
+                position_size NUMERIC,
+                position_change_percent DECIMAL(8,2),
+                market_share DECIMAL(8,6),
+                filing_date DATE,
+                quarter VARCHAR(10),
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(symbol, institution_name, filing_date)
+            );
+            CREATE INDEX IF NOT EXISTS idx_inst_pos_symbol ON institutional_positioning(symbol);
+            CREATE INDEX IF NOT EXISTS idx_inst_pos_date ON institutional_positioning(filing_date DESC);
+        """)
+
+        # Create positioning_metrics table if not exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS positioning_metrics (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(20),
+                date DATE,
+                institutional_ownership DECIMAL(8,6),
+                institutional_float_held DECIMAL(8,6),
+                institution_count INTEGER,
+                insider_ownership DECIMAL(8,6),
+                shares_short BIGINT,
+                shares_short_prior_month BIGINT,
+                short_ratio DECIMAL(8,2),
+                short_percent_of_float DECIMAL(8,6),
+                short_interest_change DECIMAL(8,4),
+                short_interest_date DATE,
+                float_shares BIGINT,
+                shares_outstanding BIGINT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(symbol, date)
+            );
+            CREATE INDEX IF NOT EXISTS idx_pos_metrics_symbol ON positioning_metrics(symbol);
+            CREATE INDEX IF NOT EXISTS idx_pos_metrics_date ON positioning_metrics(date DESC);
+        """)
+
+        # Add missing columns to existing tables
         cur.execute("""
             ALTER TABLE key_metrics
             ADD COLUMN IF NOT EXISTS held_percent_insiders DECIMAL(8,6),
