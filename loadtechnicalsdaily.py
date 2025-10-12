@@ -453,6 +453,11 @@ def prepare_db():
         roc_20d         DOUBLE PRECISION,
         roc_60d         DOUBLE PRECISION,
         roc_120d        DOUBLE PRECISION,
+        roc_189d        DOUBLE PRECISION,
+        roc_252d        DOUBLE PRECISION,
+        high_52w        DOUBLE PRECISION,
+        low_52w         DOUBLE PRECISION,
+        pct_from_52w_high DOUBLE PRECISION,
         adx             DOUBLE PRECISION,
         plus_di         DOUBLE PRECISION,
         minus_di        DOUBLE PRECISION,
@@ -472,6 +477,9 @@ def prepare_db():
         ema_4           DOUBLE PRECISION,
         ema_9           DOUBLE PRECISION,
         ema_21          DOUBLE PRECISION,
+        volume_10d      DOUBLE PRECISION,
+        volume_50d      DOUBLE PRECISION,
+        volume_surge    DOUBLE PRECISION,
         bbands_lower    DOUBLE PRECISION,
         bbands_middle   DOUBLE PRECISION,
         bbands_upper    DOUBLE PRECISION,
@@ -657,6 +665,19 @@ def process_symbol(symbol, conn_pool, sp500_benchmark=None):
         df["roc_120d"] = (
             (df["close"] - df["close"].shift(120)) / df["close"].shift(120)
         ) * 100  # 120-day (6-month) ROC
+        df["roc_189d"] = (
+            (df["close"] - df["close"].shift(189)) / df["close"].shift(189)
+        ) * 100  # 189-day (9-month) ROC - IBD RS Rating component
+        df["roc_252d"] = (
+            (df["close"] - df["close"].shift(252)) / df["close"].shift(252)
+        ) * 100  # 252-day (12-month) ROC - Industry standard (MTUM ETF, academic research)
+
+        # 52-week high/low tracking for IBD momentum methodology
+        df["high_52w"] = df["high"].rolling(window=252).max()  # 52-week high
+        df["low_52w"] = df["low"].rolling(window=252).min()  # 52-week low
+        df["pct_from_52w_high"] = (
+            (df["close"] - df["high_52w"]) / df["high_52w"]
+        ) * 100  # Distance from 52-week high (negative = below high)
 
         # ADX + DMI - calculate once
         df["adx"], df["plus_di"], df["minus_di"] = fast_adx(
@@ -691,6 +712,11 @@ def process_symbol(symbol, conn_pool, sp500_benchmark=None):
         for p in [4, 9, 21]:
             df[f"ema_{p}"] = fast_ema(df["close"], p)
 
+        # Volume averages for IBD momentum (accumulation/distribution detection)
+        df["volume_10d"] = df["volume"].rolling(window=10).mean()  # 10-day average volume
+        df["volume_50d"] = df["volume"].rolling(window=50).mean()  # 50-day average volume
+        df["volume_surge"] = df["volume_10d"] / df["volume_50d"]  # >1.0 = increasing volume (accumulation)
+
         # Bollinger Bands
         df["bbands_lower"], df["bbands_middle"], df["bbands_upper"] = fast_bbands(
             df["close"]
@@ -718,11 +744,13 @@ def process_symbol(symbol, conn_pool, sp500_benchmark=None):
         INSERT INTO technical_data_daily (
           symbol, date,
           rsi, macd, macd_signal, macd_hist,
-          mom, roc, roc_20d, roc_60d, roc_120d,
+          mom, roc, roc_20d, roc_60d, roc_120d, roc_189d, roc_252d,
+          high_52w, low_52w, pct_from_52w_high,
           adx, plus_di, minus_di, atr, ad, cmf, mfi,
           td_sequential, td_combo, marketwatch, dm,
           sma_10, sma_20, sma_50, sma_150, sma_200,
           ema_4, ema_9, ema_21,
+          volume_10d, volume_50d, volume_surge,
           bbands_lower, bbands_middle, bbands_upper,
           pivot_high, pivot_low, pivot_high_triggered, pivot_low_triggered,
           mansfield_rs,
@@ -753,6 +781,11 @@ def process_symbol(symbol, conn_pool, sp500_benchmark=None):
                     sanitize_value(row.get("roc_20d")),
                     sanitize_value(row.get("roc_60d")),
                     sanitize_value(row.get("roc_120d")),
+                    sanitize_value(row.get("roc_189d")),
+                    sanitize_value(row.get("roc_252d")),
+                    sanitize_value(row.get("high_52w")),
+                    sanitize_value(row.get("low_52w")),
+                    sanitize_value(row.get("pct_from_52w_high")),
                     sanitize_value(row.get("adx")),
                     sanitize_value(row.get("plus_di")),
                     sanitize_value(row.get("minus_di")),
@@ -772,6 +805,9 @@ def process_symbol(symbol, conn_pool, sp500_benchmark=None):
                     sanitize_value(row.get("ema_4")),
                     sanitize_value(row.get("ema_9")),
                     sanitize_value(row.get("ema_21")),
+                    sanitize_value(row.get("volume_10d")),
+                    sanitize_value(row.get("volume_50d")),
+                    sanitize_value(row.get("volume_surge")),
                     sanitize_value(row.get("bbands_lower")),
                     sanitize_value(row.get("bbands_middle")),
                     sanitize_value(row.get("bbands_upper")),
