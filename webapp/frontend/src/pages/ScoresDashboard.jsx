@@ -1188,21 +1188,32 @@ const ScoresDashboard = () => {
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Industry-standard 5-component momentum scoring system
                           </Typography>
+
+                          {/* Momentum Input Values */}
+                          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+                            Momentum Inputs:
+                          </Typography>
                           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
                             <Typography variant="body2" color="text.secondary">
-                              • Short-term (25pts): {stock.momentum_components?.short_term?.toFixed(1) || "N/A"}
+                              • RSI: {stock.rsi?.toFixed(2) || stock.momentum_components?.rsi?.toFixed(2) || "N/A"}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              • Medium-term (25pts): {stock.momentum_components?.medium_term?.toFixed(1) || "N/A"}
+                              • MACD: {stock.macd?.toFixed(2) || "N/A"}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              • Longer-term (20pts): {stock.momentum_components?.longer_term?.toFixed(1) || "N/A"}
+                              • ROC 10d: {stock.momentum_components?.roc_10d?.toFixed(2) || "N/A"}%
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              • Relative Strength (20pts): {stock.momentum_components?.relative_strength?.toFixed(1) || "N/A"}
+                              • ROC 20d: {stock.momentum_components?.roc_20d?.toFixed(2) || "N/A"}%
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              • Consistency (10pts): {stock.momentum_components?.consistency?.toFixed(1) || "N/A"}
+                              • ROC 60d: {stock.momentum_components?.roc_60d?.toFixed(2) || "N/A"}%
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • ROC 120d: {stock.momentum_components?.roc_120d?.toFixed(2) || "N/A"}%
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • Mansfield RS: {stock.momentum_components?.mansfield_rs?.toFixed(2) || "N/A"}
                             </Typography>
                           </Box>
 
