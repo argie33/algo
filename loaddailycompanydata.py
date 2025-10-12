@@ -183,7 +183,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 cur.execute(
                     """
                     INSERT INTO company_profile (
-                        ticker, short_name, long_name, display_name, quote_type,
+                        symbol, short_name, long_name, display_name, quote_type,
                         symbol_type, triggerable, has_pre_post_market_data, price_hint,
                         max_age_sec, language, region, financial_currency, currency,
                         market, quote_source_name, custom_price_alert_confidence,
@@ -198,7 +198,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (ticker) DO UPDATE SET
+                    ON CONFLICT (symbol) DO UPDATE SET
                         short_name = EXCLUDED.short_name,
                         long_name = EXCLUDED.long_name,
                         display_name = EXCLUDED.display_name,
@@ -237,7 +237,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 cur.execute(
                     """
                     INSERT INTO market_data (
-                        ticker, previous_close, regular_market_previous_close,
+                        symbol, previous_close, regular_market_previous_close,
                         open_price, regular_market_open, day_low,
                         regular_market_day_low, day_high, regular_market_day_high,
                         regular_market_price, current_price, post_market_price,
@@ -256,7 +256,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (ticker) DO UPDATE SET
+                    ON CONFLICT (symbol) DO UPDATE SET
                         current_price = EXCLUDED.current_price,
                         volume = EXCLUDED.volume,
                         market_cap = EXCLUDED.market_cap
@@ -302,7 +302,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 cur.execute(
                     """
                     INSERT INTO key_metrics (
-                        ticker, trailing_pe, forward_pe, price_to_sales_ttm,
+                        symbol, trailing_pe, forward_pe, price_to_sales_ttm,
                         price_to_book, book_value, peg_ratio, enterprise_value,
                         ev_to_revenue, ev_to_ebitda, total_revenue, net_income,
                         ebitda, gross_profit, eps_trailing, eps_forward,
@@ -330,7 +330,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (ticker) DO UPDATE SET
+                    ON CONFLICT (symbol) DO UPDATE SET
                         trailing_pe = EXCLUDED.trailing_pe,
                         forward_pe = EXCLUDED.forward_pe,
                         eps_trailing = EXCLUDED.eps_trailing,
