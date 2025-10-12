@@ -26,6 +26,15 @@ router.get("/", async (req, res) => {
 
     const search = req.query.search || '';
 
+    // Check if new momentum columns exist (backward compatibility)
+    const hasNewMomentumColumns = await query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'stock_scores'
+      AND column_name = 'momentum_short_term'
+      LIMIT 1
+    `).then(result => result.rows.length > 0).catch(() => false);
+
     // Query stock scores with proper field names from loadstockscores.py
     // JOIN with company_profile to get company names
     // JOIN with positioning_metrics to get positioning components
@@ -53,7 +62,8 @@ router.get("/", async (req, res) => {
         ss.pe_ratio,
         ss.volume_avg_30d,
         ss.score_date,
-        ss.last_updated,
+        ss.last_updated
+        ${hasNewMomentumColumns ? `,
         -- Momentum components (5-component breakdown)
         ss.momentum_short_term,
         ss.momentum_medium_term,
@@ -64,14 +74,15 @@ router.get("/", async (req, res) => {
         ss.roc_20d,
         ss.roc_60d,
         ss.roc_120d,
-        ss.mansfield_rs,
+        ss.mansfield_rs` : ''}
+        ${hasNewMomentumColumns ? `,
         pm.institutional_ownership,
         pm.insider_ownership,
         pm.short_percent_of_float,
-        pm.institution_count
+        pm.institution_count` : ''}
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN (
+      ${hasNewMomentumColumns ? `LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
           institutional_ownership,
@@ -80,7 +91,7 @@ router.get("/", async (req, res) => {
           institution_count
         FROM positioning_metrics
         ORDER BY symbol, date DESC
-      ) pm ON ss.symbol = pm.symbol
+      ) pm ON ss.symbol = pm.symbol` : ''}
     `;
 
     const queryParams = [];
@@ -218,6 +229,15 @@ router.get("/:symbol", async (req, res) => {
       console.log(`📊 Detailed scores requested for symbol: ${symbol.toUpperCase()} - using real table`);
     }
 
+    // Check if new momentum columns exist (backward compatibility)
+    const hasNewMomentumColumns = await query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'stock_scores'
+      AND column_name = 'momentum_short_term'
+      LIMIT 1
+    `).then(result => result.rows.length > 0).catch(() => false);
+
     const symbolQuery = `
       SELECT
         ss.symbol,
@@ -242,7 +262,8 @@ router.get("/:symbol", async (req, res) => {
         ss.pe_ratio,
         ss.volume_avg_30d,
         ss.score_date,
-        ss.last_updated,
+        ss.last_updated
+        ${hasNewMomentumColumns ? `,
         -- Momentum components (5-component breakdown)
         ss.momentum_short_term,
         ss.momentum_medium_term,
@@ -253,15 +274,16 @@ router.get("/:symbol", async (req, res) => {
         ss.roc_20d,
         ss.roc_60d,
         ss.roc_120d,
-        ss.mansfield_rs,
+        ss.mansfield_rs` : ''}
+        ${hasNewMomentumColumns ? `,
         -- Add positioning components from positioning_metrics table
         pm.institutional_ownership,
         pm.insider_ownership,
         pm.short_percent_of_float,
-        pm.institution_count
+        pm.institution_count` : ''}
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN (
+      ${hasNewMomentumColumns ? `LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
           institutional_ownership,
@@ -270,7 +292,7 @@ router.get("/:symbol", async (req, res) => {
           institution_count
         FROM positioning_metrics
         ORDER BY symbol, date DESC
-      ) pm ON ss.symbol = pm.symbol
+      ) pm ON ss.symbol = pm.symbol` : ''}
       WHERE ss.symbol = $1
     `;
 
