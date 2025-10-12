@@ -87,10 +87,16 @@ describe("Scores Routes Unit Tests", () => {
     test("should return scores data from stock_scores table", async () => {
       // Mock database responses with correct schema matching stock_scores table
       query
+        // First mock: schema check for new momentum columns (scores.js:29-36)
+        .mockResolvedValueOnce({
+          rows: [{ column_name: "momentum_short_term" }] // Columns exist
+        })
+        // Second mock: actual stock data query (scores.js:41-110)
         .mockResolvedValueOnce({
           rows: [
             {
               symbol: "AAPL",
+              short_name: "Apple Inc.",
               composite_score: 85.5,
               momentum_score: 75.2,
               value_score: 88.7,
@@ -111,12 +117,25 @@ describe("Scores Routes Unit Tests", () => {
               market_cap: 2500000000000,
               pe_ratio: 25.8,
               score_date: "2025-01-27",
-              last_updated: "2025-01-27T10:00:00Z"
+              last_updated: "2025-01-27T10:00:00Z",
+              // New momentum columns
+              momentum_short_term: 22.5,
+              momentum_medium_term: 23.0,
+              momentum_longer_term: 18.2,
+              momentum_relative_strength: 18.5,
+              momentum_consistency: 8.0,
+              roc_10d: 3.2,
+              roc_20d: 5.1,
+              roc_60d: 12.3,
+              roc_120d: 25.4,
+              mansfield_rs: 1.15,
+              // Positioning components
+              institutional_ownership: 61.2,
+              insider_ownership: 0.07,
+              short_percent_of_float: 1.2,
+              institution_count: 3500
             }
           ]
-        })
-        .mockResolvedValueOnce({
-          rows: [{ total: 1 }] // Count query response
         });
 
       const response = await request(app)
@@ -351,10 +370,14 @@ describe("Scores Routes Unit Tests", () => {
     });
 
     test("should return 404 for non-existent symbol", async () => {
-      // Mock empty response for non-existent symbol
-      query.mockResolvedValueOnce({
-        rows: [] // No results found
-      });
+      // Mock schema check first, then empty response for non-existent symbol
+      query
+        .mockResolvedValueOnce({
+          rows: [{ column_name: "momentum_short_term" }] // Schema check
+        })
+        .mockResolvedValueOnce({
+          rows: [] // No results found
+        });
 
       const response = await request(app)
         .get("/scores/NONEXISTENT")
