@@ -353,6 +353,32 @@ Resources:
                   }
                 }
               ],
+              "Next": "CalculateStockScores"
+            },
+            "CalculateStockScores": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Comment": "Calculate composite stock scores after technicals and metrics are ready",
+              "Parameters": {
+                "Cluster": "${ECSClusterName}",
+                "TaskDefinition": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/stock-scores-loader",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": [${SubnetIds}],
+                    "SecurityGroups": ["${SecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
               "Next": "PipelineComplete"
             },
             "PipelineComplete": {
