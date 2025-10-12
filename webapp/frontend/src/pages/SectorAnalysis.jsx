@@ -316,6 +316,30 @@ const SectorAnalysis = () => {
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
             Top Sector Rankings
           </Typography>
+          {/* Column Headers */}
+          <Grid container spacing={2} alignItems="center" sx={{ mb: 1, px: 2, py: 1, backgroundColor: "grey.200", borderRadius: 1 }}>
+            <Grid item xs={12} sm={1}>
+              <Typography variant="caption" fontWeight="bold">Rank</Typography>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <Typography variant="caption" fontWeight="bold">Sector</Typography>
+            </Grid>
+            <Grid item xs={4} sm={2}>
+              <Typography variant="caption" fontWeight="bold">RS Rating</Typography>
+            </Grid>
+            <Grid item xs={4} sm={2}>
+              <Typography variant="caption" fontWeight="bold">Momentum</Typography>
+            </Grid>
+            <Grid item xs={4} sm={2}>
+              <Typography variant="caption" fontWeight="bold">Flow</Typography>
+            </Grid>
+            <Grid item xs={4} sm={2}>
+              <Typography variant="caption" fontWeight="bold">20-Day %</Typography>
+            </Grid>
+            <Grid item xs={12} sm={1}>
+              <Typography variant="caption" fontWeight="bold">Industries</Typography>
+            </Grid>
+          </Grid>
           {rotationLoading ? (
             <Box display="flex" justifyContent="center" py={4}>
               <LinearProgress sx={{ width: "50%" }} />
@@ -530,6 +554,27 @@ const SectorAnalysis = () => {
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
             Top Industry Rankings
           </Typography>
+          {/* Column Headers */}
+          <Grid container spacing={2} alignItems="center" sx={{ mb: 1, px: 2, py: 1, backgroundColor: "grey.200", borderRadius: 1 }}>
+            <Grid item xs={12} sm={1}>
+              <Typography variant="caption" fontWeight="bold">Rank</Typography>
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <Typography variant="caption" fontWeight="bold">Industry</Typography>
+            </Grid>
+            <Grid item xs={4} sm={2}>
+              <Typography variant="caption" fontWeight="bold">RS Rating</Typography>
+            </Grid>
+            <Grid item xs={4} sm={2}>
+              <Typography variant="caption" fontWeight="bold">Momentum</Typography>
+            </Grid>
+            <Grid item xs={4} sm={2}>
+              <Typography variant="caption" fontWeight="bold">Trend</Typography>
+            </Grid>
+            <Grid item xs={12} sm={2}>
+              <Typography variant="caption" fontWeight="bold">20-Day %</Typography>
+            </Grid>
+          </Grid>
           {industryLoading ? (
             <Box display="flex" justifyContent="center" py={4}>
               <LinearProgress sx={{ width: "50%" }} />
