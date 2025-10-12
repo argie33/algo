@@ -1,0 +1,290 @@
+{
+  "Comment": "Critical Data Loaders: symbols → price → technical → positioning → sector → scores",
+  "StartAt": "Stage1-Symbols",
+  "States": {
+    "Stage1-Symbols": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Comment": "Load stock symbols first (prerequisite for everything)",
+      "Parameters": {
+        "LaunchType": "FARGATE",
+        "Cluster": "arn:aws:ecs:us-east-1:626216981288:cluster/stocks-cluster",
+        "TaskDefinition": "arn:aws:ecs:us-east-1:626216981288:task-definition/stocksymbols-loader:41",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+            "SecurityGroups": ["sg-0519c564d78cca3de"],
+            "AssignPublicIp": "ENABLED"
+          }
+        },
+        "Overrides": {
+          "ContainerOverrides": [{
+            "Name": "stocksymbols-loader",
+            "Command": ["python3", "loadstocksymbols.py"]
+          }]
+        }
+      },
+      "Retry": [{
+        "ErrorEquals": ["States.TaskFailed"],
+        "IntervalSeconds": 30,
+        "MaxAttempts": 2,
+        "BackoffRate": 2.0
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "ResultPath": "$.error",
+        "Next": "NotifyFailure"
+      }],
+      "Next": "Stage2-ParallelDataCollection"
+    },
+
+    "Stage2-ParallelDataCollection": {
+      "Type": "Parallel",
+      "Comment": "Load price, info, and earnings in parallel",
+      "Branches": [
+        {
+          "StartAt": "LoadPriceDaily",
+          "States": {
+            "LoadPriceDaily": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "arn:aws:ecs:us-east-1:626216981288:cluster/stocks-cluster",
+                "TaskDefinition": "arn:aws:ecs:us-east-1:626216981288:task-definition/pricedaily-loader",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                    "SecurityGroups": ["sg-0519c564d78cca3de"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [{
+                    "Name": "pricedaily-loader",
+                    "Command": ["python3", "loadpricedaily.py"]
+                  }]
+                }
+              },
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "LoadInfo",
+          "States": {
+            "LoadInfo": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "arn:aws:ecs:us-east-1:626216981288:cluster/stocks-cluster",
+                "TaskDefinition": "arn:aws:ecs:us-east-1:626216981288:task-definition/loadinfo-loader:40",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                    "SecurityGroups": ["sg-0519c564d78cca3de"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [{
+                    "Name": "loadinfo-loader",
+                    "Command": ["python3", "loadinfo.py"]
+                  }]
+                }
+              },
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "LoadEarningsEstimate",
+          "States": {
+            "LoadEarningsEstimate": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "arn:aws:ecs:us-east-1:626216981288:cluster/stocks-cluster",
+                "TaskDefinition": "arn:aws:ecs:us-east-1:626216981288:task-definition/earningsestimate-loader:12",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                    "SecurityGroups": ["sg-0519c564d78cca3de"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [{
+                    "Name": "earningsestimate-loader",
+                    "Command": ["python3", "loadearningsestimate.py"]
+                  }]
+                }
+              },
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "Stage3-TechnicalIndicators"
+    },
+
+    "Stage3-TechnicalIndicators": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Comment": "Calculate technical indicators after price data loaded",
+      "Parameters": {
+        "LaunchType": "FARGATE",
+        "Cluster": "arn:aws:ecs:us-east-1:626216981288:cluster/stocks-cluster",
+        "TaskDefinition": "arn:aws:ecs:us-east-1:626216981288:task-definition/technicalsdaily-loader",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+            "SecurityGroups": ["sg-0519c564d78cca3de"],
+            "AssignPublicIp": "ENABLED"
+          }
+        },
+        "Overrides": {
+          "ContainerOverrides": [{
+            "Name": "technicalsdaily-loader",
+            "Command": ["python3", "loadtechnicalsdaily.py"]
+          }]
+        }
+      },
+      "Retry": [{
+        "ErrorEquals": ["States.TaskFailed"],
+        "IntervalSeconds": 30,
+        "MaxAttempts": 2,
+        "BackoffRate": 2.0
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "ResultPath": "$.error",
+        "Next": "NotifyFailure"
+      }],
+      "Next": "Stage4-PositioningAndSector"
+    },
+
+    "Stage4-PositioningAndSector": {
+      "Type": "Parallel",
+      "Comment": "Load positioning and sector data in parallel",
+      "Branches": [
+        {
+          "StartAt": "LoadDailyCompanyData",
+          "States": {
+            "LoadDailyCompanyData": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "arn:aws:ecs:us-east-1:626216981288:cluster/stocks-cluster",
+                "TaskDefinition": "arn:aws:ecs:us-east-1:626216981288:task-definition/loaddailycompanydata-loader",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                    "SecurityGroups": ["sg-0519c564d78cca3de"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [{
+                    "Name": "loaddailycompanydata-loader",
+                    "Command": ["python3", "loaddailycompanydata.py"]
+                  }]
+                }
+              },
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "LoadSectorData",
+          "States": {
+            "LoadSectorData": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "arn:aws:ecs:us-east-1:626216981288:cluster/stocks-cluster",
+                "TaskDefinition": "arn:aws:ecs:us-east-1:626216981288:task-definition/sectordata-loader",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                    "SecurityGroups": ["sg-0519c564d78cca3de"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [{
+                    "Name": "sectordata-loader",
+                    "Command": ["python3", "loadsectordata.py"]
+                  }]
+                }
+              },
+              "Retry": [{"ErrorEquals": ["States.TaskFailed"], "MaxAttempts": 2}],
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "Stage5-StockScores"
+    },
+
+    "Stage5-StockScores": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Comment": "Calculate composite stock scores (final step)",
+      "Parameters": {
+        "LaunchType": "FARGATE",
+        "Cluster": "arn:aws:ecs:us-east-1:626216981288:cluster/stocks-cluster",
+        "TaskDefinition": "arn:aws:ecs:us-east-1:626216981288:task-definition/scores-loader",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+            "SecurityGroups": ["sg-0519c564d78cca3de"],
+            "AssignPublicIp": "ENABLED"
+          }
+        },
+        "Overrides": {
+          "ContainerOverrides": [{
+            "Name": "scores-loader",
+            "Command": ["python3", "loadstockscores.py"]
+          }]
+        }
+      },
+      "Retry": [{
+        "ErrorEquals": ["States.TaskFailed"],
+        "IntervalSeconds": 30,
+        "MaxAttempts": 2,
+        "BackoffRate": 2.0
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "ResultPath": "$.error",
+        "Next": "NotifyFailure"
+      }],
+      "Next": "Success"
+    },
+
+    "Success": {
+      "Type": "Succeed"
+    },
+
+    "NotifyFailure": {
+      "Type": "Pass",
+      "Comment": "TODO: Add SNS notification for failures",
+      "Next": "Fail"
+    },
+
+    "Fail": {
+      "Type": "Fail",
+      "Error": "LoaderOrchestrationFailed",
+      "Cause": "One or more loader stages failed after retries"
+    }
+  }
+}

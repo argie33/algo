@@ -99,6 +99,9 @@ Parameters:
   LoadDailyCompanyDataImageTag:
     Type: String
     Description: "Tag for daily company data consolidated loader image"
+  SectorDataImageTag:
+    Type: String
+    Description: "Tag for sector data loader image"
   LoadFinancialsImageTag:
     Type: String
     Description: "Tag for financials consolidated loader image"
@@ -2893,6 +2896,52 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+  SectorDataTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: sectordata-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: sectordata-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref SectorDataImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/sectordata-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  SectorDataLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: sectordata-loader
+      Cluster: !ImportValue StocksApp-ClusterArn
+      TaskDefinition: !Ref SectorDataTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   #########################################
   # EventBridge IAM Role                  #
   #########################################
@@ -3524,3 +3573,9 @@ Outputs:
     Value: !Ref LoadHistoricalTaskDefinition
     Export:
       Name: LoadHistoricalTaskDefArn
+
+  SectorDataTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for sector data loader
+    Value: !Ref SectorDataTaskDefinition
+    Export:
+      Name: SectorDataTaskDefArn

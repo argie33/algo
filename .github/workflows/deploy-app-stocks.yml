@@ -378,6 +378,7 @@ jobs:
               BenchmarksImageTag=benchmarks-latest \
               AnalystUpgradeDowngradeImageTag=analystupgradedowngrade-latest \
               LoadDailyCompanyDataImageTag=dailycompanydata-latest \
+              SectorDataImageTag=sectordata-latest \
               LoadFinancialsImageTag=financials-latest \
               LoadHistoricalImageTag=historical-latest \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
@@ -779,6 +780,9 @@ jobs:
             "historical")
               TASK_DEF_NAME="LoadHistoricalTaskDefArn"
               ;;
+            "sectordata")
+              TASK_DEF_NAME="SectorDataTaskDefArn"
+              ;;
             *)
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
@@ -841,6 +845,9 @@ jobs:
               ;;
             "historical")
               CONTAINER_NAME="loadhistorical-loader"
+              ;;
+            "sectordata")
+              CONTAINER_NAME="sectordata-loader"
               ;;
             *)
               CONTAINER_NAME="${{ matrix.loader }}-loader"
