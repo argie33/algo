@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script - Enhanced Scoring Logic v2.2 (Updated: 2025-10-06 01:20)
+Stock Scores Loader Script - Enhanced Scoring Logic v2.2 (Updated: 2025-10-12)
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
 FIX: Trigger rebuild - Docker image has old code with scoring_engine import error.
 CRITICAL FIX: Wrapped sentiment, analyst_recommendations, and institutional_positioning
 queries in try-except blocks to handle missing tables gracefully with rollback.
-Trigger: Manual deployment for missing table fix.
+Trigger: Force rebuild to test AWS deployment with correct environment variables.
 
 Data Sources:
 - price_daily: Price data, volume, volatility, multi-timeframe momentum
