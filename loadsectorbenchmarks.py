@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Trigger deployment - 2025-10-12 11:42 - Updated with local mode support and tested successfully
 """
 Sector Benchmarks Loader
 Calculates sector-level averages for financial metrics to provide context-specific benchmarks

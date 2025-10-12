@@ -1408,7 +1408,7 @@ const ScoresDashboard = () => {
                         <CardContent>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
                             <AccountBalance sx={{ color: theme.palette.info.main }} />
-                            <Typography variant="h6">Value Assessment</Typography>
+                            <Typography variant="h6">Value Assessment (5-Component)</Typography>
                             <Chip
                               label={stock.value_score?.toFixed(1) || "N/A"}
                               color={stock.value_score >= 80 ? "success" : "warning"}
@@ -1416,43 +1416,110 @@ const ScoresDashboard = () => {
                             />
                           </Box>
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Valuation metrics and intrinsic value analysis
+                            Sector-relative valuation with multi-factor analysis
                           </Typography>
-                          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                            <Typography variant="body2" color="text.secondary">
-                              • P/E Ratio: {stock.pe_ratio?.toFixed(1) || "N/A"}
+
+                          {/* Value Components Summary */}
+                          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, mb: 2 }}>
+                            <Typography variant="caption" fontWeight={600} color="text.secondary">
+                              Component Breakdown (0-100 scale):
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              • Avg Volume (30d): {((stock.volume_avg_30d || 0) / 1e6).toFixed(2)}M
+                              • PE Relative (20%): {stock.value_components?.pe_relative?.toFixed(1) || "N/A"} pts
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • PB Relative (15%): {stock.value_components?.pb_relative?.toFixed(1) || "N/A"} pts
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • EV/EBITDA Relative (15%): {stock.value_components?.ev_relative?.toFixed(1) || "N/A"} pts
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • PEG Ratio (25%): {stock.value_components?.peg_score?.toFixed(1) || "N/A"} pts
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • DCF Intrinsic (25%): {stock.value_components?.dcf_score?.toFixed(1) || "N/A"} pts
                             </Typography>
                           </Box>
 
                           <Divider sx={{ my: 2 }} />
 
-                          {/* Value Chart */}
+                          {/* Valuation Input Values */}
+                          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+                            Valuation Inputs:
+                          </Typography>
+                          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              • P/E Ratio: {stock.value_inputs?.stock_pe?.toFixed(1) || stock.pe_ratio?.toFixed(1) || "N/A"} {stock.value_inputs?.sector_pe ? `(Sector: ${stock.value_inputs.sector_pe.toFixed(1)})` : ""}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • P/B Ratio: {stock.value_inputs?.stock_pb?.toFixed(2) || "N/A"} {stock.value_inputs?.sector_pb ? `(Sector: ${stock.value_inputs.sector_pb.toFixed(2)})` : ""}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • EV/EBITDA: {stock.value_inputs?.stock_ev_ebitda?.toFixed(1) || "N/A"} {stock.value_inputs?.sector_ev_ebitda ? `(Sector: ${stock.value_inputs.sector_ev_ebitda.toFixed(1)})` : ""}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • PEG Ratio: {stock.value_inputs?.peg_ratio?.toFixed(2) || "N/A"}
+                              {stock.value_inputs?.earnings_growth_pct && ` (PE: ${stock.value_inputs.stock_pe?.toFixed(1)}, Growth: ${stock.value_inputs.earnings_growth_pct.toFixed(1)}%)`}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              • DCF Intrinsic: ${stock.value_inputs?.dcf_intrinsic_value?.toFixed(2) || "N/A"} vs Current: ${stock.value_inputs?.current_price?.toFixed(2) || stock.current_price?.toFixed(2) || "N/A"}
+                              {stock.value_inputs?.dcf_discount_pct !== null && stock.value_inputs?.dcf_discount_pct !== undefined && (
+                                <Chip
+                                  label={`${stock.value_inputs.dcf_discount_pct >= 0 ? "+" : ""}${stock.value_inputs.dcf_discount_pct.toFixed(1)}%`}
+                                  size="small"
+                                  color={stock.value_inputs.dcf_discount_pct >= 0 ? "success" : "error"}
+                                  sx={{ ml: 1 }}
+                                />
+                              )}
+                            </Typography>
+                          </Box>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* Value 5-Component Chart */}
                           <Box sx={{ mt: 2 }}>
-                            <ResponsiveContainer width="100%" height={200}>
+                            <ResponsiveContainer width="100%" height={250}>
                               <BarChart
                                 data={[
                                   {
-                                    name: "Value Score",
-                                    value: stock.value_score || 0
+                                    name: "PE Rel.",
+                                    value: stock.value_components?.pe_relative || 0,
+                                    max: 20
                                   },
                                   {
-                                    name: "P/E Ratio",
-                                    value: stock.pe_ratio ? Math.min(100, stock.pe_ratio) : 0
+                                    name: "PB Rel.",
+                                    value: stock.value_components?.pb_relative || 0,
+                                    max: 15
+                                  },
+                                  {
+                                    name: "EV Rel.",
+                                    value: stock.value_components?.ev_relative || 0,
+                                    max: 15
+                                  },
+                                  {
+                                    name: "PEG",
+                                    value: stock.value_components?.peg_score || 0,
+                                    max: 25
+                                  },
+                                  {
+                                    name: "DCF",
+                                    value: stock.value_components?.dcf_score || 0,
+                                    max: 25
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                               >
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" style={{ fontSize: "0.75rem" }} />
-                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
+                                <YAxis domain={[0, 25]} style={{ fontSize: "0.75rem" }} />
                                 <RechartsTooltip />
-                                <Bar dataKey="value" name="Value">
+                                <Bar dataKey="value" name="Score">
                                   {[
-                                    <Cell key="value" fill={theme.palette.primary.main} />,
-                                    <Cell key="pe" fill={theme.palette.success.main} />
+                                    <Cell key="pe" fill={theme.palette.primary.main} />,
+                                    <Cell key="pb" fill={theme.palette.info.main} />,
+                                    <Cell key="ev" fill={theme.palette.success.main} />,
+                                    <Cell key="peg" fill={theme.palette.warning.main} />,
+                                    <Cell key="dcf" fill={theme.palette.secondary.main} />
                                   ]}
                                 </Bar>
                               </BarChart>
@@ -1464,30 +1531,77 @@ const ScoresDashboard = () => {
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell>Metric</TableCell>
-                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell>Component</TableCell>
+                                  <TableCell align="right">Score</TableCell>
+                                  <TableCell align="right">Max</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
                                 <TableRow>
-                                  <TableCell>Value Score</TableCell>
+                                  <TableCell>PE Relative</TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={(stock.value_score || 0).toFixed(1)}
+                                      label={(stock.value_components?.pe_relative || 0).toFixed(1)}
                                       size="small"
                                       color="primary"
                                     />
                                   </TableCell>
+                                  <TableCell align="right">20</TableCell>
                                 </TableRow>
                                 <TableRow>
-                                  <TableCell>P/E Ratio</TableCell>
+                                  <TableCell>PB Relative</TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={stock.pe_ratio ? stock.pe_ratio.toFixed(1) : "N/A"}
+                                      label={(stock.value_components?.pb_relative || 0).toFixed(1)}
+                                      size="small"
+                                      color="info"
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">15</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>EV/EBITDA Relative</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.value_components?.ev_relative || 0).toFixed(1)}
                                       size="small"
                                       color="success"
                                     />
                                   </TableCell>
+                                  <TableCell align="right">15</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>PEG Ratio</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.value_components?.peg_score || 0).toFixed(1)}
+                                      size="small"
+                                      color="warning"
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">25</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>DCF Intrinsic Value</TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.value_components?.dcf_score || 0).toFixed(1)}
+                                      size="small"
+                                      color="secondary"
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">25</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell><strong>Total Value Score</strong></TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={(stock.value_score || 0).toFixed(1)}
+                                      size="small"
+                                      color={stock.value_score >= 80 ? "success" : stock.value_score >= 60 ? "warning" : "error"}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">100</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>

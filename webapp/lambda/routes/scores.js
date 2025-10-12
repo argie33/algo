@@ -74,7 +74,24 @@ router.get("/", async (req, res) => {
         ss.roc_20d,
         ss.roc_60d,
         ss.roc_120d,
-        ss.mansfield_rs` : ''}
+        ss.mansfield_rs,
+        -- Value components (5-component breakdown)
+        ss.value_pe_relative,
+        ss.value_pb_relative,
+        ss.value_ev_relative,
+        ss.value_peg_score,
+        ss.value_dcf_score,
+        -- Raw valuation inputs from key_metrics
+        km.trailing_pe as stock_pe,
+        km.price_to_book as stock_pb,
+        km.ev_to_ebitda as stock_ev_ebitda,
+        km.earnings_growth_pct,
+        -- Sector benchmarks
+        sb.pe_ratio as sector_pe,
+        sb.price_to_book as sector_pb,
+        sb.ev_to_ebitda as sector_ev_ebitda,
+        -- DCF intrinsic value from value_metrics
+        vm.intrinsic_value as dcf_intrinsic_value` : ''}
         ${hasNewMomentumColumns ? `,
         pm.institutional_ownership,
         pm.insider_ownership,
@@ -91,7 +108,25 @@ router.get("/", async (req, res) => {
           institution_count
         FROM positioning_metrics
         ORDER BY symbol, date DESC
-      ) pm ON ss.symbol = pm.symbol` : ''}
+      ) pm ON ss.symbol = pm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (ticker)
+          ticker,
+          trailing_pe,
+          price_to_book,
+          ev_to_ebitda,
+          earnings_growth_pct
+        FROM key_metrics
+        ORDER BY ticker
+      ) km ON ss.symbol = km.ticker
+      LEFT JOIN sector_benchmarks sb ON cp.sector = sb.sector
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          intrinsic_value
+        FROM value_metrics
+        ORDER BY symbol
+      ) vm ON ss.symbol = vm.symbol` : ''}
     `;
 
     const queryParams = [];
@@ -182,6 +217,32 @@ router.get("/", async (req, res) => {
         insider_ownership: parseFloat(row.insider_ownership) || null,
         short_percent_of_float: parseFloat(row.short_percent_of_float) || null,
         institution_count: parseInt(row.institution_count) || null
+      },
+      // Add value components for frontend display
+      value_components: {
+        pe_relative: parseFloat(row.value_pe_relative) || null,
+        pb_relative: parseFloat(row.value_pb_relative) || null,
+        ev_relative: parseFloat(row.value_ev_relative) || null,
+        peg_score: parseFloat(row.value_peg_score) || null,
+        dcf_score: parseFloat(row.value_dcf_score) || null
+      },
+      // Add raw valuation inputs for frontend display
+      value_inputs: {
+        stock_pe: parseFloat(row.stock_pe) || null,
+        stock_pb: parseFloat(row.stock_pb) || null,
+        stock_ev_ebitda: parseFloat(row.stock_ev_ebitda) || null,
+        sector_pe: parseFloat(row.sector_pe) || null,
+        sector_pb: parseFloat(row.sector_pb) || null,
+        sector_ev_ebitda: parseFloat(row.sector_ev_ebitda) || null,
+        earnings_growth_pct: parseFloat(row.earnings_growth_pct) || null,
+        peg_ratio: (row.stock_pe && row.earnings_growth_pct && row.earnings_growth_pct > 0)
+          ? parseFloat((row.stock_pe / row.earnings_growth_pct).toFixed(2))
+          : null,
+        dcf_intrinsic_value: parseFloat(row.dcf_intrinsic_value) || null,
+        current_price: parseFloat(row.current_price) || null,
+        dcf_discount_pct: (row.dcf_intrinsic_value && row.current_price && row.current_price > 0)
+          ? parseFloat((((row.dcf_intrinsic_value - row.current_price) / row.current_price) * 100).toFixed(2))
+          : null
       }
     }));
 
@@ -274,7 +335,24 @@ router.get("/:symbol", async (req, res) => {
         ss.roc_20d,
         ss.roc_60d,
         ss.roc_120d,
-        ss.mansfield_rs` : ''}
+        ss.mansfield_rs,
+        -- Value components (5-component breakdown)
+        ss.value_pe_relative,
+        ss.value_pb_relative,
+        ss.value_ev_relative,
+        ss.value_peg_score,
+        ss.value_dcf_score,
+        -- Raw valuation inputs from key_metrics
+        km.trailing_pe as stock_pe,
+        km.price_to_book as stock_pb,
+        km.ev_to_ebitda as stock_ev_ebitda,
+        km.earnings_growth_pct,
+        -- Sector benchmarks
+        sb.pe_ratio as sector_pe,
+        sb.price_to_book as sector_pb,
+        sb.ev_to_ebitda as sector_ev_ebitda,
+        -- DCF intrinsic value from value_metrics
+        vm.intrinsic_value as dcf_intrinsic_value` : ''}
         ${hasNewMomentumColumns ? `,
         -- Add positioning components from positioning_metrics table
         pm.institutional_ownership,
@@ -292,7 +370,25 @@ router.get("/:symbol", async (req, res) => {
           institution_count
         FROM positioning_metrics
         ORDER BY symbol, date DESC
-      ) pm ON ss.symbol = pm.symbol` : ''}
+      ) pm ON ss.symbol = pm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (ticker)
+          ticker,
+          trailing_pe,
+          price_to_book,
+          ev_to_ebitda,
+          earnings_growth_pct
+        FROM key_metrics
+        ORDER BY ticker
+      ) km ON ss.symbol = km.ticker
+      LEFT JOIN sector_benchmarks sb ON cp.sector = sb.sector
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          intrinsic_value
+        FROM value_metrics
+        ORDER BY symbol
+      ) vm ON ss.symbol = vm.symbol` : ''}
       WHERE ss.symbol = $1
     `;
 
@@ -341,7 +437,30 @@ router.get("/:symbol", async (req, res) => {
           },
           value: {
             score: parseFloat(row.value_score) || 0,
-            components: { peRatio: parseFloat(row.pe_ratio) || null }
+            components: {
+              pe_relative: parseFloat(row.value_pe_relative) || null,
+              pb_relative: parseFloat(row.value_pb_relative) || null,
+              ev_relative: parseFloat(row.value_ev_relative) || null,
+              peg_score: parseFloat(row.value_peg_score) || null,
+              dcf_score: parseFloat(row.value_dcf_score) || null
+            },
+            inputs: {
+              stock_pe: parseFloat(row.stock_pe) || null,
+              stock_pb: parseFloat(row.stock_pb) || null,
+              stock_ev_ebitda: parseFloat(row.stock_ev_ebitda) || null,
+              sector_pe: parseFloat(row.sector_pe) || null,
+              sector_pb: parseFloat(row.sector_pb) || null,
+              sector_ev_ebitda: parseFloat(row.sector_ev_ebitda) || null,
+              earnings_growth_pct: parseFloat(row.earnings_growth_pct) || null,
+              peg_ratio: (row.stock_pe && row.earnings_growth_pct && row.earnings_growth_pct > 0)
+                ? parseFloat((row.stock_pe / row.earnings_growth_pct).toFixed(2))
+                : null,
+              dcf_intrinsic_value: parseFloat(row.dcf_intrinsic_value) || null,
+              current_price: parseFloat(row.current_price) || null,
+              dcf_discount_pct: (row.dcf_intrinsic_value && row.current_price && row.current_price > 0)
+                ? parseFloat((((row.dcf_intrinsic_value - row.current_price) / row.current_price) * 100).toFixed(2))
+                : null
+            }
           },
           quality: {
             score: parseFloat(row.quality_score) || 0,

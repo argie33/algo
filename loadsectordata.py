@@ -4,7 +4,7 @@ Sector Data Loader - Updated 2025-10-12
 Loads sector ETF performance data from yfinance for sector rotation analysis
 Tracks momentum, money flow, and performance metrics for 11 major sectors
 """
-# Trigger deployment - 2025-10-12 04:30 - Add CloudFormation task definition for sectordata loader
+# Trigger deployment - 2025-10-12 11:42 - Updated with local mode support and tested successfully
 import gc
 import json
 import logging

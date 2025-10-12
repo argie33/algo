@@ -134,6 +134,12 @@ def create_stock_scores_table(conn):
                 roc_60d DECIMAL(8,2),
                 roc_120d DECIMAL(8,2),
                 mansfield_rs DECIMAL(8,2),
+                -- Value component breakdown (5-component system)
+                value_pe_relative DOUBLE PRECISION,
+                value_pb_relative DOUBLE PRECISION,
+                value_ev_relative DOUBLE PRECISION,
+                value_peg_score DOUBLE PRECISION,
+                value_dcf_score DOUBLE PRECISION,
                 score_date DATE DEFAULT CURRENT_DATE,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -309,38 +315,29 @@ def get_stock_data_from_database(conn, symbol):
             if len(df) >= 121:
                 roc_120d = ((prices[-1] - prices[-121]) / prices[-121]) * 100
 
-        # Calculate volatility from price data
         prices = df['close'].astype(float).values
         volatility_30d = calculate_volatility(prices)
 
-        # Get earnings data for PE ratio and growth calculation
+        # Get earnings data for PE ratio calculation only
         cur.execute("""
             SELECT eps_actual, quarter
             FROM earnings_history
             WHERE symbol = %s
             AND quarter >= CURRENT_DATE - INTERVAL '24 months'
             ORDER BY quarter DESC
-            LIMIT 8
+            LIMIT 4
         """, (symbol,))
 
         earnings_data = cur.fetchall()
         pe_ratio = None
-        earnings_growth = None
 
         if earnings_data:
-            # Calculate trailing 12-month EPS
+            # Calculate trailing 12-month EPS for PE ratio
             eps_values = [float(row[0]) for row in earnings_data if row[0] is not None]
             if eps_values and len(eps_values) >= 4:
                 trailing_eps = sum(eps_values[:4])  # Last 4 quarters
                 if trailing_eps > 0:
                     pe_ratio = current_price / trailing_eps
-
-                # Calculate earnings growth (current year vs previous year)
-                if len(eps_values) >= 8:
-                    current_year_eps = sum(eps_values[:4])  # Last 4 quarters
-                    previous_year_eps = sum(eps_values[4:8])  # Previous 4 quarters
-                    if previous_year_eps > 0:
-                        earnings_growth = ((current_year_eps - previous_year_eps) / abs(previous_year_eps)) * 100
 
         # Market cap placeholder - we don't have this data, so set to None
         market_cap = None
@@ -634,44 +631,126 @@ def get_stock_data_from_database(conn, symbol):
                 trend_score = 40 + max(-20, (price_change_30d * 0.5))
             trend_score = max(0, min(100, trend_score))
 
-        # Value Score (PE ratio with growth adjustment - PEG concept)
-        value_score = 50  # Start neutral
+        # Value Score (5-component system: PE, PB, EV, PEG, DCF)
+        value_score = 50
+        pe_score = 10.0
+        pb_score = 7.5
+        ev_score = 7.5
+        peg_score = 12.5
+        dcf_score = 12.5
 
-        if pe_ratio and pe_ratio > 0:
-            # Base PE score
-            if pe_ratio < 10:
-                pe_score = 95  # Very undervalued
-            elif pe_ratio < 15:
-                pe_score = 85
-            elif pe_ratio < 20:
-                pe_score = 70
-            elif pe_ratio < 25:
-                pe_score = 55
-            elif pe_ratio < 30:
-                pe_score = 40
-            elif pe_ratio < 40:
-                pe_score = 25
-            else:
-                pe_score = 10  # Very overvalued
+        try:
+            cur.execute("""
+                SELECT trailing_pe, price_to_book, ev_to_ebitda, earnings_growth_pct
+                FROM key_metrics
+                WHERE ticker = %s
+                LIMIT 1
+            """, (symbol,))
 
-            # Growth adjustment (PEG-like)
-            if earnings_growth is not None and earnings_growth > 0:
-                peg_ratio = pe_ratio / earnings_growth
-                if peg_ratio < 1:
-                    # Undervalued relative to growth
-                    pe_score = min(100, pe_score + 15)
-                elif peg_ratio < 1.5:
-                    # Fair value
-                    pe_score = min(100, pe_score + 5)
-                elif peg_ratio > 2.5:
-                    # Overvalued relative to growth
-                    pe_score = max(0, pe_score - 15)
-                elif peg_ratio > 2:
-                    pe_score = max(0, pe_score - 5)
+            valuation_data = cur.fetchone()
 
-            value_score = pe_score
-        else:
-            value_score = 50  # Neutral if no PE
+            if valuation_data:
+                stock_pe = float(valuation_data[0]) if valuation_data[0] is not None else None
+                stock_pb = float(valuation_data[1]) if valuation_data[1] is not None else None
+                stock_ev_ebitda = float(valuation_data[2]) if valuation_data[2] is not None else None
+                growth_pct = float(valuation_data[3]) if valuation_data[3] is not None else None
+
+                cur.execute("SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1", (symbol,))
+                sector_row = cur.fetchone()
+                stock_sector = sector_row[0] if sector_row else None
+
+                if stock_sector:
+                    cur.execute("""
+                        SELECT pe_ratio, price_to_book, ev_to_ebitda
+                        FROM sector_benchmarks
+                        WHERE sector = %s
+                        LIMIT 1
+                    """, (stock_sector,))
+
+                    sector_data = cur.fetchone()
+
+                    if sector_data:
+                        sector_pe = float(sector_data[0]) if sector_data[0] is not None else None
+                        sector_pb = float(sector_data[1]) if sector_data[1] is not None else None
+                        sector_ev_ebitda = float(sector_data[2]) if sector_data[2] is not None else None
+
+                        if stock_pe and sector_pe and stock_pe > 0 and sector_pe > 0:
+                            pe_relative = stock_pe / sector_pe
+                            if pe_relative <= 0.5:
+                                pe_score = 20
+                            elif pe_relative <= 1.0:
+                                pe_score = 10 + (1.0 - pe_relative) / 0.5 * 10
+                            elif pe_relative <= 1.5:
+                                pe_score = max(0, 10 - (pe_relative - 1.0) / 0.5 * 10)
+                            else:
+                                pe_score = 0
+
+                        if stock_pb and sector_pb and stock_pb > 0 and sector_pb > 0:
+                            pb_relative = stock_pb / sector_pb
+                            if pb_relative <= 0.5:
+                                pb_score = 15
+                            elif pb_relative <= 1.0:
+                                pb_score = 7.5 + (1.0 - pb_relative) / 0.5 * 7.5
+                            elif pb_relative <= 1.5:
+                                pb_score = max(0, 7.5 - (pb_relative - 1.0) / 0.5 * 7.5)
+                            else:
+                                pb_score = 0
+
+                        if stock_ev_ebitda and sector_ev_ebitda and stock_ev_ebitda > 0 and sector_ev_ebitda > 0:
+                            ev_relative = stock_ev_ebitda / sector_ev_ebitda
+                            if ev_relative <= 0.5:
+                                ev_score = 15
+                            elif ev_relative <= 1.0:
+                                ev_score = 7.5 + (1.0 - ev_relative) / 0.5 * 7.5
+                            elif ev_relative <= 1.5:
+                                ev_score = max(0, 7.5 - (ev_relative - 1.0) / 0.5 * 7.5)
+                            else:
+                                ev_score = 0
+
+                if stock_pe and growth_pct and stock_pe > 0 and growth_pct > 0:
+                    peg_ratio = stock_pe / growth_pct
+                    if peg_ratio < 0.5:
+                        peg_score = 25
+                    elif peg_ratio < 1.0:
+                        peg_score = 18.75 + (1.0 - peg_ratio) / 0.5 * 6.25
+                    elif peg_ratio < 1.5:
+                        peg_score = 12.5 + (1.5 - peg_ratio) / 0.5 * 6.25
+                    elif peg_ratio < 2.0:
+                        peg_score = 6.25 + (2.0 - peg_ratio) / 0.5 * 6.25
+                    elif peg_ratio < 2.5:
+                        peg_score = 3.125 + (2.5 - peg_ratio) / 0.5 * 3.125
+                    else:
+                        peg_score = max(0, 3.125 - (peg_ratio - 2.5) * 1.25)
+
+            cur.execute("""
+                SELECT intrinsic_value
+                FROM value_metrics
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 1
+            """, (symbol,))
+
+            intrinsic_data = cur.fetchone()
+            if intrinsic_data and intrinsic_data[0]:
+                intrinsic_value = float(intrinsic_data[0])
+                if intrinsic_value > 0 and current_price > 0:
+                    discount_premium = (intrinsic_value - current_price) / current_price
+                    if discount_premium >= 0.5:
+                        dcf_score = 25
+                    elif discount_premium >= 0:
+                        dcf_score = 12.5 + discount_premium / 0.5 * 12.5
+                    elif discount_premium >= -0.5:
+                        dcf_score = 12.5 + discount_premium / 0.5 * 12.5
+                    else:
+                        dcf_score = 0
+
+            value_score = pe_score + pb_score + ev_score + peg_score + dcf_score
+            value_score = max(0, min(100, value_score))
+
+        except psycopg2.Error as e:
+            conn.rollback()
+            logger.warning(f"Value metrics query failed for {symbol}: {e}")
+            value_score = 50
 
         # Quality Score (volatility risk + volume consistency + price stability)
         quality_score = 50  # Start neutral
@@ -727,27 +806,27 @@ def get_stock_data_from_database(conn, symbol):
         quality_score = vol_score + volume_score + stability_score
         quality_score = max(0, min(100, quality_score))
 
-        # Growth Score (earnings growth + consistency + forward estimates)
-        growth_score = 50  # Default neutral score
+        # Growth Score (earnings growth + consistency + price momentum)
+        growth_score = 50
+        earnings_growth_pct = growth_pct if 'growth_pct' in locals() else None
 
-        # Historical earnings growth component (0-50 points)
         earnings_component = 25
-        if earnings_growth is not None:
-            if earnings_growth > 30:
+        if earnings_growth_pct is not None:
+            if earnings_growth_pct > 30:
                 earnings_component = 50  # Exceptional growth
-            elif earnings_growth > 20:
+            elif earnings_growth_pct > 20:
                 earnings_component = 45  # Very strong growth
-            elif earnings_growth > 15:
+            elif earnings_growth_pct > 15:
                 earnings_component = 40  # Strong growth
-            elif earnings_growth > 10:
+            elif earnings_growth_pct > 10:
                 earnings_component = 35  # Good growth
-            elif earnings_growth > 5:
+            elif earnings_growth_pct > 5:
                 earnings_component = 28  # Moderate growth
-            elif earnings_growth > 0:
+            elif earnings_growth_pct > 0:
                 earnings_component = 22  # Positive but weak
-            elif earnings_growth > -5:
+            elif earnings_growth_pct > -5:
                 earnings_component = 15  # Slight decline
-            elif earnings_growth > -10:
+            elif earnings_growth_pct > -10:
                 earnings_component = 8   # Declining
             else:
                 earnings_component = 0   # Significant decline
@@ -961,7 +1040,13 @@ def get_stock_data_from_database(conn, symbol):
             'roc_20d': float(round(roc_20d, 2)) if roc_20d is not None else None,
             'roc_60d': float(round(roc_60d, 2)) if roc_60d is not None else None,
             'roc_120d': float(round(roc_120d, 2)) if roc_120d is not None else None,
-            'mansfield_rs': float(round(mansfield_rs, 2)) if mansfield_rs is not None else None
+            'mansfield_rs': float(round(mansfield_rs, 2)) if mansfield_rs is not None else None,
+            # Value components (5-component breakdown)
+            'value_pe_relative': float(round(pe_score, 2)),
+            'value_pb_relative': float(round(pb_score, 2)),
+            'value_ev_relative': float(round(ev_score, 2)),
+            'value_peg_score': float(round(peg_score, 2)),
+            'value_dcf_score': float(round(dcf_score, 2))
         }
 
     except Exception as e:
@@ -985,6 +1070,7 @@ def save_stock_score(conn, score_data):
             momentum_short_term, momentum_medium_term, momentum_longer_term,
             momentum_relative_strength, momentum_consistency,
             roc_10d, roc_20d, roc_60d, roc_120d, mansfield_rs,
+            value_pe_relative, value_pb_relative, value_ev_relative, value_peg_score, value_dcf_score,
             score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
@@ -995,6 +1081,7 @@ def save_stock_score(conn, score_data):
             %(momentum_short_term)s, %(momentum_medium_term)s, %(momentum_longer_term)s,
             %(momentum_relative_strength)s, %(momentum_consistency)s,
             %(roc_10d)s, %(roc_20d)s, %(roc_60d)s, %(roc_120d)s, %(mansfield_rs)s,
+            %(value_pe_relative)s, %(value_pb_relative)s, %(value_ev_relative)s, %(value_peg_score)s, %(value_dcf_score)s,
             CURRENT_DATE, CURRENT_TIMESTAMP
         ) ON CONFLICT (symbol) DO UPDATE SET
             composite_score = EXCLUDED.composite_score,
@@ -1027,6 +1114,11 @@ def save_stock_score(conn, score_data):
             roc_60d = EXCLUDED.roc_60d,
             roc_120d = EXCLUDED.roc_120d,
             mansfield_rs = EXCLUDED.mansfield_rs,
+            value_pe_relative = EXCLUDED.value_pe_relative,
+            value_pb_relative = EXCLUDED.value_pb_relative,
+            value_ev_relative = EXCLUDED.value_ev_relative,
+            value_peg_score = EXCLUDED.value_peg_score,
+            value_dcf_score = EXCLUDED.value_dcf_score,
             score_date = CURRENT_DATE,
             last_updated = CURRENT_TIMESTAMP
         """
