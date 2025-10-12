@@ -1094,14 +1094,6 @@ const ScoresDashboard = () => {
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Financial strength evaluation measuring profitability, balance sheet health, and operational efficiency
                           </Typography>
-                          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                            <Typography variant="body2" color="text.secondary">
-                              • Volatility (30d): {stock.volatility_30d?.toFixed(1) || "N/A"}%
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              • Market Cap: ${((stock.market_cap || 0) / 1e9).toFixed(2)}B
-                            </Typography>
-                          </Box>
 
                           <Divider sx={{ my: 2 }} />
 

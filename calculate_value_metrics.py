@@ -6,15 +6,16 @@ Calculates raw value input metrics (not scores) for use in loadstockscores.py
 Metrics Calculated:
 1. Valuation Multiples: P/E (forward/trailing), P/B, P/S, EV/EBITDA
 2. Dividend Yield: Annual dividend as % of stock price
-3. Benchmarks: Market and sector medians for comparison
-4. FCF Yield: Free cash flow / market cap
-5. PEG Ratio: P/E / earnings growth rate
-6. DCF Intrinsic Value: Discounted cash flow valuation
-7. DCF Discount: Percentage difference from intrinsic value
+3. FCF Yield: Free cash flow / market cap
+4. Market Benchmarks: P/E, P/B, P/S, EV/EBITDA, FCF Yield, Dividend Yield
+5. Sector Benchmarks: P/E, P/B, P/S, EV/EBITDA, FCF Yield, Dividend Yield
+6. PEG Ratio: P/E / earnings growth rate
+7. DCF Intrinsic Value: Discounted cash flow valuation
+8. DCF Discount: Percentage difference from intrinsic value
 
 Note: Scoring logic is in loadstockscores.py - this only calculates inputs
 
-Updated: 2025-10-12 - Added Dividend Yield and P/S metrics
+Updated: 2025-10-12 - Added comprehensive market & sector benchmarks for all metrics
 """
 
 import json
@@ -71,7 +72,12 @@ def calculate_market_benchmarks(cursor):
         SELECT
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.trailing_pe) as market_pe_median,
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_book) as market_pb_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_sales_ttm) as market_ps_median,
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.ev_to_ebitda) as market_ev_ebitda_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
+                (km.free_cashflow / NULLIF(km.enterprise_value - km.total_debt + km.total_cash, 0)) * 100
+            ) as market_fcf_yield_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.dividend_yield) as market_dividend_yield_median,
             COUNT(*) as stock_count
         FROM key_metrics km
         LEFT JOIN stock_symbols ss ON km.ticker = ss.symbol
@@ -86,26 +92,52 @@ def calculate_market_benchmarks(cursor):
     benchmarks = {
         "pe_median": float(row[0]) if row[0] else 18.0,
         "pb_median": float(row[1]) if row[1] else 2.5,
-        "ev_ebitda_median": float(row[2]) if row[2] else 12.0,
-        "stock_count": int(row[3]) if row[3] else 0,
+        "ps_median": float(row[2]) if row[2] else 2.8,
+        "ev_ebitda_median": float(row[3]) if row[3] else 12.0,
+        "fcf_yield_median": float(row[4]) if row[4] else 3.5,
+        "dividend_yield_median": float(row[5]) if row[5] else 1.8,
+        "stock_count": int(row[6]) if row[6] else 0,
     }
 
     logging.info(f"  Market PE Median: {benchmarks['pe_median']:.2f}")
     logging.info(f"  Market PB Median: {benchmarks['pb_median']:.2f}")
+    logging.info(f"  Market PS Median: {benchmarks['ps_median']:.2f}")
     logging.info(f"  Market EV/EBITDA Median: {benchmarks['ev_ebitda_median']:.2f}")
+    logging.info(f"  Market FCF Yield Median: {benchmarks['fcf_yield_median']:.2f}%")
+    logging.info(f"  Market Dividend Yield Median: {benchmarks['dividend_yield_median']:.2f}%")
     logging.info(f"  Stocks in Market: {benchmarks['stock_count']}")
 
     return benchmarks
 
 
 def get_sector_benchmarks(cursor):
-    """Get sector-level median valuation multiples"""
-    logging.info("Loading sector benchmarks...")
+    """Calculate sector-level median valuation multiples dynamically"""
+    logging.info("Calculating sector benchmarks...")
 
     cursor.execute("""
-        SELECT sector, pe_ratio, price_to_book, ev_to_ebitda, stock_count
-        FROM sector_benchmarks
-        WHERE sector != 'MARKET'
+        SELECT
+            cp.sector,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.trailing_pe) as sector_pe_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_book) as sector_pb_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_sales_ttm) as sector_ps_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.ev_to_ebitda) as sector_ev_ebitda_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
+                (km.free_cashflow / NULLIF(km.enterprise_value - km.total_debt + km.total_cash, 0)) * 100
+            ) as sector_fcf_yield_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.dividend_yield) as sector_dividend_yield_median,
+            COUNT(*) as stock_count
+        FROM key_metrics km
+        LEFT JOIN company_profile cp ON km.ticker = cp.ticker
+        LEFT JOIN stock_symbols ss ON km.ticker = ss.symbol
+        WHERE km.trailing_pe > 0
+          AND km.trailing_pe < 100
+          AND km.price_to_book > 0
+          AND km.ev_to_ebitda > 0
+          AND cp.sector IS NOT NULL
+          AND cp.sector != ''
+          AND (ss.etf IS NULL OR ss.etf != 'Y')
+        GROUP BY cp.sector
+        HAVING COUNT(*) >= 3
     """)
 
     sector_data = {}
@@ -113,11 +145,14 @@ def get_sector_benchmarks(cursor):
         sector_data[row[0]] = {
             "pe_median": float(row[1]) if row[1] else None,
             "pb_median": float(row[2]) if row[2] else None,
-            "ev_ebitda_median": float(row[3]) if row[3] else None,
-            "stock_count": int(row[4]) if row[4] else 0,
+            "ps_median": float(row[3]) if row[3] else None,
+            "ev_ebitda_median": float(row[4]) if row[4] else None,
+            "fcf_yield_median": float(row[5]) if row[5] else None,
+            "dividend_yield_median": float(row[6]) if row[6] else None,
+            "stock_count": int(row[7]) if row[7] else 0,
         }
 
-    logging.info(f"  Loaded benchmarks for {len(sector_data)} sectors")
+    logging.info(f"  Calculated benchmarks for {len(sector_data)} sectors")
     return sector_data
 
 
@@ -269,11 +304,14 @@ def calculate_value_metrics_for_stock(
         logging.debug(f"  {ticker}: Skipping (no valid P/E)")
         return None
 
-    # Get sector benchmarks
+    # Get sector benchmarks (fallback to market if sector not available)
     sector_bench = sector_benchmarks.get(sector, {})
     sector_pe = sector_bench.get("pe_median", market_benchmarks["pe_median"])
     sector_pb = sector_bench.get("pb_median", market_benchmarks["pb_median"])
+    sector_ps = sector_bench.get("ps_median", market_benchmarks["ps_median"])
     sector_ev = sector_bench.get("ev_ebitda_median", market_benchmarks["ev_ebitda_median"])
+    sector_fcf_yield = sector_bench.get("fcf_yield_median", market_benchmarks["fcf_yield_median"])
+    sector_dividend_yield = sector_bench.get("dividend_yield_median", market_benchmarks["dividend_yield_median"])
 
     # Calculate relative ratios (market-relative 70% + sector-relative 30%)
     pe_market_relative = pe / market_benchmarks["pe_median"] if pe else None
@@ -321,16 +359,23 @@ def calculate_value_metrics_for_stock(
         "forward_pe": float(forward_pe) if forward_pe else None,
         "trailing_pe": float(trailing_pe) if trailing_pe else None,
         "stock_pb": float(pb) if pb else None,
-        "stock_ev_ebitda": float(ev_ebitda) if ev_ebitda else None,
         "stock_ps": float(price_to_sales) if price_to_sales else None,
+        "stock_ev_ebitda": float(ev_ebitda) if ev_ebitda else None,
         "dividend_yield": float(dividend_yield) if dividend_yield else None,
-        # Benchmarks
+        # Market benchmarks
         "market_pe": market_benchmarks["pe_median"],
         "market_pb": market_benchmarks["pb_median"],
+        "market_ps": market_benchmarks["ps_median"],
         "market_ev_ebitda": market_benchmarks["ev_ebitda_median"],
+        "market_fcf_yield": market_benchmarks["fcf_yield_median"],
+        "market_dividend_yield": market_benchmarks["dividend_yield_median"],
+        # Sector benchmarks
         "sector_pe": sector_pe,
         "sector_pb": sector_pb,
+        "sector_ps": sector_ps,
         "sector_ev_ebitda": sector_ev,
+        "sector_fcf_yield": sector_fcf_yield,
+        "sector_dividend_yield": sector_dividend_yield,
         # Relative ratios (for scoring)
         "pe_relative": round(pe_relative, 4) if pe_relative else None,
         "pb_relative": round(pb_relative, 4) if pb_relative else None,
@@ -372,16 +417,23 @@ def store_value_metrics(cursor, value_data: Dict):
         "forward_pe": value_data["forward_pe"],
         "trailing_pe": value_data["trailing_pe"],
         "stock_pb": value_data["stock_pb"],
-        "stock_ev_ebitda": value_data["stock_ev_ebitda"],
         "stock_ps": value_data["stock_ps"],
+        "stock_ev_ebitda": value_data["stock_ev_ebitda"],
         "dividend_yield": value_data["dividend_yield"],
-        # Benchmarks
+        # Market benchmarks
         "market_pe": value_data["market_pe"],
         "market_pb": value_data["market_pb"],
+        "market_ps": value_data["market_ps"],
         "market_ev_ebitda": value_data["market_ev_ebitda"],
+        "market_fcf_yield": value_data["market_fcf_yield"],
+        "market_dividend_yield": value_data["market_dividend_yield"],
+        # Sector benchmarks
         "sector_pe": value_data["sector_pe"],
         "sector_pb": value_data["sector_pb"],
+        "sector_ps": value_data["sector_ps"],
         "sector_ev_ebitda": value_data["sector_ev_ebitda"],
+        "sector_fcf_yield": value_data["sector_fcf_yield"],
+        "sector_dividend_yield": value_data["sector_dividend_yield"],
         # Relative ratios
         "pe_relative": value_data["pe_relative"],
         "pb_relative": value_data["pb_relative"],
