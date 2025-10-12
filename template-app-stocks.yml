@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Application stack – RDS (public), Secrets (DB creds),
   ECS cluster, and ECS task execution role.
-  Updated: 2025-10-03 - Increased RDS storage to 30GB with autoscaling
+  Updated: 2025-10-12 - Reduced max autoscaling to 40GB to optimize costs
 
 Parameters:
   RDSUsername:
@@ -56,7 +56,7 @@ Resources:
       Engine: postgres
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 31
-      MaxAllocatedStorage: 100
+      MaxAllocatedStorage: 40
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
       VPCSecurityGroups:

@@ -1494,28 +1494,23 @@ const ScoresDashboard = () => {
                                 data={[
                                   {
                                     name: "PE Rel.",
-                                    value: stock.value_components?.pe_relative || 0,
-                                    max: 20
+                                    value: stock.value_components?.pe_relative || 0
                                   },
                                   {
                                     name: "PB Rel.",
-                                    value: stock.value_components?.pb_relative || 0,
-                                    max: 15
+                                    value: stock.value_components?.pb_relative || 0
                                   },
                                   {
                                     name: "EV Rel.",
-                                    value: stock.value_components?.ev_relative || 0,
-                                    max: 15
+                                    value: stock.value_components?.ev_relative || 0
                                   },
                                   {
                                     name: "PEG",
-                                    value: stock.value_components?.peg_score || 0,
-                                    max: 25
+                                    value: stock.value_components?.peg_score || 0
                                   },
                                   {
                                     name: "DCF",
-                                    value: stock.value_components?.dcf_score || 0,
-                                    max: 25
+                                    value: stock.value_components?.dcf_score || 0
                                   },
                                 ]}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
