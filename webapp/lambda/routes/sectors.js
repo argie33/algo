@@ -236,6 +236,17 @@ router.get("/analysis", async (req, res) => {
       "sector analysis"
     );
 
+    // Validate query result
+    if (!sectorData || !sectorData.rows) {
+      console.error("❌ Sector analysis query returned null or invalid result");
+      return res.status(503).json({
+        success: false,
+        error: "Database query returned no data",
+        message: "Sector analysis data is not available. The database may be empty or still loading.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     console.log(`✅ Found ${sectorData.rows.length} sectors`);
 
     // Calculate summary statistics
