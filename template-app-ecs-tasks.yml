@@ -2553,7 +2553,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/quality-metrics-calculator
+              awslogs-group: /ecs/qualitymetrics-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
@@ -2614,7 +2614,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/growth-metrics-calculator
+              awslogs-group: /ecs/growthmetrics-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
