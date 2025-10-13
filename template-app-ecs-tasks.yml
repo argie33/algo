@@ -2532,7 +2532,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: quality-metrics-calculator
+        - Name: qualitymetrics-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref QualityMetricsImageTag]]
           Essential: true
           Environment:
@@ -2593,7 +2593,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: growth-metrics-calculator
+        - Name: growthmetrics-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref GrowthMetricsImageTag]]
           Essential: true
           Environment:
