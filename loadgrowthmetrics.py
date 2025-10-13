@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-07 - Growth Metrics Calculator
+# Updated: 2025-10-13 - Growth Metrics Calculator (AWS deployment - fixed container names)
 """
 Growth Metrics Loader
 

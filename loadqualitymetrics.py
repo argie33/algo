@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-13 - Quality Metrics Calculator (AWS deployment)
+# Updated: 2025-10-13 - Quality Metrics Calculator (AWS deployment - fixed container names)
 """
 Quality Metrics Loader
 
