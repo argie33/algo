@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements-loadgrowthmetrics.txt .
+RUN pip install --no-cache-dir --prefer-binary -r requirements-loadgrowthmetrics.txt
+
+# Copy the loader script
+COPY loadgrowthmetrics.py .
+
+# Run the loader
+CMD ["python", "loadgrowthmetrics.py"]
