@@ -298,6 +298,9 @@ def process_symbol(symbol, conn_pool):
             conn_pool.putconn(conn)
             return 0
 
+        # Get current date for the record
+        current_date = datetime.now().date()
+
         # Create record with RAW metrics ONLY - no scores
         record = (
             symbol,

@@ -240,7 +240,7 @@ def process_symbol(symbol, conn_pool):
 
         logging.info(f"Processing quality metrics for {symbol}...")
 
-        # ========== STEP 1: Fetch Key Metrics (for Profitability Score) ==========
+        # ========== STEP 1: Fetch Key Metrics (from ticker.info data) ==========
         cursor.execute(
             """
             SELECT
@@ -248,7 +248,11 @@ def process_symbol(symbol, conn_pool):
                 return_on_assets_pct,
                 profit_margin_pct,
                 operating_margin_pct,
-                gross_margin_pct
+                gross_margin_pct,
+                current_ratio,
+                debt_to_equity,
+                free_cashflow,
+                net_income
             FROM key_metrics
             WHERE ticker = %s
             LIMIT 1
@@ -340,14 +344,22 @@ def process_symbol(symbol, conn_pool):
             conn_pool.putconn(conn)
             return 0
 
-        # ========== STEP 3: Calculate NEW Metrics NOT in other tables ==========
+        # ========== STEP 3: Calculate Metrics (prefer key_metrics, fallback to quarterly) ==========
         current_date = datetime.now().date()
 
-        # Initialize metrics
-        accruals_ratio = None
+        # Initialize metrics - try to get from key_metrics first
+        current_ratio = safe_numeric(metrics_row[5]) if metrics_row and len(metrics_row) > 5 else None
+        debt_to_equity = safe_numeric(metrics_row[6]) if metrics_row and len(metrics_row) > 6 else None
+        km_free_cashflow = safe_numeric(metrics_row[7]) if metrics_row and len(metrics_row) > 7 else None
+        km_net_income = safe_numeric(metrics_row[8]) if metrics_row and len(metrics_row) > 8 else None
+
+        # Calculate FCF to Net Income from key_metrics if available
         fcf_to_net_income = None
-        debt_to_equity = None
-        current_ratio = None
+        if km_free_cashflow is not None and km_net_income and km_net_income != 0:
+            fcf_to_net_income = km_free_cashflow / km_net_income
+
+        # These must be calculated from quarterly statements
+        accruals_ratio = None
         interest_coverage = None
         asset_turnover = None
 
@@ -369,16 +381,16 @@ def process_symbol(symbol, conn_pool):
             if net_income is not None and operating_cash_flow is not None and total_assets and total_assets > 0:
                 accruals_ratio = (net_income - operating_cash_flow) / total_assets
 
-            # FCF / Net Income
-            if free_cash_flow is not None and net_income and net_income != 0:
+            # Fallback: FCF / Net Income from quarterly if not from key_metrics
+            if fcf_to_net_income is None and free_cash_flow is not None and net_income and net_income != 0:
                 fcf_to_net_income = free_cash_flow / net_income
 
-            # Debt to Equity
-            if total_liabilities is not None and total_equity and total_equity > 0:
+            # Fallback: Debt to Equity from quarterly if not from key_metrics
+            if debt_to_equity is None and total_liabilities is not None and total_equity and total_equity > 0:
                 debt_to_equity = total_liabilities / total_equity
 
-            # Current Ratio
-            if current_assets is not None and current_liabilities and current_liabilities > 0:
+            # Fallback: Current Ratio from quarterly if not from key_metrics
+            if current_ratio is None and current_assets is not None and current_liabilities and current_liabilities > 0:
                 current_ratio = current_assets / current_liabilities
 
             # Interest Coverage = Operating Income / Interest Expense

@@ -42,6 +42,7 @@ router.get("/", async (req, res) => {
       SELECT
         ss.symbol,
         cp.short_name as company_name,
+        cp.sector,
         ss.composite_score,
         ss.momentum_score,
         ss.value_score,
@@ -62,7 +63,8 @@ router.get("/", async (req, res) => {
         ss.pe_ratio,
         ss.volume_avg_30d,
         ss.score_date,
-        ss.last_updated
+        ss.last_updated,
+        ss.acc_dist_rating
         ${hasNewMomentumColumns ? `,
         -- Momentum components (5-component breakdown)
         ss.momentum_short_term,
@@ -75,28 +77,47 @@ router.get("/", async (req, res) => {
         ss.roc_60d,
         ss.roc_120d,
         ss.mansfield_rs,
-        -- Value components (5-component breakdown)
-        ss.value_pe_relative,
-        ss.value_pb_relative,
-        ss.value_ev_relative,
-        ss.value_peg_score,
-        ss.value_dcf_score,
         -- Raw valuation inputs from key_metrics
         km.trailing_pe as stock_pe,
         km.price_to_book as stock_pb,
+        km.price_to_sales_ttm as stock_ps,
         km.ev_to_ebitda as stock_ev_ebitda,
+        km.free_cashflow::NUMERIC / NULLIF(md.market_cap, 0) * 100 as stock_fcf_yield,
+        km.dividend_yield as stock_dividend_yield,
         km.earnings_growth_pct,
         -- Sector benchmarks
         sb.pe_ratio as sector_pe,
         sb.price_to_book as sector_pb,
+        sb.price_to_sales as sector_ps,
         sb.ev_to_ebitda as sector_ev_ebitda,
-        -- DCF intrinsic value from value_metrics
-        vm.intrinsic_value as dcf_intrinsic_value` : ''}
+        sb.fcf_yield as sector_fcf_yield,
+        sb.dividend_yield as sector_dividend_yield,
+        -- Market benchmarks (calculated on-the-fly from all stocks)
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY trailing_pe) FROM key_metrics WHERE trailing_pe > 0) as market_pe,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_book) FROM key_metrics WHERE price_to_book > 0) as market_pb,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_sales_ttm) FROM key_metrics WHERE price_to_sales_ttm > 0) as market_ps,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km2.free_cashflow::NUMERIC / NULLIF(md2.market_cap, 0) * 100) FROM key_metrics km2 INNER JOIN market_data md2 ON km2.ticker = md2.ticker WHERE km2.free_cashflow > 0 AND md2.market_cap > 0) as market_fcf_yield,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dividend_yield) FROM key_metrics WHERE dividend_yield > 0) as market_dividend_yield` : ''}
         ${hasNewMomentumColumns ? `,
         pm.institutional_ownership,
         pm.insider_ownership,
         pm.short_percent_of_float,
-        pm.institution_count` : ''}
+        pm.short_ratio,
+        pm.institution_count,
+        -- Quality INPUT metrics from quality_metrics table
+        qm.accruals_ratio,
+        qm.fcf_to_net_income,
+        qm.debt_to_equity,
+        qm.current_ratio,
+        qm.interest_coverage,
+        qm.asset_turnover,
+        -- Growth INPUT metrics from growth_metrics table
+        gm.revenue_growth_3y_cagr,
+        gm.eps_growth_3y_cagr,
+        gm.operating_income_growth_yoy,
+        gm.roe_trend,
+        gm.sustainable_growth_rate,
+        gm.fcf_growth_yoy` : ''}
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${hasNewMomentumColumns ? `LEFT JOIN (
@@ -105,6 +126,7 @@ router.get("/", async (req, res) => {
           institutional_ownership,
           insider_ownership,
           short_percent_of_float,
+          short_ratio,
           institution_count
         FROM positioning_metrics
         ORDER BY symbol, date DESC
@@ -114,8 +136,11 @@ router.get("/", async (req, res) => {
           ticker,
           trailing_pe,
           price_to_book,
+          price_to_sales_ttm,
           ev_to_ebitda,
-          earnings_growth_pct
+          earnings_growth_pct,
+          free_cashflow,
+          dividend_yield
         FROM key_metrics
         ORDER BY ticker
       ) km ON ss.symbol = km.ticker
@@ -126,7 +151,38 @@ router.get("/", async (req, res) => {
           intrinsic_value
         FROM value_metrics
         ORDER BY symbol
-      ) vm ON ss.symbol = vm.symbol` : ''}
+      ) vm ON ss.symbol = vm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (ticker)
+          ticker,
+          market_cap
+        FROM market_data
+        ORDER BY ticker
+      ) md ON ss.symbol = md.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          accruals_ratio,
+          fcf_to_net_income,
+          debt_to_equity,
+          current_ratio,
+          interest_coverage,
+          asset_turnover
+        FROM quality_metrics
+        ORDER BY symbol, date DESC
+      ) qm ON ss.symbol = qm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          revenue_growth_3y_cagr,
+          eps_growth_3y_cagr,
+          operating_income_growth_yoy,
+          roe_trend,
+          sustainable_growth_rate,
+          fcf_growth_yoy
+        FROM growth_metrics
+        ORDER BY symbol, date DESC
+      ) gm ON ss.symbol = gm.symbol` : ''}
     `;
 
     const queryParams = [];
@@ -177,6 +233,7 @@ router.get("/", async (req, res) => {
     const stocksList = stocksResult.rows.map(row => ({
       symbol: row.symbol,
       company_name: row.company_name,
+      sector: row.sector,
       composite_score: parseFloat(row.composite_score) || 0,
       momentum_score: parseFloat(row.momentum_score) || 0,
       value_score: parseFloat(row.value_score) || 0,
@@ -216,33 +273,52 @@ router.get("/", async (req, res) => {
         institutional_ownership: parseFloat(row.institutional_ownership) || null,
         insider_ownership: parseFloat(row.insider_ownership) || null,
         short_percent_of_float: parseFloat(row.short_percent_of_float) || null,
-        institution_count: parseInt(row.institution_count) || null
-      },
-      // Add value components for frontend display
-      value_components: {
-        pe_relative: parseFloat(row.value_pe_relative) || null,
-        pb_relative: parseFloat(row.value_pb_relative) || null,
-        ev_relative: parseFloat(row.value_ev_relative) || null,
-        peg_score: parseFloat(row.value_peg_score) || null,
-        dcf_score: parseFloat(row.value_dcf_score) || null
+        short_ratio: parseFloat(row.short_ratio) || null,
+        days_to_cover: parseFloat(row.short_ratio) || null, // days_to_cover is same as short_ratio
+        institution_count: parseInt(row.institution_count) || null,
+        acc_dist_rating: parseFloat(row.acc_dist_rating) || null
       },
       // Add raw valuation inputs for frontend display
       value_inputs: {
         stock_pe: parseFloat(row.stock_pe) || null,
         stock_pb: parseFloat(row.stock_pb) || null,
+        stock_ps: parseFloat(row.stock_ps) || null,
         stock_ev_ebitda: parseFloat(row.stock_ev_ebitda) || null,
+        stock_fcf_yield: parseFloat(row.stock_fcf_yield) || null,
+        stock_dividend_yield: parseFloat(row.stock_dividend_yield) || null,
         sector_pe: parseFloat(row.sector_pe) || null,
         sector_pb: parseFloat(row.sector_pb) || null,
+        sector_ps: parseFloat(row.sector_ps) || null,
         sector_ev_ebitda: parseFloat(row.sector_ev_ebitda) || null,
+        sector_fcf_yield: parseFloat(row.sector_fcf_yield) || null,
+        sector_dividend_yield: parseFloat(row.sector_dividend_yield) || null,
+        market_pe: parseFloat(row.market_pe) || null,
+        market_pb: parseFloat(row.market_pb) || null,
+        market_ps: parseFloat(row.market_ps) || null,
+        market_fcf_yield: parseFloat(row.market_fcf_yield) || null,
+        market_dividend_yield: parseFloat(row.market_dividend_yield) || null,
         earnings_growth_pct: parseFloat(row.earnings_growth_pct) || null,
         peg_ratio: (row.stock_pe && row.earnings_growth_pct && row.earnings_growth_pct > 0)
           ? parseFloat((row.stock_pe / row.earnings_growth_pct).toFixed(2))
-          : null,
-        dcf_intrinsic_value: parseFloat(row.dcf_intrinsic_value) || null,
-        current_price: parseFloat(row.current_price) || null,
-        dcf_discount_pct: (row.dcf_intrinsic_value && row.current_price && row.current_price > 0)
-          ? parseFloat((((row.dcf_intrinsic_value - row.current_price) / row.current_price) * 100).toFixed(2))
           : null
+      },
+      // Add quality INPUT metrics for frontend display
+      quality_inputs: {
+        accruals_ratio: parseFloat(row.accruals_ratio) || null,
+        fcf_to_net_income: parseFloat(row.fcf_to_net_income) || null,
+        debt_to_equity: parseFloat(row.debt_to_equity) || null,
+        current_ratio: parseFloat(row.current_ratio) || null,
+        interest_coverage: parseFloat(row.interest_coverage) || null,
+        asset_turnover: parseFloat(row.asset_turnover) || null
+      },
+      // Add growth INPUT metrics for frontend display
+      growth_inputs: {
+        revenue_growth_3y_cagr: parseFloat(row.revenue_growth_3y_cagr) || null,
+        eps_growth_3y_cagr: parseFloat(row.eps_growth_3y_cagr) || null,
+        operating_income_growth_yoy: parseFloat(row.operating_income_growth_yoy) || null,
+        roe_trend: parseFloat(row.roe_trend) || null,
+        sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
+        fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null
       }
     }));
 
@@ -303,6 +379,7 @@ router.get("/:symbol", async (req, res) => {
       SELECT
         ss.symbol,
         cp.short_name as company_name,
+        cp.sector,
         ss.composite_score,
         ss.momentum_score,
         ss.value_score,
@@ -323,7 +400,8 @@ router.get("/:symbol", async (req, res) => {
         ss.pe_ratio,
         ss.volume_avg_30d,
         ss.score_date,
-        ss.last_updated
+        ss.last_updated,
+        ss.acc_dist_rating
         ${hasNewMomentumColumns ? `,
         -- Momentum components (5-component breakdown)
         ss.momentum_short_term,
@@ -336,29 +414,48 @@ router.get("/:symbol", async (req, res) => {
         ss.roc_60d,
         ss.roc_120d,
         ss.mansfield_rs,
-        -- Value components (5-component breakdown)
-        ss.value_pe_relative,
-        ss.value_pb_relative,
-        ss.value_ev_relative,
-        ss.value_peg_score,
-        ss.value_dcf_score,
         -- Raw valuation inputs from key_metrics
         km.trailing_pe as stock_pe,
         km.price_to_book as stock_pb,
+        km.price_to_sales_ttm as stock_ps,
         km.ev_to_ebitda as stock_ev_ebitda,
+        km.free_cashflow::NUMERIC / NULLIF(md.market_cap, 0) * 100 as stock_fcf_yield,
+        km.dividend_yield as stock_dividend_yield,
         km.earnings_growth_pct,
         -- Sector benchmarks
         sb.pe_ratio as sector_pe,
         sb.price_to_book as sector_pb,
+        sb.price_to_sales as sector_ps,
         sb.ev_to_ebitda as sector_ev_ebitda,
-        -- DCF intrinsic value from value_metrics
-        vm.intrinsic_value as dcf_intrinsic_value` : ''}
+        sb.fcf_yield as sector_fcf_yield,
+        sb.dividend_yield as sector_dividend_yield,
+        -- Market benchmarks (calculated on-the-fly from all stocks)
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY trailing_pe) FROM key_metrics WHERE trailing_pe > 0) as market_pe,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_book) FROM key_metrics WHERE price_to_book > 0) as market_pb,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_sales_ttm) FROM key_metrics WHERE price_to_sales_ttm > 0) as market_ps,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km2.free_cashflow::NUMERIC / NULLIF(md2.market_cap, 0) * 100) FROM key_metrics km2 INNER JOIN market_data md2 ON km2.ticker = md2.ticker WHERE km2.free_cashflow > 0 AND md2.market_cap > 0) as market_fcf_yield,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dividend_yield) FROM key_metrics WHERE dividend_yield > 0) as market_dividend_yield` : ''}
         ${hasNewMomentumColumns ? `,
         -- Add positioning components from positioning_metrics table
         pm.institutional_ownership,
         pm.insider_ownership,
         pm.short_percent_of_float,
-        pm.institution_count` : ''}
+        pm.short_ratio,
+        pm.institution_count,
+        -- Quality INPUT metrics from quality_metrics table
+        qm.accruals_ratio,
+        qm.fcf_to_net_income,
+        qm.debt_to_equity,
+        qm.current_ratio,
+        qm.interest_coverage,
+        qm.asset_turnover,
+        -- Growth INPUT metrics from growth_metrics table
+        gm.revenue_growth_3y_cagr,
+        gm.eps_growth_3y_cagr,
+        gm.operating_income_growth_yoy,
+        gm.roe_trend,
+        gm.sustainable_growth_rate,
+        gm.fcf_growth_yoy` : ''}
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${hasNewMomentumColumns ? `LEFT JOIN (
@@ -367,6 +464,7 @@ router.get("/:symbol", async (req, res) => {
           institutional_ownership,
           insider_ownership,
           short_percent_of_float,
+          short_ratio,
           institution_count
         FROM positioning_metrics
         ORDER BY symbol, date DESC
@@ -376,8 +474,11 @@ router.get("/:symbol", async (req, res) => {
           ticker,
           trailing_pe,
           price_to_book,
+          price_to_sales_ttm,
           ev_to_ebitda,
-          earnings_growth_pct
+          earnings_growth_pct,
+          free_cashflow,
+          dividend_yield
         FROM key_metrics
         ORDER BY ticker
       ) km ON ss.symbol = km.ticker
@@ -388,7 +489,38 @@ router.get("/:symbol", async (req, res) => {
           intrinsic_value
         FROM value_metrics
         ORDER BY symbol
-      ) vm ON ss.symbol = vm.symbol` : ''}
+      ) vm ON ss.symbol = vm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (ticker)
+          ticker,
+          market_cap
+        FROM market_data
+        ORDER BY ticker
+      ) md ON ss.symbol = md.ticker
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          accruals_ratio,
+          fcf_to_net_income,
+          debt_to_equity,
+          current_ratio,
+          interest_coverage,
+          asset_turnover
+        FROM quality_metrics
+        ORDER BY symbol, date DESC
+      ) qm ON ss.symbol = qm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          revenue_growth_3y_cagr,
+          eps_growth_3y_cagr,
+          operating_income_growth_yoy,
+          roe_trend,
+          sustainable_growth_rate,
+          fcf_growth_yoy
+        FROM growth_metrics
+        ORDER BY symbol, date DESC
+      ) gm ON ss.symbol = gm.symbol` : ''}
       WHERE ss.symbol = $1
     `;
 
@@ -410,6 +542,7 @@ router.get("/:symbol", async (req, res) => {
       data: {
         symbol: row.symbol,
         companyName: row.company_name,
+        sector: row.sector,
         compositeScore: parseFloat(row.composite_score) || 0,
         currentPrice: parseFloat(row.current_price) || 0,
         priceChange1d: parseFloat(row.price_change_1d) || 0,
@@ -437,38 +570,51 @@ router.get("/:symbol", async (req, res) => {
           },
           value: {
             score: parseFloat(row.value_score) || 0,
-            components: {
-              pe_relative: parseFloat(row.value_pe_relative) || null,
-              pb_relative: parseFloat(row.value_pb_relative) || null,
-              ev_relative: parseFloat(row.value_ev_relative) || null,
-              peg_score: parseFloat(row.value_peg_score) || null,
-              dcf_score: parseFloat(row.value_dcf_score) || null
-            },
             inputs: {
               stock_pe: parseFloat(row.stock_pe) || null,
               stock_pb: parseFloat(row.stock_pb) || null,
+              stock_ps: parseFloat(row.stock_ps) || null,
               stock_ev_ebitda: parseFloat(row.stock_ev_ebitda) || null,
+              stock_fcf_yield: parseFloat(row.stock_fcf_yield) || null,
+              stock_dividend_yield: parseFloat(row.stock_dividend_yield) || null,
               sector_pe: parseFloat(row.sector_pe) || null,
               sector_pb: parseFloat(row.sector_pb) || null,
+              sector_ps: parseFloat(row.sector_ps) || null,
               sector_ev_ebitda: parseFloat(row.sector_ev_ebitda) || null,
+              sector_fcf_yield: parseFloat(row.sector_fcf_yield) || null,
+              sector_dividend_yield: parseFloat(row.sector_dividend_yield) || null,
+              market_pe: parseFloat(row.market_pe) || null,
+              market_pb: parseFloat(row.market_pb) || null,
+              market_ps: parseFloat(row.market_ps) || null,
+              market_fcf_yield: parseFloat(row.market_fcf_yield) || null,
+              market_dividend_yield: parseFloat(row.market_dividend_yield) || null,
               earnings_growth_pct: parseFloat(row.earnings_growth_pct) || null,
               peg_ratio: (row.stock_pe && row.earnings_growth_pct && row.earnings_growth_pct > 0)
                 ? parseFloat((row.stock_pe / row.earnings_growth_pct).toFixed(2))
-                : null,
-              dcf_intrinsic_value: parseFloat(row.dcf_intrinsic_value) || null,
-              current_price: parseFloat(row.current_price) || null,
-              dcf_discount_pct: (row.dcf_intrinsic_value && row.current_price && row.current_price > 0)
-                ? parseFloat((((row.dcf_intrinsic_value - row.current_price) / row.current_price) * 100).toFixed(2))
                 : null
             }
           },
           quality: {
             score: parseFloat(row.quality_score) || 0,
-            components: {}
+            inputs: {
+              accruals_ratio: parseFloat(row.accruals_ratio) || null,
+              fcf_to_net_income: parseFloat(row.fcf_to_net_income) || null,
+              debt_to_equity: parseFloat(row.debt_to_equity) || null,
+              current_ratio: parseFloat(row.current_ratio) || null,
+              interest_coverage: parseFloat(row.interest_coverage) || null,
+              asset_turnover: parseFloat(row.asset_turnover) || null
+            }
           },
           growth: {
             score: parseFloat(row.growth_score) || 0,
-            components: {}
+            inputs: {
+              revenue_growth_3y_cagr: parseFloat(row.revenue_growth_3y_cagr) || null,
+              eps_growth_3y_cagr: parseFloat(row.eps_growth_3y_cagr) || null,
+              operating_income_growth_yoy: parseFloat(row.operating_income_growth_yoy) || null,
+              roe_trend: parseFloat(row.roe_trend) || null,
+              sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
+              fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null
+            }
           },
           positioning: {
             score: parseFloat(row.positioning_score) || 0,
@@ -476,7 +622,10 @@ router.get("/:symbol", async (req, res) => {
               institutional_ownership: parseFloat(row.institutional_ownership) || null,
               insider_ownership: parseFloat(row.insider_ownership) || null,
               short_percent_of_float: parseFloat(row.short_percent_of_float) || null,
-              institution_count: parseInt(row.institution_count) || null
+              short_ratio: parseFloat(row.short_ratio) || null,
+              days_to_cover: parseFloat(row.short_ratio) || null,
+              institution_count: parseInt(row.institution_count) || null,
+              acc_dist_rating: parseFloat(row.acc_dist_rating) || null
             }
           },
           sentiment: {
