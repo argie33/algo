@@ -43,7 +43,8 @@ Resources:
           Description: "Allow Postgres traffic from anywhere"
 
   ### 3) RDS Instance ###
-  # FORCE UPDATE: Increasing storage from 20GB to 31GB (deployed template still shows 20GB)
+  # NOTE: Current DB has 61GB allocated. Cannot reduce storage in RDS.
+  # Keeping current values to prevent deployment failures.
   StocksDBInstance:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Retain
@@ -55,8 +56,8 @@ Resources:
       DBName: stocks
       Engine: postgres
       DBInstanceClass: db.t3.micro
-      AllocatedStorage: 31
-      MaxAllocatedStorage: 40
+      AllocatedStorage: 61
+      MaxAllocatedStorage: 100
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
       VPCSecurityGroups:
@@ -67,7 +68,7 @@ Resources:
       DeletionProtection: false
       Tags:
         - Key: StorageUpdate
-          Value: "force-31gb-deployment-v2"
+          Value: "fixed-61gb-current-allocation"
   ### 4) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret

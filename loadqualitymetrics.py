@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-07 - Quality Metrics Calculator
+# Updated: 2025-10-13 - Quality Metrics Calculator (AWS deployment)
 """
 Quality Metrics Loader
 
