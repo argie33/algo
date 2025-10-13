@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script - Enhanced Scoring Logic v2.2 (Updated: 2025-10-12)
+Stock Scores Loader Script - Enhanced Scoring Logic v2.2 (Updated: 2025-10-13)
+Trigger: Quality metrics with interest coverage removed - Deploy to AWS
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
 FIX: Trigger rebuild - Docker image has old code with scoring_engine import error.
@@ -136,12 +137,8 @@ def create_stock_scores_table(conn):
                 roc_252d DECIMAL(8,2),
                 mom DECIMAL(10,2),
                 mansfield_rs DECIMAL(8,2),
-                -- Value component breakdown (5-component system)
-                value_pe_relative DOUBLE PRECISION,
-                value_pb_relative DOUBLE PRECISION,
-                value_ev_relative DOUBLE PRECISION,
-                value_peg_score DOUBLE PRECISION,
-                value_dcf_score DOUBLE PRECISION,
+                -- Positioning component: Accumulation/Distribution Rating
+                acc_dist_rating DECIMAL(5,2),
                 score_date DATE DEFAULT CURRENT_DATE,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -244,19 +241,120 @@ def calculate_volatility(prices, period=30):
     volatility = np.std(returns) * np.sqrt(252) * 100  # Annualized volatility
     return round(volatility, 2)
 
+def calculate_accumulation_distribution(df, lookback_days=65):
+    """
+    Calculate IBD-style Accumulation/Distribution Rating (0-100 scale).
+    Measures institutional buying/selling patterns over past 13 weeks (~65 trading days).
+
+    Returns:
+        float: 0-100 score where:
+               80-100 = Heavy Accumulation (institutions buying aggressively)
+               60-80  = Moderate Accumulation
+               40-60  = Neutral
+               20-40  = Moderate Distribution
+               0-20   = Heavy Distribution (institutions selling)
+    """
+    if len(df) < lookback_days:
+        return None
+
+    # Get last N days
+    recent_data = df.tail(lookback_days).copy()
+
+    # Calculate average volume for threshold
+    avg_volume = recent_data['volume'].mean()
+    if avg_volume == 0:
+        return None
+
+    # Calculate daily accumulation/distribution scores
+    acc_dist_score = 0
+    total_weight = 0
+
+    for i, (idx, row) in enumerate(recent_data.iterrows()):
+        # Recency weight (more recent = higher weight)
+        # Last 20 days = 2x weight, previous 45 days = 1x weight
+        days_from_end = len(recent_data) - i - 1
+        if days_from_end < 20:
+            weight = 2.0
+        else:
+            weight = 1.0
+
+        # Price change
+        price_change = float(row['close']) - float(row['open'])
+
+        # Volume above average?
+        volume_ratio = float(row['volume']) / avg_volume if avg_volume > 0 else 1
+
+        # Closing position (close near high = stronger)
+        high = float(row['high'])
+        low = float(row['low'])
+        close = float(row['close'])
+
+        if high > low:
+            close_position = (close - low) / (high - low)
+        else:
+            close_position = 0.5
+
+        # Daily score calculation
+        daily_score = 0
+
+        # ACCUMULATION SIGNALS (Institutions Buying)
+        if price_change > 0 and volume_ratio > 1.25:
+            # Strong accumulation - up day with heavy volume
+            daily_score = 2.0 * weight
+            # Bonus if close near high
+            if close_position > 0.8:
+                daily_score += 0.5 * weight
+
+        elif price_change > 0 and volume_ratio > 1.0:
+            # Moderate accumulation - up day with above-avg volume
+            daily_score = 1.0 * weight
+
+        elif price_change > 0 and volume_ratio < 0.8:
+            # Weak buying (not institutional)
+            daily_score = 0.3 * weight
+
+        # DISTRIBUTION SIGNALS (Institutions Selling)
+        elif price_change < 0 and volume_ratio > 1.25:
+            # Strong distribution - down day with heavy volume
+            daily_score = -2.0 * weight
+            # Extra penalty if close near low
+            if close_position < 0.2:
+                daily_score -= 0.5 * weight
+
+        elif price_change < 0 and volume_ratio > 1.0:
+            # Moderate distribution - down day with above-avg volume
+            daily_score = -1.0 * weight
+
+        elif price_change < 0 and volume_ratio < 0.8:
+            # Weak selling (not significant)
+            daily_score = -0.3 * weight
+
+        acc_dist_score += daily_score
+        total_weight += weight
+
+    # Normalize to 0-100 scale
+    # Maximum possible score ≈ 2.5 * total_weight (all strong accumulation)
+    max_possible = 2.5 * total_weight
+
+    # Convert to 0-100 scale (50 = neutral)
+    normalized_score = 50 + (acc_dist_score / max_possible) * 50
+    normalized_score = max(0, min(100, normalized_score))
+
+    return round(normalized_score, 2)
+
 def get_stock_data_from_database(conn, symbol):
     """Get stock data from database tables and calculate all scores."""
     try:
         cur = conn.cursor()
 
-        # Get price data from price_daily table (last 90 days for calculations)
+        # Get price data from price_daily table (last 120 days for calculations to ensure 65+ trading days)
         cur.execute("""
             SELECT date, open, high, low, close, volume, adj_close
             FROM price_daily
             WHERE symbol = %s
-            AND date >= CURRENT_DATE - INTERVAL '90 days'
+            AND date >= CURRENT_DATE - INTERVAL '120 days'
             ORDER BY date DESC
-            LIMIT 90
+            LIMIT 120
         """, (symbol,))
 
         price_data = cur.fetchall()
@@ -322,6 +420,9 @@ def get_stock_data_from_database(conn, symbol):
 
         prices = df['close'].astype(float).values
         volatility_30d = calculate_volatility(prices)
+
+        # Calculate IBD-style Accumulation/Distribution Rating
+        acc_dist_rating = calculate_accumulation_distribution(df, lookback_days=65)
 
         # Get earnings data for PE ratio calculation only
         cur.execute("""
@@ -636,126 +737,8 @@ def get_stock_data_from_database(conn, symbol):
                 trend_score = 40 + max(-20, (price_change_30d * 0.5))
             trend_score = max(0, min(100, trend_score))
 
-        # Value Score (5-component system: PE, PB, EV, PEG, DCF)
+        # Value Score - Simplified (neutral at 50, raw metrics are displayed separately)
         value_score = 50
-        pe_score = 10.0
-        pb_score = 7.5
-        ev_score = 7.5
-        peg_score = 12.5
-        dcf_score = 12.5
-
-        try:
-            cur.execute("""
-                SELECT trailing_pe, price_to_book, ev_to_ebitda, earnings_growth_pct
-                FROM key_metrics
-                WHERE ticker = %s
-                LIMIT 1
-            """, (symbol,))
-
-            valuation_data = cur.fetchone()
-
-            if valuation_data:
-                stock_pe = float(valuation_data[0]) if valuation_data[0] is not None else None
-                stock_pb = float(valuation_data[1]) if valuation_data[1] is not None else None
-                stock_ev_ebitda = float(valuation_data[2]) if valuation_data[2] is not None else None
-                growth_pct = float(valuation_data[3]) if valuation_data[3] is not None else None
-
-                cur.execute("SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1", (symbol,))
-                sector_row = cur.fetchone()
-                stock_sector = sector_row[0] if sector_row else None
-
-                if stock_sector:
-                    cur.execute("""
-                        SELECT pe_ratio, price_to_book, ev_to_ebitda
-                        FROM sector_benchmarks
-                        WHERE sector = %s
-                        LIMIT 1
-                    """, (stock_sector,))
-
-                    sector_data = cur.fetchone()
-
-                    if sector_data:
-                        sector_pe = float(sector_data[0]) if sector_data[0] is not None else None
-                        sector_pb = float(sector_data[1]) if sector_data[1] is not None else None
-                        sector_ev_ebitda = float(sector_data[2]) if sector_data[2] is not None else None
-
-                        if stock_pe and sector_pe and stock_pe > 0 and sector_pe > 0:
-                            pe_relative = stock_pe / sector_pe
-                            if pe_relative <= 0.5:
-                                pe_score = 20
-                            elif pe_relative <= 1.0:
-                                pe_score = 10 + (1.0 - pe_relative) / 0.5 * 10
-                            elif pe_relative <= 1.5:
-                                pe_score = max(0, 10 - (pe_relative - 1.0) / 0.5 * 10)
-                            else:
-                                pe_score = 0
-
-                        if stock_pb and sector_pb and stock_pb > 0 and sector_pb > 0:
-                            pb_relative = stock_pb / sector_pb
-                            if pb_relative <= 0.5:
-                                pb_score = 15
-                            elif pb_relative <= 1.0:
-                                pb_score = 7.5 + (1.0 - pb_relative) / 0.5 * 7.5
-                            elif pb_relative <= 1.5:
-                                pb_score = max(0, 7.5 - (pb_relative - 1.0) / 0.5 * 7.5)
-                            else:
-                                pb_score = 0
-
-                        if stock_ev_ebitda and sector_ev_ebitda and stock_ev_ebitda > 0 and sector_ev_ebitda > 0:
-                            ev_relative = stock_ev_ebitda / sector_ev_ebitda
-                            if ev_relative <= 0.5:
-                                ev_score = 15
-                            elif ev_relative <= 1.0:
-                                ev_score = 7.5 + (1.0 - ev_relative) / 0.5 * 7.5
-                            elif ev_relative <= 1.5:
-                                ev_score = max(0, 7.5 - (ev_relative - 1.0) / 0.5 * 7.5)
-                            else:
-                                ev_score = 0
-
-                if stock_pe and growth_pct and stock_pe > 0 and growth_pct > 0:
-                    peg_ratio = stock_pe / growth_pct
-                    if peg_ratio < 0.5:
-                        peg_score = 25
-                    elif peg_ratio < 1.0:
-                        peg_score = 18.75 + (1.0 - peg_ratio) / 0.5 * 6.25
-                    elif peg_ratio < 1.5:
-                        peg_score = 12.5 + (1.5 - peg_ratio) / 0.5 * 6.25
-                    elif peg_ratio < 2.0:
-                        peg_score = 6.25 + (2.0 - peg_ratio) / 0.5 * 6.25
-                    elif peg_ratio < 2.5:
-                        peg_score = 3.125 + (2.5 - peg_ratio) / 0.5 * 3.125
-                    else:
-                        peg_score = max(0, 3.125 - (peg_ratio - 2.5) * 1.25)
-
-            cur.execute("""
-                SELECT intrinsic_value
-                FROM value_metrics
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 1
-            """, (symbol,))
-
-            intrinsic_data = cur.fetchone()
-            if intrinsic_data and intrinsic_data[0]:
-                intrinsic_value = float(intrinsic_data[0])
-                if intrinsic_value > 0 and current_price > 0:
-                    discount_premium = (intrinsic_value - current_price) / current_price
-                    if discount_premium >= 0.5:
-                        dcf_score = 25
-                    elif discount_premium >= 0:
-                        dcf_score = 12.5 + discount_premium / 0.5 * 12.5
-                    elif discount_premium >= -0.5:
-                        dcf_score = 12.5 + discount_premium / 0.5 * 12.5
-                    else:
-                        dcf_score = 0
-
-            value_score = pe_score + pb_score + ev_score + peg_score + dcf_score
-            value_score = max(0, min(100, value_score))
-
-        except psycopg2.Error as e:
-            conn.rollback()
-            logger.warning(f"Value metrics query failed for {symbol}: {e}")
-            value_score = 50
 
         # Quality Score (volatility risk + volume consistency + price stability)
         quality_score = 50  # Start neutral
@@ -873,7 +856,8 @@ def get_stock_data_from_database(conn, symbol):
         growth_score = earnings_component + momentum_component + consistency_bonus
         growth_score = max(0, min(100, growth_score))
 
-        # Positioning Score (Real institutional and insider data)
+        # Positioning Score (Real institutional and insider data + Accumulation/Distribution)
+        # 5-component system: Institutional(25%), Insider(20%), Short(20%), Acc/Dist(25%), Count(10%)
         # NO FALLBACK VALUES - if data is missing, positioning_score will be None
         positioning_score = None
 
@@ -881,80 +865,89 @@ def get_stock_data_from_database(conn, symbol):
         if any([institutional_ownership is not None,
                 insider_ownership is not None,
                 short_percent_of_float is not None,
-                institution_count is not None]):
+                institution_count is not None,
+                acc_dist_rating is not None]):
 
             inst_score = 0
             insider_score = 0
             short_score = 0
+            acc_dist_score = 0
             count_score = 0
 
-            # Institutional ownership component (0-35 points)
+            # Institutional ownership component (0-25 points) - 25%
             # Optimal range: 40-70% (strong institutional support but not too crowded)
             if institutional_ownership is not None:
                 if 40 <= institutional_ownership <= 70:
-                    inst_score = 35  # Optimal institutional ownership
+                    inst_score = 25  # Optimal institutional ownership
                 elif 30 <= institutional_ownership < 40:
-                    inst_score = 30  # Good institutional ownership
+                    inst_score = 22  # Good institutional ownership
                 elif 70 < institutional_ownership <= 80:
-                    inst_score = 28  # High but acceptable
+                    inst_score = 20  # High but acceptable
                 elif 20 <= institutional_ownership < 30:
-                    inst_score = 22  # Moderate institutional ownership
+                    inst_score = 16  # Moderate institutional ownership
                 elif 80 < institutional_ownership <= 90:
-                    inst_score = 20  # Very high (crowded trade risk)
+                    inst_score = 14  # Very high (crowded trade risk)
                 elif institutional_ownership < 20:
-                    inst_score = 15  # Low institutional interest
+                    inst_score = 10  # Low institutional interest
                 else:  # > 90%
-                    inst_score = 10  # Extremely crowded
+                    inst_score = 7   # Extremely crowded
 
-            # Insider ownership component (0-25 points)
+            # Insider ownership component (0-20 points) - 20%
             # Higher is better (skin in the game)
             if insider_ownership is not None:
                 if insider_ownership >= 15:
-                    insider_score = 25  # Very strong insider ownership
+                    insider_score = 20  # Very strong insider ownership
                 elif insider_ownership >= 10:
-                    insider_score = 22  # Strong insider ownership
+                    insider_score = 18  # Strong insider ownership
                 elif insider_ownership >= 5:
-                    insider_score = 18  # Good insider ownership
+                    insider_score = 14  # Good insider ownership
                 elif insider_ownership >= 2:
-                    insider_score = 12  # Moderate insider ownership
+                    insider_score = 10  # Moderate insider ownership
                 elif insider_ownership >= 1:
-                    insider_score = 8   # Low insider ownership
+                    insider_score = 6   # Low insider ownership
                 else:
-                    insider_score = 3   # Very low/no insider ownership
+                    insider_score = 2   # Very low/no insider ownership
 
-            # Short interest component (0-25 points)
+            # Short interest component (0-20 points) - 20%
             # Lower is better (less bearish pressure)
             if short_percent_of_float is not None:
                 if short_percent_of_float < 2:
-                    short_score = 25  # Very low short interest
+                    short_score = 20  # Very low short interest
                 elif short_percent_of_float < 5:
-                    short_score = 22  # Low short interest
+                    short_score = 18  # Low short interest
                 elif short_percent_of_float < 10:
-                    short_score = 18  # Moderate short interest
+                    short_score = 14  # Moderate short interest
                 elif short_percent_of_float < 15:
-                    short_score = 12  # High short interest
+                    short_score = 10  # High short interest
                 elif short_percent_of_float < 20:
-                    short_score = 6   # Very high short interest
+                    short_score = 5   # Very high short interest
                 else:
                     short_score = 0   # Extremely high short interest
 
-            # Institution count component (0-15 points)
+            # Accumulation/Distribution Rating component (0-25 points) - 25%
+            # IBD-style institutional buying/selling patterns
+            # 0-100 scale where 80-100=Heavy Accumulation, 0-20=Heavy Distribution
+            if acc_dist_rating is not None:
+                # Scale 0-100 rating to 0-25 points (25% of positioning score)
+                acc_dist_score = (acc_dist_rating / 100) * 25
+
+            # Institution count component (0-10 points) - 10%
             # More institutions = broader confidence
             if institution_count is not None:
                 if institution_count >= 500:
-                    count_score = 15  # Very broad institutional support
+                    count_score = 10  # Very broad institutional support
                 elif institution_count >= 300:
-                    count_score = 13  # Broad institutional support
+                    count_score = 9   # Broad institutional support
                 elif institution_count >= 200:
-                    count_score = 10  # Good institutional support
+                    count_score = 7   # Good institutional support
                 elif institution_count >= 100:
-                    count_score = 7   # Moderate institutional support
+                    count_score = 5   # Moderate institutional support
                 elif institution_count >= 50:
-                    count_score = 4   # Limited institutional support
+                    count_score = 3   # Limited institutional support
                 else:
                     count_score = 0   # Very limited institutional support
 
-            positioning_score = inst_score + insider_score + short_score + count_score
+            positioning_score = inst_score + insider_score + short_score + acc_dist_score + count_score
             positioning_score = max(0, min(100, positioning_score))
 
         # Sentiment Score (Analyst ratings + Market sentiment)
@@ -1048,12 +1041,8 @@ def get_stock_data_from_database(conn, symbol):
             'roc_252d': float(round(roc_252d, 2)) if roc_252d is not None else None,
             'mom': float(round(mom_10d, 2)) if mom_10d is not None else None,
             'mansfield_rs': float(round(mansfield_rs, 2)) if mansfield_rs is not None else None,
-            # Value components (5-component breakdown)
-            'value_pe_relative': float(round(pe_score, 2)),
-            'value_pb_relative': float(round(pb_score, 2)),
-            'value_ev_relative': float(round(ev_score, 2)),
-            'value_peg_score': float(round(peg_score, 2)),
-            'value_dcf_score': float(round(dcf_score, 2))
+            # Positioning component: Accumulation/Distribution Rating
+            'acc_dist_rating': float(round(acc_dist_rating, 2)) if acc_dist_rating is not None else None
         }
 
     except Exception as e:
@@ -1077,7 +1066,7 @@ def save_stock_score(conn, score_data):
             momentum_short_term, momentum_medium_term, momentum_longer_term,
             momentum_relative_strength, momentum_consistency,
             roc_10d, roc_20d, roc_60d, roc_120d, roc_252d, mom, mansfield_rs,
-            value_pe_relative, value_pb_relative, value_ev_relative, value_peg_score, value_dcf_score,
+            acc_dist_rating,
             score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
@@ -1088,7 +1077,7 @@ def save_stock_score(conn, score_data):
             %(momentum_short_term)s, %(momentum_medium_term)s, %(momentum_longer_term)s,
             %(momentum_relative_strength)s, %(momentum_consistency)s,
             %(roc_10d)s, %(roc_20d)s, %(roc_60d)s, %(roc_120d)s, %(roc_252d)s, %(mom)s, %(mansfield_rs)s,
-            %(value_pe_relative)s, %(value_pb_relative)s, %(value_ev_relative)s, %(value_peg_score)s, %(value_dcf_score)s,
+            %(acc_dist_rating)s,
             CURRENT_DATE, CURRENT_TIMESTAMP
         ) ON CONFLICT (symbol) DO UPDATE SET
             composite_score = EXCLUDED.composite_score,
@@ -1123,11 +1112,7 @@ def save_stock_score(conn, score_data):
             roc_252d = EXCLUDED.roc_252d,
             mom = EXCLUDED.mom,
             mansfield_rs = EXCLUDED.mansfield_rs,
-            value_pe_relative = EXCLUDED.value_pe_relative,
-            value_pb_relative = EXCLUDED.value_pb_relative,
-            value_ev_relative = EXCLUDED.value_ev_relative,
-            value_peg_score = EXCLUDED.value_peg_score,
-            value_dcf_score = EXCLUDED.value_dcf_score,
+            acc_dist_rating = EXCLUDED.acc_dist_rating,
             score_date = CURRENT_DATE,
             last_updated = CURRENT_TIMESTAMP
         """
