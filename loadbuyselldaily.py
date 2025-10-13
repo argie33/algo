@@ -160,8 +160,8 @@ def create_buy_sell_table(cur):
         volume_ratio NUMERIC(6,2),
         volume_analysis VARCHAR(30),
         entry_quality_score INTEGER,
-        profit_target_8pct REAL,
         profit_target_20pct REAL,
+        profit_target_25pct REAL,
         current_gain_loss_pct NUMERIC(6,2),
         risk_pct NUMERIC(6,2),
         position_size_recommendation NUMERIC(18,2),
@@ -734,9 +734,9 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     CASE WHEN stg.rsi BETWEEN 40 AND 70 THEN 20 ELSE 0 END
                 )::INTEGER as entry_quality_score,
 
-                -- Profit targets
-                CASE WHEN stg.buylevel IS NOT NULL THEN (stg.buylevel * 1.08)::REAL ELSE NULL END as profit_target_8pct,
+                -- Profit targets (O'Neill/Minervini: 20-25% profit targets)
                 CASE WHEN stg.buylevel IS NOT NULL THEN (stg.buylevel * 1.20)::REAL ELSE NULL END as profit_target_20pct,
+                CASE WHEN stg.buylevel IS NOT NULL THEN (stg.buylevel * 1.25)::REAL ELSE NULL END as profit_target_25pct,
 
                 -- Current gain/loss
                 CASE
@@ -801,8 +801,8 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
             volume_ratio = cm.volume_ratio,
             volume_analysis = cm.volume_analysis,
             entry_quality_score = cm.entry_quality_score,
-            profit_target_8pct = cm.profit_target_8pct,
             profit_target_20pct = cm.profit_target_20pct,
+            profit_target_25pct = cm.profit_target_25pct,
             current_gain_loss_pct = cm.current_gain_loss_pct,
             risk_pct = cm.risk_pct,
             position_size_recommendation = cm.position_size_recommendation,

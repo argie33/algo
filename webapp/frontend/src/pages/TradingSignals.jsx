@@ -485,12 +485,7 @@ function TradingSignals() {
               </Tooltip>
             </TableCell>
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="8% Target - Sell 20-25% of position, move stop to breakeven">
-                <span>8% Target</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="20% Target - Sell another 25-30% of position">
+              <Tooltip title="20% Target (O'Neill/Minervini baseline) - Take profits at 20% unless stock/market is particularly strong">
                 <span>20% Target</span>
               </Tooltip>
             </TableCell>
@@ -514,41 +509,6 @@ function TradingSignals() {
                 <span>SATA</span>
               </Tooltip>
             </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Mansfield RS: Relative Strength vs S&P 500. >0 = outperforming market, <0 = underperforming">
-                <span>RS</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Volume: Pocket Pivot (200%+ surge) = STRONG BUY, Volume Surge (150%+) = Good, Normal = OK, Dry-up (<70%) = Wait">
-                <span>Volume</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="21 EMA Distance: -1% to +2% = perfect pullback entry, >5% = too extended">
-                <span>21 EMA %</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="RSI: 40-55 = BEST buy zone (pullback in uptrend), 55-70 = good, >70 = overbought">
-                <span>RSI</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="ADX: >30 = very strong trend (best), 25-30 = strong, 20-25 = moderate, <20 = avoid">
-                <span>ADX</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Passes 7-point trend template: Price > 50/150/200 SMA, SMAs aligned, Price 0-30% above 200 SMA, 200 SMA rising">
-                <span>Trend ✓</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="center" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Currently holding this position">
-                <span>Position</span>
-              </Tooltip>
-            </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>
               <Tooltip title="Next earnings announcement date">
                 <span>Next Earnings</span>
@@ -557,21 +517,6 @@ function TradingSignals() {
             <TableCell align="right" sx={{ fontWeight: "bold" }}>
               <Tooltip title="Days until next earnings">
                 <span>Days</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Estimated EPS for next earnings">
-                <span>Est. EPS</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Last EPS surprise percentage">
-                <span>EPS Surprise</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Year-over-year earnings growth">
-                <span>Growth YoY</span>
               </Tooltip>
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
@@ -630,9 +575,6 @@ function TradingSignals() {
                 {signal.target_price ? formatCurrency(signal.target_price) : "—"}
               </TableCell>
               <TableCell align="right">
-                {signal.profit_target_8pct ? formatCurrency(signal.profit_target_8pct) : "—"}
-              </TableCell>
-              <TableCell align="right">
                 {signal.profit_target_20pct ? formatCurrency(signal.profit_target_20pct) : "—"}
               </TableCell>
               <TableCell align="right">
@@ -689,98 +631,6 @@ function TradingSignals() {
                   }}
                 />
               </TableCell>
-              <TableCell align="right">
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: signal.mansfield_rs > 0 ? "#059669" : "#DC2626",
-                    fontWeight: signal.mansfield_rs !== 0 ? "bold" : "normal",
-                  }}
-                >
-                  {signal.mansfield_rs !== null && signal.mansfield_rs !== undefined
-                    ? Number(signal.mansfield_rs).toFixed(1)
-                    : "—"}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Chip
-                  label={signal.volume_analysis || "Normal"}
-                  size="small"
-                  sx={{
-                    backgroundColor:
-                      signal.volume_analysis === "Pocket Pivot" ? "rgba(5, 150, 105, 0.2)" :
-                      signal.volume_analysis === "Volume Surge" ? "rgba(59, 130, 246, 0.2)" :
-                      signal.volume_analysis === "Volume Dry-up" ? "rgba(245, 158, 11, 0.2)" :
-                      "rgba(156, 163, 175, 0.2)",
-                    color:
-                      signal.volume_analysis === "Pocket Pivot" ? "#059669" :
-                      signal.volume_analysis === "Volume Surge" ? "#3B82F6" :
-                      signal.volume_analysis === "Volume Dry-up" ? "#F59E0B" :
-                      "#6B7280",
-                    fontWeight: "bold",
-                    fontSize: "0.7rem",
-                  }}
-                />
-              </TableCell>
-              <TableCell align="right">
-                {signal.pct_from_ema_21
-                  ? `${Number(signal.pct_from_ema_21).toFixed(1)}%`
-                  : "—"}
-              </TableCell>
-              <TableCell align="right">
-                {signal.rsi
-                  ? Number(signal.rsi).toFixed(0)
-                  : "—"}
-              </TableCell>
-              <TableCell align="right">
-                {signal.adx
-                  ? Number(signal.adx).toFixed(0)
-                  : "—"}
-              </TableCell>
-              <TableCell align="center">
-                {signal.passes_minervini_template ? (
-                  <Chip
-                    label="✓"
-                    size="small"
-                    sx={{
-                      backgroundColor: "rgba(5, 150, 105, 0.2)",
-                      color: "#059669",
-                      fontWeight: "bold",
-                    }}
-                  />
-                ) : (
-                  <Chip
-                    label="✗"
-                    size="small"
-                    sx={{
-                      backgroundColor: "rgba(156, 163, 175, 0.2)",
-                      color: "#6B7280",
-                    }}
-                  />
-                )}
-              </TableCell>
-              <TableCell align="center">
-                {signal.inposition ? (
-                  <Chip
-                    label="YES"
-                    size="small"
-                    sx={{
-                      backgroundColor: "rgba(5, 150, 105, 0.2)",
-                      color: "#059669",
-                      fontWeight: "bold",
-                    }}
-                  />
-                ) : (
-                  <Chip
-                    label="NO"
-                    size="small"
-                    sx={{
-                      backgroundColor: "rgba(156, 163, 175, 0.2)",
-                      color: "#6B7280",
-                    }}
-                  />
-                )}
-              </TableCell>
               <TableCell>
                 <Typography variant="body2">
                   {signal.next_earnings_date
@@ -808,47 +658,6 @@ function TradingSignals() {
                     fontWeight: "bold",
                   }}
                 />
-              </TableCell>
-              <TableCell align="right">
-                <Typography variant="body2">
-                  {signal.estimated_eps
-                    ? `$${Number(signal.estimated_eps).toFixed(2)}`
-                    : "—"}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: signal.eps_surprise_pct
-                      ? signal.eps_surprise_pct > 0
-                        ? "#059669"
-                        : "#DC2626"
-                      : "text.secondary",
-                    fontWeight: signal.eps_surprise_pct ? "bold" : "normal",
-                  }}
-                >
-                  {signal.eps_surprise_pct
-                    ? `${signal.eps_surprise_pct > 0 ? "+" : ""}${Number(signal.eps_surprise_pct).toFixed(1)}%`
-                    : "—"}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: signal.earnings_growth_yoy
-                      ? signal.earnings_growth_yoy > 0
-                        ? "#059669"
-                        : "#DC2626"
-                      : "text.secondary",
-                    fontWeight: signal.earnings_growth_yoy ? "bold" : "normal",
-                  }}
-                >
-                  {signal.earnings_growth_yoy
-                    ? `${signal.earnings_growth_yoy > 0 ? "+" : ""}${Number(signal.earnings_growth_yoy).toFixed(1)}%`
-                    : "—"}
-                </Typography>
               </TableCell>
               <TableCell>
                 <Typography variant="body2">
@@ -1208,14 +1017,7 @@ function TradingSignals() {
                     <TableCell align="right">R/R Ratio</TableCell>
                     <TableCell>Stage</TableCell>
                     <TableCell align="right">SATA</TableCell>
-                    <TableCell align="right">RS</TableCell>
                     <TableCell align="right">Quality</TableCell>
-                    <TableCell>Volume</TableCell>
-                    <TableCell align="right">% from 21 EMA</TableCell>
-                    <TableCell align="right">RSI</TableCell>
-                    <TableCell align="right">ADX</TableCell>
-                    <TableCell align="center">Trend ✓</TableCell>
-                    <TableCell align="center">Status</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1297,20 +1099,6 @@ function TradingSignals() {
                         />
                       </TableCell>
                       <TableCell align="right">
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: signal.mansfield_rs > 0 ? "#059669" : "#DC2626",
-                            fontWeight: signal.mansfield_rs !== 0 ? "bold" : "normal",
-                            fontSize: "0.75rem",
-                          }}
-                        >
-                          {signal.mansfield_rs !== null && signal.mansfield_rs !== undefined
-                            ? Number(signal.mansfield_rs).toFixed(1)
-                            : "—"}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
                         <Chip
                           label={signal.entry_quality_score || "—"}
                           size="small"
@@ -1328,70 +1116,6 @@ function TradingSignals() {
                             fontWeight: "bold",
                             fontSize: "0.7rem",
                           }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={signal.volume_analysis || "Normal"}
-                          size="small"
-                          sx={{
-                            backgroundColor:
-                              signal.volume_analysis === "Pocket Pivot" ? "rgba(5, 150, 105, 0.2)" :
-                              signal.volume_analysis === "Volume Surge" ? "rgba(59, 130, 246, 0.2)" :
-                              signal.volume_analysis === "Volume Dry-up" ? "rgba(245, 158, 11, 0.2)" :
-                              "rgba(156, 163, 175, 0.2)",
-                            color:
-                              signal.volume_analysis === "Pocket Pivot" ? "#059669" :
-                              signal.volume_analysis === "Volume Surge" ? "#3B82F6" :
-                              signal.volume_analysis === "Volume Dry-up" ? "#F59E0B" :
-                              "#6B7280",
-                            fontWeight: "bold",
-                            fontSize: "0.65rem",
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        {signal.pct_from_ema_21
-                          ? `${Number(signal.pct_from_ema_21).toFixed(1)}%`
-                          : "—"}
-                      </TableCell>
-                      <TableCell align="right">
-                        {signal.rsi
-                          ? Number(signal.rsi).toFixed(0)
-                          : "—"}
-                      </TableCell>
-                      <TableCell align="right">
-                        {signal.adx
-                          ? Number(signal.adx).toFixed(0)
-                          : "—"}
-                      </TableCell>
-                      <TableCell align="center">
-                        {signal.passes_minervini_template ? (
-                          <Chip
-                            label="✓"
-                            size="small"
-                            sx={{
-                              backgroundColor: "rgba(5, 150, 105, 0.2)",
-                              color: "#059669",
-                              fontWeight: "bold",
-                            }}
-                          />
-                        ) : (
-                          <Chip
-                            label="✗"
-                            size="small"
-                            sx={{
-                              backgroundColor: "rgba(156, 163, 175, 0.2)",
-                              color: "#6B7280",
-                            }}
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label={signal.inposition ? "In Position" : "Closed"}
-                          size="small"
-                          color={signal.inposition ? "primary" : "default"}
                         />
                       </TableCell>
                     </TableRow>

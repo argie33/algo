@@ -134,29 +134,6 @@ def normalize_metric(value, min_val, max_val):
     return ((clamped - min_val) / (max_val - min_val)) * 100
 
 
-def calculate_coefficient_of_variation(values):
-    """
-    Calculate coefficient of variation (CV) for a list of values.
-    CV = (standard deviation / mean) * 100
-
-    Lower CV indicates more consistency (better quality).
-    Returns None if insufficient data or invalid values.
-    """
-    valid_values = [v for v in values if v is not None and not np.isnan(v) and not np.isinf(v)]
-
-    if len(valid_values) < 2:
-        return None
-
-    mean_val = np.mean(valid_values)
-    if mean_val == 0:
-        return None
-
-    std_val = np.std(valid_values)
-    cv = (std_val / abs(mean_val)) * 100
-
-    return cv
-
-
 def initialize_db():
     """Initialize database connection and create tables"""
     user, pwd, host, port, db = get_db_config()
@@ -189,10 +166,18 @@ def initialize_db():
         CREATE TABLE quality_metrics (
             symbol                      VARCHAR(50),
             date                        DATE,
-            quality_score               DOUBLE PRECISION,  -- Composite quality score (0-100)
-            profitability_score         DOUBLE PRECISION,  -- Profitability consistency normalized
-            consistency_score           DOUBLE PRECISION,  -- Low volatility in metrics normalized
-            growth_quality              DOUBLE PRECISION,  -- Sustainable growth normalized
+
+            -- RAW calculated metrics ONLY (for stockscores script to use)
+            accruals_ratio              DOUBLE PRECISION,  -- (Net Income - Op Cash Flow) / Total Assets
+            fcf_to_net_income           DOUBLE PRECISION,  -- Free Cash Flow / Net Income
+            debt_to_equity              DOUBLE PRECISION,  -- Total Liabilities / Total Equity
+            current_ratio               DOUBLE PRECISION,  -- Current Assets / Current Liabilities
+            interest_coverage           DOUBLE PRECISION,  -- Operating Income / Interest Expense
+            asset_turnover              DOUBLE PRECISION,  -- Revenue / Avg Total Assets
+
+            -- NOTE: ROE, ROA, margins already in key_metrics
+            -- NOTE: Scores calculated by stockscores script, not here
+
             fetched_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, date)
         );
@@ -236,10 +221,11 @@ def process_symbol(symbol, conn_pool):
     """
     Process a single symbol and calculate quality metrics
 
-    Calculates:
-    1. Profitability score from consistent margins and ROE
-    2. Consistency score from low volatility in earnings and revenue
-    3. Growth quality from sustainable growth patterns
+    Industry-standard approach:
+    1. Profitability (40%): ROE, ROA, margins from key_metrics
+    2. Earnings Quality (30%): Accruals ratio, FCF/Net Income
+    3. Financial Stability (20%): Debt/Equity, Current Ratio, Interest Coverage
+    4. Operational Efficiency (10%): Asset Turnover
 
     Args:
         symbol: Stock symbol to process
@@ -254,27 +240,7 @@ def process_symbol(symbol, conn_pool):
 
         logging.info(f"Processing quality metrics for {symbol}...")
 
-        # ========== STEP 1: Fetch Quarterly Financial Data ==========
-        # Get last 8 quarters for trend analysis
-        cursor.execute(
-            """
-            SELECT
-                quarter,
-                net_income,
-                total_revenue,
-                gross_profit,
-                operating_income
-            FROM quarterly_income_statement
-            WHERE symbol = %s
-            ORDER BY quarter DESC
-            LIMIT 8
-            """,
-            (symbol,),
-        )
-        income_data = cursor.fetchall()
-        logging.info(f"{symbol}: Found {len(income_data)} quarterly income records")
-
-        # ========== STEP 2: Fetch Key Metrics (Current) ==========
+        # ========== STEP 1: Fetch Key Metrics (for Profitability Score) ==========
         cursor.execute(
             """
             SELECT
@@ -290,192 +256,173 @@ def process_symbol(symbol, conn_pool):
             (symbol,),
         )
         metrics_row = cursor.fetchone()
-        logging.info(f"{symbol}: Metrics row: {metrics_row}")
+        logging.info(f"{symbol}: Key metrics row: {metrics_row}")
 
-        # ========== STEP 3: Fetch Balance Sheet for Financial Strength ==========
+        # ========== STEP 2: Fetch Latest Quarter Financial Data ==========
+        # Get most recent quarter data using item_name/value structure
         cursor.execute(
             """
-            SELECT
-                total_assets,
-                total_liabilities,
-                total_equity
-            FROM quarterly_balance_sheet
+            SELECT DISTINCT date FROM quarterly_income_statement
             WHERE symbol = %s
-            ORDER BY quarter DESC
-            LIMIT 4
+            ORDER BY date DESC
+            LIMIT 2
             """,
             (symbol,),
         )
-        balance_data = cursor.fetchall()
-        logging.info(f"{symbol}: Found {len(balance_data)} balance sheet records")
+        quarter_dates = [row[0] for row in cursor.fetchall()]
+        logging.info(f"{symbol}: Found {len(quarter_dates)} recent quarters")
 
-        if not income_data and not metrics_row:
+        financial_data = []
+        for qdate in quarter_dates:
+            # Get all metrics for this quarter
+            cursor.execute(
+                """
+                SELECT
+                    MAX(CASE WHEN item_name = 'Net Income' THEN value END) as net_income,
+                    MAX(CASE WHEN item_name = 'Revenue' THEN value END) as total_revenue,
+                    MAX(CASE WHEN item_name = 'Operating Income' THEN value END) as operating_income,
+                    MAX(CASE WHEN item_name = 'Interest Expense' THEN value END) as interest_expense
+                FROM quarterly_income_statement
+                WHERE symbol = %s AND date = %s
+                """,
+                (symbol, qdate),
+            )
+            income = cursor.fetchone()
+
+            cursor.execute(
+                """
+                SELECT
+                    MAX(CASE WHEN item_name = 'Total Assets' THEN value END) as total_assets,
+                    MAX(CASE WHEN item_name = 'Total Liabilities' THEN value END) as total_liabilities,
+                    MAX(CASE WHEN item_name = 'Total Equity' THEN value END) as total_equity,
+                    MAX(CASE WHEN item_name = 'Current Assets' THEN value END) as current_assets,
+                    MAX(CASE WHEN item_name = 'Current Liabilities' THEN value END) as current_liabilities
+                FROM quarterly_balance_sheet
+                WHERE symbol = %s AND date = %s
+                """,
+                (symbol, qdate),
+            )
+            balance = cursor.fetchone()
+
+            cursor.execute(
+                """
+                SELECT
+                    MAX(CASE WHEN item_name = 'Operating Cash Flow' THEN value END) as operating_cash_flow,
+                    MAX(CASE WHEN item_name = 'Free Cash Flow' THEN value END) as free_cash_flow
+                FROM quarterly_cash_flow
+                WHERE symbol = %s AND date = %s
+                """,
+                (symbol, qdate),
+            )
+            cashflow = cursor.fetchone()
+
+            # Combine into single tuple
+            if income and balance and cashflow:
+                financial_data.append((
+                    qdate,  # 0
+                    income[0],  # 1: net_income
+                    income[1],  # 2: total_revenue
+                    income[2],  # 3: operating_income
+                    income[3],  # 4: interest_expense
+                    balance[0],  # 5: total_assets
+                    balance[1],  # 6: total_liabilities
+                    balance[2],  # 7: total_equity
+                    balance[3],  # 8: current_assets
+                    balance[4],  # 9: current_liabilities
+                    cashflow[0],  # 10: operating_cash_flow
+                    cashflow[1],  # 11: free_cash_flow
+                ))
+
+        logging.info(f"{symbol}: Assembled {len(financial_data)} quarters of complete financial data")
+
+        if not metrics_row and not financial_data:
             logging.warning(f"No quality data for {symbol}, skipping.")
             conn_pool.putconn(conn)
             return 0
 
-        # ========== STEP 4: Calculate Quality Metrics ==========
-        records = []
+        # ========== STEP 3: Calculate NEW Metrics NOT in other tables ==========
         current_date = datetime.now().date()
 
-        # --- 4.1: Profitability Score ---
-        # Based on current profitability metrics (ROE, margins)
-        profitability_components = []
+        # Initialize metrics
+        accruals_ratio = None
+        fcf_to_net_income = None
+        debt_to_equity = None
+        current_ratio = None
+        interest_coverage = None
+        asset_turnover = None
 
-        if metrics_row:
-            # NOTE: key_metrics stores percentages as decimals (0.15 = 15%)
-            roe = safe_numeric(metrics_row[0])
-            roa = safe_numeric(metrics_row[1])
-            profit_margin = safe_numeric(metrics_row[2])
-            operating_margin = safe_numeric(metrics_row[3])
-            gross_margin = safe_numeric(metrics_row[4])
+        if financial_data and len(financial_data) > 0:
+            latest = financial_data[0]
+            net_income = safe_numeric(latest[1])
+            total_revenue = safe_numeric(latest[2])
+            operating_income = safe_numeric(latest[3])
+            interest_expense = safe_numeric(latest[4])
+            total_assets = safe_numeric(latest[5])
+            total_liabilities = safe_numeric(latest[6])
+            total_equity = safe_numeric(latest[7])
+            current_assets = safe_numeric(latest[8])
+            current_liabilities = safe_numeric(latest[9])
+            operating_cash_flow = safe_numeric(latest[10])
+            free_cash_flow = safe_numeric(latest[11])
 
-            # Convert decimals to percentages for normalization
-            if roe is not None:
-                roe_pct = roe * 100
-                profitability_components.append(normalize_metric(roe_pct, -10, 40))
+            # Accruals Ratio = (Net Income - Operating Cash Flow) / Total Assets
+            if net_income is not None and operating_cash_flow is not None and total_assets and total_assets > 0:
+                accruals_ratio = (net_income - operating_cash_flow) / total_assets
 
-            if roa is not None:
-                roa_pct = roa * 100
-                profitability_components.append(normalize_metric(roa_pct, -5, 25))
+            # FCF / Net Income
+            if free_cash_flow is not None and net_income and net_income != 0:
+                fcf_to_net_income = free_cash_flow / net_income
 
-            if profit_margin is not None:
-                profit_margin_pct = profit_margin * 100
-                profitability_components.append(normalize_metric(profit_margin_pct, -10, 30))
+            # Debt to Equity
+            if total_liabilities is not None and total_equity and total_equity > 0:
+                debt_to_equity = total_liabilities / total_equity
 
-            if operating_margin is not None:
-                operating_margin_pct = operating_margin * 100
-                profitability_components.append(normalize_metric(operating_margin_pct, -10, 35))
+            # Current Ratio
+            if current_assets is not None and current_liabilities and current_liabilities > 0:
+                current_ratio = current_assets / current_liabilities
 
-        profitability_score = None
-        if profitability_components:
-            profitability_score = np.mean(profitability_components)
-            logging.info(f"{symbol}: Profitability score = {profitability_score:.2f}")
+            # Interest Coverage = Operating Income / Interest Expense
+            if operating_income is not None and interest_expense and interest_expense != 0:
+                interest_coverage = operating_income / abs(interest_expense)
 
-        # --- 4.2: Consistency Score ---
-        # Lower volatility in earnings and revenue = higher quality
-        consistency_components = []
+            # Asset Turnover (use average of last 2 quarters if available)
+            if total_revenue is not None and total_assets and total_assets > 0:
+                if len(financial_data) >= 2:
+                    assets_prev = safe_numeric(financial_data[1][5])
+                    avg_assets = (total_assets + assets_prev) / 2 if assets_prev else total_assets
+                else:
+                    avg_assets = total_assets
+                asset_turnover = (total_revenue * 4) / avg_assets if avg_assets > 0 else None  # Annualize revenue
 
-        if len(income_data) >= 4:
-            # Calculate revenue volatility (coefficient of variation)
-            revenues = [safe_numeric(row[2]) for row in income_data]
-            revenue_cv = calculate_coefficient_of_variation(revenues)
-
-            # Calculate earnings volatility
-            net_incomes = [safe_numeric(row[1]) for row in income_data]
-            earnings_cv = calculate_coefficient_of_variation(net_incomes)
-
-            # Lower CV = higher consistency score
-            # CV of 0-50% is good (maps to 100-50), CV >100% is poor (maps to <0)
-            if revenue_cv is not None:
-                revenue_consistency = normalize_metric(revenue_cv, 0, 100)
-                # Invert: lower CV should give higher score
-                revenue_consistency = 100 - revenue_consistency
-                consistency_components.append(revenue_consistency)
-
-            if earnings_cv is not None:
-                earnings_consistency = normalize_metric(earnings_cv, 0, 150)
-                # Invert: lower CV should give higher score
-                earnings_consistency = 100 - earnings_consistency
-                consistency_components.append(earnings_consistency)
-
-        consistency_score = None
-        if consistency_components:
-            consistency_score = np.mean(consistency_components)
-            logging.info(f"{symbol}: Consistency score = {consistency_score:.2f}")
-
-        # --- 4.3: Growth Quality Score ---
-        # Sustainable growth: positive revenue/earnings trend with low volatility
-        growth_quality_components = []
-
-        if len(income_data) >= 4:
-            # Check for positive revenue trend
-            recent_revenues = [safe_numeric(row[2]) for row in income_data[:4]]
-            if all(r is not None for r in recent_revenues):
-                # Compare recent average to older average
-                recent_avg = np.mean(recent_revenues)
-                older_revenues = [safe_numeric(row[2]) for row in income_data[4:]]
-                if older_revenues and all(r is not None for r in older_revenues):
-                    older_avg = np.mean(older_revenues)
-                    if older_avg > 0:
-                        revenue_growth_trend = ((recent_avg - older_avg) / older_avg) * 100
-                        growth_quality_components.append(normalize_metric(revenue_growth_trend, -20, 40))
-
-            # Check for positive earnings trend
-            recent_earnings = [safe_numeric(row[1]) for row in income_data[:4]]
-            if all(e is not None for e in recent_earnings):
-                recent_avg_earnings = np.mean(recent_earnings)
-                older_earnings = [safe_numeric(row[1]) for row in income_data[4:]]
-                if older_earnings and all(e is not None for e in older_earnings):
-                    older_avg_earnings = np.mean(older_earnings)
-                    if older_avg_earnings != 0:
-                        earnings_growth_trend = ((recent_avg_earnings - older_avg_earnings) / abs(older_avg_earnings)) * 100
-                        growth_quality_components.append(normalize_metric(earnings_growth_trend, -30, 50))
-
-        # Add balance sheet strength (equity ratio)
-        if len(balance_data) >= 1:
-            assets = safe_numeric(balance_data[0][0])
-            equity = safe_numeric(balance_data[0][2])
-
-            if assets and equity and assets > 0:
-                equity_ratio = (equity / assets) * 100
-                # Higher equity ratio = better quality (20-80% is typical range)
-                growth_quality_components.append(normalize_metric(equity_ratio, 10, 80))
-
-        growth_quality = None
-        if growth_quality_components:
-            growth_quality = np.mean(growth_quality_components)
-            logging.info(f"{symbol}: Growth quality = {growth_quality:.2f}")
-
-        # ========== STEP 5: Calculate Composite Quality Score ==========
-        # Weighted average: Profitability 40%, Consistency 30%, Growth Quality 30%
-        components = []
-        weights = []
-
-        if profitability_score is not None:
-            components.append(profitability_score * 0.40)
-            weights.append(0.40)
-
-        if consistency_score is not None:
-            components.append(consistency_score * 0.30)
-            weights.append(0.30)
-
-        if growth_quality is not None:
-            components.append(growth_quality * 0.30)
-            weights.append(0.30)
-
-        # Calculate weighted composite score
-        if components:
-            total_weight = sum(weights)
-            composite_score = sum(components) / total_weight if total_weight > 0 else None
-        else:
-            composite_score = None
-
-        # Create record
+        # Create record with RAW metrics ONLY - no scores
         record = (
             symbol,
             current_date,
-            composite_score,
-            profitability_score,
-            consistency_score,
-            growth_quality,
+            accruals_ratio,
+            fcf_to_net_income,
+            debt_to_equity,
+            current_ratio,
+            interest_coverage,
+            asset_turnover,
         )
-        records.append(record)
+        records = [record]
 
-        # ========== STEP 6: Insert Records ==========
+        # ========== STEP 4: Insert Records ==========
         if records:
             execute_values(
                 cursor,
                 """
                 INSERT INTO quality_metrics
-                (symbol, date, quality_score, profitability_score,
-                 consistency_score, growth_quality)
+                (symbol, date, accruals_ratio, fcf_to_net_income, debt_to_equity,
+                 current_ratio, interest_coverage, asset_turnover)
                 VALUES %s
                 ON CONFLICT (symbol, date) DO UPDATE SET
-                    quality_score = EXCLUDED.quality_score,
-                    profitability_score = EXCLUDED.profitability_score,
-                    consistency_score = EXCLUDED.consistency_score,
-                    growth_quality = EXCLUDED.growth_quality,
+                    accruals_ratio = EXCLUDED.accruals_ratio,
+                    fcf_to_net_income = EXCLUDED.fcf_to_net_income,
+                    debt_to_equity = EXCLUDED.debt_to_equity,
+                    current_ratio = EXCLUDED.current_ratio,
+                    interest_coverage = EXCLUDED.interest_coverage,
+                    asset_turnover = EXCLUDED.asset_turnover,
                     fetched_at = CURRENT_TIMESTAMP
                 """,
                 records,

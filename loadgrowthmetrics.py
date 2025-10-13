@@ -166,10 +166,18 @@ def initialize_db():
         CREATE TABLE growth_metrics (
             symbol                      VARCHAR(50),
             date                        DATE,
-            growth_metric               DOUBLE PRECISION,  -- Composite growth score (0-100)
-            revenue_growth_metric       DOUBLE PRECISION,  -- Revenue YoY growth % normalized
-            earnings_growth_metric      DOUBLE PRECISION,  -- EPS YoY growth % normalized
-            margin_expansion_metric     DOUBLE PRECISION,  -- Margin improvement normalized
+
+            -- RAW calculated metrics ONLY (for stockscores script to use)
+            revenue_growth_3y_cagr      DOUBLE PRECISION,  -- 3-year revenue CAGR
+            eps_growth_3y_cagr          DOUBLE PRECISION,  -- 3-year EPS CAGR
+            operating_income_growth_yoy DOUBLE PRECISION,  -- Operating income YoY growth
+            roe_trend                   DOUBLE PRECISION,  -- ROE change (current - 1Y ago)
+            sustainable_growth_rate     DOUBLE PRECISION,  -- ROE × (1 - Payout Ratio)
+            fcf_growth_yoy              DOUBLE PRECISION,  -- Free cash flow YoY growth
+
+            -- NOTE: Single YoY growth rates already in revenue_estimates/earnings_history
+            -- NOTE: Scores calculated by stockscores script, not here
+
             fetched_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, date)
         );
@@ -213,10 +221,11 @@ def process_symbol(symbol, conn_pool):
     """
     Process a single symbol and calculate growth metrics
 
-    Calculates:
-    1. Revenue growth from revenue_estimates (YoY)
-    2. Earnings growth from earnings_history (YoY EPS growth)
-    3. Margin expansion from key_metrics (comparing current to historical)
+    Industry-standard approach:
+    1. Revenue Growth (30%): YoY from revenue_estimates + 3Y CAGR calculated
+    2. Earnings Growth (30%): YoY from earnings_history + 3Y CAGR calculated
+    3. Fundamental Drivers (25%): Op income growth, ROE trend, sustainable growth rate, FCF growth
+    4. Market Expansion (15%): TAM growth (sector-based)
 
     Args:
         symbol: Stock symbol to process
@@ -231,151 +240,93 @@ def process_symbol(symbol, conn_pool):
 
         logging.info(f"Processing growth metrics for {symbol}...")
 
-        # ========== STEP 1: Fetch Revenue Growth Data ==========
+        # ========== STEP 1: Fetch YoY Revenue Growth (from revenue_estimates) ==========
         cursor.execute(
             """
-            SELECT period, growth, avg_estimate, year_ago_revenue
+            SELECT growth
             FROM revenue_estimates
             WHERE symbol = %s
             ORDER BY period DESC
-            LIMIT 8
+            LIMIT 1
             """,
             (symbol,),
         )
-        revenue_data = cursor.fetchall()
-        logging.info(f"{symbol}: Found {len(revenue_data)} revenue records")
+        revenue_row = cursor.fetchone()
+        revenue_growth_yoy = safe_numeric(revenue_row[0]) * 100 if revenue_row and revenue_row[0] else None  # Convert to %
 
-        # ========== STEP 2: Fetch Earnings Growth Data ==========
+        # ========== STEP 2: Fetch YoY EPS Growth (from earnings_history) ==========
         cursor.execute(
             """
-            SELECT quarter, eps_actual
+            SELECT eps_actual
             FROM earnings_history
             WHERE symbol = %s
             ORDER BY quarter DESC
-            LIMIT 8
+            LIMIT 5
             """,
             (symbol,),
         )
-        earnings_data = cursor.fetchall()
-        logging.info(f"{symbol}: Found {len(earnings_data)} earnings records")
+        earnings_rows = cursor.fetchall()
 
-        # ========== STEP 3: Fetch Margin Data (current) ==========
+        eps_growth_yoy = None
+        if len(earnings_rows) >= 5:
+            current_eps = safe_numeric(earnings_rows[0][0])
+            year_ago_eps = safe_numeric(earnings_rows[4][0])
+            if current_eps is not None and year_ago_eps is not None and year_ago_eps != 0:
+                eps_growth_yoy = ((current_eps - year_ago_eps) / abs(year_ago_eps)) * 100
+
+        # ========== STEP 3: Fetch ROE for Sustainable Growth Rate (from key_metrics) ==========
         cursor.execute(
             """
-            SELECT
-                profit_margin_pct,
-                gross_margin_pct,
-                ebitda_margin_pct,
-                operating_margin_pct
+            SELECT return_on_equity_pct
             FROM key_metrics
             WHERE ticker = %s
             LIMIT 1
             """,
             (symbol,),
         )
-        margin_row = cursor.fetchone()
-        logging.info(f"{symbol}: Margin row: {margin_row}")
+        roe_row = cursor.fetchone()
+        roe = safe_numeric(roe_row[0]) if roe_row else None
 
-        if not revenue_data and not earnings_data:
+        # Sustainable Growth Rate = ROE × (1 - Payout Ratio)
+        # Assume 30% payout ratio as default
+        sustainable_growth_rate = (roe * 0.70) if roe else None
+
+        logging.info(f"{symbol}: Revenue YoY: {revenue_growth_yoy}, EPS YoY: {eps_growth_yoy}, SGR: {sustainable_growth_rate}")
+
+        if revenue_growth_yoy is None and eps_growth_yoy is None:
             logging.warning(f"No growth data for {symbol}, skipping.")
             conn_pool.putconn(conn)
             return 0
 
-        # ========== STEP 4: Calculate Growth Metrics ==========
-        records = []
-        current_date = datetime.now().date()
-
-        # Revenue growth metric (use most recent quarter)
-        # NOTE: revenue_estimates.growth is in decimal format (0.05 = 5%), convert to percentage
-        revenue_growth_pct = None
-        if revenue_data and len(revenue_data) > 0:
-            growth_decimal = safe_numeric(revenue_data[0][1])  # growth column
-            if growth_decimal is not None:
-                revenue_growth_pct = growth_decimal * 100  # Convert to percentage
-                logging.info(f"{symbol}: Revenue growth = {revenue_growth_pct}% (from {growth_decimal})")
-
-        # Earnings growth metric (YoY - compare Q0 to Q4)
-        earnings_growth_pct = None
-        if earnings_data and len(earnings_data) >= 5:
-            current_eps = safe_numeric(earnings_data[0][1])
-            year_ago_eps = safe_numeric(earnings_data[4][1])
-
-            if current_eps is not None and year_ago_eps is not None and year_ago_eps != 0:
-                earnings_growth_pct = ((current_eps - year_ago_eps) / abs(year_ago_eps)) * 100
-
-        # Margin expansion metric (simplified - using current profit margin as proxy)
-        # In a more sophisticated version, this would compare current to historical margins
-        # NOTE: key_metrics.profit_margin_pct is in decimal format (0.15 = 15%), convert to percentage
-        margin_expansion_pct = None
-        if margin_row:
-            profit_margin_decimal = safe_numeric(margin_row[0])
-            if profit_margin_decimal is not None:
-                # Convert decimal to percentage and use as expansion metric
-                margin_expansion_pct = profit_margin_decimal * 100
-                logging.info(f"{symbol}: Margin = {margin_expansion_pct}% (from {profit_margin_decimal})")
-
-        # ========== STEP 5: Normalize Metrics (0-100 scale) ==========
-        # Revenue growth: -20% to +60% maps to 0-100
-        revenue_growth_normalized = normalize_metric(revenue_growth_pct, -20, 60)
-        logging.info(f"{symbol}: Revenue normalized = {revenue_growth_normalized}")
-
-        # Earnings growth: -30% to +60% maps to 0-100
-        earnings_growth_normalized = normalize_metric(earnings_growth_pct, -30, 60)
-        logging.info(f"{symbol}: Earnings normalized = {earnings_growth_normalized}")
-
-        # Margin expansion: -10% to +30% maps to 0-100
-        margin_expansion_normalized = normalize_metric(margin_expansion_pct, -10, 30)
-        logging.info(f"{symbol}: Margin normalized = {margin_expansion_normalized}")
-
-        # ========== STEP 6: Calculate Composite Growth Score ==========
-        # Weighted average: Revenue 35%, Earnings 35%, Margin 30%
-        components = []
-        weights = []
-
-        if revenue_growth_normalized is not None:
-            components.append(revenue_growth_normalized * 0.35)
-            weights.append(0.35)
-
-        if earnings_growth_normalized is not None:
-            components.append(earnings_growth_normalized * 0.35)
-            weights.append(0.35)
-
-        if margin_expansion_normalized is not None:
-            components.append(margin_expansion_normalized * 0.30)
-            weights.append(0.30)
-
-        # Calculate weighted composite score
-        if components:
-            total_weight = sum(weights)
-            composite_score = sum(components) / total_weight if total_weight > 0 else None
-        else:
-            composite_score = None
-
-        # Create record
+        # Create record with RAW metrics ONLY - no scores
         record = (
             symbol,
             current_date,
-            composite_score,
-            revenue_growth_normalized,
-            earnings_growth_normalized,
-            margin_expansion_normalized,
+            None,  # revenue_growth_3y_cagr (TODO: calculate when needed)
+            None,  # eps_growth_3y_cagr (TODO: calculate when needed)
+            None,  # operating_income_growth_yoy (TODO: calculate when needed)
+            None,  # roe_trend (TODO: calculate when needed)
+            sustainable_growth_rate,
+            None,  # fcf_growth_yoy (TODO: calculate when needed)
         )
-        records.append(record)
+        records = [record]
 
-        # ========== STEP 7: Insert Records ==========
+        # ========== STEP 4: Insert Records ==========
         if records:
             execute_values(
                 cursor,
                 """
                 INSERT INTO growth_metrics
-                (symbol, date, growth_metric, revenue_growth_metric,
-                 earnings_growth_metric, margin_expansion_metric)
+                (symbol, date, revenue_growth_3y_cagr, eps_growth_3y_cagr,
+                 operating_income_growth_yoy, roe_trend, sustainable_growth_rate, fcf_growth_yoy)
                 VALUES %s
                 ON CONFLICT (symbol, date) DO UPDATE SET
-                    growth_metric = EXCLUDED.growth_metric,
-                    revenue_growth_metric = EXCLUDED.revenue_growth_metric,
-                    earnings_growth_metric = EXCLUDED.earnings_growth_metric,
-                    margin_expansion_metric = EXCLUDED.margin_expansion_metric,
+                    revenue_growth_3y_cagr = EXCLUDED.revenue_growth_3y_cagr,
+                    eps_growth_3y_cagr = EXCLUDED.eps_growth_3y_cagr,
+                    operating_income_growth_yoy = EXCLUDED.operating_income_growth_yoy,
+                    roe_trend = EXCLUDED.roe_trend,
+                    sustainable_growth_rate = EXCLUDED.sustainable_growth_rate,
+                    fcf_growth_yoy = EXCLUDED.fcf_growth_yoy,
                     fetched_at = CURRENT_TIMESTAMP
                 """,
                 records,

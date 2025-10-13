@@ -158,7 +158,7 @@ router.get("/", async (req, res) => {
         buylevel, stoplevel, inposition,
         selllevel, target_price, current_price, risk_reward_ratio,
         market_stage, pct_from_sma_200, entry_quality_score,
-        profit_target_20pct, current_gain_loss_pct,
+        profit_target_20pct, profit_target_25pct, current_gain_loss_pct,
         risk_pct, passes_minervini_template
       `;
     } else if (timeframe === 'weekly') {
@@ -169,7 +169,7 @@ router.get("/", async (req, res) => {
         selllevel, target_price, current_price, risk_reward_ratio,
         market_stage, pct_from_sma_50, pct_from_sma_200,
         volume_ratio, volume_analysis, entry_quality_score,
-        profit_target_8pct, profit_target_20pct, current_gain_loss_pct,
+        profit_target_20pct, profit_target_25pct, current_gain_loss_pct,
         risk_pct, position_size_recommendation, passes_minervini_template,
         rsi, adx
       `;
@@ -179,7 +179,7 @@ router.get("/", async (req, res) => {
         symbol, date, timeframe, signal, close, volume,
         buylevel, stoplevel, target_price, current_price,
         market_stage, entry_quality_score,
-        profit_target_8pct, profit_target_20pct, current_gain_loss_pct,
+        profit_target_20pct, profit_target_25pct, current_gain_loss_pct,
         passes_minervini_template
       `;
     }
@@ -294,9 +294,9 @@ router.get("/", async (req, res) => {
       entry_quality_score: parseInt(row.entry_quality_score || 0),
       passes_minervini_template: row.passes_minervini_template || false,
 
-      // Profit targets
-      profit_target_8pct: parseFloat(row.profit_target_8pct || 0),
+      // Profit targets (O'Neill/Minervini: 20-25% targets)
       profit_target_20pct: parseFloat(row.profit_target_20pct || 0),
+      profit_target_25pct: parseFloat(row.profit_target_25pct || 0),
       current_gain_loss_pct: parseFloat(row.current_gain_loss_pct || 0),
 
       // Volatility
