@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-13 - Quality Metrics Calculator (AWS deployment - fixed container names)
+# Updated: 2025-10-13 - Quality Metrics Calculator (removed interest_coverage field)
 """
 Quality Metrics Loader
 
