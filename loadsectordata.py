@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-13 - Sector Data Loader
 """
-Sector Data Loader - Updated 2025-10-12
+Sector Data Loader
 Loads sector ETF performance data from yfinance for sector rotation analysis
 Tracks momentum, money flow, and performance metrics for 11 major sectors
 """
-# Trigger deployment - 2025-10-12 11:42 - Updated with local mode support and tested successfully
 import gc
 import json
 import logging
