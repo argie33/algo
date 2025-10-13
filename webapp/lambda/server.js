@@ -69,11 +69,17 @@ const allowedOrigins = [
   "http://localhost:3003",
   "http://localhost:5173", // Common Vite port
   "http://localhost:5174", // Vite alternate port
+  "http://localhost:5175", // Vite alternate port
+  "http://localhost:5176", // Vite alternate port
+  "http://localhost:5177", // Vite alternate port
   "http://127.0.0.1:3001",
   "http://127.0.0.1:3002",
   "http://127.0.0.1:3003",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
+  "http://127.0.0.1:5176",
+  "http://127.0.0.1:5177",
 ];
 
 // Add API Gateway URL if available

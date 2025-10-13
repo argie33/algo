@@ -1674,6 +1674,52 @@ function StockDetail() {
                           </Typography>
                         </TableCell>
                       </TableRow>
+                      <TableRow>
+                        <TableCell>Accruals Ratio</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={
+                              qualityInputs.accruals_ratio !== null && qualityInputs.accruals_ratio !== undefined
+                                ? formatNumber(qualityInputs.accruals_ratio, 3)
+                                : "N/A"
+                            }
+                            color={
+                              qualityInputs.accruals_ratio !== null && qualityInputs.accruals_ratio < 0
+                                ? "success"
+                                : "default"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            negative is good
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Asset Turnover</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={
+                              qualityInputs.asset_turnover
+                                ? formatNumber(qualityInputs.asset_turnover, 2)
+                                : "N/A"
+                            }
+                            color={
+                              qualityInputs.asset_turnover && qualityInputs.asset_turnover > 1.0
+                                ? "success"
+                                : "default"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            vs 1.0 optimal
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>

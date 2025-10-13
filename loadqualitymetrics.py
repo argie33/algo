@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-13 - Quality Metrics Calculator (removed interest_coverage field)
+# Updated: 2025-10-13 - Quality Metrics Calculator with 5 metrics for frontend display
 """
 Quality Metrics Loader
 
