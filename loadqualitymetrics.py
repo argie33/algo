@@ -172,11 +172,11 @@ def initialize_db():
             fcf_to_net_income           DOUBLE PRECISION,  -- Free Cash Flow / Net Income
             debt_to_equity              DOUBLE PRECISION,  -- Total Liabilities / Total Equity
             current_ratio               DOUBLE PRECISION,  -- Current Assets / Current Liabilities
-            interest_coverage           DOUBLE PRECISION,  -- Operating Income / Interest Expense
             asset_turnover              DOUBLE PRECISION,  -- Revenue / Avg Total Assets
 
             -- NOTE: ROE, ROA, margins already in key_metrics
             -- NOTE: Scores calculated by stockscores script, not here
+            -- NOTE: Interest Coverage removed - Interest Expense data not available from yfinance
 
             fetched_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, date)
@@ -224,7 +224,7 @@ def process_symbol(symbol, conn_pool):
     Industry-standard approach:
     1. Profitability (40%): ROE, ROA, margins from key_metrics
     2. Earnings Quality (30%): Accruals ratio, FCF/Net Income
-    3. Financial Stability (20%): Debt/Equity, Current Ratio, Interest Coverage
+    3. Financial Stability (20%): Debt/Equity, Current Ratio
     4. Operational Efficiency (10%): Asset Turnover
 
     Args:
@@ -283,9 +283,7 @@ def process_symbol(symbol, conn_pool):
                 """
                 SELECT
                     MAX(CASE WHEN item_name = 'Net Income' THEN value END) as net_income,
-                    MAX(CASE WHEN item_name = 'Revenue' THEN value END) as total_revenue,
-                    MAX(CASE WHEN item_name = 'Operating Income' THEN value END) as operating_income,
-                    MAX(CASE WHEN item_name = 'Interest Expense' THEN value END) as interest_expense
+                    MAX(CASE WHEN item_name = 'Total Revenue' THEN value END) as total_revenue
                 FROM quarterly_income_statement
                 WHERE symbol = %s AND date = %s
                 """,
@@ -326,15 +324,13 @@ def process_symbol(symbol, conn_pool):
                     qdate,  # 0
                     income[0],  # 1: net_income
                     income[1],  # 2: total_revenue
-                    income[2],  # 3: operating_income
-                    income[3],  # 4: interest_expense
-                    balance[0],  # 5: total_assets
-                    balance[1],  # 6: total_liabilities
-                    balance[2],  # 7: total_equity
-                    balance[3],  # 8: current_assets
-                    balance[4],  # 9: current_liabilities
-                    cashflow[0],  # 10: operating_cash_flow
-                    cashflow[1],  # 11: free_cash_flow
+                    balance[0],  # 3: total_assets
+                    balance[1],  # 4: total_liabilities
+                    balance[2],  # 5: total_equity
+                    balance[3],  # 6: current_assets
+                    balance[4],  # 7: current_liabilities
+                    cashflow[0],  # 8: operating_cash_flow
+                    cashflow[1],  # 9: free_cash_flow
                 ))
 
         logging.info(f"{symbol}: Assembled {len(financial_data)} quarters of complete financial data")
@@ -360,22 +356,19 @@ def process_symbol(symbol, conn_pool):
 
         # These must be calculated from quarterly statements
         accruals_ratio = None
-        interest_coverage = None
         asset_turnover = None
 
         if financial_data and len(financial_data) > 0:
             latest = financial_data[0]
             net_income = safe_numeric(latest[1])
             total_revenue = safe_numeric(latest[2])
-            operating_income = safe_numeric(latest[3])
-            interest_expense = safe_numeric(latest[4])
-            total_assets = safe_numeric(latest[5])
-            total_liabilities = safe_numeric(latest[6])
-            total_equity = safe_numeric(latest[7])
-            current_assets = safe_numeric(latest[8])
-            current_liabilities = safe_numeric(latest[9])
-            operating_cash_flow = safe_numeric(latest[10])
-            free_cash_flow = safe_numeric(latest[11])
+            total_assets = safe_numeric(latest[3])
+            total_liabilities = safe_numeric(latest[4])
+            total_equity = safe_numeric(latest[5])
+            current_assets = safe_numeric(latest[6])
+            current_liabilities = safe_numeric(latest[7])
+            operating_cash_flow = safe_numeric(latest[8])
+            free_cash_flow = safe_numeric(latest[9])
 
             # Accruals Ratio = (Net Income - Operating Cash Flow) / Total Assets
             if net_income is not None and operating_cash_flow is not None and total_assets and total_assets > 0:
@@ -393,14 +386,10 @@ def process_symbol(symbol, conn_pool):
             if current_ratio is None and current_assets is not None and current_liabilities and current_liabilities > 0:
                 current_ratio = current_assets / current_liabilities
 
-            # Interest Coverage = Operating Income / Interest Expense
-            if operating_income is not None and interest_expense and interest_expense != 0:
-                interest_coverage = operating_income / abs(interest_expense)
-
             # Asset Turnover (use average of last 2 quarters if available)
             if total_revenue is not None and total_assets and total_assets > 0:
                 if len(financial_data) >= 2:
-                    assets_prev = safe_numeric(financial_data[1][5])
+                    assets_prev = safe_numeric(financial_data[1][3])
                     avg_assets = (total_assets + assets_prev) / 2 if assets_prev else total_assets
                 else:
                     avg_assets = total_assets
@@ -414,7 +403,6 @@ def process_symbol(symbol, conn_pool):
             fcf_to_net_income,
             debt_to_equity,
             current_ratio,
-            interest_coverage,
             asset_turnover,
         )
         records = [record]
@@ -426,14 +414,13 @@ def process_symbol(symbol, conn_pool):
                 """
                 INSERT INTO quality_metrics
                 (symbol, date, accruals_ratio, fcf_to_net_income, debt_to_equity,
-                 current_ratio, interest_coverage, asset_turnover)
+                 current_ratio, asset_turnover)
                 VALUES %s
                 ON CONFLICT (symbol, date) DO UPDATE SET
                     accruals_ratio = EXCLUDED.accruals_ratio,
                     fcf_to_net_income = EXCLUDED.fcf_to_net_income,
                     debt_to_equity = EXCLUDED.debt_to_equity,
                     current_ratio = EXCLUDED.current_ratio,
-                    interest_coverage = EXCLUDED.interest_coverage,
                     asset_turnover = EXCLUDED.asset_turnover,
                     fetched_at = CURRENT_TIMESTAMP
                 """,

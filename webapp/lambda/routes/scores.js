@@ -109,7 +109,6 @@ router.get("/", async (req, res) => {
         qm.fcf_to_net_income,
         qm.debt_to_equity,
         qm.current_ratio,
-        qm.interest_coverage,
         qm.asset_turnover,
         -- Growth INPUT metrics from growth_metrics table
         gm.revenue_growth_3y_cagr,
@@ -166,7 +165,6 @@ router.get("/", async (req, res) => {
           fcf_to_net_income,
           debt_to_equity,
           current_ratio,
-          interest_coverage,
           asset_turnover
         FROM quality_metrics
         ORDER BY symbol, date DESC
@@ -308,7 +306,6 @@ router.get("/", async (req, res) => {
         fcf_to_net_income: parseFloat(row.fcf_to_net_income) || null,
         debt_to_equity: parseFloat(row.debt_to_equity) || null,
         current_ratio: parseFloat(row.current_ratio) || null,
-        interest_coverage: parseFloat(row.interest_coverage) || null,
         asset_turnover: parseFloat(row.asset_turnover) || null
       },
       // Add growth INPUT metrics for frontend display
@@ -447,7 +444,6 @@ router.get("/:symbol", async (req, res) => {
         qm.fcf_to_net_income,
         qm.debt_to_equity,
         qm.current_ratio,
-        qm.interest_coverage,
         qm.asset_turnover,
         -- Growth INPUT metrics from growth_metrics table
         gm.revenue_growth_3y_cagr,
@@ -504,7 +500,6 @@ router.get("/:symbol", async (req, res) => {
           fcf_to_net_income,
           debt_to_equity,
           current_ratio,
-          interest_coverage,
           asset_turnover
         FROM quality_metrics
         ORDER BY symbol, date DESC
@@ -601,7 +596,6 @@ router.get("/:symbol", async (req, res) => {
               fcf_to_net_income: parseFloat(row.fcf_to_net_income) || null,
               debt_to_equity: parseFloat(row.debt_to_equity) || null,
               current_ratio: parseFloat(row.current_ratio) || null,
-              interest_coverage: parseFloat(row.interest_coverage) || null,
               asset_turnover: parseFloat(row.asset_turnover) || null
             }
           },

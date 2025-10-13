@@ -374,13 +374,19 @@ const ScoresDashboard = () => {
           const response = await api.get(
             `/api/signals?symbol=${stock.symbol}&timeframe=daily&limit=1`
           );
+          // Check if we got a valid signal (not "None" or empty)
           if (response?.data?.success && response.data.data?.length > 0) {
-            return {
-              symbol: stock.symbol,
-              signal: response.data.data[0].signal,
-              confidence: response.data.data[0].confidence || 0.75,
-              date: response.data.data[0].date,
-            };
+            const apiSignal = response.data.data[0].signal;
+            // Only use API signal if it's a valid BUY/SELL/HOLD signal
+            if (apiSignal && apiSignal.toUpperCase() !== "NONE" &&
+                ["BUY", "SELL", "HOLD"].includes(apiSignal.toUpperCase())) {
+              return {
+                symbol: stock.symbol,
+                signal: apiSignal,
+                confidence: response.data.data[0].confidence || 0.75,
+                date: response.data.data[0].date,
+              };
+            }
           }
         } catch (err) {
           // API call failed, generate signal from scores
@@ -1224,50 +1230,54 @@ const ScoresDashboard = () => {
                                     </TableRow>
                                   </TableHead>
                                   <TableBody>
-                                    <TableRow>
-                                      <TableCell>30-Day Volatility (Historical Volatility)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.volatility_30d ? `${stock.volatility_30d.toFixed(1)}%` : "N/A"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Average Volume 30-Day (Liquidity)</TableCell>
-                                      <TableCell align="right">{(stock.volume_avg_30d || 0).toLocaleString()}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Price Change 30-Day % (Price Stability)</TableCell>
-                                      <TableCell align="right">{(stock.price_change_30d || 0).toFixed(2)}%</TableCell>
-                                    </TableRow>
+                                    {!stock.quality_inputs && (
+                                      <TableRow>
+                                        <TableCell colSpan={2} align="center">
+                                          <Typography variant="caption" color="text.secondary">
+                                            Quality metrics data loading...
+                                          </Typography>
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
+                                    {stock.quality_inputs && Object.values(stock.quality_inputs).every(v => v === null || v === undefined) && (
+                                      <TableRow>
+                                        <TableCell colSpan={2} align="center">
+                                          <Typography variant="caption" color="text.secondary">
+                                            No detailed quality metrics available for this stock
+                                          </Typography>
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
                                     {stock.quality_inputs && (
                                       <>
-                                        {stock.quality_inputs.roe !== undefined && (
+                                        {stock.quality_inputs.accruals_ratio !== null && stock.quality_inputs.accruals_ratio !== undefined && (
                                           <TableRow>
-                                            <TableCell>ROE (Return on Equity)</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.roe?.toFixed(1)}%</TableCell>
+                                            <TableCell>Accruals Ratio (Earnings Quality)</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.accruals_ratio?.toFixed(3)}</TableCell>
                                           </TableRow>
                                         )}
-                                        {stock.quality_inputs.roa !== undefined && (
+                                        {stock.quality_inputs.fcf_to_net_income !== null && stock.quality_inputs.fcf_to_net_income !== undefined && (
                                           <TableRow>
-                                            <TableCell>ROA (Return on Assets)</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.roa?.toFixed(1)}%</TableCell>
+                                            <TableCell>FCF / Net Income (Cash Quality)</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.fcf_to_net_income?.toFixed(2)}</TableCell>
                                           </TableRow>
                                         )}
-                                        {stock.quality_inputs.profit_margin !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Net Profit Margin</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.profit_margin?.toFixed(1)}%</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.debt_to_equity !== undefined && (
+                                        {stock.quality_inputs.debt_to_equity !== null && stock.quality_inputs.debt_to_equity !== undefined && (
                                           <TableRow>
                                             <TableCell>Debt-to-Equity Ratio</TableCell>
                                             <TableCell align="right">{stock.quality_inputs.debt_to_equity?.toFixed(2)}</TableCell>
                                           </TableRow>
                                         )}
-                                        {stock.quality_inputs.current_ratio !== undefined && (
+                                        {stock.quality_inputs.current_ratio !== null && stock.quality_inputs.current_ratio !== undefined && (
                                           <TableRow>
                                             <TableCell>Current Ratio (Liquidity)</TableCell>
                                             <TableCell align="right">{stock.quality_inputs.current_ratio?.toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.asset_turnover !== null && stock.quality_inputs.asset_turnover !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Asset Turnover (Efficiency)</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.asset_turnover?.toFixed(2)}</TableCell>
                                           </TableRow>
                                         )}
                                       </>
@@ -1494,79 +1504,51 @@ const ScoresDashboard = () => {
                             </ResponsiveContainer>
                           </Box>
 
-                          {/* Value Input Metrics Table */}
-                          <TableContainer sx={{ mt: 2, maxHeight: 400, overflow: 'auto' }}>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Valuation Metric</TableCell>
-                                  <TableCell align="right">Stock</TableCell>
-                                  <TableCell align="right">Sector</TableCell>
-                                  <TableCell align="right">Market</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {stock.value_inputs && (
-                                  <>
-                                    <TableRow>
-                                      <TableCell>P/E Ratio (Price-to-Earnings)</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.stock_pe?.toFixed(2) || "N/A"}</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.sector_pe?.toFixed(2) || "N/A"}</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.market_pe?.toFixed(2) || "N/A"}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>P/B Ratio (Price-to-Book)</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.stock_pb?.toFixed(2) || "N/A"}</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.sector_pb?.toFixed(2) || "N/A"}</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.market_pb?.toFixed(2) || "N/A"}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>P/S Ratio (Price-to-Sales)</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.stock_ps?.toFixed(2) || "N/A"}</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.sector_ps?.toFixed(2) || "N/A"}</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.market_ps?.toFixed(2) || "N/A"}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>EV/EBITDA (Enterprise Value to EBITDA)</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.stock_ev_ebitda?.toFixed(2) || "N/A"}</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.sector_ev_ebitda?.toFixed(2) || "N/A"}</TableCell>
-                                      <TableCell align="right">N/A</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>FCF Yield (Free Cash Flow Yield)</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.stock_fcf_yield?.toFixed(2) || "N/A"}%</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.sector_fcf_yield?.toFixed(2) || "N/A"}%</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.market_fcf_yield?.toFixed(2) || "N/A"}%</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Dividend Yield</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.stock_dividend_yield?.toFixed(2) || "N/A"}%</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.sector_dividend_yield?.toFixed(2) || "N/A"}%</TableCell>
-                                      <TableCell align="right">{stock.value_inputs.market_dividend_yield?.toFixed(2) || "N/A"}%</TableCell>
-                                    </TableRow>
-                                    {stock.value_inputs.earnings_growth_pct !== null && stock.value_inputs.earnings_growth_pct !== undefined && (
-                                      <TableRow>
-                                        <TableCell>Earnings Growth % (Annual)</TableCell>
-                                        <TableCell align="right" colSpan={3}>{stock.value_inputs.earnings_growth_pct.toFixed(1)}%</TableCell>
-                                      </TableRow>
-                                    )}
+                          {/* Valuation Metrics Table */}
+                          {stock.value_inputs && (
+                            <TableContainer sx={{ mt: 2 }}>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Metric</TableCell>
+                                    <TableCell align="right">Value</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  <TableRow>
+                                    <TableCell>P/E Ratio (Price-to-Earnings)</TableCell>
+                                    <TableCell align="right">{stock.value_inputs.stock_pe?.toFixed(2) || "N/A"}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>P/B Ratio (Price-to-Book)</TableCell>
+                                    <TableCell align="right">{stock.value_inputs.stock_pb?.toFixed(2) || "N/A"}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>P/S Ratio (Price-to-Sales)</TableCell>
+                                    <TableCell align="right">{stock.value_inputs.stock_ps?.toFixed(2) || "N/A"}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>EV/EBITDA</TableCell>
+                                    <TableCell align="right">{stock.value_inputs.stock_ev_ebitda?.toFixed(2) || "N/A"}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>Dividend Yield</TableCell>
+                                    <TableCell align="right">{stock.value_inputs.stock_dividend_yield?.toFixed(2) || "N/A"}%</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>FCF Yield (Free Cash Flow Yield)</TableCell>
+                                    <TableCell align="right">{stock.value_inputs.stock_fcf_yield?.toFixed(2) || "N/A"}%</TableCell>
+                                  </TableRow>
+                                  {stock.value_inputs.peg_ratio !== null && stock.value_inputs.peg_ratio !== undefined && (
                                     <TableRow>
                                       <TableCell>PEG Ratio (P/E to Growth)</TableCell>
-                                      <TableCell align="right" colSpan={3}>{stock.value_inputs.peg_ratio?.toFixed(2) || "N/A"}</TableCell>
+                                      <TableCell align="right">{stock.value_inputs.peg_ratio.toFixed(2)}</TableCell>
                                     </TableRow>
-                                    <TableRow>
-                                      <TableCell>DCF Intrinsic Value (Discounted Cash Flow)</TableCell>
-                                      <TableCell align="right" colSpan={3}>${stock.value_inputs.dcf_intrinsic_value?.toFixed(2) || "N/A"}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>DCF Discount/Premium %</TableCell>
-                                      <TableCell align="right" colSpan={3}>{stock.value_inputs.dcf_discount_pct?.toFixed(1) || 0}%</TableCell>
-                                    </TableRow>
-                                  </>
-                                )}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
+                                  )}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          )}
                         </CardContent>
                       </Card>
                     </Grid>
@@ -1651,6 +1633,46 @@ const ScoresDashboard = () => {
                                   <TableCell>30D Change %</TableCell>
                                   <TableCell align="right">{(stock.price_change_30d || 0).toFixed(2)}%</TableCell>
                                 </TableRow>
+                                {stock.growth_inputs && (
+                                  <>
+                                    {stock.growth_inputs.revenue_growth_3y_cagr !== null && stock.growth_inputs.revenue_growth_3y_cagr !== undefined && (
+                                      <TableRow>
+                                        <TableCell>Revenue Growth (3Y CAGR)</TableCell>
+                                        <TableCell align="right">{stock.growth_inputs.revenue_growth_3y_cagr.toFixed(1)}%</TableCell>
+                                      </TableRow>
+                                    )}
+                                    {stock.growth_inputs.eps_growth_3y_cagr !== null && stock.growth_inputs.eps_growth_3y_cagr !== undefined && (
+                                      <TableRow>
+                                        <TableCell>EPS Growth (3Y CAGR)</TableCell>
+                                        <TableCell align="right">{stock.growth_inputs.eps_growth_3y_cagr.toFixed(1)}%</TableCell>
+                                      </TableRow>
+                                    )}
+                                    {stock.growth_inputs.operating_income_growth_yoy !== null && stock.growth_inputs.operating_income_growth_yoy !== undefined && (
+                                      <TableRow>
+                                        <TableCell>Operating Income Growth (YoY)</TableCell>
+                                        <TableCell align="right">{stock.growth_inputs.operating_income_growth_yoy.toFixed(1)}%</TableCell>
+                                      </TableRow>
+                                    )}
+                                    {stock.growth_inputs.roe_trend !== null && stock.growth_inputs.roe_trend !== undefined && (
+                                      <TableRow>
+                                        <TableCell>ROE Trend (YoY Change)</TableCell>
+                                        <TableCell align="right">{stock.growth_inputs.roe_trend.toFixed(1)}%</TableCell>
+                                      </TableRow>
+                                    )}
+                                    {stock.growth_inputs.sustainable_growth_rate !== null && stock.growth_inputs.sustainable_growth_rate !== undefined && (
+                                      <TableRow>
+                                        <TableCell>Sustainable Growth Rate</TableCell>
+                                        <TableCell align="right">{stock.growth_inputs.sustainable_growth_rate.toFixed(1)}%</TableCell>
+                                      </TableRow>
+                                    )}
+                                    {stock.growth_inputs.fcf_growth_yoy !== null && stock.growth_inputs.fcf_growth_yoy !== undefined && (
+                                      <TableRow>
+                                        <TableCell>FCF Growth (YoY)</TableCell>
+                                        <TableCell align="right">{stock.growth_inputs.fcf_growth_yoy.toFixed(1)}%</TableCell>
+                                      </TableRow>
+                                    )}
+                                  </>
+                                )}
                               </TableBody>
                             </Table>
                           </TableContainer>
@@ -1748,6 +1770,12 @@ const ScoresDashboard = () => {
                                   <TableCell>Days to Cover (Short Ratio)</TableCell>
                                   <TableCell align="right">
                                     {stock.positioning_components?.days_to_cover?.toFixed(2) || stock.positioning_components?.short_ratio?.toFixed(2) || "N/A"}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Accumulation/Distribution Rating</TableCell>
+                                  <TableCell align="right">
+                                    {stock.positioning_components?.acc_dist_rating?.toFixed(1) || "N/A"}
                                   </TableCell>
                                 </TableRow>
                               </TableBody>

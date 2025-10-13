@@ -1652,29 +1652,6 @@ function StockDetail() {
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>Interest Coverage</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={
-                              qualityInputs.interest_coverage
-                                ? formatNumber(qualityInputs.interest_coverage, 1) + "x"
-                                : "N/A"
-                            }
-                            color={
-                              qualityInputs.interest_coverage && qualityInputs.interest_coverage > 5
-                                ? "success"
-                                : "default"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            vs 5x minimum
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
                         <TableCell>FCF / Net Income</TableCell>
                         <TableCell align="right">
                           <Chip
