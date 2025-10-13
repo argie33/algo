@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-13 - Quality Metrics Calculator with 5 metrics for frontend display
+# Updated: 2025-10-13 - Professional Quality Inputs (13 metrics)
 """
-Quality Metrics Loader
+Quality Metrics Loader - Professional Quality Factor Inputs
 
-Calculates comprehensive quality metrics for stocks based on:
-- Profitability consistency (from quarterly financials)
-- Growth quality (sustainable vs volatile growth)
-- Financial strength (balance sheet health)
+Calculates 13 industry-standard quality metrics:
 
-Methodology:
-- Profitability Score: 40% - Consistent earnings and margins
-- Consistency Score: 30% - Low volatility in key metrics
-- Growth Quality: 30% - Sustainable growth patterns
+1. PROFITABILITY (5 metrics):
+   - ROE, ROA, Gross Margin, Operating Margin, Profit Margin
 
-Output:
-- quality_metrics table with quality_score (composite score)
-- profitability_score (normalized profitability metrics)
-- consistency_score (normalized volatility metrics)
-- growth_quality (normalized growth sustainability)
+2. CASH QUALITY (2 metrics):
+   - FCF/Net Income, Operating CF/Net Income
+
+3. BALANCE SHEET STRENGTH (3 metrics):
+   - Debt/Equity, Current Ratio, Quick Ratio
+
+4. EARNINGS QUALITY (2 metrics):
+   - Earnings Surprise Average, EPS Growth Stability
+
+5. CAPITAL ALLOCATION (1 metric):
+   - Payout Ratio
+
+All metrics pulled from existing tables (key_metrics, earnings_metrics).
+NO scores calculated here - just raw inputs for scoring engine.
 """
 
 import concurrent.futures
@@ -27,18 +31,17 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
 import boto3
 import numpy as np
-import pandas as pd
 import psycopg2
 import psycopg2.extensions
 from psycopg2 import pool
 from psycopg2.extras import execute_values
 
-# Register numpy type adapters for psycopg2
+# Register numpy type adapters
 def adapt_numpy_int64(numpy_int64):
     return psycopg2.extensions.AsIs(int(numpy_int64))
 
@@ -50,7 +53,6 @@ psycopg2.extensions.register_adapter(np.int32, adapt_numpy_int64)
 psycopg2.extensions.register_adapter(np.float64, adapt_numpy_float64)
 psycopg2.extensions.register_adapter(np.float32, adapt_numpy_float64)
 
-# Script metadata
 SCRIPT_NAME = os.path.basename(__file__)
 logging.basicConfig(
     level=logging.INFO,
@@ -58,15 +60,13 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
-# Performance configuration
 MAX_WORKERS = min(os.cpu_count() or 1, 4)
-BATCH_SIZE = 100
 DB_POOL_MIN = 2
 DB_POOL_MAX = 10
 
 
 def get_db_config():
-    """Fetch database credentials from AWS Secrets Manager or use local config"""
+    """Fetch database credentials"""
     if os.environ.get("USE_LOCAL_DB") == "true" or not os.environ.get("DB_SECRET_ARN"):
         logging.info("Using local database configuration")
         return (
@@ -80,17 +80,11 @@ def get_db_config():
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
     sec = json.loads(resp["SecretString"])
-    return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"],
-    )
+    return (sec["username"], sec["password"], sec["host"], int(sec["port"]), sec["dbname"])
 
 
 def safe_numeric(value):
-    """Safely convert value to float, handling None, NaN, invalid strings, and Decimal"""
+    """Safely convert value to float"""
     if value is None:
         return None
     if isinstance(value, Decimal):
@@ -109,38 +103,12 @@ def safe_numeric(value):
     return None
 
 
-def normalize_metric(value, min_val, max_val):
-    """
-    Normalize a metric to 0-100 scale
-
-    Args:
-        value: Raw metric value
-        min_val: Minimum expected value (maps to 0)
-        max_val: Maximum expected value (maps to 100)
-
-    Returns:
-        float: Normalized score 0-100, or None if value is None
-    """
-    if value is None:
-        return None
-
-    # Clamp to range
-    clamped = max(min_val, min(max_val, value))
-
-    # Normalize to 0-100
-    if max_val == min_val:
-        return 50.0
-
-    return ((clamped - min_val) / (max_val - min_val)) * 100
-
-
 def initialize_db():
-    """Initialize database connection and create tables"""
+    """Initialize database and create quality_metrics table with 13 inputs"""
     user, pwd, host, port, db = get_db_config()
     conn = psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname=db)
     cursor = conn.cursor()
 
-    # Create last_updated table for tracking
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS last_updated (
@@ -149,8 +117,6 @@ def initialize_db():
         );
         """
     )
-
-    # Record script start time
     cursor.execute(
         "INSERT INTO last_updated (script_name, last_run) VALUES (%s, CURRENT_TIMESTAMP) "
         "ON CONFLICT (script_name) DO UPDATE SET last_run = CURRENT_TIMESTAMP;",
@@ -158,42 +124,50 @@ def initialize_db():
     )
     conn.commit()
 
-    # Drop and recreate quality_metrics table
-    logging.info("Creating quality_metrics table...")
+    # Drop and recreate with 13 professional quality inputs
+    logging.info("Creating quality_metrics table with 13 professional inputs...")
     cursor.execute("DROP TABLE IF EXISTS quality_metrics;")
     cursor.execute(
         """
         CREATE TABLE quality_metrics (
-            symbol                      VARCHAR(50),
-            date                        DATE,
+            symbol                          VARCHAR(50),
+            date                            DATE,
 
-            -- RAW calculated metrics ONLY (for stockscores script to use)
-            accruals_ratio              DOUBLE PRECISION,  -- (Net Income - Op Cash Flow) / Total Assets
-            fcf_to_net_income           DOUBLE PRECISION,  -- Free Cash Flow / Net Income
-            debt_to_equity              DOUBLE PRECISION,  -- Total Liabilities / Total Equity
-            current_ratio               DOUBLE PRECISION,  -- Current Assets / Current Liabilities
-            asset_turnover              DOUBLE PRECISION,  -- Revenue / Avg Total Assets
+            -- PROFITABILITY (5 metrics from key_metrics)
+            return_on_equity_pct            DOUBLE PRECISION,
+            return_on_assets_pct            DOUBLE PRECISION,
+            gross_margin_pct                DOUBLE PRECISION,
+            operating_margin_pct            DOUBLE PRECISION,
+            profit_margin_pct               DOUBLE PRECISION,
 
-            -- NOTE: ROE, ROA, margins already in key_metrics
-            -- NOTE: Scores calculated by stockscores script, not here
-            -- NOTE: Interest Coverage removed - Interest Expense data not available from yfinance
+            -- CASH QUALITY (2 metrics)
+            fcf_to_net_income               DOUBLE PRECISION,
+            operating_cf_to_net_income      DOUBLE PRECISION,
 
-            fetched_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            -- BALANCE SHEET STRENGTH (3 metrics from key_metrics)
+            debt_to_equity                  DOUBLE PRECISION,
+            current_ratio                   DOUBLE PRECISION,
+            quick_ratio                     DOUBLE PRECISION,
+
+            -- EARNINGS QUALITY (2 metrics from earnings_metrics)
+            earnings_surprise_avg           DOUBLE PRECISION,
+            eps_growth_stability            DOUBLE PRECISION,
+
+            -- CAPITAL ALLOCATION (1 metric from key_metrics)
+            payout_ratio                    DOUBLE PRECISION,
+
+            fetched_at                      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, date)
         );
         """
     )
 
-    # Create indexes for query performance
-    logging.info("Creating indexes on quality_metrics...")
+    logging.info("Creating indexes...")
     cursor.execute("CREATE INDEX idx_quality_metrics_symbol ON quality_metrics(symbol);")
     cursor.execute("CREATE INDEX idx_quality_metrics_date ON quality_metrics(date DESC);")
     conn.commit()
-    logging.info("Indexes created successfully")
+    logging.info("Table 'quality_metrics' ready with 13 professional inputs")
 
-    logging.info("Table 'quality_metrics' ready.")
-
-    # Get stock symbols (exclude ETFs)
     cursor.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
     symbols = [r[0] for r in cursor.fetchall()]
     logging.info(f"Found {len(symbols)} symbols.")
@@ -207,29 +181,13 @@ def create_connection_pool():
     """Create database connection pool"""
     user, pwd, host, port, db = get_db_config()
     return pool.ThreadedConnectionPool(
-        DB_POOL_MIN,
-        DB_POOL_MAX,
-        host=host,
-        port=port,
-        user=user,
-        password=pwd,
-        dbname=db,
+        DB_POOL_MIN, DB_POOL_MAX, host=host, port=port, user=user, password=pwd, dbname=db
     )
 
 
 def process_symbol(symbol, conn_pool):
     """
-    Process a single symbol and calculate quality metrics
-
-    Industry-standard approach:
-    1. Profitability (40%): ROE, ROA, margins from key_metrics
-    2. Earnings Quality (30%): Accruals ratio, FCF/Net Income
-    3. Financial Stability (20%): Debt/Equity, Current Ratio
-    4. Operational Efficiency (10%): Asset Turnover
-
-    Args:
-        symbol: Stock symbol to process
-        conn_pool: Database connection pool
+    Calculate 13 professional quality inputs for a symbol
 
     Returns:
         int: Number of records inserted
@@ -238,199 +196,165 @@ def process_symbol(symbol, conn_pool):
         conn = conn_pool.getconn()
         cursor = conn.cursor()
 
-        logging.info(f"Processing quality metrics for {symbol}...")
+        logging.info(f"Processing quality inputs for {symbol}...")
+        current_date = datetime.now().date()
 
-        # ========== STEP 1: Fetch Key Metrics (from ticker.info data) ==========
+        # ========== PROFITABILITY + BALANCE SHEET + CASH (from key_metrics) ==========
         cursor.execute(
             """
             SELECT
-                return_on_equity_pct,
-                return_on_assets_pct,
-                profit_margin_pct,
-                operating_margin_pct,
-                gross_margin_pct,
-                current_ratio,
-                debt_to_equity,
-                free_cashflow,
-                net_income
+                return_on_equity_pct,           -- 0
+                return_on_assets_pct,           -- 1
+                gross_margin_pct,               -- 2
+                operating_margin_pct,           -- 3
+                profit_margin_pct,              -- 4
+                debt_to_equity,                 -- 5
+                current_ratio,                  -- 6
+                quick_ratio,                    -- 7
+                payout_ratio,                   -- 8
+                free_cashflow,                  -- 9
+                operating_cashflow,             -- 10
+                net_income,                     -- 11
+                gross_profit,                   -- 12
+                total_revenue,                  -- 13
+                dividend_rate,                  -- 14
+                eps_trailing                    -- 15
             FROM key_metrics
             WHERE ticker = %s
             LIMIT 1
             """,
             (symbol,),
         )
-        metrics_row = cursor.fetchone()
-        logging.info(f"{symbol}: Key metrics row: {metrics_row}")
+        km = cursor.fetchone()
 
-        # ========== STEP 2: Fetch Latest Quarter Financial Data ==========
-        # Get most recent quarter data using item_name/value structure
+        # Extract metrics from key_metrics
+        roe = safe_numeric(km[0]) if km else None
+        roa = safe_numeric(km[1]) if km else None
+        gross_margin = safe_numeric(km[2]) if km else None
+        operating_margin = safe_numeric(km[3]) if km else None
+        profit_margin = safe_numeric(km[4]) if km else None
+        debt_equity = safe_numeric(km[5]) if km else None
+        current_ratio = safe_numeric(km[6]) if km else None
+        quick_ratio = safe_numeric(km[7]) if km else None
+        payout_ratio = safe_numeric(km[8]) if km else None
+
+        fcf = safe_numeric(km[9]) if km else None
+        op_cf = safe_numeric(km[10]) if km else None
+        net_income = safe_numeric(km[11]) if km else None
+
+        # Calculate gross_margin if NULL but raw data available
+        if gross_margin is None and km:
+            gross_profit = safe_numeric(km[12])
+            total_revenue = safe_numeric(km[13])
+            if gross_profit is not None and total_revenue and total_revenue != 0:
+                gross_margin = gross_profit / total_revenue
+
+        # Calculate payout_ratio if NULL but raw data available
+        if payout_ratio is None and km:
+            dividend_rate = safe_numeric(km[14])
+            eps_trailing = safe_numeric(km[15])
+            if dividend_rate is not None and eps_trailing and eps_trailing != 0:
+                payout_ratio = dividend_rate / eps_trailing
+
+        # Calculate cash quality ratios
+        fcf_to_ni = None
+        if fcf is not None and net_income and net_income != 0:
+            fcf_to_ni = fcf / net_income
+
+        op_cf_to_ni = None
+        if op_cf is not None and net_income and net_income != 0:
+            op_cf_to_ni = op_cf / net_income
+
+        # ========== EARNINGS QUALITY (from earnings_metrics) ==========
+        # Get last 4 quarters of earnings data
         cursor.execute(
             """
-            SELECT DISTINCT date FROM quarterly_income_statement
+            SELECT
+                earnings_surprise_pct,
+                eps_qoq_growth
+            FROM earnings_metrics
             WHERE symbol = %s
-            ORDER BY date DESC
-            LIMIT 2
+            ORDER BY report_date DESC
+            LIMIT 4
             """,
             (symbol,),
         )
-        quarter_dates = [row[0] for row in cursor.fetchall()]
-        logging.info(f"{symbol}: Found {len(quarter_dates)} recent quarters")
+        earnings_data = cursor.fetchall()
 
-        financial_data = []
-        for qdate in quarter_dates:
-            # Get all metrics for this quarter
-            cursor.execute(
-                """
-                SELECT
-                    MAX(CASE WHEN item_name = 'Net Income' THEN value END) as net_income,
-                    MAX(CASE WHEN item_name = 'Total Revenue' THEN value END) as total_revenue
-                FROM quarterly_income_statement
-                WHERE symbol = %s AND date = %s
-                """,
-                (symbol, qdate),
-            )
-            income = cursor.fetchone()
+        earnings_surprise_avg = None
+        eps_growth_stability = None
 
-            cursor.execute(
-                """
-                SELECT
-                    MAX(CASE WHEN item_name = 'Total Assets' THEN value END) as total_assets,
-                    MAX(CASE WHEN item_name = 'Total Liabilities' THEN value END) as total_liabilities,
-                    MAX(CASE WHEN item_name = 'Total Equity' THEN value END) as total_equity,
-                    MAX(CASE WHEN item_name = 'Current Assets' THEN value END) as current_assets,
-                    MAX(CASE WHEN item_name = 'Current Liabilities' THEN value END) as current_liabilities
-                FROM quarterly_balance_sheet
-                WHERE symbol = %s AND date = %s
-                """,
-                (symbol, qdate),
-            )
-            balance = cursor.fetchone()
+        if earnings_data and len(earnings_data) >= 2:
+            # Earnings surprise average (last 4 quarters)
+            surprises = [safe_numeric(row[0]) for row in earnings_data if row[0] is not None]
+            if surprises:
+                earnings_surprise_avg = np.mean(surprises)
 
-            cursor.execute(
-                """
-                SELECT
-                    MAX(CASE WHEN item_name = 'Operating Cash Flow' THEN value END) as operating_cash_flow,
-                    MAX(CASE WHEN item_name = 'Free Cash Flow' THEN value END) as free_cash_flow
-                FROM quarterly_cash_flow
-                WHERE symbol = %s AND date = %s
-                """,
-                (symbol, qdate),
-            )
-            cashflow = cursor.fetchone()
+            # EPS growth stability (stddev of qoq growth)
+            eps_qoq = [safe_numeric(row[1]) for row in earnings_data if row[1] is not None]
+            if len(eps_qoq) >= 2:
+                eps_growth_stability = np.std(eps_qoq)
 
-            # Combine into single tuple
-            if income and balance and cashflow:
-                financial_data.append((
-                    qdate,  # 0
-                    income[0],  # 1: net_income
-                    income[1],  # 2: total_revenue
-                    balance[0],  # 3: total_assets
-                    balance[1],  # 4: total_liabilities
-                    balance[2],  # 5: total_equity
-                    balance[3],  # 6: current_assets
-                    balance[4],  # 7: current_liabilities
-                    cashflow[0],  # 8: operating_cash_flow
-                    cashflow[1],  # 9: free_cash_flow
-                ))
-
-        logging.info(f"{symbol}: Assembled {len(financial_data)} quarters of complete financial data")
-
-        if not metrics_row and not financial_data:
-            logging.warning(f"No quality data for {symbol}, skipping.")
-            conn_pool.putconn(conn)
-            return 0
-
-        # ========== STEP 3: Calculate Metrics (prefer key_metrics, fallback to quarterly) ==========
-        current_date = datetime.now().date()
-
-        # Initialize metrics - try to get from key_metrics first
-        current_ratio = safe_numeric(metrics_row[5]) if metrics_row and len(metrics_row) > 5 else None
-        debt_to_equity = safe_numeric(metrics_row[6]) if metrics_row and len(metrics_row) > 6 else None
-        km_free_cashflow = safe_numeric(metrics_row[7]) if metrics_row and len(metrics_row) > 7 else None
-        km_net_income = safe_numeric(metrics_row[8]) if metrics_row and len(metrics_row) > 8 else None
-
-        # Calculate FCF to Net Income from key_metrics if available
-        fcf_to_net_income = None
-        if km_free_cashflow is not None and km_net_income and km_net_income != 0:
-            fcf_to_net_income = km_free_cashflow / km_net_income
-
-        # These must be calculated from quarterly statements
-        accruals_ratio = None
-        asset_turnover = None
-
-        if financial_data and len(financial_data) > 0:
-            latest = financial_data[0]
-            net_income = safe_numeric(latest[1])
-            total_revenue = safe_numeric(latest[2])
-            total_assets = safe_numeric(latest[3])
-            total_liabilities = safe_numeric(latest[4])
-            total_equity = safe_numeric(latest[5])
-            current_assets = safe_numeric(latest[6])
-            current_liabilities = safe_numeric(latest[7])
-            operating_cash_flow = safe_numeric(latest[8])
-            free_cash_flow = safe_numeric(latest[9])
-
-            # Accruals Ratio = (Net Income - Operating Cash Flow) / Total Assets
-            if net_income is not None and operating_cash_flow is not None and total_assets and total_assets > 0:
-                accruals_ratio = (net_income - operating_cash_flow) / total_assets
-
-            # Fallback: FCF / Net Income from quarterly if not from key_metrics
-            if fcf_to_net_income is None and free_cash_flow is not None and net_income and net_income != 0:
-                fcf_to_net_income = free_cash_flow / net_income
-
-            # Fallback: Debt to Equity from quarterly if not from key_metrics
-            if debt_to_equity is None and total_liabilities is not None and total_equity and total_equity > 0:
-                debt_to_equity = total_liabilities / total_equity
-
-            # Fallback: Current Ratio from quarterly if not from key_metrics
-            if current_ratio is None and current_assets is not None and current_liabilities and current_liabilities > 0:
-                current_ratio = current_assets / current_liabilities
-
-            # Asset Turnover (use average of last 2 quarters if available)
-            if total_revenue is not None and total_assets and total_assets > 0:
-                if len(financial_data) >= 2:
-                    assets_prev = safe_numeric(financial_data[1][3])
-                    avg_assets = (total_assets + assets_prev) / 2 if assets_prev else total_assets
-                else:
-                    avg_assets = total_assets
-                asset_turnover = (total_revenue * 4) / avg_assets if avg_assets > 0 else None  # Annualize revenue
-
-        # Create record with RAW metrics ONLY - no scores
+        # ========== CREATE RECORD ==========
         record = (
             symbol,
             current_date,
-            accruals_ratio,
-            fcf_to_net_income,
-            debt_to_equity,
+            # Profitability
+            roe,
+            roa,
+            gross_margin,
+            operating_margin,
+            profit_margin,
+            # Cash Quality
+            fcf_to_ni,
+            op_cf_to_ni,
+            # Balance Sheet
+            debt_equity,
             current_ratio,
-            asset_turnover,
+            quick_ratio,
+            # Earnings Quality
+            earnings_surprise_avg,
+            eps_growth_stability,
+            # Capital Allocation
+            payout_ratio,
         )
-        records = [record]
 
-        # ========== STEP 4: Insert Records ==========
-        if records:
-            execute_values(
-                cursor,
-                """
-                INSERT INTO quality_metrics
-                (symbol, date, accruals_ratio, fcf_to_net_income, debt_to_equity,
-                 current_ratio, asset_turnover)
-                VALUES %s
-                ON CONFLICT (symbol, date) DO UPDATE SET
-                    accruals_ratio = EXCLUDED.accruals_ratio,
-                    fcf_to_net_income = EXCLUDED.fcf_to_net_income,
-                    debt_to_equity = EXCLUDED.debt_to_equity,
-                    current_ratio = EXCLUDED.current_ratio,
-                    asset_turnover = EXCLUDED.asset_turnover,
-                    fetched_at = CURRENT_TIMESTAMP
-                """,
-                records,
-            )
-            conn.commit()
-            logging.info(f"✅ {symbol}: Inserted {len(records)} quality metric records")
+        # ========== INSERT ==========
+        execute_values(
+            cursor,
+            """
+            INSERT INTO quality_metrics
+            (symbol, date,
+             return_on_equity_pct, return_on_assets_pct, gross_margin_pct,
+             operating_margin_pct, profit_margin_pct,
+             fcf_to_net_income, operating_cf_to_net_income,
+             debt_to_equity, current_ratio, quick_ratio,
+             earnings_surprise_avg, eps_growth_stability,
+             payout_ratio)
+            VALUES %s
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                return_on_equity_pct = EXCLUDED.return_on_equity_pct,
+                return_on_assets_pct = EXCLUDED.return_on_assets_pct,
+                gross_margin_pct = EXCLUDED.gross_margin_pct,
+                operating_margin_pct = EXCLUDED.operating_margin_pct,
+                profit_margin_pct = EXCLUDED.profit_margin_pct,
+                fcf_to_net_income = EXCLUDED.fcf_to_net_income,
+                operating_cf_to_net_income = EXCLUDED.operating_cf_to_net_income,
+                debt_to_equity = EXCLUDED.debt_to_equity,
+                current_ratio = EXCLUDED.current_ratio,
+                quick_ratio = EXCLUDED.quick_ratio,
+                earnings_surprise_avg = EXCLUDED.earnings_surprise_avg,
+                eps_growth_stability = EXCLUDED.eps_growth_stability,
+                payout_ratio = EXCLUDED.payout_ratio,
+                fetched_at = CURRENT_TIMESTAMP
+            """,
+            [record],
+        )
+        conn.commit()
+        logging.info(f"✅ {symbol}: Inserted 13 quality inputs")
 
         conn_pool.putconn(conn)
-        return len(records)
+        return 1
 
     except Exception as e:
         logging.error(f"❌ Error processing {symbol}: {e}")
@@ -442,23 +366,18 @@ def process_symbol(symbol, conn_pool):
 
 
 def main():
-    """Main execution function"""
+    """Main execution"""
     start_time = time.time()
     logging.info("=" * 80)
-    logging.info("Quality Metrics Loader - Starting")
+    logging.info("Quality Metrics Loader - Professional 13 Inputs")
     logging.info("=" * 80)
 
-    # Initialize database and get symbols
     symbols = initialize_db()
-
-    # Create connection pool
     conn_pool = create_connection_pool()
 
-    # Process symbols in parallel
     total_records = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {executor.submit(process_symbol, sym, conn_pool): sym for sym in symbols}
-
         for future in concurrent.futures.as_completed(futures):
             symbol = futures[future]
             try:
@@ -467,7 +386,6 @@ def main():
             except Exception as e:
                 logging.error(f"Error processing {symbol}: {e}")
 
-    # Cleanup
     conn_pool.closeall()
     gc.collect()
 

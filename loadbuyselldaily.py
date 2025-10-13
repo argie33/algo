@@ -42,6 +42,13 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
+# ========================================
+# Pine Script Breakout Trend Follower Configuration
+# ========================================
+USE_MA_FILTER = True  # Enable/disable MA filter (set to False to trade all breakouts)
+MA_TYPE = 'SMA'  # 'SMA' or 'EMA' for trend filter
+MA_LENGTH = 50  # MA period for filtering (default 50, Pine Script allows customization)
+
 ###############################################################################
 # ─── Environment & Secrets ───────────────────────────────────────────────────
 ###############################################################################
@@ -177,6 +184,12 @@ def create_buy_sell_table(cur):
         stage_confidence INTEGER,        -- 0-100 confidence in stage
         substage VARCHAR(50),            -- Stage 1 - Early/Mid/Late
         mansfield_rs NUMERIC(10,2),      -- Mansfield Relative Strength
+        -- Pine Script Breakout Trend Follower Fields
+        ma_filter_value REAL,            -- MA filter level (SMA/EMA)
+        ma_filter_type VARCHAR(10),      -- 'SMA' or 'EMA'
+        ma_filter_period INTEGER,        -- MA period (default 50)
+        pivot_high_value REAL,           -- Last pivot high value
+        pivot_low_value REAL,            -- Last pivot low value
         -- Base Pattern Detection Fields
         base_pivot_price REAL,           -- Resistance level to break
         base_support_price REAL,         -- Support level of base
@@ -523,14 +536,25 @@ def create_buy_sell_table(cur):
     """)
 
 
-def insert_symbol_results(cur, symbol, timeframe, df):
+def insert_symbol_results(cur, symbol, timeframe, df, ma_type='SMA', ma_length=50):
     insert_q = """
       INSERT INTO buy_sell_daily (
         symbol, timeframe, date,
         open, high, low, close, volume,
-        signal, buylevel, stoplevel, inposition
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-      ON CONFLICT (symbol, timeframe, date) DO NOTHING;
+        signal, buylevel, stoplevel, inposition,
+        ma_filter_value, ma_filter_type, ma_filter_period,
+        pivot_high_value, pivot_low_value
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+      ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
+        signal = EXCLUDED.signal,
+        buylevel = EXCLUDED.buylevel,
+        stoplevel = EXCLUDED.stoplevel,
+        inposition = EXCLUDED.inposition,
+        ma_filter_value = EXCLUDED.ma_filter_value,
+        ma_filter_type = EXCLUDED.ma_filter_type,
+        ma_filter_period = EXCLUDED.ma_filter_period,
+        pivot_high_value = EXCLUDED.pivot_high_value,
+        pivot_low_value = EXCLUDED.pivot_low_value;
     """
     inserted = 0
     for idx, row in df.iterrows():
@@ -552,6 +576,17 @@ def insert_symbol_results(cur, symbol, timeframe, df):
                     f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}"
                 )
                 continue
+
+            # Get MA filter value (may be NaN for early rows)
+            ma_filter_val = row.get("ma_filter")
+            ma_filter_val = float(ma_filter_val) if pd.notna(ma_filter_val) else None
+
+            # Get pivot values
+            pivot_high_val = row.get("LastPH")
+            pivot_high_val = float(pivot_high_val) if pd.notna(pivot_high_val) else None
+            pivot_low_val = row.get("LastPL")
+            pivot_low_val = float(pivot_low_val) if pd.notna(pivot_low_val) else None
+
             cur.execute(
                 insert_q,
                 (
@@ -567,6 +602,11 @@ def insert_symbol_results(cur, symbol, timeframe, df):
                     float(row["buyLevel"]),
                     float(row["stopLevel"]),
                     bool(row["inPosition"]),
+                    ma_filter_val,
+                    ma_type,
+                    ma_length,
+                    pivot_high_val,
+                    pivot_low_val,
                 ),
             )
             inserted += 1
@@ -599,7 +639,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 bsd.close as current_price, bsd.open, bsd.high, bsd.low,
                 bsd.volume, bsd.inposition
             FROM {table_name} bsd
-            WHERE bsd.symbol = %(symbol)s AND bsd.timeframe = %(timeframe)s
+            WHERE bsd.symbol = %s AND bsd.timeframe = %s
         ),
         technical_data AS (
             SELECT
@@ -611,7 +651,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 LAG(td.sma_50, 5) OVER (ORDER BY td.date) as sma_50_prev,
                 LAG(td.sma_200, 10) OVER (ORDER BY td.date) as sma_200_prev
             FROM {tech_table} td
-            WHERE td.symbol = %(symbol)s
+            WHERE td.symbol = %s
         ),
         volume_data AS (
             SELECT
@@ -621,7 +661,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
                 ) as volume_avg_50
             FROM {price_table} pd
-            WHERE pd.symbol = %(symbol)s
+            WHERE pd.symbol = %s
         ),
         high_52week_data AS (
             SELECT
@@ -631,7 +671,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                 ) as high_52week
             FROM {price_table} pd
-            WHERE pd.symbol = %(symbol)s
+            WHERE pd.symbol = %s
         ),
         stage_calc AS (
             SELECT
@@ -698,7 +738,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                 stg.stage as market_stage,
 
                 -- Stage confidence score (from pre-calculated stage_data)
-                stg.stage_confidence,
+                stg.confidence as stage_confidence,
 
                 -- Substage (from pre-calculated stage_data)
                 stg.substage,
@@ -734,7 +774,7 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
                     CASE WHEN stg.rsi BETWEEN 40 AND 70 THEN 20 ELSE 0 END
                 )::INTEGER as entry_quality_score,
 
-                -- Profit targets (O'Neill/Minervini: 20-25% profit targets)
+                -- Profit targets (O'Neill/Minervini: 20-25%% profit targets)
                 CASE WHEN stg.buylevel IS NOT NULL THEN (stg.buylevel * 1.20)::REAL ELSE NULL END as profit_target_20pct,
                 CASE WHEN stg.buylevel IS NOT NULL THEN (stg.buylevel * 1.25)::REAL ELSE NULL END as profit_target_25pct,
 
@@ -816,8 +856,8 @@ def update_swing_metrics_for_symbol(cur, symbol, timeframe='Daily'):
         WHERE bsd.symbol = cm.symbol AND bsd.date = cm.date
         """
 
-        # Parameters: named dict for all placeholders
-        cur.execute(update_sql, {'symbol': symbol, 'timeframe': timeframe})
+        # Parameters: positional list matching %s placeholders in SQL
+        cur.execute(update_sql, (symbol, timeframe, symbol, symbol, symbol))
         updated_count = cur.rowcount
         logging.info(f"✅ Updated {updated_count} swing metrics for {symbol} {timeframe}")
 
@@ -941,49 +981,90 @@ def fetch_symbol_from_db(symbol, timeframe):
 
 
 ###############################################################################
-# 4) SIGNAL GENERATION & IN-POSITION LOGIC
+# 4) SIGNAL GENERATION & IN-POSITION LOGIC - Pine Script Breakout Trend Follower
 ###############################################################################
-def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
-    df["TrendOK"] = df["close"] > df["sma_50"]
-    df["RSI_prev"] = df["rsi"].shift(1)
-    df["rsiBuy"] = (df["rsi"] > 50) & (df["RSI_prev"] <= 50)
-    df["rsiSell"] = (df["rsi"] < 50) & (df["RSI_prev"] >= 50)
-    df["LastPH"] = df["pivot_high"].shift(1).ffill()
-    df["LastPL"] = df["pivot_low"].shift(1).ffill()
-    df["stopBuffer"] = df["atr"] * atrMult
-    df["stopLevel"] = df["LastPL"] - df["stopBuffer"]
-    df["buyLevel"] = df["LastPH"]
-    df["breakoutBuy"] = df["high"] > df["buyLevel"]
-    df["breakoutSell"] = df["low"] < df["stopLevel"]
+def generate_signals(df, use_ma_filter=True, ma_type='SMA', ma_length=50):
+    """
+    Pine Script Breakout Trend Follower Strategy
+    Based on: @millerrh's Breakout Trend Follower (TradingView)
 
-    if useADX:
-        flt = (df["adx"] > adxS) | (
-            (df["adx"] > adxW) & (df["adx"] > df["adx"].shift(1))
-        )
-        adxOK = (df["plus_di"] > df["minus_di"]) & flt
-        exitD = (df["plus_di"].shift(1) > df["minus_di"].shift(1)) & (
-            df["plus_di"] < df["minus_di"]
-        )
-        df["finalBuy"] = (df["rsiBuy"] & df["TrendOK"] & adxOK) | df["breakoutBuy"]
-        df["finalSell"] = df["rsiSell"] | df["breakoutSell"] | exitD
+    Entry: When high breaks above recent swing high (pivot high)
+    Exit: When low breaks below recent swing low (pivot low)
+    MA Filter: Optional filter to only take trades above moving average
+
+    Pine Script Logic:
+    - buyLevel = valuewhen(pvthi_, high[pvtLenR], 0)  // Last pivot high
+    - stopLevel = valuewhen(pvtlo_, low[pvtLenR], 0)  // Last pivot low
+    - buySignal = high > buyLevel
+    - buy = buySignal and buyLevel > maFilterCheck
+    - sellSignal = low < stopLevel
+    - inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]
+    - buyStudy = buy and flat (only buy when not in position)
+    - sellStudy = sellSignal and inPosition (only sell when in position)
+    """
+    # Calculate MA filter (matches Pine Script ma() function)
+    if use_ma_filter:
+        if ma_type == 'EMA':
+            df['ma_filter'] = df['close'].ewm(span=ma_length, adjust=False).mean()
+        else:  # SMA (default in Pine Script)
+            df['ma_filter'] = df['close'].rolling(window=ma_length).mean()
     else:
-        df["finalBuy"] = (df["rsiBuy"] & df["TrendOK"]) | df["breakoutBuy"]
-        df["finalSell"] = df["rsiSell"] | df["breakoutSell"]
+        df['ma_filter'] = 0  # No filter (maFilterCheck = 0 in Pine Script)
 
-    in_pos, sigs, pos = False, [], []
+    # Pine Script: pvthis = fixnan(pvthi), pvtlos = fixnan(pvtlo)
+    # fixnan() forward fills the last non-null value
+    df['LastPH'] = df['pivot_high'].ffill()
+    df['LastPL'] = df['pivot_low'].ffill()
+
+    # Pine Script: buyLevel and stopLevel from valuewhen()
+    df['buyLevel'] = df['LastPH']  # Buy level at swing high
+    df['stopLevel'] = df['LastPL']  # Stop level at swing low
+
+    # Pine Script breakout conditions
+    # buySignal = high > buyLevel
+    # buy = buySignal and buyLevel > maFilterCheck
+    df['buySignal'] = df['high'] > df['buyLevel']
+
+    if use_ma_filter:
+        # Only buy if buyLevel > ma_filter (trend filter)
+        df['buySignal'] = df['buySignal'] & (df['buyLevel'] > df['ma_filter'])
+
+    # Pine Script: sellSignal = low < stopLevel
+    df['sellSignal'] = df['low'] < df['stopLevel']
+
+    # Pine Script position tracking logic:
+    # inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]
+    # flat := not inPosition
+    # buyStudy = buy and flat
+    # sellStudy = sellSignal and inPosition
+    in_position = False
+    signals = []
+    positions = []
+
     for i in range(len(df)):
-        if in_pos and df.loc[i, "finalSell"]:
-            sigs.append("Sell")
-            in_pos = False
-        elif not in_pos and df.loc[i, "finalBuy"]:
-            sigs.append("Buy")
-            in_pos = True
-        else:
-            sigs.append("None")
-        pos.append(in_pos)
+        buy_signal = df.loc[i, 'buySignal']
+        sell_signal = df.loc[i, 'sellSignal']
 
-    df["Signal"] = sigs
-    df["inPosition"] = pos
+        # Update position state BEFORE checking signals
+        # This matches Pine Script's [1] reference (previous bar)
+        flat = not in_position
+
+        # Pine Script: buyStudy = buy and flat
+        if flat and buy_signal:
+            signals.append('Buy')
+            in_position = True
+        # Pine Script: sellStudy = sellSignal and inPosition
+        elif in_position and sell_signal:
+            signals.append('Sell')
+            in_position = False
+        else:
+            signals.append('None')
+
+        positions.append(in_position)
+
+    df['Signal'] = signals
+    df['inPosition'] = positions
+
     return df
 
 
@@ -1060,13 +1141,15 @@ def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
 ###############################################################################
 # 6) PROCESS & MAIN
 ###############################################################################
-def process_symbol(symbol, timeframe):
+def process_symbol(symbol, timeframe, use_ma_filter=True, ma_type='SMA', ma_length=50):
     logging.info(f"  [process_symbol] Fetching {symbol} {timeframe}")
     df = fetch_symbol_from_db(symbol, timeframe)
     logging.info(
         f"  [process_symbol] Done fetching {symbol} {timeframe}, rows: {len(df)}"
     )
-    return generate_signals(df) if not df.empty else df
+    if not df.empty:
+        return generate_signals(df, use_ma_filter=use_ma_filter, ma_type=ma_type, ma_length=ma_length)
+    return df
 
 
 def main():
@@ -1094,24 +1177,33 @@ def main():
     create_buy_sell_table(cur)
     conn.commit()
     results = {"Daily": {"rets": [], "durs": []}}
+    logging.info(f"📈 Pine Script Breakout Trend Follower Configuration:")
+    logging.info(f"   MA Filter: {'Enabled' if USE_MA_FILTER else 'Disabled'}")
+    logging.info(f"   MA Type: {MA_TYPE}")
+    logging.info(f"   MA Length: {MA_LENGTH}")
+    logging.info("=" * 80)
+
     for sym in symbols:
         logging.info(f"=== {sym} ===")
         tf = "Daily"
         logging.info(f"  [main] Processing {sym} {tf}")
-        df = process_symbol(sym, tf)
+        df = process_symbol(sym, tf, use_ma_filter=USE_MA_FILTER, ma_type=MA_TYPE, ma_length=MA_LENGTH)
         logging.info(f"  [main] Done processing {sym} {tf}")
         if df.empty:
             logging.info(f"[{tf}] no data")
             continue
-        insert_symbol_results(cur, sym, tf, df)
+        insert_symbol_results(cur, sym, tf, df, ma_type=MA_TYPE, ma_length=MA_LENGTH)
         conn.commit()
 
-        # DISABLED: Swing metrics calculation takes >2min per symbol (timeout issue)
-        # TODO: Optimize swing metrics SQL query or run as separate batch process
-        # logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
-        # update_swing_metrics_for_symbol(cur, sym, tf)
-        # conn.commit()
-        # logging.info(f"  [main] Done calculating swing metrics for {sym} {tf}")
+        # Calculate swing metrics (O'Neill/Minervini, Stage Analysis, SATA scores, etc.)
+        try:
+            logging.info(f"  [main] Calculating swing metrics for {sym} {tf}")
+            update_swing_metrics_for_symbol(cur, sym, tf)
+            conn.commit()
+            logging.info(f"  [main] ✅ Done calculating swing metrics for {sym} {tf}")
+        except Exception as e:
+            logging.error(f"  [main] ❌ Swing metrics failed for {sym} {tf}: {e}")
+            conn.rollback()
 
         _, rets, durs, _, _ = backtest_fixed_capital(df)
         results[tf]["rets"].extend(rets)
