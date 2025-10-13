@@ -1522,6 +1522,11 @@ function StockDetail() {
 
           {/* Factor Breakdown Details */}
           <Grid item xs={12} md={6}>
+            {(() => {
+              // Get quality inputs from stock scores API
+              const qualityInputs = stockScores?.data?.factors?.quality?.inputs || {};
+
+              return (
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -1605,12 +1610,12 @@ function StockDetail() {
                         <TableCell align="right">
                           <Chip
                             label={
-                              currentMetrics.debt_to_equity
-                                ? formatNumber(currentMetrics.debt_to_equity, 2)
+                              qualityInputs.debt_to_equity
+                                ? formatNumber(qualityInputs.debt_to_equity, 2)
                                 : "N/A"
                             }
                             color={
-                              currentMetrics.debt_to_equity < 0.3
+                              qualityInputs.debt_to_equity && qualityInputs.debt_to_equity < 30
                                 ? "success"
                                 : "warning"
                             }
@@ -1619,7 +1624,30 @@ function StockDetail() {
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            vs 0.3 optimal
+                            vs 30 optimal
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Current Ratio</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={
+                              qualityInputs.current_ratio
+                                ? formatNumber(qualityInputs.current_ratio, 2)
+                                : "N/A"
+                            }
+                            color={
+                              qualityInputs.current_ratio && qualityInputs.current_ratio > 1.5
+                                ? "success"
+                                : "default"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            vs 1.5 minimum
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1627,8 +1655,16 @@ function StockDetail() {
                         <TableCell>Interest Coverage</TableCell>
                         <TableCell align="right">
                           <Chip
-                            label={currentMetrics.interest_coverage || "N/A"}
-                            color="success"
+                            label={
+                              qualityInputs.interest_coverage
+                                ? formatNumber(qualityInputs.interest_coverage, 1) + "x"
+                                : "N/A"
+                            }
+                            color={
+                              qualityInputs.interest_coverage && qualityInputs.interest_coverage > 5
+                                ? "success"
+                                : "default"
+                            }
                             size="small"
                           />
                         </TableCell>
@@ -1639,13 +1675,25 @@ function StockDetail() {
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>Altman Z-Score</TableCell>
+                        <TableCell>FCF / Net Income</TableCell>
                         <TableCell align="right">
-                          <Chip label="2.8" color="success" size="small" />
+                          <Chip
+                            label={
+                              qualityInputs.fcf_to_net_income
+                                ? formatPercent(qualityInputs.fcf_to_net_income)
+                                : "N/A"
+                            }
+                            color={
+                              qualityInputs.fcf_to_net_income && qualityInputs.fcf_to_net_income > 0.8
+                                ? "success"
+                                : "default"
+                            }
+                            size="small"
+                          />
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="caption" color="text.secondary">
-                            Safe zone (&gt;2.6)
+                            vs 80% optimal
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1654,6 +1702,8 @@ function StockDetail() {
                 </TableContainer>
               </CardContent>
             </Card>
+              );
+            })()}
           </Grid>
 
           <Grid item xs={12} md={6}>

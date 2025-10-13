@@ -495,4 +495,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-Updated: 2025-10-13 08:27 - Log group names fixed
