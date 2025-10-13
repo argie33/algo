@@ -373,6 +373,7 @@ jobs:
               TTMIncomeStatementImageTag=latest \
               TTMCashFlowImageTag=latest \
               QualityMetricsImageTag=latest \
+              GrowthMetricsImageTag=latest \
               ValueMetricsImageTag=latest \
               StockScoresImageTag=latest \
               BenchmarksImageTag=benchmarks-latest \
@@ -734,6 +735,9 @@ jobs:
               ;;
             "qualitymetrics")
               TASK_DEF_NAME="QualityMetricsTaskDefArn"
+              ;;
+            "growthmetrics")
+              TASK_DEF_NAME="GrowthMetricsTaskDefArn"
               ;;
             "valuemetrics")
               TASK_DEF_NAME="ValueMetricsTaskDefArn"

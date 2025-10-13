@@ -1,4 +1,4 @@
-﻿AWSTemplateFormatVersion: '2010-09-09' 
+AWSTemplateFormatVersion: '2010-09-09' 
 Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
@@ -149,6 +149,9 @@ Parameters:
   QualityMetricsImageTag:
     Type: String
     Description: "Tag for quality metrics calculator image"
+  GrowthMetricsImageTag:
+    Type: String
+    Description: "Tag for growth metrics calculator image"
   ValueMetricsImageTag:
     Type: String
     Description: "Tag for value metrics calculator image"
@@ -2573,6 +2576,67 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
+  # Growth Metrics Calculator            #
+  ########################################
+  GrowthMetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: growth-metrics-calculator
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: growth-metrics-calculator
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref GrowthMetricsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: NODE_ENV
+              Value: production
+            - Name: WEBAPP_AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/growth-metrics-calculator
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  GrowthMetricsService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: growth-metrics-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref GrowthMetricsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
   # Value Metrics Calculator             #
   ########################################
   ValueMetricsTaskDefinition:
@@ -3525,6 +3589,12 @@ Outputs:
     Value: !Ref QualityMetricsTaskDefinition
     Export:
       Name: QualityMetricsTaskDefArn
+
+  GrowthMetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for growth metrics calculator
+    Value: !Ref GrowthMetricsTaskDefinition
+    Export:
+      Name: GrowthMetricsTaskDefArn
 
   ValueMetricsTaskDefArn:
     Description: ARN of the ECS TaskDefinition for value metrics calculator
