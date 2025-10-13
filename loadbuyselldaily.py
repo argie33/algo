@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+# Updated: 2025-10-13 - Buy/Sell Daily Signal Loader
 # Updated: 2025-10-04 19:45 - Added transaction rollback for cascade failure prevention
-# Updated: 2025-10-04 16:52 - Buy/Sell signal loader - DOUBLE PRECISION type fix
 # Updated: 2025-10-03 22:02 - Trigger deployment after null check fixes
 # Updated: 2025-10-03 - Fixed SQL parameter formatting in swing metrics calculation
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
