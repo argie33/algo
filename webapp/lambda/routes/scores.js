@@ -104,19 +104,33 @@ router.get("/", async (req, res) => {
         pm.short_percent_of_float,
         pm.short_ratio,
         pm.institution_count,
-        -- Quality INPUT metrics from quality_metrics table
-        qm.accruals_ratio,
+        -- Quality INPUT metrics from quality_metrics table (13 professional quality inputs)
+        qm.return_on_equity_pct,
+        qm.return_on_assets_pct,
+        qm.gross_margin_pct,
+        qm.operating_margin_pct,
+        qm.profit_margin_pct,
         qm.fcf_to_net_income,
+        qm.operating_cf_to_net_income,
         qm.debt_to_equity,
         qm.current_ratio,
-        qm.asset_turnover,
+        qm.quick_ratio,
+        qm.earnings_surprise_avg,
+        qm.eps_growth_stability,
+        qm.payout_ratio,
         -- Growth INPUT metrics from growth_metrics table
         gm.revenue_growth_3y_cagr,
         gm.eps_growth_3y_cagr,
         gm.operating_income_growth_yoy,
         gm.roe_trend,
         gm.sustainable_growth_rate,
-        gm.fcf_growth_yoy` : ''}
+        gm.fcf_growth_yoy,
+        -- Raw momentum INPUT metrics from momentum_metrics table
+        mm.jt_momentum_12_1,
+        mm.momentum_3m,
+        mm.momentum_6m,
+        mm.risk_adjusted_momentum,
+        mm.momentum_strength` : ''}
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${hasNewMomentumColumns ? `LEFT JOIN (
@@ -161,11 +175,19 @@ router.get("/", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
-          accruals_ratio,
+          return_on_equity_pct,
+          return_on_assets_pct,
+          gross_margin_pct,
+          operating_margin_pct,
+          profit_margin_pct,
           fcf_to_net_income,
+          operating_cf_to_net_income,
           debt_to_equity,
           current_ratio,
-          asset_turnover
+          quick_ratio,
+          earnings_surprise_avg,
+          eps_growth_stability,
+          payout_ratio
         FROM quality_metrics
         ORDER BY symbol, date DESC
       ) qm ON ss.symbol = qm.symbol
@@ -180,7 +202,18 @@ router.get("/", async (req, res) => {
           fcf_growth_yoy
         FROM growth_metrics
         ORDER BY symbol, date DESC
-      ) gm ON ss.symbol = gm.symbol` : ''}
+      ) gm ON ss.symbol = gm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          jt_momentum_12_1,
+          momentum_3m,
+          momentum_6m,
+          risk_adjusted_momentum,
+          momentum_strength
+        FROM momentum_metrics
+        ORDER BY symbol, date DESC
+      ) mm ON ss.symbol = mm.symbol` : ''}
     `;
 
     const queryParams = [];
@@ -300,13 +333,21 @@ router.get("/", async (req, res) => {
           ? parseFloat((row.stock_pe / row.earnings_growth_pct).toFixed(2))
           : null
       },
-      // Add quality INPUT metrics for frontend display
+      // Add quality INPUT metrics for frontend display (13 professional quality inputs)
       quality_inputs: {
-        accruals_ratio: parseFloat(row.accruals_ratio) || null,
+        return_on_equity_pct: parseFloat(row.return_on_equity_pct) || null,
+        return_on_assets_pct: parseFloat(row.return_on_assets_pct) || null,
+        gross_margin_pct: parseFloat(row.gross_margin_pct) || null,
+        operating_margin_pct: parseFloat(row.operating_margin_pct) || null,
+        profit_margin_pct: parseFloat(row.profit_margin_pct) || null,
         fcf_to_net_income: parseFloat(row.fcf_to_net_income) || null,
+        operating_cf_to_net_income: parseFloat(row.operating_cf_to_net_income) || null,
         debt_to_equity: parseFloat(row.debt_to_equity) || null,
         current_ratio: parseFloat(row.current_ratio) || null,
-        asset_turnover: parseFloat(row.asset_turnover) || null
+        quick_ratio: parseFloat(row.quick_ratio) || null,
+        earnings_surprise_avg: parseFloat(row.earnings_surprise_avg) || null,
+        eps_growth_stability: parseFloat(row.eps_growth_stability) || null,
+        payout_ratio: parseFloat(row.payout_ratio) || null
       },
       // Add growth INPUT metrics for frontend display
       growth_inputs: {
@@ -316,6 +357,15 @@ router.get("/", async (req, res) => {
         roe_trend: parseFloat(row.roe_trend) || null,
         sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
         fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null
+      },
+      // Add raw momentum INPUT metrics for professional momentum display
+      momentum_inputs: {
+        jt_momentum_12_1: parseFloat(row.jt_momentum_12_1) || null,
+        momentum_3m: parseFloat(row.momentum_3m) || null,
+        momentum_6m: parseFloat(row.momentum_6m) || null,
+        mansfield_rs: parseFloat(row.mansfield_rs) || null,
+        risk_adjusted_momentum: parseFloat(row.risk_adjusted_momentum) || null,
+        momentum_strength: parseFloat(row.momentum_strength) || null
       }
     }));
 
@@ -439,19 +489,33 @@ router.get("/:symbol", async (req, res) => {
         pm.short_percent_of_float,
         pm.short_ratio,
         pm.institution_count,
-        -- Quality INPUT metrics from quality_metrics table
-        qm.accruals_ratio,
+        -- Quality INPUT metrics from quality_metrics table (13 professional quality inputs)
+        qm.return_on_equity_pct,
+        qm.return_on_assets_pct,
+        qm.gross_margin_pct,
+        qm.operating_margin_pct,
+        qm.profit_margin_pct,
         qm.fcf_to_net_income,
+        qm.operating_cf_to_net_income,
         qm.debt_to_equity,
         qm.current_ratio,
-        qm.asset_turnover,
+        qm.quick_ratio,
+        qm.earnings_surprise_avg,
+        qm.eps_growth_stability,
+        qm.payout_ratio,
         -- Growth INPUT metrics from growth_metrics table
         gm.revenue_growth_3y_cagr,
         gm.eps_growth_3y_cagr,
         gm.operating_income_growth_yoy,
         gm.roe_trend,
         gm.sustainable_growth_rate,
-        gm.fcf_growth_yoy` : ''}
+        gm.fcf_growth_yoy,
+        -- Raw momentum INPUT metrics from momentum_metrics table
+        mm.jt_momentum_12_1,
+        mm.momentum_3m,
+        mm.momentum_6m,
+        mm.risk_adjusted_momentum,
+        mm.momentum_strength` : ''}
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${hasNewMomentumColumns ? `LEFT JOIN (
@@ -496,11 +560,19 @@ router.get("/:symbol", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
-          accruals_ratio,
+          return_on_equity_pct,
+          return_on_assets_pct,
+          gross_margin_pct,
+          operating_margin_pct,
+          profit_margin_pct,
           fcf_to_net_income,
+          operating_cf_to_net_income,
           debt_to_equity,
           current_ratio,
-          asset_turnover
+          quick_ratio,
+          earnings_surprise_avg,
+          eps_growth_stability,
+          payout_ratio
         FROM quality_metrics
         ORDER BY symbol, date DESC
       ) qm ON ss.symbol = qm.symbol
@@ -515,7 +587,18 @@ router.get("/:symbol", async (req, res) => {
           fcf_growth_yoy
         FROM growth_metrics
         ORDER BY symbol, date DESC
-      ) gm ON ss.symbol = gm.symbol` : ''}
+      ) gm ON ss.symbol = gm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          jt_momentum_12_1,
+          momentum_3m,
+          momentum_6m,
+          risk_adjusted_momentum,
+          momentum_strength
+        FROM momentum_metrics
+        ORDER BY symbol, date DESC
+      ) mm ON ss.symbol = mm.symbol` : ''}
       WHERE ss.symbol = $1
     `;
 
@@ -561,6 +644,14 @@ router.get("/:symbol", async (req, res) => {
               roc_60d: parseFloat(row.roc_60d) || null,
               roc_120d: parseFloat(row.roc_120d) || null,
               mansfield_rs: parseFloat(row.mansfield_rs) || null
+            },
+            inputs: {
+              jt_momentum_12_1: parseFloat(row.jt_momentum_12_1) || null,
+              momentum_3m: parseFloat(row.momentum_3m) || null,
+              momentum_6m: parseFloat(row.momentum_6m) || null,
+              mansfield_rs: parseFloat(row.mansfield_rs) || null,
+              risk_adjusted_momentum: parseFloat(row.risk_adjusted_momentum) || null,
+              momentum_strength: parseFloat(row.momentum_strength) || null
             }
           },
           value: {
@@ -592,11 +683,19 @@ router.get("/:symbol", async (req, res) => {
           quality: {
             score: parseFloat(row.quality_score) || 0,
             inputs: {
-              accruals_ratio: parseFloat(row.accruals_ratio) || null,
+              return_on_equity_pct: parseFloat(row.return_on_equity_pct) || null,
+              return_on_assets_pct: parseFloat(row.return_on_assets_pct) || null,
+              gross_margin_pct: parseFloat(row.gross_margin_pct) || null,
+              operating_margin_pct: parseFloat(row.operating_margin_pct) || null,
+              profit_margin_pct: parseFloat(row.profit_margin_pct) || null,
               fcf_to_net_income: parseFloat(row.fcf_to_net_income) || null,
+              operating_cf_to_net_income: parseFloat(row.operating_cf_to_net_income) || null,
               debt_to_equity: parseFloat(row.debt_to_equity) || null,
               current_ratio: parseFloat(row.current_ratio) || null,
-              asset_turnover: parseFloat(row.asset_turnover) || null
+              quick_ratio: parseFloat(row.quick_ratio) || null,
+              earnings_surprise_avg: parseFloat(row.earnings_surprise_avg) || null,
+              eps_growth_stability: parseFloat(row.eps_growth_stability) || null,
+              payout_ratio: parseFloat(row.payout_ratio) || null
             }
           },
           growth: {

@@ -1250,36 +1250,110 @@ const ScoresDashboard = () => {
                                     )}
                                     {stock.quality_inputs && (
                                       <>
-                                        {stock.quality_inputs.accruals_ratio !== null && stock.quality_inputs.accruals_ratio !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Accruals Ratio (Earnings Quality)</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.accruals_ratio?.toFixed(3)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.fcf_to_net_income !== null && stock.quality_inputs.fcf_to_net_income !== undefined && (
-                                          <TableRow>
-                                            <TableCell>FCF / Net Income (Cash Quality)</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.fcf_to_net_income?.toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.debt_to_equity !== null && stock.quality_inputs.debt_to_equity !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Debt-to-Equity Ratio</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.debt_to_equity?.toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.current_ratio !== null && stock.quality_inputs.current_ratio !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Current Ratio (Liquidity)</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.current_ratio?.toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.asset_turnover !== null && stock.quality_inputs.asset_turnover !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Asset Turnover (Efficiency)</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.asset_turnover?.toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
+                                        <TableRow>
+                                          <TableCell>Return on Equity (ROE)</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.return_on_equity_pct !== null && stock.quality_inputs.return_on_equity_pct !== undefined
+                                              ? `${(stock.quality_inputs.return_on_equity_pct * 100).toFixed(1)}%`
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Return on Assets (ROA)</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.return_on_assets_pct !== null && stock.quality_inputs.return_on_assets_pct !== undefined
+                                              ? `${(stock.quality_inputs.return_on_assets_pct * 100).toFixed(1)}%`
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Gross Margin</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.gross_margin_pct !== null && stock.quality_inputs.gross_margin_pct !== undefined
+                                              ? `${(stock.quality_inputs.gross_margin_pct * 100).toFixed(1)}%`
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Operating Margin</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.operating_margin_pct !== null && stock.quality_inputs.operating_margin_pct !== undefined
+                                              ? `${(stock.quality_inputs.operating_margin_pct * 100).toFixed(1)}%`
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Profit Margin</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.profit_margin_pct !== null && stock.quality_inputs.profit_margin_pct !== undefined
+                                              ? `${(stock.quality_inputs.profit_margin_pct * 100).toFixed(1)}%`
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>FCF / Net Income</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.fcf_to_net_income !== null && stock.quality_inputs.fcf_to_net_income !== undefined
+                                              ? stock.quality_inputs.fcf_to_net_income.toFixed(2)
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Operating CF / Net Income</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.operating_cf_to_net_income !== null && stock.quality_inputs.operating_cf_to_net_income !== undefined
+                                              ? stock.quality_inputs.operating_cf_to_net_income.toFixed(2)
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Debt-to-Equity Ratio</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.debt_to_equity !== null && stock.quality_inputs.debt_to_equity !== undefined
+                                              ? stock.quality_inputs.debt_to_equity.toFixed(2)
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Current Ratio</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.current_ratio !== null && stock.quality_inputs.current_ratio !== undefined
+                                              ? stock.quality_inputs.current_ratio.toFixed(2)
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Quick Ratio</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.quick_ratio !== null && stock.quality_inputs.quick_ratio !== undefined
+                                              ? stock.quality_inputs.quick_ratio.toFixed(2)
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Earnings Surprise Avg (4Q)</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.earnings_surprise_avg !== null && stock.quality_inputs.earnings_surprise_avg !== undefined
+                                              ? `${stock.quality_inputs.earnings_surprise_avg.toFixed(2)}%`
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>EPS Growth Stability (Std Dev)</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.eps_growth_stability !== null && stock.quality_inputs.eps_growth_stability !== undefined
+                                              ? stock.quality_inputs.eps_growth_stability.toFixed(2)
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                          <TableCell>Payout Ratio</TableCell>
+                                          <TableCell align="right">
+                                            {stock.quality_inputs.payout_ratio !== null && stock.quality_inputs.payout_ratio !== undefined
+                                              ? `${(stock.quality_inputs.payout_ratio * 100).toFixed(1)}%`
+                                              : "N/A"}
+                                          </TableCell>
+                                        </TableRow>
                                       </>
                                     )}
                                   </TableBody>
@@ -1347,98 +1421,115 @@ const ScoresDashboard = () => {
                             </ResponsiveContainer>
                           </Box>
 
-                          {/* Momentum Input Metrics Table */}
-                          <TableContainer sx={{ mt: 2, maxHeight: 400, overflow: 'auto' }}>
+                          {/* Professional Momentum Metrics - Used by AQR, MTUM, etc. */}
+                          <TableContainer sx={{ mt: 2 }}>
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell>Momentum Indicator</TableCell>
-                                  <TableCell align="right">Value</TableCell>
+                                  <TableCell>Momentum Metric</TableCell>
+                                  <TableCell align="right">Value (%)</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
-                                <TableRow>
-                                  <TableCell>RSI 14-Day (Relative Strength Index)</TableCell>
-                                  <TableCell align="right">{(stock.rsi || stock.momentum_components?.rsi || 0).toFixed(1)}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>MACD (Moving Avg Convergence Divergence)</TableCell>
-                                  <TableCell align="right">{(stock.macd || 0).toFixed(4)}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>SMA 20-Day (Simple Moving Average)</TableCell>
-                                  <TableCell align="right">${(stock.sma_20 || 0).toFixed(2)}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>SMA 50-Day (Simple Moving Average)</TableCell>
-                                  <TableCell align="right">${(stock.sma_50 || 0).toFixed(2)}</TableCell>
-                                </TableRow>
-                                {stock.momentum_components?.roc_10d !== undefined && (
+                                {stock.momentum_inputs?.jt_momentum_12_1 !== null && stock.momentum_inputs?.jt_momentum_12_1 !== undefined ? (
                                   <TableRow>
-                                    <TableCell>ROC 10-Day (Rate of Change)</TableCell>
-                                    <TableCell align="right">{stock.momentum_components.roc_10d.toFixed(2)}%</TableCell>
+                                    <TableCell>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        JT Momentum 12-1
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        12-month return ex. last month (Classic Factor)
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Typography variant="body2" fontWeight={600} color={stock.momentum_inputs.jt_momentum_12_1 > 0 ? "success.main" : "error.main"}>
+                                        {stock.momentum_inputs.jt_momentum_12_1.toFixed(2)}%
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ) : null}
+                                {stock.momentum_inputs?.momentum_6m !== null && stock.momentum_inputs?.momentum_6m !== undefined ? (
+                                  <TableRow>
+                                    <TableCell>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        6-Month Momentum
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        Medium-term trend strength
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Typography variant="body2" fontWeight={600} color={stock.momentum_inputs.momentum_6m > 0 ? "success.main" : "error.main"}>
+                                        {stock.momentum_inputs.momentum_6m.toFixed(2)}%
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ) : null}
+                                {stock.momentum_inputs?.momentum_3m !== null && stock.momentum_inputs?.momentum_3m !== undefined ? (
+                                  <TableRow>
+                                    <TableCell>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        3-Month Momentum
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        Short-term trend strength
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Typography variant="body2" fontWeight={600} color={stock.momentum_inputs.momentum_3m > 0 ? "success.main" : "error.main"}>
+                                        {stock.momentum_inputs.momentum_3m.toFixed(2)}%
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ) : null}
+                                {stock.momentum_inputs?.mansfield_rs !== null && stock.momentum_inputs?.mansfield_rs !== undefined ? (
+                                  <TableRow>
+                                    <TableCell>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        Relative Strength vs S&P 500
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        Outperformance vs benchmark (Mansfield RS)
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Typography variant="body2" fontWeight={600} color={stock.momentum_inputs.mansfield_rs > 0 ? "success.main" : "error.main"}>
+                                        {stock.momentum_inputs.mansfield_rs.toFixed(2)}
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ) : null}
+                                {stock.momentum_inputs?.risk_adjusted_momentum !== null && stock.momentum_inputs?.risk_adjusted_momentum !== undefined ? (
+                                  <TableRow>
+                                    <TableCell>
+                                      <Typography variant="body2" fontWeight={600}>
+                                        Risk-Adjusted Momentum
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        Sharpe-style momentum score (0-100)
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Typography variant="body2" fontWeight={600}>
+                                        {stock.momentum_inputs.risk_adjusted_momentum.toFixed(1)}
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ) : null}
+                                {(!stock.momentum_inputs ||
+                                  (stock.momentum_inputs.jt_momentum_12_1 === null &&
+                                   stock.momentum_inputs.momentum_6m === null &&
+                                   stock.momentum_inputs.momentum_3m === null &&
+                                   stock.momentum_inputs.mansfield_rs === null &&
+                                   stock.momentum_inputs.risk_adjusted_momentum === null)) && (
+                                  <TableRow>
+                                    <TableCell colSpan={2} align="center">
+                                      <Typography variant="caption" color="text.secondary">
+                                        Professional momentum metrics loading...
+                                      </Typography>
+                                    </TableCell>
                                   </TableRow>
                                 )}
-                                {stock.momentum_components?.roc_20d !== undefined && (
-                                  <TableRow>
-                                    <TableCell>ROC 20-Day (Rate of Change)</TableCell>
-                                    <TableCell align="right">{stock.momentum_components.roc_20d.toFixed(2)}%</TableCell>
-                                  </TableRow>
-                                )}
-                                {stock.momentum_components?.roc_60d !== undefined && (
-                                  <TableRow>
-                                    <TableCell>ROC 60-Day (Rate of Change)</TableCell>
-                                    <TableCell align="right">{stock.momentum_components.roc_60d.toFixed(2)}%</TableCell>
-                                  </TableRow>
-                                )}
-                                {stock.momentum_components?.roc_120d !== null && stock.momentum_components?.roc_120d !== undefined && (
-                                  <TableRow>
-                                    <TableCell>ROC 120-Day (Rate of Change)</TableCell>
-                                    <TableCell align="right">{stock.momentum_components.roc_120d.toFixed(2)}%</TableCell>
-                                  </TableRow>
-                                )}
-                                {stock.momentum_components?.mansfield_rs !== null && stock.momentum_components?.mansfield_rs !== undefined && (
-                                  <TableRow>
-                                    <TableCell>Mansfield RS (Relative Strength vs S&P 500)</TableCell>
-                                    <TableCell align="right">{stock.momentum_components.mansfield_rs.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                )}
-                                <TableRow>
-                                  <TableCell>Current Price</TableCell>
-                                  <TableCell align="right">${(stock.current_price || 0).toFixed(2)}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Price % Above/Below SMA 20</TableCell>
-                                  <TableCell align="right">
-                                    {stock.sma_20 ? `${(((stock.current_price - stock.sma_20) / stock.sma_20) * 100).toFixed(2)}%` : "N/A"}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Price % Above/Below SMA 50</TableCell>
-                                  <TableCell align="right">
-                                    {stock.sma_50 ? `${(((stock.current_price - stock.sma_50) / stock.sma_50) * 100).toFixed(2)}%` : "N/A"}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Price Change 1-Day %</TableCell>
-                                  <TableCell align="right">{(stock.price_change_1d || 0).toFixed(2)}%</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Price Change 5-Day %</TableCell>
-                                  <TableCell align="right">{(stock.price_change_5d || 0).toFixed(2)}%</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Price Change 30-Day %</TableCell>
-                                  <TableCell align="right">{(stock.price_change_30d || 0).toFixed(2)}%</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>30-Day Volatility (Historical Volatility)</TableCell>
-                                  <TableCell align="right">{stock.volatility_30d ? `${stock.volatility_30d.toFixed(1)}%` : "N/A"}</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Average Volume (30-Day)</TableCell>
-                                  <TableCell align="right">{(stock.volume_avg_30d || 0).toLocaleString()}</TableCell>
-                                </TableRow>
                               </TableBody>
                             </Table>
                           </TableContainer>

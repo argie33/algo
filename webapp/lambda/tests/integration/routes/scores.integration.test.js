@@ -157,6 +157,30 @@ describe("Scores Routes Integration", () => {
         expect(response.body.data).toHaveProperty("macd");
         expect(response.body.data).toHaveProperty("sma_20");
         expect(response.body.data).toHaveProperty("sma_50");
+
+        // Check quality_inputs are present
+        expect(response.body.data).toHaveProperty("quality_inputs");
+        if (response.body.data.quality_inputs) {
+          // All fields should exist (may be null)
+          expect(response.body.data.quality_inputs).toHaveProperty("accruals_ratio");
+          expect(response.body.data.quality_inputs).toHaveProperty("fcf_to_net_income");
+          expect(response.body.data.quality_inputs).toHaveProperty("debt_to_equity");
+          expect(response.body.data.quality_inputs).toHaveProperty("current_ratio");
+          expect(response.body.data.quality_inputs).toHaveProperty("interest_coverage");
+          expect(response.body.data.quality_inputs).toHaveProperty("asset_turnover");
+        }
+
+        // Check growth_inputs are present
+        expect(response.body.data).toHaveProperty("growth_inputs");
+        if (response.body.data.growth_inputs) {
+          // All fields should exist (may be null)
+          expect(response.body.data.growth_inputs).toHaveProperty("revenue_growth_3y_cagr");
+          expect(response.body.data.growth_inputs).toHaveProperty("eps_growth_3y_cagr");
+          expect(response.body.data.growth_inputs).toHaveProperty("operating_income_growth_yoy");
+          expect(response.body.data.growth_inputs).toHaveProperty("roe_trend");
+          expect(response.body.data.growth_inputs).toHaveProperty("sustainable_growth_rate");
+          expect(response.body.data.growth_inputs).toHaveProperty("fcf_growth_yoy");
+        }
       } else if (response.status === 404) {
         expect(response.body).toHaveProperty("success", false);
         expect(response.body.error).toContain("Symbol not found in stock_scores table");

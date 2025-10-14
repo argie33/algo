@@ -133,7 +133,21 @@ describe("Scores Routes Unit Tests", () => {
               institutional_ownership: 61.2,
               insider_ownership: 0.07,
               short_percent_of_float: 1.2,
-              institution_count: 3500
+              institution_count: 3500,
+              // Quality INPUT metrics
+              accruals_ratio: -0.05,
+              fcf_to_net_income: 1.15,
+              debt_to_equity: 1.8,
+              current_ratio: 1.05,
+              interest_coverage: 25.5,
+              asset_turnover: 1.12,
+              // Growth INPUT metrics
+              revenue_growth_3y_cagr: 12.5,
+              eps_growth_3y_cagr: 18.3,
+              operating_income_growth_yoy: 15.2,
+              roe_trend: 2.5,
+              sustainable_growth_rate: 18.9,
+              fcf_growth_yoy: 14.7
             }
           ]
         });
@@ -175,6 +189,28 @@ describe("Scores Routes Unit Tests", () => {
         expect(stock).toHaveProperty("sentiment_score");
         expect(stock).toHaveProperty("last_updated");
         expect(stock).toHaveProperty("score_date");
+
+        // Check quality_inputs structure
+        expect(stock).toHaveProperty("quality_inputs");
+        if (stock.quality_inputs) {
+          expect(stock.quality_inputs).toHaveProperty("accruals_ratio");
+          expect(stock.quality_inputs).toHaveProperty("fcf_to_net_income");
+          expect(stock.quality_inputs).toHaveProperty("debt_to_equity");
+          expect(stock.quality_inputs).toHaveProperty("current_ratio");
+          expect(stock.quality_inputs).toHaveProperty("interest_coverage");
+          expect(stock.quality_inputs).toHaveProperty("asset_turnover");
+        }
+
+        // Check growth_inputs structure
+        expect(stock).toHaveProperty("growth_inputs");
+        if (stock.growth_inputs) {
+          expect(stock.growth_inputs).toHaveProperty("revenue_growth_3y_cagr");
+          expect(stock.growth_inputs).toHaveProperty("eps_growth_3y_cagr");
+          expect(stock.growth_inputs).toHaveProperty("operating_income_growth_yoy");
+          expect(stock.growth_inputs).toHaveProperty("roe_trend");
+          expect(stock.growth_inputs).toHaveProperty("sustainable_growth_rate");
+          expect(stock.growth_inputs).toHaveProperty("fcf_growth_yoy");
+        }
       }
     });
 
@@ -346,6 +382,34 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body.data.factors).toHaveProperty("growth");
         expect(response.body.data.factors).toHaveProperty("positioning");
         expect(response.body.data.factors).toHaveProperty("sentiment");
+
+        // Check quality factor has inputs
+        if (response.body.data.factors.quality) {
+          expect(response.body.data.factors.quality).toHaveProperty("score");
+          expect(response.body.data.factors.quality).toHaveProperty("inputs");
+          if (response.body.data.factors.quality.inputs) {
+            expect(response.body.data.factors.quality.inputs).toHaveProperty("accruals_ratio");
+            expect(response.body.data.factors.quality.inputs).toHaveProperty("fcf_to_net_income");
+            expect(response.body.data.factors.quality.inputs).toHaveProperty("debt_to_equity");
+            expect(response.body.data.factors.quality.inputs).toHaveProperty("current_ratio");
+            expect(response.body.data.factors.quality.inputs).toHaveProperty("interest_coverage");
+            expect(response.body.data.factors.quality.inputs).toHaveProperty("asset_turnover");
+          }
+        }
+
+        // Check growth factor has inputs
+        if (response.body.data.factors.growth) {
+          expect(response.body.data.factors.growth).toHaveProperty("score");
+          expect(response.body.data.factors.growth).toHaveProperty("inputs");
+          if (response.body.data.factors.growth.inputs) {
+            expect(response.body.data.factors.growth.inputs).toHaveProperty("revenue_growth_3y_cagr");
+            expect(response.body.data.factors.growth.inputs).toHaveProperty("eps_growth_3y_cagr");
+            expect(response.body.data.factors.growth.inputs).toHaveProperty("operating_income_growth_yoy");
+            expect(response.body.data.factors.growth.inputs).toHaveProperty("roe_trend");
+            expect(response.body.data.factors.growth.inputs).toHaveProperty("sustainable_growth_rate");
+            expect(response.body.data.factors.growth.inputs).toHaveProperty("fcf_growth_yoy");
+          }
+        }
 
         // Check performance structure
         expect(response.body.data.performance).toHaveProperty("priceChange1d");
