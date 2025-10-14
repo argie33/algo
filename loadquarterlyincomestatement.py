@@ -342,3 +342,4 @@ if __name__ == "__main__":
     cur.close()
     conn.close()
     logging.info("All done.")
+# Trigger AWS deployment - Mon Oct 13 21:47:08 CDT 2025
