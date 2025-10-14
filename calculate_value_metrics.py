@@ -15,6 +15,7 @@ Metrics Calculated:
 
 Note: Scoring logic is in loadstockscores.py - this only calculates inputs
 
+Updated: 2025-10-14 - FIX: Create value_metrics table if not exists (fixes 500 error)
 Updated: 2025-10-12 - Added comprehensive market & sector benchmarks for all metrics
 """
 
@@ -457,6 +458,38 @@ def store_value_metrics(cursor, value_data: Dict):
     ))
 
 
+def create_value_metrics_table(cursor):
+    """Create value_metrics table if it doesn't exist"""
+    logging.info("Ensuring value_metrics table exists...")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS value_metrics (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(10) NOT NULL,
+            date DATE NOT NULL,
+            value_metric NUMERIC(5,2),
+            multiples_metric NUMERIC(5,2),
+            intrinsic_value NUMERIC(10,2),
+            fair_value NUMERIC(10,2),
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            pe_relative_score NUMERIC(5,2),
+            pb_relative_score NUMERIC(5,2),
+            ev_relative_score NUMERIC(5,2),
+            peg_ratio_score NUMERIC(5,2),
+            dcf_intrinsic_score NUMERIC(5,2),
+            pe_ratio NUMERIC(8,2),
+            pb_ratio NUMERIC(8,2),
+            ev_ebitda NUMERIC(8,2),
+            peg_ratio NUMERIC(8,2),
+            sector VARCHAR(100),
+            CONSTRAINT value_metrics_symbol_date_key UNIQUE (symbol, date)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_value_metrics_symbol ON value_metrics(symbol);
+        CREATE INDEX IF NOT EXISTS idx_value_metrics_date ON value_metrics(date DESC);
+    """)
+    logging.info("✅ value_metrics table ready")
+
 def main():
     """Main execution function"""
     logging.info("=" * 80)
@@ -470,6 +503,9 @@ def main():
     cursor = conn.cursor()
 
     try:
+        # Create table if needed
+        create_value_metrics_table(cursor)
+        conn.commit()
         # Calculate market benchmarks
         market_benchmarks = calculate_market_benchmarks(cursor)
 
