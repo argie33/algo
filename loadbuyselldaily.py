@@ -82,14 +82,14 @@ else:
 
 
 def get_db_connection():
-    # Set statement timeout to 2 minutes (120000 ms) for complex queries
+    # Set statement timeout to 5 minutes (300000 ms) for complex swing metrics queries
     conn = psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
         dbname=DB_NAME,
-        options="-c statement_timeout=120000",
+        options="-c statement_timeout=300000",
     )
     return conn
 
