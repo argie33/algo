@@ -4,6 +4,8 @@ FROM python:3.11-slim
 ENV PIP_ROOT_USER_ACTION=ignore \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Trigger: Fix missing value_metrics table in AWS (2025-10-14)
+
 
 # Set working directory
 WORKDIR /opt
