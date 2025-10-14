@@ -842,8 +842,8 @@ if __name__ == "__main__":
         logging.error(f"Schema migration error: {e}")
         conn.rollback()
 
-    # Get symbols - load all non-ETF symbols
-    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol LIMIT 100;")
+    # Get symbols - load all non-ETF symbols (LIMIT removed to load all 5,476 stocks)
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol;")
     symbols = [r["symbol"] for r in cur.fetchall()]
 
     logging.info(f"Loading real-time data for {len(symbols)} symbols")
