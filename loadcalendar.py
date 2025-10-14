@@ -32,19 +32,23 @@ logger = logging.getLogger(__name__)
 # -------------------------------
 # Environment-driven configuration
 # -------------------------------
-DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
-if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN environment variable is not set")
-    sys.exit(1)
-
 
 def get_db_config():
     """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
+    Fetch host, port, dbname, username & password from Secrets Manager or use local config.
     """
+    if os.environ.get("USE_LOCAL_DB") == "true" or not os.environ.get("DB_SECRET_ARN"):
+        logger.info("Using local database configuration")
+        return (
+            os.environ.get("DB_USER", "postgres"),
+            os.environ.get("DB_PASSWORD", "password"),
+            os.environ.get("DB_HOST", "localhost"),
+            int(os.environ.get("DB_PORT", "5432")),
+            os.environ.get("DB_NAME", "stocks"),
+        )
+
     client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
+    resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
     sec = json.loads(resp["SecretString"])
     return (
         sec["username"],
