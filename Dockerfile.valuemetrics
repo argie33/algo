@@ -20,15 +20,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY calculate_value_metrics.py .
+COPY loadvaluemetrics.py .
 COPY database.py .
 
 # Set executable permissions
-RUN chmod +x calculate_value_metrics.py
+RUN chmod +x loadvaluemetrics.py
 
 # Set environment variables
 ENV PYTHONPATH=/opt
 ENV PYTHONUNBUFFERED=1
 
 # Run the value metrics calculator
-CMD ["python", "calculate_value_metrics.py"]
+CMD ["python", "loadvaluemetrics.py"]
