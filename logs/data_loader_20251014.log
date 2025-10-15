@@ -1,0 +1,11 @@
+2025-10-14 18:15:40,041 - __main__ - INFO - [data_loader_orchestrator.py:130] - === Data Loader Orchestrator Starting ===
+2025-10-14 18:15:40,041 - __main__ - INFO - [data_loader_orchestrator.py:104] - Data Loader Orchestrator initialized with 15 loaders
+2025-10-14 18:15:40,041 - __main__ - INFO - [data_loader_orchestrator.py:854] - === Starting Data Loader Orchestration ===
+2025-10-14 18:15:41,044 - __main__ - ERROR - [data_loader_orchestrator.py:859] - Prerequisites check failed:
+2025-10-14 18:15:41,044 - __main__ - ERROR - [data_loader_orchestrator.py:861] -   - Database connection failed: Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+ModuleNotFoundError: No module named 'database'
+
+2025-10-14 18:15:41,044 - __main__ - ERROR - [data_loader_orchestrator.py:861] -   - Required environment variable not set: AWS_REGION
+2025-10-14 18:15:41,044 - __main__ - ERROR - [data_loader_orchestrator.py:861] -   - Required environment variable not set: DB_SECRET_ARN
+2025-10-14 18:15:41,044 - __main__ - INFO - [data_loader_orchestrator.py:909] - Total execution time: 1.0 seconds

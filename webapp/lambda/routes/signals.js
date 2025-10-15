@@ -132,8 +132,11 @@ router.get("/", async (req, res) => {
     if (symbolFilter) {
       whereClause = `WHERE date >= CURRENT_DATE - INTERVAL '90 days'`;
     } else {
-      whereClause = `WHERE date = (SELECT MAX(date) FROM ${tableName})`;
+      whereClause = `WHERE date >= CURRENT_DATE - INTERVAL '90 days'`;
     }
+
+    // Always exclude 'None' signals - only show Buy/Sell
+    whereClause += ` AND signal IN ('Buy', 'Sell')`;
 
     if (signalType) {
       whereClause += ` AND signal = $${paramIndex}`;
@@ -142,7 +145,7 @@ router.get("/", async (req, res) => {
     }
 
     if (symbolFilter) {
-      whereClause += ` AND symbol = $${paramIndex}`;
+      whereClause += ` AND bsd.symbol = $${paramIndex}`;
       queryParams.push(symbolFilter.toUpperCase());
       paramIndex++;
     }
@@ -174,21 +177,54 @@ router.get("/", async (req, res) => {
         rsi, adx
       `;
     } else {
-      // Daily - reduced columns for performance (was timing out with 38 columns)
+      // Daily - include signal state columns (5% rule, entry quality, pullback tracking)
       selectColumns = `
         symbol, date, timeframe, signal, close, volume,
         buylevel, stoplevel, target_price, current_price,
         market_stage, entry_quality_score,
         profit_target_20pct, profit_target_25pct, current_gain_loss_pct,
-        passes_minervini_template
+        passes_minervini_template,
+        signal_state, signal_state_changed_date, previous_signal_state, days_in_current_state,
+        extension_from_pivot_pct, entry_window, close_range_position,
+        gap_from_prev_close_pct, is_gap_up, is_gap_down, days_since_pivot_break,
+        distance_to_pivot_pct, consolidation_days, atr_contraction_ratio,
+        is_follow_through_day, follow_through_day_number, follow_through_gain_pct,
+        consecutive_up_days, consecutive_down_days, held_above_pivot,
+        volume_percentile, volume_surge_on_breakout,
+        distance_to_21ema_pct, pullback_stage, pullback_days,
+        pct_retraced_from_high, avg_daily_change_last_5days,
+        entry_price, entry_date, entry_quality_grade,
+        days_in_position, current_pnl_pct, current_r_multiple,
+        max_favorable_excursion_pct, max_adverse_excursion_pct,
+        peak_price_in_trade, lowest_price_in_trade,
+        initial_stop_loss, current_stop_loss, trailing_stop_type,
+        exit_date, exit_price, exit_reason,
+        trade_result_pct, trade_duration_days, was_winner,
+        is_failed_breakout, days_above_pivot_before_failure, max_extension_before_failure_pct
       `;
     }
 
     const signalsQuery = `
-      SELECT ${selectColumns}
-      FROM ${tableName}
+      SELECT
+        bsd.*,
+        COALESCE(cp.short_name, ss.security_name) as company_name,
+        (
+          SELECT MIN(e.report_date)
+          FROM earnings e
+          WHERE e.symbol = bsd.symbol
+          AND e.report_date >= CURRENT_DATE
+        ) as next_earnings_date,
+        (
+          SELECT (MIN(e.report_date) - CURRENT_DATE)::INTEGER
+          FROM earnings e
+          WHERE e.symbol = bsd.symbol
+          AND e.report_date >= CURRENT_DATE
+        ) as days_to_earnings
+      FROM ${tableName} bsd
+      LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
+      LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       ${whereClause}
-      ORDER BY date DESC
+      ORDER BY bsd.date DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -302,10 +338,81 @@ router.get("/", async (req, res) => {
       // Volatility
       volatility_profile: row.volatility_profile || null,
 
+      // Company and earnings information
+      company_name: row.company_name || null,
+      next_earnings_date: row.next_earnings_date || null,
+      days_to_earnings: row.days_to_earnings || null,
+
+      // Signal State (5% Rule - Minervini/O'Neill Method)
+      signal_state: row.signal_state || null,
+      signal_state_changed_date: row.signal_state_changed_date || null,
+      previous_signal_state: row.previous_signal_state || null,
+      days_in_current_state: parseInt(row.days_in_current_state || 0),
+
+      // Entry Quality Metrics
+      extension_from_pivot_pct: parseFloat(row.extension_from_pivot_pct || 0),
+      entry_window: row.entry_window || null,
+      close_range_position: parseFloat(row.close_range_position || 0),
+      gap_from_prev_close_pct: parseFloat(row.gap_from_prev_close_pct || 0),
+      is_gap_up: row.is_gap_up || false,
+      is_gap_down: row.is_gap_down || false,
+      days_since_pivot_break: parseInt(row.days_since_pivot_break || 0),
+
+      // Setup Detection
+      distance_to_pivot_pct: parseFloat(row.distance_to_pivot_pct || 0),
+      consolidation_days: parseInt(row.consolidation_days || 0),
+      atr_contraction_ratio: parseFloat(row.atr_contraction_ratio || 0),
+
+      // Follow-Through Tracking
+      is_follow_through_day: row.is_follow_through_day || false,
+      follow_through_day_number: parseInt(row.follow_through_day_number || 0),
+      follow_through_gain_pct: parseFloat(row.follow_through_gain_pct || 0),
+      consecutive_up_days: parseInt(row.consecutive_up_days || 0),
+      consecutive_down_days: parseInt(row.consecutive_down_days || 0),
+      held_above_pivot: row.held_above_pivot || false,
+
+      // Volume Analysis
+      volume_percentile: parseFloat(row.volume_percentile || 0),
+      volume_surge_on_breakout: row.volume_surge_on_breakout || false,
+
+      // Pullback Tracking
+      distance_to_21ema_pct: parseFloat(row.distance_to_21ema_pct || 0),
+      pullback_stage: row.pullback_stage || null,
+      pullback_days: parseInt(row.pullback_days || 0),
+      pct_retraced_from_high: parseFloat(row.pct_retraced_from_high || 0),
+      avg_daily_change_last_5days: parseFloat(row.avg_daily_change_last_5days || 0),
+
+      // Position Management
+      entry_price: parseFloat(row.entry_price || row.current_price || row.close || 0),
+      entry_date: row.entry_date || null,
+      entry_quality_grade: row.entry_quality_grade || null,
+      days_in_position: parseInt(row.days_in_position || 0),
+      current_pnl_pct: parseFloat(row.current_pnl_pct || 0),
+      current_r_multiple: parseFloat(row.current_r_multiple || 0),
+      max_favorable_excursion_pct: parseFloat(row.max_favorable_excursion_pct || 0),
+      max_adverse_excursion_pct: parseFloat(row.max_adverse_excursion_pct || 0),
+      peak_price_in_trade: parseFloat(row.peak_price_in_trade || 0),
+      lowest_price_in_trade: parseFloat(row.lowest_price_in_trade || 0),
+      initial_stop_loss: parseFloat(row.initial_stop_loss || 0),
+      current_stop_loss: parseFloat(row.current_stop_loss || 0),
+      trailing_stop_type: row.trailing_stop_type || null,
+
+      // Exit Tracking
+      exit_date: row.exit_date || null,
+      exit_price: parseFloat(row.exit_price || 0),
+      exit_reason: row.exit_reason || null,
+      trade_result_pct: parseFloat(row.trade_result_pct || 0),
+      trade_duration_days: parseInt(row.trade_duration_days || 0),
+      was_winner: row.was_winner || false,
+
+      // Failed Breakout Detection
+      is_failed_breakout: row.is_failed_breakout || false,
+      days_above_pivot_before_failure: parseInt(row.days_above_pivot_before_failure || 0),
+      max_extension_before_failure_pct: parseFloat(row.max_extension_before_failure_pct || 0),
+
       // Legacy/compatibility fields
       confidence: (parseInt(row.stage_confidence || 0) / 100) || 0.75,
-      entry_price: parseFloat(row.current_price || row.close || 0),
-      sector: "Technology", // Would come from company_profile JOIN
+      sector: "Technology", // Default sector, would be enhanced with sector data
     }));
 
     // PERFORMANCE FIX: Use hasMore indicator instead of total count

@@ -59,8 +59,10 @@ import {
   getMarketOverview,
   getMarketSentimentHistory,
   getMarketSectorPerformance,
-  getMarketBreadth, getSeasonalityData,
+  getMarketBreadth,
+  getSeasonalityData,
   getMarketResearchIndicators,
+  getDistributionDays,
 } from "../services/api";
 import {
   formatCurrency,
@@ -410,7 +412,17 @@ const fetchMarketBreadth = async () => {
   }
 };
 
-
+const fetchDistributionDays = async () => {
+  try {
+    console.log("📊 Fetching distribution days...");
+    const response = await getDistributionDays();
+    console.log("📊 Distribution days response:", response);
+    return response;
+  } catch (error) {
+    _logger.error("Distribution days error:", error.message || error.toString());
+    throw error;
+  }
+};
 
 const fetchSeasonalityData = async () => {
   try {
@@ -471,13 +483,6 @@ function MarketOverview() {
     staleTime: 30000,
   });
 
-  const { data: sectorData, isLoading: sectorLoading } = useQuery({
-    queryKey: ["market-sector-performance"],
-    queryFn: fetchSectorPerformance,
-    enabled: tabValue === 1,
-    staleTime: 30000,
-  });
-
   const { data: breadthData, isLoading: breadthLoading } = useQuery({
     queryKey: ["market-breadth"],
     queryFn: fetchMarketBreadth,
@@ -485,7 +490,11 @@ function MarketOverview() {
     staleTime: 30000,
   });
 
-
+  const { data: distributionDaysData, isLoading: distributionDaysLoading } = useQuery({
+    queryKey: ["distribution-days"],
+    queryFn: fetchDistributionDays,
+    staleTime: 30000,
+  });
 
   const { data: seasonalityData, isLoading: seasonalityLoading } = useQuery({
     queryKey: ["seasonality-data"],
@@ -560,34 +569,22 @@ function MarketOverview() {
     marketData?.movers ||
     { gainers: [], losers: [] };
 
-  // Handle sector data - it could be at data.sectors or just data array
-  const sectors = sectorData?.data?.sectors || sectorData?.data || [];
-
   // Handle breadth data - flatten if needed
   const breadthInfo = breadthData?.data || breadthData || {};
 
+  // Handle distribution days data
+  const distributionDays = distributionDaysData?.data || distributionDaysData || {};
+
   // Handle sentiment history data
   const sentimentHistory = sentimentData?.data || sentimentData || {};
+  console.log("sentimentHistory", sentimentHistory);
 
-  // Prepare chart data for sectors - handle different field names
-  const sectorChartData = sectors.slice(0, 8).map((sector) => ({
-    name: sector.sector?.substring(0, 15) || "Other",
-    performance:
-      parseFloat(
-        sector.avg_change_percent || sector.avg_change || sector.performance
-      ) || 0,
-    marketCap:
-      parseFloat(
-        sector.sector_market_cap || sector.market_cap || sector.avg_market_cap
-      ) || 0,
-    stocks: parseInt(sector.stock_count || sector.count) || 0,
-    advanceDeclineRatio: parseFloat(sector.advance_decline_ratio) || 0,
-  }));
 
   // Prepare sentiment chart data for all indicators
   const fearGreedHistory = sentimentHistory.fear_greed_history || [];
   const naaimHistory = sentimentHistory.naaim_history || [];
   const aaiiHistory = sentimentHistory.aaii_history || [];
+  console.log("aaiiHistory", aaiiHistory);
 
   // Merge by date for multi-line chart (assume all have 'date' or 'timestamp')
   const dateMap = {};
@@ -612,6 +609,7 @@ function MarketOverview() {
   const sentimentChartData = Object.values(dateMap)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .slice(-30);
+  console.log("sentimentChartData", sentimentChartData);
 
   // Latest stats for summary cards
   const latestFG = fearGreedHistory[0] || {};
@@ -1217,6 +1215,108 @@ function MarketOverview() {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* Distribution Days Card - IBD Methodology */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Distribution Days
+              </Typography>
+              {distributionDaysLoading ? (
+                <CircularProgress size={24} />
+              ) : (
+                <>
+                  {Object.entries(distributionDays).length > 0 ? (
+                    <>
+                      {Object.entries(distributionDays).map(([symbol, data]) => {
+                        // Determine color based on signal
+                        const getSignalColor = (signal) => {
+                          switch (signal) {
+                            case "NORMAL":
+                              return "success.main";
+                            case "ELEVATED":
+                              return "warning.main";
+                            case "CAUTION":
+                              return "warning.dark";
+                            case "UNDER_PRESSURE":
+                              return "error.main";
+                            default:
+                              return "text.secondary";
+                          }
+                        };
+
+                        const getSignalChipColor = (signal) => {
+                          switch (signal) {
+                            case "NORMAL":
+                              return "success";
+                            case "ELEVATED":
+                              return "warning";
+                            case "CAUTION":
+                              return "warning";
+                            case "UNDER_PRESSURE":
+                              return "error";
+                            default:
+                              return "default";
+                          }
+                        };
+
+                        return (
+                          <Box
+                            key={symbol}
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              mb: 1.5,
+                              p: 1,
+                              borderRadius: 1,
+                              backgroundColor: "grey.50",
+                            }}
+                          >
+                            <Box>
+                              <Typography variant="body2" fontWeight={600}>
+                                {data.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {symbol}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ textAlign: "right" }}>
+                              <Typography
+                                variant="h6"
+                                sx={{
+                                  color: getSignalColor(data.signal),
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {data.count}
+                              </Typography>
+                              <Chip
+                                label={data.signal}
+                                color={getSignalChipColor(data.signal)}
+                                size="small"
+                              />
+                            </Box>
+                          </Box>
+                        );
+                      })}
+                      <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
+                        <Typography variant="caption" color="text.secondary">
+                          IBD Distribution Days: Down 0.2%+ on higher volume over 25 days
+                        </Typography>
+                      </Box>
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No distribution days data available
+                    </Typography>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       {/* Enhanced Tabs Section */}
@@ -1289,92 +1389,6 @@ function MarketOverview() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          {sectorLoading ? (
-            <LinearProgress />
-          ) : (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                      Sector Performance
-                    </Typography>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <BarChart data={sectorChartData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="name"
-                          angle={-45}
-                          textAnchor="end"
-                          height={80}
-                        />
-                        <YAxis />
-                        <Tooltip
-                          formatter={(value, _name) => [
-                            `${value.toFixed(2)}%`,
-                            "Performance",
-                          ]}
-                        />
-                        <Bar dataKey="performance" fill="#8884d8" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                      Sector Details
-                    </Typography>
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Sector</TableCell>
-                            <TableCell align="right">Change %</TableCell>
-                            <TableCell align="right">Stocks</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {sectors.slice(0, 8).map((sector, index) => {
-                            const changePercent =
-                              parseFloat(
-                                sector.avg_change_percent ||
-                                  sector.avg_change ||
-                                  sector.performance
-                              ) || 0;
-                            return (
-                              <TableRow key={index}>
-                                <TableCell>
-                                  {sector.sector?.substring(0, 12) || "N/A"}
-                                </TableCell>
-                                <TableCell
-                                  align="right"
-                                  sx={{
-                                    color: getChangeColor(changePercent),
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {formatPercentage(changePercent)}
-                                </TableCell>
-                                <TableCell align="right">
-                                  {sector.stock_count || sector.count || 0}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          )}
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={2}>
           {breadthLoading ? (
             <LinearProgress />
           ) : (
@@ -1512,8 +1526,7 @@ function MarketOverview() {
           )}
         </TabPanel>
 
-
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={2}>
           {seasonalityLoading ? (
             <LinearProgress />
           ) : (

@@ -1974,27 +1974,6 @@ function StockDetail() {
                           </Box>
                         </TableCell>
                       </TableRow>
-                      <TableRow>
-                        <TableCell>Value Score</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={stockScores?.data?.data?.value_score || "N/A"}
-                            color={
-                              stockScores?.data?.data?.value_score >= 70
-                                ? "success"
-                                : stockScores?.data?.data?.value_score >= 50
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            0-100 scale
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -2004,6 +1983,11 @@ function StockDetail() {
 
           {/* Momentum Factor Breakdown */}
           <Grid item xs={12} md={6}>
+            {(() => {
+              // Get momentum inputs from stock scores API
+              const momentumInputs = stockScores?.data?.factors?.momentum?.inputs || {};
+
+              return (
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -2037,87 +2021,113 @@ function StockDetail() {
                   <Table size="small">
                     <TableBody>
                       <TableRow>
-                        <TableCell>RSI (14-day)</TableCell>
+                        <TableCell>12-Month Return (ex. last)</TableCell>
                         <TableCell align="right">
                           <Chip
-                            label={stockScores?.data?.data?.rsi?.toFixed(2) || "N/A"}
+                            label={momentumInputs.momentum_12m_1 ? `${momentumInputs.momentum_12m_1.toFixed(2)}%` : "N/A"}
                             color={
-                              stockScores?.data?.data?.rsi > 70
-                                ? "error"
-                                : stockScores?.data?.data?.rsi < 30
-                                  ? "warning"
-                                  : "success"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            30-70 neutral zone
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>1-Day Change</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`${(stockScores?.data?.data?.price_change_1d || 0).toFixed(2)}%`}
-                            color={
-                              stockScores?.data?.data?.price_change_1d > 0
+                              (momentumInputs.momentum_12m_1 || 0) > 10
                                 ? "success"
-                                : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>5-Day Change</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`${(stockScores?.data?.data?.price_change_5d || 0).toFixed(2)}%`}
-                            color={
-                              stockScores?.data?.data?.price_change_5d > 0
-                                ? "success"
-                                : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>30-Day Change</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`${(stockScores?.data?.data?.price_change_30d || 0).toFixed(2)}%`}
-                            color={
-                              stockScores?.data?.data?.price_change_30d > 0
-                                ? "success"
-                                : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Momentum Score</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={stockScores?.data?.data?.momentum_score?.toFixed(1) || "N/A"}
-                            color={
-                              stockScores?.data?.data?.momentum_score >= 70
-                                ? "success"
-                                : stockScores?.data?.data?.momentum_score >= 50
+                                : (momentumInputs.momentum_12m_1 || 0) > 0
                                   ? "warning"
                                   : "error"
                             }
                             size="small"
                           />
                         </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>6-Month Return</TableCell>
                         <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            0-100 scale
-                          </Typography>
+                          <Chip
+                            label={momentumInputs.momentum_6m ? `${momentumInputs.momentum_6m.toFixed(2)}%` : "N/A"}
+                            color={
+                              (momentumInputs.momentum_6m || 0) > 10
+                                ? "success"
+                                : (momentumInputs.momentum_6m || 0) > 0
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>3-Month Return</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={momentumInputs.momentum_3m ? `${momentumInputs.momentum_3m.toFixed(2)}%` : "N/A"}
+                            color={
+                              (momentumInputs.momentum_3m || 0) > 5
+                                ? "success"
+                                : (momentumInputs.momentum_3m || 0) > 0
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Risk-Adjusted Momentum</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={momentumInputs.risk_adjusted_momentum ? momentumInputs.risk_adjusted_momentum.toFixed(3) : "N/A"}
+                            color={
+                              (momentumInputs.risk_adjusted_momentum || 0) > 0.5
+                                ? "success"
+                                : (momentumInputs.risk_adjusted_momentum || 0) > 0
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Price vs 50-day MA</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={momentumInputs.price_vs_sma_50 ? `${momentumInputs.price_vs_sma_50 > 0 ? '+' : ''}${momentumInputs.price_vs_sma_50.toFixed(2)}%` : "N/A"}
+                            color={
+                              (momentumInputs.price_vs_sma_50 || 0) > 5
+                                ? "success"
+                                : (momentumInputs.price_vs_sma_50 || 0) > -5
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Price vs 200-day MA</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={momentumInputs.price_vs_sma_200 ? `${momentumInputs.price_vs_sma_200 > 0 ? '+' : ''}${momentumInputs.price_vs_sma_200.toFixed(2)}%` : "N/A"}
+                            color={
+                              (momentumInputs.price_vs_sma_200 || 0) > 0
+                                ? "success"
+                                : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Price vs 52-Week High</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={momentumInputs.price_vs_52w_high ? `${momentumInputs.price_vs_52w_high.toFixed(2)}%` : "N/A"}
+                            color={
+                              (momentumInputs.price_vs_52w_high || 0) > 90
+                                ? "success"
+                                : (momentumInputs.price_vs_52w_high || 0) > 75
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -2125,6 +2135,168 @@ function StockDetail() {
                 </TableContainer>
               </CardContent>
             </Card>
+              );
+            })()}
+          </Grid>
+
+          {/* Relative Strength Factor Breakdown */}
+          <Grid item xs={12} md={6}>
+            {(() => {
+              // Get relative strength inputs from stock scores API
+              const rsInputs = stockScores?.data?.factors?.relative_strength?.inputs || {};
+
+              return (
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Relative Strength Factor Analysis
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={[
+                        {
+                          metric: 'RS Score',
+                          score: stockScores?.data?.data?.relative_strength_score || 0,
+                          target: 70,
+                          good: 50
+                        }
+                      ]}
+                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="metric" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Bar dataKey="score" fill={stockScores?.data?.data?.relative_strength_score >= 70 ? "#4caf50" : stockScores?.data?.data?.relative_strength_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
+                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
+                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>RS Rating (Percentile)</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={rsInputs.rs_rating ? `${rsInputs.rs_rating}` : "N/A"}
+                            color={
+                              (rsInputs.rs_rating || 0) > 80
+                                ? "success"
+                                : (rsInputs.rs_rating || 0) > 60
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Sector Relative (12M)</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={rsInputs.sector_relative_12m ? `${rsInputs.sector_relative_12m > 0 ? '+' : ''}${rsInputs.sector_relative_12m.toFixed(2)}%` : "N/A"}
+                            color={
+                              (rsInputs.sector_relative_12m || 0) > 10
+                                ? "success"
+                                : (rsInputs.sector_relative_12m || 0) > 0
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Sector Percentile</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={rsInputs.sector_percentile ? `${rsInputs.sector_percentile.toFixed(0)}` : "N/A"}
+                            color={
+                              (rsInputs.sector_percentile || 0) > 75
+                                ? "success"
+                                : (rsInputs.sector_percentile || 0) > 50
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>RS Momentum (4w)</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={rsInputs.rs_momentum_4w ? `${rsInputs.rs_momentum_4w > 0 ? '+' : ''}${rsInputs.rs_momentum_4w.toFixed(2)}` : "N/A"}
+                            color={
+                              (rsInputs.rs_momentum_4w || 0) > 5
+                                ? "success"
+                                : (rsInputs.rs_momentum_4w || 0) > 0
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>RS Momentum (13w)</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={rsInputs.rs_momentum_13w ? `${rsInputs.rs_momentum_13w > 0 ? '+' : ''}${rsInputs.rs_momentum_13w.toFixed(2)}` : "N/A"}
+                            color={
+                              (rsInputs.rs_momentum_13w || 0) > 10
+                                ? "success"
+                                : (rsInputs.rs_momentum_13w || 0) > 0
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Positive Months (12M)</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={rsInputs.positive_months_12 !== null && rsInputs.positive_months_12 !== undefined ? `${rsInputs.positive_months_12}/12` : "N/A"}
+                            color={
+                              (rsInputs.positive_months_12 || 0) >= 9
+                                ? "success"
+                                : (rsInputs.positive_months_12 || 0) >= 6
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Timeframe Alignment</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={rsInputs.timeframe_alignment !== null && rsInputs.timeframe_alignment !== undefined ? `${rsInputs.timeframe_alignment}/4` : "N/A"}
+                            color={
+                              (rsInputs.timeframe_alignment || 0) === 4
+                                ? "success"
+                                : (rsInputs.timeframe_alignment || 0) >= 3
+                                  ? "warning"
+                                  : "error"
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+              );
+            })()}
           </Grid>
 
           {/* Positioning Factor Breakdown */}
@@ -2162,30 +2334,9 @@ function StockDetail() {
                   <Table size="small">
                     <TableBody>
                       <TableRow>
-                        <TableCell>Positioning Score</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={stockScores?.data?.data?.positioning_score?.toFixed(1) || "N/A"}
-                            color={
-                              stockScores?.data?.data?.positioning_score >= 70
-                                ? "success"
-                                : stockScores?.data?.data?.positioning_score >= 50
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            0-100 scale
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
                         <TableCell colSpan={3}>
                           <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                            Positioning score reflects institutional ownership patterns, insider activity, and short interest data.
+                            Positioning data reflects institutional ownership patterns, insider activity, and short interest.
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -2231,30 +2382,9 @@ function StockDetail() {
                   <Table size="small">
                     <TableBody>
                       <TableRow>
-                        <TableCell>Sentiment Score</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={stockScores?.data?.data?.sentiment_score?.toFixed(1) || "N/A"}
-                            color={
-                              stockScores?.data?.data?.sentiment_score >= 70
-                                ? "success"
-                                : stockScores?.data?.data?.sentiment_score >= 50
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            0-100 scale
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
                         <TableCell colSpan={3}>
                           <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                            Sentiment score aggregates analyst ratings, news sentiment, and social media activity.
+                            Sentiment data aggregates analyst ratings, news sentiment, and social media activity.
                           </Typography>
                         </TableCell>
                       </TableRow>

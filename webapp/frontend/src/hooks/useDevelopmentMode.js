@@ -22,7 +22,7 @@ export function useDevelopmentMode() {
           const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout
 
           const apiUrl = window.__CONFIG__?.API_URL || "http://localhost:3001";
-          const response = await fetch(`${apiUrl}/api/health`, {
+          const response = await fetch(`${apiUrl}/api/health?quick=true`, {
             signal: controller.signal,
             headers: { Accept: "application/json" },
           });

@@ -2,20 +2,16 @@
 import os
 import sys
 import json
-import boto3
 import psycopg2
 
-# Get DB credentials from Secrets Manager
-client = boto3.client("secretsmanager", region_name="us-east-1")
+# Get DB credentials from environment variables
 try:
-    secret = json.loads(client.get_secret_value(SecretId="stocks-db-credentials")["SecretString"])
-    
     conn = psycopg2.connect(
-        host=secret["host"],
-        port=secret.get("port", 5432),
-        user=secret["username"],
-        password=secret["password"],
-        dbname=secret["dbname"]
+        host=os.environ.get("DB_HOST", "localhost"),
+        port=int(os.environ.get("DB_PORT", 5432)),
+        user=os.environ.get("DB_USER", "stocks"),
+        password=os.environ.get("DB_PASSWORD", "stocks"),
+        dbname=os.environ.get("DB_NAME", "stocks")
     )
     
     cur = conn.cursor()
@@ -32,31 +28,19 @@ try:
     print(", ".join(tables[:10]))
     print()
     
-    # Check stock_symbols
-    cur.execute("SELECT COUNT(*) FROM stock_symbols")
-    count = cur.fetchone()[0]
-    print(f"stock_symbols: {count} rows")
-    
-    # Check price_daily
-    cur.execute("SELECT COUNT(*) FROM price_daily")
-    count = cur.fetchone()[0]
-    print(f"price_daily: {count} rows")
-    
-    # Check technical_data_daily
-    cur.execute("SELECT COUNT(*) FROM technical_data_daily")
-    count = cur.fetchone()[0]
-    print(f"technical_data_daily: {count} rows")
-    
-    # Check stock_scores
-    cur.execute("SELECT COUNT(*) FROM stock_scores")
-    count = cur.fetchone()[0]
-    print(f"stock_scores: {count} rows")
-    
-    # Check sector_performance
-    cur.execute("SELECT COUNT(*) FROM sector_performance")
-    count = cur.fetchone()[0]
-    print(f"sector_performance: {count} rows")
-    
+    # Check aaii_sentiment
+    if "aaii_sentiment" in tables:
+        cur.execute("SELECT COUNT(*) FROM aaii_sentiment")
+        count = cur.fetchone()[0]
+        print(f"aaii_sentiment: {count} rows")
+        if count > 0:
+            print("Last 5 rows from aaii_sentiment:")
+            cur.execute("SELECT * FROM aaii_sentiment ORDER BY date DESC LIMIT 5")
+            for row in cur.fetchall():
+                print(row)
+    else:
+        print("aaii_sentiment table not found")
+
     cur.close()
     conn.close()
     

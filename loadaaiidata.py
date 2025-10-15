@@ -46,7 +46,11 @@ from datetime import datetime
 from io import BytesIO
 
 import boto3
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError:
+    print("Pandas library not found. Please install it using: pip install pandas")
+    exit()
 import psycopg2
 import requests
 from psycopg2.extras import RealDictCursor, execute_values

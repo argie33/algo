@@ -165,6 +165,88 @@ class MarketDataCollector:
         self.name = name
         self.ticker = yf.Ticker(symbol)
 
+    def calculate_distribution_days(
+        self, hist: pd.DataFrame, lookback_days: int = 25
+    ) -> Dict[str, Any]:
+        """
+        Calculate IBD Distribution Days over specified lookback period.
+
+        IBD Distribution Day Criteria:
+        - Major index down 0.2% or more
+        - Volume higher than previous day
+        - Track over 25 trading days
+        - Remove if: (1) older than 25 days, or (2) index rallies 6%+ from distribution day close
+
+        Args:
+            hist: Historical price/volume data
+            lookback_days: Number of trading days to look back (default 25)
+
+        Returns:
+            Dict with distribution day count, details, and signal status
+        """
+        if hist.empty or len(hist) < 2:
+            return {"count": 0, "days": [], "signal": "INSUFFICIENT_DATA"}
+
+        distribution_days = []
+
+        # Look back through the specified period
+        for i in range(1, min(len(hist), lookback_days + 1)):
+            current_idx = len(hist) - i
+            prev_idx = current_idx - 1
+
+            if prev_idx < 0:
+                break
+
+            # Calculate price change percentage
+            current_close = hist["Close"].iloc[current_idx]
+            prev_close = hist["Close"].iloc[prev_idx]
+            price_change_pct = (current_close / prev_close - 1) * 100
+
+            # Check volume comparison
+            current_volume = hist["Volume"].iloc[current_idx] if "Volume" in hist.columns else 0
+            prev_volume = hist["Volume"].iloc[prev_idx] if "Volume" in hist.columns else 0
+            volume_higher = current_volume > prev_volume
+
+            # IBD criteria: down 0.2%+ on higher volume
+            if price_change_pct <= -0.2 and volume_higher and current_volume > 0:
+                dist_day = {
+                    "date": hist.index[current_idx].strftime("%Y-%m-%d"),
+                    "close": float(current_close),
+                    "change_pct": float(price_change_pct),
+                    "volume": int(current_volume),
+                    "volume_ratio": float(current_volume / prev_volume) if prev_volume > 0 else 1.0,
+                    "days_ago": i - 1,
+                }
+
+                # Check if this distribution day should be removed due to 6%+ rally
+                # Look forward from distribution day to see if there was a 6%+ rally
+                rally_occurred = False
+                for j in range(current_idx + 1, len(hist)):
+                    if (hist["Close"].iloc[j] / current_close - 1) >= 0.06:
+                        rally_occurred = True
+                        break
+
+                if not rally_occurred:
+                    distribution_days.append(dist_day)
+
+        # Determine signal based on distribution day count
+        count = len(distribution_days)
+        if count >= 6:
+            signal = "UNDER_PRESSURE"
+        elif count >= 5:
+            signal = "CAUTION"
+        elif count >= 3:
+            signal = "ELEVATED"
+        else:
+            signal = "NORMAL"
+
+        return {
+            "count": count,
+            "days": distribution_days,
+            "signal": signal,
+            "lookback_period": lookback_days,
+        }
+
     def get_market_data(self, period: str = "1y") -> Optional[Dict]:
         """Get comprehensive market data for the symbol"""
         try:
@@ -341,6 +423,11 @@ class MarketDataCollector:
                 "region": self._classify_region(),
             }
 
+            # Calculate distribution days for major indices only
+            if self.symbol in ["^GSPC", "^IXIC", "^DJI"]:
+                dist_days = self.calculate_distribution_days(hist)
+                result["distribution_days"] = dist_days
+
             return result
 
         except Exception as e:
@@ -403,7 +490,7 @@ def create_market_data_table(cur, conn):
         price DECIMAL(12,4),
         volume BIGINT,
         market_cap BIGINT,
-        
+
         -- Returns
         return_1d DECIMAL(8,6),
         return_5d DECIMAL(8,6),
@@ -411,12 +498,12 @@ def create_market_data_table(cur, conn):
         return_3m DECIMAL(8,6),
         return_6m DECIMAL(8,6),
         return_1y DECIMAL(8,6),
-        
+
         -- Volatility
         volatility_30d DECIMAL(8,6),
         volatility_90d DECIMAL(8,6),
         volatility_1y DECIMAL(8,6),
-        
+
         -- Moving Averages
         sma_20 DECIMAL(12,4),
         sma_50 DECIMAL(12,4),
@@ -424,22 +511,22 @@ def create_market_data_table(cur, conn):
         price_vs_sma_20 DECIMAL(8,6),
         price_vs_sma_50 DECIMAL(8,6),
         price_vs_sma_200 DECIMAL(8,6),
-        
+
         -- High/Low Metrics
         high_52w DECIMAL(12,4),
         low_52w DECIMAL(12,4),
         distance_from_high DECIMAL(8,6),
         distance_from_low DECIMAL(8,6),
-        
+
         -- Volume and Risk
         avg_volume_30d BIGINT,
         volume_ratio DECIMAL(8,4),
         beta DECIMAL(8,4),
-        
+
         -- Classification
         asset_class VARCHAR(50),
         region VARCHAR(50),
-        
+
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
@@ -465,6 +552,40 @@ def create_market_data_table(cur, conn):
 
     conn.commit()
     logging.info("Market data table created successfully")
+
+    # Create distribution days table
+    logging.info("Creating distribution_days table...")
+
+    dist_days_sql = """
+    CREATE TABLE IF NOT EXISTS distribution_days (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(20) NOT NULL,
+        date DATE NOT NULL,
+        close_price DECIMAL(12,4),
+        change_pct DECIMAL(8,4),
+        volume BIGINT,
+        volume_ratio DECIMAL(8,4),
+        days_ago INTEGER,
+        signal VARCHAR(50),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, date)
+    );
+    """
+
+    cur.execute(dist_days_sql)
+
+    # Create indexes for distribution days
+    dist_indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_dist_days_symbol ON distribution_days(symbol);",
+        "CREATE INDEX IF NOT EXISTS idx_dist_days_date ON distribution_days(date DESC);",
+        "CREATE INDEX IF NOT EXISTS idx_dist_days_signal ON distribution_days(signal);",
+    ]
+
+    for index_sql in dist_indexes:
+        cur.execute(index_sql)
+
+    conn.commit()
+    logging.info("Distribution days table created successfully")
 
 
 def load_market_data_batch(
@@ -580,6 +701,60 @@ def load_market_data_batch(
                 logging.info(
                     f"Market batch {batch_num} inserted {len(market_data)} symbols successfully"
                 )
+
+                # Insert distribution days data for major indices
+                dist_days_inserted = 0
+                for item in market_data:
+                    if "distribution_days" in item and item["distribution_days"]:
+                        dist_data = item["distribution_days"]
+                        symbol = item["symbol"]
+                        signal = dist_data.get("signal", "UNKNOWN")
+
+                        # Clear old distribution days for this symbol
+                        cur.execute(
+                            "DELETE FROM distribution_days WHERE symbol = %s",
+                            (symbol,)
+                        )
+
+                        # Insert each distribution day
+                        for day in dist_data.get("days", []):
+                            try:
+                                cur.execute(
+                                    """
+                                    INSERT INTO distribution_days
+                                    (symbol, date, close_price, change_pct, volume, volume_ratio, days_ago, signal)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                    ON CONFLICT (symbol, date) DO UPDATE SET
+                                        close_price = EXCLUDED.close_price,
+                                        change_pct = EXCLUDED.change_pct,
+                                        volume = EXCLUDED.volume,
+                                        volume_ratio = EXCLUDED.volume_ratio,
+                                        days_ago = EXCLUDED.days_ago,
+                                        signal = EXCLUDED.signal
+                                    """,
+                                    (
+                                        symbol,
+                                        day.get("date"),
+                                        day.get("close"),
+                                        day.get("change_pct"),
+                                        day.get("volume"),
+                                        day.get("volume_ratio"),
+                                        day.get("days_ago"),
+                                        signal,
+                                    )
+                                )
+                                dist_days_inserted += 1
+                            except Exception as e:
+                                logging.error(
+                                    f"Error inserting distribution day for {symbol} on {day.get('date')}: {e}"
+                                )
+
+                        conn.commit()
+
+                if dist_days_inserted > 0:
+                    logging.info(
+                        f"Inserted {dist_days_inserted} distribution days for major indices"
+                    )
 
             except Exception as e:
                 logging.error(

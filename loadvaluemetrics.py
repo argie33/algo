@@ -344,7 +344,7 @@ def calculate_value_metrics_for_stock(
 
     # Calculate other metrics
     fcf_yield = calculate_fcf_yield(market_cap, fcf) if market_cap and fcf else None
-    peg_calc = calculate_peg_ratio(pe, growth_pct) if pe and growth_pct else peg
+    peg_calc = calculate_peg_ratio(pe, growth_pct) or peg  # Use yfinance PEG if calculation fails (negative growth)
     dcf_intrinsic = calculate_dcf_intrinsic(fcf, growth_pct/100 if growth_pct else 0.05,
                                            shares, debt, cash) if fcf and shares else None
     dcf_discount_pct = None

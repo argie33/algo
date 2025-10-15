@@ -223,14 +223,14 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/apigateway/stocks-webapp-${EnvironmentName}'
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   # CloudWatch Log Group for Lambda
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/stocks-webapp-api-${EnvironmentName}'
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   # IAM Role for Lambda execution
   LambdaExecutionRole:

@@ -308,6 +308,117 @@ describe("Market Routes Unit Tests", () => {
     });
   });
 
+  describe("GET /api/market/distribution-days", () => {
+    test("should return distribution days data or handle missing data", async () => {
+      const response = await request(app).get("/api/market/distribution-days");
+
+      expect([200, 404, 503]).toContain(response.status);
+
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+
+        const data = response.body.data;
+        expect(data).toBeDefined();
+
+        // Check that we have data for major indices
+        const expectedIndices = ["^GSPC", "^IXIC", "^DJI"];
+        expectedIndices.forEach((symbol) => {
+          if (data[symbol]) {
+            expect(data[symbol]).toHaveProperty("name");
+            expect(data[symbol]).toHaveProperty("count");
+            expect(data[symbol]).toHaveProperty("signal");
+            expect(data[symbol]).toHaveProperty("days");
+            expect(Array.isArray(data[symbol].days)).toBe(true);
+
+            // Verify signal is one of the expected values
+            expect([
+              "NORMAL",
+              "ELEVATED",
+              "CAUTION",
+              "UNDER_PRESSURE",
+            ]).toContain(data[symbol].signal);
+
+            // If there are distribution days, verify their structure
+            if (data[symbol].days.length > 0) {
+              const day = data[symbol].days[0];
+              expect(day).toHaveProperty("date");
+              expect(day).toHaveProperty("close_price");
+              expect(day).toHaveProperty("change_pct");
+              expect(day).toHaveProperty("volume");
+              expect(day).toHaveProperty("volume_ratio");
+              expect(day).toHaveProperty("days_ago");
+
+              // Verify data types
+              expect(typeof day.date).toBe("string");
+              expect(typeof day.change_pct).toBe("number");
+              expect(typeof day.volume).toBe("number");
+              expect(typeof day.volume_ratio).toBe("number");
+              expect(typeof day.days_ago).toBe("number");
+
+              // Verify distribution day criteria (IBD methodology)
+              expect(day.change_pct).toBeLessThanOrEqual(-0.2);
+              expect(day.volume_ratio).toBeGreaterThan(1.0);
+            }
+          }
+        });
+      } else if (response.status === 404) {
+        expect(response.body).toHaveProperty("error");
+        expect(response.body.error).toContain("No distribution days data");
+      } else if (response.status === 503) {
+        expect(response.body).toHaveProperty("success", false);
+        expect(response.body).toHaveProperty("error");
+      }
+    });
+
+    test("should have correct data structure and IBD methodology", async () => {
+      const response = await request(app).get("/api/market/distribution-days");
+
+      if (response.status === 200 && response.body.data) {
+        const data = response.body.data;
+
+        Object.entries(data).forEach(([symbol, indexData]) => {
+          // Verify count matches number of days
+          expect(indexData.count).toBe(indexData.days.length);
+
+          // Verify signal classification logic
+          if (indexData.count >= 6) {
+            expect(indexData.signal).toBe("UNDER_PRESSURE");
+          } else if (indexData.count === 5) {
+            expect(indexData.signal).toBe("CAUTION");
+          } else if (indexData.count >= 3) {
+            expect(indexData.signal).toBe("ELEVATED");
+          } else {
+            expect(indexData.signal).toBe("NORMAL");
+          }
+
+          // Verify all distribution days meet IBD criteria
+          indexData.days.forEach((day) => {
+            // Must be down 0.2% or more
+            expect(day.change_pct).toBeLessThanOrEqual(-0.2);
+            // Must have higher volume than previous day
+            expect(day.volume_ratio).toBeGreaterThan(1.0);
+            // Must be within 25 days
+            expect(day.days_ago).toBeLessThanOrEqual(25);
+          });
+        });
+      }
+    });
+
+    test("should return timestamp in response", async () => {
+      const response = await request(app).get("/api/market/distribution-days");
+
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("timestamp");
+        expect(typeof response.body.timestamp).toBe("string");
+        // Verify timestamp is in ISO format
+        expect(new Date(response.body.timestamp).toISOString()).toBe(
+          response.body.timestamp
+        );
+      }
+    });
+  });
+
   describe("Error Handling", () => {
     test("should handle invalid endpoints gracefully", async () => {
       const response = await request(app).get("/api/market/invalid-endpoint");

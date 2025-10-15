@@ -260,14 +260,14 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/apigateway/financial-dashboard-${EnvironmentName}'
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   ## 14) CloudWatch Log Group for Lambda
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/financial-dashboard-api-${EnvironmentName}'
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   ## 15) CloudFront Distribution
   CloudFrontDistribution:

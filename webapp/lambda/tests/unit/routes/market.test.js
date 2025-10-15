@@ -155,6 +155,123 @@ describe("Market Routes Unit Tests", () => {
         });
       }
 
+      // Mock distribution days data
+      if (sql.includes("distribution_days")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: "^GSPC",
+              count: 2,
+              signal: "NORMAL",
+              days: [
+                {
+                  date: "2025-09-25",
+                  close_price: 4350.25,
+                  change_pct: -0.45,
+                  volume: 3500000000,
+                  volume_ratio: 1.15,
+                  days_ago: 3
+                },
+                {
+                  date: "2025-09-20",
+                  close_price: 4380.75,
+                  change_pct: -0.35,
+                  volume: 3450000000,
+                  volume_ratio: 1.12,
+                  days_ago: 8
+                }
+              ]
+            },
+            {
+              symbol: "^IXIC",
+              count: 4,
+              signal: "ELEVATED",
+              days: [
+                {
+                  date: "2025-09-26",
+                  close_price: 13520.50,
+                  change_pct: -0.55,
+                  volume: 4200000000,
+                  volume_ratio: 1.22,
+                  days_ago: 2
+                },
+                {
+                  date: "2025-09-25",
+                  close_price: 13580.25,
+                  change_pct: -0.40,
+                  volume: 4150000000,
+                  volume_ratio: 1.18,
+                  days_ago: 3
+                },
+                {
+                  date: "2025-09-22",
+                  close_price: 13650.75,
+                  change_pct: -0.30,
+                  volume: 4100000000,
+                  volume_ratio: 1.10,
+                  days_ago: 6
+                },
+                {
+                  date: "2025-09-18",
+                  close_price: 13720.00,
+                  change_pct: -0.25,
+                  volume: 4050000000,
+                  volume_ratio: 1.08,
+                  days_ago: 10
+                }
+              ]
+            },
+            {
+              symbol: "^DJI",
+              count: 5,
+              signal: "CAUTION",
+              days: [
+                {
+                  date: "2025-09-27",
+                  close_price: 34250.50,
+                  change_pct: -0.60,
+                  volume: 350000000,
+                  volume_ratio: 1.25,
+                  days_ago: 1
+                },
+                {
+                  date: "2025-09-26",
+                  close_price: 34380.75,
+                  change_pct: -0.45,
+                  volume: 345000000,
+                  volume_ratio: 1.20,
+                  days_ago: 2
+                },
+                {
+                  date: "2025-09-24",
+                  close_price: 34520.25,
+                  change_pct: -0.35,
+                  volume: 340000000,
+                  volume_ratio: 1.15,
+                  days_ago: 4
+                },
+                {
+                  date: "2025-09-21",
+                  close_price: 34650.00,
+                  change_pct: -0.30,
+                  volume: 335000000,
+                  volume_ratio: 1.12,
+                  days_ago: 7
+                },
+                {
+                  date: "2025-09-19",
+                  close_price: 34780.50,
+                  change_pct: -0.28,
+                  volume: 330000000,
+                  volume_ratio: 1.10,
+                  days_ago: 9
+                }
+              ]
+            }
+          ]
+        });
+      }
+
       // Mock table existence checks
       if (sql.includes("information_schema.tables") || sql.includes("EXISTS")) {
         return Promise.resolve({
@@ -408,6 +525,147 @@ describe("Market Routes Unit Tests", () => {
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
+    });
+  });
+
+  describe("GET /market/distribution-days", () => {
+    test("should return distribution days data for major indices", async () => {
+      const response = await request(app).get("/market/distribution-days");
+
+      expect([200, 503]).toContain(response.status);
+      expect(response.body).toBeDefined();
+      expect(typeof response.body).toBe("object");
+
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+
+        // Verify data structure for each major index
+        const data = response.body.data;
+        expect(data).toBeDefined();
+
+        // Check S&P 500 data
+        if (data["^GSPC"]) {
+          expect(data["^GSPC"]).toHaveProperty("name");
+          expect(data["^GSPC"]).toHaveProperty("count");
+          expect(data["^GSPC"]).toHaveProperty("signal");
+          expect(data["^GSPC"]).toHaveProperty("days");
+          expect(Array.isArray(data["^GSPC"].days)).toBe(true);
+
+          // Verify signal is one of the expected values
+          expect(["NORMAL", "ELEVATED", "CAUTION", "UNDER_PRESSURE"]).toContain(data["^GSPC"].signal);
+        }
+
+        // Check NASDAQ data
+        if (data["^IXIC"]) {
+          expect(data["^IXIC"]).toHaveProperty("name");
+          expect(data["^IXIC"]).toHaveProperty("count");
+          expect(data["^IXIC"]).toHaveProperty("signal");
+          expect(data["^IXIC"]).toHaveProperty("days");
+          expect(Array.isArray(data["^IXIC"].days)).toBe(true);
+        }
+
+        // Check Dow Jones data
+        if (data["^DJI"]) {
+          expect(data["^DJI"]).toHaveProperty("name");
+          expect(data["^DJI"]).toHaveProperty("count");
+          expect(data["^DJI"]).toHaveProperty("signal");
+          expect(data["^DJI"]).toHaveProperty("days");
+          expect(Array.isArray(data["^DJI"].days)).toBe(true);
+        }
+      }
+    });
+
+    test("should return proper distribution day structure", async () => {
+      const response = await request(app).get("/market/distribution-days");
+
+      if (response.status === 200 && response.body.data) {
+        const data = response.body.data;
+
+        // Check at least one index has distribution days with proper structure
+        Object.values(data).forEach((indexData) => {
+          if (indexData.days && indexData.days.length > 0) {
+            const firstDay = indexData.days[0];
+
+            // Verify distribution day object structure
+            expect(firstDay).toHaveProperty("date");
+            expect(firstDay).toHaveProperty("close_price");
+            expect(firstDay).toHaveProperty("change_pct");
+            expect(firstDay).toHaveProperty("volume");
+            expect(firstDay).toHaveProperty("volume_ratio");
+            expect(firstDay).toHaveProperty("days_ago");
+
+            // Verify data types
+            expect(typeof firstDay.date).toBe("string");
+            expect(typeof firstDay.change_pct).toBe("number");
+            expect(typeof firstDay.volume).toBe("number");
+            expect(typeof firstDay.volume_ratio).toBe("number");
+            expect(typeof firstDay.days_ago).toBe("number");
+          }
+        });
+      }
+    });
+
+    test("should handle missing distribution_days table gracefully", async () => {
+      // Mock table doesn't exist
+      query.mockImplementation((sql) => {
+        if (sql.includes("information_schema.tables") || sql.includes("EXISTS")) {
+          return Promise.resolve({
+            rows: [{ exists: false }]
+          });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+
+      const response = await request(app).get("/market/distribution-days");
+
+      expect(response.status).toBe(503);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
+      expect(response.body.error).toContain("Distribution days service unavailable");
+    });
+
+    test("should handle database query errors", async () => {
+      // Mock database error
+      query.mockImplementation((sql) => {
+        if (sql.includes("information_schema.tables") || sql.includes("EXISTS")) {
+          return Promise.resolve({
+            rows: [{ exists: true }]
+          });
+        }
+        if (sql.includes("distribution_days")) {
+          return Promise.reject(new Error("Database connection failed"));
+        }
+        return Promise.resolve({ rows: [] });
+      });
+
+      const response = await request(app).get("/market/distribution-days");
+
+      expect(response.status).toBe(503);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
+    });
+
+    test("should return 404 when no distribution days data exists", async () => {
+      // Mock empty result
+      query.mockImplementation((sql) => {
+        if (sql.includes("information_schema.tables") || sql.includes("EXISTS")) {
+          return Promise.resolve({
+            rows: [{ exists: true }]
+          });
+        }
+        if (sql.includes("distribution_days")) {
+          return Promise.resolve({ rows: [] });
+        }
+        return Promise.resolve({ rows: [] });
+      });
+
+      const response = await request(app).get("/market/distribution-days");
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
+      expect(response.body.error).toContain("No distribution days data found");
     });
   });
 

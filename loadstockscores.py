@@ -418,6 +418,32 @@ def get_stock_data_from_database(conn, symbol):
             if len(df) >= 253:
                 roc_252d = ((prices[-1] - prices[-253]) / prices[-253]) * 100
 
+        # Get dual momentum metrics from momentum_metrics table
+        cur.execute("""
+            SELECT momentum_12m_1, momentum_6m, momentum_3m, risk_adjusted_momentum,
+                   price_vs_sma_50, price_vs_sma_200, price_vs_52w_high,
+                   volatility_12m
+            FROM momentum_metrics
+            WHERE symbol = %s
+            ORDER BY date DESC
+            LIMIT 1
+        """, (symbol,))
+
+        momentum_data = cur.fetchone()
+        if momentum_data and len(momentum_data) >= 8:
+            momentum_12m_1, momentum_6m, momentum_3m, risk_adjusted_momentum, \
+            price_vs_sma_50, price_vs_sma_200, price_vs_52w_high, volatility_12m = momentum_data
+        else:
+            # No dual momentum data available
+            momentum_12m_1 = None
+            momentum_6m = None
+            momentum_3m = None
+            risk_adjusted_momentum = None
+            price_vs_sma_50 = None
+            price_vs_sma_200 = None
+            price_vs_52w_high = None
+            volatility_12m = None
+
         prices = df['close'].astype(float).values
         volatility_30d = calculate_volatility(prices)
 
@@ -563,37 +589,78 @@ def get_stock_data_from_database(conn, symbol):
 
         short_term_momentum = rsi_score + macd_score
 
-        # Component 2: Medium-Term Momentum (25 points) - Weeks
-        # Uses 10-day MOM and ROC for sustained momentum
+        # Component 2: Medium-Term Momentum (25 points) - Weeks/Months
+        # Primary: 6-month return from momentum_metrics (industry standard)
+        # Fallback: 10-day MOM/ROC from technical indicators
         medium_term_momentum = 12.5  # Start neutral
 
-        if mom_10d is not None and roc_10d is not None:
-            # MOM sub-component (0-12.5 points)
+        if momentum_6m is not None:
+            # Use 6-month return from momentum_metrics (primary)
+            # 6M return thresholds: >15%=excellent, >10%=strong, >5%=good, >0%=positive
+            if momentum_6m > 15:
+                medium_term_momentum = 25  # Excellent 6M performance
+            elif momentum_6m > 10:
+                medium_term_momentum = 20 + (momentum_6m - 10) * 1.0
+            elif momentum_6m > 5:
+                medium_term_momentum = 15 + (momentum_6m - 5) * 1.0
+            elif momentum_6m > 0:
+                medium_term_momentum = 12.5 + (momentum_6m) * 0.5
+            elif momentum_6m > -5:
+                medium_term_momentum = 8 + (momentum_6m + 5) * 0.9
+            elif momentum_6m > -10:
+                medium_term_momentum = 4 + (momentum_6m + 10) * 0.8
+            elif momentum_6m > -15:
+                medium_term_momentum = 1 + (momentum_6m + 15) * 0.6
+            else:
+                medium_term_momentum = 0  # Poor 6M performance
+        elif mom_10d is not None and roc_10d is not None:
+            # Fallback to 10-day MOM/ROC from technical indicators
+            # MOM sub-component (0-25 points)
             if roc_10d > 8:
-                mom_score = 12.5  # Strong upward momentum
+                mom_score = 25  # Strong upward momentum
             elif roc_10d > 5:
-                mom_score = 10 + (roc_10d - 5) * 0.83
+                mom_score = 20 + (roc_10d - 5) * 1.67
             elif roc_10d > 2:
-                mom_score = 8 + (roc_10d - 2) * 0.67
+                mom_score = 16 + (roc_10d - 2) * 1.33
             elif roc_10d > 0:
-                mom_score = 6.25 + (roc_10d) * 0.88
+                mom_score = 12.5 + (roc_10d) * 1.75
             elif roc_10d > -2:
-                mom_score = 4 + (roc_10d + 2) * 1.12
+                mom_score = 8 + (roc_10d + 2) * 2.25
             elif roc_10d > -5:
-                mom_score = 2 + (roc_10d + 5) * 0.67
+                mom_score = 4 + (roc_10d + 5) * 1.33
             elif roc_10d > -8:
-                mom_score = 0.5 + (roc_10d + 8) * 0.5
+                mom_score = 1 + (roc_10d + 8) * 1.0
             else:
                 mom_score = 0  # Strong downward momentum
 
             medium_term_momentum = mom_score
 
         # Component 3: Longer-Term Momentum (20 points) - Months
-        # Uses 60-day and 120-day ROC for established trends
+        # Primary: 12-month return excluding last month from momentum_metrics (academic standard)
+        # Fallback: 60-day and 120-day ROC from technical indicators
         longer_term_momentum = 10  # Start neutral
 
-        if roc_60d is not None and roc_120d is not None:
-            # Weight 60-day slightly more than 120-day (60% vs 40%)
+        if momentum_12m_1 is not None:
+            # Use 12M-1 return from momentum_metrics (academic standard for momentum factor)
+            # 12M-1 thresholds: >25%=excellent, >15%=strong, >10%=good, >0%=positive
+            if momentum_12m_1 > 25:
+                longer_term_momentum = 20  # Excellent 12M performance
+            elif momentum_12m_1 > 15:
+                longer_term_momentum = 16 + (momentum_12m_1 - 15) * 0.4
+            elif momentum_12m_1 > 10:
+                longer_term_momentum = 13 + (momentum_12m_1 - 10) * 0.6
+            elif momentum_12m_1 > 0:
+                longer_term_momentum = 10 + (momentum_12m_1) * 0.3
+            elif momentum_12m_1 > -10:
+                longer_term_momentum = 6 + (momentum_12m_1 + 10) * 0.4
+            elif momentum_12m_1 > -15:
+                longer_term_momentum = 3 + (momentum_12m_1 + 15) * 0.6
+            elif momentum_12m_1 > -25:
+                longer_term_momentum = 0.5 + (momentum_12m_1 + 25) * 0.25
+            else:
+                longer_term_momentum = 0  # Poor 12M performance
+        elif roc_60d is not None and roc_120d is not None:
+            # Fallback: Weight 60-day slightly more than 120-day (60% vs 40%)
             # 60-day ROC (0-12 points)
             if roc_60d > 20:
                 roc60_score = 12
@@ -634,42 +701,83 @@ def get_stock_data_from_database(conn, symbol):
             else:
                 longer_term_momentum = 0
 
-        # Component 4: Relative Strength (20 points) - vs S&P 500
-        # Mansfield RS - identifies market outperformers
+        # Component 4: Relative Strength (20 points) - vs S&P 500 + Risk-Adjusted Performance
+        # Primary: Mansfield RS (vs market) + Risk-Adjusted Momentum (Sharpe-style)
         relative_strength = 10  # Start neutral
 
+        rs_base_score = 10  # Mansfield RS component (0-15 points)
+        risk_adj_score = 5   # Risk-adjusted component (0-5 points)
+
+        # Mansfield RS - identifies market outperformers (0-15 points)
         if mansfield_rs is not None:
             # Mansfield RS typically ranges from -50 to +50
             # Positive = outperforming market, Negative = underperforming
             if mansfield_rs > 20:
-                relative_strength = 20  # Strong outperformance
+                rs_base_score = 15  # Strong outperformance
             elif mansfield_rs > 10:
-                relative_strength = 16 + (mansfield_rs - 10) * 0.4
+                rs_base_score = 12 + (mansfield_rs - 10) * 0.3
             elif mansfield_rs > 5:
-                relative_strength = 13 + (mansfield_rs - 5) * 0.6
+                rs_base_score = 9.75 + (mansfield_rs - 5) * 0.45
             elif mansfield_rs > 0:
-                relative_strength = 10 + (mansfield_rs) * 0.6
+                rs_base_score = 7.5 + (mansfield_rs) * 0.45
             elif mansfield_rs > -5:
-                relative_strength = 7 + (mansfield_rs + 5) * 0.6
+                rs_base_score = 5.25 + (mansfield_rs + 5) * 0.45
             elif mansfield_rs > -10:
-                relative_strength = 4 + (mansfield_rs + 10) * 0.6
+                rs_base_score = 3 + (mansfield_rs + 10) * 0.45
             elif mansfield_rs > -20:
-                relative_strength = 1 + (mansfield_rs + 20) * 0.3
+                rs_base_score = 0.75 + (mansfield_rs + 20) * 0.225
             else:
-                relative_strength = 0  # Strong underperformance
+                rs_base_score = 0  # Strong underperformance
+
+        # Risk-Adjusted Momentum - return/volatility ratio (0-5 points)
+        if risk_adjusted_momentum is not None:
+            # Risk-adjusted momentum is return/volatility (Sharpe-style without risk-free rate)
+            # Positive = good risk-adjusted returns, Negative = poor risk-adjusted returns
+            if risk_adjusted_momentum > 1.0:
+                risk_adj_score = 5  # Excellent risk-adjusted performance
+            elif risk_adjusted_momentum > 0.5:
+                risk_adj_score = 4 + (risk_adjusted_momentum - 0.5) * 2.0
+            elif risk_adjusted_momentum > 0:
+                risk_adj_score = 2.5 + (risk_adjusted_momentum) * 3.0
+            elif risk_adjusted_momentum > -0.5:
+                risk_adj_score = 1 + (risk_adjusted_momentum + 0.5) * 3.0
+            elif risk_adjusted_momentum > -1.0:
+                risk_adj_score = 0.25 + (risk_adjusted_momentum + 1.0) * 1.5
+            else:
+                risk_adj_score = 0  # Poor risk-adjusted performance
+
+        relative_strength = rs_base_score + risk_adj_score
 
         # Component 5: Momentum Consistency (10 points) - Multi-timeframe alignment
-        # Bonus when multiple timeframes agree, penalty for conflicting signals
+        # Primary: Check alignment across 3M, 6M, 12M returns from momentum_metrics
+        # Fallback: Check alignment across ROC timeframes from technical indicators
         consistency_score = 5  # Start neutral
 
         # Check alignment across timeframes
         timeframe_signals = []
-        if roc_10d is not None:
-            timeframe_signals.append(1 if roc_10d > 0 else -1)
-        if roc_60d is not None:
-            timeframe_signals.append(1 if roc_60d > 0 else -1)
-        if roc_120d is not None:
-            timeframe_signals.append(1 if roc_120d > 0 else -1)
+
+        # Use dual momentum metrics if available (preferred)
+        if momentum_3m is not None and momentum_6m is not None and momentum_12m_1 is not None:
+            timeframe_signals.append(1 if momentum_3m > 0 else -1)
+            timeframe_signals.append(1 if momentum_6m > 0 else -1)
+            timeframe_signals.append(1 if momentum_12m_1 > 0 else -1)
+
+            # Bonus for trend strength alignment (price vs MA alignment)
+            trend_alignment_bonus = 0
+            if price_vs_sma_50 is not None and price_vs_sma_200 is not None:
+                if price_vs_sma_50 > 0 and price_vs_sma_200 > 0:
+                    trend_alignment_bonus = 2  # Price above both MAs
+                elif price_vs_sma_50 < 0 and price_vs_sma_200 < 0:
+                    trend_alignment_bonus = -1  # Price below both MAs (bearish consistency)
+        else:
+            # Fallback to ROC-based signals
+            if roc_10d is not None:
+                timeframe_signals.append(1 if roc_10d > 0 else -1)
+            if roc_60d is not None:
+                timeframe_signals.append(1 if roc_60d > 0 else -1)
+            if roc_120d is not None:
+                timeframe_signals.append(1 if roc_120d > 0 else -1)
+            trend_alignment_bonus = 0
 
         if len(timeframe_signals) >= 2:
             signal_sum = sum(timeframe_signals)
@@ -677,15 +785,17 @@ def get_stock_data_from_database(conn, symbol):
 
             if abs(signal_sum) == signal_count:
                 # All timeframes agree (all positive or all negative)
-                consistency_score = 10
+                consistency_score = 8 + trend_alignment_bonus
             elif abs(signal_sum) == signal_count - 1:
                 # Mostly aligned (2 out of 3 agree)
-                consistency_score = 7
+                consistency_score = 6 + (trend_alignment_bonus * 0.5)
             elif signal_sum == 0:
                 # Mixed signals - conflicting momentum
                 consistency_score = 3
             else:
                 consistency_score = 5
+
+            consistency_score = max(0, min(10, consistency_score))
 
         # Calculate final momentum score (0-100 scale)
         momentum_score = (short_term_momentum + medium_term_momentum +

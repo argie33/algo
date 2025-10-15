@@ -53,6 +53,7 @@ router.get("/", (req, res) => {
         "/sentiment/history",
         "/sectors/performance",
         "/breadth",
+        "/distribution-days",
         "/economic",
         "/naaim",
         "/fear-greed",
@@ -169,7 +170,7 @@ router.get("/summary", async (req, res) => {
       const indicesQuery = `
         SELECT
           symbol,
-          close_price as close,
+          close as close,
           COALESCE((close - open), 0) as change_amount,
           CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as change_percent,
           volume,
@@ -598,7 +599,7 @@ router.get("/overview", async (req, res) => {
         ORDER BY md.ticker
       `).catch(e => { console.error("Indices failed:", e.message); return { rows: [] }; }),
 
-      // Query 5: Market breadth - Simplified to avoid slow subquery
+      // Query 5: Market breadth - Get counts from most recent trading day
       query(`
         SELECT
           COUNT(*) as total_stocks,
@@ -606,10 +607,8 @@ router.get("/overview", async (req, res) => {
           COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
           COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged
         FROM price_daily
-        WHERE date >= CURRENT_DATE - INTERVAL '2 days'
+        WHERE date = (SELECT MAX(date) FROM price_daily WHERE close IS NOT NULL)
           AND close IS NOT NULL AND open IS NOT NULL
-        ORDER BY date DESC
-        LIMIT 10000
       `).catch(e => { console.error("Breadth failed:", e.message); return { rows: [] }; }),
 
       // Query 6: Market cap
@@ -661,6 +660,13 @@ router.get("/overview", async (req, res) => {
         neutral: aaiiResult.rows[0].neutral,
         bearish: aaiiResult.rows[0].bearish,
         date: aaiiResult.rows[0].date
+      };
+    } else {
+      sentimentIndicators.aaii = {
+        bullish: null,
+        neutral: null,
+        bearish: null,
+        date: new Date().toISOString()
       };
     }
 
@@ -1252,7 +1258,7 @@ router.get("/sentiment/history", async (req, res) => {
     try {
       console.log("Fetching AAII historical data...");
       const aaiiQuery = `
-        SELECT bullish, neutral, bearish, date, created_at
+        SELECT bullish, neutral, bearish, date, fetched_at
         FROM aaii_sentiment 
         ORDER BY date DESC
         LIMIT 100
@@ -1623,19 +1629,19 @@ router.get("/breadth", async (req, res) => {
       WITH daily_changes AS (
         SELECT
           pd1.symbol,
-          pd1.close_price as current_close,
-          pd2.close_price as prev_close,
+          pd1.close as current_close,
+          pd2.close as prev_close,
           pd1.volume,
           CASE
-            WHEN pd2.close_price IS NOT NULL AND pd2.close_price > 0
-            THEN ((pd1.close_price - pd2.close_price) / pd2.close_price) * 100
+            WHEN pd2.close IS NOT NULL AND pd2.close > 0
+            THEN ((pd1.close - pd2.close) / pd2.close) * 100
             ELSE 0
           END as calculated_change_percent
         FROM price_daily pd1
         LEFT JOIN price_daily pd2 ON pd1.symbol = pd2.symbol
           AND pd2.date = pd1.date - INTERVAL '1 day'
         WHERE pd1.date >= CURRENT_DATE - INTERVAL '7 days'
-          AND pd1.close_price IS NOT NULL
+          AND pd1.close IS NOT NULL
       )
       SELECT
         COUNT(*) as total_stocks,
@@ -1706,6 +1712,98 @@ router.get("/breadth", async (req, res) => {
     return res.status(503).json({
       success: false,
       error: "Market breadth service unavailable",
+      message: "Database query failed",
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Distribution Days endpoint - IBD methodology
+router.get("/distribution-days", async (req, res) => {
+  console.log("📊 Distribution Days endpoint called");
+
+  try {
+    // Check if distribution_days table exists
+    const tableExists = await query(
+      `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'distribution_days'
+      );
+    `,
+      []
+    );
+
+    if (!tableExists.rows[0].exists) {
+      return res.status(503).json({
+        success: false,
+        error: "Distribution days service unavailable",
+        message: "Database table missing: distribution_days",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get distribution days for major indices
+    const distributionQuery = `
+      SELECT
+        symbol,
+        COUNT(*) as count,
+        signal,
+        json_agg(
+          json_build_object(
+            'date', date,
+            'close_price', close_price,
+            'change_pct', change_pct,
+            'volume', volume,
+            'volume_ratio', volume_ratio,
+            'days_ago', days_ago
+          ) ORDER BY date DESC
+        ) as days
+      FROM distribution_days
+      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
+      GROUP BY symbol, signal
+      ORDER BY symbol
+    `;
+
+    const result = await query(distributionQuery);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No distribution days data found",
+        message: "No distribution days data available for major indices",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Format response with index names
+    const indexNames = {
+      "^GSPC": "S&P 500",
+      "^IXIC": "NASDAQ Composite",
+      "^DJI": "Dow Jones Industrial Average",
+    };
+
+    const distributionData = {};
+    result.rows.forEach((row) => {
+      distributionData[row.symbol] = {
+        name: indexNames[row.symbol] || row.symbol,
+        count: parseInt(row.count),
+        signal: row.signal,
+        days: row.days,
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: distributionData,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching distribution days:", error);
+    return res.status(503).json({
+      success: false,
+      error: "Distribution days service unavailable",
       message: "Database query failed",
       timestamp: new Date().toISOString(),
     });
@@ -1957,7 +2055,7 @@ router.get("/volatility", async (req, res) => {
     const volatilityQuery = `
       SELECT 
         symbol,
-        close_price as close,
+        close as close,
         COALESCE(change_amount, 0) as change_amount,
         COALESCE(change_percent, 0) as change_percent,
         date
@@ -5574,7 +5672,7 @@ router.get("/historical/:symbol", async (req, res) => {
     try {
       result = await query(
         `SELECT date, open_price as open, high_price as high, low_price as low, 
-                close_price as close, volume
+                close as close, volume
          FROM price_daily 
          WHERE symbol = $1 
          AND date >= CURRENT_DATE - INTERVAL '${periodDays[period]} days'

@@ -71,7 +71,7 @@ else:
 # Check what's in quality_metrics for this symbol
 print("\n4. CURRENT QUALITY METRICS")
 cursor.execute("""
-    SELECT symbol, date, accruals_ratio, fcf_to_net_income, debt_to_equity, current_ratio, asset_turnover
+    SELECT symbol, date, fcf_to_net_income, debt_to_equity, current_ratio
     FROM quality_metrics
     WHERE symbol = %s
     ORDER BY date DESC
@@ -81,11 +81,9 @@ rows = cursor.fetchall()
 if rows:
     for row in rows:
         print(f"  {row[0]} | {row[1]}")
-        print(f"    accruals_ratio: {row[2]}")
-        print(f"    fcf_to_net_income: {row[3]}")
-        print(f"    debt_to_equity: {row[4]}")
-        print(f"    current_ratio: {row[5]}")
-        print(f"    asset_turnover: {row[6]}")
+        print(f"    fcf_to_net_income: {row[2]}")
+        print(f"    debt_to_equity: {row[3]}")
+        print(f"    current_ratio: {row[4]}")
 else:
     print("  ❌ NO QUALITY METRICS FOUND")
 

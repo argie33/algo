@@ -125,12 +125,30 @@ router.get("/", async (req, res) => {
         gm.roe_trend,
         gm.sustainable_growth_rate,
         gm.fcf_growth_yoy,
-        -- Raw momentum INPUT metrics from momentum_metrics table
-        mm.jt_momentum_12_1,
-        mm.momentum_3m,
+        -- Raw momentum INPUT metrics from momentum_metrics table (dual momentum)
+        mm.momentum_12m_1,
         mm.momentum_6m,
+        mm.momentum_3m,
         mm.risk_adjusted_momentum,
-        mm.momentum_strength` : ''}
+        mm.price_vs_sma_50,
+        mm.price_vs_sma_200,
+        mm.price_vs_52w_high,
+        mm.high_52w,
+        mm.sma_50,
+        mm.sma_200,
+        mm.volatility_12m,
+        -- Relative Strength INPUT metrics from relative_strength_metrics table
+        rsm.rs_rating,
+        rsm.sector_relative_1m,
+        rsm.sector_relative_3m,
+        rsm.sector_relative_6m,
+        rsm.sector_relative_12m,
+        rsm.sector_percentile,
+        rsm.rs_momentum_4w,
+        rsm.rs_momentum_13w,
+        rsm.positive_months_12,
+        rsm.timeframe_alignment,
+        rsm.relative_strength_score` : ''}
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${hasNewMomentumColumns ? `LEFT JOIN (
@@ -206,14 +224,37 @@ router.get("/", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
-          jt_momentum_12_1,
-          momentum_3m,
+          momentum_12m_1,
           momentum_6m,
+          momentum_3m,
           risk_adjusted_momentum,
-          momentum_strength
+          price_vs_sma_50,
+          price_vs_sma_200,
+          price_vs_52w_high,
+          high_52w,
+          sma_50,
+          sma_200,
+          volatility_12m
         FROM momentum_metrics
         ORDER BY symbol, date DESC
-      ) mm ON ss.symbol = mm.symbol` : ''}
+      ) mm ON ss.symbol = mm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          rs_rating,
+          sector_relative_1m,
+          sector_relative_3m,
+          sector_relative_6m,
+          sector_relative_12m,
+          sector_percentile,
+          rs_momentum_4w,
+          rs_momentum_13w,
+          positive_months_12,
+          timeframe_alignment,
+          relative_strength_score
+        FROM relative_strength_metrics
+        ORDER BY symbol, date DESC
+      ) rsm ON ss.symbol = rsm.symbol` : ''}
     `;
 
     const queryParams = [];
@@ -358,14 +399,43 @@ router.get("/", async (req, res) => {
         sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
         fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null
       },
-      // Add raw momentum INPUT metrics for professional momentum display
+      // Add raw momentum INPUT metrics for professional momentum display (dual momentum)
+      // Use momentum_metrics table data if available, otherwise fallback to stock_scores columns
       momentum_inputs: {
-        jt_momentum_12_1: parseFloat(row.jt_momentum_12_1) || null,
+        // Relative Momentum (vs other stocks)
+        momentum_12m_1: parseFloat(row.momentum_12m_1) || null,
+        momentum_6m: parseFloat(row.momentum_6m) || parseFloat(row.momentum_medium_term) || null,
         momentum_3m: parseFloat(row.momentum_3m) || null,
-        momentum_6m: parseFloat(row.momentum_6m) || null,
-        mansfield_rs: parseFloat(row.mansfield_rs) || null,
         risk_adjusted_momentum: parseFloat(row.risk_adjusted_momentum) || null,
-        momentum_strength: parseFloat(row.momentum_strength) || null
+        // Absolute Momentum (vs itself)
+        price_vs_sma_50: parseFloat(row.price_vs_sma_50) || null,
+        price_vs_sma_200: parseFloat(row.price_vs_sma_200) || null,
+        price_vs_52w_high: parseFloat(row.price_vs_52w_high) || null,
+        // Supporting data
+        high_52w: parseFloat(row.high_52w) || null,
+        sma_50: parseFloat(row.sma_50) || null,
+        sma_200: parseFloat(row.sma_200) || null,
+        volatility_12m: parseFloat(row.volatility_12m) || null,
+        // Fallback for legacy display
+        fallbacks: {
+          momentum_medium_term: parseFloat(row.momentum_medium_term)?.toFixed(2) || null,
+          roc_252d: parseFloat(row.roc_252d)?.toFixed(2) || undefined,
+          momentum_score: parseFloat(row.momentum_score)?.toFixed(2) || null
+        }
+      },
+      // Add raw relative strength INPUT metrics for RS factor display
+      relative_strength_inputs: {
+        rs_rating: parseFloat(row.rs_rating) || null,
+        sector_relative_1m: parseFloat(row.sector_relative_1m) || null,
+        sector_relative_3m: parseFloat(row.sector_relative_3m) || null,
+        sector_relative_6m: parseFloat(row.sector_relative_6m) || null,
+        sector_relative_12m: parseFloat(row.sector_relative_12m) || null,
+        sector_percentile: parseFloat(row.sector_percentile) || null,
+        rs_momentum_4w: parseFloat(row.rs_momentum_4w) || null,
+        rs_momentum_13w: parseFloat(row.rs_momentum_13w) || null,
+        positive_months_12: parseInt(row.positive_months_12) || null,
+        timeframe_alignment: parseInt(row.timeframe_alignment) || null,
+        relative_strength_score: parseFloat(row.relative_strength_score) || null
       }
     }));
 
@@ -510,12 +580,30 @@ router.get("/:symbol", async (req, res) => {
         gm.roe_trend,
         gm.sustainable_growth_rate,
         gm.fcf_growth_yoy,
-        -- Raw momentum INPUT metrics from momentum_metrics table
-        mm.jt_momentum_12_1,
-        mm.momentum_3m,
+        -- Raw momentum INPUT metrics from momentum_metrics table (dual momentum)
+        mm.momentum_12m_1,
         mm.momentum_6m,
+        mm.momentum_3m,
         mm.risk_adjusted_momentum,
-        mm.momentum_strength` : ''}
+        mm.price_vs_sma_50,
+        mm.price_vs_sma_200,
+        mm.price_vs_52w_high,
+        mm.high_52w,
+        mm.sma_50,
+        mm.sma_200,
+        mm.volatility_12m,
+        -- Relative Strength INPUT metrics from relative_strength_metrics table
+        rsm.rs_rating,
+        rsm.sector_relative_1m,
+        rsm.sector_relative_3m,
+        rsm.sector_relative_6m,
+        rsm.sector_relative_12m,
+        rsm.sector_percentile,
+        rsm.rs_momentum_4w,
+        rsm.rs_momentum_13w,
+        rsm.positive_months_12,
+        rsm.timeframe_alignment,
+        rsm.relative_strength_score` : ''}
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       ${hasNewMomentumColumns ? `LEFT JOIN (
@@ -591,14 +679,37 @@ router.get("/:symbol", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
-          jt_momentum_12_1,
-          momentum_3m,
+          momentum_12m_1,
           momentum_6m,
+          momentum_3m,
           risk_adjusted_momentum,
-          momentum_strength
+          price_vs_sma_50,
+          price_vs_sma_200,
+          price_vs_52w_high,
+          high_52w,
+          sma_50,
+          sma_200,
+          volatility_12m
         FROM momentum_metrics
         ORDER BY symbol, date DESC
-      ) mm ON ss.symbol = mm.symbol` : ''}
+      ) mm ON ss.symbol = mm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          rs_rating,
+          sector_relative_1m,
+          sector_relative_3m,
+          sector_relative_6m,
+          sector_relative_12m,
+          sector_percentile,
+          rs_momentum_4w,
+          rs_momentum_13w,
+          positive_months_12,
+          timeframe_alignment,
+          relative_strength_score
+        FROM relative_strength_metrics
+        ORDER BY symbol, date DESC
+      ) rsm ON ss.symbol = rsm.symbol` : ''}
       WHERE ss.symbol = $1
     `;
 
@@ -646,12 +757,26 @@ router.get("/:symbol", async (req, res) => {
               mansfield_rs: parseFloat(row.mansfield_rs) || null
             },
             inputs: {
-              jt_momentum_12_1: parseFloat(row.jt_momentum_12_1) || null,
+              // Relative Momentum (vs other stocks)
+              momentum_12m_1: parseFloat(row.momentum_12m_1) || null,
+              momentum_6m: parseFloat(row.momentum_6m) || parseFloat(row.momentum_medium_term) || null,
               momentum_3m: parseFloat(row.momentum_3m) || null,
-              momentum_6m: parseFloat(row.momentum_6m) || null,
-              mansfield_rs: parseFloat(row.mansfield_rs) || null,
               risk_adjusted_momentum: parseFloat(row.risk_adjusted_momentum) || null,
-              momentum_strength: parseFloat(row.momentum_strength) || null
+              // Absolute Momentum (vs itself)
+              price_vs_sma_50: parseFloat(row.price_vs_sma_50) || null,
+              price_vs_sma_200: parseFloat(row.price_vs_sma_200) || null,
+              price_vs_52w_high: parseFloat(row.price_vs_52w_high) || null,
+              // Supporting data
+              high_52w: parseFloat(row.high_52w) || null,
+              sma_50: parseFloat(row.sma_50) || null,
+              sma_200: parseFloat(row.sma_200) || null,
+              volatility_12m: parseFloat(row.volatility_12m) || null,
+              // Fallback for legacy display
+              fallbacks: {
+                momentum_medium_term: parseFloat(row.momentum_medium_term)?.toFixed(2) || null,
+                roc_252d: parseFloat(row.roc_252d)?.toFixed(2) || undefined,
+                momentum_score: parseFloat(row.momentum_score)?.toFixed(2) || null
+              }
             }
           },
           value: {
@@ -707,6 +832,21 @@ router.get("/:symbol", async (req, res) => {
               roe_trend: parseFloat(row.roe_trend) || null,
               sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
               fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null
+            }
+          },
+          relative_strength: {
+            score: parseFloat(row.relative_strength_score) || 0,
+            inputs: {
+              rs_rating: parseFloat(row.rs_rating) || null,
+              sector_relative_1m: parseFloat(row.sector_relative_1m) || null,
+              sector_relative_3m: parseFloat(row.sector_relative_3m) || null,
+              sector_relative_6m: parseFloat(row.sector_relative_6m) || null,
+              sector_relative_12m: parseFloat(row.sector_relative_12m) || null,
+              sector_percentile: parseFloat(row.sector_percentile) || null,
+              rs_momentum_4w: parseFloat(row.rs_momentum_4w) || null,
+              rs_momentum_13w: parseFloat(row.rs_momentum_13w) || null,
+              positive_months_12: parseInt(row.positive_months_12) || null,
+              timeframe_alignment: parseInt(row.timeframe_alignment) || null
             }
           },
           positioning: {

@@ -1267,6 +1267,57 @@ export const getMarketBreadth = async () => {
   }
 };
 
+export const getDistributionDays = async () => {
+  console.log(`📊 [API] Fetching distribution days...`);
+
+  try {
+    const endpoints = [`/market/distribution-days`, `/api/market/distribution-days`];
+    let response = null;
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`📊 [API] Trying distribution days endpoint: ${endpoint}`);
+        response = await api.get(endpoint);
+        console.log(`📊 [API] SUCCESS with distribution days endpoint: ${endpoint}`, response);
+        break;
+      } catch (err) {
+        console.log(`📊 [API] FAILED distribution days endpoint: ${endpoint}`, err.message);
+        lastError = err;
+        continue;
+      }
+    }
+
+    if (!response) {
+      console.error("📊 [API] All distribution days endpoints failed:", {
+        message: lastError?.message || "Unknown error",
+        status: lastError.response?.status,
+        url: lastError.config?.url,
+      });
+      throw lastError;
+    }
+
+    if (response?.data && typeof response?.data === "object") {
+      console.log("📊 [API] Returning distribution days data structure:", response?.data);
+      return response?.data;
+    }
+
+    const result = normalizeApiResponse(response, false);
+    console.log("📊 [API] Distribution days fallback normalized result:", result);
+    return { data: result };
+  } catch (error) {
+    console.error("❌ [API] Distribution days error details:", {
+      message: error?.message || "Unknown error",
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url,
+      method: error.config?.method,
+    });
+    const errorMessage = handleApiError(error, "get distribution days");
+    return { data: {}, error: errorMessage };
+  }
+};
+
 export const getEconomicIndicators = async (days = 90) => {
   console.log(`📊 [API] Fetching economic indicators for ${days} days...`);
 

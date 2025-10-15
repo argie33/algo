@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-07 - Momentum Metrics Calculator
+# Updated: 2025-10-14 - Dual Momentum (Relative + Absolute)
 """
-Momentum Metrics Loader
+Momentum Metrics Loader - Dual Momentum Factor
 
-Calculates comprehensive momentum metrics for stocks based on:
-- Price momentum across multiple timeframes (3m, 6m, 12m)
-- JT Momentum (12-1 month momentum excluding most recent month)
-- Risk-adjusted momentum (momentum per unit of volatility)
+Calculates DUAL MOMENTUM metrics combining:
+1. RELATIVE MOMENTUM (Cross-Sectional) - vs other stocks
+2. ABSOLUTE MOMENTUM (Time-Series) - vs itself
 
-Methodology:
-- Momentum Strength: 35% - Composite momentum score
-- JT Momentum 12-1: 25% - Classic momentum indicator
-- 3M/6M Momentum: 20% each - Short-term trends
-- Risk-Adjusted: 20% - Volatility-adjusted momentum
+Based on Gary Antonacci's dual momentum research and industry standards.
+
+RELATIVE MOMENTUM:
+- momentum_12m_1: 12-month return excluding last month (academic standard)
+- momentum_6m: 6-month return
+- momentum_3m: 3-month return
+- risk_adjusted_momentum: 12M return / 12M volatility (Sharpe-style)
+
+ABSOLUTE MOMENTUM:
+- price_vs_sma_50: Current price vs 50-day MA (%)
+- price_vs_sma_200: Current price vs 200-day MA (%)
+- price_vs_52w_high: Current price vs 52-week high (%)
 
 Output:
-- momentum_metrics table with momentum_strength (composite score)
-- jt_momentum_12_1 (12-month momentum excluding last month)
-- momentum_3m (3-month price momentum)
-- momentum_6m (6-month price momentum)
-- risk_adjusted_momentum (Sharpe-style momentum metric)
+- momentum_metrics table with dual momentum components
 """
 
 import concurrent.futures
@@ -29,7 +31,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
 import boto3
@@ -111,58 +113,6 @@ def safe_numeric(value):
     return None
 
 
-def normalize_metric(value, min_val, max_val):
-    """
-    Normalize a metric to 0-100 scale
-
-    Args:
-        value: Raw metric value
-        min_val: Minimum expected value (maps to 0)
-        max_val: Maximum expected value (maps to 100)
-
-    Returns:
-        float: Normalized score 0-100, or None if value is None
-    """
-    if value is None:
-        return None
-
-    # Clamp to range
-    clamped = max(min_val, min(max_val, value))
-
-    # Normalize to 0-100
-    if max_val == min_val:
-        return 50.0
-
-    return ((clamped - min_val) / (max_val - min_val)) * 100
-
-
-def calculate_momentum(prices):
-    """
-    Calculate momentum as percentage return.
-
-    Args:
-        prices: List of prices [oldest, ..., newest]
-
-    Returns:
-        float: Momentum as percentage (e.g., 15.5 for 15.5% gain)
-    """
-    if not prices or len(prices) < 2:
-        return None
-
-    valid_prices = [p for p in prices if p is not None and p > 0]
-    if len(valid_prices) < 2:
-        return None
-
-    oldest = valid_prices[0]
-    newest = valid_prices[-1]
-
-    if oldest <= 0:
-        return None
-
-    momentum_pct = ((newest - oldest) / oldest) * 100
-    return momentum_pct
-
-
 def initialize_db():
     """Initialize database connection and create tables"""
     user, pwd, host, port, db = get_db_config()
@@ -187,19 +137,33 @@ def initialize_db():
     )
     conn.commit()
 
-    # Drop and recreate momentum_metrics table
-    logging.info("Creating momentum_metrics table...")
+    # Drop and recreate momentum_metrics table with dual momentum schema
+    logging.info("Creating momentum_metrics table with dual momentum schema...")
     cursor.execute("DROP TABLE IF EXISTS momentum_metrics;")
     cursor.execute(
         """
         CREATE TABLE momentum_metrics (
             symbol                      VARCHAR(50),
             date                        DATE,
-            momentum_strength           DOUBLE PRECISION,  -- Composite momentum score (0-100)
-            jt_momentum_12_1            DOUBLE PRECISION,  -- 12-1 month momentum normalized
-            momentum_3m                 DOUBLE PRECISION,  -- 3-month momentum normalized
-            momentum_6m                 DOUBLE PRECISION,  -- 6-month momentum normalized
-            risk_adjusted_momentum      DOUBLE PRECISION,  -- Volatility-adjusted momentum
+
+            -- RELATIVE MOMENTUM (vs other stocks)
+            momentum_12m_1              DOUBLE PRECISION,  -- 12-month return excluding last month
+            momentum_6m                 DOUBLE PRECISION,  -- 6-month return
+            momentum_3m                 DOUBLE PRECISION,  -- 3-month return
+            risk_adjusted_momentum      DOUBLE PRECISION,  -- 12M return / 12M volatility
+
+            -- ABSOLUTE MOMENTUM (vs itself)
+            price_vs_sma_50             DOUBLE PRECISION,  -- % above/below 50-day MA
+            price_vs_sma_200            DOUBLE PRECISION,  -- % above/below 200-day MA
+            price_vs_52w_high           DOUBLE PRECISION,  -- % of 52-week high
+
+            -- Supporting data
+            current_price               DOUBLE PRECISION,  -- Current closing price
+            sma_50                      DOUBLE PRECISION,  -- 50-day moving average
+            sma_200                     DOUBLE PRECISION,  -- 200-day moving average
+            high_52w                    DOUBLE PRECISION,  -- 52-week high
+            volatility_12m              DOUBLE PRECISION,  -- 12-month annualized volatility
+
             fetched_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (symbol, date)
         );
@@ -213,7 +177,7 @@ def initialize_db():
     conn.commit()
     logging.info("Indexes created successfully")
 
-    logging.info("Table 'momentum_metrics' ready.")
+    logging.info("Table 'momentum_metrics' ready with dual momentum schema.")
 
     # Get stock symbols (exclude ETFs)
     cursor.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y');")
@@ -241,13 +205,18 @@ def create_connection_pool():
 
 def process_symbol(symbol, conn_pool):
     """
-    Process a single symbol and calculate momentum metrics
+    Process a single symbol and calculate dual momentum metrics
 
-    Calculates:
-    1. 3-month momentum (last 63 trading days)
-    2. 6-month momentum (last 126 trading days)
-    3. JT Momentum 12-1 (252 to 21 trading days ago)
-    4. Risk-adjusted momentum (momentum / volatility)
+    RELATIVE MOMENTUM (Cross-Sectional):
+    - 12-month return excluding last month
+    - 6-month return
+    - 3-month return
+    - Risk-adjusted momentum
+
+    ABSOLUTE MOMENTUM (Time-Series):
+    - Price vs 50-day MA
+    - Price vs 200-day MA
+    - Price vs 52-week high
 
     Args:
         symbol: Stock symbol to process
@@ -260,7 +229,7 @@ def process_symbol(symbol, conn_pool):
         conn = conn_pool.getconn()
         cursor = conn.cursor()
 
-        logging.info(f"Processing momentum metrics for {symbol}...")
+        logging.info(f"Processing dual momentum for {symbol}...")
 
         # ========== STEP 1: Fetch Daily Price Data ==========
         # Get last 252 trading days (approx 1 year)
@@ -282,140 +251,153 @@ def process_symbol(symbol, conn_pool):
             conn_pool.putconn(conn)
             return 0
 
-        # Extract prices (reverse to oldest-first order)
+        # Extract prices and dates (reverse to oldest-first order)
         prices = [safe_numeric(row[1]) for row in reversed(price_data)]
+        dates = [row[0] for row in reversed(price_data)]
 
-        # ========== STEP 2: Calculate Momentum Metrics ==========
-        records = []
+        # ========== STEP 2: Calculate RELATIVE MOMENTUM ==========
         current_date = datetime.now().date()
+        current_price = prices[-1]
 
-        # --- 2.1: 3-Month Momentum (last 63 days) ---
-        # Compare current price to price 63 days ago
-        momentum_3m_pct = None
-        if len(prices) >= 63:
-            price_63d_ago = prices[-63]
-            current_price = prices[-1]
-            if price_63d_ago and current_price and price_63d_ago > 0:
-                momentum_3m_pct = ((current_price - price_63d_ago) / price_63d_ago) * 100
-                logging.info(f"{symbol}: 3M momentum = {momentum_3m_pct:.2f}%")
-
-        # Normalize: -30% to +60% maps to 0-100
-        momentum_3m_normalized = normalize_metric(momentum_3m_pct, -30, 60)
-
-        # --- 2.2: 6-Month Momentum (last 126 days) ---
-        momentum_6m_pct = None
-        if len(prices) >= 126:
-            price_126d_ago = prices[-126]
-            current_price = prices[-1]
-            if price_126d_ago and current_price and price_126d_ago > 0:
-                momentum_6m_pct = ((current_price - price_126d_ago) / price_126d_ago) * 100
-                logging.info(f"{symbol}: 6M momentum = {momentum_6m_pct:.2f}%")
-
-        # Normalize: -40% to +80% maps to 0-100
-        momentum_6m_normalized = normalize_metric(momentum_6m_pct, -40, 80)
-
-        # --- 2.3: JT Momentum 12-1 (252 to 21 trading days ago) ---
-        # Classic momentum indicator that excludes the most recent month
-        # to avoid short-term reversals
-        jt_momentum_pct = None
+        # --- 2.1: 12-Month Return Excluding Last Month (12-1) ---
+        # Academic standard: t-252 to t-21 (skip last month)
+        momentum_12m_1 = None
         if len(prices) >= 252:
             price_252d_ago = prices[-252]
             price_21d_ago = prices[-21]
             if price_252d_ago and price_21d_ago and price_252d_ago > 0:
-                jt_momentum_pct = ((price_21d_ago - price_252d_ago) / price_252d_ago) * 100
-                logging.info(f"{symbol}: JT 12-1 momentum = {jt_momentum_pct:.2f}%")
+                momentum_12m_1 = ((price_21d_ago - price_252d_ago) / price_252d_ago) * 100
+                logging.info(f"{symbol}: 12M-1 return = {momentum_12m_1:.2f}%")
 
-        # Normalize: -50% to +100% maps to 0-100
-        jt_momentum_normalized = normalize_metric(jt_momentum_pct, -50, 100)
+        # --- 2.2: 6-Month Return ---
+        momentum_6m = None
+        if len(prices) >= 120:
+            price_120d_ago = prices[-120]
+            if price_120d_ago and current_price and price_120d_ago > 0:
+                momentum_6m = ((current_price - price_120d_ago) / price_120d_ago) * 100
+                logging.info(f"{symbol}: 6M return = {momentum_6m:.2f}%")
 
-        # --- 2.4: Risk-Adjusted Momentum (Momentum / Volatility) ---
-        # Calculate volatility (standard deviation of returns)
-        risk_adjusted_pct = None
+        # --- 2.3: 3-Month Return ---
+        momentum_3m = None
         if len(prices) >= 63:
-            # Calculate daily returns for last 63 days
-            recent_prices = prices[-63:]
+            price_63d_ago = prices[-63]
+            if price_63d_ago and current_price and price_63d_ago > 0:
+                momentum_3m = ((current_price - price_63d_ago) / price_63d_ago) * 100
+                logging.info(f"{symbol}: 3M return = {momentum_3m:.2f}%")
+
+        # --- 2.4: Risk-Adjusted Momentum (12M return / volatility) ---
+        risk_adjusted = None
+        volatility_12m = None
+
+        if len(prices) >= 252:
+            # Calculate daily returns for last 252 days
             returns = []
-            for i in range(1, len(recent_prices)):
-                if recent_prices[i-1] and recent_prices[i] and recent_prices[i-1] > 0:
-                    daily_return = (recent_prices[i] - recent_prices[i-1]) / recent_prices[i-1]
+            for i in range(len(prices) - 252, len(prices)):
+                if i > 0 and prices[i-1] and prices[i] and prices[i-1] > 0:
+                    daily_return = (prices[i] - prices[i-1]) / prices[i-1]
                     returns.append(daily_return)
 
-            if len(returns) >= 20:
-                volatility = np.std(returns) * np.sqrt(252)  # Annualized volatility
+            if len(returns) >= 200:
+                # Annualized volatility
+                volatility_12m = np.std(returns) * np.sqrt(252)
 
-                if volatility > 0 and momentum_3m_pct is not None:
-                    # Risk-adjusted momentum = momentum / volatility (Sharpe-style)
-                    # Multiply by 100 to get percentage-like values
-                    risk_adjusted_pct = (momentum_3m_pct / (volatility * 100)) * 100
-                    logging.info(f"{symbol}: Risk-adjusted momentum = {risk_adjusted_pct:.2f}")
+                # Calculate 12-month return for risk adjustment
+                price_252d_ago = prices[-252]
+                if price_252d_ago and current_price and price_252d_ago > 0:
+                    return_12m = ((current_price - price_252d_ago) / price_252d_ago) * 100
 
-        # Normalize: -50 to +50 maps to 0-100
-        risk_adjusted_normalized = normalize_metric(risk_adjusted_pct, -50, 50)
+                    if volatility_12m > 0:
+                        # Risk-adjusted = return / volatility (Sharpe-style, no risk-free rate)
+                        risk_adjusted = return_12m / (volatility_12m * 100)
+                        logging.info(f"{symbol}: Risk-adjusted = {risk_adjusted:.2f} (return={return_12m:.2f}%, vol={volatility_12m*100:.2f}%)")
 
-        # ========== STEP 3: Calculate Composite Momentum Score ==========
-        # Weighted average: 3M 20%, 6M 20%, JT 25%, Risk-Adjusted 20%, Strength 15%
-        components = []
-        weights = []
+        # ========== STEP 3: Calculate ABSOLUTE MOMENTUM ==========
 
-        if momentum_3m_normalized is not None:
-            components.append(momentum_3m_normalized * 0.20)
-            weights.append(0.20)
+        # --- 3.1: Calculate Moving Averages ---
+        sma_50 = None
+        sma_200 = None
 
-        if momentum_6m_normalized is not None:
-            components.append(momentum_6m_normalized * 0.20)
-            weights.append(0.20)
+        if len(prices) >= 50:
+            sma_50 = np.mean(prices[-50:])
 
-        if jt_momentum_normalized is not None:
-            components.append(jt_momentum_normalized * 0.25)
-            weights.append(0.25)
+        if len(prices) >= 200:
+            sma_200 = np.mean(prices[-200:])
 
-        if risk_adjusted_normalized is not None:
-            components.append(risk_adjusted_normalized * 0.20)
-            weights.append(0.20)
+        # --- 3.2: Price vs 50-day MA ---
+        price_vs_sma_50 = None
+        if sma_50 and current_price and sma_50 > 0:
+            price_vs_sma_50 = ((current_price - sma_50) / sma_50) * 100
+            logging.info(f"{symbol}: Price vs SMA50 = {price_vs_sma_50:+.2f}%")
 
-        # Calculate weighted composite score
-        if components:
-            total_weight = sum(weights)
-            composite_score = sum(components) / total_weight if total_weight > 0 else None
-        else:
-            composite_score = None
+        # --- 3.3: Price vs 200-day MA ---
+        price_vs_sma_200 = None
+        if sma_200 and current_price and sma_200 > 0:
+            price_vs_sma_200 = ((current_price - sma_200) / sma_200) * 100
+            logging.info(f"{symbol}: Price vs SMA200 = {price_vs_sma_200:+.2f}%")
 
-        # Create record
+        # --- 3.4: Price vs 52-Week High ---
+        high_52w = None
+        price_vs_52w_high = None
+
+        if len(prices) >= 252:
+            high_52w = max([p for p in prices[-252:] if p is not None and p > 0])
+
+            if high_52w and current_price and high_52w > 0:
+                price_vs_52w_high = (current_price / high_52w) * 100
+                logging.info(f"{symbol}: Price vs 52w high = {price_vs_52w_high:.2f}% (current={current_price:.2f}, high={high_52w:.2f})")
+
+        # ========== STEP 4: Insert Record ==========
         record = (
             symbol,
             current_date,
-            composite_score,
-            jt_momentum_normalized,
-            momentum_3m_normalized,
-            momentum_6m_normalized,
-            risk_adjusted_normalized,
+            # Relative momentum
+            momentum_12m_1,
+            momentum_6m,
+            momentum_3m,
+            risk_adjusted,
+            # Absolute momentum
+            price_vs_sma_50,
+            price_vs_sma_200,
+            price_vs_52w_high,
+            # Supporting data
+            current_price,
+            sma_50,
+            sma_200,
+            high_52w,
+            volatility_12m,
         )
-        records.append(record)
 
-        # ========== STEP 4: Insert Records ==========
-        if records:
-            execute_values(
-                cursor,
-                """
-                INSERT INTO momentum_metrics
-                (symbol, date, momentum_strength, jt_momentum_12_1,
-                 momentum_3m, momentum_6m, risk_adjusted_momentum)
-                VALUES %s
-                ON CONFLICT (symbol, date) DO UPDATE SET
-                    momentum_strength = EXCLUDED.momentum_strength,
-                    jt_momentum_12_1 = EXCLUDED.jt_momentum_12_1,
-                    momentum_3m = EXCLUDED.momentum_3m,
-                    momentum_6m = EXCLUDED.momentum_6m,
-                    risk_adjusted_momentum = EXCLUDED.risk_adjusted_momentum,
-                    fetched_at = CURRENT_TIMESTAMP
-                """,
-                records,
-            )
-            conn.commit()
-            logging.info(f"✅ {symbol}: Inserted {len(records)} momentum metric records")
+        execute_values(
+            cursor,
+            """
+            INSERT INTO momentum_metrics
+            (symbol, date,
+             momentum_12m_1, momentum_6m, momentum_3m, risk_adjusted_momentum,
+             price_vs_sma_50, price_vs_sma_200, price_vs_52w_high,
+             current_price, sma_50, sma_200, high_52w, volatility_12m)
+            VALUES %s
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                momentum_12m_1 = EXCLUDED.momentum_12m_1,
+                momentum_6m = EXCLUDED.momentum_6m,
+                momentum_3m = EXCLUDED.momentum_3m,
+                risk_adjusted_momentum = EXCLUDED.risk_adjusted_momentum,
+                price_vs_sma_50 = EXCLUDED.price_vs_sma_50,
+                price_vs_sma_200 = EXCLUDED.price_vs_sma_200,
+                price_vs_52w_high = EXCLUDED.price_vs_52w_high,
+                current_price = EXCLUDED.current_price,
+                sma_50 = EXCLUDED.sma_50,
+                sma_200 = EXCLUDED.sma_200,
+                high_52w = EXCLUDED.high_52w,
+                volatility_12m = EXCLUDED.volatility_12m,
+                fetched_at = CURRENT_TIMESTAMP
+            """,
+            [record],
+        )
+        conn.commit()
+        logging.info(f"✅ {symbol}: Inserted dual momentum metrics")
 
         conn_pool.putconn(conn)
-        return len(records)
+        return 1
 
     except Exception as e:
         logging.error(f"❌ Error processing {symbol}: {e}")
@@ -430,7 +412,9 @@ def main():
     """Main execution function"""
     start_time = time.time()
     logging.info("=" * 80)
-    logging.info("Momentum Metrics Loader - Starting")
+    logging.info("Dual Momentum Metrics Loader - Starting")
+    logging.info("Relative: 12M-1, 6M, 3M, Risk-Adjusted")
+    logging.info("Absolute: Price vs SMA50, SMA200, 52w High")
     logging.info("=" * 80)
 
     # Initialize database and get symbols
@@ -458,7 +442,7 @@ def main():
 
     elapsed = time.time() - start_time
     logging.info("=" * 80)
-    logging.info(f"✅ Momentum Metrics Loader Complete!")
+    logging.info(f"✅ Dual Momentum Metrics Loader Complete!")
     logging.info(f"   Total Records: {total_records}")
     logging.info(f"   Symbols Processed: {len(symbols)}")
     logging.info(f"   Execution Time: {elapsed:.2f}s")

@@ -274,6 +274,7 @@ const ScoresDashboard = () => {
       growth: avg(stocks.map(s => s.growth_score || 0).filter(v => v > 0)),
       positioning: avg(stocks.map(s => s.positioning_score || 0).filter(v => v > 0)),
       sentiment: avg(stocks.map(s => s.sentiment_score || 0).filter(v => v > 0)),
+      relative_strength: avg(stocks.map(s => s.relative_strength_inputs?.relative_strength_score || 0).filter(v => v > 0)),
     };
   };
 
@@ -294,6 +295,7 @@ const ScoresDashboard = () => {
       growth: avg(sectorStocks.map(s => s.growth_score || 0).filter(v => v > 0)),
       positioning: avg(sectorStocks.map(s => s.positioning_score || 0).filter(v => v > 0)),
       sentiment: avg(sectorStocks.map(s => s.sentiment_score || 0).filter(v => v > 0)),
+      relative_strength: avg(sectorStocks.map(s => s.relative_strength_inputs?.relative_strength_score || 0).filter(v => v > 0)),
     };
   };
 
@@ -1145,6 +1147,37 @@ const ScoresDashboard = () => {
                           />
                         </Box>
                       </Grid>
+
+                      {/* Relative Strength Score */}
+                      <Grid item xs={6} sm={4}>
+                        <Box>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                              Rel. Strength
+                            </Typography>
+                            <Typography variant="caption" fontWeight={700}>
+                              {(stock.relative_strength_inputs?.relative_strength_score || 0).toFixed(0)}
+                            </Typography>
+                          </Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={stock.relative_strength_inputs?.relative_strength_score || 0}
+                            sx={{
+                              height: 8,
+                              borderRadius: 1,
+                              backgroundColor: alpha(theme.palette.action.disabled, 0.1),
+                              "& .MuiLinearProgress-bar": {
+                                backgroundColor: (stock.relative_strength_inputs?.relative_strength_score || 0) >= 80
+                                  ? theme.palette.success.main
+                                  : (stock.relative_strength_inputs?.relative_strength_score || 0) >= 60
+                                  ? theme.palette.warning.main
+                                  : theme.palette.error.main,
+                                borderRadius: 1,
+                              },
+                            }}
+                          />
+                        </Box>
+                      </Grid>
                     </Grid>
                   </Grid>
                 </Grid>
@@ -1421,103 +1454,58 @@ const ScoresDashboard = () => {
                             </ResponsiveContainer>
                           </Box>
 
-                          {/* Professional Momentum Metrics - Used by AQR, MTUM, etc. */}
+                          {/* Momentum Metrics */}
                           <TableContainer sx={{ mt: 2 }}>
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
                                   <TableCell>Momentum Metric</TableCell>
-                                  <TableCell align="right">Value (%)</TableCell>
+                                  <TableCell align="right">Value</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
-                                {stock.momentum_inputs?.jt_momentum_12_1 !== null && stock.momentum_inputs?.jt_momentum_12_1 !== undefined ? (
+                                {stock.momentum_inputs?.momentum_12m_1 !== null && stock.momentum_inputs?.momentum_12m_1 !== undefined ? (
                                   <TableRow>
-                                    <TableCell>
-                                      <Typography variant="body2" fontWeight={600}>
-                                        JT Momentum 12-1
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        12-month return ex. last month (Classic Factor)
-                                      </Typography>
-                                    </TableCell>
+                                    <TableCell>12-Month Return (ex. last)</TableCell>
                                     <TableCell align="right">
-                                      <Typography variant="body2" fontWeight={600} color={stock.momentum_inputs.jt_momentum_12_1 > 0 ? "success.main" : "error.main"}>
-                                        {stock.momentum_inputs.jt_momentum_12_1.toFixed(2)}%
-                                      </Typography>
+                                      {stock.momentum_inputs.momentum_12m_1.toFixed(2)}%
                                     </TableCell>
                                   </TableRow>
                                 ) : null}
                                 {stock.momentum_inputs?.momentum_6m !== null && stock.momentum_inputs?.momentum_6m !== undefined ? (
                                   <TableRow>
-                                    <TableCell>
-                                      <Typography variant="body2" fontWeight={600}>
-                                        6-Month Momentum
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        Medium-term trend strength
-                                      </Typography>
-                                    </TableCell>
+                                    <TableCell>6-Month Return</TableCell>
                                     <TableCell align="right">
-                                      <Typography variant="body2" fontWeight={600} color={stock.momentum_inputs.momentum_6m > 0 ? "success.main" : "error.main"}>
-                                        {stock.momentum_inputs.momentum_6m.toFixed(2)}%
-                                      </Typography>
+                                      {stock.momentum_inputs.momentum_6m.toFixed(2)}%
                                     </TableCell>
                                   </TableRow>
                                 ) : null}
                                 {stock.momentum_inputs?.momentum_3m !== null && stock.momentum_inputs?.momentum_3m !== undefined ? (
                                   <TableRow>
-                                    <TableCell>
-                                      <Typography variant="body2" fontWeight={600}>
-                                        3-Month Momentum
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        Short-term trend strength
-                                      </Typography>
-                                    </TableCell>
+                                    <TableCell>3-Month Return</TableCell>
                                     <TableCell align="right">
-                                      <Typography variant="body2" fontWeight={600} color={stock.momentum_inputs.momentum_3m > 0 ? "success.main" : "error.main"}>
-                                        {stock.momentum_inputs.momentum_3m.toFixed(2)}%
-                                      </Typography>
+                                      {stock.momentum_inputs.momentum_3m.toFixed(2)}%
                                     </TableCell>
                                   </TableRow>
                                 ) : null}
                                 {stock.momentum_inputs?.mansfield_rs !== null && stock.momentum_inputs?.mansfield_rs !== undefined ? (
                                   <TableRow>
-                                    <TableCell>
-                                      <Typography variant="body2" fontWeight={600}>
-                                        Relative Strength vs S&P 500
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        Outperformance vs benchmark (Mansfield RS)
-                                      </Typography>
-                                    </TableCell>
+                                    <TableCell>Relative Strength vs S&P 500</TableCell>
                                     <TableCell align="right">
-                                      <Typography variant="body2" fontWeight={600} color={stock.momentum_inputs.mansfield_rs > 0 ? "success.main" : "error.main"}>
-                                        {stock.momentum_inputs.mansfield_rs.toFixed(2)}
-                                      </Typography>
+                                      {stock.momentum_inputs.mansfield_rs.toFixed(2)}
                                     </TableCell>
                                   </TableRow>
                                 ) : null}
                                 {stock.momentum_inputs?.risk_adjusted_momentum !== null && stock.momentum_inputs?.risk_adjusted_momentum !== undefined ? (
                                   <TableRow>
-                                    <TableCell>
-                                      <Typography variant="body2" fontWeight={600}>
-                                        Risk-Adjusted Momentum
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        Sharpe-style momentum score (0-100)
-                                      </Typography>
-                                    </TableCell>
+                                    <TableCell>Risk-Adjusted Momentum</TableCell>
                                     <TableCell align="right">
-                                      <Typography variant="body2" fontWeight={600}>
-                                        {stock.momentum_inputs.risk_adjusted_momentum.toFixed(1)}
-                                      </Typography>
+                                      {stock.momentum_inputs.risk_adjusted_momentum.toFixed(1)}
                                     </TableCell>
                                   </TableRow>
                                 ) : null}
                                 {(!stock.momentum_inputs ||
-                                  (stock.momentum_inputs.jt_momentum_12_1 === null &&
+                                  (stock.momentum_inputs.momentum_12m_1 === null &&
                                    stock.momentum_inputs.momentum_6m === null &&
                                    stock.momentum_inputs.momentum_3m === null &&
                                    stock.momentum_inputs.mansfield_rs === null &&
@@ -1526,6 +1514,102 @@ const ScoresDashboard = () => {
                                     <TableCell colSpan={2} align="center">
                                       <Typography variant="caption" color="text.secondary">
                                         Professional momentum metrics loading...
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+
+                    {/* Relative Strength Factor */}
+                    <Grid item xs={12} md={6}>
+                      <Card>
+                        <CardContent>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+                            <TrendingUp sx={{ color: theme.palette.success.main }} />
+                            <Typography variant="h6">Relative Strength</Typography>
+                            <Chip
+                              label={stock.relative_strength_inputs?.relative_strength_score?.toFixed(1) || "N/A"}
+                              color={stock.relative_strength_inputs?.relative_strength_score >= 70 ? "success" : "warning"}
+                              size="small"
+                            />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            IBD-style RS Rating with sector-relative performance, momentum acceleration, and timeframe alignment
+                          </Typography>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          <TableContainer>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>RS Metric</TableCell>
+                                  <TableCell align="right">Value</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {stock.relative_strength_inputs && (
+                                  <>
+                                    <TableRow>
+                                      <TableCell>Sector Outperformance</TableCell>
+                                      <TableCell align="right">
+                                        {stock.relative_strength_inputs.sector_relative_12m !== null && stock.relative_strength_inputs.sector_relative_12m !== undefined
+                                          ? `${stock.relative_strength_inputs.sector_relative_12m.toFixed(1)}%`
+                                          : "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Sector Rank</TableCell>
+                                      <TableCell align="right">
+                                        {stock.relative_strength_inputs.sector_percentile !== null && stock.relative_strength_inputs.sector_percentile !== undefined
+                                          ? stock.relative_strength_inputs.sector_percentile.toFixed(0)
+                                          : "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Price Momentum (4W)</TableCell>
+                                      <TableCell align="right">
+                                        {stock.relative_strength_inputs.rs_momentum_4w !== null && stock.relative_strength_inputs.rs_momentum_4w !== undefined
+                                          ? stock.relative_strength_inputs.rs_momentum_4w.toFixed(1)
+                                          : "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Price Momentum (13W)</TableCell>
+                                      <TableCell align="right">
+                                        {stock.relative_strength_inputs.rs_momentum_13w !== null && stock.relative_strength_inputs.rs_momentum_13w !== undefined
+                                          ? stock.relative_strength_inputs.rs_momentum_13w.toFixed(1)
+                                          : "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Uptrend Consistency</TableCell>
+                                      <TableCell align="right">
+                                        {stock.relative_strength_inputs.positive_months_12 !== null && stock.relative_strength_inputs.positive_months_12 !== undefined
+                                          ? `${stock.relative_strength_inputs.positive_months_12}/12`
+                                          : "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Timeframe Confirmation</TableCell>
+                                      <TableCell align="right">
+                                        {stock.relative_strength_inputs.timeframe_alignment !== null && stock.relative_strength_inputs.timeframe_alignment !== undefined
+                                          ? `${stock.relative_strength_inputs.timeframe_alignment}/4`
+                                          : "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                  </>
+                                )}
+                                {!stock.relative_strength_inputs && (
+                                  <TableRow>
+                                    <TableCell colSpan={2} align="center">
+                                      <Typography variant="caption" color="text.secondary">
+                                        RS metrics loading...
                                       </Typography>
                                     </TableCell>
                                   </TableRow>

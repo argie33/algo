@@ -239,205 +239,205 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/stocksymbols-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   EconDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/econdata-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   PriceLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/pricedaily-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   WeeklyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/priceweekly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   PriceMonthlyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/pricemonthly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   TechnicalsDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/technicalsdaily-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   LoadInfoLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/loadinfo-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   EarningsEstimateLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/earningsestimate-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   EarningsMetricsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/earningsmetrics-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   TechnicalsWeeklyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/technicalsweekly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   TechnicalsMonthlyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/technicalsmonthly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   BuySellLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/buysell-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   BuySellDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/buyselldaily-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   BuySellWeeklyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/buysellweekly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   BuySellMonthlyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/buysellmonthly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   SwingTraderLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/swingtrader-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   LatestPriceDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/latestpricedaily-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   LatestPriceWeeklyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/latestpriceweekly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   LatestPriceMonthlyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/latestpricemonthly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   LatestTechnicalsDailyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/latesttechnicalsdaily-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   LatestTechnicalsWeeklyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/latesttechnicalsweekly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   LatestTechnicalsMonthlyLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/latesttechnicalsmonthly-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   RevenueEstimateLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/revenueestimate-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   AaiiDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/aaidata-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   FearGreedDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/feargreeddata-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   NaaaimDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/naaimdata-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   QuarterlyBalanceSheetLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/quarterlybalancesheet-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   AnnualBalanceSheetLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/annualbalancesheet-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   QuarterlyIncomeStatementLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/quarterlyincomestatement-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   AnnualIncomeStatementLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/annualincomestatement-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   QuarterlyCashFlowLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/quarterlycashflow-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   AnnualCashFlowLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/annualcashflow-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   TTMIncomeStatementLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/ttmincomestatement-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   TTMCashFlowLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/ttmcashflow-loader
-      RetentionInDays: 14
+      RetentionInDays: 3
 
 
 
@@ -2739,7 +2739,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/ecs/stock-scores-loader"
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   StockScoresService:
     Type: AWS::ECS::Service
@@ -2797,7 +2797,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/ecs/benchmarks-loader"
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   BenchmarksService:
     Type: AWS::ECS::Service

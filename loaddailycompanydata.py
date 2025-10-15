@@ -344,7 +344,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         symbol, info.get("trailingPE"), info.get("forwardPE"),
                         info.get("priceToSalesTrailing12Months"),
                         info.get("priceToBook"), info.get("bookValue"),
-                        info.get("pegRatio"), info.get("enterpriseValue"),
+                        info.get("trailingPegRatio"), info.get("enterpriseValue"),
                         info.get("enterpriseToRevenue"),
                         info.get("enterpriseToEbitda"),
                         info.get("totalRevenue"),
