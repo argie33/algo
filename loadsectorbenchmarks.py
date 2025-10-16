@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Trigger deployment - 2025-10-12 11:42 - Updated with local mode support and tested successfully
+# Trigger deployment - 2025-10-16 14:33 - Force rebuild: 20251016_143400 - Populate sector benchmarks to AWS
 """
 Sector Benchmarks Loader
 Calculates sector-level averages for financial metrics to provide context-specific benchmarks

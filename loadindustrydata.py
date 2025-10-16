@@ -3,6 +3,8 @@
 Industry Performance Loader
 Calculates IBD-style industry group rankings with trend analysis
 Aggregates stock performance by industry within sectors
+
+Trigger rebuild: 20251016_143500 - Populate industry performance data to AWS
 """
 
 import gc
