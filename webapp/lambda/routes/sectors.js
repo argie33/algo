@@ -138,7 +138,7 @@ router.get("/:sector/stocks", async (req, res) => {
 // Apply authentication to all routes except health and root
 router.use((req, res, next) => {
   // Skip auth for public endpoints - sectors are PUBLIC DATA
-  const publicEndpoints = ["/health", "/", "/performance", "/leaders", "/rotation", "/analysis"];
+  const publicEndpoints = ["/health", "/", "/performance", "/leaders", "/rotation", "/analysis", "/ranking-history", "/industries/ranking-history"];
   const stocksPattern = /^\/[^/]+\/stocks$/; // matches /:sector/stocks
 
   if (publicEndpoints.includes(req.path) || stocksPattern.test(req.path)) {
@@ -1406,8 +1406,8 @@ router.get("/ranking-history", async (req, res) => {
     // Calculate trends
     Object.values(rankingsByPeriod).forEach(sectorData => {
       const today = sectorData.rankings.today?.rank || 999;
-      const week = sectorData.rankings.one_week_ago?.rank || today;
-      const threeWeeks = sectorData.rankings.three_weeks_ago?.rank || week;
+      const week = sectorData.rankings['1_week_ago']?.rank || today;
+      const threeWeeks = sectorData.rankings['3_weeks_ago']?.rank || week;
 
       if (today < week && week < threeWeeks) {
         sectorData.trend = 'improving';
@@ -1579,8 +1579,8 @@ router.get("/industries/ranking-history", async (req, res) => {
     // Calculate trends
     Object.values(rankingsByPeriod).forEach(industryData => {
       const today = industryData.rankings.today?.overall_rank || 999;
-      const week = industryData.rankings.one_week_ago?.overall_rank || today;
-      const threeWeeks = industryData.rankings.three_weeks_ago?.overall_rank || week;
+      const week = industryData.rankings['1_week_ago']?.overall_rank || today;
+      const threeWeeks = industryData.rankings['3_weeks_ago']?.overall_rank || week;
 
       if (today < week && week < threeWeeks) {
         industryData.trend = 'improving';
