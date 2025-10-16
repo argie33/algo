@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-14 - Optimized swing metrics query for large datasets
-#   - Added MATERIALIZED CTEs to prevent re-evaluation of expensive window functions
-#   - Date filtering: process last 365 days only for large datasets (>2000 rows)
-#   - Removed redundant stage_data CTE
-#   - Adaptive processing: fast path for small datasets, optimized path for large
-#   - Expected performance: 5-20x faster for symbols with >5000 rows
-# Updated: 2025-10-13 - Increased statement timeout to 5 minutes for swing metrics
-# Updated: 2025-10-04 19:45 - Added transaction rollback for cascade failure prevention
-# Updated: 2025-10-03 22:02 - Trigger deployment after null check fixes
-# Updated: 2025-10-03 - Fixed SQL parameter formatting in swing metrics calculation
+# Updated: 2025-10-16 14:48 - Trigger rebuild: 20251016_144800 - Populate buy/sell signals daily to AWS
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # Populate buy_sell_daily.sata_score, stage_number, mansfield_rs for all signals
 import json
@@ -112,7 +103,7 @@ def get_symbols_from_db(limit=None):
         q = """
             SELECT s.symbol
             FROM stock_symbols s
-            WHERE s.exchange IN ('NASDAQ', 'N', 'A', 'P')
+            WHERE s.exchange IN ('NASDAQ', 'N', 'A', 'P', 'New York Stock Exchange')
               AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
               AND EXISTS (
                   SELECT 1 FROM price_daily p
@@ -660,8 +651,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, ma_type='SMA', ma_length=5
         is_failed_breakout, days_above_pivot_before_failure, max_extension_before_failure_pct
       ) VALUES (
         %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-        %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-        %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+        %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+        %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
       )
       ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
         signal = EXCLUDED.signal,
@@ -1497,11 +1488,10 @@ def calculate_signal_state_metrics(df):
     df['is_gap_down'] = df['gap_from_prev_close_pct'] < -0.5
 
     # Days since pivot break (how many days since buyLevel was first broken)
-    df['pivot_break_date'] = np.where(
-        (df['close'] > df['buyLevel']) & (df['close'].shift(1) <= df['buyLevel'].shift(1)),
-        df['date'],
-        pd.NaT
-    )
+    # Initialize with pd.NaT to avoid numpy DType promotion error
+    df['pivot_break_date'] = pd.NaT
+    pivot_break_mask = (df['close'] > df['buyLevel']) & (df['close'].shift(1) <= df['buyLevel'].shift(1))
+    df.loc[pivot_break_mask, 'pivot_break_date'] = df.loc[pivot_break_mask, 'date']
     df['pivot_break_date'] = pd.to_datetime(df['pivot_break_date']).ffill()
     df['days_since_pivot_break'] = np.where(
         df['pivot_break_date'].notna(),
@@ -1711,11 +1701,10 @@ def calculate_signal_state_metrics(df):
 
     # Track signal state changes
     df['previous_signal_state'] = df['signal_state'].shift(1)
-    df['signal_state_changed_date'] = np.where(
-        df['signal_state'] != df['previous_signal_state'],
-        df['date'],
-        pd.NaT
-    )
+    # Initialize with pd.NaT to avoid numpy DType promotion error
+    df['signal_state_changed_date'] = pd.NaT
+    state_changed_mask = df['signal_state'] != df['previous_signal_state']
+    df.loc[state_changed_mask, 'signal_state_changed_date'] = df.loc[state_changed_mask, 'date']
     df['signal_state_changed_date'] = pd.to_datetime(df['signal_state_changed_date']).ffill()
     df['days_in_current_state'] = np.where(
         df['signal_state_changed_date'].notna(),

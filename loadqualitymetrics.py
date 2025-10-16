@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-13 - Professional Quality Inputs (13 metrics)
+# Updated: 2025-10-16 14:46 - Trigger rebuild: 20251016_144600 - Populate quality metrics to AWS
 """
 Quality Metrics Loader - Professional Quality Factor Inputs
 
@@ -256,7 +256,7 @@ def process_symbol(symbol, conn_pool):
             if dividend_rate is not None and eps_trailing and eps_trailing != 0:
                 payout_ratio = dividend_rate / eps_trailing
 
-        # Calculate cash quality ratios
+        # Calculate cash quality ratios from key_metrics (yfinance single source)
         fcf_to_ni = None
         if fcf is not None and net_income and net_income != 0:
             fcf_to_ni = fcf / net_income
@@ -266,12 +266,12 @@ def process_symbol(symbol, conn_pool):
             op_cf_to_ni = op_cf / net_income
 
         # ========== EARNINGS QUALITY (from earnings_metrics) ==========
-        # Get last 4 quarters of earnings data
+        # Get last 4 quarters of earnings quality data for consistency metrics
         cursor.execute(
             """
             SELECT
                 earnings_surprise_pct,
-                eps_qoq_growth
+                eps_yoy_growth
             FROM earnings_metrics
             WHERE symbol = %s
             ORDER BY report_date DESC
@@ -290,10 +290,10 @@ def process_symbol(symbol, conn_pool):
             if surprises:
                 earnings_surprise_avg = np.mean(surprises)
 
-            # EPS growth stability (stddev of qoq growth)
-            eps_qoq = [safe_numeric(row[1]) for row in earnings_data if row[1] is not None]
-            if len(eps_qoq) >= 2:
-                eps_growth_stability = np.std(eps_qoq)
+            # EPS growth stability (stddev of YoY growth rates)
+            eps_yoy = [safe_numeric(row[1]) for row in earnings_data if row[1] is not None]
+            if len(eps_yoy) >= 2:
+                eps_growth_stability = np.std(eps_yoy)
 
         # ========== CREATE RECORD ==========
         record = (

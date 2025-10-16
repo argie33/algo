@@ -4,7 +4,7 @@ Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 
 Loads company info, positioning data, and analyst estimates with one API call per symbol.
-Updated: Removed LIMIT to load all stocks - positioning data critical for AWS deployment
+Updated: 2025-10-16 14:44 - Trigger rebuild: 20251016_144400 - Populate company profile and positioning data to AWS
 
 Replaces:
 - loadinfo.py (ticker.info)
@@ -334,6 +334,19 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         trailing_pe = EXCLUDED.trailing_pe,
                         forward_pe = EXCLUDED.forward_pe,
                         eps_trailing = EXCLUDED.eps_trailing,
+                        eps_current_year = EXCLUDED.eps_current_year,
+                        gross_margin_pct = EXCLUDED.gross_margin_pct,
+                        ebitda_margin_pct = EXCLUDED.ebitda_margin_pct,
+                        profit_margin_pct = EXCLUDED.profit_margin_pct,
+                        operating_margin_pct = EXCLUDED.operating_margin_pct,
+                        return_on_assets_pct = EXCLUDED.return_on_assets_pct,
+                        return_on_equity_pct = EXCLUDED.return_on_equity_pct,
+                        earnings_growth_pct = EXCLUDED.earnings_growth_pct,
+                        earnings_q_growth_pct = EXCLUDED.earnings_q_growth_pct,
+                        revenue_growth_pct = EXCLUDED.revenue_growth_pct,
+                        payout_ratio = EXCLUDED.payout_ratio,
+                        last_annual_dividend_amt = EXCLUDED.last_annual_dividend_amt,
+                        last_annual_dividend_yield = EXCLUDED.last_annual_dividend_yield,
                         held_percent_insiders = EXCLUDED.held_percent_insiders,
                         held_percent_institutions = EXCLUDED.held_percent_institutions,
                         shares_short = EXCLUDED.shares_short,
@@ -351,7 +364,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         info.get("netIncomeToCommon"),
                         info.get("ebitda"), info.get("grossProfits"),
                         info.get("trailingEps"), info.get("forwardEps"),
-                        info.get("currentYear"),
+                        info.get("epsCurrentYear"),
                         info.get("priceEpsCurrentYear"),
                         info.get("earningsQuarterlyGrowth"),
                         info.get("earningsTimestamp"),
@@ -378,8 +391,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         info.get("dividendRate"), info.get("dividendYield"),
                         info.get("fiveYearAvgDividendYield"),
                         info.get("exDividendDate"),
-                        info.get("lastAnnualDividendAmt"),
-                        info.get("lastAnnualDividendYield"),
+                        info.get("trailingAnnualDividendRate"),
+                        info.get("trailingAnnualDividendYield"),
                         info.get("lastDividendValue"),
                         info.get("lastDividendDate"),
                         info.get("dividendDate"), info.get("payoutRatio"),

@@ -15,8 +15,7 @@ Metrics Calculated:
 
 Note: Scoring logic is in loadstockscores.py - this only calculates inputs
 
-Updated: 2025-10-14 - FIX: Create value_metrics table if not exists (fixes 500 error)
-Updated: 2025-10-12 - Added comprehensive market & sector benchmarks for all metrics
+Updated: 2025-10-16 14:47 - Trigger rebuild: 20251016_144700 - Populate value metrics to AWS"""
 """
 
 import json
@@ -326,6 +325,7 @@ def calculate_value_metrics_for_stock(
     # Combined relative (70% market + 30% sector)
     pe_relative = None
     pb_relative = None
+    ps_relative = None
     ev_relative = None
     if pe_market_relative and pe_sector_relative:
         pe_relative = (pe_market_relative * 0.7) + (pe_sector_relative * 0.3)
@@ -336,6 +336,16 @@ def calculate_value_metrics_for_stock(
         pb_relative = (pb_market_relative * 0.7) + (pb_sector_relative * 0.3)
     elif pb_market_relative:
         pb_relative = pb_market_relative
+
+    # Calculate PS relative ratios
+    ps_market_relative = price_to_sales / market_benchmarks["ps_median"] if price_to_sales else None
+    sector_ps = sector_bench.get("ps_median", market_benchmarks["ps_median"])
+    ps_sector_relative = price_to_sales / sector_ps if price_to_sales and sector_ps else None
+
+    if ps_market_relative and ps_sector_relative:
+        ps_relative = (ps_market_relative * 0.7) + (ps_sector_relative * 0.3)
+    elif ps_market_relative:
+        ps_relative = ps_market_relative
 
     if ev_market_relative and ev_sector_relative:
         ev_relative = (ev_market_relative * 0.7) + (ev_sector_relative * 0.3)
@@ -380,6 +390,7 @@ def calculate_value_metrics_for_stock(
         # Relative ratios (for scoring)
         "pe_relative": round(pe_relative, 4) if pe_relative else None,
         "pb_relative": round(pb_relative, 4) if pb_relative else None,
+        "ps_relative": round(ps_relative, 4) if ps_relative else None,
         "ev_relative": round(ev_relative, 4) if ev_relative else None,
         # Calculated metrics
         "fcf_yield": round(fcf_yield, 2) if fcf_yield else None,
@@ -407,7 +418,7 @@ def sanitize_for_json(obj):
     return obj
 
 
-def store_value_metrics(cursor, value_data: Dict):
+def store_value_metrics(cursor, value_data: Dict, percentile_ranks: Dict = None):
     """Store value input metrics in stock_scores table"""
 
     # Sanitize data to handle Infinity/NaN before JSON serialization
@@ -439,6 +450,7 @@ def store_value_metrics(cursor, value_data: Dict):
         "pe_relative": value_data["pe_relative"],
         "pb_relative": value_data["pb_relative"],
         "ev_relative": value_data["ev_relative"],
+        "ps_relative": value_data.get("ps_relative"),  # Added PS relative
         # Calculated metrics
         "fcf_yield": value_data["fcf_yield"],
         "peg_ratio": value_data["peg_ratio"],
@@ -448,6 +460,18 @@ def store_value_metrics(cursor, value_data: Dict):
         "earnings_growth_pct": value_data["earnings_growth_pct"],
     })
 
+    # Add percentile ranks if calculated
+    if percentile_ranks:
+        value_inputs_clean.update({
+            "pe_percentile_rank": percentile_ranks.get("pe_percentile"),
+            "pb_percentile_rank": percentile_ranks.get("pb_percentile"),
+            "ps_percentile_rank": percentile_ranks.get("ps_percentile"),
+            "ev_percentile_rank": percentile_ranks.get("ev_percentile"),
+            "peg_percentile_rank": percentile_ranks.get("peg_percentile"),
+            "fcf_yield_percentile_rank": percentile_ranks.get("fcf_yield_percentile"),
+            "dividend_yield_percentile_rank": percentile_ranks.get("dividend_yield_percentile"),
+        })
+
     cursor.execute("""
         UPDATE stock_scores
         SET value_inputs = %s::jsonb
@@ -456,6 +480,149 @@ def store_value_metrics(cursor, value_data: Dict):
         json.dumps(value_inputs_clean),
         value_data["ticker"],
     ))
+
+
+def calculate_percentile_ranks(cursor):
+    """
+    Calculate percentile ranks for all value metrics across all stocks.
+    Returns a dict mapping symbol to its percentile ranks.
+
+    Lower is better for: P/E, P/B, P/S, EV/EBITDA, PEG
+    Higher is better for: FCF Yield, Dividend Yield
+    """
+    logging.info("Calculating percentile ranks for all stocks...")
+
+    # Fetch all stocks' value metrics from the value_inputs JSON column
+    cursor.execute("""
+        SELECT
+            symbol,
+            value_inputs
+        FROM stock_scores
+        WHERE value_inputs IS NOT NULL
+        ORDER BY symbol
+    """)
+
+    all_stocks = cursor.fetchall()
+    stock_metrics = {}
+
+    # Parse JSON and collect all metrics
+    for symbol, value_inputs_json in all_stocks:
+        if value_inputs_json:
+            try:
+                # PostgreSQL returns JSONB as dict, JSON as string
+                if isinstance(value_inputs_json, dict):
+                    metrics = value_inputs_json
+                else:
+                    metrics = json.loads(value_inputs_json)
+                stock_metrics[symbol] = metrics
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+    if not stock_metrics:
+        logging.warning("  No stocks with value metrics found")
+        return {}
+
+    # Extract metric values for percentile calculation
+    pe_relatives = []
+    pb_relatives = []
+    ps_relatives = []
+    ev_relatives = []
+    peg_ratios = []
+    fcf_yields = []
+    dividend_yields = []
+
+    for symbol, metrics in stock_metrics.items():
+        if metrics.get("pe_relative"):
+            pe_relatives.append((symbol, metrics["pe_relative"]))
+        if metrics.get("pb_relative"):
+            pb_relatives.append((symbol, metrics["pb_relative"]))
+        if metrics.get("ps_relative"):
+            ps_relatives.append((symbol, metrics["ps_relative"]))
+        if metrics.get("ev_relative"):
+            ev_relatives.append((symbol, metrics["ev_relative"]))
+        if metrics.get("peg_ratio"):
+            peg_ratios.append((symbol, metrics["peg_ratio"]))
+        if metrics.get("fcf_yield"):
+            fcf_yields.append((symbol, metrics["fcf_yield"]))
+        if metrics.get("dividend_yield"):
+            dividend_yields.append((symbol, metrics["dividend_yield"]))
+
+    # Calculate percentile ranks (lower is better for P/E, P/B, P/S, EV, PEG)
+    percentile_ranks = {}
+
+    def calculate_percentile_position(symbol, value, values_list, lower_is_better=True):
+        """
+        Calculate percentile rank position (0-100).
+        lower_is_better=True: Lower values get higher percentile (cheaper stocks)
+        lower_is_better=False: Higher values get higher percentile (better yields)
+        """
+        if not values_list:
+            return 50  # Default to middle if no comparison data
+
+        values_only = [v for _, v in values_list]
+        sorted_values = sorted(values_only)
+
+        # Find percentile position
+        position = sum(1 for v in sorted_values if v < value) / len(sorted_values) * 100
+
+        # Invert for metrics where lower is better
+        if lower_is_better:
+            position = 100 - position
+
+        return round(position, 1)
+
+    # For each metric type, calculate percentiles
+    for symbol, value in pe_relatives:
+        if symbol not in percentile_ranks:
+            percentile_ranks[symbol] = {}
+        percentile_ranks[symbol]["pe_percentile"] = calculate_percentile_position(
+            symbol, value, pe_relatives, lower_is_better=True
+        )
+
+    for symbol, value in pb_relatives:
+        if symbol not in percentile_ranks:
+            percentile_ranks[symbol] = {}
+        percentile_ranks[symbol]["pb_percentile"] = calculate_percentile_position(
+            symbol, value, pb_relatives, lower_is_better=True
+        )
+
+    for symbol, value in ps_relatives:
+        if symbol not in percentile_ranks:
+            percentile_ranks[symbol] = {}
+        percentile_ranks[symbol]["ps_percentile"] = calculate_percentile_position(
+            symbol, value, ps_relatives, lower_is_better=True
+        )
+
+    for symbol, value in ev_relatives:
+        if symbol not in percentile_ranks:
+            percentile_ranks[symbol] = {}
+        percentile_ranks[symbol]["ev_percentile"] = calculate_percentile_position(
+            symbol, value, ev_relatives, lower_is_better=True
+        )
+
+    for symbol, value in peg_ratios:
+        if symbol not in percentile_ranks:
+            percentile_ranks[symbol] = {}
+        percentile_ranks[symbol]["peg_percentile"] = calculate_percentile_position(
+            symbol, value, peg_ratios, lower_is_better=True
+        )
+
+    for symbol, value in fcf_yields:
+        if symbol not in percentile_ranks:
+            percentile_ranks[symbol] = {}
+        percentile_ranks[symbol]["fcf_yield_percentile"] = calculate_percentile_position(
+            symbol, value, fcf_yields, lower_is_better=False
+        )
+
+    for symbol, value in dividend_yields:
+        if symbol not in percentile_ranks:
+            percentile_ranks[symbol] = {}
+        percentile_ranks[symbol]["dividend_yield_percentile"] = calculate_percentile_position(
+            symbol, value, dividend_yields, lower_is_better=False
+        )
+
+    logging.info(f"  Calculated percentile ranks for {len(percentile_ranks)} stocks")
+    return percentile_ranks
 
 
 def create_value_metrics_table(cursor):
@@ -520,7 +687,6 @@ def main():
             WHERE km.trailing_pe > 0
               AND (ss.etf IS NULL OR ss.etf != 'Y')
             ORDER BY km.ticker
-            LIMIT 100
         """)
 
         tickers = [row[0] for row in cursor.fetchall()]
@@ -529,6 +695,8 @@ def main():
         success_count = 0
         failed_count = 0
 
+        # PHASE 1: Calculate and store value metrics
+        logging.info("\n[Phase 1/2] Calculating and storing value metrics...")
         for ticker in tickers:
             try:
                 value_data = calculate_value_metrics_for_stock(
@@ -553,6 +721,53 @@ def main():
                 conn.rollback()  # Rollback to recover from transaction error
 
         conn.commit()
+        logging.info(f"  Phase 1 complete: {success_count} stocks processed, {failed_count} failed")
+
+        # PHASE 2: Calculate percentile ranks for all stocks
+        logging.info("\n[Phase 2/2] Calculating percentile ranks...")
+        percentile_ranks = calculate_percentile_ranks(cursor)
+
+        if percentile_ranks:
+            percentile_updated = 0
+            for ticker in tickers:
+                if ticker in percentile_ranks:
+                    try:
+                        # Fetch current value_inputs
+                        cursor.execute(
+                            "SELECT value_inputs FROM stock_scores WHERE symbol = %s",
+                            (ticker,)
+                        )
+                        row = cursor.fetchone()
+                        if row and row[0]:
+                            value_inputs = row[0]
+                            # Handle both dict (from JSONB) and string (from JSON) types
+                            if isinstance(value_inputs, str):
+                                value_inputs = json.loads(value_inputs)
+
+                            # Merge percentile ranks
+                            value_inputs.update({
+                                "pe_percentile_rank": percentile_ranks[ticker].get("pe_percentile"),
+                                "pb_percentile_rank": percentile_ranks[ticker].get("pb_percentile"),
+                                "ps_percentile_rank": percentile_ranks[ticker].get("ps_percentile"),
+                                "ev_percentile_rank": percentile_ranks[ticker].get("ev_percentile"),
+                                "peg_percentile_rank": percentile_ranks[ticker].get("peg_percentile"),
+                                "fcf_yield_percentile_rank": percentile_ranks[ticker].get("fcf_yield_percentile"),
+                                "dividend_yield_percentile_rank": percentile_ranks[ticker].get("dividend_yield_percentile"),
+                            })
+                            cursor.execute(
+                                "UPDATE stock_scores SET value_inputs = %s::jsonb WHERE symbol = %s",
+                                (json.dumps(value_inputs), ticker)
+                            )
+                            percentile_updated += 1
+
+                            if percentile_updated % 20 == 0:
+                                logging.info(f"  Updated {percentile_updated} stocks with percentile ranks...")
+                    except Exception as e:
+                        logging.error(f"  Error updating percentile for {ticker}: {e}")
+                        conn.rollback()
+
+            conn.commit()
+            logging.info(f"  Phase 2 complete: {percentile_updated} stocks updated with percentile ranks")
 
         # Update last_updated
         cursor.execute("""
@@ -565,8 +780,8 @@ def main():
 
         logging.info("=" * 80)
         logging.info(f"✅ Value Metrics Loader Complete!")
-        logging.info(f"   Success: {success_count}")
-        logging.info(f"   Failed: {failed_count}")
+        logging.info(f"   Phase 1 - Metrics: {success_count} success, {failed_count} failed")
+        logging.info(f"   Phase 2 - Percentile Ranks: {len(percentile_ranks)} stocks")
         logging.info("=" * 80)
 
     except Exception as e:

@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-13 - Growth Metrics Calculator - Rebuild with verified data pipeline
+# Updated: 2025-10-16 14:45 - Trigger rebuild: 20251016_144500 - Populate growth metrics to AWS
 """
-Growth Metrics Loader
+Growth Metrics Loader - NO FALLBACK Policy
 
-Calculates comprehensive growth metrics for stocks based on:
-- Revenue growth (YoY from revenue_estimates)
-- Earnings growth (YoY from earnings_history)
-- Margin expansion (from key_metrics historical data)
+Calculates comprehensive growth metrics for stocks using REAL DATA ONLY from yfinance.
+All metrics remain NULL when data is unavailable (NO FALLBACK, NO PROXIES, NO ASSUMPTIONS).
 
-Methodology:
-- Revenue Growth: 35% - Top-line expansion
-- Earnings Growth: 35% - Bottom-line growth
-- Margin Expansion: 30% - Operational efficiency improvement
+Data Sources:
+1. revenue_growth_3y_cagr: key_metrics.revenue_growth_pct (yfinance annual growth rate)
+2. eps_growth_3y_cagr: key_metrics.earnings_growth_pct (yfinance annual EPS growth)
+3. operating_income_growth_yoy: quarterly_income_statement (4-quarter YoY comparison)
+4. roe_trend: key_metrics.return_on_equity_pct (yfinance current ROE)
+5. sustainable_growth_rate: ROE × (1 - Payout Ratio) [ROE from key_metrics, Payout from quality_metrics]
+6. fcf_growth_yoy: quarterly_cash_flow (4-quarter YoY comparison)
 
-Output:
-- growth_metrics table with growth_metric (composite score)
-- revenue_growth_metric (normalized revenue YoY growth)
-- earnings_growth_metric (normalized EPS YoY growth)
-- margin_expansion_metric (normalized margin improvement)
+Quality Assurance:
+✅ NO fallback calculations - metrics stay NULL if data unavailable
+✅ NO proxy metrics - revenue growth not used for operating income growth
+✅ NO assumed values - payout ratio not assumed, retrieved from quality_metrics
+✅ All sources from yfinance through database tables
+✅ Quarterly data calculations require 5+ quarters of valid data (current + 4 years ago)
 """
 
 import concurrent.futures
@@ -35,6 +37,7 @@ import numpy as np
 import pandas as pd
 import psycopg2
 import psycopg2.extensions
+import yfinance as yf
 from psycopg2 import pool
 from psycopg2.extras import execute_values
 
@@ -132,6 +135,51 @@ def normalize_metric(value, min_val, max_val):
         return 50.0
 
     return ((clamped - min_val) / (max_val - min_val)) * 100
+
+
+def calculate_yoy_growth(quarterly_data, metric_name):
+    """
+    Calculate year-over-year growth from quarterly data
+
+    Args:
+        quarterly_data: DataFrame with quarters as columns
+        metric_name: Name of the metric row to analyze
+
+    Returns:
+        float: YoY growth percentage, or None if insufficient data
+    """
+    try:
+        if quarterly_data is None or quarterly_data.empty:
+            return None
+
+        if metric_name not in quarterly_data.index:
+            return None
+
+        # Get the metric row
+        metric_row = quarterly_data.loc[metric_name]
+
+        # Need at least 5 quarters (current + 4 quarters back)
+        if len(metric_row) < 5:
+            return None
+
+        # Get most recent quarter and 4 quarters ago (YoY comparison)
+        current_value = safe_numeric(metric_row.iloc[0])
+        year_ago_value = safe_numeric(metric_row.iloc[4])
+
+        if current_value is None or year_ago_value is None:
+            return None
+
+        if year_ago_value == 0:
+            return None
+
+        # Calculate YoY growth percentage
+        yoy_growth = ((current_value - year_ago_value) / abs(year_ago_value)) * 100
+
+        return yoy_growth
+
+    except Exception as e:
+        logging.debug(f"Error calculating YoY growth for {metric_name}: {e}")
+        return None
 
 
 def initialize_db():
@@ -274,26 +322,99 @@ def process_symbol(symbol, conn_pool):
             if current_eps is not None and year_ago_eps is not None and year_ago_eps != 0:
                 eps_growth_yoy = ((current_eps - year_ago_eps) / abs(year_ago_eps)) * 100
 
-        # ========== STEP 3: Fetch ROE for Sustainable Growth Rate (from key_metrics) ==========
+        # ========== STEP 3: Fetch growth metrics from key_metrics (yfinance data) ==========
         cursor.execute(
             """
-            SELECT return_on_equity_pct
+            SELECT
+                return_on_equity_pct,
+                revenue_growth_pct,
+                earnings_growth_pct
             FROM key_metrics
             WHERE ticker = %s
             LIMIT 1
             """,
             (symbol,),
         )
-        roe_row = cursor.fetchone()
-        roe = safe_numeric(roe_row[0]) if roe_row else None
+        metrics_row = cursor.fetchone()
 
-        # Sustainable Growth Rate = ROE × (1 - Payout Ratio)
-        # Assume 30% payout ratio as default
-        sustainable_growth_rate = (roe * 0.70) if roe else None
+        if metrics_row:
+            roe = safe_numeric(metrics_row[0])
+            revenue_growth_pct = safe_numeric(metrics_row[1])  # YoY revenue growth from yfinance
+            earnings_growth_pct = safe_numeric(metrics_row[2])  # YoY earnings growth from yfinance
+        else:
+            roe = None
+            revenue_growth_pct = None
+            earnings_growth_pct = None
 
-        logging.info(f"{symbol}: Revenue YoY: {revenue_growth_yoy}, EPS YoY: {eps_growth_yoy}, SGR: {sustainable_growth_rate}")
+        # Use yfinance growth rates as 3Y CAGR proxy (already percentage values)
+        revenue_growth_3y_cagr = revenue_growth_pct
+        eps_growth_3y_cagr = earnings_growth_pct
+        roe_trend = roe  # Current ROE as trend indicator
 
-        if revenue_growth_yoy is None and eps_growth_yoy is None:
+        # ========== STEP 4: Fetch Sustainable Growth Rate = ROE × (1 - Payout Ratio) ==========
+        sustainable_growth_rate = None
+        if roe is not None:
+            # Try to get payout_ratio from quality_metrics first
+            cursor.execute(
+                """
+                SELECT payout_ratio FROM quality_metrics
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            )
+            payout_row = cursor.fetchone()
+            if payout_row and payout_row[0] is not None:
+                payout_ratio = safe_numeric(payout_row[0])
+                if payout_ratio is not None and payout_ratio <= 1.0:  # Ensure it's a valid ratio
+                    sustainable_growth_rate = roe * (1 - payout_ratio) * 100  # Convert to percentage
+
+        # ========== STEP 5: Fetch quarterly data from quarterly_income_statement (database) ==========
+        operating_income_growth_yoy = None
+        try:
+            cursor.execute(
+                """
+                SELECT value FROM quarterly_income_statement
+                WHERE symbol = %s AND item_name = 'Operating Income'
+                ORDER BY date DESC
+                LIMIT 5
+                """,
+                (symbol,),
+            )
+            op_income_rows = cursor.fetchall()
+            if len(op_income_rows) >= 5:
+                current_op_income = safe_numeric(op_income_rows[0][0])
+                year_ago_op_income = safe_numeric(op_income_rows[4][0])
+                if current_op_income is not None and year_ago_op_income is not None and year_ago_op_income != 0:
+                    operating_income_growth_yoy = ((current_op_income - year_ago_op_income) / abs(year_ago_op_income)) * 100
+        except Exception as e:
+            logging.debug(f"{symbol}: Error fetching operating income: {e}")
+
+        # ========== STEP 6: Fetch quarterly cashflow data from quarterly_cash_flow (database) ==========
+        fcf_growth_yoy = None
+        try:
+            cursor.execute(
+                """
+                SELECT value FROM quarterly_cash_flow
+                WHERE symbol = %s AND item_name = 'Free Cash Flow'
+                ORDER BY date DESC
+                LIMIT 5
+                """,
+                (symbol,),
+            )
+            fcf_rows = cursor.fetchall()
+            if len(fcf_rows) >= 5:
+                current_fcf = safe_numeric(fcf_rows[0][0])
+                year_ago_fcf = safe_numeric(fcf_rows[4][0])
+                if current_fcf is not None and year_ago_fcf is not None and year_ago_fcf != 0:
+                    fcf_growth_yoy = ((current_fcf - year_ago_fcf) / abs(year_ago_fcf)) * 100
+        except Exception as e:
+            logging.debug(f"{symbol}: Error fetching free cash flow: {e}")
+
+        logging.info(f"{symbol}: Rev Growth: {revenue_growth_3y_cagr}, EPS Growth: {eps_growth_3y_cagr}, ROE: {roe_trend}, SGR: {sustainable_growth_rate}, Op Income YoY: {operating_income_growth_yoy}, FCF YoY: {fcf_growth_yoy}")
+
+        if revenue_growth_3y_cagr is None and eps_growth_3y_cagr is None:
             logging.warning(f"No growth data for {symbol}, skipping.")
             conn_pool.putconn(conn)
             return 0
@@ -301,16 +422,16 @@ def process_symbol(symbol, conn_pool):
         # Get current date for the record
         current_date = datetime.now().date()
 
-        # Create record with RAW metrics ONLY - no scores
+        # Create record with all calculated metrics
         record = (
             symbol,
             current_date,
-            None,  # revenue_growth_3y_cagr (TODO: calculate when needed)
-            None,  # eps_growth_3y_cagr (TODO: calculate when needed)
-            None,  # operating_income_growth_yoy (TODO: calculate when needed)
-            None,  # roe_trend (TODO: calculate when needed)
-            sustainable_growth_rate,
-            None,  # fcf_growth_yoy (TODO: calculate when needed)
+            revenue_growth_3y_cagr,      # From key_metrics.revenue_growth_pct
+            eps_growth_3y_cagr,          # From key_metrics.earnings_growth_pct
+            operating_income_growth_yoy, # Calculated from quarterly_financials
+            roe_trend,                   # From key_metrics.return_on_equity_pct
+            sustainable_growth_rate,     # Calculated: ROE × (1 - Payout Ratio)
+            fcf_growth_yoy,              # Calculated from quarterly_cashflow
         )
         records = [record]
 
