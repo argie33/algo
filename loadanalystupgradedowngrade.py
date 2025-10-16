@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Trigger rebuild: 20251005_165500
+# Trigger rebuild: 20251016_143000 - Ensure analyst data populated in AWS
 """
 Analyst Upgrade/Downgrade Data Loader
 Updated: 2025-10-05 14:19 - Fix yfinance API changes: use upgrades_downgrades property
