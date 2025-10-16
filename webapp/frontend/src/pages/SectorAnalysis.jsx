@@ -27,6 +27,7 @@ import {
   ExpandMore,
   ShowChart,
   BarChart,
+  Timeline,
 } from "@mui/icons-material";
 import {
   BarChart as RechartsBarChart,
@@ -92,6 +93,36 @@ const SectorAnalysis = () => {
       return response.data;
     },
     staleTime: 60000,
+    enabled: true,
+    retry: false,
+  });
+
+  // Fetch sector ranking history (for trend analysis)
+  const { data: sectorRankingHistory, isLoading: sectorHistoryLoading, error: sectorHistoryError } = useQuery({
+    queryKey: ["sector-ranking-history"],
+    queryFn: async () => {
+      const response = await api.get("/api/sectors/ranking-history");
+      return response.data;
+    },
+    staleTime: 300000, // 5 minutes
+    enabled: true,
+    retry: false,
+  });
+
+  // Fetch industry ranking history (for trend analysis)
+  const { data: industryRankingHistory, isLoading: industryHistoryLoading, error: industryHistoryError } = useQuery({
+    queryKey: ["industry-ranking-history"],
+    queryFn: async () => {
+      try {
+        const response = await api.get("/api/sectors/industries/ranking-history");
+        return response.data;
+      } catch (err) {
+        // Fallback in case endpoint doesn't exist yet
+        console.warn("Industry ranking history endpoint not available:", err.message);
+        return { data: [] };
+      }
+    },
+    staleTime: 300000, // 5 minutes
     enabled: true,
     retry: false,
   });
@@ -309,6 +340,150 @@ const SectorAnalysis = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Sector Ranking Trends (Historical Analysis) */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: "flex", alignItems: "center", gap: 1 }}>
+            <Timeline color="primary" />
+            Sector Ranking Trends (IBD-Style)
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Track how sector rankings are trending over time (↑ improving, ↓ declining, → stable)
+          </Typography>
+          {sectorHistoryLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <LinearProgress sx={{ width: "50%" }} />
+            </Box>
+          ) : sectorHistoryError ? (
+            <Alert severity="info">
+              Ranking history not yet available. Data will populate after sector loaders run.
+            </Alert>
+          ) : !sectorRankingHistory?.data || sectorRankingHistory.data.length === 0 ? (
+            <Alert severity="info">
+              No historical ranking data available yet. Run loadsectordata.py to start populating history.
+            </Alert>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: "grey.100" }}>
+                    <TableCell><Typography variant="caption" fontWeight="bold">Sector</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">Trend</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">Today</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">1 Wk Ago</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">3 Wks Ago</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">8 Wks Ago</Typography></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sectorRankingHistory.data.slice(0, 11).map((sector, idx) => (
+                    <TableRow key={idx} sx={{ "&:hover": { backgroundColor: "grey.50" } }}>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="bold">{sector.sector}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="h6" sx={{
+                          color: sector.direction === '↑' ? 'success.main' : sector.direction === '↓' ? 'error.main' : 'text.secondary',
+                          fontWeight: 'bold'
+                        }}>
+                          {sector.direction}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{sector.rankings.today?.rank || '-'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{sector.rankings['1_week_ago']?.rank || '-'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{sector.rankings['3_weeks_ago']?.rank || '-'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{sector.rankings['8_weeks_ago']?.rank || '-'}</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Industry Ranking Trends (Historical Analysis) */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: "flex", alignItems: "center", gap: 1 }}>
+            <Timeline color="primary" />
+            Industry Ranking Trends (IBD-Style)
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Monitor industry ranking progression to identify emerging opportunities (↑ improving, ↓ declining, → stable)
+          </Typography>
+          {industryHistoryLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <LinearProgress sx={{ width: "50%" }} />
+            </Box>
+          ) : industryHistoryError ? (
+            <Alert severity="info">
+              Industry ranking history not yet available. Data will populate after industry loaders run.
+            </Alert>
+          ) : !industryRankingHistory?.data || industryRankingHistory.data.length === 0 ? (
+            <Alert severity="info">
+              No historical industry ranking data available yet. Run loadindustrydata.py to start populating history.
+            </Alert>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: "grey.100" }}>
+                    <TableCell><Typography variant="caption" fontWeight="bold">Industry</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">Trend</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">Today</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">1 Wk Ago</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">3 Wks Ago</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">8 Wks Ago</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">Stocks</Typography></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {industryRankingHistory.data.slice(0, 20).map((industry, idx) => (
+                    <TableRow key={idx} sx={{ "&:hover": { backgroundColor: "grey.50" } }}>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="bold">{industry.industry}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="h6" sx={{
+                          color: industry.direction === '↑' ? 'success.main' : industry.direction === '↓' ? 'error.main' : 'text.secondary',
+                          fontWeight: 'bold'
+                        }}>
+                          {industry.direction}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{industry.rankings.today?.overall_rank || '-'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{industry.rankings['1_week_ago']?.overall_rank || '-'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{industry.rankings['3_weeks_ago']?.overall_rank || '-'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{industry.rankings['8_weeks_ago']?.overall_rank || '-'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2">{industry.rankings.today?.stock_count || '-'}</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Top Sector Rankings */}
       <Card sx={{ mb: 4 }}>
