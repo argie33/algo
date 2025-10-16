@@ -1271,6 +1271,351 @@ router.get("/laggards", async (req, res) => {
 });
 
 /**
+ * GET /sectors/ranking-history
+ * Get historical ranking progression for sectors to identify trends
+ * Queries: today, 7 days ago, 21 days ago (3 weeks), 56 days ago (8 weeks)
+ */
+router.get("/ranking-history", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Sector ranking history requires database connection"
+      });
+    }
+
+    const { sector = null, limit = 11 } = req.query;
+    console.log(`📊 Fetching sector ranking history${sector ? ` for ${sector}` : ''}`);
+
+    // Query historical rankings at different time periods
+    let rankingHistoryQuery;
+    let params;
+
+    if (sector) {
+      rankingHistoryQuery = `
+        WITH ranking_data AS (
+          SELECT
+            sector_name,
+            symbol,
+            sector_rank,
+            performance_20d,
+            fetched_at,
+            DATE(fetched_at) as rank_date,
+            ROW_NUMBER() OVER (
+              PARTITION BY sector_name, DATE(fetched_at)
+              ORDER BY sector_rank ASC
+            ) as daily_rank
+          FROM sector_performance
+          WHERE DATE(fetched_at) IN (
+            CURRENT_DATE,
+            CURRENT_DATE - INTERVAL '7 days',
+            CURRENT_DATE - INTERVAL '21 days',
+            CURRENT_DATE - INTERVAL '56 days'
+          )
+            AND sector_name = $1
+        )
+        SELECT
+          sector_name,
+          symbol,
+          sector_rank,
+          performance_20d,
+          rank_date,
+          CASE
+            WHEN rank_date = CURRENT_DATE THEN 'today'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '7 days' THEN '1_week_ago'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '21 days' THEN '3_weeks_ago'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '56 days' THEN '8_weeks_ago'
+          END as period
+        FROM ranking_data
+        WHERE daily_rank <= $2
+        ORDER BY sector_name, rank_date DESC
+        LIMIT $3
+      `;
+      params = [sector, 1, parseInt(limit)];
+    } else {
+      rankingHistoryQuery = `
+        WITH ranking_data AS (
+          SELECT
+            sector_name,
+            symbol,
+            sector_rank,
+            performance_20d,
+            fetched_at,
+            DATE(fetched_at) as rank_date,
+            ROW_NUMBER() OVER (
+              PARTITION BY sector_name, DATE(fetched_at)
+              ORDER BY sector_rank ASC
+            ) as daily_rank
+          FROM sector_performance
+          WHERE DATE(fetched_at) IN (
+            CURRENT_DATE,
+            CURRENT_DATE - INTERVAL '7 days',
+            CURRENT_DATE - INTERVAL '21 days',
+            CURRENT_DATE - INTERVAL '56 days'
+          )
+        )
+        SELECT
+          sector_name,
+          symbol,
+          sector_rank,
+          performance_20d,
+          rank_date,
+          CASE
+            WHEN rank_date = CURRENT_DATE THEN 'today'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '7 days' THEN '1_week_ago'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '21 days' THEN '3_weeks_ago'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '56 days' THEN '8_weeks_ago'
+          END as period
+        FROM ranking_data
+        WHERE daily_rank <= $1
+        ORDER BY sector_name, rank_date DESC
+        LIMIT $2
+      `;
+      params = [1, parseInt(limit)];
+    }
+
+    const result = await query(rankingHistoryQuery, params);
+
+    if (!result || result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        message: "No historical ranking data available yet. Data will be available after sector loaders run.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Group rankings by sector and organize by period
+    const rankingsByPeriod = {};
+    result.rows.forEach(row => {
+      if (!rankingsByPeriod[row.sector_name]) {
+        rankingsByPeriod[row.sector_name] = {
+          sector: row.sector_name,
+          rankings: {},
+          trend: 'stable'
+        };
+      }
+      rankingsByPeriod[row.sector_name].rankings[row.period] = {
+        rank: row.sector_rank,
+        performance_20d: parseFloat(row.performance_20d || 0),
+        date: row.rank_date
+      };
+    });
+
+    // Calculate trends
+    Object.values(rankingsByPeriod).forEach(sectorData => {
+      const today = sectorData.rankings.today?.rank || 999;
+      const week = sectorData.rankings.one_week_ago?.rank || today;
+      const threeWeeks = sectorData.rankings.three_weeks_ago?.rank || week;
+
+      if (today < week && week < threeWeeks) {
+        sectorData.trend = 'improving';
+        sectorData.direction = '↑';
+      } else if (today > week && week > threeWeeks) {
+        sectorData.trend = 'declining';
+        sectorData.direction = '↓';
+      } else {
+        sectorData.trend = 'stable';
+        sectorData.direction = '→';
+      }
+    });
+
+    res.json({
+      success: true,
+      data: Object.values(rankingsByPeriod),
+      metadata: {
+        total_sectors: Object.keys(rankingsByPeriod).length,
+        periods: ['today', '1_week_ago', '3_weeks_ago', '8_weeks_ago'],
+        note: 'Lower rank is better (1 = best performing)'
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("Sector ranking history error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sector ranking history",
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * GET /industries/ranking-history
+ * Get historical ranking progression for industries to identify trends
+ * Similar to sector ranking history but for industry level
+ */
+router.get("/industries/ranking-history", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Industry ranking history requires database connection"
+      });
+    }
+
+    const { industry = null, limit = 20 } = req.query;
+    console.log(`🏭 Fetching industry ranking history${industry ? ` for ${industry}` : ''}`);
+
+    // Query historical rankings at different time periods
+    let rankingHistoryQuery;
+    let params;
+
+    if (industry) {
+      rankingHistoryQuery = `
+        WITH ranking_data AS (
+          SELECT
+            industry,
+            sector_rank,
+            overall_rank,
+            stock_count,
+            fetched_at,
+            DATE(fetched_at) as rank_date,
+            ROW_NUMBER() OVER (
+              PARTITION BY industry, DATE(fetched_at)
+              ORDER BY overall_rank ASC
+            ) as daily_rank
+          FROM industry_performance
+          WHERE DATE(fetched_at) IN (
+            CURRENT_DATE,
+            CURRENT_DATE - INTERVAL '7 days',
+            CURRENT_DATE - INTERVAL '21 days',
+            CURRENT_DATE - INTERVAL '56 days'
+          )
+            AND industry = $1
+        )
+        SELECT
+          industry,
+          sector_rank,
+          overall_rank,
+          stock_count,
+          rank_date,
+          CASE
+            WHEN rank_date = CURRENT_DATE THEN 'today'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '7 days' THEN '1_week_ago'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '21 days' THEN '3_weeks_ago'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '56 days' THEN '8_weeks_ago'
+          END as period
+        FROM ranking_data
+        WHERE daily_rank <= $2
+        ORDER BY industry, rank_date DESC
+        LIMIT $3
+      `;
+      params = [industry, 1, parseInt(limit)];
+    } else {
+      rankingHistoryQuery = `
+        WITH ranking_data AS (
+          SELECT
+            industry,
+            sector_rank,
+            overall_rank,
+            stock_count,
+            fetched_at,
+            DATE(fetched_at) as rank_date,
+            ROW_NUMBER() OVER (
+              PARTITION BY industry, DATE(fetched_at)
+              ORDER BY overall_rank ASC
+            ) as daily_rank
+          FROM industry_performance
+          WHERE DATE(fetched_at) IN (
+            CURRENT_DATE,
+            CURRENT_DATE - INTERVAL '7 days',
+            CURRENT_DATE - INTERVAL '21 days',
+            CURRENT_DATE - INTERVAL '56 days'
+          )
+        )
+        SELECT
+          industry,
+          sector_rank,
+          overall_rank,
+          stock_count,
+          rank_date,
+          CASE
+            WHEN rank_date = CURRENT_DATE THEN 'today'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '7 days' THEN '1_week_ago'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '21 days' THEN '3_weeks_ago'
+            WHEN rank_date = CURRENT_DATE - INTERVAL '56 days' THEN '8_weeks_ago'
+          END as period
+        FROM ranking_data
+        WHERE daily_rank <= $1
+        ORDER BY industry, rank_date DESC
+        LIMIT $2
+      `;
+      params = [1, parseInt(limit)];
+    }
+
+    const result = await query(rankingHistoryQuery, params);
+
+    if (!result || result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        message: "No historical industry ranking data available yet. Data will be available after industry loaders run.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Group rankings by industry and organize by period
+    const rankingsByPeriod = {};
+    result.rows.forEach(row => {
+      if (!rankingsByPeriod[row.industry]) {
+        rankingsByPeriod[row.industry] = {
+          industry: row.industry,
+          rankings: {},
+          trend: 'stable'
+        };
+      }
+      rankingsByPeriod[row.industry].rankings[row.period] = {
+        sector_rank: row.sector_rank,
+        overall_rank: row.overall_rank,
+        stock_count: row.stock_count,
+        date: row.rank_date
+      };
+    });
+
+    // Calculate trends
+    Object.values(rankingsByPeriod).forEach(industryData => {
+      const today = industryData.rankings.today?.overall_rank || 999;
+      const week = industryData.rankings.one_week_ago?.overall_rank || today;
+      const threeWeeks = industryData.rankings.three_weeks_ago?.overall_rank || week;
+
+      if (today < week && week < threeWeeks) {
+        industryData.trend = 'improving';
+        industryData.direction = '↑';
+      } else if (today > week && week > threeWeeks) {
+        industryData.trend = 'declining';
+        industryData.direction = '↓';
+      } else {
+        industryData.trend = 'stable';
+        industryData.direction = '→';
+      }
+    });
+
+    res.json({
+      success: true,
+      data: Object.values(rankingsByPeriod),
+      metadata: {
+        total_industries: Object.keys(rankingsByPeriod).length,
+        periods: ['today', '1_week_ago', '3_weeks_ago', '8_weeks_ago'],
+        note: 'Lower rank is better (1 = best performing)'
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("Industry ranking history error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch industry ranking history",
+      message: error.message,
+    });
+  }
+});
+
+/**
  * GET /sectors/heatmap
  * Get sector heatmap data for visualization
  */
