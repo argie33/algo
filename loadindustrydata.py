@@ -291,16 +291,58 @@ def calculate_industry_performance(cur, spy_prices=None):
     return industry_data
 
 
+def ensure_tables(cur, conn):
+    """Ensure industry_performance table exists with proper indexes"""
+    logging.info("Ensuring industry_performance table with historical tracking...")
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS industry_performance (
+            id                  SERIAL PRIMARY KEY,
+            sector              VARCHAR(100) NOT NULL,
+            industry            VARCHAR(100) NOT NULL,
+            industry_key        VARCHAR(100),
+            stock_count         INTEGER,
+            stock_symbols       TEXT[],
+            avg_change_percent  DOUBLE PRECISION,
+            median_change_percent DOUBLE PRECISION,
+            total_volume        BIGINT,
+            avg_volume          BIGINT,
+            performance_1d      DOUBLE PRECISION,
+            performance_5d      DOUBLE PRECISION,
+            performance_20d     DOUBLE PRECISION,
+            rs_rating           INTEGER,
+            rs_vs_spy           DOUBLE PRECISION,
+            momentum            VARCHAR(20),
+            trend               VARCHAR(20),
+            sector_rank         INTEGER,
+            overall_rank        INTEGER,
+            total_market_cap    BIGINT,
+            avg_market_cap      BIGINT,
+            fetched_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(industry, fetched_at::DATE)
+        );
+    """)
+
+    # Create indexes for efficient historical queries
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_industry_date ON industry_performance(industry, fetched_at DESC);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_sector_date ON industry_performance(sector, fetched_at DESC);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_date ON industry_performance(fetched_at DESC);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_overall_rank ON industry_performance(overall_rank) WHERE DATE(fetched_at) = CURRENT_DATE;")
+
+    conn.commit()
+    logging.info("✅ Industry performance table ready with historical tracking")
+
+
 def insert_industry_data(cur, conn, industry_data):
     """Insert industry performance data into database"""
     if not industry_data:
         logging.warning("No industry data to insert")
         return 0
 
-    # Clear old data (keep last 30 days for historical analysis)
+    # Clear old data (keep last 60 days for trend analysis)
     cur.execute("""
         DELETE FROM industry_performance
-        WHERE fetched_at < NOW() - INTERVAL '30 days'
+        WHERE fetched_at < NOW() - INTERVAL '60 days'
     """)
 
     # Prepare rows for insertion
@@ -330,7 +372,7 @@ def insert_industry_data(cur, conn, industry_data):
             datetime.now(),
         ))
 
-    # Insert data
+    # Insert data with conflict handling (preserve history)
     insert_sql = """
         INSERT INTO industry_performance (
             sector, industry, industry_key, stock_count, stock_symbols,
@@ -340,12 +382,30 @@ def insert_industry_data(cur, conn, industry_data):
             sector_rank, overall_rank, total_market_cap, avg_market_cap,
             fetched_at
         ) VALUES %s
+        ON CONFLICT (industry, fetched_at::DATE) DO UPDATE SET
+            stock_count = EXCLUDED.stock_count,
+            stock_symbols = EXCLUDED.stock_symbols,
+            avg_change_percent = EXCLUDED.avg_change_percent,
+            median_change_percent = EXCLUDED.median_change_percent,
+            total_volume = EXCLUDED.total_volume,
+            avg_volume = EXCLUDED.avg_volume,
+            performance_1d = EXCLUDED.performance_1d,
+            performance_5d = EXCLUDED.performance_5d,
+            performance_20d = EXCLUDED.performance_20d,
+            rs_rating = EXCLUDED.rs_rating,
+            rs_vs_spy = EXCLUDED.rs_vs_spy,
+            momentum = EXCLUDED.momentum,
+            trend = EXCLUDED.trend,
+            sector_rank = EXCLUDED.sector_rank,
+            overall_rank = EXCLUDED.overall_rank,
+            total_market_cap = EXCLUDED.total_market_cap,
+            avg_market_cap = EXCLUDED.avg_market_cap
     """
 
     execute_values(cur, insert_sql, rows)
     conn.commit()
 
-    logging.info(f"✅ Inserted {len(rows)} industry performance records")
+    logging.info(f"✅ Inserted {len(rows)} industry performance records with historical tracking")
     return len(rows)
 
 
@@ -423,6 +483,9 @@ def lambda_handler(event, context):
         )
         conn.autocommit = False
         cur = conn.cursor()
+
+        # Ensure tables exist with proper indexes
+        ensure_tables(cur, conn)
 
         # Fetch SPY prices for RS calculations
         logging.info("Fetching SPY (market benchmark)...")

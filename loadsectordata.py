@@ -240,13 +240,14 @@ def fetch_sector_data(symbol, sector_name, spy_prices=None):
 
 
 def create_table(cur):
-    """Create sector_performance table"""
-    logging.info("Creating sector_performance table...")
+    """Create sector_performance table with history tracking"""
+    logging.info("Creating sector_performance table with historical tracking...")
 
-    cur.execute("DROP TABLE IF EXISTS sector_performance;")
+    # Use CREATE TABLE IF NOT EXISTS to preserve history
     cur.execute("""
-        CREATE TABLE sector_performance (
-            symbol              VARCHAR(20) PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS sector_performance (
+            id                  SERIAL PRIMARY KEY,
+            symbol              VARCHAR(20) NOT NULL,
             sector_name         VARCHAR(100) NOT NULL,
             price               DOUBLE PRECISION,
             change              DOUBLE PRECISION,
@@ -262,22 +263,29 @@ def create_table(cur):
             performance_20d     DOUBLE PRECISION,
             sma_50              DOUBLE PRECISION,
             sma_200             DOUBLE PRECISION,
-            fetched_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            sector_rank         INTEGER,
+            fetched_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(symbol, fetched_at::DATE)
         );
     """)
 
-    # Create indexes for fast lookups
+    # Create indexes for fast lookups and historical queries
     cur.execute("""
-        CREATE INDEX idx_sector_performance_sector
-        ON sector_performance(sector_name);
+        CREATE INDEX IF NOT EXISTS idx_sector_performance_symbol_date
+        ON sector_performance(symbol, fetched_at DESC);
     """)
 
     cur.execute("""
-        CREATE INDEX idx_sector_performance_perf
-        ON sector_performance(performance_1d DESC);
+        CREATE INDEX IF NOT EXISTS idx_sector_performance_date
+        ON sector_performance(fetched_at DESC);
     """)
 
-    logging.info("Table 'sector_performance' created")
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sector_performance_sector_date
+        ON sector_performance(sector_name, fetched_at DESC);
+    """)
+
+    logging.info("Table 'sector_performance' ready with history tracking")
 
 
 def load_sector_data(cur, conn):
@@ -323,6 +331,7 @@ def load_sector_data(cur, conn):
                 data['performance_20d'],
                 data['sma_50'],
                 data['sma_200'],
+                None,  # sector_rank will be calculated after insert
                 datetime.now(),
             ))
             logging.info(f"  ✅ {symbol}: RSI={data['rsi']}, RS={data['relative_strength']:.2f}%, Momentum={data['momentum']}")
@@ -341,12 +350,43 @@ def load_sector_data(cur, conn):
                 symbol, sector_name, price, change, change_percent,
                 volume, total_assets, momentum, money_flow, rsi, relative_strength,
                 performance_1d, performance_5d, performance_20d,
-                sma_50, sma_200, fetched_at
+                sma_50, sma_200, sector_rank, fetched_at
             ) VALUES %s
+            ON CONFLICT (symbol, fetched_at::DATE) DO UPDATE SET
+                price = EXCLUDED.price,
+                change = EXCLUDED.change,
+                change_percent = EXCLUDED.change_percent,
+                volume = EXCLUDED.volume,
+                total_assets = EXCLUDED.total_assets,
+                momentum = EXCLUDED.momentum,
+                money_flow = EXCLUDED.money_flow,
+                rsi = EXCLUDED.rsi,
+                relative_strength = EXCLUDED.relative_strength,
+                performance_1d = EXCLUDED.performance_1d,
+                performance_5d = EXCLUDED.performance_5d,
+                performance_20d = EXCLUDED.performance_20d,
+                sma_50 = EXCLUDED.sma_50,
+                sma_200 = EXCLUDED.sma_200,
+                sector_rank = EXCLUDED.sector_rank
         """
         execute_values(cur, insert_sql, data_rows)
+
+        # Calculate rankings for today
+        cur.execute("""
+            UPDATE sector_performance sp SET
+                sector_rank = ranked.rank
+            FROM (
+                SELECT
+                    id,
+                    ROW_NUMBER() OVER (ORDER BY performance_20d DESC) as rank
+                FROM sector_performance
+                WHERE DATE(fetched_at) = CURRENT_DATE
+            ) ranked
+            WHERE sp.id = ranked.id AND DATE(sp.fetched_at) = CURRENT_DATE
+        """)
+
         conn.commit()
-        logging.info(f"✅ Inserted {len(data_rows)} sector records")
+        logging.info(f"✅ Inserted {len(data_rows)} sector records with historical tracking")
 
     return success_count, failed_count
 
