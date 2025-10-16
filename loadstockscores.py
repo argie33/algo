@@ -144,6 +144,18 @@ def create_stock_scores_table(conn):
         conn.commit()
         logger.info("✅ stock_scores table ready")
 
+        # Add value_inputs column if it doesn't exist (for existing tables)
+        try:
+            cur.execute("""
+                ALTER TABLE stock_scores
+                ADD COLUMN IF NOT EXISTS value_inputs JSONB;
+            """)
+            conn.commit()
+            logger.info("✅ value_inputs column ready")
+        except psycopg2.Error as e:
+            logger.warning(f"⚠️ Could not add value_inputs column: {e}")
+            conn.rollback()
+
         # Create indexes (if not exists)
         logger.info("Creating indexes...")
         cur.execute("""
