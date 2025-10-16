@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Market Data Loader Script
-Updated: 2025-01-16 - Trigger market data loading for AWS RDS
+Updated: 2025-10-16 14:42 - Trigger rebuild: 20251016_144200 - Populate market_data table (indices, ETFs, sector data)
 
 This script loads comprehensive market data including:
 - Major market indices (S&P 500, NASDAQ, Dow Jones, etc.)

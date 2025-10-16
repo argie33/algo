@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
-# Updated: 2025-10-04 17:00 - Trigger price daily loader - populate price data for all stocks
+# Updated: 2025-10-16 14:40 - Trigger rebuild: 20251016_144000 - Populate price_daily table with all historical data to AWS
 import gc
 import json
 import logging

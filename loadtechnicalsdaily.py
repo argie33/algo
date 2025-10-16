@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Updated: 2025-10-12 02:30 - Force rebuild with correct AWS environment variables
-# Updated: 2025-10-03 20:55 - Run with 31GB RDS storage (was failing due to storage-full)
+# Updated: 2025-10-16 14:41 - Trigger rebuild: 20251016_144100 - Populate technical_data_daily (EMA, close, RSI) to AWS
+# Previous: 2025-10-12 02:30 - Force rebuild with correct AWS environment variables
 # Filter stocks only from stock_symbols (etf IS NULL OR etf != 'Y')
 # SATA Score implementation: Mansfield RS calculation added - Sep 30 2025
 # Memory optimized: 512MB, batch size 30 for better throughput
