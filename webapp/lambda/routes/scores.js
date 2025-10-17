@@ -27,6 +27,9 @@ router.get("/", async (req, res) => {
     const search = req.query.search || '';
 
     // Check if new momentum columns exist (backward compatibility)
+    // TEMPORARILY DISABLED: These columns don't exist yet in stock_scores
+    const hasNewMomentumColumns = false;
+    /*
     const hasNewMomentumColumns = await query(`
       SELECT column_name
       FROM information_schema.columns
@@ -34,6 +37,7 @@ router.get("/", async (req, res) => {
       AND column_name = 'momentum_short_term'
       LIMIT 1
     `).then(result => result.rows.length > 0).catch(() => false);
+    */
 
     // Query stock scores with proper field names from loadstockscores.py
     // JOIN with company_profile to get company names
@@ -502,6 +506,9 @@ router.get("/:symbol", async (req, res) => {
     }
 
     // Check if new momentum columns exist (backward compatibility)
+    // TEMPORARILY DISABLED: These columns don't exist yet in stock_scores
+    const hasNewMomentumColumns = false;
+    /*
     const hasNewMomentumColumns = await query(`
       SELECT column_name
       FROM information_schema.columns
@@ -509,6 +516,7 @@ router.get("/:symbol", async (req, res) => {
       AND column_name = 'momentum_short_term'
       LIMIT 1
     `).then(result => result.rows.length > 0).catch(() => false);
+    */
 
     const symbolQuery = `
       SELECT
