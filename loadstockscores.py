@@ -181,11 +181,13 @@ def get_stock_symbols(conn, limit=None):
 
         # Get symbols that have price data (optimize for local testing)
         # Only process symbols with sufficient price history
+        # Changed INNER to LEFT JOIN to include symbols without key_metrics (e.g., SPY)
         limit_clause = f"LIMIT {limit}" if limit else ""
         cur.execute(f"""
             SELECT DISTINCT s.symbol
             FROM stock_symbols s
             INNER JOIN price_daily p ON s.symbol = p.symbol
+            LEFT JOIN key_metrics km ON s.symbol = km.ticker
             WHERE s.exchange IN ('NASDAQ', 'N', 'A', 'P')
               AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
             GROUP BY s.symbol
@@ -250,6 +252,118 @@ def calculate_volatility(prices, period=30):
     returns = np.diff(np.log(prices))
     volatility = np.std(returns) * np.sqrt(252) * 100  # Annualized volatility
     return round(volatility, 2)
+
+def calculate_downside_volatility(prices):
+    """
+    Calculate downside volatility (volatility only on negative return days).
+    This measures risk more conservatively than total volatility.
+
+    Industry standard used by Sortino ratio and downside risk metrics.
+    """
+    if len(prices) < 2:
+        return None
+
+    returns = np.diff(np.log(prices))
+    # Only take negative returns (downside)
+    downside_returns = returns[returns < 0]
+
+    if len(downside_returns) == 0:
+        return 0  # No downside, perfect case
+
+    # Annualized downside volatility
+    downside_vol = np.std(downside_returns) * np.sqrt(252) * 100
+    return round(downside_vol, 2)
+
+def calculate_beta(conn, symbol, stock_returns):
+    """
+    Calculate Beta - correlation of stock returns to S&P 500.
+
+    Beta = Covariance(Stock Returns, Market Returns) / Variance(Market Returns)
+
+    Industry standard for systematic risk measurement.
+    Uses 252-day lookback (1 year of trading days).
+    """
+    if len(stock_returns) < 20:
+        return None
+
+    try:
+        # Get S&P 500 returns for the same period
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT close
+            FROM price_daily
+            WHERE symbol = 'SPY'
+            AND date >= CURRENT_DATE - INTERVAL '260 days'
+            ORDER BY date DESC
+            LIMIT 252
+        """)
+
+        spy_data = cur.fetchall()
+        cur.close()
+
+        if not spy_data or len(spy_data) < 20:
+            return None
+
+        # Convert to prices array (reverse order for chronological)
+        spy_prices = np.array([float(row[0]) for row in reversed(spy_data)])
+
+        # Calculate S&P 500 returns
+        if len(spy_prices) != len(stock_returns):
+            # Align to shorter series
+            min_len = min(len(spy_prices), len(stock_returns))
+            spy_prices = spy_prices[-min_len:]
+            stock_returns_aligned = stock_returns[-min_len:]
+        else:
+            stock_returns_aligned = stock_returns
+
+        spy_returns = np.diff(np.log(spy_prices))
+
+        # Calculate covariance and variance
+        covariance = np.cov(stock_returns_aligned, spy_returns)[0][1]
+        market_variance = np.var(spy_returns, ddof=1)
+
+        if market_variance == 0:
+            return 1.0  # Neutral beta if no market variance
+
+        beta = covariance / market_variance
+        return round(beta, 3)
+
+    except Exception as e:
+        logger.warning(f"Could not calculate beta for {symbol}: {e}")
+        return None
+
+def calculate_liquidity_risk(volume_avg_30d, current_price, shares_outstanding=None):
+    """
+    Calculate Liquidity Risk based on daily volume relative to market cap.
+
+    Liquidity Risk = Average Daily Volume / Market Cap (as %)
+    Higher = Better liquidity (lower risk)
+    Lower = Worse liquidity (higher risk)
+
+    If market cap not available, estimate from typical volume multiples.
+    """
+    if not volume_avg_30d or volume_avg_30d <= 0:
+        return 50  # Neutral if no volume data
+
+    # Estimate market cap from volume and price if shares outstanding not available
+    # Average stock: daily dollar volume / market cap ≈ 0.5% to 2%
+    # High liquidity: >1% daily turnover
+    # Low liquidity: <0.1% daily turnover
+
+    # For now, use volume threshold as proxy
+    # Higher daily volume = lower liquidity risk
+    if volume_avg_30d > 10_000_000:
+        return 100  # Excellent liquidity (mega-cap)
+    elif volume_avg_30d > 1_000_000:
+        return 80   # Very liquid
+    elif volume_avg_30d > 500_000:
+        return 60   # Good liquidity
+    elif volume_avg_30d > 100_000:
+        return 40   # Moderate liquidity
+    elif volume_avg_30d > 50_000:
+        return 20   # Poor liquidity
+    else:
+        return 0    # Very poor liquidity (illiquid)
 
 def calculate_percentile_rank(value, all_values):
     """
@@ -617,6 +731,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             macd_hist = None
             sma_20 = df['close'].tail(20).mean() if len(df) >= 20 else current_price
             sma_50 = df['close'].tail(50).mean() if len(df) >= 50 else current_price
+            sma_200 = df['close'].tail(200).mean() if len(df) >= 200 else current_price
             atr = None
             mom_10d = None
             roc_10d = None
@@ -764,6 +879,101 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             insider_ownership = None
             short_percent_of_float = None
             institution_count = None
+
+        # ============================================================
+        # Risk Score Calculation - Best-in-Class Framework
+        # Pure Risk Minimization Model (Option A - Defensive Focus)
+        # Formula: 30% volatility + 25% downside_vol + 25% drawdown + 15% beta + 5% liquidity
+        # LOWER volatility/drawdown/beta = HIGHER score (safer stocks)
+        # ============================================================
+        risk_score = None
+        risk_inputs = {
+            'volatility_12m_pct': None,
+            'downside_volatility_pct': None,
+            'max_drawdown_52w_pct': None,
+            'beta': None,
+            'liquidity_risk': None
+        }
+
+        try:
+            # Retrieve base metrics from risk_metrics table
+            cur.execute("""
+                SELECT volatility_12m_pct, max_drawdown_52w_pct
+                FROM risk_metrics
+                WHERE symbol = %s
+                ORDER BY date DESC LIMIT 1
+            """, (symbol,))
+
+            risk_data = cur.fetchone()
+            if risk_data:
+                volatility_12m_pct = float(risk_data[0]) if risk_data[0] is not None else None
+                max_drawdown_52w_pct = float(risk_data[1]) if risk_data[1] is not None else None
+
+                # Calculate downside volatility (only on down days)
+                prices = df['close'].astype(float).values
+                downside_volatility = calculate_downside_volatility(prices)
+
+                # Calculate beta (correlation to S&P 500)
+                price_returns = np.diff(np.log(prices))
+                beta = calculate_beta(conn, symbol, price_returns)
+
+                # Calculate liquidity risk (based on volume)
+                liquidity_risk = calculate_liquidity_risk(volume_avg_30d, current_price)
+
+                if volatility_12m_pct is not None:
+                    # Convert all to 0-100 scale for risk components
+                    # LOWER values = BETTER = higher component score
+                    # Volatility: scale from % annualized (typical 0.5% to 50%)
+                    vol_percentile = max(0, min(100, 100 - (volatility_12m_pct * 2)))  # Inverted: lower vol = higher score
+
+                    # Downside volatility: typically 0 to 30%
+                    if downside_volatility is not None:
+                        downside_percentile = max(0, min(100, 100 - (downside_volatility * 3)))  # Inverted
+                    else:
+                        downside_percentile = 50  # Neutral if missing
+
+                    # Max drawdown: typically 0 to 100%
+                    if max_drawdown_52w_pct is not None:
+                        drawdown_percentile = max(0, min(100, 100 - max_drawdown_52w_pct))  # Inverted: lower drawdown = higher score
+                    else:
+                        drawdown_percentile = 50  # Neutral if missing
+
+                    # Beta: typically 0.5 to 2.0
+                    # Beta = 1.0 is market neutral, lower is better for risk
+                    if beta is not None:
+                        # Invert: lower beta (0.8) gets higher score than higher beta (1.2)
+                        beta_percentile = max(0, min(100, 100 - (beta * 50)))  # Scale: 1.0=50, 0.5=75, 1.5=25
+                    else:
+                        beta_percentile = 50  # Neutral if missing
+
+                    # Liquidity risk: already on 0-100 scale, higher is better
+                    liquidity_percentile = liquidity_risk if liquidity_risk is not None else 50
+
+                    # Calculate composite risk score with new weighting
+                    # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
+                    risk_score = (
+                        vol_percentile * 0.30 +
+                        downside_percentile * 0.25 +
+                        drawdown_percentile * 0.25 +
+                        beta_percentile * 0.15 +
+                        liquidity_percentile * 0.05
+                    )
+                    risk_score = max(0, min(100, risk_score))
+
+                    # Store risk inputs for display
+                    risk_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
+                    risk_inputs['downside_volatility_pct'] = round(downside_volatility, 2) if downside_volatility is not None else None
+                    risk_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2) if max_drawdown_52w_pct else None
+                    risk_inputs['beta'] = round(beta, 3) if beta is not None else None
+                    risk_inputs['liquidity_risk'] = round(liquidity_percentile, 1) if liquidity_percentile else None
+
+        except psycopg2.Error as e:
+            logger.warning(f"Risk metrics table query failed for {symbol}: {e}")
+            conn.rollback()
+            risk_score = None
+        except Exception as e:
+            logger.warning(f"Risk calculation failed for {symbol}: {e}")
+            risk_score = None
 
         # Get quality metrics from key_metrics table for percentile-based quality score
         stock_roe = None
@@ -1456,6 +1666,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'growth_score': float(round(clamp_score(growth_score), 2)),
             'positioning_score': float(round(clamp_score(positioning_score), 2)),
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)),
+            'risk_score': float(round(clamp_score(risk_score), 2)) if risk_score is not None else None,
+            'risk_inputs': risk_inputs,
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
@@ -1496,11 +1708,15 @@ def save_stock_score(conn, score_data):
     try:
         cur = conn.cursor()
 
+        # Convert risk_inputs dict to JSON string for JSONB column
+        if score_data.get('risk_inputs') is not None:
+            score_data['risk_inputs'] = json.dumps(score_data['risk_inputs'])
+
         # Upsert query
         upsert_sql = """
         INSERT INTO stock_scores (
             symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
-            positioning_score, sentiment_score,
+            positioning_score, sentiment_score, risk_score, risk_inputs,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio,
@@ -1511,7 +1727,7 @@ def save_stock_score(conn, score_data):
             score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
-            %(positioning_score)s, %(sentiment_score)s,
+            %(positioning_score)s, %(sentiment_score)s, %(risk_score)s, %(risk_inputs)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s,
@@ -1529,6 +1745,8 @@ def save_stock_score(conn, score_data):
             growth_score = EXCLUDED.growth_score,
             positioning_score = EXCLUDED.positioning_score,
             sentiment_score = EXCLUDED.sentiment_score,
+            risk_score = EXCLUDED.risk_score,
+            risk_inputs = EXCLUDED.risk_inputs,
             rsi = EXCLUDED.rsi,
             macd = EXCLUDED.macd,
             sma_20 = EXCLUDED.sma_20,
