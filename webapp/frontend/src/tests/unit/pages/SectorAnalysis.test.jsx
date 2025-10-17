@@ -108,30 +108,50 @@ const mockSectorPerformanceData = {
 
 const mockRotationData = {
   data: {
-    sectorRotation: [
+    sectors: [
       {
         sector: "Technology",
+        symbol: "XLK",
+        overall_rank: 1,
+        rsi: 65,
         momentum: "Strong",
         flow: "Inflow",
-        performance: 2.5,
+        performance_1d: 2.5,
+        performance_5d: 5.2,
+        performance_20d: 12.8,
       },
       {
         sector: "Healthcare",
+        symbol: "XLV",
+        overall_rank: 2,
+        rsi: 58,
         momentum: "Moderate",
         flow: "Inflow",
-        performance: 1.8,
+        performance_1d: 1.8,
+        performance_5d: 3.5,
+        performance_20d: 8.7,
       },
       {
         sector: "Financials",
+        symbol: "XLF",
+        overall_rank: 3,
+        rsi: 52,
         momentum: "Moderate",
         flow: "Neutral",
-        performance: 1.2,
+        performance_1d: 1.2,
+        performance_5d: 2.1,
+        performance_20d: 5.3,
       },
       {
         sector: "Energy",
+        symbol: "XLE",
+        overall_rank: 4,
+        rsi: 42,
         momentum: "Weak",
         flow: "Outflow",
-        performance: -0.3,
+        performance_1d: -0.3,
+        performance_5d: -1.2,
+        performance_20d: -2.8,
       },
     ],
   },
@@ -202,14 +222,14 @@ describe("SectorAnalysis Component", () => {
 
     // Mock different endpoints with appropriate responses
     api.default.get.mockImplementation((url) => {
-      if (url.includes("/sectors/performance")) {
-        return Promise.resolve({ data: mockSectorPerformanceData });
-      }
-      if (url.includes("/market/research-indicators")) {
-        return Promise.resolve(mockRotationData);
+      if (url.includes("/market/sectors")) {
+        return Promise.resolve({ data: mockRotationData });
       }
       if (url.includes("/market/industries")) {
-        return Promise.resolve(mockIndustryData);
+        return Promise.resolve({ data: mockIndustryData });
+      }
+      if (url.includes("/sectors/performance")) {
+        return Promise.resolve({ data: mockSectorPerformanceData });
       }
       return Promise.resolve({ data: { success: true, data: [] } });
     });
@@ -352,14 +372,20 @@ describe("SectorAnalysis Component", () => {
     });
   });
 
-  it("displays sector weights table", async () => {
+  it("displays industry rankings table with correct columns", async () => {
     renderSectorAnalysis();
 
     await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
-      expect(screen.getByText(/sector|name/i)).toBeInTheDocument();
-      expect(screen.getByText(/performance|return/i)).toBeInTheDocument();
-      expect(screen.getByText(/allocation|weight/i)).toBeInTheDocument();
+      const tables = screen.getAllByRole("table");
+      expect(tables.length).toBeGreaterThan(0);
+
+      // Check for table headers
+      expect(screen.getByText(/Rank/i)).toBeInTheDocument();
+      expect(screen.getByText(/Industry/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sector/i)).toBeInTheDocument();
+      expect(screen.getByText(/RS Rating/i)).toBeInTheDocument();
+      expect(screen.getByText(/Momentum/i)).toBeInTheDocument();
+      expect(screen.getByText(/Trend/i)).toBeInTheDocument();
     });
   });
 
