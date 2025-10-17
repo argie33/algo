@@ -1112,48 +1112,13 @@ export const getMarketSectorPerformance = async () => {
   console.log(`📊 [API] Fetching market sector performance...`);
 
   try {
-    // Try multiple endpoint variations
-    // Use the correct endpoint for Lambda (without /api prefix)
-    const endpoints = [
-      `/market/sectors/performance`,
-      `/api/market/sectors/performance`,
-    ];
-
-    let response = null;
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`📊 [API] Trying sector endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
-        console.log(
-          `📊 [API] SUCCESS with sector endpoint: ${endpoint}`,
-          response
-        );
-        break;
-      } catch (err) {
-        console.log(
-          `📊 [API] FAILED sector endpoint: ${endpoint}`,
-          err.message
-        );
-        lastError = err;
-        continue;
-      }
-    }
-
-    if (!response) {
-      console.error("📊 [API] All sector endpoints failed:", {
-        message: lastError?.message || "Unknown error",
-        status: lastError.response?.status,
-        url: lastError.config?.url,
-      });
-      throw lastError;
-    }
+    const response = await api.get(`/api/market/sectors/performance`);
+    console.log(`📊 [API] Fetched sector performance:`, response.data);
 
     // Always return { data: ... } structure for consistency
     if (response?.data && typeof response?.data === "object") {
       console.log("📊 [API] Returning sector data structure:", response?.data);
-      return response?.data; // Backend already returns { data: ..., metadata: ... }
+      return response?.data;
     }
 
     // Fallback to normalized response
@@ -1176,45 +1141,13 @@ export const getMarketBreadth = async () => {
   console.log(`📊 [API] Fetching market breadth...`);
 
   try {
-    // Try multiple endpoint variations
-    // Use the correct endpoint for Lambda (without /api prefix)
-    const endpoints = [`/market/breadth`, `/api/market/breadth`];
-
-    let response = null;
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`📊 [API] Trying breadth endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
-        console.log(
-          `📊 [API] SUCCESS with breadth endpoint: ${endpoint}`,
-          response
-        );
-        break;
-      } catch (err) {
-        console.log(
-          `📊 [API] FAILED breadth endpoint: ${endpoint}`,
-          err.message
-        );
-        lastError = err;
-        continue;
-      }
-    }
-
-    if (!response) {
-      console.error("📊 [API] All breadth endpoints failed:", {
-        message: lastError?.message || "Unknown error",
-        status: lastError.response?.status,
-        url: lastError.config?.url,
-      });
-      throw lastError;
-    }
+    const response = await api.get(`/api/market/breadth`);
+    console.log(`📊 [API] Fetched market breadth:`, response.data);
 
     // Always return { data: ... } structure for consistency
     if (response?.data && typeof response?.data === "object") {
       console.log("📊 [API] Returning breadth data structure:", response?.data);
-      return response?.data; // Backend already returns { data: ..., metadata: ... }
+      return response?.data;
     }
 
     // Fallback to normalized response
@@ -1289,51 +1222,13 @@ export const getEconomicIndicators = async (days = 90) => {
   console.log(`📊 [API] Fetching economic indicators for ${days} days...`);
 
   try {
-    // Try multiple endpoint variations
-    // Use the correct endpoint for Lambda (without /api prefix)
-    const endpoints = [
-      `/market/economic?days=${days}`,
-      `/api/market/economic?days=${days}`,
-    ];
-
-    let response = null;
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`📊 [API] Trying economic endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
-        console.log(
-          `📊 [API] SUCCESS with economic endpoint: ${endpoint}`,
-          response
-        );
-        break;
-      } catch (err) {
-        console.log(
-          `📊 [API] FAILED economic endpoint: ${endpoint}`,
-          err.message
-        );
-        lastError = err;
-        continue;
-      }
-    }
-
-    if (!response) {
-      console.error("📊 [API] All economic endpoints failed:", {
-        message: lastError?.message || "Unknown error",
-        status: lastError.response?.status,
-        url: lastError.config?.url,
-      });
-      throw lastError;
-    }
+    const response = await api.get(`/api/market/economic?days=${days}`);
+    console.log(`📊 [API] Fetched economic indicators:`, response.data);
 
     // Always return { data: ... } structure for consistency
     if (response?.data && typeof response?.data === "object") {
-      console.log(
-        "📊 [API] Returning economic data structure:",
-        response?.data
-      );
-      return response?.data; // Backend already returns { data: ..., period_days: ..., total_data_points: ... }
+      console.log("📊 [API] Returning economic data structure:", response?.data);
+      return response?.data;
     }
 
     // Fallback to normalized response
