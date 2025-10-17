@@ -1079,10 +1079,10 @@ export const getMarketSentimentHistory = async (days = 30) => {
 
   try {
     // Try multiple endpoint variations
-    // Use the correct endpoint for Lambda (without /api prefix)
+    // Use /api prefix - correct backend route
     const endpoints = [
-      `/market/sentiment/history?days=${days}`,
       `/api/market/sentiment/history?days=${days}`,
+      `/market/sentiment/history?days=${days}`,
     ];
 
     let response = null;
