@@ -264,9 +264,14 @@ def create_table(cur):
             sma_50              DOUBLE PRECISION,
             sma_200             DOUBLE PRECISION,
             sector_rank         INTEGER,
-            fetched_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(symbol, fetched_at::DATE)
+            fetched_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+    """)
+
+    # Create unique index on symbol and date to allow daily updates
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sector_performance_symbol_date_unique
+        ON sector_performance(symbol, DATE(fetched_at));
     """)
 
     # Create indexes for fast lookups and historical queries
@@ -345,6 +350,9 @@ def load_sector_data(cur, conn):
 
     # Insert all data
     if data_rows:
+        # Delete today's records first to ensure clean insert
+        cur.execute("DELETE FROM sector_performance WHERE DATE(fetched_at) = CURRENT_DATE")
+
         insert_sql = """
             INSERT INTO sector_performance (
                 symbol, sector_name, price, change, change_percent,
@@ -352,22 +360,6 @@ def load_sector_data(cur, conn):
                 performance_1d, performance_5d, performance_20d,
                 sma_50, sma_200, sector_rank, fetched_at
             ) VALUES %s
-            ON CONFLICT (symbol, fetched_at::DATE) DO UPDATE SET
-                price = EXCLUDED.price,
-                change = EXCLUDED.change,
-                change_percent = EXCLUDED.change_percent,
-                volume = EXCLUDED.volume,
-                total_assets = EXCLUDED.total_assets,
-                momentum = EXCLUDED.momentum,
-                money_flow = EXCLUDED.money_flow,
-                rsi = EXCLUDED.rsi,
-                relative_strength = EXCLUDED.relative_strength,
-                performance_1d = EXCLUDED.performance_1d,
-                performance_5d = EXCLUDED.performance_5d,
-                performance_20d = EXCLUDED.performance_20d,
-                sma_50 = EXCLUDED.sma_50,
-                sma_200 = EXCLUDED.sma_200,
-                sector_rank = EXCLUDED.sector_rank
         """
         execute_values(cur, insert_sql, data_rows)
 

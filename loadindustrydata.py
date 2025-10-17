@@ -318,16 +318,21 @@ def ensure_tables(cur, conn):
             overall_rank        INTEGER,
             total_market_cap    BIGINT,
             avg_market_cap      BIGINT,
-            fetched_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(industry, fetched_at::DATE)
+            fetched_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+    """)
+
+    # Create unique index on industry and date to allow daily updates
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_industry_perf_industry_date_unique
+        ON industry_performance(industry, DATE(fetched_at));
     """)
 
     # Create indexes for efficient historical queries
     cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_industry_date ON industry_performance(industry, fetched_at DESC);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_sector_date ON industry_performance(sector, fetched_at DESC);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_date ON industry_performance(fetched_at DESC);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_overall_rank ON industry_performance(overall_rank) WHERE DATE(fetched_at) = CURRENT_DATE;")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_overall_rank ON industry_performance(overall_rank, fetched_at DESC);")
 
     conn.commit()
     logging.info("✅ Industry performance table ready with historical tracking")
@@ -372,7 +377,10 @@ def insert_industry_data(cur, conn, industry_data):
             datetime.now(),
         ))
 
-    # Insert data with conflict handling (preserve history)
+    # Delete today's records first to ensure clean insert
+    cur.execute("DELETE FROM industry_performance WHERE DATE(fetched_at) = CURRENT_DATE")
+
+    # Insert data
     insert_sql = """
         INSERT INTO industry_performance (
             sector, industry, industry_key, stock_count, stock_symbols,
@@ -382,24 +390,6 @@ def insert_industry_data(cur, conn, industry_data):
             sector_rank, overall_rank, total_market_cap, avg_market_cap,
             fetched_at
         ) VALUES %s
-        ON CONFLICT (industry, fetched_at::DATE) DO UPDATE SET
-            stock_count = EXCLUDED.stock_count,
-            stock_symbols = EXCLUDED.stock_symbols,
-            avg_change_percent = EXCLUDED.avg_change_percent,
-            median_change_percent = EXCLUDED.median_change_percent,
-            total_volume = EXCLUDED.total_volume,
-            avg_volume = EXCLUDED.avg_volume,
-            performance_1d = EXCLUDED.performance_1d,
-            performance_5d = EXCLUDED.performance_5d,
-            performance_20d = EXCLUDED.performance_20d,
-            rs_rating = EXCLUDED.rs_rating,
-            rs_vs_spy = EXCLUDED.rs_vs_spy,
-            momentum = EXCLUDED.momentum,
-            trend = EXCLUDED.trend,
-            sector_rank = EXCLUDED.sector_rank,
-            overall_rank = EXCLUDED.overall_rank,
-            total_market_cap = EXCLUDED.total_market_cap,
-            avg_market_cap = EXCLUDED.avg_market_cap
     """
 
     execute_values(cur, insert_sql, rows)
