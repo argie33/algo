@@ -276,9 +276,26 @@ router.get("/articles", async (req, res) => {
       paramIndex++;
     }
 
-    // No news table available - return empty results
-    const result = { rows: [] };
-    const countResult = { rows: [{ total: 0 }] };
+    // Query news articles from database
+    const newsArticlesQuery = `
+      SELECT
+        id, title, content, source, author, published_at, url, category, symbol,
+        sentiment, sentiment_confidence, keywords, summary, impact_score, relevance_score,
+        created_at
+      FROM news
+      WHERE 1=1
+      ${whereClause}
+      ORDER BY published_at DESC
+      LIMIT $${paramIndex}
+      OFFSET $${paramIndex + 1}
+    `;
+
+    const params_articles = [...params, parseInt(limit), parseInt(offset)];
+    const result = await query(newsArticlesQuery, params_articles);
+
+    // Get total count
+    const countQuery = `SELECT COUNT(*) as total FROM news WHERE 1=1 ${whereClause}`;
+    const countResult = await query(countQuery, params);
 
     const articles = result.rows.map((row) => ({
       id: row.id,
@@ -344,8 +361,13 @@ router.get("/sentiment/:symbol", async (req, res) => {
 
     const intervalClause = timeframeMap[timeframe] || "24 hours";
 
-    // No news table available - return zero count
-    const newsCheck = { rows: [{ count: 0 }] };
+    // Check if news articles exist for the symbol
+    const newsCheckQuery = `
+      SELECT COUNT(*) as count FROM news
+      WHERE symbol = $1
+      AND published_at >= NOW() - INTERVAL '${intervalClause}'
+    `;
+    const newsCheck = await query(newsCheckQuery, [symbol.toUpperCase()]);
 
     if (!newsCheck.rows[0] || parseInt(newsCheck.rows[0].count) === 0) {
       return res.status(404).json({
@@ -356,18 +378,27 @@ router.get("/sentiment/:symbol", async (req, res) => {
       });
     }
 
-    // No news table available - return default sentiment data
-    const sentimentResult = {
-      rows: [{
-        total_articles: 0,
-        positive_count: 0,
-        negative_count: 0,
-        neutral_count: 0
-      }]
-    };
+    // Get sentiment statistics from real data
+    const sentimentQuery = `
+      SELECT
+        COUNT(*) as total_articles,
+        COUNT(CASE WHEN sentiment > 0.1 THEN 1 END) as positive_count,
+        COUNT(CASE WHEN sentiment < -0.1 THEN 1 END) as negative_count,
+        COUNT(CASE WHEN sentiment >= -0.1 AND sentiment <= 0.1 THEN 1 END) as neutral_count
+      FROM news
+      WHERE symbol = $1
+      AND published_at >= NOW() - INTERVAL '${intervalClause}'
+    `;
+    const sentimentResult = await query(sentimentQuery, [symbol.toUpperCase()]);
 
-    // No news table available - return empty articles
-    const recentArticles = { rows: [] };
+    // Get recent articles
+    const recentArticlesQuery = `
+      SELECT headline, published_at, source FROM news
+      WHERE symbol = $1
+      AND published_at >= NOW() - INTERVAL '${intervalClause}'
+      ORDER BY published_at DESC LIMIT 5
+    `;
+    const recentArticles = await query(recentArticlesQuery, [symbol.toUpperCase()]);
 
     const sentiment = sentimentResult.rows[0];
     const totalArticles = parseInt(sentiment.total_articles) || 0;
@@ -1087,183 +1118,6 @@ router.get("/sentiment-dashboard", async (req, res) => {
       success: false,
       error: "Internal server error",
       message: error.message
-    });
-  }
-});
-
-// News headlines endpoint - top headlines and breaking news
-router.get("/headlines", async (req, res) => {
-  try {
-    const {
-      symbol,
-      category = "all",
-      limit = 20,
-      timeframe = "24h",
-    } = req.query;
-
-    console.log(
-      `📰 News headlines requested - symbol: ${symbol || "all"}, category: ${category}`
-    );
-    // Build filters
-    let symbolFilter = "";
-    let categoryFilter = "";
-    let queryParams = [parseInt(limit)];
-    let paramIndex = 2;
-
-    if (symbol) {
-      symbolFilter = `AND (symbol = $${paramIndex} OR headline ILIKE '%' || $${paramIndex} || '%')`;
-      queryParams.push(symbol.toUpperCase());
-      paramIndex++;
-    }
-
-    if (category && category !== "all") {
-      categoryFilter = `AND category = $${paramIndex}`;
-      queryParams.push(category);
-      paramIndex++;
-    }
-
-    const headlinesQuery = `
-        SELECT 
-          category,
-          AVG(CASE 
-          WHEN sentiment = 'positive' THEN 0.7
-          WHEN sentiment = 'negative' THEN -0.7
-          WHEN sentiment = 'neutral' THEN 0
-          ELSE 0 END) as avg_sentiment,
-          COUNT(*) as article_count
-        FROM news 
-        WHERE published_at >= NOW() - INTERVAL '${timeframe}'
-        AND category IS NOT NULL
-        GROUP BY category
-        ORDER BY avg_sentiment DESC
-      `;
-
-    // Get trending symbols by sentiment
-    const symbolSentimentQuery = `
-        SELECT 
-          symbol,
-          AVG(CASE 
-          WHEN sentiment = 'positive' THEN 0.7
-          WHEN sentiment = 'negative' THEN -0.7
-          WHEN sentiment = 'neutral' THEN 0
-          ELSE 0 END) as avg_sentiment,
-          COUNT(*) as mention_count
-        FROM news 
-        WHERE published_at >= NOW() - INTERVAL '${timeframe}'
-        AND symbol IS NOT NULL
-        GROUP BY symbol
-        HAVING COUNT(*) >= 2
-        ORDER BY mention_count DESC, avg_sentiment DESC
-        LIMIT 10
-      `;
-
-    // Get overall market sentiment
-    const marketSentimentQuery = `
-      SELECT
-        AVG(CASE
-          WHEN sentiment = 'positive' THEN 1
-          WHEN sentiment = 'negative' THEN -1
-          ELSE 0 END) as avg_sentiment,
-        COUNT(*) as total_articles
-      FROM news
-      WHERE published_at >= NOW() - INTERVAL '${timeframe}'
-    `;
-
-    const [marketResult, sectorResult, symbolResult] = await Promise.all([
-      query(marketSentimentQuery),
-      query(sectorSentimentQuery),
-      query(symbolSentimentQuery),
-    ]);
-
-    // Check if queries returned valid results
-    if (!marketResult || !marketResult.rows) {
-      throw new Error(
-        "Market sentiment query failed - news tables may not exist"
-      );
-    }
-    if (!sectorResult || !sectorResult.rows) {
-      throw new Error(
-        "Sector sentiment query failed - news tables may not exist"
-      );
-    }
-    if (!symbolResult || !symbolResult.rows) {
-      throw new Error(
-        "Symbol sentiment query failed - news tables may not exist"
-      );
-    }
-
-    // Process market sentiment
-    const marketData = marketResult.rows[0];
-    const totalArticles = parseInt(marketData?.total_articles) || 0;
-
-    if (totalArticles === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No sentiment data found",
-        message:
-          "No news articles with sentiment data found for the specified timeframe.",
-        timeframe,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    const marketSentiment = {
-      overall_score: parseFloat(marketData.average_sentiment || 0).toFixed(3),
-      sentiment_distribution: {
-        positive: parseInt(marketData.positive_count) || 0,
-        negative: parseInt(marketData.negative_count) || 0,
-        neutral: parseInt(marketData.neutral_count) || 0,
-        total: totalArticles,
-      },
-      sentiment_percentages: {
-        positive: (
-          ((parseInt(marketData.positive_count) || 0) / totalArticles) *
-          100
-        ).toFixed(1),
-        negative: (
-          ((parseInt(marketData.negative_count) || 0) / totalArticles) *
-          100
-        ).toFixed(1),
-        neutral: (
-          ((parseInt(marketData.neutral_count) || 0) / totalArticles) *
-          100
-        ).toFixed(1),
-      },
-    };
-
-    // Process sector sentiment
-    const sectorSentiment = sectorResult.rows.map((row) => ({
-      category: row.category,
-      sentiment_score: parseFloat(row.avg_sentiment || 0).toFixed(3),
-      article_count: parseInt(row.article_count) || 0,
-    }));
-
-    // Process symbol sentiment
-    const symbolSentiment = symbolResult.rows.map((row) => ({
-      symbol: row.symbol,
-      sentiment_score: parseFloat(row.avg_sentiment || 0).toFixed(3),
-      mention_count: parseInt(row.mention_count) || 0,
-    }));
-
-    res.json({
-      success: true,
-      data: {
-        market_sentiment: marketSentiment,
-        sector_sentiment: sectorSentiment,
-        symbol_sentiment: symbolSentiment,
-        timeframe,
-        updated_at: new Date().toISOString(),
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Sentiment dashboard error:", error);
-
-    return res.status(500).json({
-      success: false,
-      error: "Sentiment dashboard query failed",
-      details: error.message,
-      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -2119,7 +1973,7 @@ router.get("/sentiment/:symbol", async (req, res) => {
           impact_weighting:
             "High impact articles weighted 1.0, medium 0.6, low 0.3",
           data_source:
-            "Synthetic news articles for demonstration (real implementation would use news feeds)",
+            "Real news articles from database (news_unified table)",
         },
       },
       filters: {
@@ -2146,202 +2000,86 @@ router.get("/trending", async (req, res) => {
     const { timeframe = "24h", limit = 20, category } = req.query;
 
     console.log(
-      `📈 Generating trending news for timeframe: ${timeframe}, limit: ${limit}`
+      `📈 Fetching trending news for timeframe: ${timeframe}, limit: ${limit}`
     );
 
-    // Generate trending news based on engagement metrics and virality
-    const generateTrendingNews = (
-      timeframePeriod,
-      maxItems,
-      categoryFilter
-    ) => {
-      const categories = [
-        "market",
-        "earnings",
-        "economy",
-        "crypto",
-        "technology",
-        "politics",
-        "global",
-      ];
-      const sourceTypes = ["financial", "social", "mainstream", "analyst"];
+    // Check database availability
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Trending news service requires database connection"
+      });
+    }
 
-      const trendingNews = [];
-      const now = new Date();
-
-      // Determine time range
-      let timeRangeHours;
-      switch (timeframePeriod) {
-        case "1h":
-          timeRangeHours = 1;
-          break;
-        case "6h":
-          timeRangeHours = 6;
-          break;
-        case "24h":
-          timeRangeHours = 24;
-          break;
-        case "3d":
-          timeRangeHours = 72;
-          break;
-        case "7d":
-          timeRangeHours = 168;
-          break;
-        default:
-          timeRangeHours = 24;
-      }
-
-      for (let i = 0; i < maxItems; i++) {
-        const newsCategory =
-          categoryFilter ||
-          categories[Math.floor(Math.random() * categories.length)];
-        const sourceType =
-          sourceTypes[Math.floor(Math.random() * sourceTypes.length)];
-
-        // Generate trending metrics
-        const baseEngagement = 1000 + Math.random() * 50000;
-        const viralityScore = 0.3 + Math.random() * 0.7; // 0.3-1.0
-        const trendingScore = baseEngagement * viralityScore;
-
-        // Generate realistic timestamps within timeframe
-        const publishTime = new Date(
-          now.getTime() - Math.random() * timeRangeHours * 60 * 60 * 1000
-        );
-
-        // Generate trending news content
-        const trendingTopics = {
-          market: [
-            "Fed Rate Decision",
-            "Market Volatility",
-            "Sector Rotation",
-            "IPO Launch",
-            "Merger Announcement",
-          ],
-          earnings: [
-            "Earnings Beat",
-            "Revenue Miss",
-            "Guidance Update",
-            "Analyst Upgrade",
-            "CEO Interview",
-          ],
-          economy: [
-            "Inflation Data",
-            "Employment Report",
-            "GDP Growth",
-            "Trade Relations",
-            "Economic Policy",
-          ],
-          crypto: [
-            "Bitcoin Rally",
-            "Regulatory Update",
-            "DeFi Innovation",
-            "Exchange News",
-            "Institutional Adoption",
-          ],
-          technology: [
-            "AI Breakthrough",
-            "Product Launch",
-            "Partnership Deal",
-            "Security Breach",
-            "Patent Filing",
-          ],
-          politics: [
-            "Policy Change",
-            "Election Update",
-            "Regulatory Filing",
-            "Congressional Hearing",
-            "International Relations",
-          ],
-          global: [
-            "Central Bank Action",
-            "Geopolitical Event",
-            "Natural Disaster",
-            "Trade Agreement",
-            "Currency Movement",
-          ],
-        };
-
-        const topics = trendingTopics[newsCategory] || trendingTopics.market;
-        const topic = topics[Math.floor(Math.random() * topics.length)];
-
-        const symbols = [
-          "AAPL",
-          "MSFT",
-          "GOOGL",
-          "AMZN",
-          "TSLA",
-          "NVDA",
-          "META",
-          "NFLX",
-        ];
-        const relatedSymbol =
-          symbols[Math.floor(Math.random() * symbols.length)];
-
-        trendingNews.push({
-          id: `trending_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 8)}`,
-          title: `${topic}: ${relatedSymbol} ${newsCategory === "market" ? "Moves" : "Update"} Creates Market Buzz`,
-          summary: `Breaking news about ${relatedSymbol} related to ${topic.toLowerCase()} has generated significant market attention and social media engagement.`,
-          category: newsCategory,
-          source_type: sourceType,
-          published_at: publishTime.toISOString(),
-          engagement_metrics: {
-            total_engagement: Math.round(trendingScore),
-            shares: Math.round(trendingScore * 0.3),
-            likes: Math.round(trendingScore * 0.5),
-            comments: Math.round(trendingScore * 0.2),
-            retweets: Math.round(trendingScore * 0.15),
-            virality_score: Math.round(viralityScore * 100) / 100,
-          },
-          trending_metrics: {
-            trend_velocity:
-              Math.round((trendingScore / timeRangeHours) * 100) / 100, // Engagement per hour
-            peak_time: new Date(
-              publishTime.getTime() + Math.random() * 2 * 60 * 60 * 1000
-            ).toISOString(),
-            trending_duration_hours:
-              Math.round(Math.random() * timeRangeHours * 100) / 100,
-            social_sentiment: ["positive", "negative", "neutral"][
-              Math.floor(Math.random() * 3)
-            ],
-            mention_count: Math.round(50 + Math.random() * 1000),
-          },
-          related_symbols: [relatedSymbol],
-          source: {
-            name:
-              sourceType === "financial"
-                ? "Financial News Network"
-                : sourceType === "social"
-                  ? "Social Media Aggregator"
-                  : sourceType === "mainstream"
-                    ? "Major News Outlet"
-                    : "Analyst Report",
-            credibility_score: 0.7 + Math.random() * 0.3,
-            follower_count: Math.round(10000 + Math.random() * 1000000),
-          },
-          trending_rank: i + 1,
-          is_breaking: i < 3 && Math.random() > 0.7,
-          time_to_trend: Math.round(Math.random() * 60), // minutes to trend
-          geographic_trending: ["US", "Global", "Europe", "Asia"][
-            Math.floor(Math.random() * 4)
-          ],
-        });
-      }
-
-      // Sort by trending score descending
-      return trendingNews.sort(
-        (a, b) =>
-          b.engagement_metrics.total_engagement -
-          a.engagement_metrics.total_engagement
-      );
+    // Parse timeframe to SQL interval
+    const timeframeMap = {
+      "1h": "1 hour",
+      "6h": "6 hours",
+      "24h": "24 hours",
+      "3d": "3 days",
+      "7d": "7 days",
     };
+    const intervalClause = timeframeMap[timeframe] || "24 hours";
 
-    const trendingData = generateTrendingNews(
-      timeframe,
-      parseInt(limit),
-      category
-    );
+    // Query real trending news from database
+    let whereClause = `WHERE published_at >= NOW() - INTERVAL '${intervalClause}'`;
+    const params = [parseInt(limit)];
 
-    // Calculate trending analytics
+    if (category && category !== "all") {
+      whereClause += ` AND category = $2`;
+      params.unshift(category);
+    }
+
+    const trendingQuery = `
+      SELECT
+        id,
+        headline,
+        summary,
+        source,
+        category,
+        symbol,
+        url,
+        published_at,
+        sentiment,
+        relevance_score
+      FROM news
+      ${whereClause}
+      ORDER BY published_at DESC, relevance_score DESC
+      LIMIT $${params.length}
+    `;
+
+    const result = await query(trendingQuery, params);
+
+    if (!result || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No trending news found",
+        message: "No news articles found for the specified timeframe",
+        filters: {
+          timeframe: timeframe,
+          limit: parseInt(limit),
+          category: category || "all",
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const trendingData = result.rows.map((row) => ({
+      id: row.id,
+      headline: row.headline,
+      summary: row.summary,
+      source: row.source,
+      category: row.category,
+      symbol: row.symbol,
+      url: row.url,
+      published_at: row.published_at,
+      sentiment: convertScoreToLabel(row.sentiment),
+      sentiment_score: convertSentimentToScore(row.sentiment),
+      relevance_score: parseFloat(row.relevance_score || 0),
+    }));
+
+    // Calculate trending analytics from real data
     const analytics = {
       total_trending_stories: trendingData.length,
       timeframe_analyzed: timeframe,
@@ -2353,24 +2091,18 @@ router.get("/trending", async (req, res) => {
       )
         .sort(([, a], [, b]) => b - a)
         .slice(0, 5),
-      average_engagement: Math.round(
-        trendingData.reduce(
-          (sum, news) => sum + news.engagement_metrics.total_engagement,
-          0
-        ) / trendingData.length
-      ),
-      breaking_news_count: trendingData.filter((news) => news.is_breaking)
-        .length,
+      average_relevance: (
+        trendingData.reduce((sum, news) => sum + news.relevance_score, 0) /
+        trendingData.length
+      ).toFixed(2),
       sentiment_distribution: trendingData.reduce((acc, news) => {
-        acc[news.trending_metrics.social_sentiment] =
-          (acc[news.trending_metrics.social_sentiment] || 0) + 1;
+        acc[news.sentiment] = (acc[news.sentiment] || 0) + 1;
         return acc;
       }, {}),
-      top_symbols: [
-        ...new Set(trendingData.flatMap((news) => news.related_symbols)),
-      ].slice(0, 10),
-      geographic_spread: [
-        ...new Set(trendingData.map((news) => news.geographic_trending)),
+      unique_symbols: [
+        ...new Set(
+          trendingData.map((news) => news.symbol).filter(Boolean)
+        ),
       ],
     };
 
@@ -2382,12 +2114,6 @@ router.get("/trending", async (req, res) => {
         timeframe: timeframe,
         limit: parseInt(limit),
         category: category || "all",
-      },
-      methodology: {
-        ranking_algorithm: "Engagement velocity and virality scoring",
-        data_sources: "Social media, financial news, analyst reports",
-        update_frequency: "Real-time with 15-minute trending windows",
-        virality_calculation: "Engagement rate × reach × time-decay factor",
       },
       timestamp: new Date().toISOString(),
     });
