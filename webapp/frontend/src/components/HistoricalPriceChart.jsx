@@ -49,7 +49,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
         return result || { data: [] };
       } catch (err) {
         console.warn("Historical prices API failed, using fallback:", err.message);
-        return { data: [] };
+        throw err;
       }
     },
     enabled: !!symbol,

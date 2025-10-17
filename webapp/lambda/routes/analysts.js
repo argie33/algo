@@ -35,18 +35,20 @@ router.get("/upgrades", async (req, res) => {
     // Performance optimization: Add 180-day filter to reduce query time
     const upgradesQuery = `
       SELECT
-        id,
-        symbol,
-        firm,
-        action,
-        from_grade,
-        to_grade,
-        date,
-        details,
-        fetched_at
-      FROM analyst_upgrade_downgrade
-      WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-      ORDER BY date DESC, fetched_at DESC
+        a.id,
+        a.symbol,
+        c.short_name as company_name,
+        a.firm,
+        a.action,
+        a.from_grade,
+        a.to_grade,
+        a.date,
+        a.details,
+        a.fetched_at
+      FROM analyst_upgrade_downgrade a
+      LEFT JOIN company_profile c ON a.symbol = c.ticker
+      WHERE a.date >= CURRENT_DATE - INTERVAL '30 days'
+      ORDER BY a.date DESC, a.fetched_at DESC
       LIMIT $1 OFFSET $2
     `;
 
@@ -327,8 +329,6 @@ router.get("/:symbol/eps-trend", async (req, res) => {
     const data = result.rows;
 
     // Calculate trend metrics
-    let trend = "neutral";
-    let trendScore = 0;
     let avgGrowth = 0;
 
     if (data.length > 1) {
@@ -336,27 +336,6 @@ router.get("/:symbol/eps-trend", async (req, res) => {
       const growthRates = data.filter(row => row.growth !== null).map(row => parseFloat(row.growth) || 0);
       if (growthRates.length > 0) {
         avgGrowth = growthRates.reduce((sum, rate) => sum + rate, 0) / growthRates.length;
-
-        // Determine trend based on average growth
-        if (avgGrowth > 10) {
-          trend = "strongly_positive";
-          trendScore = Math.min(100, 50 + avgGrowth * 2);
-        } else if (avgGrowth > 5) {
-          trend = "positive";
-          trendScore = 50 + avgGrowth * 5;
-        } else if (avgGrowth > 0) {
-          trend = "slightly_positive";
-          trendScore = 50 + avgGrowth * 3;
-        } else if (avgGrowth > -5) {
-          trend = "slightly_negative";
-          trendScore = 50 + avgGrowth * 3;
-        } else if (avgGrowth > -10) {
-          trend = "negative";
-          trendScore = Math.max(0, 50 + avgGrowth * 5);
-        } else {
-          trend = "strongly_negative";
-          trendScore = Math.max(0, 50 + avgGrowth * 2);
-        }
       }
     }
 
@@ -369,7 +348,6 @@ router.get("/:symbol/eps-trend", async (req, res) => {
       symbol: symbolUpper,
       data: data,
       trend_analysis: {
-        trend,
         avg_growth_rate: Math.round(avgGrowth * 100) / 100,
         data_points: data.length,
         avg_analysts_per_period: Math.round(avgAnalysts),

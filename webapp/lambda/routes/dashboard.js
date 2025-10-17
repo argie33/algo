@@ -91,7 +91,7 @@ router.get("/data", authenticateToken, async (req, res) => {
           COALESCE(SUM((current_price - average_cost) * quantity), 0) as total_gain_loss
         FROM portfolio_holdings
         WHERE user_id = $1
-      `, [userId]).catch(() => ({ rows: [{ total_value: 0, total_positions: 0, total_gain_loss: 0 }] })),
+      `, [userId]),
 
       // Get watchlist data
       query(`
@@ -99,14 +99,14 @@ router.get("/data", authenticateToken, async (req, res) => {
         FROM watchlists w
         LEFT JOIN watchlist_items wi ON w.id = wi.watchlist_id
         WHERE w.user_id = $1
-      `, [userId]).catch(() => ({ rows: [{ total_items: 0 }] })),
+      `, [userId]),
 
       // Get alerts data
       query(`
         SELECT COUNT(*) as active_alerts
         FROM alerts
         WHERE user_id = $1 AND is_active = true
-      `, [userId]).catch(() => ({ rows: [{ active_alerts: 0 }] }))
+      `, [userId])
     ]);
 
     const portfolio = portfolioResult.rows[0] || { total_value: 0, total_positions: 0, total_gain_loss: 0 };
@@ -1521,7 +1521,7 @@ router.get("/metrics", authenticateToken, async (req, res) => {
 
     const [marketResult, portfolioResult] = await Promise.all([
       query(marketMetricsQuery),
-      query(portfolioMetricsQuery).catch(() => ({ rows: [{}] })),
+      query(portfolioMetricsQuery),
     ]);
 
     const marketMetrics = marketResult.rows[0] || {};

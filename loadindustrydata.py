@@ -63,7 +63,7 @@ def calculate_rs_rating(industry_perf, all_perf):
     Compares industry performance to all other industries
     """
     if not all_perf or len(all_perf) < 2:
-        return 50  # Default to middle
+        return None  # FAIL - Insufficient industry data
 
     # Sort all performances
     sorted_perf = sorted(all_perf)

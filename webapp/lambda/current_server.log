@@ -1,37 +1,94 @@
-
-> financial-dashboard-lambda@1.0.0 start
-> node index.js
-
 JWT verifier initialized successfully
-🚨 Alert System initialized
-🔍 Alert monitoring started
-🚨 Alert system integration initialized
+AlertSystem not available, alert monitoring disabled
 📊 Monitoring started
 🎛️ Live Data Manager initialized
-Financial Dashboard API server running on port 3001 (local mode)
-Health check: http://localhost:3001/health
-Stocks: http://localhost:3001/stocks
-Technical: http://localhost:3001/technical/daily
-🔌 WebSocket endpoint: ws://localhost:3001/ws
-Processing request: GET /api/analysts/consensus/AAPL
-Initializing database connection...
 Initializing database connection pool...
 Using database config from environment variables
 Database config loaded from environment: localhost:5432/stocks
+🚀 Financial Dashboard API server running on port 5001
+📊 Environment: development
+🌐 Health check: http://localhost:5001/health
+📋 API info: http://localhost:5001/api
 ✅ Database connection pool initialized successfully
-Database connection established successfully
-Database connection verified for database-dependent endpoint
-🤝 Analyst consensus requested for AAPL
-::1 - - [28/Sep/2025:02:52:35 +0000] "GET /api/analysts/consensus/AAPL HTTP/1.1" 200 727 "-" "curl/8.5.0"
-Processing request: GET /api/portfolio/holdings
-Database connection verified for database-dependent endpoint
-Portfolio holdings endpoint called for authenticated user: dev_user
-::1 - - [28/Sep/2025:02:52:59 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 1720 "-" "curl/8.5.0"
-Processing request: GET /api/portfolio/holdings
-Database connection verified for database-dependent endpoint
-Portfolio holdings endpoint called for authenticated user: dev_user
-::1 - - [28/Sep/2025:02:53:08 +0000] "GET /api/portfolio/holdings HTTP/1.1" 200 1720 "-" "curl/8.5.0"
-Processing request: GET /api/analysts/consensus/AAPL
-Database connection verified for database-dependent endpoint
-🤝 Analyst consensus requested for AAPL
-::1 - - [28/Sep/2025:02:53:31 +0000] "GET /api/analysts/consensus/AAPL HTTP/1.1" 200 727 "-" "curl/8.5.0"
+Market overview endpoint called - OPTIMIZED PARALLEL
+Market overview completed in 20ms using parallel queries
+::1 - - [17/Oct/2025:02:47:18 +0000] "GET /api/market/overview HTTP/1.1" 200 1642 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:24 +0000] "GET /market/breadth HTTP/1.1" 200 2297 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+🔬 Market research indicators endpoint called
+✅ Loaded 11 sectors from database
+Database query error: {
+  error: 'column "description" does not exist',
+  query: '\n' +
+    '        SELECT\n' +
+    '          start_date as date,\n' +
+    '          title as event,\n' +
+    '          event_type as impo...',
+  params: 'no parameters',
+  code: '42703'
+}
+Database query error (returning null for tests): column "description" does not exist
+✅ Loaded 0 economic calendar events from database
+::1 - - [17/Oct/2025:02:47:26 +0000] "GET /api/market/research-indicators HTTP/1.1" 200 2708 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:28 +0000] "GET /market/sentiment/history?days=30 HTTP/1.1" 304 - "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Stock Scores List endpoint called - using real stock_scores table
+::1 - - [17/Oct/2025:02:47:34 +0000] "GET /api/scores HTTP/1.1" 200 9697884 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'JFU' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'GMAB' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'MU' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'VINP' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'SSRM' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'SLGL' }
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=JFU&timeframe=daily&limit=1 HTTP/1.1" 200 2707 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=VINP&timeframe=daily&limit=1 HTTP/1.1" 200 225 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=GMAB&timeframe=daily&limit=1 HTTP/1.1" 200 225 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=MU&timeframe=daily&limit=1 HTTP/1.1" 200 2793 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'ARGX' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'ERIC' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'OPXS' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'GILT' }
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=SSRM&timeframe=daily&limit=1 HTTP/1.1" 200 2792 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=SLGL&timeframe=daily&limit=1 HTTP/1.1" 200 225 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=ERIC&timeframe=daily&limit=1 HTTP/1.1" 200 225 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=ARGX&timeframe=daily&limit=1 HTTP/1.1" 200 2738 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'PAX' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'EZPW' }
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=OPXS&timeframe=daily&limit=1 HTTP/1.1" 200 2718 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'MKSI' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'LRCX' }
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=GILT&timeframe=daily&limit=1 HTTP/1.1" 200 225 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'ALNT' }
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=PAX&timeframe=daily&limit=1 HTTP/1.1" 200 2757 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'RGS' }
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=EZPW&timeframe=daily&limit=1 HTTP/1.1" 200 2717 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'SWKH' }
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=MKSI&timeframe=daily&limit=1 HTTP/1.1" 200 2748 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=LRCX&timeframe=daily&limit=1 HTTP/1.1" 200 225 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'ADEA' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'SANM' }
+📊 Signals data requested (deployment refresh v3)
+📊 Fetching real daily signals from database { symbol: 'WETH' }
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=ALNT&timeframe=daily&limit=1 HTTP/1.1" 200 2728 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=RGS&timeframe=daily&limit=1 HTTP/1.1" 200 225 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=SWKH&timeframe=daily&limit=1 HTTP/1.1" 200 2743 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=WETH&timeframe=daily&limit=1 HTTP/1.1" 200 225 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=ADEA&timeframe=daily&limit=1 HTTP/1.1" 200 2806 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"
+::1 - - [17/Oct/2025:02:47:36 +0000] "GET /api/signals?symbol=SANM&timeframe=daily&limit=1 HTTP/1.1" 200 2801 "http://localhost:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"

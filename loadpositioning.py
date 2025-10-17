@@ -198,10 +198,16 @@ def get_retail_sentiment(symbol: str) -> Optional[Dict]:
 
         # Calculate sentiment based on available metrics
         # Use short interest, institutional ownership, and recommendations as proxies
+        # NO FALLBACKS: Only use real data from yfinance
 
-        short_pct = safe_float(info.get('shortPercentOfFloat'), 0.0)
-        inst_own = safe_float(info.get('heldPercentInstitutions'), 0.0)
-        rec_mean = safe_float(info.get('recommendationMean'), 3.0)  # 1=Strong Buy, 5=Strong Sell
+        short_pct = safe_float(info.get('shortPercentOfFloat'))
+        inst_own = safe_float(info.get('heldPercentInstitutions'))
+        rec_mean = safe_float(info.get('recommendationMean'))  # 1=Strong Buy, 5=Strong Sell
+
+        # If any critical metric is missing, return None (no calculation with partial data)
+        if short_pct is None or inst_own is None or rec_mean is None:
+            logging.debug(f"{symbol}: Missing required sentiment data (short={short_pct}, inst={inst_own}, rec={rec_mean})")
+            return None
 
         # Calculate bullish/bearish sentiment
         # Lower short interest = more bullish
@@ -251,8 +257,8 @@ def get_retail_sentiment(symbol: str) -> Optional[Dict]:
         # Net sentiment (-100 to +100)
         net_sentiment = bullish_score - bearish_score
 
-        # Sentiment change (would need historical data, using 0 for now)
-        sentiment_change = 0.0
+        # Sentiment change (would need historical data, using None for now - NO FALLBACK)
+        sentiment_change = None
 
         return {
             'symbol': symbol,
@@ -575,14 +581,17 @@ if __name__ == "__main__":
 
     logging.info("\nTop 10 Stocks by Institutional Ownership:")
     for row in cur.fetchall():
-        inst_own = row["institutional_ownership"] or 0
-        insider_own = row["insider_ownership"] or 0
-        short_pct = row["short_percent_of_float"] or 0
-        net_sent = row["net_sentiment"] or 0
-        logging.info(
-            f"  {row['symbol']:6}: "
-            f"Inst={inst_own:.1%}, Insider={insider_own:.1%}, Short={short_pct:.1%}, Sentiment={net_sent:+.1f}"
-        )
+        inst_own = row["institutional_ownership"]
+        insider_own = row["insider_ownership"]
+        short_pct = row["short_percent_of_float"]
+        net_sent = row["net_sentiment"]
+
+        # Only log if we have real data (NO FALLBACK)
+        if inst_own is not None and insider_own is not None and short_pct is not None and net_sent is not None:
+            logging.info(
+                f"  {row['symbol']:6}: "
+                f"Inst={inst_own:.1%}, Insider={insider_own:.1%}, Short={short_pct:.1%}, Sentiment={net_sent:+.1f}"
+            )
 
     cur.close()
     conn.close()

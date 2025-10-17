@@ -184,7 +184,7 @@ function useMarketOverview(enabled = true) {
         return result || { data: {} };
       } catch (err) {
         console.warn("Market overview cache failed, using fallback:", err.message);
-        return { data: {} };
+        throw err;
       }
     },
     staleTime: 60 * 60 * 1000, // 1 hour
@@ -733,7 +733,7 @@ const Dashboard = () => {
         return result || { data: [] };
       } catch (err) {
         console.warn("Stock prices API failed, using fallback:", err.message);
-        return { data: [] };
+        throw err;
       }
     },
     staleTime: 5 * 60 * 1000,
@@ -748,7 +748,7 @@ const Dashboard = () => {
         return result || { data: {} };
       } catch (err) {
         console.warn("Stock metrics API failed, using fallback:", err.message);
-        return { data: {} };
+        throw err;
       }
     },
     staleTime: 5 * 60 * 1000,

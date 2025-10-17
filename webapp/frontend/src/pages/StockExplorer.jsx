@@ -110,6 +110,7 @@ const INITIAL_FILTERS = {
   debtToEquityMax: "",
 
   // Other filters
+  securityType: "stock",
   minAnalystRating: "",
   hasEarningsGrowth: false,
   hasPositiveCashFlow: false,
@@ -733,6 +734,7 @@ function StockExplorer() {
                     <MenuItem value="marketCap">Market Cap</MenuItem>
                     <MenuItem value="currentPrice">Price</MenuItem>
                     <MenuItem value="volume">Volume</MenuItem>
+                    <MenuItem value="risk_score">Risk Score</MenuItem>
                   </TextField>
 
                   <Button
@@ -886,6 +888,20 @@ function StockExplorer() {
                               >
                                 P/E Ratio
                               </Typography>
+                            </Grid>
+                            <Grid item xs={2}>
+                              <Chip
+                                label={`Risk: ${(stock.risk_score || 0).toFixed(1)}`}
+                                color={
+                                  (stock.risk_score || 0) < 30
+                                    ? "success"
+                                    : (stock.risk_score || 0) < 50
+                                    ? "warning"
+                                    : "error"
+                                }
+                                variant="outlined"
+                                size="small"
+                              />
                             </Grid>
                           </Grid>
                         </AccordionSummary>

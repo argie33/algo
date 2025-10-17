@@ -49,6 +49,7 @@ import {
   HorizontalRule,
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
+import { formatCellValue, getCellAlign, getDynamicColumns } from "../utils/signalTableHelpers";
 import { getApiConfig } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 import SignalPerformanceTracker from "../components/SignalPerformanceTracker";
@@ -94,8 +95,8 @@ function TradingSignals() {
   const [searchInput, setSearchInput] = useState("");
 
   // Date range filter - defaults to "all" to show all signals
-  const [dateRange, setDateRange] = useState("week"); // today, week, month, all - default to week for cleaner view
-  const [showActiveOnly, setShowActiveOnly] = useState(true); // Show active/recent signals by default
+  const [dateRange, setDateRange] = useState("all"); // Show ALL signals regardless of date
+  const [showActiveOnly, setShowActiveOnly] = useState(false); // Show ALL signals by default (user can toggle to active-only)
 
   // Helper function to check if signal matches date range
   const matchesDateRange = (signalDate) => {
@@ -429,261 +430,189 @@ function TradingSignals() {
     icon,
     color,
     isHighlight = false,
+    details = null,
   }) => (
     <Card
       sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        transition: "all 0.3s ease",
+        "&:hover": {
+          transform: "translateY(-4px)",
+          boxShadow: "0 12px 24px rgba(0, 0, 0, 0.15)",
+        },
         ...(isHighlight && {
           border: "2px solid #3B82F6",
           boxShadow: "0 4px 20px rgba(59, 130, 246, 0.15)",
+          background: "linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(59, 130, 246, 0) 100%)",
         }),
       }}
     >
-      <CardContent>
-        <Box display="flex" alignItems="center" mb={1}>
-          {icon}
-          <Typography variant="h6" ml={1}>
+      <CardContent sx={{ flexGrow: 1 }}>
+        {/* Header with icon and title */}
+        <Box display="flex" alignItems="center" mb={2}>
+          <Box sx={{ color, fontSize: 24 }}>
+            {icon}
+          </Box>
+          <Typography
+            variant="subtitle2"
+            sx={{ ml: 1, fontWeight: 600, color: "text.primary" }}
+          >
             {title}
           </Typography>
         </Box>
-        <Typography variant="h4" sx={{ color, fontWeight: "bold" }}>
-          {value}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+
+        {/* Main value */}
+        <Box sx={{ mb: 1.5 }}>
+          <Typography
+            variant="h3"
+            sx={{
+              color,
+              fontWeight: "bold",
+              fontSize: { xs: "1.8rem", sm: "2.2rem" },
+            }}
+          >
+            {value}
+          </Typography>
+        </Box>
+
+        {/* Subtitle/description */}
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ mb: details ? 1.5 : 0 }}
+        >
           {subtitle}
         </Typography>
+
+        {/* Additional details if provided */}
+        {details && (
+          <Box sx={{
+            pt: 1.5,
+            borderTop: "1px solid #E5E7EB",
+            mt: 1.5,
+          }}>
+            {Array.isArray(details) ? (
+              details.map((detail, idx) => (
+                <Box key={idx} sx={{ display: "flex", justifyContent: "space-between", mb: 0.75 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {detail.label}:
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                    {detail.value}
+                  </Typography>
+                </Box>
+              ))
+            ) : (
+              <Typography variant="caption" color="text.secondary">
+                {details}
+              </Typography>
+            )}
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
 
-  // --- Table for Buy/Sell signals, matching backend fields ---
-  const BuySellSignalsTable = () => (
-    <TableContainer component={Paper} elevation={0}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell sx={{ fontWeight: "bold" }}>Symbol</TableCell>
-            <TableCell sx={{ fontWeight: "bold" }}>Company</TableCell>
-            <TableCell sx={{ fontWeight: "bold" }}>Signal</TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Current market price">
-                <span>Price</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Entry price for position">
-                <span>Buy Level</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Stop loss price (7-8% max risk)">
-                <span>Stop</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="25% Target - Sell another 20-25%, let final 25% run with trailing stop">
-                <span>Target (25%)</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="20% Target (O'Neill/Minervini baseline) - Take profits at 20% unless stock/market is particularly strong">
-                <span>20% Target</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Risk/Reward Ratio - Minimum 2:1 acceptable, 3:1+ excellent">
-                <span>R/R</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Risk % - Maximum 8% acceptable, avoid trades >10%">
-                <span>Risk %</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Market Stage: Stage 2=BUY zone (Advancing phase). Hover to see substage (Early/Mid/Late)">
-                <span>Stage</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="SATA Score (0-10): Stage Analysis Technical Attributes score from stageanalysis.com. 8-10 = Strong Stage 2, 4-7 = Stage 1/3, 0-3 = Stage 4">
-                <span>SATA</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Next earnings announcement date">
-                <span>Next Earnings</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: "bold" }}>
-              <Tooltip title="Days until next earnings">
-                <span>Days</span>
-              </Tooltip>
-            </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {filteredSignals?.map((signal, index) => (
-            <TableRow
-              key={`${signal.symbol}-${index}`}
-              hover
-              sx={{
-                "&:hover": {
-                  backgroundColor: "action.hover",
-                },
-              }}
-            >
-              <TableCell>
-                <Button
-                  variant="text"
-                  size="small"
-                  sx={{ fontWeight: "bold", minWidth: "auto", p: 0.5 }}
-                  onClick={() => {
-                    setSelectedSymbol(signal.symbol);
-                    setHistoricalDialogOpen(true);
+
+  // --- Table for Buy/Sell signals with DYNAMIC columns ---
+  const BuySellSignalsTable = () => {
+    const columns = getDynamicColumns(filteredSignals);
+
+    return (
+      <TableContainer component={Paper} elevation={0} sx={{ overflowX: "auto" }}>
+        <Table stickyHeader>
+          <TableHead>
+            <TableRow>
+              {columns.map((col) => (
+                <TableCell
+                  key={col}
+                  align={getCellAlign(col)}
+                  sx={{
+                    fontWeight: "bold",
+                    whiteSpace: "nowrap",
+                    minWidth: "100px",
                   }}
                 >
-                  {signal.symbol}
-                </Button>
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2" noWrap>
-                  {signal.company_name}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Tooltip
-                  title={
-                    matchesDateRange(signal.date)
-                      ? `Signal in ${dateRange === "today" ? "today's" : dateRange === "week" ? "this week's" : dateRange === "month" ? "this month's" : "selected"} range`
-                      : "Signal outside selected range"
-                  }
-                >
-                  <Box>{getSignalChip(signal.signal, signal.date)}</Box>
-                </Tooltip>
-              </TableCell>
-              <TableCell align="right">
-                {formatCurrency(signal.current_price || signal.close)}
-              </TableCell>
-              <TableCell align="right">
-                {formatCurrency(signal.buylevel)}
-              </TableCell>
-              <TableCell align="right">
-                {formatCurrency(signal.stoplevel)}
-              </TableCell>
-              <TableCell align="right">
-                {signal.target_price ? formatCurrency(signal.target_price) : "—"}
-              </TableCell>
-              <TableCell align="right">
-                {signal.profit_target_20pct ? formatCurrency(signal.profit_target_20pct) : "—"}
-              </TableCell>
-              <TableCell align="right">
-                {signal.risk_reward_ratio
-                  ? `${Number(signal.risk_reward_ratio).toFixed(1)}:1`
-                  : "—"}
-              </TableCell>
-              <TableCell align="right">
-                {signal.risk_pct
-                  ? `${Number(signal.risk_pct).toFixed(1)}%`
-                  : "—"}
-              </TableCell>
-              <TableCell>
-                <Tooltip title={`${signal.market_stage || "Unknown"}\n${signal.substage || ""}`}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <Chip
-                      label={signal.market_stage?.replace("Stage ", "S") || "—"}
-                      size="small"
-                      sx={{
-                        backgroundColor:
-                          signal.market_stage === "Stage 2 - Advancing" ? "rgba(5, 150, 105, 0.2)" :
-                          signal.market_stage === "Stage 1 - Basing" ? "rgba(59, 130, 246, 0.2)" :
-                          signal.market_stage === "Stage 3 - Topping" ? "rgba(245, 158, 11, 0.2)" :
-                          signal.market_stage === "Stage 4 - Declining" ? "rgba(220, 38, 38, 0.2)" :
-                          "rgba(156, 163, 175, 0.2)",
-                        color:
-                          signal.market_stage === "Stage 2 - Advancing" ? "#059669" :
-                          signal.market_stage === "Stage 1 - Basing" ? "#3B82F6" :
-                          signal.market_stage === "Stage 3 - Topping" ? "#F59E0B" :
-                          signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
-                          "#6B7280",
-                        fontWeight: "bold",
-                        fontSize: "0.75rem",
-                      }}
-                    />
-                  </Box>
-                </Tooltip>
-              </TableCell>
-              <TableCell align="right">
-                <Chip
-                  label={signal.sata_score !== null && signal.sata_score !== undefined ? signal.sata_score : "—"}
-                  size="small"
-                  sx={{
-                    backgroundColor:
-                      signal.sata_score >= 8 ? "rgba(5, 150, 105, 0.2)" :
-                      signal.sata_score >= 4 ? "rgba(59, 130, 246, 0.2)" :
-                      "rgba(220, 38, 38, 0.2)",
-                    color:
-                      signal.sata_score >= 8 ? "#059669" :
-                      signal.sata_score >= 4 ? "#3B82F6" :
-                      "#DC2626",
-                    fontWeight: "bold",
-                    fontSize: "0.75rem",
-                  }}
-                />
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2">
-                  {signal.next_earnings_date
-                    ? new Date(signal.next_earnings_date).toLocaleDateString()
-                    : "—"}
-                </Typography>
-              </TableCell>
-              <TableCell align="right">
-                <Chip
-                  label={signal.days_to_earnings || "—"}
-                  size="small"
-                  sx={{
-                    backgroundColor:
-                      signal.days_to_earnings <= 7
-                        ? "rgba(220, 38, 38, 0.2)"
-                        : signal.days_to_earnings <= 14
-                          ? "rgba(245, 158, 11, 0.2)"
-                          : "rgba(59, 130, 246, 0.2)",
-                    color:
-                      signal.days_to_earnings <= 7
-                        ? "#DC2626"
-                        : signal.days_to_earnings <= 14
-                          ? "#F59E0B"
-                          : "#3B82F6",
-                    fontWeight: "bold",
-                  }}
-                />
-              </TableCell>
-              <TableCell>
-                <Typography variant="body2">
-                  {signal.date
-                    ? new Date(signal.date).toLocaleDateString()
-                    : ""}
-                </Typography>
-              </TableCell>
+                  <Tooltip title={col} placement="top">
+                    <span>{col.replace(/_/g, " ").replace(/^./, str => str.toUpperCase())}</span>
+                  </Tooltip>
+                </TableCell>
+              ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {filteredSignals?.length === 0 && (
-        <Box sx={{ p: 4, textAlign: "center" }}>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            No trading signals found
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {dateRange === "all"
-              ? "No signals found. Try adjusting your timeframe or other filters."
-              : "No signals match your current filters. Try adjusting your date range or other filters."}
-          </Typography>
-        </Box>
-      )}
-    </TableContainer>
-  );
+          </TableHead>
+          <TableBody>
+            {filteredSignals?.map((signal, index) => (
+              <TableRow
+                key={`${signal.symbol}-${index}`}
+                hover
+                sx={{
+                  "&:hover": {
+                    backgroundColor: "action.hover",
+                  },
+                }}
+              >
+                {columns.map((col) => {
+                  const value = signal[col];
+                  const isSymbolColumn = col === "symbol";
+                  const isSignalColumn = col === "signal";
+
+                  return (
+                    <TableCell
+                      key={`${signal.symbol}-${col}`}
+                      align={getCellAlign(col)}
+                      sx={{ whiteSpace: "nowrap" }}
+                    >
+                      {isSymbolColumn ? (
+                        <Button
+                          variant="text"
+                          size="small"
+                          sx={{ fontWeight: "bold", minWidth: "auto", p: 0.5 }}
+                          onClick={() => {
+                            setSelectedSymbol(signal.symbol);
+                            setHistoricalDialogOpen(true);
+                          }}
+                        >
+                          {value}
+                        </Button>
+                      ) : isSignalColumn ? (
+                        <Tooltip
+                          title={
+                            matchesDateRange(signal.date)
+                              ? `Signal in ${dateRange === "today" ? "today's" : dateRange === "week" ? "this week's" : dateRange === "month" ? "this month's" : "selected"} range`
+                              : "Signal outside selected range"
+                          }
+                        >
+                          <Box>{getSignalChip(value, signal.date)}</Box>
+                        </Tooltip>
+                      ) : (
+                        <Typography variant="body2">
+                          {formatCellValue(value, col)}
+                        </Typography>
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {filteredSignals?.length === 0 && (
+          <Box sx={{ p: 4, textAlign: "center" }}>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              No trading signals found
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {dateRange === "all"
+                ? "No signals found. Try adjusting your timeframe or other filters."
+                : "No signals match your current filters. Try adjusting your date range or other filters."}
+            </Typography>
+          </Box>
+        )}
+      </TableContainer>
+    );
+  };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>

@@ -10,7 +10,6 @@ import {
   Grid,
   LinearProgress,
   Paper,
-  Stack,
   Tab,
   Table,
   TableBody,
@@ -43,14 +42,7 @@ import {
   TrendingUp,
   TrendingDown,
   TrendingFlat,
-  Analytics,
-  Psychology,
   Timeline,
-  ShowChart,
-  AccountBalance,
-  Business,
-  Assessment,
-  Public,
   CalendarToday,
   Equalizer,
 } from "@mui/icons-material";
@@ -58,11 +50,10 @@ import {
 import {
   getMarketOverview,
   getMarketSentimentHistory,
-  getMarketSectorPerformance,
   getMarketBreadth,
   getSeasonalityData,
-  getMarketResearchIndicators,
   getDistributionDays,
+  getMarketResearchIndicators,
 } from "../services/api";
 import {
   formatCurrency,
@@ -257,60 +248,6 @@ const _MetricCard = ({
   );
 };
 
-const SentimentGauge = ({ value, label, max = 100, size = 120 }) => {
-  const theme = useTheme();
-  const percentage = (value / max) * 100;
-
-  const getColor = () => {
-    if (percentage <= 20) return theme.palette.error.main;
-    if (percentage <= 40) return theme.palette.warning.main;
-    if (percentage <= 60) return theme.palette.info.main;
-    if (percentage <= 80) return theme.palette.success.light;
-    return theme.palette.success.main;
-  };
-
-  return (
-    <Box sx={{ position: "relative", width: size, height: size }}>
-      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={(size - 20) / 2}
-          stroke={alpha(theme.palette.divider, 0.3)}
-          strokeWidth="10"
-          fill="none"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={(size - 20) / 2}
-          stroke={getColor()}
-          strokeWidth="10"
-          fill="none"
-          strokeDasharray={`${(percentage * Math.PI * (size - 20)) / 100} ${Math.PI * (size - 20)}`}
-          style={{ transition: "stroke-dasharray 0.5s ease" }}
-        />
-      </svg>
-      <Box
-        sx={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          textAlign: "center",
-        }}
-      >
-        <Typography variant="h4" sx={{ fontWeight: 700, color: getColor() }}>
-          {value}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {label}
-        </Typography>
-      </Box>
-    </Box>
-  );
-};
-
 const TabPanel = ({ children, value, index, ...other }) => (
   <div
     role="tabpanel"
@@ -385,21 +322,6 @@ const fetchSentimentHistory = async (days = 30) => {
   }
 };
 
-const fetchSectorPerformance = async () => {
-  try {
-    console.log("🏭 Fetching sector performance...");
-    const response = await getMarketSectorPerformance();
-    console.log("🏭 Sector performance response:", response);
-    return response;
-  } catch (error) {
-    _logger.error(
-      "Sector performance error:",
-      error.message || error.toString()
-    );
-    throw error;
-  }
-};
-
 const fetchMarketBreadth = async () => {
   try {
     console.log("📏 Fetching market breadth...");
@@ -443,10 +365,7 @@ const fetchResearchIndicators = async () => {
     console.log("🔬 Research indicators response:", response);
     return response;
   } catch (error) {
-    _logger.error(
-      "Research indicators error:",
-      error.message || error.toString()
-    );
+    _logger.error("Research indicators error:", error.message || error.toString());
     throw error;
   }
 };
@@ -503,7 +422,7 @@ function MarketOverview() {
     staleTime: 30000,
   });
 
-  const { data: researchData, isLoading: researchLoading } = useQuery({
+  const { data: researchIndicatorsData, isLoading: researchIndicatorsLoading } = useQuery({
     queryKey: ["market-research-indicators"],
     queryFn: fetchResearchIndicators,
     enabled: tabValue === 3,
@@ -558,14 +477,10 @@ function MarketOverview() {
     marketData?.data?.market_cap || marketData?.market_cap || {};
   
   const indices =
-    marketData?.data?.indices || 
-    marketData?.indices || 
+    marketData?.data?.indices ||
+    marketData?.indices ||
     [];
-  const mainSectors =
-    marketData?.sectors ||
-    marketData?.data?.sectors ||
-    [];
-  const topMovers = 
+  const topMovers =
     marketData?.movers ||
     { gainers: [], losers: [] };
 
@@ -1372,7 +1287,7 @@ function MarketOverview() {
               <Tab
                 value={3}
                 label="Research Indicators"
-                icon={<Analytics />}
+                icon={<Equalizer />}
                 iconPosition="start"
               />
             </Tabs>
@@ -2075,407 +1990,78 @@ function MarketOverview() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>
-          {researchLoading ? (
+          {researchIndicatorsLoading ? (
             <LinearProgress />
           ) : (
             <Grid container spacing={3}>
-              {researchData?.data && (
-                <>
-                  {/* Market Summary */}
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{ mb: 2, fontWeight: 600 }}
-                        >
-                          Market Research Summary
-                        </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={4}>
-                            <Box
-                              sx={{
-                                textAlign: "center",
-                                p: 2,
-                                backgroundColor: "info.light",
-                                borderRadius: 1,
-                              }}
-                            >
-                              <Typography
-                                variant="h6"
-                                color="info.contrastText"
-                              >
-                                {researchData?.data.summary.overallSentiment}
+              <Grid item xs={12}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Market Research Indicators
+                    </Typography>
+                    {researchIndicatorsData?.data ? (
+                      <Grid container spacing={3}>
+                        {/* Summary Card */}
+                        <Grid item xs={12} md={4}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                Overall Sentiment
                               </Typography>
-                              <Typography
-                                variant="body2"
-                                color="info.contrastText"
-                              >
-                                Overall Market Sentiment
+                              <Typography variant="h4" sx={{ mt: 1, fontWeight: 600 }}>
+                                {researchIndicatorsData.data.summary?.overallSentiment || "N/A"}
                               </Typography>
-                            </Box>
-                          </Grid>
-                          <Grid item xs={12} md={4}>
-                            <Box
-                              sx={{
-                                textAlign: "center",
-                                p: 2,
-                                backgroundColor: "secondary.light",
-                                borderRadius: 1,
-                              }}
-                            >
-                              <Typography
-                                variant="h6"
-                                color="secondary.contrastText"
-                              >
-                                {researchData?.data.summary.marketRegime}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                color="secondary.contrastText"
-                              >
-                                Market Regime
-                              </Typography>
-                            </Box>
-                          </Grid>
-                          <Grid item xs={12} md={4}>
-                            <Box
-                              sx={{
-                                textAlign: "center",
-                                p: 2,
-                                backgroundColor: "warning.light",
-                                borderRadius: 1,
-                              }}
-                            >
-                              <Typography
-                                variant="h6"
-                                color="warning.contrastText"
-                              >
-                                {researchData?.data.summary.timeHorizon}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                color="warning.contrastText"
-                              >
-                                Investment Time Horizon
-                              </Typography>
-                            </Box>
-                          </Grid>
+                            </CardContent>
+                          </Card>
                         </Grid>
-                        <Box sx={{ mt: 3 }}>
-                          <Typography variant="body1" sx={{ mb: 1 }}>
-                            <strong>Recommendation:</strong>{" "}
-                            {researchData?.data.summary.recommendation}
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
 
-                  {/* Volatility & Sentiment Indicators */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{ mb: 2, fontWeight: 600 }}
-                        >
-                          Volatility & Sentiment
-                        </Typography>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12}>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                mb: 1,
-                              }}
-                            >
-                              <Typography variant="body2">
-                                VIX (Fear Index):
+                        {/* VIX Card */}
+                        <Grid item xs={12} md={4}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                VIX Index
                               </Typography>
-                              <Box>
-                                <Typography
-                                  variant="body2"
-                                  fontWeight={600}
-                                  display="inline"
-                                >
-                                  {researchData?.data.volatility.vix.toFixed(1)}
-                                </Typography>
-                                <Chip
-                                  label={
-                                    researchData?.data.volatility
-                                      .vixInterpretation.level
-                                  }
-                                  color={
-                                    researchData?.data.volatility
-                                      .vixInterpretation.color
-                                  }
-                                  size="small"
-                                  sx={{ ml: 1 }}
-                                />
-                              </Box>
-                            </Box>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              30-day avg:{" "}
-                              {researchData?.data.volatility.vixAverage.toFixed(
-                                1
-                              )}{" "}
-                              |{" "}
-                              {
-                                researchData?.data.volatility.vixInterpretation
-                                  .sentiment
-                              }
-                            </Typography>
-                          </Grid>
-                          <Grid item xs={12}>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                mb: 1,
-                              }}
-                            >
-                              <Typography variant="body2">
-                                Put/Call Ratio:
+                              <Typography variant="h4" sx={{ mt: 1, fontWeight: 600 }}>
+                                {researchIndicatorsData.data.volatility?.vix || "N/A"}
                               </Typography>
-                              <Box>
-                                <Typography
-                                  variant="body2"
-                                  fontWeight={600}
-                                  display="inline"
-                                >
-                                  {researchData?.data.sentiment.putCallRatio.toFixed(
-                                    2
-                                  )}
-                                </Typography>
-                                <Chip
-                                  label={
-                                    researchData?.data.sentiment
-                                      .putCallInterpretation.sentiment
-                                  }
-                                  color={
-                                    researchData?.data.sentiment
-                                      .putCallInterpretation.color
-                                  }
-                                  size="small"
-                                  sx={{ ml: 1 }}
-                                />
-                              </Box>
-                            </Box>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              10-day avg:{" "}
-                              {researchData?.data.sentiment.putCallAverage.toFixed(
-                                2
-                              )}{" "}
-                              |{" "}
-                              {
-                                researchData?.data.sentiment
-                                  .putCallInterpretation.signal
-                              }
-                            </Typography>
-                          </Grid>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                20-Day Avg: {researchIndicatorsData.data.volatility?.vixAverage || "N/A"}
+                              </Typography>
+                            </CardContent>
+                          </Card>
                         </Grid>
-                      </CardContent>
-                    </Card>
-                  </Grid>
 
-                  {/* Technical Levels */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{ mb: 2, fontWeight: 600 }}
-                        >
-                          Major Index Technical Levels
-                        </Typography>
-                        {Object.entries(researchData?.data.technicalLevels).map(
-                          ([index, data]) => (
-                            <Box key={index} sx={{ mb: 2 }}>
-                              <Typography variant="body2" fontWeight={600}>
-                                {index}
+                        {/* Technical Levels */}
+                        <Grid item xs={12} md={4}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Typography variant="subtitle2" color="text.secondary">
+                                S&P 500 Level
                               </Typography>
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  mb: 0.5,
-                                }}
-                              >
-                                <Typography variant="caption">
-                                  Current:
-                                </Typography>
-                                <Typography variant="caption">
-                                  {data.current.toFixed(0)}
-                                </Typography>
-                              </Box>
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  mb: 0.5,
-                                }}
-                              >
-                                <Typography variant="caption">
-                                  Trend:
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: getChangeColor(
-                                      data.trend === "Bullish"
-                                        ? 1
-                                        : data.trend === "Bearish"
-                                          ? -1
-                                          : 0
-                                    ),
-                                  }}
-                                >
-                                  {data.trend}
-                                </Typography>
-                              </Box>
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                }}
-                              >
-                                <Typography variant="caption">RSI:</Typography>
-                                <Typography variant="caption">
-                                  {data.rsi.toFixed(1)}
-                                </Typography>
-                              </Box>
-                            </Box>
-                          )
-                        )}
-                      </CardContent>
-                    </Card>
-                  </Grid>
-
-                  {/* Economic Calendar */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{ mb: 2, fontWeight: 600 }}
-                        >
-                          Upcoming Economic Events
-                        </Typography>
-                        {(researchData?.data.economicCalendar || []).map(
-                          (event, index) => (
-                            <Box
-                              key={index}
-                              sx={{
-                                mb: 2,
-                                p: 2,
-                                backgroundColor: "grey.50",
-                                borderRadius: 1,
-                              }}
-                            >
-                              <Typography variant="body2" fontWeight={600}>
-                                {event.event}
+                              <Typography variant="h4" sx={{ mt: 1, fontWeight: 600 }}>
+                                {researchIndicatorsData.data.technicalLevels?.["S&P 500"]?.current || "N/A"}
                               </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                {new Date(event.date).toLocaleDateString()} |
-                                Expected: {event.expected}
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                Trend: {researchIndicatorsData.data.technicalLevels?.["S&P 500"]?.trend || "N/A"}
                               </Typography>
-                              <Box sx={{ mt: 0.5 }}>
-                                <Chip
-                                  label={event.importance}
-                                  color={
-                                    event.importance === "High"
-                                      ? "error"
-                                      : event.importance === "Medium"
-                                        ? "warning"
-                                        : "default"
-                                  }
-                                  size="small"
-                                />
-                                <Chip
-                                  label={event.impact}
-                                  color="info"
-                                  size="small"
-                                  sx={{ ml: 1 }}
-                                />
-                              </Box>
-                            </Box>
-                          )
-                        )}
-                      </CardContent>
-                    </Card>
-                  </Grid>
-
-                  {/* Key Risks & Opportunities */}
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{ mb: 2, fontWeight: 600 }}
-                        >
-                          Key Risks & Opportunities
-                        </Typography>
-                        <Box sx={{ mb: 3 }}>
-                          <Typography
-                            variant="body2"
-                            fontWeight={600}
-                            color="error.main"
-                            sx={{ mb: 1 }}
-                          >
-                            Key Risks:
-                          </Typography>
-                          {(researchData?.data.summary?.keyRisks || []).map(
-                            (risk, index) => (
-                              <Typography
-                                key={index}
-                                variant="body2"
-                                sx={{ ml: 2, mb: 0.5 }}
-                              >
-                                • {risk}
-                              </Typography>
-                            )
-                          )}
-                        </Box>
-                        <Box>
-                          <Typography
-                            variant="body2"
-                            fontWeight={600}
-                            color="success.main"
-                            sx={{ mb: 1 }}
-                          >
-                            Key Opportunities:
-                          </Typography>
-                          {(
-                            researchData?.data.summary?.keyOpportunities || []
-                          ).map((opportunity, index) => (
-                            <Typography
-                              key={index}
-                              variant="body2"
-                              sx={{ ml: 2, mb: 0.5 }}
-                            >
-                              • {opportunity}
-                            </Typography>
-                          ))}
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </>
-              )}
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      </Grid>
+                    ) : (
+                      <Typography color="text.secondary">
+                        No research indicators data available
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
           )}
         </TabPanel>
+
           </>
         )}
       </Box>

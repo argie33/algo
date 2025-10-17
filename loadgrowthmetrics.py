@@ -132,7 +132,7 @@ def normalize_metric(value, min_val, max_val):
 
     # Normalize to 0-100
     if max_val == min_val:
-        return 50.0
+        return None  # FAIL - Insufficient data for normalization
 
     return ((clamped - min_val) / (max_val - min_val)) * 100
 
@@ -215,13 +215,27 @@ def initialize_db():
             symbol                      VARCHAR(50),
             date                        DATE,
 
-            -- RAW calculated metrics ONLY (for stockscores script to use)
+            -- Original RAW calculated metrics (for stockscores script to use)
             revenue_growth_3y_cagr      DOUBLE PRECISION,  -- 3-year revenue CAGR
             eps_growth_3y_cagr          DOUBLE PRECISION,  -- 3-year EPS CAGR
             operating_income_growth_yoy DOUBLE PRECISION,  -- Operating income YoY growth
             roe_trend                   DOUBLE PRECISION,  -- ROE change (current - 1Y ago)
             sustainable_growth_rate     DOUBLE PRECISION,  -- ROE × (1 - Payout Ratio)
             fcf_growth_yoy              DOUBLE PRECISION,  -- Free cash flow YoY growth
+
+            -- NEW: Bottom-line growth metric
+            net_income_growth_yoy       DOUBLE PRECISION,  -- Net income YoY growth (%)
+
+            -- NEW: Margin efficiency trends
+            gross_margin_trend          DOUBLE PRECISION,  -- Gross margin change (current - YoY ago) in percentage points
+            operating_margin_trend      DOUBLE PRECISION,  -- Operating margin change (current - YoY ago) in percentage points
+            net_margin_trend            DOUBLE PRECISION,  -- Net margin change (current - YoY ago) in percentage points
+
+            -- NEW: Growth acceleration metric
+            quarterly_growth_momentum   DOUBLE PRECISION,  -- Revenue growth acceleration (latest Q growth - prior Q growth)
+
+            -- NEW: Capital intensity metric
+            asset_growth_yoy            DOUBLE PRECISION,  -- Total assets YoY growth (%)
 
             -- NOTE: Single YoY growth rates already in revenue_estimates/earnings_history
             -- NOTE: Scores calculated by stockscores script, not here
@@ -412,7 +426,161 @@ def process_symbol(symbol, conn_pool):
         except Exception as e:
             logging.debug(f"{symbol}: Error fetching free cash flow: {e}")
 
-        logging.info(f"{symbol}: Rev Growth: {revenue_growth_3y_cagr}, EPS Growth: {eps_growth_3y_cagr}, ROE: {roe_trend}, SGR: {sustainable_growth_rate}, Op Income YoY: {operating_income_growth_yoy}, FCF YoY: {fcf_growth_yoy}")
+        # ========== STEP 7: Net Income Growth (YoY) ==========
+        net_income_growth_yoy = None
+        try:
+            cursor.execute(
+                """
+                SELECT value FROM quarterly_income_statement
+                WHERE symbol = %s AND item_name = 'Net Income'
+                ORDER BY date DESC
+                LIMIT 5
+                """,
+                (symbol,),
+            )
+            ni_rows = cursor.fetchall()
+            if len(ni_rows) >= 5:
+                current_ni = safe_numeric(ni_rows[0][0])
+                year_ago_ni = safe_numeric(ni_rows[4][0])
+                if current_ni is not None and year_ago_ni is not None and year_ago_ni != 0:
+                    net_income_growth_yoy = ((current_ni - year_ago_ni) / abs(year_ago_ni)) * 100
+        except Exception as e:
+            logging.debug(f"{symbol}: Error fetching net income: {e}")
+
+        # ========== STEP 8: Margin Trends (Gross, Operating, Net) ==========
+        gross_margin_trend = None
+        operating_margin_trend = None
+        net_margin_trend = None
+        try:
+            # Fetch all financial data for margin calculation (pivot by item_name and date)
+            cursor.execute(
+                """
+                SELECT date, item_name, value
+                FROM quarterly_income_statement
+                WHERE symbol = %s AND item_name IN ('Total Revenue', 'Operating Revenue', 'Gross Profit', 'Operating Income', 'Net Income')
+                ORDER BY date DESC
+                LIMIT 40
+                """,
+                (symbol,),
+            )
+            all_rows = cursor.fetchall()
+
+            if len(all_rows) > 0:
+                # Group by date
+                from collections import defaultdict
+                data_by_date = defaultdict(dict)
+
+                for date, item_name, value in all_rows:
+                    data_by_date[date][item_name] = safe_numeric(value)
+
+                # Get sorted unique dates (most recent first)
+                sorted_dates = sorted(data_by_date.keys(), reverse=True)
+
+                if len(sorted_dates) >= 5:
+                    # Current quarter (most recent)
+                    current_date = sorted_dates[0]
+                    # Use Total Revenue or Operating Revenue (fallback)
+                    current_revenue = data_by_date[current_date].get('Total Revenue') or data_by_date[current_date].get('Operating Revenue')
+                    current_gross = data_by_date[current_date].get('Gross Profit')
+                    current_op_income = data_by_date[current_date].get('Operating Income')
+                    current_net = data_by_date[current_date].get('Net Income')
+
+                    # Year ago quarter (4 quarters back)
+                    year_ago_date = sorted_dates[4]
+                    # Use Total Revenue or Operating Revenue (fallback)
+                    year_ago_revenue = data_by_date[year_ago_date].get('Total Revenue') or data_by_date[year_ago_date].get('Operating Revenue')
+                    year_ago_gross = data_by_date[year_ago_date].get('Gross Profit')
+                    year_ago_op_income = data_by_date[year_ago_date].get('Operating Income')
+                    year_ago_net = data_by_date[year_ago_date].get('Net Income')
+
+                    # Calculate current margins (as percentages)
+                    if current_revenue and current_revenue > 0:
+                        current_gross_margin = (current_gross / current_revenue) * 100 if current_gross else None
+                        current_op_margin = (current_op_income / current_revenue) * 100 if current_op_income else None
+                        current_net_margin = (current_net / current_revenue) * 100 if current_net else None
+                    else:
+                        current_gross_margin = current_op_margin = current_net_margin = None
+
+                    # Calculate year-ago margins (as percentages)
+                    if year_ago_revenue and year_ago_revenue > 0:
+                        year_ago_gross_margin = (year_ago_gross / year_ago_revenue) * 100 if year_ago_gross else None
+                        year_ago_op_margin = (year_ago_op_income / year_ago_revenue) * 100 if year_ago_op_income else None
+                        year_ago_net_margin = (year_ago_net / year_ago_revenue) * 100 if year_ago_net else None
+                    else:
+                        year_ago_gross_margin = year_ago_op_margin = year_ago_net_margin = None
+
+                    # Calculate margin changes (in percentage points)
+                    if current_gross_margin is not None and year_ago_gross_margin is not None:
+                        gross_margin_trend = current_gross_margin - year_ago_gross_margin
+                    if current_op_margin is not None and year_ago_op_margin is not None:
+                        operating_margin_trend = current_op_margin - year_ago_op_margin
+                    if current_net_margin is not None and year_ago_net_margin is not None:
+                        net_margin_trend = current_net_margin - year_ago_net_margin
+
+        except Exception as e:
+            logging.debug(f"{symbol}: Error calculating margin trends: {e}")
+
+        # ========== STEP 9: Quarterly Growth Momentum ==========
+        quarterly_growth_momentum = None
+        try:
+            cursor.execute(
+                """
+                SELECT date, value FROM quarterly_income_statement
+                WHERE symbol = %s AND item_name IN ('Total Revenue', 'Operating Revenue')
+                ORDER BY date DESC, item_name
+                LIMIT 10
+                """,
+                (symbol,),
+            )
+            quarterly_rev_rows = cursor.fetchall()
+            # Deduplicate by date, keeping most recent revenue type
+            from collections import OrderedDict
+            revenue_by_date = OrderedDict()
+            for date, value in quarterly_rev_rows:
+                if date not in revenue_by_date:
+                    revenue_by_date[date] = value
+            quarterly_rev_rows_dedup = [(date, revenue_by_date[date]) for date in sorted(revenue_by_date.keys(), reverse=True)]
+
+            if len(quarterly_rev_rows_dedup) >= 8:
+                # Current quarter (index 0)
+                curr_q_revenue = safe_numeric(quarterly_rev_rows_dedup[0][1])
+                prev_q_revenue = safe_numeric(quarterly_rev_rows_dedup[1][1])
+                year_ago_q_revenue = safe_numeric(quarterly_rev_rows_dedup[4][1])
+                year_ago_prev_q_revenue = safe_numeric(quarterly_rev_rows_dedup[5][1])
+
+                if (curr_q_revenue and prev_q_revenue and prev_q_revenue > 0 and
+                    year_ago_q_revenue and year_ago_prev_q_revenue and year_ago_prev_q_revenue > 0):
+                    # Current Q growth rate
+                    curr_q_growth = ((curr_q_revenue - prev_q_revenue) / prev_q_revenue) * 100
+                    # Year-ago Q growth rate
+                    year_ago_q_growth = ((year_ago_q_revenue - year_ago_prev_q_revenue) / year_ago_prev_q_revenue) * 100
+                    # Momentum = current growth - year-ago growth (acceleration)
+                    quarterly_growth_momentum = curr_q_growth - year_ago_q_growth
+        except Exception as e:
+            logging.debug(f"{symbol}: Error calculating quarterly growth momentum: {e}")
+
+        # ========== STEP 10: Asset Growth (YoY) ==========
+        asset_growth_yoy = None
+        try:
+            cursor.execute(
+                """
+                SELECT date, value FROM quarterly_balance_sheet
+                WHERE symbol = %s AND item_name = 'Total Assets'
+                ORDER BY date DESC
+                LIMIT 5
+                """,
+                (symbol,),
+            )
+            asset_rows = cursor.fetchall()
+            if len(asset_rows) >= 5:
+                current_assets = safe_numeric(asset_rows[0][1])
+                year_ago_assets = safe_numeric(asset_rows[4][1])
+                if current_assets is not None and year_ago_assets is not None and year_ago_assets > 0:
+                    asset_growth_yoy = ((current_assets - year_ago_assets) / year_ago_assets) * 100
+        except Exception as e:
+            logging.debug(f"{symbol}: Error fetching asset growth: {e}")
+
+        logging.info(f"{symbol}: Rev Growth: {revenue_growth_3y_cagr}, EPS Growth: {eps_growth_3y_cagr}, ROE: {roe_trend}, SGR: {sustainable_growth_rate}, Op Income YoY: {operating_income_growth_yoy}, FCF YoY: {fcf_growth_yoy}, NI YoY: {net_income_growth_yoy}, Margin Trends (G/O/N): {gross_margin_trend}/{operating_margin_trend}/{net_margin_trend}, Q Momentum: {quarterly_growth_momentum}, Asset Growth: {asset_growth_yoy}")
 
         if revenue_growth_3y_cagr is None and eps_growth_3y_cagr is None:
             logging.warning(f"No growth data for {symbol}, skipping.")
@@ -422,7 +590,7 @@ def process_symbol(symbol, conn_pool):
         # Get current date for the record
         current_date = datetime.now().date()
 
-        # Create record with all calculated metrics
+        # Create record with all calculated metrics (original + new)
         record = (
             symbol,
             current_date,
@@ -432,6 +600,12 @@ def process_symbol(symbol, conn_pool):
             roe_trend,                   # From key_metrics.return_on_equity_pct
             sustainable_growth_rate,     # Calculated: ROE × (1 - Payout Ratio)
             fcf_growth_yoy,              # Calculated from quarterly_cashflow
+            net_income_growth_yoy,       # NEW: Net income YoY growth
+            gross_margin_trend,          # NEW: Gross margin trend (percentage points)
+            operating_margin_trend,      # NEW: Operating margin trend (percentage points)
+            net_margin_trend,            # NEW: Net margin trend (percentage points)
+            quarterly_growth_momentum,   # NEW: Revenue growth acceleration
+            asset_growth_yoy,            # NEW: Total assets YoY growth
         )
         records = [record]
 
@@ -442,7 +616,9 @@ def process_symbol(symbol, conn_pool):
                 """
                 INSERT INTO growth_metrics
                 (symbol, date, revenue_growth_3y_cagr, eps_growth_3y_cagr,
-                 operating_income_growth_yoy, roe_trend, sustainable_growth_rate, fcf_growth_yoy)
+                 operating_income_growth_yoy, roe_trend, sustainable_growth_rate, fcf_growth_yoy,
+                 net_income_growth_yoy, gross_margin_trend, operating_margin_trend, net_margin_trend,
+                 quarterly_growth_momentum, asset_growth_yoy)
                 VALUES %s
                 ON CONFLICT (symbol, date) DO UPDATE SET
                     revenue_growth_3y_cagr = EXCLUDED.revenue_growth_3y_cagr,
@@ -451,6 +627,12 @@ def process_symbol(symbol, conn_pool):
                     roe_trend = EXCLUDED.roe_trend,
                     sustainable_growth_rate = EXCLUDED.sustainable_growth_rate,
                     fcf_growth_yoy = EXCLUDED.fcf_growth_yoy,
+                    net_income_growth_yoy = EXCLUDED.net_income_growth_yoy,
+                    gross_margin_trend = EXCLUDED.gross_margin_trend,
+                    operating_margin_trend = EXCLUDED.operating_margin_trend,
+                    net_margin_trend = EXCLUDED.net_margin_trend,
+                    quarterly_growth_momentum = EXCLUDED.quarterly_growth_momentum,
+                    asset_growth_yoy = EXCLUDED.asset_growth_yoy,
                     fetched_at = CURRENT_TIMESTAMP
                 """,
                 records,

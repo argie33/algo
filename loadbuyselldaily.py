@@ -179,7 +179,6 @@ def create_buy_sell_table(cur):
         stage_number INTEGER,            -- 1, 2, 3, or 4
         stage_confidence INTEGER,        -- 0-100 confidence in stage
         substage VARCHAR(50),            -- Stage 1 - Early/Mid/Late
-        mansfield_rs NUMERIC(10,2),      -- Mansfield Relative Strength
         -- Pine Script Breakout Trend Follower Fields
         ma_filter_value REAL,            -- MA filter level (SMA/EMA)
         ma_filter_type VARCHAR(10),      -- 'SMA' or 'EMA'
@@ -384,8 +383,7 @@ def create_buy_sell_table(cur):
         high_52week NUMERIC,
         volume_current BIGINT,
         volume_avg_50 BIGINT,
-        adx_value NUMERIC,
-        mansfield_rs NUMERIC DEFAULT NULL  -- To be implemented
+        adx_value NUMERIC
     ) RETURNS INTEGER AS $$
     DECLARE
         sata_score INTEGER := 0;
@@ -434,13 +432,7 @@ def create_buy_sell_table(cur):
             sata_score := sata_score + 1;
         END IF;
 
-        -- Component 6: Mansfield Relative Strength
-        -- Green if outperforming benchmark (RS > 0)
-        IF COALESCE(mansfield_rs, 0) > 0 THEN
-            sata_score := sata_score + 1;
-        END IF;
-
-        -- Components 7-8: Momentum (2 points)
+        -- Components 6-7: Momentum (2 points)
         -- Component 7: 20 SMA slope (short-term momentum)
         IF sma_20_slope > 0.1 THEN
             sata_score := sata_score + 1;
@@ -485,8 +477,7 @@ def create_buy_sell_table(cur):
         daily_range_pct NUMERIC,
         high_52week NUMERIC,
         sector VARCHAR DEFAULT 'Unknown',
-        rsi_value NUMERIC DEFAULT NULL,
-        mansfield_rs NUMERIC DEFAULT NULL
+        rsi_value NUMERIC DEFAULT NULL
     ) RETURNS TABLE(
         stage TEXT,
         confidence INTEGER,

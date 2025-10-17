@@ -32,83 +32,9 @@ def get_db_connection():
         sys.exit(1)
 
 
-def calculate_rs_rating(conn):
-    """
-    Calculate RS Rating (Relative Strength Rating) for all stocks
-    Uses weighted multi-timeframe approach:
-    - 40% weight on 12-month (252d) ROC
-    - 20% weight on 9-month (189d) ROC
-    - 20% weight on 6-month (120d) ROC
-    - 20% weight on 3-month (60d) ROC
-
-    Returns percentile rank (0-99) where 99 is strongest momentum
-    """
-    print("📊 Calculating RS Ratings...")
-
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-
-    # Get latest technical data with all ROC periods
-    cursor.execute("""
-        SELECT
-            symbol,
-            roc_252d,
-            roc_189d,
-            roc_120d,
-            roc_60d,
-            date
-        FROM technical_data_daily
-        WHERE date = (SELECT MAX(date) FROM technical_data_daily)
-        AND roc_252d IS NOT NULL
-        AND roc_189d IS NOT NULL
-        AND roc_120d IS NOT NULL
-        AND roc_60d IS NOT NULL
-    """)
-
-    stocks = cursor.fetchall()
-
-    if not stocks:
-        print("⚠️  No stocks found with complete ROC data")
-        return {}
-
-    # Calculate composite momentum score for each stock
-    momentum_scores = {}
-    for stock in stocks:
-        # Weighted average of ROC periods
-        composite = (
-            0.40 * stock['roc_252d'] +
-            0.20 * stock['roc_189d'] +
-            0.20 * stock['roc_120d'] +
-            0.20 * stock['roc_60d']
-        )
-        momentum_scores[stock['symbol']] = composite
-
-    # Calculate percentile ranks (0-99)
-    symbols = list(momentum_scores.keys())
-    scores = np.array(list(momentum_scores.values()))
-
-    # Convert to percentile rank
-    rs_ratings = {}
-    for symbol, score in momentum_scores.items():
-        # Calculate what percentile this score falls into
-        # Count how many scores are less than this score
-        percentile = (np.sum(scores < score) / len(scores)) * 100
-        # Convert to 0-99 scale
-        rs_rating = min(99, max(0, int(percentile)))
-        rs_ratings[symbol] = rs_rating
-
-    print(f"✅ Calculated RS Ratings for {len(rs_ratings)} stocks")
-
-    # Show some examples
-    sorted_ratings = sorted(rs_ratings.items(), key=lambda x: x[1], reverse=True)
-    print(f"\n🔝 Top 10 RS Ratings:")
-    for symbol, rating in sorted_ratings[:10]:
-        print(f"   {symbol}: {rating}")
-
-    cursor.close()
-    return rs_ratings
 
 
-def calculate_momentum_score(conn, rs_ratings):
+def calculate_momentum_score(conn):
     """
     Calculate final momentum score (0-100) combining:
     - Core momentum (70%): weighted ROC + Mansfield RS
@@ -183,7 +109,6 @@ def calculate_momentum_score(conn, rs_ratings):
 
         momentum_scores[symbol] = {
             'momentum_score': round(final_score, 2),
-            'rs_rating': rs_ratings.get(symbol, 50),
             'core_momentum': round(core_momentum, 4),
             'regime_boost': round(regime_boost, 4)
         }
@@ -194,7 +119,7 @@ def calculate_momentum_score(conn, rs_ratings):
     sorted_scores = sorted(momentum_scores.items(), key=lambda x: x[1]['momentum_score'], reverse=True)
     print(f"\n🔝 Top 10 Momentum Scores:")
     for symbol, data in sorted_scores[:10]:
-        print(f"   {symbol}: {data['momentum_score']:.1f} (RS Rating: {data['rs_rating']})")
+        print(f"   {symbol}: {data['momentum_score']:.1f}")
 
     cursor.close()
     return momentum_scores
@@ -237,49 +162,6 @@ def update_momentum_scores(conn, momentum_scores):
     return updated_count
 
 
-def store_rs_ratings(conn, rs_ratings):
-    """
-    Store RS Ratings in a dedicated table for historical tracking
-    """
-    print("\n💾 Storing RS Ratings...")
-
-    cursor = conn.cursor()
-
-    # Create RS ratings table if it doesn't exist
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS rs_ratings (
-            symbol VARCHAR(10),
-            rs_rating INTEGER,
-            date DATE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            PRIMARY KEY (symbol, date)
-        )
-    """)
-
-    # Insert today's RS ratings
-    today = datetime.now().date()
-
-    inserted_count = 0
-    for symbol, rating in rs_ratings.items():
-        try:
-            cursor.execute("""
-                INSERT INTO rs_ratings (symbol, rs_rating, date)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (symbol, date)
-                DO UPDATE SET rs_rating = EXCLUDED.rs_rating
-            """, (symbol, rating, today))
-
-            inserted_count += 1
-
-        except Exception as e:
-            print(f"⚠️  Error storing RS rating for {symbol}: {e}")
-            continue
-
-    conn.commit()
-    cursor.close()
-
-    print(f"✅ Stored RS ratings for {inserted_count} stocks")
-    return inserted_count
 
 
 def main():
@@ -291,24 +173,14 @@ def main():
     conn = get_db_connection()
 
     try:
-        # Step 1: Calculate RS Ratings (percentile ranks)
-        rs_ratings = calculate_rs_rating(conn)
-
-        if not rs_ratings:
-            print("❌ Failed to calculate RS Ratings")
-            return
-
-        # Step 2: Store RS Ratings for historical tracking
-        store_rs_ratings(conn, rs_ratings)
-
-        # Step 3: Calculate momentum scores
-        momentum_scores = calculate_momentum_score(conn, rs_ratings)
+        # Step 1: Calculate momentum scores
+        momentum_scores = calculate_momentum_score(conn)
 
         if not momentum_scores:
             print("❌ Failed to calculate momentum scores")
             return
 
-        # Step 4: Update stock_scores table
+        # Step 2: Update stock_scores table
         update_momentum_scores(conn, momentum_scores)
 
         print("\n" + "=" * 80)

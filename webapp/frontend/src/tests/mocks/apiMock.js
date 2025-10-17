@@ -134,6 +134,85 @@ export const getPortfolioAnalytics = vi.fn().mockResolvedValue({
   }
 });
 
+export const getMarketSentimentHistory = vi.fn().mockResolvedValue({
+  success: true,
+  data: {
+    fear_greed_history: [
+      { date: '2025-10-15', value: 45, value_text: 'Neutral' },
+      { date: '2025-10-14', value: 48, value_text: 'Neutral' },
+      { date: '2025-10-13', value: 52, value_text: 'Greed' }
+    ],
+    naaim_history: [
+      { date: '2025-10-15', mean_exposure: 65 },
+      { date: '2025-10-14', mean_exposure: 63 },
+      { date: '2025-10-13', mean_exposure: 60 }
+    ],
+    aaii_history: [
+      { date: '2025-10-15', bullish: 45, neutral: 28, bearish: 27 },
+      { date: '2025-10-14', bullish: 43, neutral: 30, bearish: 27 },
+      { date: '2025-10-13', bullish: 40, neutral: 32, bearish: 28 }
+    ]
+  }
+});
+
+export const getMarketBreadth = vi.fn().mockResolvedValue({
+  success: true,
+  data: {
+    advancing: 1850,
+    declining: 950,
+    unchanged: 200,
+    total_stocks: 3000,
+    advance_decline_ratio: 1.95,
+    average_change_percent: 0.42
+  }
+});
+
+export const getSeasonalityData = vi.fn().mockResolvedValue({
+  success: true,
+  data: {
+    currentPosition: {
+      seasonalScore: 72,
+      presidentialCycle: 'Year 2',
+      activePeriods: ['Q4', 'November Effect']
+    },
+    monthlySeasonality: [
+      { name: 'Jan', avgReturn: 1.2, isCurrent: false },
+      { name: 'Feb', avgReturn: 0.8, isCurrent: false },
+      { name: 'Oct', avgReturn: 2.1, isCurrent: true }
+    ],
+    quarterlySeasonality: [
+      { name: 'Q1', avgReturn: 0.5 },
+      { name: 'Q2', avgReturn: 0.8 },
+      { name: 'Q3', avgReturn: 0.3 },
+      { name: 'Q4', avgReturn: 2.8 }
+    ]
+  }
+});
+
+export const getMarketResearchIndicators = vi.fn().mockResolvedValue({
+  success: true,
+  data: {
+    summary: {
+      overallSentiment: 'Neutral',
+      marketRegime: 'Consolidation',
+      timeHorizon: 'Medium-term'
+    },
+    volatility: {
+      vix: 18.5,
+      vixAverage: 17.2
+    }
+  }
+});
+
+export const getDistributionDays = vi.fn().mockResolvedValue({
+  success: true,
+  data: {
+    SPY: { symbol: 'SPY', name: 'S&P 500', count: 3, signal: 'NORMAL' },
+    QQQ: { symbol: 'QQQ', name: 'Nasdaq', count: 5, signal: 'ELEVATED' },
+    IWM: { symbol: 'IWM', name: 'Russell 2000', count: 2, signal: 'NORMAL' }
+  }
+});
+
 export const getTradingSignalsDaily = vi.fn().mockResolvedValue({
   success: true,
   data: [
@@ -550,13 +629,147 @@ const mockApi = {
       },
     },
   }),
-  getMarketSentimentHistory: createMockApiFunction('getMarketSentimentHistory'),
-  getMarketSectorPerformance: createMockApiFunction('getMarketSectorPerformance'),
-  getMarketBreadth: createMockApiFunction('getMarketBreadth'),
+  getMarketSentimentHistory: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      fear_greed_history: [
+        { date: '2025-10-15', value: 45, value_text: 'Neutral' },
+        { date: '2025-10-14', value: 48, value_text: 'Neutral' },
+        { date: '2025-10-13', value: 52, value_text: 'Greed' }
+      ],
+      naaim_history: [
+        { date: '2025-10-15', mean_exposure: 65 },
+        { date: '2025-10-14', mean_exposure: 63 },
+        { date: '2025-10-13', mean_exposure: 60 }
+      ],
+      aaii_history: [
+        { date: '2025-10-15', bullish: 45, neutral: 28, bearish: 27 },
+        { date: '2025-10-14', bullish: 43, neutral: 30, bearish: 27 },
+        { date: '2025-10-13', bullish: 40, neutral: 32, bearish: 28 }
+      ]
+    }
+  }),
+  getMarketSectorPerformance: vi.fn().mockResolvedValue({
+    success: true,
+    data: [
+      { sector: 'Technology', performance: 2.5 },
+      { sector: 'Healthcare', performance: 1.2 },
+      { sector: 'Finance', performance: 0.8 }
+    ]
+  }),
+  getMarketBreadth: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      advancing: 1850,
+      declining: 950,
+      unchanged: 200,
+      total_stocks: 3000,
+      advance_decline_ratio: 1.95,
+      average_change_percent: 0.42
+    }
+  }),
   getEconomicIndicators: createMockApiFunction('getEconomicIndicators'),
   getMarketCorrelation: createMockApiFunction('getMarketCorrelation'),
-  getSeasonalityData: createMockApiFunction('getSeasonalityData'),
-  getMarketResearchIndicators: createMockApiFunction('getMarketResearchIndicators'),
+  getSeasonalityData: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      currentPosition: {
+        seasonalScore: 72,
+        presidentialCycle: 'Year 2',
+        activePeriods: ['Q4', 'November Effect']
+      },
+      monthlySeasonality: [
+        { name: 'Jan', avgReturn: 1.2, isCurrent: false },
+        { name: 'Feb', avgReturn: 0.8, isCurrent: false },
+        { name: 'Oct', avgReturn: 2.1, isCurrent: true }
+      ],
+      quarterlySeasonality: [
+        { name: 'Q1', avgReturn: 0.5 },
+        { name: 'Q2', avgReturn: 0.8 },
+        { name: 'Q3', avgReturn: 0.3 },
+        { name: 'Q4', avgReturn: 2.8 }
+      ],
+      presidentialCycle: {
+        data: [
+          { year: 1, label: 'Year 1', avgReturn: 0.5, isCurrent: false },
+          { year: 2, label: 'Year 2', avgReturn: 1.2, isCurrent: true },
+          { year: 3, label: 'Year 3', avgReturn: 2.1, isCurrent: false },
+          { year: 4, label: 'Year 4', avgReturn: 3.5, isCurrent: false }
+        ]
+      },
+      dayOfWeekEffects: [
+        { day: 'Monday', avgReturn: 0.1, isCurrent: false },
+        { day: 'Tuesday', avgReturn: 0.2, isCurrent: false },
+        { day: 'Wednesday', avgReturn: 0.3, isCurrent: false },
+        { day: 'Thursday', avgReturn: 0.2, isCurrent: false },
+        { day: 'Friday', avgReturn: 0.4, isCurrent: true }
+      ],
+      seasonalAnomalies: [
+        { name: 'Santa Rally', period: 'Late Dec', description: 'Year-end rally', strength: 'Strong' }
+      ],
+      holidayEffects: [
+        { holiday: 'Thanksgiving', dates: 'Nov 27-28', effect: '+0.8%' },
+        { holiday: 'Christmas', dates: 'Dec 24-26', effect: '+1.2%' }
+      ],
+      sectorSeasonality: [
+        { sector: 'Technology', bestMonths: [3,4,10,11], worstMonths: [1,2,9], rationale: 'Product cycles' }
+      ],
+      summary: {
+        overallSeasonalBias: 'Bullish',
+        favorableFactors: ['Q4 strength', 'Holiday season'],
+        unfavorableFactors: ['Summer doldrums'],
+        recommendation: 'Neutral to Bullish'
+      }
+    }
+  }),
+  getMarketResearchIndicators: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      summary: {
+        overallSentiment: 'Neutral',
+        marketRegime: 'Consolidation',
+        timeHorizon: 'Medium-term',
+        recommendation: 'Hold current positions',
+        keyRisks: ['Fed uncertainty', 'Geopolitical tensions'],
+        keyOpportunities: ['Tech oversold', 'Dividend plays']
+      },
+      volatility: {
+        vix: 18.5,
+        vixAverage: 17.2,
+        vixInterpretation: {
+          level: 'Normal',
+          sentiment: 'Neutral',
+          color: 'warning'
+        }
+      },
+      sentiment: {
+        putCallRatio: 0.85,
+        putCallAverage: 0.82,
+        putCallInterpretation: {
+          sentiment: 'Cautious',
+          signal: 'Slight fear',
+          color: 'warning'
+        }
+      },
+      technicalLevels: {
+        'S&P 500': { current: 4550, trend: 'Bullish', rsi: 55 },
+        'NASDAQ': { current: 14200, trend: 'Neutral', rsi: 50 },
+        'DOW': { current: 35800, trend: 'Bullish', rsi: 58 }
+      },
+      economicCalendar: [
+        { event: 'CPI Report', date: '2025-11-12', expected: '2.8%', importance: 'High', impact: 'Major' },
+        { event: 'Fed Meeting', date: '2025-11-18', expected: 'No change', importance: 'High', impact: 'Major' }
+      ]
+    }
+  }),
+  getDistributionDays: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      SPY: { symbol: 'SPY', name: 'S&P 500', count: 3, signal: 'NORMAL' },
+      QQQ: { symbol: 'QQQ', name: 'Nasdaq', count: 5, signal: 'ELEVATED' },
+      IWM: { symbol: 'IWM', name: 'Russell 2000', count: 2, signal: 'NORMAL' }
+    }
+  }),
   getPortfolioAnalytics: createMockApiFunction('getPortfolioAnalytics'),
   getPortfolioRiskAnalysis: createMockApiFunction('getPortfolioRiskAnalysis'),
   getPortfolioOptimization: createMockApiFunction('getPortfolioOptimization'),

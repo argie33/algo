@@ -969,7 +969,6 @@ router.get("/rotation", async (req, res) => {
         sector_name,
         momentum,
         money_flow,
-        relative_strength,
         performance_1d,
         performance_5d,
         performance_20d,
@@ -979,7 +978,7 @@ router.get("/rotation", async (req, res) => {
         total_assets,
         fetched_at
       FROM sector_performance
-      ORDER BY relative_strength DESC
+      ORDER BY sector_name ASC
     `;
 
     const result = await query(rotationQuery);
@@ -998,7 +997,6 @@ router.get("/rotation", async (req, res) => {
       sector: row.sector_name,
       symbol: row.symbol,
       momentum: row.momentum,
-      relative_strength: parseFloat(row.relative_strength || 0),
       flow_direction: row.money_flow,
       rsi: parseFloat(row.rsi || 0),
       performance: {
@@ -1011,21 +1009,20 @@ router.get("/rotation", async (req, res) => {
       total_assets: row.total_assets,
     }));
 
-    // Determine market cycle based on sector performance
-    const avgRelativeStrength = sectorRankings.reduce((sum, s) => sum + s.relative_strength, 0) / sectorRankings.length;
+    // Determine market cycle based on sector money flow
     const inflowCount = sectorRankings.filter(s => s.flow_direction === 'Inflow').length;
     const outflowCount = sectorRankings.filter(s => s.flow_direction === 'Outflow').length;
 
     let currentPhase = "MID_CYCLE";
     let confidence = 0.7;
 
-    if (avgRelativeStrength > 5 && inflowCount > outflowCount * 2) {
+    if (inflowCount > outflowCount * 2) {
       currentPhase = "EARLY_CYCLE";
       confidence = 0.85;
-    } else if (avgRelativeStrength < -5 && outflowCount > inflowCount * 2) {
+    } else if (outflowCount > inflowCount * 2) {
       currentPhase = "RECESSION";
       confidence = 0.8;
-    } else if (avgRelativeStrength > 0 && inflowCount > outflowCount) {
+    } else if (inflowCount > outflowCount) {
       currentPhase = "MID_CYCLE";
       confidence = 0.75;
     } else {
@@ -1040,7 +1037,6 @@ router.get("/rotation", async (req, res) => {
       market_cycle: {
         current_phase: currentPhase,
         confidence: confidence,
-        avg_relative_strength: avgRelativeStrength.toFixed(2),
         inflow_sectors: inflowCount,
         outflow_sectors: outflowCount,
         neutral_sectors: sectorRankings.length - inflowCount - outflowCount,

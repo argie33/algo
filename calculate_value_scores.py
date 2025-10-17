@@ -112,7 +112,7 @@ class ValueScoreCalculator:
                 else:
                     pe_score = max(0, 40 - (pe_ratio - 25) * 2)
             else:
-                pe_score = 50  # Neutral score if no P/E available
+                pe_score = None  # FAIL - no P/E available if no P/E available
 
             components["pe_ratio"] = pe_ratio
             components["pe_score"] = pe_score
@@ -135,7 +135,7 @@ class ValueScoreCalculator:
                 else:
                     pb_score = max(0, 35 - (pb_ratio - 3.0) * 10)
             else:
-                pb_score = 50
+                pb_score = None  # FAIL - no P/B available
 
             components["pb_ratio"] = pb_ratio
             components["pb_score"] = pb_score
@@ -151,8 +151,8 @@ class ValueScoreCalculator:
                 cash = financial_data.get("totalCash", 0)
                 enterprise_value = market_cap + total_debt - cash
 
-            ev_ebitda_score = 50  # Default neutral
-            ev_sales_score = 50  # Default neutral
+            ev_ebitda_score = None  # FAIL
+            ev_sales_score = None  # FAIL
 
             # EV/EBITDA Analysis
             if enterprise_value and ebitda and ebitda > 0:
@@ -198,7 +198,7 @@ class ValueScoreCalculator:
 
         except Exception as e:
             logger.error(f"Error calculating traditional multiples score: {str(e)}")
-            return 50.0, {"error": str(e)}
+            return None, {"error": str(e)}
 
     def calculate_intrinsic_value_score(
         self, financial_data: Dict, market_data: Dict
@@ -220,7 +220,7 @@ class ValueScoreCalculator:
             )
 
             if not current_price or current_price <= 0:
-                return 50.0, {"error": "No valid current price"}
+                return None, {"error": "No valid current price"}
 
             # 1. Discounted Cash Flow (DCF) Model (50% of intrinsic value score)
             dcf_score, dcf_components = self._calculate_dcf_value(
@@ -249,7 +249,7 @@ class ValueScoreCalculator:
 
         except Exception as e:
             logger.error(f"Error calculating intrinsic value score: {str(e)}")
-            return 50.0, {"error": str(e)}
+            return None, {"error": str(e)}
 
     def _calculate_dcf_value(
         self, financial_data: Dict, current_price: float
@@ -355,14 +355,14 @@ class ValueScoreCalculator:
                     return dcf_score, components
 
             # Default score if DCF can't be calculated
-            return 50.0, {
+            return None, {
                 "dcf_score": 50.0,
                 "dcf_error": "Insufficient data for DCF calculation",
             }
 
         except Exception as e:
             logger.error(f"Error in DCF calculation: {str(e)}")
-            return 50.0, {"dcf_error": str(e)}
+            return None, {"dcf_error": str(e)}
 
     def _calculate_ddm_value(
         self, financial_data: Dict, current_price: float
@@ -429,14 +429,14 @@ class ValueScoreCalculator:
                     return ddm_score, components
 
             # If no dividend or DDM not applicable, use neutral score
-            return 50.0, {
+            return None, {
                 "ddm_score": 50.0,
                 "ddm_note": "No dividend or insufficient data",
             }
 
         except Exception as e:
             logger.error(f"Error in DDM calculation: {str(e)}")
-            return 50.0, {"ddm_error": str(e)}
+            return None, {"ddm_error": str(e)}
 
     def _calculate_residual_income_value(
         self, financial_data: Dict, current_price: float
@@ -498,11 +498,11 @@ class ValueScoreCalculator:
 
                 return rim_score, components
 
-            return 50.0, {"rim_score": 50.0, "rim_note": "Insufficient data for RIM"}
+            return None, {"rim_score": 50.0, "rim_note": "Insufficient data for RIM"}
 
         except Exception as e:
             logger.error(f"Error in RIM calculation: {str(e)}")
-            return 50.0, {"rim_error": str(e)}
+            return None, {"rim_error": str(e)}
 
     def calculate_relative_value_score(
         self, financial_data: Dict, symbol: str
@@ -532,7 +532,7 @@ class ValueScoreCalculator:
             pb_ratio = financial_data.get("priceToBook", 0)
 
             # Sector-relative scoring (60% of relative value score)
-            sector_score = 50  # Default neutral
+            sector_score = None  # FAIL
 
             if sector_multiples and pe_ratio:
                 sector_pe_median = sector_multiples.get("pe_median", pe_ratio)
@@ -566,7 +566,7 @@ class ValueScoreCalculator:
 
         except Exception as e:
             logger.error(f"Error calculating relative value score: {str(e)}")
-            return 50.0, {"error": str(e)}
+            return None, {"error": str(e)}
 
     def _get_sector_benchmarks(self, sector: str) -> Dict:
         """
@@ -635,7 +635,7 @@ class ValueScoreCalculator:
             # P/E: 10-25 typical range, 15-20 = fair value
             # P/B: 1-4 typical range, 2-3 = fair value
 
-            pe_historical_score = 50
+            pe_historical_score = None  # FAIL
             if pe_ratio:
                 if 15 <= pe_ratio <= 20:
                     pe_historical_score = 70 + (20 - abs(pe_ratio - 17.5)) * 4
@@ -648,7 +648,7 @@ class ValueScoreCalculator:
                 else:
                     pe_historical_score = max(0, 50 - (pe_ratio - 25) * 2)
 
-            pb_historical_score = 50
+            pb_historical_score = None  # FAIL
             if pb_ratio:
                 if 2.0 <= pb_ratio <= 3.0:
                     pb_historical_score = 70 + (3.0 - abs(pb_ratio - 2.5)) * 20
@@ -666,7 +666,7 @@ class ValueScoreCalculator:
 
         except Exception as e:
             logger.error(f"Error calculating historical valuation score: {str(e)}")
-            return 50.0
+            return None
 
     def calculate_value_score(
         self, symbol: str, financial_data: Dict, market_data: Dict

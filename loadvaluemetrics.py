@@ -555,9 +555,10 @@ def calculate_percentile_ranks(cursor):
         Calculate percentile rank position (0-100).
         lower_is_better=True: Lower values get higher percentile (cheaper stocks)
         lower_is_better=False: Higher values get higher percentile (better yields)
+        NO FALLBACK - Returns None if insufficient data
         """
         if not values_list:
-            return 50  # Default to middle if no comparison data
+            return None  # FAIL - No comparison data available
 
         values_only = [v for _, v in values_list]
         sorted_values = sorted(values_only)

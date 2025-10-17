@@ -12,7 +12,7 @@ export const getApiConfig = () => {
   const apiUrl =
     runtimeApiUrl ||
     (import.meta.env && import.meta.env.VITE_API_URL) ||
-    "http://localhost:3001";
+    "http://localhost:5001";
 
   // Only log in development, not in tests
   if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
@@ -576,7 +576,7 @@ export const saveApiKey = async (apiKeyData) => {
       status: error.response?.status,
       statusText: error.response?.statusText,
     });
-    return { ok: false, error: error.message };
+    throw new Error(error.message);
   }
 };
 
@@ -591,7 +591,7 @@ export const testApiKey = async (apiKeyData) => {
       status: error.response?.status,
       statusText: error.response?.statusText,
     });
-    return { ok: false, isValid: false, error: error.message };
+    throw new Error(error.message);
   }
 };
 
@@ -620,7 +620,7 @@ export const updateSettings = async (settings) => {
       status: error.response?.status,
       statusText: error.response?.statusText,
     });
-    return { ok: false, success: false, error: error.message };
+    throw new Error(error.message);
   }
 };
 
@@ -1137,7 +1137,7 @@ export const getMarketSentimentHistory = async (days = 30) => {
       method: error.config?.method,
     });
     const errorMessage = handleApiError(error, "get market sentiment history");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1201,7 +1201,7 @@ export const getMarketSectorPerformance = async () => {
       method: error.config?.method,
     });
     const errorMessage = handleApiError(error, "get market sector performance");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1263,7 +1263,7 @@ export const getMarketBreadth = async () => {
       method: error.config?.method,
     });
     const errorMessage = handleApiError(error, "get market breadth");
-    return { data: {}, error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1271,7 +1271,7 @@ export const getDistributionDays = async () => {
   console.log(`📊 [API] Fetching distribution days...`);
 
   try {
-    const endpoints = [`/market/distribution-days`, `/api/market/distribution-days`];
+    const endpoints = [`/api/market/distribution-days`, `/market/distribution-days`];
     let response = null;
     let lastError = null;
 
@@ -1314,7 +1314,7 @@ export const getDistributionDays = async () => {
       method: error.config?.method,
     });
     const errorMessage = handleApiError(error, "get distribution days");
-    return { data: {}, error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1811,7 +1811,7 @@ export const getStocks = async (params = {}) => {
       stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get stocks");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1830,7 +1830,7 @@ export const getStocksQuick = async (params = {}) => {
     return normalizeApiResponse(response);
   } catch (error) {
     const errorMessage = handleApiError(error, "get stocks quick");
-    return normalizeApiResponse({ data: [], error: errorMessage });
+    throw new Error(errorMessage);
   }
 };
 
@@ -1841,7 +1841,7 @@ export const getStocksChunk = async (chunkIndex = 0) => {
     return normalizeApiResponse(response);
   } catch (error) {
     const errorMessage = handleApiError(error, "get stocks chunk");
-    return normalizeApiResponse({ data: [], error: errorMessage });
+    throw new Error(errorMessage);
   }
 };
 
@@ -1865,7 +1865,7 @@ export const getStocksFull = async (params = {}) => {
     return normalizeApiResponse(response);
   } catch (error) {
     const errorMessage = handleApiError(error, "get stocks full");
-    return normalizeApiResponse({ data: [], error: errorMessage });
+    throw new Error(errorMessage);
   }
 };
 
@@ -1895,7 +1895,7 @@ export const getStock = async (ticker) => {
       stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get stock");
-    return { data: null, error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1918,7 +1918,7 @@ export const getStockMetrics = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get stock metrics");
-    return { data: null, error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1953,7 +1953,7 @@ export const getStockFinancials = async (ticker, type = "income") => {
       stack: error?.stack?.substring(0, 500) + "...",
     });
     const errorMessage = handleApiError(error, "get stock financials");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1965,7 +1965,7 @@ export const getAnalystRecommendations = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get analyst recommendations");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1983,7 +1983,7 @@ export const getStockPrices = async (
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get stock prices");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -1997,7 +1997,7 @@ export const getStockPricesRecent = async (ticker, limit = 30) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get recent stock prices");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2009,7 +2009,7 @@ export const getStockRecommendations = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get stock recommendations");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2021,7 +2021,7 @@ export const getSectors = async () => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get sectors");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2041,7 +2041,7 @@ export const getValuationMetrics = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get valuation metrics");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2061,7 +2061,7 @@ export const getGrowthMetrics = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get growth metrics");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2081,7 +2081,7 @@ export const getDividendMetrics = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get dividend metrics");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2104,7 +2104,7 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
       error,
       "get financial strength metrics"
     );
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2221,7 +2221,7 @@ export const getEarningsEstimates = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get earnings estimates");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2244,7 +2244,7 @@ export const getEarningsHistory = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get earnings history");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2259,7 +2259,7 @@ export const getTickerEarningsEstimates = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get ticker earnings estimates");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2271,7 +2271,7 @@ export const getTickerEarningsHistory = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get ticker earnings history");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2283,7 +2283,7 @@ export const getTickerRevenueEstimates = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get ticker revenue estimates");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2295,7 +2295,7 @@ export const getTickerEpsRevisions = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get ticker eps revisions");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2307,7 +2307,7 @@ export const getTickerEpsTrend = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get ticker eps trend");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2319,7 +2319,7 @@ export const getTickerGrowthEstimates = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get ticker growth estimates");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2334,7 +2334,7 @@ export const getTickerAnalystRecommendations = async (ticker) => {
       error,
       "get ticker analyst recommendations"
     );
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2346,7 +2346,7 @@ export const getAnalystOverview = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get analyst overview");
-    return { data: null, error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2360,7 +2360,7 @@ export const getFinancialStatements = async (ticker, period = "annual") => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get financial statements");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2386,7 +2386,7 @@ export const getIncomeStatement = async (ticker, period = "annual") => {
     return { data: transformedData };
   } catch (error) {
     const errorMessage = handleApiError(error, "get income statement");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2399,7 +2399,7 @@ export const getCashFlowStatement = async (ticker, period = "annual") => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get cash flow statement");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2425,7 +2425,7 @@ export const getBalanceSheet = async (ticker, period = "annual") => {
     return { data: transformedData };
   } catch (error) {
     const errorMessage = handleApiError(error, "get balance sheet");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2439,7 +2439,7 @@ export const getKeyMetrics = async (ticker) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, `get key metrics for ${ticker}`);
-    return { data: null, error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2459,7 +2459,7 @@ export const getAllFinancialData = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get all financial data");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2479,7 +2479,7 @@ export const getFinancialMetrics = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get financial metrics");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2499,7 +2499,7 @@ export const getEpsRevisions = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get EPS revisions");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2519,7 +2519,7 @@ export const getEpsTrend = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get EPS trend");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2539,7 +2539,7 @@ export const getGrowthEstimates = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get growth estimates");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2559,7 +2559,7 @@ export const getEconomicData = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get economic data");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2689,7 +2689,7 @@ export const getNaaimData = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get NAAIM data");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2709,7 +2709,7 @@ export const getFearGreedData = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get fear & greed data");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2879,7 +2879,7 @@ export const getTechnicalSummary = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get technical summary");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2899,7 +2899,7 @@ export const getEarningsMetrics = async (params = {}) => {
     return { data: result };
   } catch (error) {
     const errorMessage = handleApiError(error, "get earnings metrics");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -2998,7 +2998,7 @@ export const getDatabaseHealthFull = async () => {
     return { data: response?.data };
   } catch (error) {
     const errorMessage = handleApiError(error, "get database health");
-    return { data: null, error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -3187,7 +3187,7 @@ export const getMarketIndices = async () => {
       url: error.config?.url,
     });
     const errorMessage = handleApiError(error, "get market indices");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -3215,7 +3215,7 @@ export const getSectorPerformance = async () => {
       url: error.config?.url,
     });
     const errorMessage = handleApiError(error, "get sector performance");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -3243,7 +3243,7 @@ export const getMarketVolatility = async () => {
       statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get market volatility");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -3271,7 +3271,7 @@ export const getEconomicCalendar = async () => {
       statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get economic calendar");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -3299,7 +3299,7 @@ export const getMarketCapCategories = async () => {
       statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get market cap categories");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -3333,7 +3333,7 @@ export const getTechnicalIndicators = async (symbol, timeframe, indicators) => {
       statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get technical indicators");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -3363,7 +3363,7 @@ export const getVolumeData = async (symbol, timeframe) => {
       statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get volume data");
-    return { data: [], error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 
@@ -3395,7 +3395,7 @@ export const getSupportResistanceLevels = async (symbol) => {
       statusText: error.response?.statusText,
     });
     const errorMessage = handleApiError(error, "get support resistance levels");
-    return { data: null, error: errorMessage };
+    throw new Error(errorMessage);
   }
 };
 

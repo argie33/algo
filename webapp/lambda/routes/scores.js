@@ -118,13 +118,19 @@ router.get("/", async (req, res) => {
         qm.earnings_surprise_avg,
         qm.eps_growth_stability,
         qm.payout_ratio,
-        -- Growth INPUT metrics from growth_metrics table
+        -- Growth INPUT metrics from growth_metrics table (12 professional growth inputs)
         gm.revenue_growth_3y_cagr,
         gm.eps_growth_3y_cagr,
         gm.operating_income_growth_yoy,
         gm.roe_trend,
         gm.sustainable_growth_rate,
         gm.fcf_growth_yoy,
+        gm.net_income_growth_yoy,
+        gm.gross_margin_trend,
+        gm.operating_margin_trend,
+        gm.net_margin_trend,
+        gm.quarterly_growth_momentum,
+        gm.asset_growth_yoy,
         -- Raw momentum INPUT metrics from momentum_metrics table (dual momentum)
         mm.momentum_12m_1,
         mm.momentum_6m,
@@ -217,7 +223,13 @@ router.get("/", async (req, res) => {
           operating_income_growth_yoy,
           roe_trend,
           sustainable_growth_rate,
-          fcf_growth_yoy
+          fcf_growth_yoy,
+          net_income_growth_yoy,
+          gross_margin_trend,
+          operating_margin_trend,
+          net_margin_trend,
+          quarterly_growth_momentum,
+          asset_growth_yoy
         FROM growth_metrics
         ORDER BY symbol, date DESC
       ) gm ON ss.symbol = gm.symbol
@@ -390,14 +402,20 @@ router.get("/", async (req, res) => {
         eps_growth_stability: parseFloat(row.eps_growth_stability) || null,
         payout_ratio: parseFloat(row.payout_ratio) || null
       },
-      // Add growth INPUT metrics for frontend display
+      // Add growth INPUT metrics for frontend display (12 professional growth inputs)
       growth_inputs: {
         revenue_growth_3y_cagr: parseFloat(row.revenue_growth_3y_cagr) || null,
         eps_growth_3y_cagr: parseFloat(row.eps_growth_3y_cagr) || null,
         operating_income_growth_yoy: parseFloat(row.operating_income_growth_yoy) || null,
         roe_trend: parseFloat(row.roe_trend) || null,
         sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
-        fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null
+        fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null,
+        net_income_growth_yoy: parseFloat(row.net_income_growth_yoy) || null,
+        gross_margin_trend: parseFloat(row.gross_margin_trend) || null,
+        operating_margin_trend: parseFloat(row.operating_margin_trend) || null,
+        net_margin_trend: parseFloat(row.net_margin_trend) || null,
+        quarterly_growth_momentum: parseFloat(row.quarterly_growth_momentum) || null,
+        asset_growth_yoy: parseFloat(row.asset_growth_yoy) || null
       },
       // Add raw momentum INPUT metrics for professional momentum display (dual momentum)
       // Use momentum_metrics table data if available, otherwise fallback to stock_scores columns
@@ -573,13 +591,19 @@ router.get("/:symbol", async (req, res) => {
         qm.earnings_surprise_avg,
         qm.eps_growth_stability,
         qm.payout_ratio,
-        -- Growth INPUT metrics from growth_metrics table
+        -- Growth INPUT metrics from growth_metrics table (12 professional growth inputs)
         gm.revenue_growth_3y_cagr,
         gm.eps_growth_3y_cagr,
         gm.operating_income_growth_yoy,
         gm.roe_trend,
         gm.sustainable_growth_rate,
         gm.fcf_growth_yoy,
+        gm.net_income_growth_yoy,
+        gm.gross_margin_trend,
+        gm.operating_margin_trend,
+        gm.net_margin_trend,
+        gm.quarterly_growth_momentum,
+        gm.asset_growth_yoy,
         -- Raw momentum INPUT metrics from momentum_metrics table (dual momentum)
         mm.momentum_12m_1,
         mm.momentum_6m,
@@ -672,7 +696,13 @@ router.get("/:symbol", async (req, res) => {
           operating_income_growth_yoy,
           roe_trend,
           sustainable_growth_rate,
-          fcf_growth_yoy
+          fcf_growth_yoy,
+          net_income_growth_yoy,
+          gross_margin_trend,
+          operating_margin_trend,
+          net_margin_trend,
+          quarterly_growth_momentum,
+          asset_growth_yoy
         FROM growth_metrics
         ORDER BY symbol, date DESC
       ) gm ON ss.symbol = gm.symbol
@@ -831,7 +861,13 @@ router.get("/:symbol", async (req, res) => {
               operating_income_growth_yoy: parseFloat(row.operating_income_growth_yoy) || null,
               roe_trend: parseFloat(row.roe_trend) || null,
               sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
-              fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null
+              fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null,
+              net_income_growth_yoy: parseFloat(row.net_income_growth_yoy) || null,
+              gross_margin_trend: parseFloat(row.gross_margin_trend) || null,
+              operating_margin_trend: parseFloat(row.operating_margin_trend) || null,
+              net_margin_trend: parseFloat(row.net_margin_trend) || null,
+              quarterly_growth_momentum: parseFloat(row.quarterly_growth_momentum) || null,
+              asset_growth_yoy: parseFloat(row.asset_growth_yoy) || null
             }
           },
           relative_strength: {

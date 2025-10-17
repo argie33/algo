@@ -124,7 +124,6 @@ def create_stock_scores_table(conn):
                 momentum_short_term DECIMAL(5,2),
                 momentum_medium_term DECIMAL(5,2),
                 momentum_long_term DECIMAL(5,2),
-                momentum_relative_strength DECIMAL(5,2),
                 momentum_consistency DECIMAL(5,2),
                 roc_10d DECIMAL(8,2),
                 roc_20d DECIMAL(8,2),
@@ -340,15 +339,10 @@ def calculate_liquidity_risk(volume_avg_30d, current_price, shares_outstanding=N
     Higher = Better liquidity (lower risk)
     Lower = Worse liquidity (higher risk)
 
-    If market cap not available, estimate from typical volume multiples.
+    REQUIRES: volume_avg_30d must be present, will return None if not
     """
     if not volume_avg_30d or volume_avg_30d <= 0:
-        return 50  # Neutral if no volume data
-
-    # Estimate market cap from volume and price if shares outstanding not available
-    # Average stock: daily dollar volume / market cap ≈ 0.5% to 2%
-    # High liquidity: >1% daily turnover
-    # Low liquidity: <0.1% daily turnover
+        return None  # FAIL: No volume data available
 
     # For now, use volume threshold as proxy
     # Higher daily volume = lower liquidity risk
@@ -369,22 +363,23 @@ def calculate_percentile_rank(value, all_values):
     """
     Calculate percentile rank of a value within a list of values.
     Returns a score from 0-100 representing the percentile.
+    Returns None if data is insufficient.
 
-    Industry standard approach used by Fama-French, MSCI, AQR.
+    REQUIRES: Both value and all_values with sufficient data
     """
     if value is None or all_values is None or len(all_values) == 0:
-        return 50.0  # Neutral if no data
+        return None  # FAIL: No data available
 
     # Remove None values and convert to float
     valid_values = [float(v) for v in all_values if v is not None]
 
     if len(valid_values) == 0:
-        return 50.0
+        return None  # FAIL: All values are None
 
     try:
         value_float = float(value)
     except (ValueError, TypeError):
-        return 50.0
+        return None  # FAIL: Cannot convert value to float
 
     # Count how many values are less than or equal to this value
     rank = sum(1 for v in valid_values if v <= value_float)
@@ -885,6 +880,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # Pure Risk Minimization Model (Option A - Defensive Focus)
         # Formula: 30% volatility + 25% downside_vol + 25% drawdown + 15% beta + 5% liquidity
         # LOWER volatility/drawdown/beta = HIGHER score (safer stocks)
+        # REQUIRES ALL DATA or None - NO NEUTRAL DEFAULTS
         # ============================================================
         risk_score = None
         risk_inputs = {
@@ -896,84 +892,85 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         }
 
         try:
-            # Retrieve base metrics from risk_metrics table
-            cur.execute("""
-                SELECT volatility_12m_pct, max_drawdown_52w_pct
-                FROM risk_metrics
-                WHERE symbol = %s
-                ORDER BY date DESC LIMIT 1
-            """, (symbol,))
+            # REQUIRE: All risk components must be calculable
+            prices = df['close'].astype(float).values
 
-            risk_data = cur.fetchone()
-            if risk_data:
-                volatility_12m_pct = float(risk_data[0]) if risk_data[0] is not None else None
-                max_drawdown_52w_pct = float(risk_data[1]) if risk_data[1] is not None else None
+            # Calculate volatility directly from price data (30-day)
+            volatility_12m_pct = calculate_volatility(prices)  # Annualized
+            if volatility_12m_pct is None:
+                logger.error(f"{symbol}: Cannot calculate volatility - insufficient price data")
+                return None
 
-                # Calculate downside volatility (only on down days)
-                prices = df['close'].astype(float).values
-                downside_volatility = calculate_downside_volatility(prices)
+            # Calculate downside volatility (only on down days)
+            downside_volatility = calculate_downside_volatility(prices)
+            if downside_volatility is None:
+                logger.error(f"{symbol}: Cannot calculate downside volatility")
+                return None
 
-                # Calculate beta (correlation to S&P 500)
-                price_returns = np.diff(np.log(prices))
-                beta = calculate_beta(conn, symbol, price_returns)
+            # Calculate beta (correlation to S&P 500)
+            price_returns = np.diff(np.log(prices))
+            beta = calculate_beta(conn, symbol, price_returns)
+            if beta is None:
+                logger.error(f"{symbol}: Cannot calculate beta - SPY data missing or insufficient")
+                return None
 
-                # Calculate liquidity risk (based on volume)
-                liquidity_risk = calculate_liquidity_risk(volume_avg_30d, current_price)
+            # Calculate liquidity risk (based on volume)
+            liquidity_risk = calculate_liquidity_risk(volume_avg_30d, current_price)
+            if liquidity_risk is None:
+                logger.error(f"{symbol}: Cannot calculate liquidity risk - no volume data")
+                return None
 
-                if volatility_12m_pct is not None:
-                    # Convert all to 0-100 scale for risk components
-                    # LOWER values = BETTER = higher component score
-                    # Volatility: scale from % annualized (typical 0.5% to 50%)
-                    vol_percentile = max(0, min(100, 100 - (volatility_12m_pct * 2)))  # Inverted: lower vol = higher score
+            # REQUIRE: Try to get drawdown from risk_metrics table - FAIL if missing
+            max_drawdown_52w_pct = None
+            try:
+                cur.execute("""
+                    SELECT max_drawdown_52w_pct
+                    FROM risk_metrics
+                    WHERE symbol = %s
+                    ORDER BY date DESC LIMIT 1
+                """, (symbol,))
+                drawdown_data = cur.fetchone()
+                if drawdown_data and drawdown_data[0] is not None:
+                    max_drawdown_52w_pct = float(drawdown_data[0])
+                else:
+                    logger.error(f"{symbol}: Max drawdown data missing from risk_metrics table")
+                    return None
+            except:
+                logger.error(f"{symbol}: risk_metrics table not accessible")
+                return None
 
-                    # Downside volatility: typically 0 to 30%
-                    if downside_volatility is not None:
-                        downside_percentile = max(0, min(100, 100 - (downside_volatility * 3)))  # Inverted
-                    else:
-                        downside_percentile = 50  # Neutral if missing
+            # All components available - calculate risk score
+            # Convert all to 0-100 scale for risk components
+            vol_percentile = max(0, min(100, 100 - (volatility_12m_pct * 2)))  # Inverted: lower vol = higher score
+            downside_percentile = max(0, min(100, 100 - (downside_volatility * 3)))  # Inverted
+            drawdown_percentile = max(0, min(100, 100 - max_drawdown_52w_pct))  # Inverted: lower drawdown = higher score
+            beta_percentile = max(0, min(100, 100 - (beta * 50)))  # Scale: 1.0=50, 0.5=75, 1.5=25
+            liquidity_percentile = liquidity_risk
 
-                    # Max drawdown: typically 0 to 100%
-                    if max_drawdown_52w_pct is not None:
-                        drawdown_percentile = max(0, min(100, 100 - max_drawdown_52w_pct))  # Inverted: lower drawdown = higher score
-                    else:
-                        drawdown_percentile = 50  # Neutral if missing
+            # Calculate composite risk score with new weighting
+            # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
+            risk_score = (
+                vol_percentile * 0.30 +
+                downside_percentile * 0.25 +
+                drawdown_percentile * 0.25 +
+                beta_percentile * 0.15 +
+                liquidity_percentile * 0.05
+            )
+            risk_score = max(0, min(100, risk_score))
 
-                    # Beta: typically 0.5 to 2.0
-                    # Beta = 1.0 is market neutral, lower is better for risk
-                    if beta is not None:
-                        # Invert: lower beta (0.8) gets higher score than higher beta (1.2)
-                        beta_percentile = max(0, min(100, 100 - (beta * 50)))  # Scale: 1.0=50, 0.5=75, 1.5=25
-                    else:
-                        beta_percentile = 50  # Neutral if missing
+            # Store risk inputs for display
+            risk_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
+            risk_inputs['downside_volatility_pct'] = round(downside_volatility, 2)
+            risk_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2)
+            risk_inputs['beta'] = round(beta, 3)
+            risk_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
 
-                    # Liquidity risk: already on 0-100 scale, higher is better
-                    liquidity_percentile = liquidity_risk if liquidity_risk is not None else 50
+            logger.info(f"{symbol} Risk Components: Vol={volatility_12m_pct:.2f}%, Downside={downside_volatility:.2f}%, Drawdown={max_drawdown_52w_pct:.2f}%, Beta={beta}, Liquidity={liquidity_risk}")
 
-                    # Calculate composite risk score with new weighting
-                    # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
-                    risk_score = (
-                        vol_percentile * 0.30 +
-                        downside_percentile * 0.25 +
-                        drawdown_percentile * 0.25 +
-                        beta_percentile * 0.15 +
-                        liquidity_percentile * 0.05
-                    )
-                    risk_score = max(0, min(100, risk_score))
-
-                    # Store risk inputs for display
-                    risk_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
-                    risk_inputs['downside_volatility_pct'] = round(downside_volatility, 2) if downside_volatility is not None else None
-                    risk_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2) if max_drawdown_52w_pct else None
-                    risk_inputs['beta'] = round(beta, 3) if beta is not None else None
-                    risk_inputs['liquidity_risk'] = round(liquidity_percentile, 1) if liquidity_percentile else None
-
-        except psycopg2.Error as e:
-            logger.warning(f"Risk metrics table query failed for {symbol}: {e}")
-            conn.rollback()
-            risk_score = None
         except Exception as e:
-            logger.warning(f"Risk calculation failed for {symbol}: {e}")
-            risk_score = None
+            logger.error(f"{symbol}: Risk calculation failed: {e}")
+            conn.rollback()
+            return None
 
         # Get quality metrics from key_metrics table for percentile-based quality score
         stock_roe = None
@@ -1173,54 +1170,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             else:
                 longer_term_momentum = 0  # Poor 12M performance
 
-        # Component 5: Relative Strength (15 points) - vs S&P 500 + Risk-Adjusted Performance
-        # Primary: Mansfield RS (vs market) + Risk-Adjusted Momentum (Sharpe-style)
-        relative_strength = 7.5  # Start neutral
-
-        rs_base_score = 7.5  # Mansfield RS component (0-10 points, reduced from 0-15)
-        risk_adj_score = 5   # Risk-adjusted component (0-5 points, unchanged)
-
-        # Mansfield RS - identifies market outperformers (0-10 points, reduced from 0-15)
-        if mansfield_rs is not None:
-            # Mansfield RS typically ranges from -50 to +50
-            # Positive = outperforming market, Negative = underperforming
-            if mansfield_rs > 20:
-                rs_base_score = 10  # Strong outperformance (reduced from 15)
-            elif mansfield_rs > 10:
-                rs_base_score = 8 + (mansfield_rs - 10) * 0.2  # Reduced scale
-            elif mansfield_rs > 5:
-                rs_base_score = 6.5 + (mansfield_rs - 5) * 0.3
-            elif mansfield_rs > 0:
-                rs_base_score = 5 + (mansfield_rs) * 0.3
-            elif mansfield_rs > -5:
-                rs_base_score = 3.5 + (mansfield_rs + 5) * 0.3
-            elif mansfield_rs > -10:
-                rs_base_score = 2 + (mansfield_rs + 10) * 0.3
-            elif mansfield_rs > -20:
-                rs_base_score = 0.5 + (mansfield_rs + 20) * 0.15
-            else:
-                rs_base_score = 0  # Strong underperformance
-
-        # Risk-Adjusted Momentum - return/volatility ratio (0-5 points)
-        if risk_adjusted_momentum is not None:
-            # Risk-adjusted momentum is return/volatility (Sharpe-style without risk-free rate)
-            # Positive = good risk-adjusted returns, Negative = poor risk-adjusted returns
-            if risk_adjusted_momentum > 1.0:
-                risk_adj_score = 5  # Excellent risk-adjusted performance
-            elif risk_adjusted_momentum > 0.5:
-                risk_adj_score = 4 + (risk_adjusted_momentum - 0.5) * 2.0
-            elif risk_adjusted_momentum > 0:
-                risk_adj_score = 2.5 + (risk_adjusted_momentum) * 3.0
-            elif risk_adjusted_momentum > -0.5:
-                risk_adj_score = 1 + (risk_adjusted_momentum + 0.5) * 3.0
-            elif risk_adjusted_momentum > -1.0:
-                risk_adj_score = 0.25 + (risk_adjusted_momentum + 1.0) * 1.5
-            else:
-                risk_adj_score = 0  # Poor risk-adjusted performance
-
-        relative_strength = rs_base_score + risk_adj_score
-
-        # Component 6: Momentum Consistency (10 points) - Multi-timeframe alignment
+        # Component 5: Momentum Consistency (10 points) - Multi-timeframe alignment
         # Primary: Check alignment across 3M, 6M, 12M returns from momentum_metrics
         # Fallback: Check alignment across ROC timeframes from technical indicators
         consistency_score = 5  # Start neutral
@@ -1270,13 +1220,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             consistency_score = max(0, min(10, consistency_score))
 
         # Calculate final momentum score (0-100 scale)
-        # Components: 10 + 25 + 25 + 15 + 15 + 10 = 100 pts
-        momentum_score = (intraweek_confirmation + short_term_momentum + medium_term_momentum +
-                         longer_term_momentum + relative_strength + consistency_score)
+        # Components: 10 + 25 + 25 + 15 + 10 = 85 pts (scaled to 100)
+        raw_momentum_score = (intraweek_confirmation + short_term_momentum + medium_term_momentum +
+                             longer_term_momentum + consistency_score)
+        # Scale from 85-point scale to 100-point scale
+        momentum_score = (raw_momentum_score / 85) * 100
         momentum_score = max(0, min(100, momentum_score))
 
         # Trend Score (multi-timeframe analysis + MA alignment)
-        trend_score = 50  # Start neutral
+        # REQUIRE trend_score - must calculate from data
+        trend_score = None
 
         if sma_20 and sma_50:
             price_vs_sma20 = (current_price / float(sma_20) - 1) * 100
@@ -1325,7 +1278,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # 4-component system using percentile ranking for value metrics
         # Components: P/E (35%), P/B (25%), P/S (20%), PEG (20%)
         # ============================================================
-        value_score = 50  # Start neutral
+        # REQUIRE value_score - must calculate from data
+        value_score = None
 
         # Fetch value_inputs from stock_scores table to get percentile ranks
         try:
@@ -1377,14 +1331,15 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     logger.debug(f"{symbol} Value Components: PE={pe_percentile}, "
                                 f"PB={pb_percentile}, PS={ps_percentile}, PEG={peg_percentile}")
         except (psycopg2.Error, json.JSONDecodeError, KeyError, TypeError) as e:
-            logger.debug(f"{symbol}: Could not calculate percentile-based value score: {e}")
-            value_score = 50  # Fallback to neutral
+            logger.error(f"{symbol}: Could not calculate percentile-based value score: {e}")
+            # NO FALLBACK - value_score remains None, fail hard if data missing
 
         # ============================================================
         # Quality Score - Percentile-Based Industry Standard (Fama-French, MSCI, AQR)
         # 4-component system using percentile ranking for market-relative scoring
         # ============================================================
-        quality_score = 50  # Start neutral
+        # REQUIRE quality_score - must calculate from data
+        quality_score = None
 
         # Only calculate percentile-based quality score if we have quality_metrics data
         if quality_metrics is not None:
@@ -1441,14 +1396,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         f"Strength={strength_score:.2f}, Earnings Quality={earnings_quality_score:.2f}, "
                         f"Stability={stability_score:.2f}")
         else:
-            # Fallback to neutral if no quality metrics available
-            logger.warning(f"{symbol}: No quality metrics available for percentile-based scoring, using neutral 50")
+            # FAIL HARD - No quality metrics available, cannot calculate score
+            logger.error(f"{symbol}: No quality metrics available for percentile-based scoring - FAIL")
+            return None
 
         # ============================================================
         # Growth Score - Percentile-Based TTM Metrics (Industry Standard)
         # 5-component system using percentile ranking for market-relative growth scoring
         # ============================================================
-        growth_score = 50  # Start neutral
+        # REQUIRE growth_score - must calculate from data
+        growth_score = None
 
         # Only calculate percentile-based growth score if we have growth_metrics data
         if growth_metrics is not None:
@@ -1503,8 +1460,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         f"Earnings={earnings_growth_score:.2f}, Acceleration={earnings_accel_score:.2f}, "
                         f"Margin Expansion={margin_expansion_score:.2f}, Sustainable={sustainable_growth_score:.2f}")
         else:
-            # Fallback to neutral if no growth metrics available
-            logger.warning(f"{symbol}: No growth metrics available for percentile-based scoring, using neutral 50")
+            # FAIL HARD - No growth metrics available, cannot calculate score
+            logger.error(f"{symbol}: No growth metrics available for percentile-based scoring - FAIL")
+            return None
 
         # Positioning Score (Real institutional and insider data + Accumulation/Distribution)
         # 5-component system: Institutional(25%), Insider(20%), Short(20%), Acc/Dist(25%), Count(10%)
@@ -1601,7 +1559,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             positioning_score = max(0, min(100, positioning_score))
 
         # Sentiment Score (Analyst ratings + Market sentiment)
-        sentiment_score = 50  # Start neutral
+        # REQUIRE sentiment_score - must calculate from data
+        sentiment_score = None
 
         # Analyst sentiment component (0-50 points)
         if analyst_score is not None:
@@ -1685,7 +1644,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'momentum_short_term': float(round(short_term_momentum, 2)),
             'momentum_medium_term': float(round(medium_term_momentum, 2)),
             'momentum_long_term': float(round(longer_term_momentum, 2)),
-            'momentum_relative_strength': float(round(relative_strength, 2)),
             'momentum_consistency': float(round(consistency_score, 2)),
             'roc_10d': float(round(roc_10d, 2)) if roc_10d is not None else None,
             'roc_20d': float(round(roc_20d, 2)) if roc_20d is not None else None,
@@ -1721,7 +1679,7 @@ def save_stock_score(conn, score_data):
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio,
             momentum_intraweek, momentum_short_term, momentum_medium_term, momentum_long_term,
-            momentum_relative_strength, momentum_consistency,
+            momentum_consistency,
             roc_10d, roc_20d, roc_60d, roc_120d, roc_252d, mom, mansfield_rs,
             acc_dist_rating,
             score_date, last_updated
@@ -1732,7 +1690,7 @@ def save_stock_score(conn, score_data):
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s,
             %(momentum_intraweek)s, %(momentum_short_term)s, %(momentum_medium_term)s, %(momentum_long_term)s,
-            %(momentum_relative_strength)s, %(momentum_consistency)s,
+            %(momentum_consistency)s,
             %(roc_10d)s, %(roc_20d)s, %(roc_60d)s, %(roc_120d)s, %(roc_252d)s, %(mom)s, %(mansfield_rs)s,
             %(acc_dist_rating)s,
             CURRENT_DATE, CURRENT_TIMESTAMP
@@ -1763,7 +1721,6 @@ def save_stock_score(conn, score_data):
             momentum_short_term = EXCLUDED.momentum_short_term,
             momentum_medium_term = EXCLUDED.momentum_medium_term,
             momentum_long_term = EXCLUDED.momentum_long_term,
-            momentum_relative_strength = EXCLUDED.momentum_relative_strength,
             momentum_consistency = EXCLUDED.momentum_consistency,
             roc_10d = EXCLUDED.roc_10d,
             roc_20d = EXCLUDED.roc_20d,
@@ -1820,13 +1777,15 @@ def main():
         logger.info("📊 Fetching quality metrics for percentile-based scoring...")
         quality_metrics = fetch_all_quality_metrics(conn)
         if quality_metrics is None:
-            logger.warning("⚠️ Failed to fetch quality metrics, quality scores will use neutral values")
+            logger.error("❌ CRITICAL: Failed to fetch quality metrics - stocks without quality data will FAIL to score")
+            return False
 
         # Fetch all growth metrics for percentile-based growth scoring
         logger.info("📊 Fetching growth metrics for percentile-based scoring...")
         growth_metrics = fetch_all_growth_metrics(conn)
         if growth_metrics is None:
-            logger.warning("⚠️ Failed to fetch growth metrics, growth scores will use neutral values")
+            logger.error("❌ CRITICAL: Failed to fetch growth metrics - stocks without growth data will FAIL to score")
+            return False
 
         # Process each symbol
         successful = 0

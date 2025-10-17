@@ -556,7 +556,7 @@ router.get("/overview", async (req, res) => {
         FROM fear_greed_index
         ORDER BY date DESC
         LIMIT 1
-      `).catch(e => { console.error("Fear & Greed failed:", e.message); return { rows: [] }; }),
+      `),
 
       // Query 2: NAAIM data
       query(`
@@ -567,7 +567,7 @@ router.get("/overview", async (req, res) => {
         FROM naaim
         ORDER BY date DESC
         LIMIT 1
-      `).catch(e => { console.error("NAAIM failed:", e.message); return { rows: [] }; }),
+      `),
 
       // Query 3: AAII sentiment
       query(`
@@ -575,7 +575,7 @@ router.get("/overview", async (req, res) => {
         FROM aaii_sentiment
         ORDER BY date DESC
         LIMIT 1
-      `).catch(e => { console.error("AAII failed:", e.message); return { rows: [] }; }),
+      `),
 
       // Query 4: Market indices
       query(`
@@ -597,7 +597,7 @@ router.get("/overview", async (req, res) => {
           ORDER BY symbol, date DESC
         ) md
         ORDER BY md.ticker
-      `).catch(e => { console.error("Indices failed:", e.message); return { rows: [] }; }),
+      `),
 
       // Query 5: Market breadth - Get counts from most recent trading day
       query(`
@@ -609,7 +609,7 @@ router.get("/overview", async (req, res) => {
         FROM price_daily
         WHERE date = (SELECT MAX(date) FROM price_daily WHERE close IS NOT NULL)
           AND close IS NOT NULL AND open IS NOT NULL
-      `).catch(e => { console.error("Breadth failed:", e.message); return { rows: [] }; }),
+      `),
 
       // Query 6: Market cap
       query(`
@@ -620,7 +620,7 @@ router.get("/overview", async (req, res) => {
           SUM(md.market_cap) as total
         FROM market_data md
         WHERE md.market_cap IS NOT NULL AND md.market_cap > 0
-      `).catch(e => { console.error("Market cap failed:", e.message); return { rows: [] }; }),
+      `),
 
       // Query 7: Economic indicators
       query(`
@@ -628,7 +628,7 @@ router.get("/overview", async (req, res) => {
         FROM economic_data
         ORDER BY date DESC
         LIMIT 10
-      `).catch(e => { console.error("Economic failed:", e.message); return { rows: [] }; })
+      `)
     ]);
 
     // Process Fear & Greed
@@ -894,9 +894,9 @@ router.get("/industries", async (req, res) => {
       });
     }
 
-    // Build query with optional sector filter
+    // Build query with optional sector filter - use DISTINCT ON to get latest records only
     let industryQuery = `
-      SELECT
+      SELECT DISTINCT ON (sector, industry)
         sector,
         industry,
         industry_key,
@@ -909,8 +909,6 @@ router.get("/industries", async (req, res) => {
         performance_1d,
         performance_5d,
         performance_20d,
-        rs_rating,
-        rs_vs_spy,
         momentum,
         trend,
         sector_rank,
@@ -919,22 +917,56 @@ router.get("/industries", async (req, res) => {
         avg_market_cap,
         fetched_at
       FROM industry_performance
+      ORDER BY sector, industry, fetched_at DESC
     `;
 
     const params = [];
+    let whereClause = "";
     if (sector) {
-      industryQuery += ` WHERE sector = $1`;
+      whereClause = ` WHERE sector = $1`;
       params.push(sector);
     }
 
-    // Add sorting
-    const validSortFields = ["overall_rank", "sector_rank", "performance_1d", "performance_5d", "performance_20d", "rs_rating"];
+    // Re-construct query with WHERE clause and sorting
+    industryQuery = `
+      SELECT DISTINCT ON (sector, industry)
+        sector,
+        industry,
+        industry_key,
+        stock_count,
+        stock_symbols,
+        avg_change_percent,
+        median_change_percent,
+        total_volume,
+        avg_volume,
+        performance_1d,
+        performance_5d,
+        performance_20d,
+        momentum,
+        trend,
+        sector_rank,
+        overall_rank,
+        total_market_cap,
+        avg_market_cap,
+        fetched_at
+      FROM industry_performance
+      ${whereClause}
+      ORDER BY sector, industry, fetched_at DESC
+    `;
+
+    // Add secondary sorting for final result
+    const validSortFields = ["overall_rank", "sector_rank", "performance_1d", "performance_5d", "performance_20d"];
     const sortField = validSortFields.includes(sortBy) ? sortBy : "overall_rank";
     const sortOrder = sortField.includes("rank") ? "ASC" : "DESC";
-    industryQuery += ` ORDER BY ${sortField} ${sortOrder}`;
 
-    // Add limit
-    industryQuery += ` LIMIT $${params.length + 1}`;
+    // Wrap in subquery to apply secondary sort and limit
+    industryQuery = `
+      SELECT * FROM (
+        ${industryQuery}
+      ) unique_industries
+      ORDER BY ${sortField} ${sortOrder}
+      LIMIT $${params.length + 1}
+    `;
     params.push(parseInt(limit));
 
     let result;
@@ -951,20 +983,19 @@ router.get("/industries", async (req, res) => {
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({
+      // NO FALLBACK - return error if no real data available
+      return res.status(503).json({
         success: false,
-        error: "No industry data found",
-        message: sector
-          ? `No industry performance data available for sector: ${sector}. Run loadindustrydata.py loader.`
-          : "No industry performance data available. Run loadindustrydata.py loader.",
+        error: "No real industry data available",
+        message: "No industry data found. Run loadindustrydata.py to fetch real data.",
         timestamp: new Date().toISOString(),
       });
     }
 
-    // Get summary statistics
+    // Get summary statistics from unique industries only
     const summaryQuery = `
       SELECT
-        COUNT(*) as total_industries,
+        COUNT(DISTINCT industry) as total_industries,
         COUNT(DISTINCT sector) as total_sectors,
         AVG(performance_1d) as avg_performance_1d,
         AVG(performance_20d) as avg_performance_20d,
@@ -1007,153 +1038,290 @@ router.get("/industries", async (req, res) => {
   }
 });
 
-// Route: GET /market/sectors (aggregated sector performance from industry data)
-router.get("/sectors", async (req, res) => {
-  console.log("🏢 Market sectors endpoint called (aggregated from industries)");
+// Route: GET /market/industries-with-history (industries with 1W/4W/12W ranking history)
+router.get("/industries-with-history", async (req, res) => {
+  console.log("📊 Industries with history endpoint called");
 
   try {
-    const { limit = 20, sortBy = "overall_rank" } = req.query;
+    const { sector, limit = 50, sortBy = "overall_rank" } = req.query;
 
-    // Check if industry_performance table exists
+    // Check if industry_ranking_complete table exists
     const tableExists = await query(
       `
       SELECT EXISTS (
         SELECT FROM information_schema.tables
         WHERE table_schema = 'public'
-        AND table_name = 'industry_performance'
-      ) as industry_performance_exists;
+        AND table_name = 'industry_ranking_complete'
+      ) as table_exists;
     `,
       []
     );
 
-    if (!tableExists.rows[0].industry_performance_exists) {
+    if (!tableExists.rows[0].table_exists) {
       return res.status(503).json({
         success: false,
-        error: "Sector performance service unavailable",
-        message: "Required database table missing: industry_performance. Run loadindustrydata.py loader.",
+        error: "Historical data not available",
+        message: "Run calculate_complete_historical_rankings.py to generate historical data.",
         timestamp: new Date().toISOString(),
       });
     }
 
-    // Aggregate industry performance data by sector
-    const sectorsQuery = `
-      WITH sector_stocks AS (
-        SELECT
-          sector,
-          unnest(stock_symbols) as symbol
-        FROM industry_performance
-        WHERE sector IS NOT NULL AND sector != ''
-      )
+    // Get latest snapshot date
+    const latestDateResult = await query(
+      `SELECT MAX(snapshot_date) as latest_date FROM industry_ranking_complete`,
+      []
+    );
+
+    const latestDate = latestDateResult.rows[0]?.latest_date;
+    if (!latestDate) {
+      return res.status(503).json({
+        success: false,
+        error: "No historical data available",
+        message: "No snapshots found in industry_ranking_complete table.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build query to get industries with their historical ranking data
+    const params = [];
+    let whereClause = "";
+    let paramIndex = 1;
+
+    if (sector) {
+      whereClause = ` WHERE ih.sector = $${paramIndex}`;
+      params.push(sector);
+      paramIndex++;
+    }
+
+    // Build WHERE clause for snapshot_date
+    const dateWhereClause = sector ? ` AND ih.snapshot_date = $${paramIndex}` : ` WHERE ih.snapshot_date = $${paramIndex}`;
+
+    const historyQuery = `
       SELECT
-        ip.sector,
-        COUNT(DISTINCT ip.industry) as industry_count,
-        SUM(ip.stock_count) as stock_count,
-        (
-          SELECT array_agg(DISTINCT symbol ORDER BY symbol)
-          FROM sector_stocks ss
-          WHERE ss.sector = ip.sector
-        ) as stock_symbols,
-        AVG(ip.avg_change_percent) as avg_change_percent,
-        AVG(ip.performance_1d) as performance_1d,
-        AVG(ip.performance_5d) as performance_5d,
-        AVG(ip.performance_20d) as performance_20d,
-        AVG(ip.rs_rating) as rs_rating,
-        AVG(ip.rs_vs_spy) as rs_vs_spy,
-        SUM(ip.total_volume) as total_volume,
-        AVG(ip.avg_volume) as avg_volume,
-        SUM(ip.total_market_cap) as total_market_cap,
-        AVG(ip.avg_market_cap) as avg_market_cap,
-        MAX(ip.fetched_at) as fetched_at,
-        -- Calculate momentum based on average industry momentum
-        CASE
-          WHEN AVG(CASE WHEN ip.momentum = 'Strong' THEN 3 WHEN ip.momentum = 'Moderate' THEN 2 ELSE 1 END) >= 2.5 THEN 'Strong'
-          WHEN AVG(CASE WHEN ip.momentum = 'Strong' THEN 3 WHEN ip.momentum = 'Moderate' THEN 2 ELSE 1 END) >= 1.5 THEN 'Moderate'
-          ELSE 'Weak'
-        END as momentum,
-        -- Calculate trend based on average industry trend
-        CASE
-          WHEN AVG(CASE WHEN ip.trend = 'Uptrend' THEN 1 WHEN ip.trend = 'Downtrend' THEN -1 ELSE 0 END) > 0.3 THEN 'Uptrend'
-          WHEN AVG(CASE WHEN ip.trend = 'Uptrend' THEN 1 WHEN ip.trend = 'Downtrend' THEN -1 ELSE 0 END) < -0.3 THEN 'Downtrend'
-          ELSE 'Sideways'
-        END as trend,
-        -- Flow direction based on performance trends
-        CASE
-          WHEN AVG(ip.performance_5d) > 2 THEN 'Inflow'
-          WHEN AVG(ip.performance_5d) < -2 THEN 'Outflow'
-          ELSE 'Neutral'
-        END as flow
-      FROM industry_performance ip
-      WHERE ip.sector IS NOT NULL AND ip.sector != ''
-      GROUP BY ip.sector
+        ih.sector,
+        ih.industry,
+        ih.current_rank,
+        ih.rank_1w_ago,
+        ih.rank_4w_ago,
+        ih.rank_12w_ago,
+        ih.rank_change_1w,
+        ih.rank_change_4w,
+        ih.rank_change_12w,
+        ih.current_perf_1d,
+        ih.perf_1d_1w_ago,
+        ih.perf_1d_4w_ago,
+        ih.perf_1d_12w_ago,
+        ip.stock_count,
+        ip.performance_1d,
+        ip.performance_5d,
+        ip.performance_20d,
+        ip.momentum,
+        ip.trend,
+        ip.sector_rank,
+        ih.snapshot_date
+      FROM industry_ranking_complete ih
+      LEFT JOIN (
+        SELECT DISTINCT ON (sector, industry)
+          sector,
+          industry,
+          stock_count,
+          performance_1d,
+          performance_5d,
+          performance_20d,
+          momentum,
+          trend,
+          sector_rank,
+          rs_vs_spy,
+          fetched_at
+        FROM industry_performance
+        ORDER BY sector, industry, fetched_at DESC
+      ) ip ON ih.sector = ip.sector AND ih.industry = ip.industry
+      ${whereClause}
+      ${dateWhereClause}
+      ORDER BY ${
+        ["current_rank", "rank_1w_ago", "rank_4w_ago", "rank_12w_ago"].includes(sortBy)
+          ? sortBy
+          : "ih.current_rank"
+      } ASC
+      LIMIT $${paramIndex + 1}
+    `;
+
+    params.push(latestDate);
+    params.push(parseInt(limit));
+
+    let result;
+    try {
+      result = await query(historyQuery, params);
+    } catch (error) {
+      console.error("Industry history query error:", error.message);
+      return res.status(500).json({
+        success: false,
+        error: "Query failed",
+        details: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      return res.status(503).json({
+        success: false,
+        error: "No data available",
+        message: "No industries found with historical data.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get summary statistics
+    const summaryDateWhereClause = sector ? ` AND snapshot_date = $2` : ` WHERE snapshot_date = $1`;
+    const summaryQuery = `
+      SELECT
+        COUNT(DISTINCT industry) as total_industries,
+        COUNT(DISTINCT sector) as total_sectors,
+        AVG(current_perf_1d) as avg_performance_1d,
+        AVG(rank_change_1w) as avg_rank_change_1w,
+        AVG(rank_change_4w) as avg_rank_change_4w,
+        AVG(rank_change_12w) as avg_rank_change_12w
+      FROM industry_ranking_complete
+      ${sector ? `WHERE sector = $1` : ""}
+      ${summaryDateWhereClause}
+    `;
+
+    const summaryParams = sector ? [sector, latestDate] : [latestDate];
+    const summaryResult = await query(summaryQuery, summaryParams);
+    const summary = summaryResult.rows[0] || {};
+
+    // Process successful result
+    return res.json({
+      success: true,
+      data: {
+        industries: result.rows,
+        summary: {
+          total_industries: parseInt(summary.total_industries) || 0,
+          total_sectors: parseInt(summary.total_sectors) || 0,
+          avg_performance_1d: parseFloat(summary.avg_performance_1d) || 0,
+          avg_rank_change_1w: parseFloat(summary.avg_rank_change_1w) || 0,
+          avg_rank_change_4w: parseFloat(summary.avg_rank_change_4w) || 0,
+          avg_rank_change_12w: parseFloat(summary.avg_rank_change_12w) || 0,
+          filter: sector ? `Sector: ${sector}` : "All sectors",
+          latest_snapshot_date: latestDate,
+        },
+      },
+      count: result.rows.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching industries with history:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Route: GET /market/sectors (aggregated sector performance from industry data)
+router.get("/sectors", async (req, res) => {
+  console.log("🏢 Market sectors endpoint called (real data from Yahoo Finance)");
+
+  try {
+    const { limit = 20, sortBy = "overall_rank" } = req.query;
+
+    // Check if sector_performance table exists
+    const tableExists = await query(
+      `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'sector_performance'
+      ) as sector_performance_exists;
+    `,
+      []
+    );
+
+    if (!tableExists.rows[0].sector_performance_exists) {
+      return res.status(503).json({
+        success: false,
+        error: "Sector performance service unavailable",
+        message: "Required database table missing: sector_performance. Run loadsectordata.py loader to fetch real Yahoo Finance data.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get latest sector data from database
+    const sectorsQuery = `
+      SELECT
+        sector_name as sector,
+        symbol,
+        price,
+        change_percent,
+        change,
+        volume,
+        momentum,
+        money_flow as flow,
+        rsi,
+        performance_1d,
+        performance_5d,
+        performance_20d,
+        sector_rank as overall_rank,
+        fetched_at
+      FROM sector_performance
+      WHERE DATE(fetched_at) = CURRENT_DATE
+      ORDER BY sector_rank ASC NULLS LAST
+      LIMIT $1
     `;
 
     let sectorsResult;
     try {
-      sectorsResult = await query(sectorsQuery);
+      sectorsResult = await query(sectorsQuery, [parseInt(limit) || 20]);
     } catch (error) {
-      console.error("Sector aggregation query error:", error.message);
+      console.error("Sector query error:", error.message);
       return res.status(500).json({
         success: false,
-        error: "Sector aggregation query failed",
+        error: "Sector query failed",
         details: error.message,
         timestamp: new Date().toISOString(),
       });
     }
 
     if (!sectorsResult || !Array.isArray(sectorsResult.rows) || sectorsResult.rows.length === 0) {
-      return res.status(404).json({
+      // NO FALLBACK - return error if no real data available
+      return res.status(503).json({
         success: false,
-        error: "No sector data found",
-        message: "No sector performance data available. Run loadindustrydata.py loader.",
+        error: "No real sector data available",
+        message: "No sector data found for today. Run loadsectordata.py to fetch fresh Yahoo Finance data.",
         timestamp: new Date().toISOString(),
       });
     }
 
-    // Add sector ranks
-    const sectors = sectorsResult.rows
-      .map(row => ({
-        sector: row.sector,
-        industry_count: parseInt(row.industry_count) || 0,
-        stock_count: parseInt(row.stock_count) || 0,
-        stock_symbols: row.stock_symbols || [],
-        avg_change_percent: parseFloat(row.avg_change_percent) || 0,
-        performance_1d: parseFloat(row.performance_1d) || 0,
-        performance_5d: parseFloat(row.performance_5d) || 0,
-        performance_20d: parseFloat(row.performance_20d) || 0,
-        rs_rating: Math.round(parseFloat(row.rs_rating) || 0),
-        rs_vs_spy: parseFloat(row.rs_vs_spy) || 0,
-        momentum: row.momentum || 'Weak',
-        trend: row.trend || 'Sideways',
-        flow: row.flow || 'Neutral',
-        total_volume: parseInt(row.total_volume) || 0,
-        avg_volume: parseInt(row.avg_volume) || 0,
-        total_market_cap: parseInt(row.total_market_cap) || 0,
-        avg_market_cap: parseInt(row.avg_market_cap) || 0,
-        fetched_at: row.fetched_at,
-      }))
-      .sort((a, b) => b.performance_20d - a.performance_20d)
-      .map((sector, index) => ({
-        ...sector,
-        overall_rank: index + 1,
-      }));
+    // Transform sectors data
+    const sectors = sectorsResult.rows.map((row) => ({
+      sector: row.sector,
+      symbol: row.symbol,
+      price: parseFloat(row.price) || 0,
+      change_percent: parseFloat(row.change_percent) || 0,
+      change: parseFloat(row.change) || 0,
+      volume: parseInt(row.volume) || 0,
+      momentum: row.momentum || "Moderate",
+      flow: row.flow || "Neutral",
+      rsi: parseFloat(row.rsi) || 0,
+      rs_vs_spy: parseFloat(row.rs_vs_spy) || 0,
+      performance_1d: parseFloat(row.performance_1d) || 0,
+      performance_5d: parseFloat(row.performance_5d) || 0,
+      performance_20d: parseFloat(row.performance_20d) || 0,
+      overall_rank: row.overall_rank,
+      industry_count: 0,
+      stock_count: 0,
+      stock_symbols: [],
+      fetched_at: row.fetched_at,
+    }));
 
-    // Apply sorting
-    const validSortFields = ["overall_rank", "performance_1d", "performance_5d", "performance_20d", "rs_rating"];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : "overall_rank";
-    const sortOrder = sortField === "overall_rank" ? 1 : -1;
-
-    sectors.sort((a, b) => sortOrder * (a[sortField] - b[sortField]));
-
-    // Apply limit
-    const limitedSectors = sectors.slice(0, parseInt(limit));
-
-    // Get summary statistics
+    // Calculate summary stats from real data
     const summary = {
       total_sectors: sectors.length,
-      total_industries: sectors.reduce((sum, s) => sum + s.industry_count, 0),
-      total_stocks: sectors.reduce((sum, s) => sum + s.stock_count, 0),
-      avg_performance_1d: sectors.reduce((sum, s) => sum + s.performance_1d, 0) / sectors.length,
-      avg_performance_20d: sectors.reduce((sum, s) => sum + s.performance_20d, 0) / sectors.length,
+      avg_performance_1d: sectors.length > 0 ? (sectors.reduce((sum, s) => sum + s.performance_1d, 0) / sectors.length) : 0,
+      avg_performance_5d: sectors.length > 0 ? (sectors.reduce((sum, s) => sum + s.performance_5d, 0) / sectors.length) : 0,
+      avg_performance_20d: sectors.length > 0 ? (sectors.reduce((sum, s) => sum + s.performance_20d, 0) / sectors.length) : 0,
       best_performance: Math.max(...sectors.map(s => s.performance_20d)),
       worst_performance: Math.min(...sectors.map(s => s.performance_20d)),
     };
@@ -1161,14 +1329,14 @@ router.get("/sectors", async (req, res) => {
     return res.json({
       success: true,
       data: {
-        sectors: limitedSectors,
+        sectors,
         summary,
       },
-      count: limitedSectors.length,
+      count: sectors.length,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Error fetching market sectors:", error);
+    console.error("Sectors endpoint error:", error);
     return res.status(500).json({
       success: false,
       error: "Internal server error",
@@ -1749,7 +1917,6 @@ router.get("/distribution-days", async (req, res) => {
       SELECT
         symbol,
         COUNT(*) as count,
-        signal,
         json_agg(
           json_build_object(
             'date', date,
@@ -1762,7 +1929,7 @@ router.get("/distribution-days", async (req, res) => {
         ) as days
       FROM distribution_days
       WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
-      GROUP BY symbol, signal
+      GROUP BY symbol
       ORDER BY symbol
     `;
 
@@ -1784,15 +1951,50 @@ router.get("/distribution-days", async (req, res) => {
       "^DJI": "Dow Jones Industrial Average",
     };
 
+    // Determine signal based on count of distribution days
+    const getSignalFromCount = (count) => {
+      if (count <= 2) return "NORMAL";
+      if (count <= 4) return "ELEVATED";
+      if (count <= 5) return "CAUTION";
+      return "UNDER_PRESSURE";
+    };
+
     const distributionData = {};
     result.rows.forEach((row) => {
+      const count = parseInt(row.count);
       distributionData[row.symbol] = {
         name: indexNames[row.symbol] || row.symbol,
-        count: parseInt(row.count),
-        signal: row.signal,
-        days: row.days,
+        count: count,
+        signal: getSignalFromCount(count),
+        days: Array.isArray(row.days) ? row.days : [],
       };
     });
+
+    // Ensure all three indices are present (even if empty)
+    if (!distributionData["^GSPC"]) {
+      distributionData["^GSPC"] = {
+        name: "S&P 500",
+        count: 0,
+        signal: "NORMAL",
+        days: []
+      };
+    }
+    if (!distributionData["^IXIC"]) {
+      distributionData["^IXIC"] = {
+        name: "NASDAQ Composite",
+        count: 0,
+        signal: "NORMAL",
+        days: []
+      };
+    }
+    if (!distributionData["^DJI"]) {
+      distributionData["^DJI"] = {
+        name: "Dow Jones Industrial Average",
+        count: 0,
+        signal: "NORMAL",
+        days: []
+      };
+    }
 
     return res.json({
       success: true,
@@ -2737,6 +2939,47 @@ router.get("/seasonality", async (req, res) => {
       seasonalScore: calculateSeasonalScore(currentDate),
     };
 
+    // Fetch monthly S&P 500 performance for current year (for chart overlay)
+    let monthlySpPerformance = [];
+    try {
+      const spyMonthlyQuery = `
+        SELECT
+          month,
+          DATE_TRUNC('month', date) as month_date,
+          CAST(MAX(cumulative_year_return) AS NUMERIC(10,2)) as ytd_return,
+          CAST((MAX(close) - MIN(close)) / MIN(close) * 100 AS NUMERIC(10,2)) as monthly_return
+        FROM benchmark_index_history
+        WHERE symbol = 'SPY' AND year = $1 AND month <= $2
+        GROUP BY month, DATE_TRUNC('month', date)
+        ORDER BY month ASC
+      `;
+
+      const spyResult = await query(spyMonthlyQuery, [currentYear, currentMonth]);
+
+      // Build full 12-month array with current year data
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+
+      if (spyResult && spyResult.rows) {
+        for (let m = 1; m <= 12; m++) {
+          const monthData = spyResult.rows.find((r) => r.month === m);
+          monthlySpPerformance.push({
+            month: m,
+            name: monthNames[m - 1],
+            ytd: monthData ? parseFloat(monthData.ytd_return) : null,
+            mtd: monthData ? parseFloat(monthData.monthly_return) : null,
+            hasData: !!monthData,
+          });
+        }
+        console.log("✅ SPY monthly performance data loaded:", monthlySpPerformance.slice(0, 3));
+      }
+    } catch (e) {
+      console.log("Note: SPY monthly performance data not available:", e.message);
+      // Continue without SPY data - chart will still work with historical bars
+    }
+
     res.json({
       success: true,
       data: {
@@ -2745,6 +2988,7 @@ router.get("/seasonality", async (req, res) => {
         currentPosition,
         presidentialCycle,
         monthlySeasonality,
+        monthlySpPerformance,
         quarterlySeasonality,
         intradayPatterns,
         dayOfWeekEffects: dowEffects,
@@ -6347,6 +6591,129 @@ router.get("/hours", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch market hours",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Route: GET /market/sectors-with-history (sectors with 1W/4W/12W ranking history)
+router.get("/sectors-with-history", async (req, res) => {
+  console.log("📊 Sectors with history endpoint called");
+
+  try {
+    const { limit = 20, sortBy = "current_rank" } = req.query;
+
+    // Check if sector_ranking_complete table exists
+    const tableExists = await query(
+      `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'sector_ranking_complete'
+      ) as table_exists;
+    `,
+      []
+    );
+
+    if (!tableExists.rows[0].table_exists) {
+      return res.status(503).json({
+        success: false,
+        error: "Historical data not available",
+        message: "Run calculate_complete_sector_rankings.py to generate historical data.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get latest snapshot date
+    const latestDateResult = await query(
+      `SELECT MAX(snapshot_date) as latest_date FROM sector_ranking_complete`,
+      []
+    );
+
+    const latestDate = latestDateResult.rows[0]?.latest_date;
+    if (!latestDate) {
+      return res.status(503).json({
+        success: false,
+        error: "No historical data available",
+        message: "No snapshots found in sector_ranking_complete table.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Build query to get sectors with their historical ranking data
+    const historyQuery = `
+      SELECT
+        src.sector_name,
+        src.current_rank,
+        src.rank_1w_ago,
+        src.rank_4w_ago,
+        src.rank_12w_ago,
+        src.rank_change_1w,
+        src.rank_change_4w,
+        src.rank_change_12w,
+        src.current_perf_1d,
+        src.perf_1d_1w_ago,
+        src.perf_1d_4w_ago,
+        src.perf_1d_12w_ago,
+        src.current_perf_5d,
+        src.perf_5d_1w_ago,
+        src.perf_5d_4w_ago,
+        src.perf_5d_12w_ago,
+        src.current_perf_20d,
+        src.perf_20d_1w_ago,
+        src.perf_20d_4w_ago,
+        src.perf_20d_12w_ago,
+        src.current_momentum,
+        src.current_trend,
+        src.snapshot_date
+      FROM sector_ranking_complete src
+      WHERE src.snapshot_date = $1
+      ORDER BY ${sortBy === "current_rank" ? "src.current_rank" : "src.current_perf_1d DESC"}
+      LIMIT $2
+    `;
+
+    const result = await query(historyQuery, [latestDate, limit]);
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          sectors: [],
+          summary: {
+            total_sectors: 0,
+            date: latestDate,
+          },
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get summary stats
+    const summaryQuery = `
+      SELECT COUNT(DISTINCT sector_name) as total_sectors
+      FROM sector_ranking_complete
+      WHERE snapshot_date = $1
+    `;
+
+    const summary = await query(summaryQuery, [latestDate]);
+
+    res.json({
+      success: true,
+      data: {
+        sectors: result.rows,
+        summary: {
+          total_sectors: summary.rows[0]?.total_sectors || 0,
+          date: latestDate,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Sectors with history error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sectors with historical rankings",
       details: error.message,
       timestamp: new Date().toISOString(),
     });

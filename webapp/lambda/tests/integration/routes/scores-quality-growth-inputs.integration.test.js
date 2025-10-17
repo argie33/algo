@@ -64,7 +64,13 @@ describe('Scores API - Quality and Growth Inputs Integration', () => {
           'operating_income_growth_yoy',
           'roe_trend',
           'sustainable_growth_rate',
-          'fcf_growth_yoy'
+          'fcf_growth_yoy',
+          'net_income_growth_yoy',
+          'gross_margin_trend',
+          'operating_margin_trend',
+          'net_margin_trend',
+          'quarterly_growth_momentum',
+          'asset_growth_yoy'
         ];
 
         requiredGrowthFields.forEach(field => {
@@ -182,14 +188,20 @@ describe('Scores API - Quality and Growth Inputs Integration', () => {
 
       const inputs = response.body.data.factors.growth.inputs;
 
-      // Verify structure
+      // Verify structure (all 12 growth metrics)
       const requiredFields = [
         'revenue_growth_3y_cagr',
         'eps_growth_3y_cagr',
         'operating_income_growth_yoy',
         'roe_trend',
         'sustainable_growth_rate',
-        'fcf_growth_yoy'
+        'fcf_growth_yoy',
+        'net_income_growth_yoy',
+        'gross_margin_trend',
+        'operating_margin_trend',
+        'net_margin_trend',
+        'quarterly_growth_momentum',
+        'asset_growth_yoy'
       ];
 
       requiredFields.forEach(field => {

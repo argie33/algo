@@ -370,7 +370,7 @@ router.get("/quarterly", async (req, res) => {
         LIMIT $2
         `,
         [symbol.toUpperCase(), parseInt(limit)]
-      ).catch(() => ({ rows: [] })),
+      ),
 
       query(
         `
@@ -381,7 +381,7 @@ router.get("/quarterly", async (req, res) => {
         LIMIT $2
         `,
         [symbol.toUpperCase(), parseInt(limit)]
-      ).catch(() => ({ rows: [] })),
+      ),
 
       query(
         `
@@ -392,7 +392,7 @@ router.get("/quarterly", async (req, res) => {
         LIMIT $2
         `,
         [symbol.toUpperCase(), parseInt(limit)]
-      ).catch(() => ({ rows: [] })),
+      ),
     ]);
 
     // Combine quarterly data by period

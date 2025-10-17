@@ -66,6 +66,7 @@ const AnalystInsights = () => {
             item.action && item.action.toLowerCase().includes(filterAction.toLowerCase())
           );
         }
+        console.log("Filtered upgrades:", filteredUpgrades);
         setUpgrades(filteredUpgrades);
       } else {
         throw new Error(upgradesData.error || 'Failed to fetch analyst data');
@@ -361,12 +362,12 @@ const AnalystInsights = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>Symbol</TableCell>
+                  <TableCell>Company Name</TableCell>
                   <TableCell>Firm</TableCell>
                   <TableCell>Action</TableCell>
                   <TableCell>From Grade</TableCell>
                   <TableCell>To Grade</TableCell>
                   <TableCell>Date</TableCell>
-                  <TableCell>Details</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -383,6 +384,13 @@ const AnalystInsights = () => {
                         onClick={() => fetchSymbolData(upgrade.symbol)}
                       >
                         {upgrade.symbol}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                      >
+                        {upgrade.company_name || 'N/A'}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -414,21 +422,6 @@ const AnalystInsights = () => {
                       <Typography variant="body2">
                         {formatDate(upgrade.date)}
                       </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip title={upgrade.details || 'No details available'}>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            maxWidth: 200,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {upgrade.details || 'N/A'}
-                        </Typography>
-                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -128,6 +128,10 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Response formatter middleware (adds res.success and res.error)
 app.use(responseFormatter);
 
+// Serve static frontend files
+const path = require("path");
+app.use(express.static(path.join(__dirname, "dist")));
+
 // Initialize database connection
 initializeDatabase();
 
@@ -244,6 +248,20 @@ app.get("/", (req, res) => {
     notes:
       "Use /health?quick=true for fast status check without database dependency",
   });
+});
+
+// Serve React app for client-side routes
+app.get("*", (req, res) => {
+  // Don't interfere with API routes - they're handled above
+  if (req.path.startsWith("/api") || req.path.startsWith("/health")) {
+    return res.status(404).json({
+      success: false,
+      error: "Not Found",
+      message: `Route ${req.originalUrl} not found`,
+      timestamp: new Date().toISOString(),
+    });
+  }
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
 // Error handling

@@ -209,16 +209,20 @@ router.get("/", async (req, res) => {
         bsd.*,
         COALESCE(cp.short_name, ss.security_name) as company_name,
         (
-          SELECT MIN(e.report_date)
-          FROM earnings e
-          WHERE e.symbol = bsd.symbol
-          AND e.report_date >= CURRENT_DATE
+          SELECT eh.quarter
+          FROM earnings_history eh
+          WHERE eh.symbol = bsd.symbol
+          AND eh.quarter >= CURRENT_DATE
+          ORDER BY eh.quarter ASC
+          LIMIT 1
         ) as next_earnings_date,
         (
-          SELECT (MIN(e.report_date) - CURRENT_DATE)::INTEGER
-          FROM earnings e
-          WHERE e.symbol = bsd.symbol
-          AND e.report_date >= CURRENT_DATE
+          SELECT (eh.quarter - CURRENT_DATE)::INTEGER
+          FROM earnings_history eh
+          WHERE eh.symbol = bsd.symbol
+          AND eh.quarter >= CURRENT_DATE
+          ORDER BY eh.quarter ASC
+          LIMIT 1
         ) as days_to_earnings
       FROM ${tableName} bsd
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker

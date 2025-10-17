@@ -12,7 +12,7 @@ export class RealTimeNewsService {
     }
 
     try {
-      this.ws = new WebSocket(import.meta.env.VITE_WS_URL || 'ws://localhost:3001');
+      this.ws = new WebSocket(import.meta.env.VITE_WS_URL || 'ws://localhost:5001');
 
       this.ws.onopen = () => {
         this.isConnected = true;

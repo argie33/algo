@@ -111,6 +111,8 @@ function StockDetail() {
 
   const { ticker } = useParams();
   const symbol = ticker; // Route uses :ticker param
+
+  console.log("📍 StockDetail Component - ticker:", ticker, "symbol:", symbol);
   // Fetch stock profile data
   const {
     data: profile,
@@ -278,6 +280,48 @@ function StockDetail() {
     queryFn: () => api.getPositioningData(symbol),
     enabled: !!symbol,
     onError: (error) => logger.queryError("positioning", error, { symbol }),
+  });
+
+  // Trading Signals Queries - Use root endpoint with symbol filter for full data
+  const {
+    data: dailySignals,
+    isLoading: dailySignalsLoading,
+    error: dailySignalsError,
+  } = useQuery({
+    queryKey: ["tradingSignals", symbol, "daily"],
+    queryFn: async () => {
+      console.log(`🔍 Fetching daily signals for symbol: ${symbol}`);
+      const response = await api.get(`/api/signals?timeframe=daily&symbol=${symbol}&limit=10`);
+      console.log("✅ Daily signals response:", response);
+      return response;
+    },
+    enabled: !!symbol,
+    onError: (error) => {
+      console.error("❌ Daily signals error:", error);
+      logger.queryError("dailySignals", error, { symbol });
+    },
+  });
+
+  const {
+    data: weeklySignals,
+    isLoading: weeklySignalsLoading,
+    error: weeklySignalsError,
+  } = useQuery({
+    queryKey: ["tradingSignals", symbol, "weekly"],
+    queryFn: () => api.get(`/api/signals?timeframe=weekly&symbol=${symbol}&limit=10`),
+    enabled: !!symbol,
+    onError: (error) => logger.queryError("weeklySignals", error, { symbol }),
+  });
+
+  const {
+    data: monthlySignals,
+    isLoading: monthlySignalsLoading,
+    error: monthlySignalsError,
+  } = useQuery({
+    queryKey: ["tradingSignals", symbol, "monthly"],
+    queryFn: () => api.get(`/api/signals?timeframe=monthly&symbol=${symbol}&limit=10`),
+    enabled: !!symbol,
+    onError: (error) => logger.queryError("monthlySignals", error, { symbol }),
   });
 
   if (profileLoading) {
@@ -1440,30 +1484,7 @@ function StockDetail() {
                           },
                         ],
                       },
-                      {
-                        factor: "Technical",
-                        score: Math.round(trendScore),
-                        color: trendScore >= 70 ? "success" : trendScore >= 50 ? "info" : "error",
-                        description:
-                          "Moving averages, RSI, MACD signals",
-                        components: [
-                          {
-                            name: "SMA 20",
-                            value: scoresData?.sma_20 || 0,
-                            weight: 0.3,
-                          },
-                          {
-                            name: "SMA 50",
-                            value: scoresData?.sma_50 || 0,
-                            weight: 0.3,
-                          },
-                          {
-                            name: "RSI",
-                            value: scoresData?.rsi || 0,
-                            weight: 0.4,
-                          },
-                        ],
-                      },
+                      
                     ];
                   })().map((factor) => (
                     <Grid item xs={12} md={6} lg={4} key={factor.factor}>
@@ -1730,120 +1751,102 @@ function StockDetail() {
           </Grid>
 
           <Grid item xs={12} md={6}>
+            {(() => {
+              // Extract growth inputs from the API response - correct path
+              const growthInputs = stockScores?.data?.factors?.growth?.inputs || {};
+              const growthScore = stockScores?.data?.factors?.growth?.score || 0;
+
+              return (
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Growth Factor Analysis
+                  Growth Factor Analysis (Score: {growthScore.toFixed(1)}/100)
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  Growth metrics (12 factors: Revenue, EPS, Op Income, ROE Trend, Sustainable Rate, FCF, NI Growth, Margins, Momentum, Assets)
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
-                <Box mb={3}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart
-                      data={[]}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="year" />
-                      <YAxis />
-                      <RechartsTooltip />
-                      <Line
-                        type="monotone"
-                        dataKey="revenue"
-                        stroke="#4caf50"
-                        strokeWidth={2}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="earnings"
-                        stroke="#2196f3"
-                        strokeWidth={2}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Box>
 
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
+                      {/* Revenue & Earnings Growth */}
                       <TableRow>
-                        <TableCell>Revenue CAGR (5Y)</TableCell>
+                        <TableCell><strong>Revenue Growth (3Y CAGR)</strong></TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={
-                              currentMetrics.revenue_growth
-                                ? `${formatPercent(currentMetrics.revenue_growth)}`
-                                : "N/A"
-                            }
-                            color="success"
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            {currentMetrics.sector_revenue_avg
-                              ? `vs ${formatPercent(currentMetrics.sector_revenue_avg)} sector avg`
-                              : ""}
-                          </Typography>
+                          {growthInputs.revenue_growth_3y_cagr != null ? `${growthInputs.revenue_growth_3y_cagr.toFixed(2)}%` : "N/A"}
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>EPS CAGR (5Y)</TableCell>
+                        <TableCell><strong>EPS Growth (3Y CAGR)</strong></TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={
-                              currentMetrics.earnings_growth
-                                ? `${formatPercent(currentMetrics.earnings_growth)}`
-                                : "N/A"
-                            }
-                            color="success"
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            {currentMetrics.sector_earnings_avg
-                              ? `vs ${formatPercent(currentMetrics.sector_earnings_avg)} sector avg`
-                              : ""}
-                          </Typography>
+                          {growthInputs.eps_growth_3y_cagr != null ? `${growthInputs.eps_growth_3y_cagr.toFixed(2)}%` : "N/A"}
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>FCF Growth (3Y)</TableCell>
+                        <TableCell><strong>Net Income Growth (YoY)</strong></TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={
-                              currentMetrics.fcf_growth
-                                ? `${formatPercent(currentMetrics.fcf_growth)}`
-                                : "N/A"
-                            }
-                            color="success"
-                            size="small"
-                          />
+                          {growthInputs.net_income_growth_yoy != null ? `${growthInputs.net_income_growth_yoy.toFixed(2)}%` : "N/A"}
                         </TableCell>
+                      </TableRow>
+
+                      {/* Operational Metrics */}
+                      <TableRow>
+                        <TableCell><strong>Op Income Growth (YoY)</strong></TableCell>
                         <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            {currentMetrics.sector_fcf_avg
-                              ? `vs ${formatPercent(currentMetrics.sector_fcf_avg)} sector avg`
-                              : ""}
-                          </Typography>
+                          {growthInputs.operating_income_growth_yoy != null ? `${growthInputs.operating_income_growth_yoy.toFixed(2)}%` : "N/A"}
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Margin Trends */}
+                      <TableRow>
+                        <TableCell><strong>Gross Margin Trend</strong></TableCell>
+                        <TableCell align="right">
+                          {growthInputs.gross_margin_trend != null ? `${growthInputs.gross_margin_trend.toFixed(2)} pp` : "N/A"}
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>PEG Ratio</TableCell>
+                        <TableCell><strong>Operating Margin Trend</strong></TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={
-                              (currentMetrics.pe_ratio || 18) /
-                                ((currentMetrics.earnings_growth || 0.1) *
-                                  100) || "N/A"
-                            }
-                            color="warning"
-                            size="small"
-                          />
+                          {growthInputs.operating_margin_trend != null ? `${growthInputs.operating_margin_trend.toFixed(2)} pp` : "N/A"}
                         </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><strong>Net Margin Trend</strong></TableCell>
                         <TableCell align="right">
-                          <Typography variant="caption" color="text.secondary">
-                            vs 1.0 fair value
-                          </Typography>
+                          {growthInputs.net_margin_trend != null ? `${growthInputs.net_margin_trend.toFixed(2)} pp` : "N/A"}
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Efficiency & Capital Metrics */}
+                      <TableRow>
+                        <TableCell><strong>ROE Trend</strong></TableCell>
+                        <TableCell align="right">
+                          {growthInputs.roe_trend != null ? `${growthInputs.roe_trend.toFixed(2)}` : "N/A"}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><strong>Sustainable Growth Rate</strong></TableCell>
+                        <TableCell align="right">
+                          {growthInputs.sustainable_growth_rate != null ? `${growthInputs.sustainable_growth_rate.toFixed(2)}%` : "N/A"}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><strong>Quarterly Growth Momentum</strong></TableCell>
+                        <TableCell align="right">
+                          {growthInputs.quarterly_growth_momentum != null ? `${growthInputs.quarterly_growth_momentum.toFixed(2)} pp` : "N/A"}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><strong>FCF Growth (YoY)</strong></TableCell>
+                        <TableCell align="right">
+                          {growthInputs.fcf_growth_yoy != null ? `${growthInputs.fcf_growth_yoy.toFixed(2)}%` : "N/A"}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><strong>Asset Growth (YoY)</strong></TableCell>
+                        <TableCell align="right">
+                          {growthInputs.asset_growth_yoy != null ? `${growthInputs.asset_growth_yoy.toFixed(2)}%` : "N/A"}
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -1851,127 +1854,84 @@ function StockDetail() {
                 </TableContainer>
               </CardContent>
             </Card>
+              );
+            })()}
           </Grid>
 
           {/* Value Factor Breakdown */}
           <Grid item xs={12} md={6}>
+            {(() => {
+              // Extract value inputs from the API response - correct path
+              const valueInputs = stockScores?.data?.factors?.value?.inputs || {};
+              const valueScore = stockScores?.data?.factors?.value?.score || 0;
+
+              // Helper function to get color based on score
+              const getValueColor = (value, field) => {
+                if (!value) return "default";
+                // Higher percentile is better, so >= 70 is good
+                if (field.includes("percentile")) {
+                  if (value >= 70) return "success";
+                  if (value >= 50) return "warning";
+                  return "error";
+                }
+                return "default";
+              };
+
+              return (
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Value Factor Analysis
+                  Value Factor Analysis (Score: {valueScore.toFixed(1)}/100)
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  Percentile-ranked valuation metrics (4 factors: P/E, P/B, P/S, PEG)
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
-                <Box mb={3}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart
-                      data={[
-                        {
-                          metric: 'Value Score',
-                          score: stockScores?.data?.data?.value_score || 0,
-                          target: 70,
-                          good: 50
-                        }
-                      ]}
-                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="metric" />
-                      <YAxis domain={[0, 100]} />
-                      <Tooltip />
-                      <Bar dataKey="score" fill={stockScores?.data?.data?.value_score >= 70 ? "#4caf50" : stockScores?.data?.data?.value_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
-                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
-                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
                 <TableContainer>
                   <Table size="small">
                     <TableBody>
                       <TableRow>
-                        <TableCell>P/E Ratio</TableCell>
+                        <TableCell><strong>P/E Ratio</strong></TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={stockScores?.data?.data?.pe_ratio?.toFixed(2) || "N/A"}
-                            color={
-                              stockScores?.data?.data?.pe_ratio < 20
-                                ? "success"
-                                : stockScores?.data?.data?.pe_ratio < 30
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
+                          {valueInputs.stock_pe?.toFixed(2) || "N/A"}
                         </TableCell>
                         <TableCell align="right">
-                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.3 }}>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>S:</strong> {benchmarks?.data?.data?.benchmarks?.pe_ratio?.sector?.toFixed(1) || "20.0"} {metrics?.data?.pe_ratio && (metrics.data.pe_ratio < (benchmarks?.data?.data?.benchmarks?.pe_ratio?.sector || 20)) ? "✓" : "✗"}
-                            </Typography>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>H:</strong> {benchmarks?.data?.data?.benchmarks?.pe_ratio?.historical_1yr?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.pe_ratio?.historical_1yr && metrics?.data?.pe_ratio && (metrics.data.pe_ratio < benchmarks.data.data.benchmarks.pe_ratio.historical_1yr) ? "↓" : "↑"}
-                            </Typography>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>M:</strong> {benchmarks?.data?.data?.benchmarks?.pe_ratio?.market?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.pe_ratio?.market && metrics?.data?.pe_ratio && (metrics.data.pe_ratio < benchmarks.data.data.benchmarks.pe_ratio.market) ? "↓" : "↑"}
-                            </Typography>
-                          </Box>
+                          <Typography variant="caption" color="text.secondary">
+                            vs {valueInputs.market_pe?.toFixed(2) || "N/A"} market
+                          </Typography>
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>Price/Book Ratio</TableCell>
+                        <TableCell><strong>Price/Book</strong></TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={metrics?.data?.price_to_book?.toFixed(2) || "N/A"}
-                            color={
-                              metrics?.data?.price_to_book && metrics.data.price_to_book < (benchmarks?.data?.data?.benchmarks?.price_to_book?.sector || 3)
-                                ? "success"
-                                : metrics?.data?.price_to_book && metrics.data.price_to_book < (benchmarks?.data?.data?.benchmarks?.price_to_book?.sector || 5)
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
+                          {valueInputs.stock_pb?.toFixed(3) || "N/A"}
                         </TableCell>
                         <TableCell align="right">
-                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.3 }}>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>S:</strong> {benchmarks?.data?.data?.benchmarks?.price_to_book?.sector?.toFixed(1) || "3.0"} {metrics?.data?.price_to_book && (metrics.data.price_to_book < (benchmarks?.data?.data?.benchmarks?.price_to_book?.sector || 3)) ? "✓" : "✗"}
-                            </Typography>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>H:</strong> {benchmarks?.data?.data?.benchmarks?.price_to_book?.historical_1yr?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.price_to_book?.historical_1yr && metrics?.data?.price_to_book && (metrics.data.price_to_book < benchmarks.data.data.benchmarks.price_to_book.historical_1yr) ? "↓" : "↑"}
-                            </Typography>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>M:</strong> {benchmarks?.data?.data?.benchmarks?.price_to_book?.market?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.price_to_book?.market && metrics?.data?.price_to_book && (metrics.data.price_to_book < benchmarks.data.data.benchmarks.price_to_book.market) ? "↓" : "↑"}
-                            </Typography>
-                          </Box>
+                          <Typography variant="caption" color="text.secondary">
+                            vs {valueInputs.market_pb?.toFixed(3) || "N/A"} market
+                          </Typography>
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>EV/EBITDA</TableCell>
+                        <TableCell><strong>Price/Sales</strong></TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={metrics?.data?.ev_to_ebitda?.toFixed(2) || "N/A"}
-                            color={
-                              metrics?.data?.ev_to_ebitda && metrics.data.ev_to_ebitda < (benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.sector || 15)
-                                ? "success"
-                                : metrics?.data?.ev_to_ebitda && metrics.data.ev_to_ebitda < (benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.sector || 20)
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
+                          {valueInputs.stock_ps?.toFixed(3) || "N/A"}
                         </TableCell>
                         <TableCell align="right">
-                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.3 }}>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>S:</strong> {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.sector?.toFixed(1) || "15.0"} {metrics?.data?.ev_to_ebitda && (metrics.data.ev_to_ebitda < (benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.sector || 15)) ? "✓" : "✗"}
-                            </Typography>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>H:</strong> {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.historical_1yr?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.historical_1yr && metrics?.data?.ev_to_ebitda && (metrics.data.ev_to_ebitda < benchmarks.data.data.benchmarks.ev_to_ebitda.historical_1yr) ? "↓" : "↑"}
-                            </Typography>
-                            <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.2 }}>
-                              <strong>M:</strong> {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.market?.toFixed(1) || "N/A"} {benchmarks?.data?.data?.benchmarks?.ev_to_ebitda?.market && metrics?.data?.ev_to_ebitda && (metrics.data.ev_to_ebitda < benchmarks.data.data.benchmarks.ev_to_ebitda.market) ? "↓" : "↑"}
-                            </Typography>
-                          </Box>
+                          <Typography variant="caption" color="text.secondary">
+                            vs {valueInputs.market_ps?.toFixed(3) || "N/A"} market
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><strong>PEG Ratio</strong></TableCell>
+                        <TableCell align="right">
+                          {valueInputs.peg_ratio?.toFixed(2) || "N/A"}
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="caption" color="text.secondary">
+                            {valueInputs.peg_ratio < 1 ? "✓ Fair value" : "Growth premium"}
+                          </Typography>
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -1979,12 +1939,15 @@ function StockDetail() {
                 </TableContainer>
               </CardContent>
             </Card>
+              );
+            })()}
           </Grid>
 
           {/* Momentum Factor Breakdown */}
           <Grid item xs={12} md={6}>
             {(() => {
-              // Get momentum inputs from stock scores API
+              // Get momentum components and inputs from stock scores API
+              const momentumComponents = stockScores?.data?.factors?.momentum?.components || {};
               const momentumInputs = stockScores?.data?.factors?.momentum?.inputs || {};
 
               return (
@@ -2017,277 +1980,103 @@ function StockDetail() {
                     </BarChart>
                   </ResponsiveContainer>
                 </Box>
-                <TableContainer>
+
+                {/* Momentum Components Input Metrics Table */}
+                <TableContainer sx={{ mb: 3 }}>
                   <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Momentum Metric</TableCell>
+                        <TableCell align="right">Value</TableCell>
+                      </TableRow>
+                    </TableHead>
                     <TableBody>
                       <TableRow>
-                        <TableCell>12-Month Return (ex. last)</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Intraweek Trend Confirmation (10pts)</TableCell>
+                        <TableCell align="right"></TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ pl: 4 }}>RSI (14-day)</TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={momentumInputs.momentum_12m_1 ? `${momentumInputs.momentum_12m_1.toFixed(2)}%` : "N/A"}
-                            color={
-                              (momentumInputs.momentum_12m_1 || 0) > 10
-                                ? "success"
-                                : (momentumInputs.momentum_12m_1 || 0) > 0
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
+                          {scoresData?.rsi != null
+                            ? scoresData.rsi.toFixed(1)
+                            : "N/A"}
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>6-Month Return</TableCell>
+                        <TableCell sx={{ pl: 4 }}>MACD</TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={momentumInputs.momentum_6m ? `${momentumInputs.momentum_6m.toFixed(2)}%` : "N/A"}
-                            color={
-                              (momentumInputs.momentum_6m || 0) > 10
-                                ? "success"
-                                : (momentumInputs.momentum_6m || 0) > 0
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
+                          {scoresData?.macd != null
+                            ? scoresData.macd.toFixed(4)
+                            : "N/A"}
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>3-Month Return</TableCell>
+                        <TableCell sx={{ pl: 4 }}>Price vs SMA 50</TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={momentumInputs.momentum_3m ? `${momentumInputs.momentum_3m.toFixed(2)}%` : "N/A"}
-                            color={
-                              (momentumInputs.momentum_3m || 0) > 5
-                                ? "success"
-                                : (momentumInputs.momentum_3m || 0) > 0
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
+                          {momentumInputs.price_vs_sma_50 != null
+                            ? `${momentumInputs.price_vs_sma_50.toFixed(2)}%`
+                            : "N/A"}
                         </TableCell>
                       </TableRow>
-                      <TableRow>
-                        <TableCell>Risk-Adjusted Momentum</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={momentumInputs.risk_adjusted_momentum ? momentumInputs.risk_adjusted_momentum.toFixed(3) : "N/A"}
-                            color={
-                              (momentumInputs.risk_adjusted_momentum || 0) > 0.5
-                                ? "success"
-                                : (momentumInputs.risk_adjusted_momentum || 0) > 0
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Price vs 50-day MA</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={momentumInputs.price_vs_sma_50 ? `${momentumInputs.price_vs_sma_50 > 0 ? '+' : ''}${momentumInputs.price_vs_sma_50.toFixed(2)}%` : "N/A"}
-                            color={
-                              (momentumInputs.price_vs_sma_50 || 0) > 5
-                                ? "success"
-                                : (momentumInputs.price_vs_sma_50 || 0) > -5
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Price vs 200-day MA</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={momentumInputs.price_vs_sma_200 ? `${momentumInputs.price_vs_sma_200 > 0 ? '+' : ''}${momentumInputs.price_vs_sma_200.toFixed(2)}%` : "N/A"}
-                            color={
-                              (momentumInputs.price_vs_sma_200 || 0) > 0
-                                ? "success"
-                                : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Price vs 52-Week High</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={momentumInputs.price_vs_52w_high ? `${momentumInputs.price_vs_52w_high.toFixed(2)}%` : "N/A"}
-                            color={
-                              (momentumInputs.price_vs_52w_high || 0) > 90
-                                ? "success"
-                                : (momentumInputs.price_vs_52w_high || 0) > 75
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-              );
-            })()}
-          </Grid>
 
-          {/* Relative Strength Factor Breakdown */}
-          <Grid item xs={12} md={6}>
-            {(() => {
-              // Get relative strength inputs from stock scores API
-              const rsInputs = stockScores?.data?.factors?.relative_strength?.inputs || {};
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, pt: 2 }}>Short-Term Momentum (25pts)</TableCell>
+                        <TableCell align="right"></TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ pl: 4 }}>3-Month Return</TableCell>
+                        <TableCell align="right">
+                          {momentumInputs.momentum_3m != null
+                            ? `${momentumInputs.momentum_3m.toFixed(2)}%`
+                            : "N/A"}
+                        </TableCell>
+                      </TableRow>
 
-              return (
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Relative Strength Factor Analysis
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                <Box mb={3}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart
-                      data={[
-                        {
-                          metric: 'RS Score',
-                          score: stockScores?.data?.data?.relative_strength_score || 0,
-                          target: 70,
-                          good: 50
-                        }
-                      ]}
-                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="metric" />
-                      <YAxis domain={[0, 100]} />
-                      <Tooltip />
-                      <Bar dataKey="score" fill={stockScores?.data?.data?.relative_strength_score >= 70 ? "#4caf50" : stockScores?.data?.data?.relative_strength_score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
-                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (70)" />
-                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (50)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-                <TableContainer>
-                  <Table size="small">
-                    <TableBody>
                       <TableRow>
-                        <TableCell>RS Rating (Percentile)</TableCell>
+                        <TableCell sx={{ fontWeight: 600, pt: 2 }}>Medium-Term Momentum (25pts)</TableCell>
+                        <TableCell align="right"></TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ pl: 4 }}>6-Month Return</TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={rsInputs.rs_rating ? `${rsInputs.rs_rating}` : "N/A"}
-                            color={
-                              (rsInputs.rs_rating || 0) > 80
-                                ? "success"
-                                : (rsInputs.rs_rating || 0) > 60
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
+                          {momentumInputs.momentum_6m != null
+                            ? `${momentumInputs.momentum_6m.toFixed(2)}%`
+                            : "N/A"}
+                        </TableCell>
+                      </TableRow>
+
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, pt: 2 }}>Long-Term Momentum (15pts)</TableCell>
+                        <TableCell align="right"></TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ pl: 4 }}>12-Month Return (Excl. Last Month)</TableCell>
+                        <TableCell align="right">
+                          {momentumInputs.momentum_12m_1 != null
+                            ? `${momentumInputs.momentum_12m_1.toFixed(2)}%`
+                            : "N/A"}
+                        </TableCell>
+                      </TableRow>
+
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600, pt: 2 }}>Consistency (10pts)</TableCell>
+                        <TableCell align="right"></TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ pl: 4 }}>Price vs SMA 200</TableCell>
+                        <TableCell align="right">
+                          {momentumInputs.price_vs_sma_200 != null
+                            ? `${momentumInputs.price_vs_sma_200.toFixed(2)}%`
+                            : "N/A"}
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>Sector Relative (12M)</TableCell>
+                        <TableCell sx={{ pl: 4 }}>Price vs 52-Week High</TableCell>
                         <TableCell align="right">
-                          <Chip
-                            label={rsInputs.sector_relative_12m ? `${rsInputs.sector_relative_12m > 0 ? '+' : ''}${rsInputs.sector_relative_12m.toFixed(2)}%` : "N/A"}
-                            color={
-                              (rsInputs.sector_relative_12m || 0) > 10
-                                ? "success"
-                                : (rsInputs.sector_relative_12m || 0) > 0
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Sector Percentile</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={rsInputs.sector_percentile ? `${rsInputs.sector_percentile.toFixed(0)}` : "N/A"}
-                            color={
-                              (rsInputs.sector_percentile || 0) > 75
-                                ? "success"
-                                : (rsInputs.sector_percentile || 0) > 50
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>RS Momentum (4w)</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={rsInputs.rs_momentum_4w ? `${rsInputs.rs_momentum_4w > 0 ? '+' : ''}${rsInputs.rs_momentum_4w.toFixed(2)}` : "N/A"}
-                            color={
-                              (rsInputs.rs_momentum_4w || 0) > 5
-                                ? "success"
-                                : (rsInputs.rs_momentum_4w || 0) > 0
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>RS Momentum (13w)</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={rsInputs.rs_momentum_13w ? `${rsInputs.rs_momentum_13w > 0 ? '+' : ''}${rsInputs.rs_momentum_13w.toFixed(2)}` : "N/A"}
-                            color={
-                              (rsInputs.rs_momentum_13w || 0) > 10
-                                ? "success"
-                                : (rsInputs.rs_momentum_13w || 0) > 0
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Positive Months (12M)</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={rsInputs.positive_months_12 !== null && rsInputs.positive_months_12 !== undefined ? `${rsInputs.positive_months_12}/12` : "N/A"}
-                            color={
-                              (rsInputs.positive_months_12 || 0) >= 9
-                                ? "success"
-                                : (rsInputs.positive_months_12 || 0) >= 6
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Timeframe Alignment</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={rsInputs.timeframe_alignment !== null && rsInputs.timeframe_alignment !== undefined ? `${rsInputs.timeframe_alignment}/4` : "N/A"}
-                            color={
-                              (rsInputs.timeframe_alignment || 0) === 4
-                                ? "success"
-                                : (rsInputs.timeframe_alignment || 0) >= 3
-                                  ? "warning"
-                                  : "error"
-                            }
-                            size="small"
-                          />
+                          {momentumInputs.price_vs_52w_high != null
+                            ? `${momentumInputs.price_vs_52w_high.toFixed(2)}%`
+                            : "N/A"}
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -2391,6 +2180,89 @@ function StockDetail() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Risk Factor Breakdown */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Box display="flex" alignItems="center" gap={1} mb={2}>
+                  <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                    Risk Factor Analysis
+                  </Typography>
+                  <Chip
+                    label={`Risk: ${(stockScores?.data?.factors?.risk?.score || 0).toFixed(1)}/100`}
+                    color={
+                      (stockScores?.data?.factors?.risk?.score || 0) < 30
+                        ? "success"
+                        : (stockScores?.data?.factors?.risk?.score || 0) < 50
+                        ? "warning"
+                        : "error"
+                    }
+                    variant="outlined"
+                  />
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <Box mb={3}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={[
+                        {
+                          metric: 'Risk Score',
+                          score: stockScores?.data?.factors?.risk?.score || 0,
+                          target: 50,
+                          good: 30
+                        }
+                      ]}
+                      margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="metric" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Bar dataKey="score" fill={stockScores?.data?.factors?.risk?.score >= 70 ? "#f44336" : stockScores?.data?.factors?.risk?.score >= 50 ? "#ff9800" : "#4caf50"} name="Score" />
+                      <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (50)" />
+                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (30)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableCell><strong>Risk Component</strong></TableCell>
+                        <TableCell align="right"><strong>Value</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Volatility (12M)</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.volatility_12m_pct || 0).toFixed(2)}%</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Max Drawdown (52W)</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.max_drawdown_52w_pct || 0).toFixed(2)}%</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Debt/Equity Ratio</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.debt_to_equity || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Current Ratio</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.current_ratio || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>EPS Growth Stability</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.eps_growth_stability || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, fontStyle: 'italic' }}>
+                  <strong>Risk Score Categories:</strong> 0-30 (Low Risk), 31-50 (Moderate), 51-70 (High), 71-100 (Very High)
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -3618,6 +3490,347 @@ function StockDetail() {
             </CardContent>
           </Card>
         )}
+      </Box>
+
+      {/* Trading Signals Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
+          <Timeline sx={{ verticalAlign: "middle", mr: 1 }} />
+          Trading Signals
+        </Typography>
+
+        <Grid container spacing={3}>
+          {/* Daily Signals */}
+          <Grid item xs={12} md={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  Daily Signals
+                  <Chip label="1D" size="small" color="primary" />
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                {dailySignalsLoading ? (
+                  <Box display="flex" justifyContent="center" p={2}>
+                    <CircularProgress size={30} />
+                  </Box>
+                ) : dailySignalsError ? (
+                  <Alert severity="info" sx={{ mb: 2 }}>No daily signals available</Alert>
+                ) : (
+                  <TableContainer sx={{ maxHeight: 600, overflowY: 'auto', overflowX: 'auto' }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                          <TableCell sx={{ minWidth: 100 }}>Company</TableCell>
+                          <TableCell sx={{ minWidth: 80 }}>Date</TableCell>
+                          <TableCell sx={{ minWidth: 70 }}>Signal</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Open</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>High</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Low</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Close</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Volume</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Buy Level</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Stop</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Sell Level</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>Target 25%</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>Target 20%</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>R/R</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Risk %</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Gain/Loss %</TableCell>
+                          <TableCell sx={{ minWidth: 110 }}>Market Stage</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 75 }}>Stage Conf</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>SATA</TableCell>
+                          <TableCell sx={{ minWidth: 80 }}>Signal State</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>Days State</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>Quality</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>RSI</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>ADX</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>ATR</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 75 }}>% EMA21</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 75 }}>% SMA50</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 75 }}>% SMA200</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Daily Rng%</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Vol Ratio</TableCell>
+                          <TableCell sx={{ minWidth: 85 }}>Vol Analysis</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Mansfield</TableCell>
+                          <TableCell sx={{ minWidth: 100 }}>Entry Window</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Ext %</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>Days to Pivot</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>Dist to Pivot%</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>Consol Days</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>ATR Contract</TableCell>
+                          <TableCell sx={{ minWidth: 100 }}>Pullback Stage</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Pullback Days</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>% Retrace</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 100 }}>Avg 5Day Chg</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Consec Up</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Consec Down</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>Vol %ile</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Gap %</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 85 }}>Pos Size</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Close Pos</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 75 }}>Dist 21EMA%</TableCell>
+                          <TableCell sx={{ minWidth: 110 }}>Next Earnings</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 75 }}>Days Earnings</TableCell>
+                          <TableCell sx={{ minWidth: 85 }}>Volatility</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(dailySignals?.data?.data ?? []).slice(0, 10).map((signal, index) => (
+                          <TableRow key={index} hover>
+                            <TableCell><Typography variant="caption" sx={{ fontWeight: 'bold' }}>{signal.company_name || signal.symbol}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{new Date(signal.date).toLocaleDateString()}</Typography></TableCell>
+                            <TableCell><Chip label={signal.signal || 'N/A'} size="small" color={(signal.signal || '').toUpperCase() === 'BUY' ? "success" : (signal.signal || '').toUpperCase() === 'SELL' ? "error" : "default"} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.open ? formatCurrency(signal.open) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.high ? formatCurrency(signal.high) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.low ? formatCurrency(signal.low) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>{formatCurrency(signal.current_price || 0)}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.volume ? formatNumber(signal.volume) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.buylevel ? formatCurrency(signal.buylevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.stoplevel ? formatCurrency(signal.stoplevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.selllevel ? formatCurrency(signal.selllevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.profit_target_25pct ? formatCurrency(signal.profit_target_25pct) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.profit_target_20pct ? formatCurrency(signal.profit_target_20pct) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Chip label={signal.risk_reward_ratio ? signal.risk_reward_ratio.toFixed(2) : '—'} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.risk_pct ? `${signal.risk_pct.toFixed(1)}%` : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption" sx={{ color: (signal.current_gain_loss_pct || 0) > 0 ? 'success.main' : (signal.current_gain_loss_pct || 0) < 0 ? 'error.main' : 'inherit' }}>{signal.current_gain_loss_pct ? `${signal.current_gain_loss_pct.toFixed(2)}%` : '—'}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{signal.market_stage || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.stage_confidence || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.sata_score || '—'}</Typography></TableCell>
+                            <TableCell><Chip label={signal.signal_state || 'N/A'} size="small" sx={{ fontSize: '0.65rem' }} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.days_in_current_state || 0}</Typography></TableCell>
+                            <TableCell align="right"><Chip label={signal.entry_quality_score || 0} size="small" color={(signal.entry_quality_score || 0) >= 70 ? "success" : (signal.entry_quality_score || 0) >= 50 ? "warning" : "error"} sx={{ fontSize: '0.7rem' }} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.rsi ? signal.rsi.toFixed(1) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.adx ? signal.adx.toFixed(1) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.atr ? signal.atr.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.pct_from_ema_21 ? signal.pct_from_ema_21.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.pct_from_sma_50 ? signal.pct_from_sma_50.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.pct_from_sma_200 ? signal.pct_from_sma_200.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.daily_range_pct ? signal.daily_range_pct.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.volume_ratio ? signal.volume_ratio.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{signal.volume_analysis || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.mansfield_rs ? signal.mansfield_rs.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{signal.entry_window || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.extension_from_pivot_pct ? signal.extension_from_pivot_pct.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.days_since_pivot_break || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.distance_to_pivot_pct ? signal.distance_to_pivot_pct.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.consolidation_days || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.atr_contraction_ratio ? signal.atr_contraction_ratio.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{signal.pullback_stage || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.pullback_days || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.pct_retraced_from_high ? signal.pct_retraced_from_high.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.avg_daily_change_last_5days ? signal.avg_daily_change_last_5days.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.consecutive_up_days || 0}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.consecutive_down_days || 0}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.volume_percentile || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.gap_from_prev_close_pct ? signal.gap_from_prev_close_pct.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.position_size_recommendation || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.close_range_position ? signal.close_range_position.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.distance_to_21ema_pct ? signal.distance_to_21ema_pct.toFixed(2) : '—'}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{signal.next_earnings_date ? new Date(signal.next_earnings_date).toLocaleDateString() : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.days_to_earnings || '—'}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{signal.volatility_profile || '—'}</Typography></TableCell>
+                          </TableRow>
+                        ))}
+                        {(!dailySignals?.data?.data || dailySignals.data.data.length === 0) && (
+                          <TableRow>
+                            <TableCell colSpan={4} align="center">
+                              <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                                No daily signals available
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Weekly Signals */}
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  Weekly Signals
+                  <Chip label="1W" size="small" color="secondary" />
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                {weeklySignalsLoading ? (
+                  <Box display="flex" justifyContent="center" p={2}>
+                    <CircularProgress size={30} />
+                  </Box>
+                ) : weeklySignalsError ? (
+                  <Alert severity="info" sx={{ mb: 2 }}>No weekly signals available</Alert>
+                ) : (
+                  <TableContainer sx={{ maxHeight: 500, overflowY: 'auto', overflowX: 'auto' }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                          <TableCell sx={{ minWidth: 80 }}>Date</TableCell>
+                          <TableCell sx={{ minWidth: 70 }}>Signal</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Open</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>High</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Low</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Close</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Volume</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Buy Level</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Stop</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Sell Level</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Target 25%</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Target 20%</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>R/R</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Risk %</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Gain/Loss %</TableCell>
+                          <TableCell sx={{ minWidth: 100 }}>Market Stage</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>SATA</TableCell>
+                          <TableCell sx={{ minWidth: 70 }}>Signal State</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Days State</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>Quality</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>RSI</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>ADX</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(weeklySignals?.data?.data ?? []).slice(0, 10).map((signal, index) => (
+                          <TableRow key={index} hover>
+                            <TableCell><Typography variant="caption">{new Date(signal.date).toLocaleDateString()}</Typography></TableCell>
+                            <TableCell>
+                              <Chip label={signal.signal || 'N/A'} size="small" color={(signal.signal || '').toUpperCase() === 'BUY' ? "success" : (signal.signal || '').toUpperCase() === 'SELL' ? "error" : "default"} />
+                            </TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.open ? formatCurrency(signal.open) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.high ? formatCurrency(signal.high) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.low ? formatCurrency(signal.low) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>{formatCurrency(signal.current_price || signal.close || 0)}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.volume ? formatNumber(signal.volume) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.buylevel ? formatCurrency(signal.buylevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.stoplevel ? formatCurrency(signal.stoplevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.selllevel ? formatCurrency(signal.selllevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.profit_target_25pct ? formatCurrency(signal.profit_target_25pct) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.profit_target_20pct ? formatCurrency(signal.profit_target_20pct) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Chip label={signal.risk_reward_ratio ? signal.risk_reward_ratio.toFixed(2) : '—'} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.risk_pct ? `${signal.risk_pct.toFixed(1)}%` : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption" sx={{ color: (signal.current_gain_loss_pct || 0) > 0 ? 'success.main' : (signal.current_gain_loss_pct || 0) < 0 ? 'error.main' : 'text.secondary' }}>{signal.current_gain_loss_pct ? `${signal.current_gain_loss_pct.toFixed(2)}%` : '—'}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{signal.market_stage || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.sata_score || '—'}</Typography></TableCell>
+                            <TableCell><Chip label={signal.signal_state || 'N/A'} size="small" sx={{ fontSize: '0.65rem' }} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.days_in_current_state || 0}</Typography></TableCell>
+                            <TableCell align="right"><Chip label={signal.entry_quality_score || 0} size="small" color={(signal.entry_quality_score || 0) >= 70 ? "success" : (signal.entry_quality_score || 0) >= 50 ? "warning" : "error"} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.rsi ? signal.rsi.toFixed(1) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.adx ? signal.adx.toFixed(1) : '—'}</Typography></TableCell>
+                          </TableRow>
+                        ))}
+                        {(!weeklySignals?.data?.data || weeklySignals.data.data.length === 0) && (
+                          <TableRow>
+                            <TableCell colSpan={4} align="center">
+                              <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                                No weekly signals available
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Monthly Signals */}
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  Monthly Signals
+                  <Chip label="1M" size="small" color="info" />
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                {monthlySignalsLoading ? (
+                  <Box display="flex" justifyContent="center" p={2}>
+                    <CircularProgress size={30} />
+                  </Box>
+                ) : monthlySignalsError ? (
+                  <Alert severity="info" sx={{ mb: 2 }}>No monthly signals available</Alert>
+                ) : (
+                  <TableContainer sx={{ maxHeight: 500, overflowY: 'auto', overflowX: 'auto' }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow sx={{ backgroundColor: 'grey.50' }}>
+                          <TableCell sx={{ minWidth: 80 }}>Date</TableCell>
+                          <TableCell sx={{ minWidth: 70 }}>Signal</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Open</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>High</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Low</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Close</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Volume</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Buy Level</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Stop</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Sell Level</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Target 25%</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Target 20%</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>R/R</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Risk %</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>Gain/Loss %</TableCell>
+                          <TableCell sx={{ minWidth: 100 }}>Market Stage</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>SATA</TableCell>
+                          <TableCell sx={{ minWidth: 70 }}>Signal State</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 80 }}>Days State</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 60 }}>Quality</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>RSI</TableCell>
+                          <TableCell align="right" sx={{ minWidth: 70 }}>ADX</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(monthlySignals?.data?.data ?? []).slice(0, 10).map((signal, index) => (
+                          <TableRow key={index} hover>
+                            <TableCell><Typography variant="caption">{new Date(signal.date).toLocaleDateString()}</Typography></TableCell>
+                            <TableCell>
+                              <Chip label={signal.signal || 'N/A'} size="small" color={(signal.signal || '').toUpperCase() === 'BUY' ? "success" : (signal.signal || '').toUpperCase() === 'SELL' ? "error" : "default"} />
+                            </TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.open ? formatCurrency(signal.open) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.high ? formatCurrency(signal.high) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.low ? formatCurrency(signal.low) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>{formatCurrency(signal.current_price || signal.close || 0)}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.volume ? formatNumber(signal.volume) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.buylevel ? formatCurrency(signal.buylevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.stoplevel ? formatCurrency(signal.stoplevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.selllevel ? formatCurrency(signal.selllevel) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.profit_target_25pct ? formatCurrency(signal.profit_target_25pct) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.profit_target_20pct ? formatCurrency(signal.profit_target_20pct) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Chip label={signal.risk_reward_ratio ? signal.risk_reward_ratio.toFixed(2) : '—'} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.risk_pct ? `${signal.risk_pct.toFixed(1)}%` : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption" sx={{ color: (signal.current_gain_loss_pct || 0) > 0 ? 'success.main' : (signal.current_gain_loss_pct || 0) < 0 ? 'error.main' : 'text.secondary' }}>{signal.current_gain_loss_pct ? `${signal.current_gain_loss_pct.toFixed(2)}%` : '—'}</Typography></TableCell>
+                            <TableCell><Typography variant="caption">{signal.market_stage || '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.sata_score || '—'}</Typography></TableCell>
+                            <TableCell><Chip label={signal.signal_state || 'N/A'} size="small" sx={{ fontSize: '0.65rem' }} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.days_in_current_state || 0}</Typography></TableCell>
+                            <TableCell align="right"><Chip label={signal.entry_quality_score || 0} size="small" color={(signal.entry_quality_score || 0) >= 70 ? "success" : (signal.entry_quality_score || 0) >= 50 ? "warning" : "error"} /></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.rsi ? signal.rsi.toFixed(1) : '—'}</Typography></TableCell>
+                            <TableCell align="right"><Typography variant="caption">{signal.adx ? signal.adx.toFixed(1) : '—'}</Typography></TableCell>
+                          </TableRow>
+                        ))}
+                        {(!monthlySignals?.data?.data || monthlySignals.data.data.length === 0) && (
+                          <TableRow>
+                            <TableCell colSpan={4} align="center">
+                              <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                                No monthly signals available
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       </Box>
     </Container>
   );

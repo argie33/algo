@@ -90,19 +90,6 @@ def calculate_rsi(prices, period=14):
     return round(rsi, 2)
 
 
-def calculate_relative_strength(sector_prices, spy_prices):
-    """
-    Calculate relative strength vs SPY (market)
-    Returns percentage outperformance/underperformance
-    """
-    if len(sector_prices) < 20 or len(spy_prices) < 20:
-        return 0
-
-    # 20-day performance
-    sector_perf = ((sector_prices[-1] - sector_prices[-20]) / sector_prices[-20]) * 100
-    spy_perf = ((spy_prices[-1] - spy_prices[-20]) / spy_prices[-20]) * 100
-
-    return round(sector_perf - spy_perf, 2)
 
 
 def calculate_momentum(prices):
@@ -201,11 +188,6 @@ def fetch_sector_data(symbol, sector_name, spy_prices=None):
         # Calculate RSI
         rsi = calculate_rsi(prices)
 
-        # Calculate relative strength vs market (SPY)
-        relative_strength = 0
-        if spy_prices is not None:
-            relative_strength = calculate_relative_strength(prices, spy_prices)
-
         # Calculate performance (1-day, 5-day, 20-day)
         perf_1d = change_percent
         perf_5d = ((current_price - hist['Close'].iloc[-6]) / hist['Close'].iloc[-6] * 100) if len(hist) >= 6 else 0
@@ -226,7 +208,6 @@ def fetch_sector_data(symbol, sector_name, spy_prices=None):
             'momentum': momentum,
             'money_flow': flow,
             'rsi': float(rsi) if rsi is not None else None,
-            'relative_strength': float(relative_strength),
             'performance_1d': float(perf_1d),
             'performance_5d': float(perf_5d),
             'performance_20d': float(perf_20d),
@@ -257,7 +238,6 @@ def create_table(cur):
             momentum            VARCHAR(20),
             money_flow          VARCHAR(20),
             rsi                 DOUBLE PRECISION,
-            relative_strength   DOUBLE PRECISION,
             performance_1d      DOUBLE PRECISION,
             performance_5d      DOUBLE PRECISION,
             performance_20d     DOUBLE PRECISION,
@@ -330,7 +310,6 @@ def load_sector_data(cur, conn):
                 data['momentum'],
                 data['money_flow'],
                 data['rsi'],
-                data['relative_strength'],
                 data['performance_1d'],
                 data['performance_5d'],
                 data['performance_20d'],
@@ -339,7 +318,7 @@ def load_sector_data(cur, conn):
                 None,  # sector_rank will be calculated after insert
                 datetime.now(),
             ))
-            logging.info(f"  ✅ {symbol}: RSI={data['rsi']}, RS={data['relative_strength']:.2f}%, Momentum={data['momentum']}")
+            logging.info(f"  ✅ {symbol}: RSI={data['rsi']}, Momentum={data['momentum']}")
             success_count += 1
         else:
             failed_count += 1
@@ -356,7 +335,7 @@ def load_sector_data(cur, conn):
         insert_sql = """
             INSERT INTO sector_performance (
                 symbol, sector_name, price, change, change_percent,
-                volume, total_assets, momentum, money_flow, rsi, relative_strength,
+                volume, total_assets, momentum, money_flow, rsi,
                 performance_1d, performance_5d, performance_20d,
                 sma_50, sma_200, sector_rank, fetched_at
             ) VALUES %s
