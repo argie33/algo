@@ -258,6 +258,41 @@ const SectorAnalysis = () => {
             </Alert>
           ) : (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {/* Header Row */}
+              <Box sx={{ display: "flex", mb: 1, px: 2 }}>
+                <Grid container spacing={2} alignItems="center" sx={{ width: "100%", fontWeight: "bold" }}>
+                  <Grid item xs={12} sm={1.5}>
+                    <Typography variant="caption" fontWeight="bold">Sector</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1.2}>
+                    <Typography variant="caption" fontWeight="bold" align="center">Rank</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1}>
+                    <Typography variant="caption" fontWeight="bold" align="center">1W Ago</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1}>
+                    <Typography variant="caption" fontWeight="bold" align="center">4W Ago</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1}>
+                    <Typography variant="caption" fontWeight="bold" align="center">12W Ago</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1.2}>
+                    <Typography variant="caption" fontWeight="bold" align="center">Momentum</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1.2}>
+                    <Typography variant="caption" fontWeight="bold" align="center">Trend</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1}>
+                    <Typography variant="caption" fontWeight="bold" align="right">1D%</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1}>
+                    <Typography variant="caption" fontWeight="bold" align="right">5D%</Typography>
+                  </Grid>
+                  <Grid item xs={3} sm={1}>
+                    <Typography variant="caption" fontWeight="bold" align="right">20D%</Typography>
+                  </Grid>
+                </Grid>
+              </Box>
               {(rotationData?.data?.sectors || []).map((sector, index) => (
                 <Accordion key={`${sector.sector_name}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
                   <AccordionSummary
@@ -390,6 +425,38 @@ const SectorAnalysis = () => {
           ) : (
             <>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                {/* Header Row */}
+                <Box sx={{ display: "flex", mb: 1, px: 2 }}>
+                  <Grid container spacing={2} alignItems="center" sx={{ width: "100%", fontWeight: "bold" }}>
+                    <Grid item xs={2} sm={0.8}>
+                      <Typography variant="caption" fontWeight="bold" align="center">Rank</Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={2}>
+                      <Typography variant="caption" fontWeight="bold">Industry</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={1}>
+                      <Typography variant="caption" fontWeight="bold" align="center">1W Ago</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={1}>
+                      <Typography variant="caption" fontWeight="bold" align="center">4W Ago</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={1}>
+                      <Typography variant="caption" fontWeight="bold" align="center">12W Ago</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={1.2}>
+                      <Typography variant="caption" fontWeight="bold" align="center">Momentum</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={1.2}>
+                      <Typography variant="caption" fontWeight="bold" align="center">Trend</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={1}>
+                      <Typography variant="caption" fontWeight="bold" align="right">1D%</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={1}>
+                      <Typography variant="caption" fontWeight="bold" align="right">Count</Typography>
+                    </Grid>
+                  </Grid>
+                </Box>
                 {(industryData?.data?.industries || []).map((industry, index) => (
                   <Accordion key={`${industry.industry}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
                     <AccordionSummary
