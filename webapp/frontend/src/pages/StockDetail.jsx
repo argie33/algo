@@ -50,6 +50,7 @@ import {
   formatCurrency,
   formatNumber,
   formatPercent,
+  formatDecimalAsPercent,
 } from "../utils/formatters";
 
 // Use centralized error logging (logger will be defined in component)
@@ -1998,16 +1999,16 @@ function StockDetail() {
                       <TableRow>
                         <TableCell sx={{ pl: 4 }}>RSI (14-day)</TableCell>
                         <TableCell align="right">
-                          {scoresData?.rsi != null
-                            ? scoresData.rsi.toFixed(1)
+                          {stockScores?.data?.data?.rsi != null
+                            ? stockScores.data.data.rsi.toFixed(1)
                             : "N/A"}
                         </TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ pl: 4 }}>MACD</TableCell>
                         <TableCell align="right">
-                          {scoresData?.macd != null
-                            ? scoresData.macd.toFixed(4)
+                          {stockScores?.data?.data?.macd != null
+                            ? stockScores.data.data.macd.toFixed(4)
                             : "N/A"}
                         </TableCell>
                       </TableRow>
