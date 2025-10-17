@@ -647,66 +647,8 @@ const Portfolio = () => {
     });
   }, [portfolioData.holdings, orderBy, order]);
 
-
-  // ⚠️ MOCK DATA - Replace with real API when available
-  const generateSectorAllocation = (holdings) => {
-    const sectors = {};
-    holdings.forEach((holding) => {
-      const sector = holding.sector || "Other";
-      if (!sectors[sector]) {
-        sectors[sector] = { value: 0, count: 0 };
-      }
-      sectors[sector].value += holding.marketValue;
-      sectors[sector].count += 1;
-    });
-
-    return Object.entries(sectors).map(([name, data]) => ({
-      name,
-      value: Math.round(data.value),
-      allocation:
-        Math.round(
-          (data.value / holdings.reduce((sum, h) => sum + h.marketValue, 0)) *
-            100 *
-            100
-        ) / 100,
-      count: data.count,
-    }));
-  };
-
-  // ⚠️ MOCK DATA - Replace with real API when available
-  const generateRiskMetrics = (holdings) => {
-    return {
-      isMockData: true,
-      var95: Math.round(
-        holdings.reduce((sum, h) => sum + h.marketValue, 0) * 0.05
-      ),
-      volatility:
-        Math.round(
-          (holdings.reduce((sum, h) => sum + (h.beta || 1), 0) /
-            (holdings?.length || 0)) *
-            15 *
-            100
-        ) / 100,
-      beta:
-        Math.round(
-          (holdings.reduce((sum, h) => sum + (h.beta || 1) * h.marketValue, 0) /
-            holdings.reduce((sum, h) => sum + h.marketValue, 0)) *
-            100
-        ) / 100,
-      correlation: Math.round(Math.random() * 0.3 + 0.6, 2),
-    };
-  };
-
-  // ⚠️ MOCK DATA - Replace with real API when available
-  const generateStressTests = () => {
-    return [
-      { scenario: "Market Crash (-20%)", impact: -0.2, isMockData: true },
-      { scenario: "Tech Selloff (-15%)", impact: -0.12, isMockData: true },
-      { scenario: "Interest Rate Rise", impact: -0.08, isMockData: true },
-      { scenario: "Inflation Surge", impact: -0.06, isMockData: true },
-      { scenario: "Recession", impact: -0.25, isMockData: true },
-    ];
-  };
+  // All mock data generation removed - using real API data only
+  // If risk metrics or stress tests are needed, they must come from the database
 
   // Load portfolio data when component mounts or user changes
   useEffect(() => {
@@ -2580,41 +2522,7 @@ const Portfolio = () => {
                 <Box sx={{ height: 400, mt: 2 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={
-                        portfolioData.historicalVaR || [
-                          // ⚠️ MOCK DATA - Replace with real API when available
-                          {
-                            date: "2025-06-28",
-                            var95: 65000,
-                            var99: 120000,
-                            isMockData: true,
-                          },
-                          {
-                            date: "2025-06-29",
-                            var95: 67000,
-                            var99: 122000,
-                            isMockData: true,
-                          },
-                          {
-                            date: "2025-06-30",
-                            var95: 66500,
-                            var99: 121000,
-                            isMockData: true,
-                          },
-                          {
-                            date: "2025-07-01",
-                            var95: 68000,
-                            var99: 124000,
-                            isMockData: true,
-                          },
-                          {
-                            date: "2025-07-02",
-                            var95: 68500,
-                            var99: 125000,
-                            isMockData: true,
-                          },
-                        ]
-                      }
+                      data={portfolioData.historicalVaR || []}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
