@@ -321,15 +321,33 @@ router.get("/compare", async (req, res) => {
 
     const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
 
+    // Query real financial data from database
+    const sqlQuery = `
+      SELECT
+        sm.symbol,
+        sf.revenue,
+        sf.net_income,
+        sm.pe_ratio,
+        sm.market_cap
+      FROM stock_metrics sm
+      LEFT JOIN stock_financials sf ON sm.symbol = sf.symbol
+      WHERE sm.symbol = ANY($1)
+      ORDER BY sm.symbol
+    `;
+
+    const result = await query(sqlQuery, [symbolList]);
+
+    if (!result || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "No financial data available",
+        message: "Financial data not found in database for the requested symbols",
+      });
+    }
+
     res.json({
       success: true,
-      data: symbolList.map(symbol => ({
-        symbol,
-        revenue: Math.random() * 100000000000 + 10000000000,
-        net_income: Math.random() * 20000000000 + 1000000000,
-        pe_ratio: (Math.random() * 40 + 10).toFixed(2),
-        market_cap: Math.random() * 2000000000000 + 100000000000
-      })),
+      data: result.rows,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

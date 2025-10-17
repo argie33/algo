@@ -1077,6 +1077,28 @@ router.get("/optimize", async (req, res) => {
         return b.performance[target] - a.performance[target]; // Higher scores first
       });
 
+      // Calculate real convergence iteration - when improvement plateaus
+      let convergenceIteration = iterations.length; // Default to final iteration
+      if (iterations.length > 10) {
+        // Look for when improvement rate drops below threshold
+        const windowSize = Math.max(3, Math.floor(iterations.length / 10));
+        for (let i = windowSize * 2; i < iterations.length; i++) {
+          const recentWindow = iterations.slice(Math.max(0, i - windowSize), i);
+          const improvements = recentWindow.map(it => {
+            const score = it.performance[target];
+            const prevScore = i > 0 ? iterations[i - 1].performance[target] : basePerformance[target];
+            return Math.abs(score - prevScore) / Math.abs(prevScore);
+          });
+          const avgImprovement = improvements.reduce((a, b) => a + b, 0) / improvements.length;
+
+          // If average improvement drops below 0.5%, consider converged
+          if (avgImprovement < 0.005) {
+            convergenceIteration = i;
+            break;
+          }
+        }
+      }
+
       return {
         optimization_id: `opt_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`,
         strategy_id: strategyId,
@@ -1099,7 +1121,7 @@ router.get("/optimize", async (req, res) => {
               Math.abs(basePerformance[target])) *
             100
           ).toFixed(2),
-          convergence_iteration: Math.floor(iterations.length * 0.7), // Assume convergence at 70%
+          convergence_iteration: convergenceIteration,
           optimization_time_minutes:
             Math.round(iterations.length * 0.5 * 100) / 100, // ~30s per iteration
         },

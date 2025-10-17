@@ -1484,141 +1484,42 @@ router.get("/economic/indicators", async (req, res) => {
     } = req.query;
 
     console.log(
-      `📈 Economic indicators - generating simulated data for category: ${category}`
+      `📈 Economic indicators requested - querying real data from database`
     );
 
-    // Generate realistic economic indicators data
-    const currentDate = new Date();
-    const baseIndicators = {
-      gdp: {
-        name: "Gross Domestic Product (GDP)",
-        category: "growth",
-        value: 26854.6, // Billion USD, annualized
-        unit: "Billion USD",
-        frequency: "quarterly",
-        last_updated: new Date(
-          currentDate.getTime() - 45 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        change_previous: 2.1,
-        change_percent: 0.08,
-        trend: "positive",
-        next_release: new Date(
-          currentDate.getTime() + 15 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-      unemployment: {
-        name: "Unemployment Rate",
-        category: "employment",
-        value: 3.7 + (Math.random() - 0.5) * 0.4, // 3.5-3.9%
-        unit: "percent",
-        frequency: "monthly",
-        last_updated: new Date(
-          currentDate.getTime() - 5 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        change_previous: -0.1,
-        change_percent: -2.6,
-        trend: "improving",
-        next_release: new Date(
-          currentDate.getTime() + 25 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-      inflation: {
-        name: "Consumer Price Index (CPI)",
-        category: "inflation",
-        value: 3.2 + (Math.random() - 0.5) * 0.6, // 2.9-3.5%
-        unit: "percent_yoy",
-        frequency: "monthly",
-        last_updated: new Date(
-          currentDate.getTime() - 10 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        change_previous: -0.2,
-        change_percent: -5.9,
-        trend: "declining",
-        next_release: new Date(
-          currentDate.getTime() + 20 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-      fed_funds_rate: {
-        name: "Federal Funds Rate",
-        category: "monetary",
-        value: 5.25 + (Math.random() - 0.5) * 0.25, // 5.125-5.375%
-        unit: "percent",
-        frequency: "as_needed",
-        last_updated: new Date(
-          currentDate.getTime() - 35 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        change_previous: 0.25,
-        change_percent: 5.0,
-        trend: "stable",
-        next_release: new Date(
-          currentDate.getTime() + 45 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-      ppi: {
-        name: "Producer Price Index (PPI)",
-        category: "inflation",
-        value: 2.7 + (Math.random() - 0.5) * 0.4, // 2.5-2.9%
-        unit: "percent_yoy",
-        frequency: "monthly",
-        last_updated: new Date(
-          currentDate.getTime() - 12 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        change_previous: -0.3,
-        change_percent: -10.0,
-        trend: "declining",
-        next_release: new Date(
-          currentDate.getTime() + 18 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-      retail_sales: {
-        name: "Retail Sales",
-        category: "consumption",
-        value: 0.4 + (Math.random() - 0.5) * 0.6, // -0.1% to 0.9% month-over-month
-        unit: "percent_mom",
-        frequency: "monthly",
-        last_updated: new Date(
-          currentDate.getTime() - 8 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        change_previous: 0.2,
-        change_percent: 100.0,
-        trend: "positive",
-        next_release: new Date(
-          currentDate.getTime() + 22 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-      housing_starts: {
-        name: "Housing Starts",
-        category: "housing",
-        value: 1350000 + Math.round((Math.random() - 0.5) * 100000), // 1.3-1.4M annualized
-        unit: "units_annualized",
-        frequency: "monthly",
-        last_updated: new Date(
-          currentDate.getTime() - 15 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        change_previous: 50000,
-        change_percent: 3.8,
-        trend: "positive",
-        next_release: new Date(
-          currentDate.getTime() + 15 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-      ism_manufacturing: {
-        name: "ISM Manufacturing PMI",
-        category: "manufacturing",
-        value: 48.5 + (Math.random() - 0.5) * 4, // 46.5-50.5
-        unit: "index",
-        frequency: "monthly",
-        last_updated: new Date(
-          currentDate.getTime() - 2 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        change_previous: -1.2,
-        change_percent: -2.4,
-        trend: "contracting",
-        next_release: new Date(
-          currentDate.getTime() + 28 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      },
-    };
+    // Query real economic indicators from database
+    const sqlQuery = `
+      SELECT
+        indicator_name as name,
+        category,
+        value,
+        unit,
+        frequency,
+        last_updated,
+        change_previous,
+        change_percent,
+        trend,
+        next_release
+      FROM economic_indicators
+      WHERE period = $1
+      ORDER BY indicator_name
+    `;
+
+    const result = await query(sqlQuery, [period]);
+
+    if (!result || result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Economic indicators data not available",
+        message: "No real economic data found in database for the requested period",
+      });
+    }
+
+    const baseIndicators = {};
+    result.rows.forEach((row) => {
+      const key = row.name.toLowerCase().replace(/[^a-z_]/g, "_");
+      baseIndicators[key] = row;
+    });
 
     // Filter indicators by category
     let indicators = {};

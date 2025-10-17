@@ -70,9 +70,9 @@ router.get("/market", async (req, res) => {
       }
     } catch (priceError) {
       console.warn("Could not fetch price data for gainers/decliners:", priceError.message);
-      // Use defaults if price data unavailable
-      gainers = Math.floor(parseInt(marketData.active_stocks) * 0.4) || 0;
-      decliners = Math.floor(parseInt(marketData.active_stocks) * 0.3) || 0;
+      // Set to 0 if price data unavailable - no hardcoded percentages
+      gainers = 0;
+      decliners = 0;
     }
 
     res.json({
