@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.03% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>12/199</span>
+                <span class='fraction'>0/199</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">2.74% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>5/182</span>
+                <span class='fraction'>0/182</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.12% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>12/196</span>
+                <span class='fraction'>0/196</span>
             </div>
         
             
@@ -651,33 +651,33 @@
 <a name='L586'></a><a href='#L586'>586</a>
 <a name='L587'></a><a href='#L587'>587</a>
 <a name='L588'></a><a href='#L588'>588</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">88x</span>
-<span class="cline-any cline-yes">70x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">88x</span>
-<span class="cline-any cline-yes">88x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">88x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">88x</span>
-<span class="cline-any cline-yes">88x</span>
-<span class="cline-any cline-yes">88x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">88x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">88x</span>
-<span class="cline-any cline-yes">88x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1225,7 +1225,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">88x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1238,33 +1238,33 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">// Load environment variables if not already loaded
-if (!process.env.DB_HOST &amp;&amp; !process.env.DB_SECRET_ARN) {
-  require("dotenv").config();
+<span class="cstat-no" title="statement not covered" >if (!process.env.DB_HOST &amp;&amp; !process.env.DB_SECRET_ARN) {</span>
+<span class="cstat-no" title="statement not covered" >  require("dotenv").config();</span>
 }
 &nbsp;
 const {
   SecretsManagerClient,
   GetSecretValueCommand,
-} = require("@aws-sdk/client-secrets-manager");
-const { Pool } = require("pg");
+} = <span class="cstat-no" title="statement not covered" >require("@aws-sdk/client-secrets-manager");</span>
+const { Pool } = <span class="cstat-no" title="statement not covered" >require("pg");</span>
 &nbsp;
 // Configure AWS SDK v3
-const secretsManager = new SecretsManagerClient({
+const secretsManager = <span class="cstat-no" title="statement not covered" >new SecretsManagerClient({</span>
   region:
-    process.env.WEBAPP_AWS_REGION || <span class="branch-1 cbranch-no" title="branch not covered" >process.env.AWS_REGION </span>|| <span class="branch-2 cbranch-no" title="branch not covered" >"us-east-1",</span>
+    process.env.WEBAPP_AWS_REGION || process.env.AWS_REGION || "us-east-1",
 });
 &nbsp;
 // Connection pool instance
-let pool = null;
-let dbInitialized = false;
-let initPromise = null;
+let pool = <span class="cstat-no" title="statement not covered" >null;</span>
+let dbInitialized = <span class="cstat-no" title="statement not covered" >false;</span>
+let initPromise = <span class="cstat-no" title="statement not covered" >null;</span>
 &nbsp;
 // Database configuration cache
-let dbConfig = null;
+let dbConfig = <span class="cstat-no" title="statement not covered" >null;</span>
 &nbsp;
 // Simple query result cache for performance optimization
-const queryCache = new Map();
-const CACHE_TTL = 30000; // 30 seconds TTL for frequently accessed data
+const queryCache = <span class="cstat-no" title="statement not covered" >new Map();</span>
+const CACHE_TTL = <span class="cstat-no" title="statement not covered" >30000;</span> // 30 seconds TTL for frequently accessed data
 &nbsp;
 // SSL Configuration Fix Applied - v2.2.0
 // Fixed SSL configuration to match working ECS patterns with DB_SSL environment variable support
@@ -1812,7 +1812,7 @@ async function <span class="fstat-no" title="function not covered" >healthCheck(
   }
 }
 &nbsp;
-module.exports = {
+<span class="cstat-no" title="statement not covered" >module.exports = {</span>
   initializeDatabase,
   initializeSchema,
   getPool,
@@ -1831,7 +1831,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-10-11T12:19:45.226Z
+                at 2025-10-17T21:52:37.708Z
             </div>
         <script src="../prettify.js"></script>
         <script>
