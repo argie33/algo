@@ -364,52 +364,14 @@ router.get("/connections", async (req, res) => {
 // Admin controls
 router.post("/admin/restart", authenticateToken, async (req, res) => {
   try {
-    // Simulate live data service restart
-    const { force = false, maintenance_window = false } = req.body;
-
-    try {
-      console.log("🔄 Live data service restart requested", {
-        force,
-        maintenance_window,
-      });
-    } catch (e) {
-      // Ignore console logging errors
-    }
-
-    // Simulate service restart process
-    await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate restart delay
-
-    const restartResult = {
-      restart_id: `restart_${Date.now()}`,
-      status: "completed",
-      duration_ms: 2000 + Math.random() * 1000,
-      services_restarted: [
-        "price_feed_service",
-        "quote_aggregator",
-        "websocket_manager",
-        "data_cache_service",
-      ],
-      connections: {
-        before_restart: Math.floor(Math.random() * 500) + 100,
-        after_restart: Math.floor(Math.random() * 600) + 150,
-        data_providers: ["polygon", "alpha_vantage", "finnhub"],
-        active_streams: Math.floor(Math.random() * 50) + 20,
-      },
-      performance_metrics: {
-        latency_improvement: `${(Math.random() * 15 + 5).toFixed(1)}ms`,
-        memory_freed: `${(Math.random() * 200 + 100).toFixed(1)}MB`,
-        cache_hit_ratio: `${(85 + Math.random() * 10).toFixed(1)}%`,
-      },
+    // Service restart not implemented - requires infrastructure access
+    res.status(501).json({
+      success: false,
+      error: "Not Implemented",
+      message: "Live data service restart endpoint not implemented",
+      details: "Service restart requires infrastructure access and real-time monitoring",
+      service: "livedata-admin-restart",
       timestamp: new Date().toISOString(),
-    };
-
-    res.json({
-      success: true,
-      message: "Live data service successfully restarted",
-      restart_result: restartResult,
-      next_scheduled_restart: new Date(
-        Date.now() + 24 * 60 * 60 * 1000
-      ).toISOString(),
     });
   } catch (error) {
     try {
@@ -419,72 +381,20 @@ router.post("/admin/restart", authenticateToken, async (req, res) => {
     }
     res
       .status(500)
-      .json({ success: false, error: "Failed to restart live data service" });
+      .json({ success: false, error: "Failed to process restart request" });
   }
 });
 
 router.post("/admin/optimize", authenticateToken, async (req, res) => {
   try {
-    // Simulate live data optimization
-    const { target_latency = 50, cost_limit = 1000 } = req.body;
-
-    try {
-      console.log("⚡ Live data optimization requested", {
-        target_latency,
-        cost_limit,
-      });
-    } catch (e) {
-      // Ignore console logging errors
-    }
-
-    // Simulate optimization process
-    await new Promise((resolve) => setTimeout(resolve, 3000)); // Simulate analysis time
-
-    const optimizationResult = {
-      optimization_id: `opt_${Date.now()}`,
-      status: "completed",
-      analysis_duration_ms: 3000,
-      improvements_found: [
-        {
-          area: "Connection Pooling",
-          current: "120 connections",
-          optimized: "80 connections",
-          savings: "$120/month",
-        },
-        {
-          area: "Data Compression",
-          current: "45% compression",
-          optimized: "72% compression",
-          savings: "38% bandwidth reduction",
-        },
-        {
-          area: "Cache Hit Ratio",
-          current: "78%",
-          optimized: "91%",
-          savings: "42% fewer API calls",
-        },
-      ],
-      performance_metrics: {
-        latency_before: `${(Math.random() * 30 + 60).toFixed(1)}ms`,
-        latency_after: `${target_latency}ms`,
-        throughput_improvement: `${(Math.random() * 25 + 15).toFixed(1)}%`,
-        cost_reduction: `${(Math.random() * 200 + 100).toFixed(0)}/month`,
-      },
-      recommendations: [
-        "Enable aggressive data compression for non-critical streams",
-        "Implement smart connection pooling based on usage patterns",
-        "Use tiered caching strategy for different data frequencies",
-        "Schedule maintenance during low-traffic periods",
-      ],
+    // Service optimization not implemented - requires real performance analysis
+    res.status(501).json({
+      success: false,
+      error: "Not Implemented",
+      message: "Live data optimization endpoint not implemented",
+      details: "Service optimization requires real infrastructure metrics and monitoring data",
+      service: "livedata-admin-optimize",
       timestamp: new Date().toISOString(),
-    };
-
-    res.json({
-      success: true,
-      message: "Live data optimization analysis completed",
-      optimization_result: optimizationResult,
-      optimizations: optimizationResult, // Add this for test compatibility
-      estimated_monthly_savings: `$${(Math.random() * 300 + 200).toFixed(0)}`,
     });
   } catch (error) {
     try {
@@ -494,7 +404,7 @@ router.post("/admin/optimize", authenticateToken, async (req, res) => {
     }
     res
       .status(500)
-      .json({ success: false, error: "Failed to optimize live data service" });
+      .json({ success: false, error: "Failed to process optimization request" });
   }
 });
 
@@ -766,8 +676,8 @@ router.get("/quotes", async (req, res) => {
 
       // Metadata
       last_updated: quote.last_updated,
-      data_source: "simulated_live_feed",
-      delay_ms: Math.floor(Math.random() * 100) + 50, // Simulate minimal delay
+      data_source: "real_feed",
+      delay_ms: 0, // Real database query, no simulation
     }));
 
     // Calculate market overview
@@ -1124,21 +1034,19 @@ router.get("/stream", authenticateToken, async (req, res) => {
 
         if (result && result.rows) {
           const streamData = result.rows.map((row) => {
-            // Simulate real-time price fluctuations
+            // Use real data from database - no simulations
             const basePrice = parseFloat(row.close);
-            const fluctuation = (Math.random() - 0.5) * 0.02; // ±1% fluctuation
-            const currentPrice = basePrice * (1 + fluctuation);
 
             return {
               symbol: row.symbol,
-              price: Math.round(currentPrice * 100) / 100,
-              change: Math.round((currentPrice - basePrice) * 100) / 100,
-              change_percent: Math.round(fluctuation * 10000) / 100,
-              volume: parseInt(row.volume) + Math.floor(Math.random() * 1000),
+              price: Math.round(basePrice * 100) / 100,
+              change: 0,
+              change_percent: 0,
+              volume: parseInt(row.volume),
               timestamp: new Date().toISOString(),
               market_session: _getCurrentMarketSession(),
-              bid: Math.round(currentPrice * 0.999 * 100) / 100,
-              ask: Math.round(currentPrice * 1.001 * 100) / 100,
+              bid: Math.round(basePrice * 0.999 * 100) / 100,
+              ask: Math.round(basePrice * 1.001 * 100) / 100,
             };
           });
 
