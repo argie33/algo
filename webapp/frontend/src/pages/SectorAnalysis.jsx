@@ -257,141 +257,114 @@ const SectorAnalysis = () => {
               No sector data available.
             </Alert>
           ) : (
-            <TableContainer sx={{ overflowX: "auto" }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: "grey.200" }}>
-                    <TableCell><Typography variant="caption" fontWeight="bold">Sector</Typography></TableCell>
-                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">Rank</Typography></TableCell>
-                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">1W Ago</Typography></TableCell>
-                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">4W Ago</Typography></TableCell>
-                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">12W Ago</Typography></TableCell>
-                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">Momentum</Typography></TableCell>
-                    <TableCell align="center"><Typography variant="caption" fontWeight="bold">Trend</Typography></TableCell>
-                    <TableCell align="right"><Typography variant="caption" fontWeight="bold">1D%</Typography></TableCell>
-                    <TableCell align="right"><Typography variant="caption" fontWeight="bold">5D%</Typography></TableCell>
-                    <TableCell align="right"><Typography variant="caption" fontWeight="bold">20D%</Typography></TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(rotationData?.data?.sectors || []).map((sector, index) => {
-                    return (
-                      <TableRow key={`${sector.sector_name}-${index}`} sx={{ "& > *": { borderBottom: "unset" } }}>
-                        <TableCell colSpan={10} sx={{ padding: 0 }}>
-                          <Accordion sx={{ boxShadow: "none", border: "1px solid", borderColor: "divider" }}>
-                            <AccordionSummary
-                              expandIcon={<ExpandMore />}
-                              sx={{
-                                backgroundColor: "grey.50",
-                                "&:hover": { backgroundColor: "grey.100" },
-                              }}
-                            >
-                              <Grid container spacing={1} alignItems="center" sx={{ width: "100%" }}>
-                                <Grid item xs={12} sm={1.2}>
-                                  <Typography variant="body2" fontWeight="bold">
-                                    {sector.sector_name}
-                                  </Typography>
-                                </Grid>
-                                <Grid item xs={4} sm={0.9}>
-                                  <Chip
-                                    label={`#${sector.current_rank || "N/A"}`}
-                                    size="small"
-                                    color="primary"
-                                    variant="outlined"
-                                  />
-                                </Grid>
-                                <Grid item xs={4} sm={0.9}>
-                                  <Typography variant="caption" fontWeight="bold">
-                                    {sector.rank_1w_ago !== null && sector.rank_1w_ago !== undefined ? sector.rank_1w_ago : "—"}
-                                  </Typography>
-                                </Grid>
-                                <Grid item xs={4} sm={0.9}>
-                                  <Typography variant="caption" fontWeight="bold">
-                                    {sector.rank_4w_ago !== null && sector.rank_4w_ago !== undefined ? sector.rank_4w_ago : "—"}
-                                  </Typography>
-                                </Grid>
-                                <Grid item xs={4} sm={0.9}>
-                                  <Typography variant="caption" fontWeight="bold">
-                                    {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? sector.rank_12w_ago : "—"}
-                                  </Typography>
-                                </Grid>
-                                <Grid item xs={4} sm={1}>
-                                  <Chip
-                                    label={sector.current_momentum || "N/A"}
-                                    size="small"
-                                    color={
-                                      sector.current_momentum === "Strong"
-                                        ? "success"
-                                        : sector.current_momentum === "Moderate"
-                                          ? "info"
-                                          : "default"
-                                    }
-                                  />
-                                </Grid>
-                                <Grid item xs={4} sm={1}>
-                                  <Box display="flex" alignItems="center" justifyContent="center" gap={0.25}>
-                                    {sector.current_trend === "Uptrend" && (
-                                      <TrendingUp color="success" fontSize="small" />
-                                    )}
-                                    {sector.current_trend === "Downtrend" && (
-                                      <TrendingDown color="error" fontSize="small" />
-                                    )}
-                                    <Typography variant="body2">{sector.current_trend || "N/A"}</Typography>
-                                  </Box>
-                                </Grid>
-                                <Grid item xs={4} sm={0.9}>
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      color: getChangeColor(sector.current_perf_1d),
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {formatPercentage(sector.current_perf_1d)}
-                                  </Typography>
-                                </Grid>
-                                <Grid item xs={4} sm={0.9}>
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      color: getChangeColor(sector.current_perf_5d),
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {formatPercentage(sector.current_perf_5d)}
-                                  </Typography>
-                                </Grid>
-                                <Grid item xs={4} sm={0.9}>
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      color: getChangeColor(sector.current_perf_20d),
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {formatPercentage(sector.current_perf_20d)}
-                                  </Typography>
-                                </Grid>
-                              </Grid>
-                            </AccordionSummary>
-                            <AccordionDetails sx={{ backgroundColor: "grey.25", padding: 2 }}>
-                              <Box sx={{ width: "100%" }}>
-                                <Typography variant="subtitle2" gutterBottom fontWeight="bold">
-                                  Sector Details
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                  Click to collapse. Historical ranks: 1W Ago ({sector.rank_1w_ago !== null && sector.rank_1w_ago !== undefined ? sector.rank_1w_ago : "—"}), 4W Ago ({sector.rank_4w_ago !== null && sector.rank_4w_ago !== undefined ? sector.rank_4w_ago : "—"}), 12W Ago ({sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? sector.rank_12w_ago : "—"})
-                                </Typography>
-                              </Box>
-                            </AccordionDetails>
-                          </Accordion>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {(rotationData?.data?.sectors || []).map((sector, index) => (
+                <Accordion key={`${sector.sector_name}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                  <AccordionSummary
+                    expandIcon={<ExpandMore />}
+                    sx={{
+                      backgroundColor: "grey.50",
+                      "&:hover": { backgroundColor: "grey.100" },
+                    }}
+                  >
+                    <Grid container spacing={2} alignItems="center" sx={{ width: "100%" }}>
+                      <Grid item xs={12} sm={1.5}>
+                        <Typography variant="body2" fontWeight="bold">
+                          {sector.sector_name}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={3} sm={1.2}>
+                        <Chip
+                          label={`#${sector.current_rank || "N/A"}`}
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                        />
+                      </Grid>
+                      <Grid item xs={3} sm={1}>
+                        <Typography variant="caption" fontWeight="bold" align="center">
+                          {sector.rank_1w_ago !== null && sector.rank_1w_ago !== undefined ? sector.rank_1w_ago : "—"}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={3} sm={1}>
+                        <Typography variant="caption" fontWeight="bold" align="center">
+                          {sector.rank_4w_ago !== null && sector.rank_4w_ago !== undefined ? sector.rank_4w_ago : "—"}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={3} sm={1}>
+                        <Typography variant="caption" fontWeight="bold" align="center">
+                          {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? sector.rank_12w_ago : "—"}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={3} sm={1.2}>
+                        <Chip
+                          label={sector.current_momentum || "N/A"}
+                          size="small"
+                          color={
+                            sector.current_momentum === "Strong"
+                              ? "success"
+                              : sector.current_momentum === "Moderate"
+                                ? "info"
+                                : "default"
+                          }
+                        />
+                      </Grid>
+                      <Grid item xs={3} sm={1.2}>
+                        <Box display="flex" alignItems="center" justifyContent="center" gap={0.25}>
+                          {sector.current_trend === "Uptrend" && (
+                            <TrendingUp color="success" fontSize="small" />
+                          )}
+                          {sector.current_trend === "Downtrend" && (
+                            <TrendingDown color="error" fontSize="small" />
+                          )}
+                        </Box>
+                      </Grid>
+                      <Grid item xs={3} sm={1}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: getChangeColor(sector.current_perf_1d),
+                            fontWeight: 600,
+                          }}
+                          align="right"
+                        >
+                          {formatPercentage(sector.current_perf_1d)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={3} sm={1}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: getChangeColor(sector.current_perf_5d),
+                            fontWeight: 600,
+                          }}
+                          align="right"
+                        >
+                          {formatPercentage(sector.current_perf_5d)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={3} sm={1}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: getChangeColor(sector.current_perf_20d),
+                            fontWeight: 600,
+                          }}
+                          align="right"
+                        >
+                          {formatPercentage(sector.current_perf_20d)}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ backgroundColor: "grey.25", p: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Historical Data:</strong> 1W Ago: {sector.rank_1w_ago !== null && sector.rank_1w_ago !== undefined ? sector.rank_1w_ago : "—"} | 4W Ago: {sector.rank_4w_ago !== null && sector.rank_4w_ago !== undefined ? sector.rank_4w_ago : "—"} | 12W Ago: {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? sector.rank_12w_ago : "—"}
+                    </Typography>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </Box>
           )}
         </CardContent>
       </Card>
@@ -416,129 +389,100 @@ const SectorAnalysis = () => {
             </Alert>
           ) : (
             <>
-              <TableContainer sx={{ overflowX: "auto" }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: "grey.200" }}>
-                      <TableCell><Typography variant="caption" fontWeight="bold">Rank</Typography></TableCell>
-                      <TableCell><Typography variant="caption" fontWeight="bold">Industry</Typography></TableCell>
-                      <TableCell align="center"><Typography variant="caption" fontWeight="bold">Sector</Typography></TableCell>
-                      <TableCell align="center"><Typography variant="caption" fontWeight="bold">1W Ago</Typography></TableCell>
-                      <TableCell align="center"><Typography variant="caption" fontWeight="bold">4W Ago</Typography></TableCell>
-                      <TableCell align="center"><Typography variant="caption" fontWeight="bold">12W Ago</Typography></TableCell>
-                      <TableCell align="center"><Typography variant="caption" fontWeight="bold">Momentum</Typography></TableCell>
-                      <TableCell align="center"><Typography variant="caption" fontWeight="bold">Trend</Typography></TableCell>
-                      <TableCell align="right"><Typography variant="caption" fontWeight="bold">1D%</Typography></TableCell>
-                      <TableCell align="right"><Typography variant="caption" fontWeight="bold">Stocks</Typography></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(industryData?.data?.industries || []).map((industry, index) => {
-                      return (
-                        <TableRow key={`${industry.industry}-${index}`} sx={{ "& > *": { borderBottom: "unset" } }}>
-                          <TableCell colSpan={10} sx={{ padding: 0 }}>
-                            <Accordion sx={{ boxShadow: "none", border: "1px solid", borderColor: "divider" }}>
-                              <AccordionSummary
-                                expandIcon={<ExpandMore />}
-                                sx={{
-                                  backgroundColor: "grey.50",
-                                  "&:hover": { backgroundColor: "grey.100" },
-                                }}
-                              >
-                                <Grid container spacing={1} alignItems="center" sx={{ width: "100%" }}>
-                                  <Grid item xs={12} sm={0.8}>
-                                    <Chip
-                                      label={`#${industry.current_rank || "N/A"}`}
-                                      size="small"
-                                      color="primary"
-                                      variant="outlined"
-                                    />
-                                  </Grid>
-                                  <Grid item xs={12} sm={2}>
-                                    <Box>
-                                      <Typography variant="body2" fontWeight="bold">
-                                        {industry.industry}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {industry.sector}
-                                      </Typography>
-                                    </Box>
-                                  </Grid>
-                                  <Grid item xs={4} sm={0.8}>
-                                    <Typography variant="caption" fontWeight="bold">
-                                      {industry.rank_1w_ago !== null && industry.rank_1w_ago !== undefined ? industry.rank_1w_ago : "—"}
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={4} sm={0.8}>
-                                    <Typography variant="caption" fontWeight="bold">
-                                      {industry.rank_4w_ago !== null && industry.rank_4w_ago !== undefined ? industry.rank_4w_ago : "—"}
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={4} sm={0.8}>
-                                    <Typography variant="caption" fontWeight="bold">
-                                      {industry.rank_12w_ago !== null && industry.rank_12w_ago !== undefined ? industry.rank_12w_ago : "—"}
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={4} sm={1}>
-                                    <Chip
-                                      label={industry.momentum || "N/A"}
-                                      size="small"
-                                      color={
-                                        industry.momentum === "Strong"
-                                          ? "success"
-                                          : industry.momentum === "Moderate"
-                                            ? "info"
-                                            : "default"
-                                      }
-                                    />
-                                  </Grid>
-                                  <Grid item xs={4} sm={1}>
-                                    <Box display="flex" alignItems="center" justifyContent="center" gap={0.25}>
-                                      {industry.trend === "Uptrend" && (
-                                        <TrendingUp color="success" fontSize="small" />
-                                      )}
-                                      {industry.trend === "Downtrend" && (
-                                        <TrendingDown color="error" fontSize="small" />
-                                      )}
-                                      <Typography variant="body2">{industry.trend || "N/A"}</Typography>
-                                    </Box>
-                                  </Grid>
-                                  <Grid item xs={4} sm={0.9}>
-                                    <Typography
-                                      variant="caption"
-                                      sx={{
-                                        color: getChangeColor(industry.performance_1d),
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      {formatPercentage(industry.performance_1d)}
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={4} sm={0.9}>
-                                    <Typography variant="caption" fontWeight="bold">
-                                      {industry.stock_count || 0}
-                                    </Typography>
-                                  </Grid>
-                                </Grid>
-                              </AccordionSummary>
-                              <AccordionDetails sx={{ backgroundColor: "grey.25", padding: 2 }}>
-                                <Box sx={{ width: "100%" }}>
-                                  <Typography variant="subtitle2" gutterBottom fontWeight="bold">
-                                    Industry Details
-                                  </Typography>
-                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                    Sector: {industry.sector} | Stocks: {industry.stock_count || 0} | Historical ranks: 1W Ago ({industry.rank_1w_ago !== null && industry.rank_1w_ago !== undefined ? industry.rank_1w_ago : "—"}), 4W Ago ({industry.rank_4w_ago !== null && industry.rank_4w_ago !== undefined ? industry.rank_4w_ago : "—"}), 12W Ago ({industry.rank_12w_ago !== null && industry.rank_12w_ago !== undefined ? industry.rank_12w_ago : "—"})
-                                  </Typography>
-                                </Box>
-                              </AccordionDetails>
-                            </Accordion>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                {(industryData?.data?.industries || []).map((industry, index) => (
+                  <Accordion key={`${industry.industry}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <AccordionSummary
+                      expandIcon={<ExpandMore />}
+                      sx={{
+                        backgroundColor: "grey.50",
+                        "&:hover": { backgroundColor: "grey.100" },
+                      }}
+                    >
+                      <Grid container spacing={2} alignItems="center" sx={{ width: "100%" }}>
+                        <Grid item xs={2} sm={0.8}>
+                          <Chip
+                            label={`#${industry.current_rank || "N/A"}`}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={2}>
+                          <Box>
+                            <Typography variant="body2" fontWeight="bold">
+                              {industry.industry}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {industry.sector}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={2} sm={1}>
+                          <Typography variant="caption" fontWeight="bold" align="center">
+                            {industry.rank_1w_ago !== null && industry.rank_1w_ago !== undefined ? industry.rank_1w_ago : "—"}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={2} sm={1}>
+                          <Typography variant="caption" fontWeight="bold" align="center">
+                            {industry.rank_4w_ago !== null && industry.rank_4w_ago !== undefined ? industry.rank_4w_ago : "—"}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={2} sm={1}>
+                          <Typography variant="caption" fontWeight="bold" align="center">
+                            {industry.rank_12w_ago !== null && industry.rank_12w_ago !== undefined ? industry.rank_12w_ago : "—"}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={2} sm={1.2}>
+                          <Chip
+                            label={industry.momentum || "N/A"}
+                            size="small"
+                            color={
+                              industry.momentum === "Strong"
+                                ? "success"
+                                : industry.momentum === "Moderate"
+                                  ? "info"
+                                  : "default"
+                            }
+                          />
+                        </Grid>
+                        <Grid item xs={2} sm={1.2}>
+                          <Box display="flex" alignItems="center" justifyContent="center" gap={0.25}>
+                            {industry.trend === "Uptrend" && (
+                              <TrendingUp color="success" fontSize="small" />
+                            )}
+                            {industry.trend === "Downtrend" && (
+                              <TrendingDown color="error" fontSize="small" />
+                            )}
+                          </Box>
+                        </Grid>
+                        <Grid item xs={2} sm={1}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: getChangeColor(industry.performance_1d),
+                              fontWeight: 600,
+                            }}
+                            align="right"
+                          >
+                            {formatPercentage(industry.performance_1d)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={2} sm={1}>
+                          <Typography variant="caption" fontWeight="bold" align="right">
+                            {industry.stock_count || 0}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ backgroundColor: "grey.25", p: 2 }}>
+                      <Typography variant="body2">
+                        <strong>Historical Data:</strong> 1W Ago: {industry.rank_1w_ago !== null && industry.rank_1w_ago !== undefined ? industry.rank_1w_ago : "—"} | 4W Ago: {industry.rank_4w_ago !== null && industry.rank_4w_ago !== undefined ? industry.rank_4w_ago : "—"} | 12W Ago: {industry.rank_12w_ago !== null && industry.rank_12w_ago !== undefined ? industry.rank_12w_ago : "—"}
+                      </Typography>
+                    </AccordionDetails>
+                  </Accordion>
+                ))}
+              </Box>
               {industryData?.data?.summary && (
                 <Box
                   sx={{
