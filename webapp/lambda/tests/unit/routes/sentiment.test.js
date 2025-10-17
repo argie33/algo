@@ -19,6 +19,7 @@ const sentimentRoutes = require("../../../routes/sentiment");
 
 describe("Sentiment Routes - Unit Tests", () => {
   let app;
+  let server;
 
   beforeAll(async () => {
     // Create test app
@@ -37,6 +38,10 @@ describe("Sentiment Routes - Unit Tests", () => {
 
     // Load the sentiment route
     app.use("/sentiment", sentimentRoutes);
+  });
+
+  afterAll(() => {
+    if (server) server.close();
   });
 
   beforeEach(() => {
@@ -106,13 +111,12 @@ describe("Sentiment Routes - Unit Tests", () => {
   });
 
   describe("GET /sentiment/stock/:symbol", () => {
-    test("should accept stock sentiment requests", async () => {
+    test("should return 404 for removed endpoint", async () => {
+      // /stock/:symbol endpoint removed - only real data sources
       const response = await request(app).get("/sentiment/stock/AAPL");
 
-      // Currently returns simulated data - should be updated to return 501 when no real data available
-      // TODO: Remove simulated data generation from this endpoint per user mandate
-      expect([200, 501, 503, 500]).toContain(response.status);
-      expect(response.body).toHaveProperty("success");
+      // Should return 404 since endpoint no longer exists
+      expect([404, 501]).toContain(response.status);
     });
   });
 
@@ -124,11 +128,12 @@ describe("Sentiment Routes - Unit Tests", () => {
       expect([200, 404, 500, 501, 503]).toContain(response.status);
     });
 
-    test("should return twitter sentiment data", async () => {
+    test("should return 404 for removed twitter endpoint", async () => {
+      // /social/twitter endpoint removed - only real data sources
       const response = await request(app).get("/sentiment/social/twitter");
 
-      // Accept various response codes for social endpoints
-      expect([200, 404, 500, 501, 503]).toContain(response.status);
+      // Should return 404 since endpoint no longer exists
+      expect([404, 501]).toContain(response.status);
     });
 
     test("should return reddit sentiment data", async () => {
@@ -147,10 +152,11 @@ describe("Sentiment Routes - Unit Tests", () => {
       expect([200, 404, 500, 501, 503]).toContain(response.status);
     });
 
-    test("should return social trending data", async () => {
+    test("should handle trending/social endpoint", async () => {
       const response = await request(app).get("/sentiment/trending/social");
 
       // Accept various response codes for trending endpoints
+      // May return 404 if endpoint doesn't exist or 501 if not implemented
       expect([200, 404, 500, 501, 503]).toContain(response.status);
     });
   });
