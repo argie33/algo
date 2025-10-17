@@ -55,8 +55,7 @@ router.get("/", async (req, res) => {
         ss.volume_avg_30d,
         ss.score_date,
         ss.last_updated,
-        ss.acc_dist_rating
-        ${hasNewMomentumColumns ? `,
+        ss.acc_dist_rating,
         -- Momentum components (5-component breakdown)
         ss.momentum_short_term,
         ss.momentum_medium_term,
@@ -88,8 +87,7 @@ router.get("/", async (req, res) => {
         (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_book) FROM key_metrics WHERE price_to_book > 0) as market_pb,
         (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_sales_ttm) FROM key_metrics WHERE price_to_sales_ttm > 0) as market_ps,
         (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km2.free_cashflow::NUMERIC / NULLIF(md2.market_cap, 0) * 100) FROM key_metrics km2 INNER JOIN market_data md2 ON km2.ticker = md2.ticker WHERE km2.free_cashflow > 0 AND md2.market_cap > 0) as market_fcf_yield,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dividend_yield) FROM key_metrics WHERE dividend_yield > 0) as market_dividend_yield` : ''}
-        ${hasNewMomentumColumns ? `,
+        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dividend_yield) FROM key_metrics WHERE dividend_yield > 0) as market_dividend_yield,
         pm.institutional_ownership,
         pm.insider_ownership,
         pm.short_percent_of_float,
@@ -145,10 +143,10 @@ router.get("/", async (req, res) => {
         rsm.rs_momentum_13w,
         rsm.positive_months_12,
         rsm.timeframe_alignment,
-        rsm.relative_strength_score` : ''}
+        rsm.relative_strength_score
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      ${hasNewMomentumColumns ? `LEFT JOIN (
+      LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
           institutional_ownership,
