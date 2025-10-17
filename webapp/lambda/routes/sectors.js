@@ -687,12 +687,26 @@ router.get("/:sector/details", async (req, res) => {
         0
       ) / stocks.length;
 
-    // Simplified trend distribution
+    // Calculate real trend distribution from technical indicators
+    // Bullish: RSI < 70 (not overbought) AND price > SMA20 (above trend)
+    // Bearish: RSI > 30 (not oversold) AND price < SMA20 (below trend)
+    // Neutral: all others
     const trendCounts = {
-      bullish: Math.floor(stocks.length * 0.4),
-      bearish: Math.floor(stocks.length * 0.3),
-      neutral: Math.floor(stocks.length * 0.3)
+      bullish: stocks.filter(stock => {
+        const rsi = parseFloat(stock.rsi || 0);
+        const price = parseFloat(stock.current_price || 0);
+        const sma20 = parseFloat(stock.sma_20 || 0);
+        return rsi < 70 && sma20 > 0 && price > sma20;
+      }).length,
+      bearish: stocks.filter(stock => {
+        const rsi = parseFloat(stock.rsi || 0);
+        const price = parseFloat(stock.current_price || 0);
+        const sma20 = parseFloat(stock.sma_20 || 0);
+        return rsi > 30 && sma20 > 0 && price < sma20;
+      }).length,
+      neutral: 0 // Will calculate as remainder
     };
+    trendCounts.neutral = stocks.length - trendCounts.bullish - trendCounts.bearish;
 
     // Industry breakdown
     const industryBreakdown = stocks.reduce((industries, stock) => {

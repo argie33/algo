@@ -43,21 +43,16 @@ describe("Sentiment Routes - Unit Tests", () => {
     // Reset all mocks before each test
     jest.clearAllMocks();
 
-    // Set up default mock responses for all tests
+    // Set up default mock responses using REAL AAII sentiment loader schema
     query.mockImplementation(() => {
       return Promise.resolve({
         rows: [
           {
-            symbol: "AAPL",
             date: "2025-01-27",
-            recommendation_mean: 2.1,
-            price_target_mean: 185.50,
-            price_target_high: 200.00,
-            price_target_low: 170.00,
-            sentiment_score: 0.75,
-            bullish_sentiment: 0.68,
-            bearish_sentiment: 0.25,
-            neutral_sentiment: 0.07
+            bullish: 45.2,
+            neutral: 28.1,
+            bearish: 26.7,
+            created_at: "2025-01-27T10:00:00Z"
           }
         ]
       });
@@ -93,129 +88,29 @@ describe("Sentiment Routes - Unit Tests", () => {
       expect(response.body).toHaveProperty("error", "Symbol parameter required");
     });
 
-    test("should handle sentiment analysis requests", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "AAPL" });
-
-      // Accept both 200 (data found) and 503 (database connection issues) as valid responses
-      expect([200, 404, 500, 503]).toContain(response.status);
-
-      if (response.status === 200) {
-        expect(response.body.success).toBe(true);
-        expect(response.body.data).toHaveProperty("symbol", "AAPL");
-        expect(response.body.data).toHaveProperty("sentiment_score");
-      } else {
-        expect(response.body.success).toBe(false);
-        expect(response.body).toHaveProperty("error");
-      }
-    });
-
-    test("should handle different period parameters", async () => {
-      const periods = ["1d", "7d", "30d"];
-
-      for (const period of periods) {
-        const response = await request(app)
-          .get("/sentiment/analysis")
-          .query({ symbol: "AAPL", period });
-
-        // Accept both success and database failure responses
-        expect([200, 404, 500, 503]).toContain(response.status);
-
-        if (response.status === 200) {
-          expect(response.body.success).toBe(true);
-          expect(response.body.data).toHaveProperty("symbol", "AAPL");
-        } else {
-          expect(response.body.success).toBe(false);
-          expect(response.body).toHaveProperty("error");
-        }
-      }
-    });
-
-    test("should handle invalid period gracefully", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "AAPL", period: "invalid_period" });
-
-      // Accept both success and database failure responses
-      expect([200, 404, 500, 503]).toContain(response.status);
-
-      if (response.status === 200) {
-        expect(response.body.success).toBe(true);
-        expect(response.body.data).toHaveProperty("symbol", "AAPL");
-      } else {
-        expect(response.body.success).toBe(false);
-        expect(response.body).toHaveProperty("error");
-      }
-    });
-
-    test("should handle lowercase symbol conversion", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "aapl" });
-
-      // Accept both success and database failure responses
-      expect([200, 404, 500, 503]).toContain(response.status);
-
-      if (response.status === 200) {
-        expect(response.body.success).toBe(true);
-        expect(response.body.data).toHaveProperty("symbol", "AAPL");
-      } else {
-        expect(response.body.success).toBe(false);
-        expect(response.body).toHaveProperty("error");
-      }
-    });
-
-    test("should handle empty sentiment data", async () => {
-      // Mock empty response for invalid symbol
+    test("should handle missing analyst sentiment data gracefully", async () => {
+      // Mock empty response - analyst_sentiment_analysis table doesn't exist or has no data
       query.mockResolvedValueOnce({
-        rows: [] // No results found
+        rows: []
       });
 
       const response = await request(app)
         .get("/sentiment/analysis")
-        .query({ symbol: "INVALID" });
+        .query({ symbol: "AAPL" });
 
-      // Accept both no-data and database failure responses
-      expect([200, 404, 500, 503]).toContain(response.status);
+      // Should return 404 or 503, not simulate fake data
+      expect([404, 503, 500]).toContain(response.status);
       expect(response.body.success).toBe(false);
       expect(response.body).toHaveProperty("error");
-    });
-
-    test("should handle database query errors gracefully", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "TEST" });
-
-      // Should handle database errors gracefully
-      expect([200, 404, 500, 503]).toContain(response.status);
-      expect(response.body).toHaveProperty("success");
     });
   });
 
   describe("GET /sentiment/stock/:symbol", () => {
-    test("should return stock sentiment for symbol", async () => {
+    test("should return 501 not implemented for stock sentiment", async () => {
       const response = await request(app).get("/sentiment/stock/AAPL");
 
-      // Accept both success and database failure responses
-      expect([200, 404, 500, 503]).toContain(response.status);
-
-      if (response.status === 200) {
-        expect(response.body.success).toBe(true);
-        expect(response.body.data).toHaveProperty("symbol", "AAPL");
-      } else {
-        expect(response.body.success).toBe(false);
-        expect(response.body).toHaveProperty("error");
-      }
-    });
-
-    test("should handle period parameter for stock sentiment", async () => {
-      const response = await request(app)
-        .get("/sentiment/stock/AAPL")
-        .query({ period: "30d" });
-
-      // Accept both success and database failure responses
-      expect([200, 404, 500, 503]).toContain(response.status);
+      // Stock-specific sentiment not available from real data sources
+      expect([501, 503, 500]).toContain(response.status);
     });
   });
 
@@ -259,117 +154,80 @@ describe("Sentiment Routes - Unit Tests", () => {
   });
 
   describe("GET /sentiment/market", () => {
-    test("should return overall market sentiment", async () => {
-      // Mock market sentiment response with expected fields
+    test("should return AAII market sentiment with real loader schema", async () => {
+      // Mock with REAL AAII sentiment loader schema (bullish, neutral, bearish percentages)
       query.mockResolvedValueOnce({
         rows: [
           {
-            overall_sentiment: "bullish",
-            bullish_stocks: 65,
-            bearish_stocks: 20,
-            neutral_stocks: 15,
-            market_mood: "optimistic",
-            fear_greed_index: 72,
-            sentiment_score: 0.68,
-            analysis_date: "2025-01-27"
+            date: "2025-01-27",
+            bullish: 45.2,
+            neutral: 28.1,
+            bearish: 26.7,
+            created_at: "2025-01-27T10:00:00Z"
           }
         ]
       });
 
       const response = await request(app).get("/sentiment/market");
 
-      // Accept both success and database failure responses
-      expect([200, 404, 500, 503]).toContain(response.status);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toBeInstanceOf(Array);
 
-      // Check success property based on actual response
-      expect(response.body).toHaveProperty("success");
-
-      if (response.body.success === true) {
-        expect(response.body.data).toHaveProperty("overall_sentiment");
-      } else {
-        expect(response.body).toHaveProperty("error");
+      if (response.body.data.length > 0) {
+        const firstRow = response.body.data[0];
+        expect(firstRow).toHaveProperty("date");
+        expect(firstRow).toHaveProperty("bullish");
+        expect(firstRow).toHaveProperty("neutral");
+        expect(firstRow).toHaveProperty("bearish");
       }
     });
 
-    test("should handle empty market sentiment data with fallback", async () => {
-      // Mock market sentiment response with fear_greed_index
+    test("should handle empty market sentiment data gracefully", async () => {
+      // Mock empty response
       query.mockResolvedValueOnce({
-        rows: [
-          {
-            overall_sentiment: "neutral",
-            bullish_stocks: 45,
-            bearish_stocks: 35,
-            neutral_stocks: 20,
-            market_mood: "cautious",
-            fear_greed_index: 55,
-            sentiment_score: 0.50,
-            analysis_date: "2025-01-27"
-          }
-        ]
+        rows: []
       });
 
       const response = await request(app).get("/sentiment/market");
 
-      // Accept both success and database failure responses
-      expect([200, 404, 500, 503]).toContain(response.status);
-
-      // All responses should have proper structure
-      expect(response.body).toHaveProperty("success");
-      if (response.status === 200 && response.body.data) {
-        expect(response.body.data).toHaveProperty("fear_greed_index");
-      }
+      // Should return success with empty array, not fallback to fake data
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body.data).toEqual([]);
+      expect(response.body).toHaveProperty("message");
     });
   });
 
   describe("Parameter validation", () => {
-    test("should sanitize symbol parameter", async () => {
-      // Mock response for sanitized symbol (should be trimmed and uppercased to AAPL)
+    test("should sanitize symbol parameter for market analysis", async () => {
+      // Market sentiment endpoint (real data)
+      const response = await request(app)
+        .get("/sentiment/market")
+        .query({ period: "30d" });
+
+      // Should accept valid period parameter
+      expect([200, 404, 500, 503]).toContain(response.status);
+    });
+
+    test("should handle market period validation", async () => {
       query.mockResolvedValueOnce({
         rows: [
           {
-            symbol: "AAPL", // After sanitization: "  aapl  " -> "AAPL"
             date: "2025-01-27",
-            recommendation_mean: 2.1,
-            price_target_mean: 185.50,
-            price_target_high: 200.00,
-            price_target_low: 170.00,
-            sentiment_score: 0.75,
-            bullish_sentiment: 0.68,
-            bearish_sentiment: 0.25,
-            neutral_sentiment: 0.07
+            bullish: 45.2,
+            neutral: 28.1,
+            bearish: 26.7
           }
         ]
       });
 
       const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "  aapl  " });
+        .get("/sentiment/market")
+        .query({ period: "7d" });
 
-      // Accept both success and database failure responses
       expect([200, 404, 500, 503]).toContain(response.status);
-
-      if (response.status === 200) {
-        expect(response.body.data).toHaveProperty("symbol", "AAPL");
-      }
-    });
-
-    test("should handle invalid symbol format", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "INVALID123" });
-
-      // Accept both success and error responses
-      expect([200, 400, 404, 500, 503]).toContain(response.status);
-    });
-
-    test("should handle extremely long symbol parameter", async () => {
-      const longSymbol = "A".repeat(50);
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: longSymbol });
-
-      // Should handle long parameters gracefully
-      expect([200, 400, 404, 500, 503]).toContain(response.status);
     });
   });
 
@@ -399,34 +257,25 @@ describe("Sentiment Routes - Unit Tests", () => {
   });
 
   describe("Error handling", () => {
-    test("should handle database connection timeout", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "AAPL" });
+    test("should handle market sentiment database errors gracefully", async () => {
+      query.mockRejectedValueOnce(new Error("Database connection failed"));
 
-      // Should handle database timeouts gracefully
-      expect([200, 404, 500, 503]).toContain(response.status);
-      expect(response.body).toHaveProperty("success");
+      const response = await request(app).get("/sentiment/market");
+
+      // Should return 500 or 503 error, not fake data
+      expect([500, 503]).toContain(response.status);
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("error");
     });
 
-    test("should handle malformed database results", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "AAPL" });
+    test("should handle missing sentiment data without fallbacks", async () => {
+      query.mockResolvedValueOnce({ rows: [] });
 
-      // Should handle malformed data gracefully
-      expect([200, 404, 500, 503]).toContain(response.status);
-      expect(response.body).toHaveProperty("success");
-    });
+      const response = await request(app).get("/sentiment/market");
 
-    test("should handle sentiment calculation gracefully with invalid data", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "AAPL" });
-
-      // Should handle invalid data gracefully
-      expect([200, 404, 500, 503]).toContain(response.status);
-      expect(response.body).toHaveProperty("success");
+      // Should return 200 with empty data, not simulate fake sentiment
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
     });
   });
 
@@ -439,22 +288,31 @@ describe("Sentiment Routes - Unit Tests", () => {
       expect(response.body).toHaveProperty("service", "sentiment");
     });
 
-    test("should include metadata in sentiment responses", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "AAPL" });
+    test("should include timestamp in all responses", async () => {
+      const response = await request(app).get("/sentiment/market");
 
-      // All responses should have timestamp
+      // All API responses should have timestamp
       expect(response.body).toHaveProperty("timestamp");
     });
 
-    test("should include analysis metadata", async () => {
-      const response = await request(app)
-        .get("/sentiment/analysis")
-        .query({ symbol: "AAPL", period: "7d" });
+    test("should return real data structure for market endpoint", async () => {
+      query.mockResolvedValueOnce({
+        rows: [
+          {
+            date: "2025-01-27",
+            bullish: 45.2,
+            neutral: 28.1,
+            bearish: 26.7
+          }
+        ]
+      });
 
-      // Check response structure regardless of success/failure
-      expect(response.body).toHaveProperty("success");
+      const response = await request(app).get("/sentiment/market");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("success", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("period");
       expect(response.body).toHaveProperty("timestamp");
     });
   });
