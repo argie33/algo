@@ -574,18 +574,20 @@ function MarketOverview() {
               <Typography variant="h6" gutterBottom>
                 AAII Market Sentiment Trend
               </Typography>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={sentimentChartData.slice(0, 30).reverse()}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip formatter={(value, name) => [`${value}%`, name]} />
-                  <Legend />
-                  <Line type="monotone" dataKey="aaii_bullish" name="Bullish %" stroke="#4caf50" strokeWidth={2} />
-                  <Line type="monotone" dataKey="aaii_neutral" name="Neutral %" stroke="#ff9800" strokeWidth={2} />
-                  <Line type="monotone" dataKey="aaii_bearish" name="Bearish %" stroke="#f44336" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
+              <Box sx={{ height: 300, width: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={sentimentChartData.slice(0, 30).reverse()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip formatter={(value, name) => [`${value}%`, name]} />
+                    <Legend />
+                    <Line type="monotone" dataKey="aaii_bullish" name="Bullish %" stroke="#4caf50" strokeWidth={2} />
+                    <Line type="monotone" dataKey="aaii_neutral" name="Neutral %" stroke="#ff9800" strokeWidth={2} />
+                    <Line type="monotone" dataKey="aaii_bearish" name="Bearish %" stroke="#f44336" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
@@ -605,33 +607,35 @@ function MarketOverview() {
                   Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)
                 </Typography>
               </Box>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart
-                  data={sentimentChartData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis
-                    domain={[0, 100]}
-                    label={{
-                      value: "Fear & Greed Index",
-                      angle: -90,
-                      position: "insideLeft",
-                      fontSize: 12,
-                    }}
-                  />
-                  <Tooltip formatter={(value) => [`${value}`, "Fear & Greed"]} />
-                  <Line
-                    type="monotone"
-                    dataKey="fear_greed"
-                    name="Fear & Greed"
-                    stroke="#FF8042"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <Box sx={{ height: 300, width: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={sentimentChartData}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                    <YAxis
+                      domain={[0, 100]}
+                      label={{
+                        value: "Fear & Greed Index",
+                        angle: -90,
+                        position: "insideLeft",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Tooltip formatter={(value) => [`${value}`, "Fear & Greed"]} />
+                    <Line
+                      type="monotone"
+                      dataKey="fear_greed"
+                      name="Fear & Greed"
+                      stroke="#FF8042"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
@@ -651,33 +655,35 @@ function MarketOverview() {
                   Active manager equity exposure (0=fully out, 100=fully in)
                 </Typography>
               </Box>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart
-                  data={sentimentChartData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis
-                    domain={[-100, 100]}
-                    label={{
-                      value: "NAAIM Exposure %",
-                      angle: -90,
-                      position: "insideLeft",
-                      fontSize: 12,
-                    }}
-                  />
-                  <Tooltip formatter={(value) => [`${value}%`, "NAAIM Exposure"]} />
-                  <Line
-                    type="monotone"
-                    dataKey="naaim"
-                    name="NAAIM Exposure"
-                    stroke="#0088FE"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <Box sx={{ height: 300, width: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={sentimentChartData}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                    <YAxis
+                      domain={[-100, 100]}
+                      label={{
+                        value: "NAAIM Exposure %",
+                        angle: -90,
+                        position: "insideLeft",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Tooltip formatter={(value) => [`${value}%`, "NAAIM Exposure"]} />
+                    <Line
+                      type="monotone"
+                      dataKey="naaim"
+                      name="NAAIM Exposure"
+                      stroke="#0088FE"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
@@ -1360,39 +1366,41 @@ function MarketOverview() {
                     <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                       Breadth Visualization
                     </Typography>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={[
-                            {
-                              name: "Advancing",
-                              value: breadthInfo.advancing || 0,
-                              color: "#4CAF50",
-                            },
-                            {
-                              name: "Declining",
-                              value: breadthInfo.declining || 0,
-                              color: "#F44336",
-                            },
-                            {
-                              name: "Unchanged",
-                              value: breadthInfo.unchanged || 0,
-                              color: "#9E9E9E",
-                            },
-                          ]}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          dataKey="value"
-                          label={({ name, value }) => `${name}: ${value}`}
-                        >
-                          <Cell fill="#4CAF50" />
-                          <Cell fill="#F44336" />
-                          <Cell fill="#9E9E9E" />
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <Box sx={{ height: 300, width: '100%' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              {
+                                name: "Advancing",
+                                value: breadthInfo.advancing || 0,
+                                color: "#4CAF50",
+                              },
+                              {
+                                name: "Declining",
+                                value: breadthInfo.declining || 0,
+                                color: "#F44336",
+                              },
+                              {
+                                name: "Unchanged",
+                                value: breadthInfo.unchanged || 0,
+                                color: "#9E9E9E",
+                              },
+                            ]}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={80}
+                            dataKey="value"
+                            label={({ name, value }) => `${name}: ${value}`}
+                          >
+                            <Cell fill="#4CAF50" />
+                            <Cell fill="#F44336" />
+                            <Cell fill="#9E9E9E" />
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Box>
                   </CardContent>
                 </Card>
               </Grid>
@@ -1540,39 +1548,41 @@ function MarketOverview() {
                         >
                           Monthly Seasonality Pattern
                         </Typography>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <BarChart
-                            data={seasonalityData?.data.monthlySeasonality}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis
-                              dataKey="name"
-                              angle={-45}
-                              textAnchor="end"
-                              height={80}
-                            />
-                            <YAxis
-                              label={{
-                                value: "Avg Return %",
-                                angle: -90,
-                                position: "insideLeft",
-                              }}
-                            />
-                            <Tooltip
-                              formatter={(value) => [
-                                `${value.toFixed(1)}%`,
-                                "Average Return",
-                              ]}
-                            />
-                            <Bar
-                              dataKey="avgReturn"
-                              fill={(entry) =>
-                                entry?.isCurrent ? "#82ca9d" : "#8884d8"
-                              }
-                              name="Monthly Average"
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <Box sx={{ height: 350, width: '100%' }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={seasonalityData?.data.monthlySeasonality}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis
+                                dataKey="name"
+                                angle={-45}
+                                textAnchor="end"
+                                height={80}
+                              />
+                              <YAxis
+                                label={{
+                                  value: "Avg Return %",
+                                  angle: -90,
+                                  position: "insideLeft",
+                                }}
+                              />
+                              <Tooltip
+                                formatter={(value) => [
+                                  `${value.toFixed(1)}%`,
+                                  "Average Return",
+                                ]}
+                              />
+                              <Bar
+                                dataKey="avgReturn"
+                                fill={(entry) =>
+                                  entry?.isCurrent ? "#82ca9d" : "#8884d8"
+                                }
+                                name="Monthly Average"
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </Box>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -1587,32 +1597,34 @@ function MarketOverview() {
                         >
                           Quarterly Performance
                         </Typography>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <BarChart
-                            data={seasonalityData?.data.quarterlySeasonality}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis
-                              label={{
-                                value: "Avg Return %",
-                                angle: -90,
-                                position: "insideLeft",
-                              }}
-                            />
-                            <Tooltip
-                              formatter={(value, _name, _props) => [
-                                `${value.toFixed(1)}%`,
-                                "Average Return",
-                              ]}
-                            />
-                            <Bar
-                              dataKey="avgReturn"
-                              fill="#8884d8"
-                              name="Quarterly Average"
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <Box sx={{ height: 350, width: '100%' }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={seasonalityData?.data.quarterlySeasonality}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis
+                                label={{
+                                  value: "Avg Return %",
+                                  angle: -90,
+                                  position: "insideLeft",
+                                }}
+                              />
+                              <Tooltip
+                                formatter={(value, _name, _props) => [
+                                  `${value.toFixed(1)}%`,
+                                  "Average Return",
+                                ]}
+                              />
+                              <Bar
+                                dataKey="avgReturn"
+                                fill="#8884d8"
+                                name="Quarterly Average"
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </Box>
                       </CardContent>
                     </Card>
                   </Grid>
