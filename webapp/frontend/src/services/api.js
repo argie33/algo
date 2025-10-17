@@ -1078,43 +1078,10 @@ export const getMarketSentimentHistory = async (days = 30) => {
   console.log(`📊 [API] Fetching market sentiment history for ${days} days...`);
 
   try {
-    // Try multiple endpoint variations
-    // Use /api prefix - correct backend route
-    const endpoints = [
-      `/api/market/sentiment/history?days=${days}`,
-      `/market/sentiment/history?days=${days}`,
-    ];
-
-    let response = null;
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`📊 [API] Trying sentiment endpoint: ${endpoint}`);
-        response = await api.get(endpoint);
-        console.log(
-          `📊 [API] SUCCESS with sentiment endpoint: ${endpoint}`,
-          response
-        );
-        break;
-      } catch (err) {
-        console.log(
-          `📊 [API] FAILED sentiment endpoint: ${endpoint}`,
-          err.message
-        );
-        lastError = err;
-        continue;
-      }
-    }
-
-    if (!response) {
-      console.error("📊 [API] All sentiment endpoints failed:", {
-        message: lastError?.message || "Unknown error",
-        status: lastError.response?.status,
-        url: lastError.config?.url,
-      });
-      throw lastError;
-    }
+    const response = await api.get(
+      `/api/market/sentiment/history?days=${days}`
+    );
+    console.log(`📊 [API] Fetched sentiment history:`, response.data);
 
     // Always return { data: ... } structure for consistency
     if (response?.data && typeof response?.data === "object") {
