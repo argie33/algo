@@ -1261,27 +1261,7 @@ router.post("/alerts", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Create signal alert error:", error);
-
-    // Handle database unavailable in test environment
-    if (error.message.includes('does not exist') || error.message.includes('signal_alerts') || error.message.includes('Database query failed') || process.env.NODE_ENV === 'test') {
-      return res.status(201).json({
-        success: true,
-        data: {
-          alert_id: 'test-alert-' + Date.now(),
-          symbol: req.body.symbol?.toUpperCase() || 'UNKNOWN',
-          signal_type: req.body.signal_type || 'BUY',
-          user_id: 'default_user',
-          conditions: { min_strength: req.body.min_strength || 0.7 },
-          notification_methods: { method: req.body.notification_method || 'email' },
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        message: "Signal alert created (test environment fallback)",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
+    // Return error - no fallback or mock data
     res.status(500).json({
       success: false,
       error: "Failed to create signal alert",

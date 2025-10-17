@@ -25,17 +25,20 @@ vi.mock("@tanstack/react-query", async () => {
 
   const mockDataByKey = {
     "market-overview": {
-      marketStatus: 'Open',
-      indices: [
-        { symbol: 'SPY', price: 450.00, change: 2.50, changePercent: 0.56, name: 'S&P 500' },
-        { symbol: 'QQQ', price: 380.00, change: -1.20, changePercent: -0.31, name: 'Nasdaq' }
-      ],
-      movers: {
-        gainers: [{ symbol: 'AAPL', change: 5.20, changePercent: 3.2, price: 175 }],
-        losers: [{ symbol: 'GOOGL', change: -8.10, changePercent: -2.1, price: 140 }]
-      },
-      sentiment_indicators: { aaii: { bullish: 45, neutral: 28, bearish: 27 } },
-      market_breadth: { advancing: 1850, declining: 950, total_stocks: 3000 }
+      data: {
+        marketStatus: 'Open',
+        indices: [
+          { symbol: 'SPY', price: 450.00, change: 2.50, changePercent: 0.56, name: 'S&P 500' },
+          { symbol: 'QQQ', price: 380.00, change: -1.20, changePercent: -0.31, name: 'Nasdaq' }
+        ],
+        movers: {
+          gainers: [{ symbol: 'AAPL', change: 5.20, changePercent: 3.2, price: 175 }],
+          losers: [{ symbol: 'GOOGL', change: -8.10, changePercent: -2.1, price: 140 }]
+        },
+        sentiment_indicators: { aaii: { bullish: 45, neutral: 28, bearish: 27 } },
+        market_breadth: { advancing: 1850, declining: 950, total_stocks: 3000 },
+        market_cap: { total: 50000000000, large_cap: 35000000000, mid_cap: 10000000000, small_cap: 5000000000 }
+      }
     },
     "market-sentiment-history": {
       data: {

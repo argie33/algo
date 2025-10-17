@@ -26,19 +26,6 @@ router.get("/", async (req, res) => {
 
     const search = req.query.search || '';
 
-    // Check if new momentum columns exist (backward compatibility)
-    // TEMPORARILY DISABLED: These columns don't exist yet in stock_scores
-    const hasNewMomentumColumns = false;
-    /*
-    const hasNewMomentumColumns = await query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name = 'stock_scores'
-      AND column_name = 'momentum_short_term'
-      LIMIT 1
-    `).then(result => result.rows.length > 0).catch(() => false);
-    */
-
     // Query stock scores with proper field names from loadstockscores.py
     // JOIN with company_profile to get company names
     // JOIN with positioning_metrics to get positioning components
@@ -73,7 +60,7 @@ router.get("/", async (req, res) => {
         -- Momentum components (5-component breakdown)
         ss.momentum_short_term,
         ss.momentum_medium_term,
-        ss.momentum_longer_term,
+        ss.momentum_long_term,
         ss.momentum_relative_strength,
         ss.momentum_consistency,
         ss.roc_10d,
@@ -347,7 +334,7 @@ router.get("/", async (req, res) => {
       momentum_components: {
         short_term: parseFloat(row.momentum_short_term) || null,
         medium_term: parseFloat(row.momentum_medium_term) || null,
-        longer_term: parseFloat(row.momentum_longer_term) || null,
+        longer_term: parseFloat(row.momentum_long_term) || null,
         relative_strength: parseFloat(row.momentum_relative_strength) || null,
         consistency: parseFloat(row.momentum_consistency) || null,
         roc_10d: parseFloat(row.roc_10d) || null,
@@ -505,19 +492,6 @@ router.get("/:symbol", async (req, res) => {
       console.log(`📊 Detailed scores requested for symbol: ${symbol.toUpperCase()} - using real table`);
     }
 
-    // Check if new momentum columns exist (backward compatibility)
-    // TEMPORARILY DISABLED: These columns don't exist yet in stock_scores
-    const hasNewMomentumColumns = false;
-    /*
-    const hasNewMomentumColumns = await query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name = 'stock_scores'
-      AND column_name = 'momentum_short_term'
-      LIMIT 1
-    `).then(result => result.rows.length > 0).catch(() => false);
-    */
-
     const symbolQuery = `
       SELECT
         ss.symbol,
@@ -549,7 +523,7 @@ router.get("/:symbol", async (req, res) => {
         -- Momentum components (5-component breakdown)
         ss.momentum_short_term,
         ss.momentum_medium_term,
-        ss.momentum_longer_term,
+        ss.momentum_long_term,
         ss.momentum_relative_strength,
         ss.momentum_consistency,
         ss.roc_10d,
@@ -785,7 +759,7 @@ router.get("/:symbol", async (req, res) => {
             components: {
               short_term: parseFloat(row.momentum_short_term) || null,
               medium_term: parseFloat(row.momentum_medium_term) || null,
-              longer_term: parseFloat(row.momentum_longer_term) || null,
+              longer_term: parseFloat(row.momentum_long_term) || null,
               relative_strength: parseFloat(row.momentum_relative_strength) || null,
               consistency: parseFloat(row.momentum_consistency) || null,
               rsi: parseFloat(row.rsi) || 0,

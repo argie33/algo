@@ -53,7 +53,6 @@ import {
   getMarketBreadth,
   getSeasonalityData,
   getDistributionDays,
-  getMarketResearchIndicators,
 } from "../services/api";
 import {
   formatCurrency,
@@ -358,18 +357,6 @@ const fetchSeasonalityData = async () => {
   }
 };
 
-const fetchResearchIndicators = async () => {
-  try {
-    console.log("🔬 Fetching research indicators...");
-    const response = await getMarketResearchIndicators();
-    console.log("🔬 Research indicators response:", response);
-    return response;
-  } catch (error) {
-    _logger.error("Research indicators error:", error.message || error.toString());
-    throw error;
-  }
-};
-
 function MarketOverview() {
   const [tabValue, setTabValue] = useState(0);
   const [tabsReady, setTabsReady] = useState(false);
@@ -422,13 +409,6 @@ function MarketOverview() {
     staleTime: 30000,
   });
 
-  const { data: researchIndicatorsData, isLoading: researchIndicatorsLoading } = useQuery({
-    queryKey: ["market-research-indicators"],
-    queryFn: fetchResearchIndicators,
-    enabled: tabValue === 3,
-    staleTime: 30000,
-  });
-
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
@@ -466,32 +446,17 @@ function MarketOverview() {
     );
   }
 
-  // Extract data from API responses - handles both direct data and nested structure
-  const sentimentIndicators =
-    marketData?.data?.sentiment_indicators ||
-    marketData?.sentiment_indicators ||
-    {};
-  const marketBreadth =
-    marketData?.data?.market_breadth || marketData?.market_breadth || {};
-  const marketCap =
-    marketData?.data?.market_cap || marketData?.market_cap || {};
-  
-  const indices =
-    marketData?.data?.indices ||
-    marketData?.indices ||
-    [];
-  const topMovers =
-    marketData?.movers ||
-    { gainers: [], losers: [] };
+  // Extract data from API responses - REAL DATA ONLY, NO FALLBACKS
+  const sentimentIndicators = marketData?.data?.sentiment_indicators || {};
+  const marketBreadth = marketData?.data?.market_breadth || {};
+  const marketCap = marketData?.data?.market_cap || {};
+  const indices = marketData?.data?.indices || [];
+  const topMovers = marketData?.data?.movers || { gainers: [], losers: [] };
 
-  // Handle breadth data - flatten if needed
-  const breadthInfo = breadthData?.data || breadthData || {};
-
-  // Handle distribution days data
-  const distributionDays = distributionDaysData?.data || distributionDaysData || {};
-
-  // Handle sentiment history data
-  const sentimentHistory = sentimentData?.data || sentimentData || {};
+  // Real API response structure from loaders
+  const breadthInfo = breadthData?.data || {};
+  const distributionDays = distributionDaysData?.data || {};
+  const sentimentHistory = sentimentData?.data || {};
   console.log("sentimentHistory", sentimentHistory);
 
 
@@ -1284,12 +1249,6 @@ function MarketOverview() {
                 icon={<CalendarToday />}
                 iconPosition="start"
               />
-              <Tab
-                value={3}
-                label="Research Indicators"
-                icon={<Equalizer />}
-                iconPosition="start"
-              />
             </Tabs>
         </Box>
 
@@ -1989,78 +1948,6 @@ function MarketOverview() {
           )}
         </TabPanel>
 
-        <TabPanel value={tabValue} index={3}>
-          {researchIndicatorsLoading ? (
-            <LinearProgress />
-          ) : (
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                      Market Research Indicators
-                    </Typography>
-                    {researchIndicatorsData?.data ? (
-                      <Grid container spacing={3}>
-                        {/* Summary Card */}
-                        <Grid item xs={12} md={4}>
-                          <Card variant="outlined">
-                            <CardContent>
-                              <Typography variant="subtitle2" color="text.secondary">
-                                Overall Sentiment
-                              </Typography>
-                              <Typography variant="h4" sx={{ mt: 1, fontWeight: 600 }}>
-                                {researchIndicatorsData.data.summary?.overallSentiment || "N/A"}
-                              </Typography>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-
-                        {/* VIX Card */}
-                        <Grid item xs={12} md={4}>
-                          <Card variant="outlined">
-                            <CardContent>
-                              <Typography variant="subtitle2" color="text.secondary">
-                                VIX Index
-                              </Typography>
-                              <Typography variant="h4" sx={{ mt: 1, fontWeight: 600 }}>
-                                {researchIndicatorsData.data.volatility?.vix || "N/A"}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                20-Day Avg: {researchIndicatorsData.data.volatility?.vixAverage || "N/A"}
-                              </Typography>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-
-                        {/* Technical Levels */}
-                        <Grid item xs={12} md={4}>
-                          <Card variant="outlined">
-                            <CardContent>
-                              <Typography variant="subtitle2" color="text.secondary">
-                                S&P 500 Level
-                              </Typography>
-                              <Typography variant="h4" sx={{ mt: 1, fontWeight: 600 }}>
-                                {researchIndicatorsData.data.technicalLevels?.["S&P 500"]?.current || "N/A"}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                Trend: {researchIndicatorsData.data.technicalLevels?.["S&P 500"]?.trend || "N/A"}
-                              </Typography>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-                      </Grid>
-                    ) : (
-                      <Typography color="text.secondary">
-                        No research indicators data available
-                      </Typography>
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          )}
-        </TabPanel>
 
           </>
         )}
