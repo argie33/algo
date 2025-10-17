@@ -274,7 +274,7 @@ const SectorAnalysis = () => {
                     <Typography variant="caption" fontWeight="bold" align="center">4W Ago</Typography>
                   </Grid>
                   <Grid item xs={3} sm={1}>
-                    <Typography variant="caption" fontWeight="bold" align="center">12W Ago</Typography>
+                    <Typography variant="caption" fontWeight="bold" align="center">8W Ago</Typography>
                   </Grid>
                   <Grid item xs={3} sm={1.2}>
                     <Typography variant="caption" fontWeight="bold" align="center">Momentum</Typography>
@@ -394,7 +394,7 @@ const SectorAnalysis = () => {
                   </AccordionSummary>
                   <AccordionDetails sx={{ backgroundColor: "grey.25", p: 2 }}>
                     <Typography variant="body2">
-                      <strong>Historical Data:</strong> 1W Ago: {sector.rank_1w_ago !== null && sector.rank_1w_ago !== undefined ? sector.rank_1w_ago : "—"} | 4W Ago: {sector.rank_4w_ago !== null && sector.rank_4w_ago !== undefined ? sector.rank_4w_ago : "—"} | 12W Ago: {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? sector.rank_12w_ago : "—"}
+                      <strong>Historical Data:</strong> 1W Ago: {sector.rank_1w_ago !== null && sector.rank_1w_ago !== undefined ? sector.rank_1w_ago : "—"} | 4W Ago: {sector.rank_4w_ago !== null && sector.rank_4w_ago !== undefined ? sector.rank_4w_ago : "—"} | 8W Ago: {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? sector.rank_12w_ago : "—"}
                     </Typography>
                   </AccordionDetails>
                 </Accordion>
@@ -441,7 +441,7 @@ const SectorAnalysis = () => {
                       <Typography variant="caption" fontWeight="bold" align="center">4W Ago</Typography>
                     </Grid>
                     <Grid item xs={2} sm={1}>
-                      <Typography variant="caption" fontWeight="bold" align="center">12W Ago</Typography>
+                      <Typography variant="caption" fontWeight="bold" align="center">8W Ago</Typography>
                     </Grid>
                     <Grid item xs={2} sm={1.2}>
                       <Typography variant="caption" fontWeight="bold" align="center">Momentum</Typography>
@@ -544,7 +544,7 @@ const SectorAnalysis = () => {
                     </AccordionSummary>
                     <AccordionDetails sx={{ backgroundColor: "grey.25", p: 2 }}>
                       <Typography variant="body2">
-                        <strong>Historical Data:</strong> 1W Ago: {industry.rank_1w_ago !== null && industry.rank_1w_ago !== undefined ? industry.rank_1w_ago : "—"} | 4W Ago: {industry.rank_4w_ago !== null && industry.rank_4w_ago !== undefined ? industry.rank_4w_ago : "—"} | 12W Ago: {industry.rank_12w_ago !== null && industry.rank_12w_ago !== undefined ? industry.rank_12w_ago : "—"}
+                        <strong>Historical Data:</strong> 1W Ago: {industry.rank_1w_ago !== null && industry.rank_1w_ago !== undefined ? industry.rank_1w_ago : "—"} | 4W Ago: {industry.rank_4w_ago !== null && industry.rank_4w_ago !== undefined ? industry.rank_4w_ago : "—"} | 8W Ago: {industry.rank_12w_ago !== null && industry.rank_12w_ago !== undefined ? industry.rank_12w_ago : "—"}
                       </Typography>
                     </AccordionDetails>
                   </Accordion>
