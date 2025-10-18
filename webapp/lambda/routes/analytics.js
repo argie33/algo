@@ -230,7 +230,7 @@ router.get("/performance", async (req, res) => {
       date.setDate(date.getDate() - i);
       performanceTimeline.push({
         date: date.toISOString().split('T')[0],
-        pnl_percent: (returnPercent + (Math.random() * 2 - 1)).toFixed(2)
+        pnl_percent: (returnPercent).toFixed(2)
       });
     }
 
@@ -1173,18 +1173,8 @@ router.get("/volatility", async (req, res) => {
           [userId]
         );
       } else {
-        // Generate demo volatility data for testing
-        const dates = [];
-        const today = new Date();
-        for (let i = 29; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(today.getDate() - i);
-          dates.push({
-            date: date.toISOString().split('T')[0],
-            daily_pnl_percent: (Math.random() * 4 - 2) // Random returns between -2% and +2%
-          });
-        }
-        performanceResult = { rows: dates };
+        // No real data - return empty results instead of synthetic data
+        performanceResult = { rows: [] };
       }
     } catch (error) {
       console.warn('Portfolio performance data unavailable for volatility calculation:', error.message);
@@ -1440,30 +1430,41 @@ router.post("/custom", async (req, res) => {
           });
         }
 
-        // Generate mock symbol analysis for testing
-        const symbolAnalysis = symbols.map((symbol) => {
-          const currentPrice = 50 + Math.random() * 200; // $50-250
-          const averageCost = currentPrice * (0.9 + Math.random() * 0.2); // Mock average cost
-          const quantity = 100 + Math.random() * 900; // Mock quantity
-          const unrealizedPnl = (currentPrice - averageCost) * quantity;
-          const returnPercent = ((currentPrice - averageCost) / averageCost) * 100;
+        // Query real portfolio symbol data
+        try {
+          const symbolResults = await query(
+            `SELECT symbol, quantity, current_price, COALESCE(average_cost, 0) as average_cost,
+                    (current_price * quantity) as unrealized_pnl,
+                    ((current_price - COALESCE(average_cost, 0)) / NULLIF(COALESCE(average_cost, 0), 0) * 100) as return_percent
+             FROM portfolio_holdings
+             WHERE user_id = $1 AND symbol = ANY($2) AND quantity > 0`,
+            [req.user?.sub || "test-user", symbols]
+          );
 
-          return {
-            symbol: symbol,
-            quantity: Math.round(quantity),
-            current_price: Math.round(currentPrice * 100) / 100,
-            average_cost: Math.round(averageCost * 100) / 100,
-            unrealized_pnl: Math.round(unrealizedPnl * 100) / 100,
-            return_percent: Math.round(returnPercent * 100) / 100,
+          const symbolAnalysis = symbolResults.rows.map(row => ({
+            symbol: row.symbol,
+            quantity: parseInt(row.quantity || 0),
+            current_price: parseFloat(row.current_price || 0),
+            average_cost: parseFloat(row.average_cost || 0),
+            unrealized_pnl: parseFloat(row.unrealized_pnl || 0),
+            return_percent: parseFloat(row.return_percent || 0),
+          }));
+
+          result = {
+            analysis_type: "symbol_analysis",
+            data: symbolAnalysis,
+            symbols: symbols,
+            parameters: parameters,
           };
-        });
-
-        result = {
-          analysis_type: "symbol_analysis",
-          data: symbolAnalysis,
-          symbols: symbols,
-          parameters: parameters,
-        };
+        } catch (dbError) {
+          console.error("Symbol analysis query error:", dbError);
+          return res.status(404).json({
+            success: false,
+            error: "Symbol data not found",
+            message: "No real portfolio data found for requested symbols",
+            symbols: symbols,
+          });
+        }
         break;
       }
 

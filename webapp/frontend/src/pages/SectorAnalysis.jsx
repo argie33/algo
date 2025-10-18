@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Accordion,
@@ -41,7 +41,7 @@ import {
 } from "../utils/formatters";
 
 const SectorAnalysis = () => {
-  const [lastUpdate] = useState(new Date());
+  const [lastUpdate, setLastUpdate] = useState(null);
 
   // Sector color mapping (for visualization consistency)
   const sectorColors = {
@@ -94,7 +94,12 @@ const SectorAnalysis = () => {
     retry: false,
   });
 
-
+  // Update lastUpdate timestamp when data successfully loads
+  useEffect(() => {
+    if (rotationData?.data?.sectors || industryData?.data?.industries) {
+      setLastUpdate(new Date());
+    }
+  }, [rotationData, industryData]);
 
   const formatTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - date) / 1000);
@@ -142,7 +147,7 @@ const SectorAnalysis = () => {
               size="small"
             />
             <Chip
-              label={`Updated ${formatTimeAgo(lastUpdate)}`}
+              label={`Updated ${lastUpdate ? formatTimeAgo(lastUpdate) : "..."}`}
               color="info"
               size="small"
               variant="outlined"

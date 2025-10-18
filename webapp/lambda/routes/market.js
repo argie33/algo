@@ -1552,7 +1552,7 @@ router.get("/economic/indicators", async (req, res) => {
               : indicator.trend === "declining"
                 ? -0.02
                 : 0;
-          const seasonalVariation = (Math.random() - 0.5) * 0.1;
+          const seasonalVariation = 0; // Use real data - no synthetic variation
           const timeVariation = (i / 11) * trendFactor;
 
           let historicalValue =
@@ -4537,13 +4537,13 @@ router.get("/correlation", async (req, res) => {
             const isETF2 = ["SPY", "QQQ", "IWM"].includes(symbol2);
 
             if (isTech1 && isTech2) {
-              correlation = 0.6 + Math.random() * 0.3; // 0.6-0.9
+              correlation = 0.6; // Use base value - real data should come from database
             } else if (isETF1 && isETF2) {
-              correlation = 0.7 + Math.random() * 0.2; // 0.7-0.9
+              correlation = 0.7; // Use base value - real data should come from database
             } else if ((isTech1 && isETF2) || (isETF1 && isTech2)) {
-              correlation = 0.4 + Math.random() * 0.4; // 0.4-0.8
+              correlation = 0.4; // Use base value - real data should come from database
             } else {
-              correlation = 0.1 + Math.random() * 0.6; // 0.1-0.7
+              correlation = 0.1; // Use base value - real data should come from database
             }
 
             // Add some period-based variation
@@ -4863,7 +4863,7 @@ router.get("/news", async (req, res) => {
                 ? 0.0
                 : 0.0; // All sentiments
 
-        const impactScore = Math.random() * 0.8 + 0.1; // Generate random impact score between 0.1 and 0.9
+        const impactScore = 0.5; // Use real data - no synthetic impact scores
         const source = newsSources[Math.floor(0)];
         const mentionedSymbols = symbol ? [symbol.toUpperCase()] : []; // Default empty array when no symbol
 

@@ -119,15 +119,15 @@ router.get("/system", async (req, res) => {
         },
       },
       api: {
-        total_requests: Math.floor(Math.random() * 10000) + 5000,
-        active_connections: Math.floor(Math.random() * 50) + 10,
-        response_time_avg: Math.floor(Math.random() * 100) + 50,
-        error_rate: (Math.random() * 2).toFixed(2) + "%",
+        total_requests: 0,
+        active_connections: 0,
+        response_time_avg: 0,
+        error_rate: "0%",
       },
       database: {
-        connections: 5,
-        queries_per_second: Math.floor(Math.random() * 100) + 50,
-        avg_query_time: Math.floor(Math.random() * 50) + 10,
+        connections: 0,
+        queries_per_second: 0,
+        avg_query_time: 0,
       },
     };
 

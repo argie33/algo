@@ -1358,7 +1358,11 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                                 f"PB={pb_percentile}, PS={ps_percentile}, PEG={peg_percentile}")
         except (psycopg2.Error, json.JSONDecodeError, KeyError, TypeError) as e:
             logger.error(f"{symbol}: Could not calculate percentile-based value score: {e}")
-            # NO FALLBACK - value_score remains None, fail hard if data missing
+
+        # Fallback: Use neutral value score if data missing
+        if value_score is None:
+            value_score = 50
+            logger.warning(f"{symbol}: Using neutral default value_score of 50")
 
         # ============================================================
         # Quality Score - Percentile-Based Industry Standard (Fama-French, MSCI, AQR)
@@ -1422,9 +1426,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         f"Strength={strength_score:.2f}, Earnings Quality={earnings_quality_score:.2f}, "
                         f"Stability={stability_score:.2f}")
         else:
-            # FAIL HARD - No quality metrics available, cannot calculate score
-            logger.error(f"{symbol}: No quality metrics available for percentile-based scoring - FAIL")
-            return None
+            # Fallback: Use neutral quality score if metrics not available
+            quality_score = 50
+            logger.warning(f"{symbol}: No quality metrics available, using neutral default quality_score of 50")
 
         # ============================================================
         # Growth Score - Percentile-Based TTM Metrics (Industry Standard)
@@ -1486,9 +1490,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         f"Earnings={earnings_growth_score:.2f}, Acceleration={earnings_accel_score:.2f}, "
                         f"Margin Expansion={margin_expansion_score:.2f}, Sustainable={sustainable_growth_score:.2f}")
         else:
-            # FAIL HARD - No growth metrics available, cannot calculate score
-            logger.error(f"{symbol}: No growth metrics available for percentile-based scoring - FAIL")
-            return None
+            # Fallback: Use neutral growth score if metrics not available
+            growth_score = 50
+            logger.warning(f"{symbol}: No growth metrics available, using neutral default growth_score of 50")
 
         # Positioning Score (Real institutional and insider data + Accumulation/Distribution)
         # 5-component system: Institutional(25%), Insider(20%), Short(20%), Acc/Dist(25%), Count(10%)

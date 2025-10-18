@@ -1008,35 +1008,33 @@ router.get("/optimize", async (req, res) => {
         sortino_ratio: "Maximize Sortino ratio",
       };
 
-      // Simulate optimization iterations
+      // Simulate optimization iterations - using honest defaults (no synthetic data)
       const iterations = [];
       const basePerformance = {
-        total_return: 0.15 + Math.random() * 0.25, // 15-40%
-        sharpe_ratio: 0.8 + Math.random() * 1.2, // 0.8-2.0
-        max_drawdown: -(0.05 + Math.random() * 0.15), // -5% to -20%
-        win_rate: 0.45 + Math.random() * 0.25, // 45-70%
-        profit_factor: 1.1 + Math.random() * 0.9, // 1.1-2.0
-        calmar_ratio: 0.5 + Math.random() * 1.0, // 0.5-1.5
-        sortino_ratio: 1.0 + Math.random() * 1.5, // 1.0-2.5
+        total_return: 0, // No synthetic data - return 0
+        sharpe_ratio: 0, // No synthetic data - return 0
+        max_drawdown: 0, // No synthetic data - return 0
+        win_rate: 0, // No synthetic data - return 0
+        profit_factor: 0, // No synthetic data - return 0
+        calmar_ratio: 0, // No synthetic data - return 0
+        sortino_ratio: 0, // No synthetic data - return 0
       };
 
       let bestScore = basePerformance[target];
       let bestParams = { ...optimizationParams };
 
       for (let i = 0; i < Math.min(maxIter, 50); i++) {
-        // Generate parameter variations
+        // Generate parameter variations - using honest defaults
         const paramVariation = {};
         Object.keys(optimizationParams).forEach((key) => {
           const baseValue = optimizationParams[key];
-          const variation = (Math.random() - 0.5) * 0.4; // ±20% variation
-          paramVariation[key] = baseValue * (1 + variation);
+          paramVariation[key] = baseValue; // No synthetic variation - use exact value
         });
 
-        // Simulate performance with variations
+        // Simulate performance with variations - no synthetic data
         const performance = { ...basePerformance };
         Object.keys(performance).forEach((metric) => {
-          const improvement = (Math.random() - 0.5) * 0.3; // ±15% variation
-          performance[metric] = basePerformance[metric] * (1 + improvement);
+          performance[metric] = basePerformance[metric]; // No synthetic data - keep as 0
         });
 
         // Apply optimization bias (later iterations tend to be better)
@@ -1128,16 +1126,13 @@ router.get("/optimize", async (req, res) => {
         iteration_history: iterations,
         parameter_sensitivity: Object.keys(optimizationParams).map((param) => ({
           parameter: param,
-          sensitivity_score: Math.random() * 0.8 + 0.2, // 0.2-1.0
+          sensitivity_score: 0, // No synthetic data - return 0
           optimal_range: {
             min: bestParams[param] * 0.9,
             max: bestParams[param] * 1.1,
             optimal: bestParams[param],
           },
-          impact_description:
-            Math.random() > 0.5
-              ? "High impact on performance"
-              : "Moderate impact on performance",
+          impact_description: "Unable to determine - no real optimization data available",
         })),
         recommendations: [
           "Use the optimized parameters for live trading with caution",
