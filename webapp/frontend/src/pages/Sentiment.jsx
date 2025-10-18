@@ -76,6 +76,40 @@ const getSentimentLabel = (score) => {
 function Sentiment() {
   const [expandedSymbol, setExpandedSymbol] = useState(null);
   const [searchFilter, setSearchFilter] = useState("");
+  const [marketSentiment, setMarketSentiment] = useState({
+    fearGreedIndex: null,
+    naamExposure: null,
+    aaiiSentiment: null
+  });
+
+  // Fetch market-level sentiment indicators
+  React.useEffect(() => {
+    const fetchMarketSentiment = async () => {
+      try {
+        const responses = await Promise.all([
+          fetch(`${API_BASE}/api/sentiment/fear-greed`).catch(() => null),
+          fetch(`${API_BASE}/api/sentiment/naaim`).catch(() => null),
+          fetch(`${API_BASE}/api/sentiment/aaii`).catch(() => null)
+        ]);
+
+        const data = await Promise.all(
+          responses.map(r => r?.ok ? r.json().catch(() => null) : null)
+        );
+
+        setMarketSentiment({
+          fearGreedIndex: data[0]?.data?.current_value,
+          naamExposure: data[1]?.data?.mean_exposure,
+          aaiiSentiment: data[2]?.data
+        });
+      } catch (error) {
+        console.error("Failed to fetch market sentiment:", error);
+      }
+    };
+
+    fetchMarketSentiment();
+    const interval = setInterval(fetchMarketSentiment, 300000); // Refresh every 5 minutes
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch all sentiment data
   const { data: sentimentData, isLoading, error } = useQuery({
@@ -177,6 +211,107 @@ function Sentiment() {
           Composite sentiment scores from news, analyst ratings, and social media
         </Typography>
       </Box>
+
+      {/* Market Sentiment Indicators */}
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        {/* Fear & Greed Index */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ height: '100%', bgcolor: marketSentiment.fearGreedIndex < 30 ? 'error.light' : marketSentiment.fearGreedIndex > 70 ? 'success.light' : 'warning.light' }}>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Fear & Greed Index
+              </Typography>
+              <Typography variant="h5" sx={{ mb: 1 }}>
+                {marketSentiment.fearGreedIndex !== null ? marketSentiment.fearGreedIndex.toFixed(2) : 'Loading...'}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Scale: 0 (Extreme Fear) - 100 (Extreme Greed)
+              </Typography>
+              {marketSentiment.fearGreedIndex !== null && (
+                <Chip
+                  label={marketSentiment.fearGreedIndex < 30 ? 'Extreme Fear' : marketSentiment.fearGreedIndex < 50 ? 'Fear' : marketSentiment.fearGreedIndex < 70 ? 'Neutral' : 'Greed'}
+                  size="small"
+                  sx={{ mt: 1 }}
+                  color={marketSentiment.fearGreedIndex < 30 ? 'error' : marketSentiment.fearGreedIndex > 70 ? 'success' : 'warning'}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* NAAIM Exposure */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                NAAIM Exposure
+              </Typography>
+              <Typography variant="h5" sx={{ mb: 1 }}>
+                {marketSentiment.naamExposure !== null ? marketSentiment.naamExposure.toFixed(2) : 'Loading...'}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Mean Exposure (0=out, 100=in)
+              </Typography>
+              {marketSentiment.naamExposure !== null && (
+                <Chip
+                  label={marketSentiment.naamExposure > 60 ? 'Bullish' : marketSentiment.naamExposure < 40 ? 'Bearish' : 'Neutral'}
+                  size="small"
+                  sx={{ mt: 1 }}
+                  color={marketSentiment.naamExposure > 60 ? 'success' : marketSentiment.naamExposure < 40 ? 'error' : 'warning'}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* AAII Sentiment */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                AAII Sentiment
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Box display="flex" justifyContent="space-between" mb={1}>
+                  <Typography variant="body2">Bullish:</Typography>
+                  <Chip label={marketSentiment.aaiiSentiment?.bullish ? `${(parseFloat(marketSentiment.aaiiSentiment.bullish) * 100).toFixed(2)}%` : 'N/A'} size="small" color="success" />
+                </Box>
+                <Box display="flex" justifyContent="space-between" mb={1}>
+                  <Typography variant="body2">Neutral:</Typography>
+                  <Chip label={marketSentiment.aaiiSentiment?.neutral ? `${(parseFloat(marketSentiment.aaiiSentiment.neutral) * 100).toFixed(2)}%` : 'N/A'} size="small" color="default" />
+                </Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Bearish:</Typography>
+                  <Chip label={marketSentiment.aaiiSentiment?.bearish ? `${(parseFloat(marketSentiment.aaiiSentiment.bearish) * 100).toFixed(2)}%` : 'N/A'} size="small" color="error" />
+                </Box>
+              </Box>
+              <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                Retail investor sentiment survey
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Market Classification */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Market Classification
+              </Typography>
+              {marketSentiment.fearGreedIndex !== null && (
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                  {marketSentiment.fearGreedIndex < 30 ? 'Extreme Fear' : marketSentiment.fearGreedIndex < 50 ? 'Fear' : marketSentiment.fearGreedIndex < 70 ? 'Greed' : 'Extreme Greed'}
+                </Typography>
+              )}
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="caption" color="textSecondary">
+                Based on Fear & Greed Index
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Search Bar */}
       <Card sx={{ mb: 3 }}>
