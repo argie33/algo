@@ -170,7 +170,7 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("metadata");
       expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-      expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
+      expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
 
       // Check score structure matches actual route format (scores.js:104-129)
       if (response.body.data.stocks.length > 0) {
@@ -373,15 +373,16 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body.data).toHaveProperty("scoreDate");
         expect(response.body).toHaveProperty("metadata");
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-        expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
+        expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
 
-        // Check six factor analysis structure
+        // Check seven factor analysis structure (including risk as 7th factor)
         expect(response.body.data.factors).toHaveProperty("momentum");
         expect(response.body.data.factors).toHaveProperty("value");
         expect(response.body.data.factors).toHaveProperty("quality");
         expect(response.body.data.factors).toHaveProperty("growth");
         expect(response.body.data.factors).toHaveProperty("positioning");
         expect(response.body.data.factors).toHaveProperty("sentiment");
+        expect(response.body.data.factors).toHaveProperty("risk");
 
         // Check quality factor has inputs
         if (response.body.data.factors.quality) {

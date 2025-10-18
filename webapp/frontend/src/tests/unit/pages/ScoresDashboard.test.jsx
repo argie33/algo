@@ -212,6 +212,7 @@ describe("Bullseye Stock Screener Page", () => {
 
     await waitFor(() => {
       // Check for score labels (not chips with colons - these are now progress bars with labels)
+      // 7-factor system includes: Quality, Momentum, Value, Growth, Positioning, Sentiment, Risk
       expect(screen.getAllByText(/^Quality$/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/^Momentum$/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/^Value$/i).length).toBeGreaterThan(0);
@@ -391,7 +392,7 @@ describe("Bullseye Stock Screener Page", () => {
         fireEvent.click(expandButton);
 
         await waitFor(() => {
-          // Check for all 6 factor analysis cards
+          // Check for all 7 factor analysis cards (including risk)
           expect(screen.getByText(/Quality & Fundamentals/i)).toBeInTheDocument();
           expect(screen.getByText(/Price Action & Momentum/i)).toBeInTheDocument();
           expect(screen.getByText(/Value Assessment/i)).toBeInTheDocument();

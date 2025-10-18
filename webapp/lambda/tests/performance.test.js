@@ -3,8 +3,7 @@
  * Tests response times, throughput, and resource usage for critical API endpoints
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
-import axios from 'axios';
+const axios = require('axios');
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:5001/api';
 

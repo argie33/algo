@@ -17,5 +17,15 @@
       3
     ],
     "id": "1760061900898"
+  },
+  "test-backtest-1760802408887",
+  "test-backtest-1760802408898",
+  "test-backtest-1760802408904",
+  "test-backtest-1760802408925",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760802409044"
   }
 ]
