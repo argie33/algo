@@ -356,7 +356,7 @@ const SectorAnalysis = () => {
                         </Grid>
                         <Grid item xs={3} sm={1}>
                           <Typography variant="caption" fontWeight="bold" align="center">
-                            {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? sector.rank_12w_ago : "—"}
+                            {sector.rank_8w_ago !== null && sector.rank_8w_ago !== undefined ? sector.rank_8w_ago : "—"}
                           </Typography>
                         </Grid>
                         <Grid item xs={3} sm={1.2}>
@@ -605,7 +605,7 @@ const SectorAnalysis = () => {
                         </Grid>
                         <Grid item xs={2} sm={1}>
                           <Typography variant="caption" fontWeight="bold" align="center">
-                            {industry.rank_12w_ago !== null && industry.rank_12w_ago !== undefined ? industry.rank_12w_ago : "—"}
+                            {industry.rank_8w_ago !== null && industry.rank_8w_ago !== undefined ? industry.rank_8w_ago : "—"}
                           </Typography>
                         </Grid>
                         <Grid item xs={2} sm={1.2}>
@@ -662,7 +662,7 @@ const SectorAnalysis = () => {
                               • 4W Ago: {industry.rank_4w_ago !== null ? `#${industry.rank_4w_ago}` : "—"}
                             </Typography>
                             <Typography variant="body2">
-                              • 8W Ago: {industry.rank_12w_ago !== null ? `#${industry.rank_12w_ago}` : "—"}
+                              • 8W Ago: {industry.rank_8w_ago !== null ? `#${industry.rank_8w_ago}` : "—"}
                             </Typography>
                             <Typography variant="body2" sx={{ mt: 0.5, fontWeight: "600", color: "text.primary" }}>
                               Change: {industry.rank_change_1w !== null ? `${industry.rank_change_1w > 0 ? '+' : ''}${industry.rank_change_1w}` : "—"}

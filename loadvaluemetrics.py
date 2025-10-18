@@ -16,7 +16,6 @@ Metrics Calculated:
 Note: Scoring logic is in loadstockscores.py - this only calculates inputs
 
 Updated: 2025-10-16 14:47 - Trigger rebuild: 20251016_144700 - Populate value metrics to AWS"""
-"""
 
 import json
 import logging

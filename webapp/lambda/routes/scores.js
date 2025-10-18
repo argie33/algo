@@ -178,13 +178,6 @@ router.get("/", async (req, res) => {
       ) km ON ss.symbol = km.ticker
       LEFT JOIN sector_benchmarks sb ON cp.sector = sb.sector
       LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          intrinsic_value
-        FROM value_metrics
-        ORDER BY symbol
-      ) vm ON ss.symbol = vm.symbol
-      LEFT JOIN (
         SELECT DISTINCT ON (ticker)
           ticker,
           market_cap
@@ -663,13 +656,6 @@ router.get("/:symbol", async (req, res) => {
         ORDER BY ticker
       ) km ON ss.symbol = km.ticker
       LEFT JOIN sector_benchmarks sb ON cp.sector = sb.sector
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          intrinsic_value
-        FROM value_metrics
-        ORDER BY symbol
-      ) vm ON ss.symbol = vm.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (ticker)
           ticker,
