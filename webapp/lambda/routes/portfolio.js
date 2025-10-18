@@ -5,25 +5,9 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const { addTradingModeContext } = require("../utils/tradingModeHelper");
+const { tableExists } = require("../utils/routeHelpers");
 
 const router = express.Router();
-
-// Helper function to check if a table exists
-async function tableExists(tableName) {
-  try {
-    const tableCheckQuery = `
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_name = $1
-      );
-    `;
-    const result = await query(tableCheckQuery, [tableName]);
-    return result.rows[0].exists;
-  } catch (error) {
-    console.warn(`Error checking table existence for ${tableName}:`, error);
-    return false;
-  }
-}
 
 // Helper function to calculate annualized return with proper date-based calculation
 function calculateAnnualizedReturn(performance) {

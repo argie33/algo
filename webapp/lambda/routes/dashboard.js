@@ -2,35 +2,9 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { authenticateToken, _optionalAuth } = require("../middleware/auth");
+const { tableExists, emptyResultResponse } = require("../utils/routeHelpers");
 
 const router = express.Router();
-
-// Helper function to check if a table exists
-async function tableExists(tableName) {
-  try {
-    const tableCheckQuery = `
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_name = $1
-      );
-    `;
-    const result = await query(tableCheckQuery, [tableName]);
-    return result.rows[0].exists;
-  } catch (error) {
-    console.warn(`Error checking table existence for ${tableName}:`, error);
-    return false;
-  }
-}
-
-// Helper function to return empty result when table doesn't exist
-function emptyTableResponse(message = "Data not yet loaded") {
-  return {
-    success: true,
-    data: [],
-    message,
-    timestamp: new Date().toISOString(),
-  };
-}
 
 // Health check endpoint
 router.get("/health", (req, res) => {

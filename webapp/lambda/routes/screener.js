@@ -19,32 +19,9 @@ function validateDbResponse(result, context = "database query") {
 
 const { FactorScoringEngine } = require("../utils/factorScoring");
 const { AIMarketScanner } = require("../utils/aiMarketScanner");
+const { tableExists } = require("../utils/routeHelpers");
 
 const router = express.Router();
-
-// Helper function to check if a table exists
-async function tableExists(tableName) {
-  try {
-    const tableCheckQuery = `
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_name = $1
-      );
-    `;
-    const result = await query(tableCheckQuery, [tableName]);
-
-    // Handle case where query returns null (database error)
-    if (!result || !result.rows || result.rows.length === 0) {
-      console.warn(`Table check query returned invalid result for ${tableName}`);
-      return false;
-    }
-
-    return result.rows[0].exists;
-  } catch (error) {
-    console.warn(`Error checking table existence for ${tableName}:`, error);
-    return false;
-  }
-}
 
 // Root screener endpoint for health checks
 router.get("/", (req, res) => {
