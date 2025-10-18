@@ -112,21 +112,21 @@ const SectorAnalysis = () => {
 
   // Prepare chart data from rotation data
   const chartData = (rotationData?.data?.sectors || [])
-    .filter((s) => s.sector && s.current_perf_1d != null && !isNaN(s.current_perf_1d))
+    .filter((s) => s.sector_name && s.current_perf_1d != null && !isNaN(s.current_perf_1d))
     .map((s) => ({
-      name: s.sector.length > 15 ? s.sector.substring(0, 15) + "..." : s.sector,
-      fullName: s.sector,
+      name: s.sector_name.length > 15 ? s.sector_name.substring(0, 15) + "..." : s.sector_name,
+      fullName: s.sector_name,
       performance: parseFloat(s.current_perf_1d.toFixed(2)),
-      color: sectorColors[s.sector] || "#666",
+      color: sectorColors[s.sector_name] || "#666",
     }))
     .sort((a, b) => b.performance - a.performance);
 
   const pieData = (rotationData?.data?.sectors || [])
-    .filter((s) => s.sector && s.price != null && !isNaN(s.price))
+    .filter((s) => s.sector_name && s.current_rank != null && !isNaN(s.current_rank))
     .map((s) => ({
-      name: s.sector,
-      value: Math.abs(s.price), // Use price as proxy for market cap
-      color: sectorColors[s.sector] || "#666",
+      name: s.sector_name,
+      value: Math.abs(s.current_rank), // Use rank as proxy for significance
+      color: sectorColors[s.sector_name] || "#666",
     }));
 
   return (
