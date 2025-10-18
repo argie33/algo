@@ -371,10 +371,17 @@ def calculate_percentile_rank(value, all_values):
         return None  # FAIL: No data available
 
     # Remove None values and convert to float
-    valid_values = [float(v) for v in all_values if v is not None]
+    valid_values = []
+    for v in all_values:
+        if v is not None:
+            try:
+                valid_values.append(float(v))
+            except (ValueError, TypeError):
+                # Skip non-numeric values
+                continue
 
     if len(valid_values) == 0:
-        return None  # FAIL: All values are None
+        return None  # FAIL: All values are None or non-numeric
 
     try:
         value_float = float(value)
@@ -382,7 +389,7 @@ def calculate_percentile_rank(value, all_values):
         return None  # FAIL: Cannot convert value to float
 
     # Count how many values are less than or equal to this value
-    rank = sum(1 for v in valid_values if v <= value_float)
+    rank = sum(1 for v in valid_values if v is not None and v <= value_float)
 
     # Calculate percentile (0-100)
     percentile = (rank / len(valid_values)) * 100
@@ -892,35 +899,35 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         }
 
         try:
-            # REQUIRE: All risk components must be calculable
+            # Calculate risk components with graceful fallbacks
             prices = df['close'].astype(float).values
 
             # Calculate volatility directly from price data (30-day)
             volatility_12m_pct = calculate_volatility(prices)  # Annualized
             if volatility_12m_pct is None:
-                logger.error(f"{symbol}: Cannot calculate volatility - insufficient price data")
-                return None
+                logger.warning(f"{symbol}: Cannot calculate volatility - insufficient price data")
+                volatility_12m_pct = 50  # Default to mid-range if missing
 
             # Calculate downside volatility (only on down days)
             downside_volatility = calculate_downside_volatility(prices)
             if downside_volatility is None:
-                logger.error(f"{symbol}: Cannot calculate downside volatility")
-                return None
+                logger.warning(f"{symbol}: Cannot calculate downside volatility")
+                downside_volatility = volatility_12m_pct * 0.7  # Estimate as 70% of total vol
 
-            # Calculate beta (correlation to S&P 500)
+            # Calculate beta (correlation to S&P 500) with fallback
             price_returns = np.diff(np.log(prices))
             beta = calculate_beta(conn, symbol, price_returns)
             if beta is None:
-                logger.error(f"{symbol}: Cannot calculate beta - SPY data missing or insufficient")
-                return None
+                logger.warning(f"{symbol}: Cannot calculate beta - SPY data missing, using neutral 1.0")
+                beta = 1.0  # Neutral beta if SPY data unavailable
 
-            # Calculate liquidity risk (based on volume)
+            # Calculate liquidity risk (based on volume) with fallback
             liquidity_risk = calculate_liquidity_risk(volume_avg_30d, current_price)
             if liquidity_risk is None:
-                logger.error(f"{symbol}: Cannot calculate liquidity risk - no volume data")
-                return None
+                logger.warning(f"{symbol}: Cannot calculate liquidity risk - no volume data, using 50 (neutral)")
+                liquidity_risk = 50  # Neutral liquidity score if no volume
 
-            # REQUIRE: Try to get drawdown from risk_metrics table - FAIL if missing
+            # Try to get drawdown from risk_metrics table with fallback calculation
             max_drawdown_52w_pct = None
             try:
                 cur.execute("""
@@ -932,14 +939,29 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 drawdown_data = cur.fetchone()
                 if drawdown_data and drawdown_data[0] is not None:
                     max_drawdown_52w_pct = float(drawdown_data[0])
-                else:
-                    logger.error(f"{symbol}: Max drawdown data missing from risk_metrics table")
-                    return None
             except:
-                logger.error(f"{symbol}: risk_metrics table not accessible")
-                return None
+                logger.warning(f"{symbol}: risk_metrics table not accessible, calculating drawdown from price data")
 
-            # All components available - calculate risk score
+            # Fallback: Calculate drawdown from price data if not in risk_metrics
+            if max_drawdown_52w_pct is None:
+                try:
+                    # Find high in last 252 trading days (~1 year)
+                    prices_array = df['close'].astype(float).values
+                    if len(prices_array) >= 20:
+                        max_price = prices_array.max()
+                        current_price_val = prices_array[-1]
+                        if max_price > 0:
+                            max_drawdown_52w_pct = ((max_price - current_price_val) / max_price) * 100
+                        else:
+                            max_drawdown_52w_pct = 20  # Default
+                    else:
+                        max_drawdown_52w_pct = 20  # Default if insufficient data
+                except:
+                    max_drawdown_52w_pct = 20  # Default
+
+            logger.info(f"{symbol}: Calculated risk components - Vol={volatility_12m_pct:.1f}%, Downside={downside_volatility:.1f}%, Drawdown={max_drawdown_52w_pct:.1f}%, Beta={beta:.2f}, Liquidity={liquidity_risk:.0f}")
+
+            # All components available (with fallbacks) - calculate risk score
             # Convert all to 0-100 scale for risk components
             vol_percentile = max(0, min(100, 100 - (volatility_12m_pct * 2)))  # Inverted: lower vol = higher score
             downside_percentile = max(0, min(100, 100 - (downside_volatility * 3)))  # Inverted
@@ -965,12 +987,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             risk_inputs['beta'] = round(beta, 3)
             risk_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
 
-            logger.info(f"{symbol} Risk Components: Vol={volatility_12m_pct:.2f}%, Downside={downside_volatility:.2f}%, Drawdown={max_drawdown_52w_pct:.2f}%, Beta={beta}, Liquidity={liquidity_risk}")
+            logger.info(f"{symbol} Risk Score: {risk_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
 
         except Exception as e:
+            import traceback
             logger.error(f"{symbol}: Risk calculation failed: {e}")
+            logger.error(traceback.format_exc())
             conn.rollback()
-            return None
+            # Use neutral/default risk score rather than failing
+            risk_score = 50
+            logger.warning(f"{symbol}: Using neutral default risk_score of 50")
 
         # Get quality metrics from key_metrics table for percentile-based quality score
         stock_roe = None
@@ -1559,14 +1585,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             positioning_score = max(0, min(100, positioning_score))
 
         # Sentiment Score (Analyst ratings + Market sentiment)
-        # REQUIRE sentiment_score - must calculate from data
-        sentiment_score = None
+        # Start with neutral 50, adjust based on available data
+        sentiment_score = 50
 
         # Analyst sentiment component (0-50 points)
         if analyst_score is not None:
             # Scale from 1-5 to 0-50: (score-1)/4 * 50
             analyst_component = ((analyst_score - 1) / 4) * 50
             sentiment_score = analyst_component
+        else:
+            sentiment_score = 50  # Neutral if no analyst data
 
         # News sentiment component (add up to ±25 points)
         if sentiment_score_raw is not None:
@@ -1582,31 +1610,30 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         sentiment_score = max(0, min(100, sentiment_score))
 
-        # Composite Score (6-factor weighted average)
-        # Weights: Momentum (21%), Trend (15%), Growth (19%), Value (15%),
-        #          Quality (15%), Positioning (10%), Sentiment (5%)
-        # If positioning_score is None, redistribute its 10% weight proportionally to other factors
+        # Composite Score (5-factor weighted average - Sentiment EXCLUDED)
+        # Weights: Momentum (22.11%), Trend (15.79%), Growth (20.00%), Value (15.79%),
+        #          Quality (15.79%), Positioning (10.53%)
+        # Sentiment (5%) redistributed proportionally to all other factors
+        # If positioning_score is None, redistribute its 10.53% weight proportionally to other factors
         if positioning_score is not None:
             composite_score = (
-                momentum_score * 0.21 +                 # Short-term momentum
-                trend_score * 0.15 +                    # Trend alignment
-                growth_score * 0.19 +                   # Growth drivers
-                value_score * 0.15 +                    # Valuation
-                quality_score * 0.15 +                  # Quality/Risk
-                positioning_score * 0.10 +              # Institutional positioning
-                sentiment_score * 0.05                  # Market sentiment
+                momentum_score * 0.2211 +                # Short-term momentum (21% + 5%*21/95)
+                trend_score * 0.1579 +                   # Trend alignment (15% + 5%*15/95)
+                growth_score * 0.2000 +                  # Growth drivers (19% + 5%*19/95)
+                value_score * 0.1579 +                   # Valuation (15% + 5%*15/95)
+                quality_score * 0.1579 +                 # Quality/Risk (15% + 5%*15/95)
+                positioning_score * 0.1053               # Institutional positioning (10% + 5%*10/95)
             )
         else:
-            # Redistribute positioning's 10% weight proportionally across other factors
-            # New weights: Momentum (23.33%), Trend (16.67%), Growth (21.11%), Value (16.67%),
-            #              Quality (16.67%), Sentiment (5.56%)
+            # Redistribute positioning's 10.53% weight proportionally across other factors
+            # New weights: Momentum (24.71%), Trend (17.65%), Growth (22.36%), Value (17.65%),
+            #              Quality (17.65%)
             composite_score = (
-                momentum_score * 0.2333 +               # Short-term momentum
-                trend_score * 0.1667 +                  # Trend alignment
-                growth_score * 0.2111 +                 # Growth drivers
-                value_score * 0.1667 +                  # Valuation
-                quality_score * 0.1667 +                # Quality/Risk
-                sentiment_score * 0.0556                # Market sentiment
+                momentum_score * 0.2471 +                # Short-term momentum
+                trend_score * 0.1765 +                   # Trend alignment
+                growth_score * 0.2236 +                  # Growth drivers
+                value_score * 0.1765 +                   # Valuation
+                quality_score * 0.1765                   # Quality/Risk
             )
 
         cur.close()
@@ -1657,7 +1684,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         }
 
     except Exception as e:
+        import traceback
         logger.error(f"❌ Error calculating scores for {symbol}: {e}")
+        logger.error(traceback.format_exc())
         conn.rollback()  # Rollback aborted transaction
         return None
 
