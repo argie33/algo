@@ -176,13 +176,13 @@ const EconomicModeling = () => {
           },
           yieldCurveData: leadingData.yieldCurveData || [],
 
-          // Sectoral data
-          sectoralData: sectoralData.sectors || [],
+          // Sectoral data (handle both direct and nested structure)
+          sectoralData: sectoralData?.sectors || sectoralData?.data?.sectors || sectoralData || [],
 
-          // Economic scenarios
-          scenarios: scenariosData.scenarios || [],
+          // Economic scenarios (handle both direct and nested structure)
+          scenarios: scenariosData?.scenarios || scenariosData?.data?.scenarios || scenariosData || [],
 
-          // Upcoming events (from leading indicators)
+          // Upcoming events (from leading indicators) - provide placeholder if missing
           upcomingEvents: leadingData.upcomingEvents || [],
         };
 
@@ -781,8 +781,9 @@ const EconomicModeling = () => {
                         subheader="Next 30 days"
                       />
                       <CardContent>
+                        {economicData.upcomingEvents && economicData.upcomingEvents.length > 0 ? (
                         <List>
-                          {economicData.upcomingEvents?.map((event, index) => (
+                          {economicData.upcomingEvents.map((event, index) => (
                             <ListItem key={index} alignItems="flex-start">
                               <ListItemAvatar>
                                 <Avatar
@@ -821,6 +822,11 @@ const EconomicModeling = () => {
                             </ListItem>
                           ))}
                         </List>
+                        ) : (
+                          <Typography color="text.secondary" align="center" py={3}>
+                            No upcoming events available
+                          </Typography>
+                        )}
                       </CardContent>
                     </Card>
                   </Grid>
@@ -839,28 +845,36 @@ const EconomicModeling = () => {
                     subheader="Treasury yield curve and inversion analysis"
                   />
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <LineChart data={economicData.yieldCurveData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="maturity" />
-                        <YAxis />
-                        <Tooltip
-                          formatter={(value) => [`${value}%`, "Yield"]}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="yield"
-                          stroke="#1976d2"
-                          strokeWidth={3}
-                          dot={{ fill: "#1976d2", strokeWidth: 2, r: 6 }}
-                        />
-                        <ReferenceLine
-                          y={0}
-                          stroke="red"
-                          strokeDasharray="2 2"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    {economicData.yieldCurveData && economicData.yieldCurveData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={400}>
+                        <LineChart data={economicData.yieldCurveData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="maturity" />
+                          <YAxis />
+                          <Tooltip
+                            formatter={(value) => [`${value}%`, "Yield"]}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="yield"
+                            stroke="#1976d2"
+                            strokeWidth={3}
+                            dot={{ fill: "#1976d2", strokeWidth: 2, r: 6 }}
+                          />
+                          <ReferenceLine
+                            y={0}
+                            stroke="red"
+                            strokeDasharray="2 2"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+                        <Typography color="text.secondary">
+                          Yield curve data not available
+                        </Typography>
+                      </Box>
+                    )}
 
                     <Box mt={3}>
                       <Grid container spacing={2}>
