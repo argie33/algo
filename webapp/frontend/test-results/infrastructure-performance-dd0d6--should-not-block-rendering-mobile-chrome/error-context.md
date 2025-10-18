@@ -1,0 +1,171 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "open drawer" [ref=e6] [cursor=pointer]:
+        - img [ref=e7] [cursor=pointer]
+      - generic: Dashboard
+      - button "Sign In" [ref=e9] [cursor=pointer]:
+        - img [ref=e11] [cursor=pointer]
+        - text: Sign In
+  - navigation
+  - main [ref=e13]:
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e20]:
+          - heading "Fear & Greed Index" [level=6] [ref=e21]
+          - generic [ref=e22]:
+            - paragraph [ref=e23]: "Current Value:"
+            - paragraph [ref=e24]: N/A
+          - generic [ref=e25]:
+            - paragraph [ref=e26]: "Classification:"
+            - paragraph [ref=e27]: N/A
+          - generic [ref=e28]: "Scale: 0 (Extreme Fear) - 100 (Extreme Greed)"
+        - generic [ref=e31]:
+          - heading "NAAIM Exposure" [level=6] [ref=e32]
+          - generic [ref=e33]:
+            - paragraph [ref=e34]: "Mean Exposure:"
+            - paragraph [ref=e35]: N/A
+          - generic [ref=e36]:
+            - paragraph [ref=e37]: "Bearish Exposure:"
+            - paragraph [ref=e38]: N/A
+          - generic [ref=e39]: Active manager equity exposure (0=out, 100=in)
+        - generic [ref=e42]:
+          - heading "AAII Sentiment" [level=6] [ref=e43]
+          - generic [ref=e44]:
+            - paragraph [ref=e45]: "Bullish:"
+            - paragraph [ref=e46]: N/A%
+          - generic [ref=e47]:
+            - paragraph [ref=e48]: "Neutral:"
+            - paragraph [ref=e49]: N/A%
+          - generic [ref=e50]:
+            - paragraph [ref=e51]: "Bearish:"
+            - paragraph [ref=e52]: N/A%
+          - generic [ref=e53]: Retail investor sentiment survey
+      - generic [ref=e56]:
+        - heading "Market Overview" [level=1] [ref=e57]
+        - heading "Real-time market analysis, sentiment indicators, and institutional-grade research insights" [level=6] [ref=e58]
+      - generic [ref=e59]:
+        - generic [ref=e62]:
+          - heading "Market Breadth" [level=6] [ref=e63]
+          - generic [ref=e64]:
+            - generic [ref=e66]:
+              - heading "N/A" [level=4] [ref=e67]
+              - paragraph [ref=e68]: Advancing
+            - generic [ref=e70]:
+              - heading "N/A" [level=4] [ref=e71]
+              - paragraph [ref=e72]: Declining
+            - generic [ref=e74]:
+              - paragraph [ref=e75]: "Advance/Decline Ratio: N/A"
+              - paragraph [ref=e76]: "Average Change: N/A"
+        - generic [ref=e79]:
+          - heading "Market Statistics" [level=6] [ref=e80]
+          - generic [ref=e81]:
+            - paragraph [ref=e82]: "Total Stocks:"
+            - paragraph [ref=e83]: N/A
+          - generic [ref=e84]:
+            - paragraph [ref=e85]: "Total Market Cap:"
+            - paragraph [ref=e86]: N/A
+          - generic [ref=e87]:
+            - paragraph [ref=e88]: "Unchanged:"
+            - paragraph [ref=e89]: N/A
+        - generic [ref=e92]:
+          - heading "Market Cap Distribution" [level=6] [ref=e93]
+          - generic [ref=e94]:
+            - paragraph [ref=e95]: "Large Cap:"
+            - paragraph [ref=e96]: N/A
+          - generic [ref=e97]:
+            - paragraph [ref=e98]: "Mid Cap:"
+            - paragraph [ref=e99]: N/A
+          - generic [ref=e100]:
+            - paragraph [ref=e101]: "Small Cap:"
+            - paragraph [ref=e102]: N/A
+          - generic [ref=e103]:
+            - paragraph [ref=e104]: "Total:"
+            - paragraph [ref=e105]: N/A
+        - generic [ref=e108]:
+          - heading "Distribution Days" [level=6] [ref=e109]
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - paragraph
+              - generic [ref=e112]: totalValue
+            - generic [ref=e113]:
+              - heading [level=6]
+          - generic [ref=e115]:
+            - generic [ref=e116]:
+              - paragraph
+              - generic [ref=e117]: holdings
+            - generic [ref=e118]:
+              - heading [level=6]
+          - generic [ref=e121]: "IBD Distribution Days: Down 0.2%+ on higher volume over 25 days"
+      - generic [ref=e122]:
+        - tablist "market data tabs" [ref=e127]:
+          - tab "Sentiment History" [selected] [ref=e128] [cursor=pointer]:
+            - img [ref=e129] [cursor=pointer]
+            - text: Sentiment History
+          - tab "Market Breadth" [ref=e131] [cursor=pointer]:
+            - img [ref=e132] [cursor=pointer]
+            - text: Market Breadth
+          - tab "Seasonality" [ref=e134] [cursor=pointer]:
+            - img [ref=e135] [cursor=pointer]
+            - text: Seasonality
+        - tabpanel [ref=e138]:
+          - generic [ref=e141]:
+            - generic [ref=e144]:
+              - generic [ref=e145]:
+                - heading "AAII Market Sentiment" [level=6] [ref=e146]
+                - generic [ref=e147]:
+                  - img [ref=e148]
+                  - generic [ref=e150]: Neutral
+              - generic [ref=e151]:
+                - generic [ref=e152]:
+                  - generic [ref=e153]:
+                    - paragraph [ref=e154]: Bullish
+                    - paragraph [ref=e155]: N/A%
+                  - progressbar [ref=e156]
+                - generic [ref=e158]:
+                  - generic [ref=e159]:
+                    - paragraph [ref=e160]: Neutral
+                    - paragraph [ref=e161]: N/A%
+                  - progressbar [ref=e162]
+                - generic [ref=e164]:
+                  - generic [ref=e165]:
+                    - paragraph [ref=e166]: Bearish
+                    - paragraph [ref=e167]: N/A%
+                  - progressbar [ref=e168]
+            - generic [ref=e172]:
+              - heading "AAII Market Sentiment Trend" [level=6] [ref=e173]
+              - generic [ref=e176]:
+                - list [ref=e178]:
+                  - listitem [ref=e179]:
+                    - img "Bearish % legend icon" [ref=e180]
+                    - generic [ref=e182]: Bearish %
+                  - listitem [ref=e183]:
+                    - img "Bullish % legend icon" [ref=e184]
+                    - generic [ref=e186]: Bullish %
+                  - listitem [ref=e187]:
+                    - img "Neutral % legend icon" [ref=e188]
+                    - generic [ref=e190]: Neutral %
+                - application [ref=e191]
+            - generic [ref=e197]:
+              - heading "Fear & Greed Index History" [level=6] [ref=e198]
+              - generic [ref=e199]:
+                - paragraph [ref=e200]:
+                  - text: "Current:"
+                  - strong [ref=e201]: N/A
+                  - text: "-"
+                - generic [ref=e202]: Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)
+              - application [ref=e206]:
+                - generic [ref=e212]: Fear & Greed Index
+            - generic [ref=e215]:
+              - heading "NAAIM Exposure History" [level=6] [ref=e216]
+              - generic [ref=e217]:
+                - paragraph [ref=e218]:
+                  - text: "Current:"
+                  - strong [ref=e219]: N/A%
+                - generic [ref=e220]: Active manager equity exposure (0=fully out, 100=fully in)
+              - application [ref=e224]:
+                - generic [ref=e230]: NAAIM Exposure %
+```

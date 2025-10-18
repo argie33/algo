@@ -1098,7 +1098,7 @@ router.get("/optimize", async (req, res) => {
       }
 
       return {
-        optimization_id: `opt_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`,
+        optimization_id: `opt_${Date.now()}`,
         strategy_id: strategyId,
         optimization_config: {
           method: optType,

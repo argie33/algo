@@ -1,0 +1,146 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "open drawer" [ref=e6] [cursor=pointer]:
+        - img [ref=e7] [cursor=pointer]
+      - generic: Portfolio Holdings
+      - button "Sign In" [ref=e9] [cursor=pointer]:
+        - img [ref=e11] [cursor=pointer]
+        - text: Sign In
+  - navigation
+  - main [ref=e13]:
+    - generic [ref=e17]:
+      - generic [ref=e20]:
+        - heading "Portfolio Holdings & Analysis" [level=4] [ref=e21]
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - generic [ref=e24]: Timeframe
+            - generic [ref=e25]:
+              - combobox [ref=e26] [cursor=pointer]: 1 Year
+              - textbox: 1Y
+              - img
+              - group:
+                - generic: Timeframe
+          - button "refresh" [ref=e27] [cursor=pointer]:
+            - img [ref=e29] [cursor=pointer]
+            - text: Refresh
+          - button "Import Portfolio" [ref=e31] [cursor=pointer]:
+            - img [ref=e33] [cursor=pointer]
+            - text: Import Portfolio
+          - button "Add Holding" [ref=e35] [cursor=pointer]:
+            - img [ref=e37] [cursor=pointer]
+            - text: Add Holding
+      - alert [ref=e40]:
+        - img [ref=e42]
+        - generic [ref=e44]: Authentication required
+        - button "Close" [ref=e46] [cursor=pointer]:
+          - img [ref=e47] [cursor=pointer]
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - heading "Portfolio Holdings" [level=6] [ref=e52]
+          - button [ref=e54] [cursor=pointer]:
+            - img [ref=e55] [cursor=pointer]
+        - table [ref=e58]:
+          - rowgroup [ref=e59]:
+            - row "Symbol Company Shares Avg Cost Current Price Market Value Gain/Loss Gain/Loss % Allocation Actions" [ref=e60]:
+              - columnheader "Symbol" [ref=e61]:
+                - button "Symbol" [ref=e62] [cursor=pointer]:
+                  - text: Symbol
+                  - img [ref=e63] [cursor=pointer]
+              - columnheader "Company" [ref=e65]
+              - columnheader "Shares" [ref=e66]:
+                - button "Shares" [ref=e67] [cursor=pointer]:
+                  - text: Shares
+                  - img [ref=e68] [cursor=pointer]
+              - columnheader "Avg Cost" [ref=e70]
+              - columnheader "Current Price" [ref=e71]
+              - columnheader "Market Value" [ref=e72]:
+                - button "Market Value" [ref=e73] [cursor=pointer]:
+                  - text: Market Value
+                  - img [ref=e74] [cursor=pointer]
+              - columnheader "Gain/Loss" [ref=e76]
+              - columnheader "Gain/Loss %" [ref=e77]
+              - columnheader "Allocation" [ref=e78]
+              - columnheader "Actions" [ref=e79]
+          - rowgroup
+        - generic [ref=e81]:
+          - paragraph [ref=e82]: "Rows per page:"
+          - generic [ref=e83]:
+            - 'combobox "Rows per page: 25" [ref=e84] [cursor=pointer]': "25"
+            - textbox: "25"
+            - img
+          - paragraph [ref=e85]: 0–0 of 0
+          - generic [ref=e86]:
+            - button "Go to previous page" [disabled]:
+              - img
+            - button "Go to next page" [disabled]:
+              - img
+        - generic [ref=e87]:
+          - generic [ref=e89]:
+            - generic [ref=e92]: Holdings Allocation
+            - application [ref=e96]
+          - generic [ref=e98]:
+            - generic [ref=e101]: Sector Allocation
+            - application [ref=e105]
+      - generic [ref=e107]:
+        - tablist [ref=e112]:
+          - tab "Performance" [selected] [ref=e113] [cursor=pointer]: Performance
+          - tab "Risk Analysis" [ref=e114] [cursor=pointer]: Risk Analysis
+          - tab "Asset Allocation" [ref=e115] [cursor=pointer]: Asset Allocation
+          - tab "Correlation" [ref=e116] [cursor=pointer]: Correlation
+          - tab "Volatility & Trends" [ref=e117] [cursor=pointer]: Volatility & Trends
+        - generic [ref=e120]:
+          - generic [ref=e122]:
+            - generic [ref=e126]:
+              - img [ref=e127]
+              - generic [ref=e129]:
+                - heading "N/A" [level=6] [ref=e130]
+                - paragraph [ref=e131]: Total Return
+            - generic [ref=e135]:
+              - img [ref=e136]
+              - generic [ref=e138]:
+                - heading "N/A" [level=6] [ref=e139]
+                - paragraph [ref=e140]: Volatility
+            - generic [ref=e144]:
+              - img [ref=e145]
+              - generic [ref=e147]:
+                - heading "N/A" [level=6] [ref=e148]
+                - paragraph [ref=e149]: Sharpe Ratio
+            - generic [ref=e153]:
+              - img [ref=e154]
+              - generic [ref=e156]:
+                - heading "N/A" [level=6] [ref=e157]
+                - paragraph [ref=e158]: Portfolio Value
+          - generic [ref=e160]:
+            - generic [ref=e163]: Performance vs Benchmark
+            - generic [ref=e166]:
+              - list [ref=e168]:
+                - listitem [ref=e169]:
+                  - img "Portfolio legend icon" [ref=e170]
+                  - generic [ref=e172]: Portfolio
+                - listitem [ref=e173]:
+                  - img "SPY Benchmark legend icon" [ref=e174]
+                  - generic [ref=e176]: SPY Benchmark
+              - application [ref=e177]
+          - generic [ref=e182]:
+            - generic [ref=e185]: Risk Metrics
+            - generic [ref=e186]:
+              - generic [ref=e187]:
+                - paragraph [ref=e188]: Portfolio Volatility
+                - heading "N/A%" [level=6] [ref=e189]
+              - generic [ref=e190]:
+                - paragraph [ref=e191]: Max Drawdown
+                - heading "N/A%" [level=6] [ref=e192]
+              - generic [ref=e193]:
+                - paragraph [ref=e194]: Value at Risk (95%)
+                - heading "N/A%" [level=6] [ref=e195]
+          - generic [ref=e197]:
+            - generic [ref=e200]: Sector Allocation
+            - application [ref=e204]
+          - generic [ref=e206]:
+            - generic [ref=e209]: Top Holdings
+            - application [ref=e213]
+```

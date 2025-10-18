@@ -1,0 +1,92 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "open drawer" [ref=e6] [cursor=pointer]:
+        - img [ref=e7] [cursor=pointer]
+      - generic: Trading Signals
+      - button "Sign In" [ref=e9] [cursor=pointer]:
+        - img [ref=e11] [cursor=pointer]
+        - text: Sign In
+  - navigation
+  - main [ref=e13]:
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - heading "🎯 Trading Signals" [level=1] [ref=e18]
+        - heading "AI-powered trading signals with real-time market analysis and institutional-grade insights" [level=6] [ref=e19]
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - heading "Filters" [level=6] [ref=e24]:
+            - img [ref=e25]
+            - text: Filters
+          - separator [ref=e27]
+        - generic [ref=e30]:
+          - img [ref=e32]
+          - textbox "Search symbols..." [ref=e34]
+          - group
+        - generic [ref=e36]:
+          - generic [ref=e37]: Signal Type
+          - generic [ref=e38]:
+            - combobox [ref=e39] [cursor=pointer]: All Signals
+            - textbox: all
+            - img
+            - group:
+              - generic: Signal Type
+        - generic [ref=e41]:
+          - generic [ref=e42]: Timeframe
+          - generic [ref=e43]:
+            - combobox [ref=e44] [cursor=pointer]: Daily
+            - textbox: daily
+            - img
+            - group:
+              - generic: Timeframe
+        - generic [ref=e45]:
+          - generic [ref=e46] [cursor=pointer]:
+            - checkbox "Active Only" [ref=e49] [cursor=pointer]
+            - generic [ref=e52] [cursor=pointer]: Active Only
+          - generic [ref=e53]: Show current positions & recent signals
+        - generic [ref=e55]:
+          - generic [ref=e56]: Date Range
+          - generic [ref=e57]:
+            - combobox [ref=e58] [cursor=pointer]: All Time
+            - textbox: all
+            - img
+            - group:
+              - generic: Date Range
+        - button "Search" [ref=e60] [cursor=pointer]: Search
+      - generic [ref=e62]:
+        - alert [ref=e63]:
+          - img [ref=e65]
+          - generic [ref=e67]:
+            - generic [ref=e68]: Failed to Load Trading Signals
+            - paragraph [ref=e69]: Failed to fetch
+          - generic [ref=e71]:
+            - button "Toggle error details" [ref=e72] [cursor=pointer]:
+              - img [ref=e73] [cursor=pointer]
+            - button "Retry" [ref=e75] [cursor=pointer]:
+              - img [ref=e77] [cursor=pointer]
+              - text: Retry
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - table:
+              - rowgroup:
+                - row
+              - rowgroup
+            - generic [ref=e82]:
+              - heading "No trading signals found" [level=6] [ref=e83]
+              - paragraph [ref=e84]: No signals found. Try adjusting your timeframe or other filters.
+          - generic [ref=e86]:
+            - paragraph [ref=e87]: "Rows per page:"
+            - generic [ref=e88]:
+              - 'combobox "Rows per page: 25" [ref=e89] [cursor=pointer]': "25"
+              - textbox: "25"
+              - img
+            - paragraph [ref=e90]: 0–0 of 0
+            - generic [ref=e91]:
+              - button "Go to previous page" [disabled]:
+                - img
+              - button "Go to next page" [disabled]:
+                - img
+```

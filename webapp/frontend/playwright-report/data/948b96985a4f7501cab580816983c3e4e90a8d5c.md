@@ -1,0 +1,64 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Dashboard
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
+            - img [ref=e20] [cursor=pointer]
+        - listitem [ref=e22]:
+          - button "Market Overview" [ref=e23] [cursor=pointer]:
+            - img [ref=e25] [cursor=pointer]
+            - paragraph [ref=e28] [cursor=pointer]: Market Overview
+        - listitem [ref=e29]:
+          - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+            - img [ref=e32] [cursor=pointer]
+            - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
+        - listitem [ref=e36]:
+          - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+            - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
+        - listitem [ref=e43]:
+          - button "Expand Stocks section" [active] [ref=e44] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
+            - img [ref=e47] [cursor=pointer]
+        - listitem [ref=e49]:
+          - button "Collapse Portfolio section" [ref=e50] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e52] [cursor=pointer]
+            - img [ref=e53] [cursor=pointer]
+        - listitem [ref=e55]:
+          - button "Portfolio Holdings" [ref=e56] [cursor=pointer]:
+            - img [ref=e58] [cursor=pointer]
+            - paragraph [ref=e61] [cursor=pointer]: Portfolio Holdings
+        - listitem [ref=e62]:
+          - button "Trade History" [ref=e63] [cursor=pointer]:
+            - img [ref=e65] [cursor=pointer]
+            - paragraph [ref=e68] [cursor=pointer]: Trade History
+        - listitem [ref=e69]:
+          - button "Order Management" [ref=e70] [cursor=pointer]:
+            - img [ref=e72] [cursor=pointer]
+            - paragraph [ref=e75] [cursor=pointer]: Order Management
+        - listitem [ref=e76]:
+          - button "Optimization Tools" [ref=e77] [cursor=pointer]:
+            - img [ref=e79] [cursor=pointer]
+            - paragraph [ref=e82] [cursor=pointer]: Optimization Tools
+        - listitem [ref=e83]:
+          - button "Expand Tools section" [ref=e84] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e86] [cursor=pointer]
+            - img [ref=e87] [cursor=pointer]
+  - main [ref=e89]:
+    - generic [ref=e92]:
+      - heading "Market Overview" [level=4] [ref=e93]
+      - progressbar [ref=e94]:
+        - img [ref=e95]
+```

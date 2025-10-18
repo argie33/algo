@@ -1,0 +1,167 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Portfolio Holdings
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
+            - img [ref=e20] [cursor=pointer]
+        - listitem [ref=e22]:
+          - button "Market Overview" [ref=e23] [cursor=pointer]:
+            - img [ref=e25] [cursor=pointer]
+            - paragraph [ref=e28] [cursor=pointer]: Market Overview
+        - listitem [ref=e29]:
+          - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+            - img [ref=e32] [cursor=pointer]
+            - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
+        - listitem [ref=e36]:
+          - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+            - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
+        - listitem [ref=e43]:
+          - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
+            - img [ref=e47] [cursor=pointer]
+        - listitem [ref=e49]:
+          - button "Stock Analysis" [ref=e50] [cursor=pointer]:
+            - img [ref=e52] [cursor=pointer]
+            - paragraph [ref=e55] [cursor=pointer]: Stock Analysis
+        - listitem [ref=e56]:
+          - button "Technical Analysis" [ref=e57] [cursor=pointer]:
+            - img [ref=e59] [cursor=pointer]
+            - paragraph [ref=e62] [cursor=pointer]: Technical Analysis
+        - listitem [ref=e63]:
+          - button "Stock Scores" [ref=e64] [cursor=pointer]:
+            - img [ref=e66] [cursor=pointer]
+            - paragraph [ref=e69] [cursor=pointer]: Stock Scores
+        - listitem [ref=e70]:
+          - button "Earnings Hub" [ref=e71] [cursor=pointer]:
+            - img [ref=e73] [cursor=pointer]
+            - paragraph [ref=e76] [cursor=pointer]: Earnings Hub
+        - listitem [ref=e77]:
+          - button "Trading Signals" [ref=e78] [cursor=pointer]:
+            - img [ref=e80] [cursor=pointer]
+            - paragraph [ref=e83] [cursor=pointer]: Trading Signals
+        - listitem [ref=e84]:
+          - button "Financial Data" [ref=e85] [cursor=pointer]:
+            - img [ref=e87] [cursor=pointer]
+            - paragraph [ref=e90] [cursor=pointer]: Financial Data
+        - listitem [ref=e91]:
+          - button "Sentiment Analysis" [ref=e92] [cursor=pointer]:
+            - img [ref=e94] [cursor=pointer]
+            - paragraph [ref=e98] [cursor=pointer]: Sentiment Analysis
+        - listitem [ref=e99]:
+          - button "Analyst Insights" [ref=e100] [cursor=pointer]:
+            - img [ref=e102] [cursor=pointer]
+            - paragraph [ref=e105] [cursor=pointer]: Analyst Insights
+        - listitem [ref=e106]:
+          - button "Collapse Portfolio section" [ref=e107] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e109] [cursor=pointer]
+            - img [ref=e110] [cursor=pointer]
+        - listitem [ref=e112]:
+          - button "Portfolio Holdings" [ref=e113] [cursor=pointer]:
+            - img [ref=e115] [cursor=pointer]
+            - paragraph [ref=e118] [cursor=pointer]: Portfolio Holdings
+        - listitem [ref=e119]:
+          - button "Trade History" [ref=e120] [cursor=pointer]:
+            - img [ref=e122] [cursor=pointer]
+            - paragraph [ref=e125] [cursor=pointer]: Trade History
+        - listitem [ref=e126]:
+          - button "Order Management" [ref=e127] [cursor=pointer]:
+            - img [ref=e129] [cursor=pointer]
+            - paragraph [ref=e132] [cursor=pointer]: Order Management
+        - listitem [ref=e133]:
+          - button "Optimization Tools" [ref=e134] [cursor=pointer]:
+            - img [ref=e136] [cursor=pointer]
+            - paragraph [ref=e139] [cursor=pointer]: Optimization Tools
+        - listitem [ref=e140]:
+          - button "Expand Tools section" [ref=e141] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e143] [cursor=pointer]
+            - img [ref=e144] [cursor=pointer]
+  - main [ref=e146]:
+    - generic [ref=e150]:
+      - generic [ref=e153]:
+        - heading "Portfolio Holdings & Analysis" [level=4] [ref=e154]
+        - generic [ref=e155]:
+          - generic [ref=e156]:
+            - generic [ref=e157]: Timeframe
+            - generic [ref=e158]:
+              - combobox [ref=e159] [cursor=pointer]: 1 Year
+              - textbox: 1Y
+              - img
+              - group:
+                - generic: Timeframe
+          - button "refresh" [ref=e160] [cursor=pointer]:
+            - img [ref=e162] [cursor=pointer]
+            - text: Refresh
+          - button "Import Portfolio" [ref=e164] [cursor=pointer]:
+            - img [ref=e166] [cursor=pointer]
+            - text: Import Portfolio
+          - button "Add Holding" [ref=e168] [cursor=pointer]:
+            - img [ref=e170] [cursor=pointer]
+            - text: Add Holding
+      - alert [ref=e173]:
+        - img [ref=e175]
+        - generic [ref=e177]: Authentication required
+        - button "Close" [ref=e179] [cursor=pointer]:
+          - img [ref=e180] [cursor=pointer]
+      - generic [ref=e183]:
+        - generic [ref=e184]:
+          - heading "Portfolio Holdings" [level=6] [ref=e185]
+          - button [ref=e187] [cursor=pointer]:
+            - img [ref=e188] [cursor=pointer]
+        - table [ref=e191]:
+          - rowgroup [ref=e192]:
+            - row "Symbol Company Shares Avg Cost Current Price Market Value Gain/Loss Gain/Loss % Allocation Actions" [ref=e193]:
+              - columnheader "Symbol" [ref=e194]:
+                - button "Symbol" [ref=e195] [cursor=pointer]:
+                  - text: Symbol
+                  - img [ref=e196] [cursor=pointer]
+              - columnheader "Company" [ref=e198]
+              - columnheader "Shares" [ref=e199]:
+                - button "Shares" [ref=e200] [cursor=pointer]:
+                  - text: Shares
+                  - img [ref=e201] [cursor=pointer]
+              - columnheader "Avg Cost" [ref=e203]
+              - columnheader "Current Price" [ref=e204]
+              - columnheader "Market Value" [ref=e205]:
+                - button "Market Value" [ref=e206] [cursor=pointer]:
+                  - text: Market Value
+                  - img [ref=e207] [cursor=pointer]
+              - columnheader "Gain/Loss" [ref=e209]
+              - columnheader "Gain/Loss %" [ref=e210]
+              - columnheader "Allocation" [ref=e211]
+              - columnheader "Actions" [ref=e212]
+          - rowgroup
+        - generic [ref=e214]:
+          - paragraph [ref=e215]: "Rows per page:"
+          - generic [ref=e216]:
+            - 'combobox "Rows per page: 25" [ref=e217] [cursor=pointer]': "25"
+            - textbox: "25"
+            - img
+          - paragraph [ref=e218]: 0–0 of 0
+          - generic [ref=e219]:
+            - button "Go to previous page" [disabled]:
+              - img
+            - button "Go to next page" [disabled]:
+              - img
+        - generic [ref=e220]:
+          - generic [ref=e222]:
+            - generic [ref=e225]: Holdings Allocation
+            - application [ref=e229]
+          - generic [ref=e231]:
+            - generic [ref=e234]: Sector Allocation
+            - application [ref=e238]
+      - progressbar [ref=e241]:
+        - img [ref=e242]
+```

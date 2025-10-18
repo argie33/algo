@@ -334,8 +334,36 @@ def ensure_tables(cur, conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_date ON industry_performance(fetched_at DESC);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_overall_rank ON industry_performance(overall_rank, fetched_at DESC);")
 
+    # Create historical rankings table for complete ranking history
+    logging.info("Creating historical rankings table...")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS industry_ranking_complete (
+            id SERIAL PRIMARY KEY,
+            sector VARCHAR(100) NOT NULL,
+            industry VARCHAR(100) NOT NULL,
+            snapshot_date DATE NOT NULL,
+            current_rank INT,
+            rank_1w_ago INT,
+            rank_4w_ago INT,
+            rank_12w_ago INT,
+            rank_change_1w INT,
+            rank_change_4w INT,
+            rank_change_12w INT,
+            current_rs FLOAT,
+            rs_1w_ago FLOAT,
+            rs_4w_ago FLOAT,
+            rs_12w_ago FLOAT,
+            current_perf_1d FLOAT,
+            perf_1d_1w_ago FLOAT,
+            perf_1d_4w_ago FLOAT,
+            perf_1d_12w_ago FLOAT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(sector, industry, snapshot_date)
+        );
+    """)
+
     conn.commit()
-    logging.info("✅ Industry performance table ready with historical tracking")
+    logging.info("✅ Industry performance and historical ranking tables ready")
 
 
 def insert_industry_data(cur, conn, industry_data):
@@ -458,6 +486,152 @@ def update_sector_rankings(cur, conn):
     logging.info("✅ Sector rankings updated")
 
 
+def get_rankings_for_date(cur, target_date):
+    """Get industry rankings for a specific date"""
+    cur.execute("""
+        SELECT DISTINCT ON (sector, industry)
+            sector,
+            industry,
+            overall_rank,
+            rs_rating,
+            performance_1d,
+            DATE(fetched_at) as data_date
+        FROM industry_performance
+        WHERE DATE(fetched_at) <= %s
+        ORDER BY sector, industry, fetched_at DESC
+    """, (target_date,))
+
+    rows = cur.fetchall()
+    if not rows:
+        return {}
+
+    # Create a dict: (sector, industry) -> {rank, rs_rating, perf_1d}
+    rankings = {}
+    for row in rows:
+        key = (row[0], row[1])  # sector, industry
+        rankings[key] = {
+            'rank': row[2],      # overall_rank
+            'rs': row[3],        # rs_rating
+            'perf_1d': row[4]    # performance_1d
+        }
+
+    return rankings
+
+
+def calculate_complete_historical_rankings(cur, conn):
+    """Calculate rankings for every date in database - consolidates historical data"""
+    logging.info("Calculating complete historical rankings for all dates...")
+
+    try:
+        # Get all unique dates in industry_performance table
+        cur.execute("""
+            SELECT DISTINCT DATE(fetched_at) as data_date
+            FROM industry_performance
+            ORDER BY data_date DESC
+        """)
+
+        all_dates = [row[0] for row in cur.fetchall()]
+        logging.info(f"📊 Found {len(all_dates)} unique dates in database")
+        if all_dates:
+            logging.info(f"   Date range: {all_dates[-1]} to {all_dates[0]}")
+
+        # For each date, calculate current rank and historical ranks
+        for idx, current_date in enumerate(all_dates):
+            if idx % 10 == 0:
+                logging.info(f"  Processing date {idx+1}/{len(all_dates)}: {current_date}")
+
+            # Get rankings for current date and 1W/4W/12W ago
+            date_1w_ago = current_date - timedelta(days=7)
+            date_4w_ago = current_date - timedelta(days=28)
+            date_12w_ago = current_date - timedelta(days=84)
+
+            ranks_current = get_rankings_for_date(cur, current_date)
+            ranks_1w = get_rankings_for_date(cur, date_1w_ago)
+            ranks_4w = get_rankings_for_date(cur, date_4w_ago)
+            ranks_12w = get_rankings_for_date(cur, date_12w_ago)
+
+            # Get all unique industries for current date
+            all_industries = set(ranks_current.keys())
+            all_industries.update(ranks_1w.keys())
+            all_industries.update(ranks_4w.keys())
+            all_industries.update(ranks_12w.keys())
+
+            # Insert ranking snapshot
+            for sector, industry in sorted(all_industries):
+                curr = ranks_current.get((sector, industry), {})
+                one_w = ranks_1w.get((sector, industry), {})
+                four_w = ranks_4w.get((sector, industry), {})
+                twelve_w = ranks_12w.get((sector, industry), {})
+
+                curr_rank = curr.get('rank')
+                rank_1w = one_w.get('rank')
+                rank_4w = four_w.get('rank')
+                rank_12w = twelve_w.get('rank')
+
+                # Calculate rank changes (positive = improved/lower number)
+                change_1w = rank_1w - curr_rank if rank_1w and curr_rank else None
+                change_4w = rank_4w - curr_rank if rank_4w and curr_rank else None
+                change_12w = rank_12w - curr_rank if rank_12w and curr_rank else None
+
+                try:
+                    cur.execute("""
+                        INSERT INTO industry_ranking_complete
+                        (sector, industry, snapshot_date, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
+                         rank_change_1w, rank_change_4w, rank_change_12w,
+                         current_rs, rs_1w_ago, rs_4w_ago, rs_12w_ago,
+                         current_perf_1d, perf_1d_1w_ago, perf_1d_4w_ago, perf_1d_12w_ago)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (sector, industry, snapshot_date) DO UPDATE SET
+                        current_rank = EXCLUDED.current_rank,
+                        rank_1w_ago = EXCLUDED.rank_1w_ago,
+                        rank_4w_ago = EXCLUDED.rank_4w_ago,
+                        rank_12w_ago = EXCLUDED.rank_12w_ago,
+                        rank_change_1w = EXCLUDED.rank_change_1w,
+                        rank_change_4w = EXCLUDED.rank_change_4w,
+                        rank_change_12w = EXCLUDED.rank_change_12w,
+                        current_rs = EXCLUDED.current_rs,
+                        rs_1w_ago = EXCLUDED.rs_1w_ago,
+                        rs_4w_ago = EXCLUDED.rs_4w_ago,
+                        rs_12w_ago = EXCLUDED.rs_12w_ago,
+                        current_perf_1d = EXCLUDED.current_perf_1d,
+                        perf_1d_1w_ago = EXCLUDED.perf_1d_1w_ago,
+                        perf_1d_4w_ago = EXCLUDED.perf_1d_4w_ago,
+                        perf_1d_12w_ago = EXCLUDED.perf_1d_12w_ago
+                    """, (
+                        sector, industry, current_date,
+                        curr_rank, rank_1w, rank_4w, rank_12w,
+                        change_1w, change_4w, change_12w,
+                        curr.get('rs'), one_w.get('rs'), four_w.get('rs'), twelve_w.get('rs'),
+                        curr.get('perf_1d'), one_w.get('perf_1d'), four_w.get('perf_1d'), twelve_w.get('perf_1d')
+                    ))
+                except Exception as e:
+                    pass  # Silently skip conflicts
+
+            conn.commit()
+
+        # Get summary stats
+        cur.execute("SELECT COUNT(*) as total FROM industry_ranking_complete")
+        total_records = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(DISTINCT snapshot_date) as dates FROM industry_ranking_complete")
+        unique_dates = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(DISTINCT (sector, industry)) as industries FROM industry_ranking_complete")
+        unique_industries = cur.fetchone()[0]
+
+        logging.info(f"✅ Historical rankings complete!")
+        logging.info(f"   Total ranking snapshots: {total_records:,}")
+        logging.info(f"   Unique dates tracked: {unique_dates}")
+        logging.info(f"   Unique industries: {unique_industries}")
+
+    except Exception as e:
+        logging.error(f"❌ Error calculating historical rankings: {e}")
+        import traceback
+        traceback.print_exc()
+        conn.rollback()
+        raise
+
+
 def lambda_handler(event, context):
     """Lambda handler for AWS execution"""
     logging.info(f"Starting {SCRIPT_NAME}")
@@ -497,6 +671,9 @@ def lambda_handler(event, context):
 
         # Update sector rankings
         update_sector_rankings(cur, conn)
+
+        # Calculate and populate historical rankings (consolidated from separate script)
+        calculate_complete_historical_rankings(cur, conn)
 
         # Update last_updated
         cur.execute("""

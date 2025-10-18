@@ -1,0 +1,166 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Stock Analysis
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e19] [cursor=pointer]
+            - img [ref=e20] [cursor=pointer]
+        - listitem [ref=e22]:
+          - button "Market Overview" [ref=e23] [cursor=pointer]:
+            - img [ref=e25] [cursor=pointer]
+            - paragraph [ref=e28] [cursor=pointer]: Market Overview
+        - listitem [ref=e29]:
+          - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+            - img [ref=e32] [cursor=pointer]
+            - paragraph [ref=e35] [cursor=pointer]: Sector Analysis
+        - listitem [ref=e36]:
+          - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+            - img [ref=e39] [cursor=pointer]
+            - paragraph [ref=e42] [cursor=pointer]: Economic Indicators
+        - listitem [ref=e43]:
+          - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e46] [cursor=pointer]
+            - img [ref=e47] [cursor=pointer]
+        - listitem [ref=e49]:
+          - button "Stock Analysis" [ref=e50] [cursor=pointer]:
+            - img [ref=e52] [cursor=pointer]
+            - paragraph [ref=e55] [cursor=pointer]: Stock Analysis
+        - listitem [ref=e56]:
+          - button "Technical Analysis" [ref=e57] [cursor=pointer]:
+            - img [ref=e59] [cursor=pointer]
+            - paragraph [ref=e62] [cursor=pointer]: Technical Analysis
+        - listitem [ref=e63]:
+          - button "Stock Scores" [ref=e64] [cursor=pointer]:
+            - img [ref=e66] [cursor=pointer]
+            - paragraph [ref=e69] [cursor=pointer]: Stock Scores
+        - listitem [ref=e70]:
+          - button "Earnings Hub" [ref=e71] [cursor=pointer]:
+            - img [ref=e73] [cursor=pointer]
+            - paragraph [ref=e76] [cursor=pointer]: Earnings Hub
+        - listitem [ref=e77]:
+          - button "Trading Signals" [ref=e78] [cursor=pointer]:
+            - img [ref=e80] [cursor=pointer]
+            - paragraph [ref=e83] [cursor=pointer]: Trading Signals
+        - listitem [ref=e84]:
+          - button "Financial Data" [ref=e85] [cursor=pointer]:
+            - img [ref=e87] [cursor=pointer]
+            - paragraph [ref=e90] [cursor=pointer]: Financial Data
+        - listitem [ref=e91]:
+          - button "Sentiment Analysis" [ref=e92] [cursor=pointer]:
+            - img [ref=e94] [cursor=pointer]
+            - paragraph [ref=e98] [cursor=pointer]: Sentiment Analysis
+        - listitem [ref=e99]:
+          - button "Analyst Insights" [ref=e100] [cursor=pointer]:
+            - img [ref=e102] [cursor=pointer]
+            - paragraph [ref=e105] [cursor=pointer]: Analyst Insights
+        - listitem [ref=e106]:
+          - button "Collapse Portfolio section" [ref=e107] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e109] [cursor=pointer]
+            - img [ref=e110] [cursor=pointer]
+        - listitem [ref=e112]:
+          - button "Portfolio Holdings" [ref=e113] [cursor=pointer]:
+            - img [ref=e115] [cursor=pointer]
+            - paragraph [ref=e118] [cursor=pointer]: Portfolio Holdings
+        - listitem [ref=e119]:
+          - button "Trade History" [ref=e120] [cursor=pointer]:
+            - img [ref=e122] [cursor=pointer]
+            - paragraph [ref=e125] [cursor=pointer]: Trade History
+        - listitem [ref=e126]:
+          - button "Order Management" [ref=e127] [cursor=pointer]:
+            - img [ref=e129] [cursor=pointer]
+            - paragraph [ref=e132] [cursor=pointer]: Order Management
+        - listitem [ref=e133]:
+          - button "Optimization Tools" [ref=e134] [cursor=pointer]:
+            - img [ref=e136] [cursor=pointer]
+            - paragraph [ref=e139] [cursor=pointer]: Optimization Tools
+        - listitem [ref=e140]:
+          - button "Expand Tools section" [ref=e141] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e143] [cursor=pointer]
+            - img [ref=e144] [cursor=pointer]
+  - main [ref=e146]:
+    - generic [ref=e149]:
+      - generic [ref=e150]:
+        - generic [ref=e151]:
+          - heading "Stock Explorer" [level=1] [ref=e152]
+          - paragraph [ref=e153]: Browse and filter stocks with comprehensive stock information and screening criteria
+        - generic [ref=e154]:
+          - button "Clear" [disabled]:
+            - generic:
+              - img
+            - text: Clear
+          - generic [ref=e155]:
+            - img [ref=e156]
+            - generic [ref=e158]: 0 Filters
+      - generic [ref=e159]:
+        - generic [ref=e162]:
+          - heading "Advanced Filters" [level=6] [ref=e163]:
+            - img [ref=e164]
+            - text: Advanced Filters
+          - generic [ref=e166]:
+            - button "Search & Basic" [expanded] [ref=e167] [cursor=pointer]:
+              - heading "Search & Basic" [level=6] [ref=e169] [cursor=pointer]
+              - img [ref=e171] [cursor=pointer]
+            - region [ref=e176]:
+              - generic [ref=e178]:
+                - generic [ref=e179]:
+                  - generic [ref=e180]: Search
+                  - generic [ref=e181]:
+                    - img [ref=e183]
+                    - textbox "Search" [ref=e185]
+                    - group:
+                      - generic: Search
+                - generic [ref=e186]:
+                  - generic: Sector
+                  - generic [ref=e187]:
+                    - combobox "Sector" [ref=e188] [cursor=pointer]
+                    - textbox
+                    - img
+                    - group:
+                      - generic: Sector
+                - generic [ref=e189]:
+                  - generic: Exchange
+                  - generic [ref=e190]:
+                    - combobox "Exchange" [ref=e191] [cursor=pointer]
+                    - textbox
+                    - img
+                    - group:
+                      - generic: Exchange
+          - generic [ref=e192]:
+            - button "Additional Options" [ref=e193] [cursor=pointer]:
+              - heading "Additional Options" [level=6] [ref=e195] [cursor=pointer]
+              - img [ref=e197] [cursor=pointer]
+            - generic: Financial Status
+            - generic: Security Type
+        - generic [ref=e201]:
+          - generic [ref=e202]:
+            - heading "Screening Results" [level=6] [ref=e203]
+            - generic [ref=e204]:
+              - generic [ref=e205]:
+                - generic [ref=e206]: Sort By
+                - generic [ref=e207]:
+                  - combobox "Sort By Symbol" [ref=e208] [cursor=pointer]: Symbol
+                  - textbox: symbol
+                  - img
+                  - group:
+                    - generic: Sort By
+              - button "Asc" [ref=e209] [cursor=pointer]:
+                - img [ref=e211] [cursor=pointer]
+                - text: Asc
+          - generic [ref=e213]:
+            - progressbar [ref=e214]:
+              - img [ref=e215]
+            - generic [ref=e217]:
+              - paragraph [ref=e218]: Loading stocks data...
+              - generic [ref=e219]: "API: http://localhost:5001"
+```

@@ -1,0 +1,214 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - button [ref=e6] [cursor=pointer]:
+          - img [ref=e7] [cursor=pointer]
+        - generic: Stock Scores
+        - button [ref=e9] [cursor=pointer]:
+          - img [ref=e11] [cursor=pointer]
+          - text: Sign In
+    - main [ref=e13]:
+      - generic [ref=e16]:
+        - generic [ref=e18]:
+          - heading [level=4] [ref=e21]: 🎯
+          - heading [level=1] [ref=e22]: Bullseye Stock Screener
+        - generic [ref=e23]:
+          - generic [ref=e25]:
+            - heading [level=3] [ref=e26]: "0"
+            - paragraph [ref=e27]: Total Stocks Analyzed
+          - generic [ref=e29]:
+            - heading [level=3] [ref=e30]: "0"
+            - paragraph [ref=e31]: Highest Overall Score
+          - generic [ref=e33]:
+            - heading [level=3] [ref=e34]: "0"
+            - paragraph [ref=e35]: Market Average
+          - generic [ref=e37]:
+            - heading [level=3] [ref=e38]: "0"
+            - paragraph [ref=e39]: High Quality Stocks (80+)
+        - generic [ref=e41]:
+          - paragraph [ref=e42]: "Score Guide:"
+          - generic [ref=e45]: 80-100 Excellent
+          - generic [ref=e48]: 60-79 Good
+          - generic [ref=e51]: 0-59 Needs Improvement
+        - generic [ref=e53]:
+          - generic [ref=e55]:
+            - textbox [ref=e56]
+            - group
+          - generic [ref=e57]:
+            - generic [ref=e58]: Sort By
+            - generic [ref=e59]:
+              - combobox [ref=e60] [cursor=pointer]: Composite
+              - textbox: composite_score
+              - img
+              - group:
+                - generic: Sort By
+          - generic [ref=e61]:
+            - generic [ref=e62]: Order
+            - generic [ref=e63]:
+              - combobox [ref=e64] [cursor=pointer]: High to Low
+              - textbox: desc
+              - img
+              - group:
+                - generic: Order
+          - generic [ref=e65]:
+            - generic [ref=e66]: Sector
+            - generic [ref=e67]:
+              - combobox [ref=e68] [cursor=pointer]: All Sectors
+              - textbox: all
+              - img
+              - group:
+                - generic: Sector
+          - button [ref=e69] [cursor=pointer]:
+            - img [ref=e70] [cursor=pointer]
+        - generic [ref=e72]:
+          - heading [level=5] [ref=e74]: Top Overall Stocks (0)
+          - generic [ref=e75]:
+            - heading [level=6] [ref=e76]: No stocks found matching your filters
+            - button [ref=e77] [cursor=pointer]: Clear Filters
+        - heading [level=4] [ref=e78]: Top Performers by Sector
+        - heading [level=4] [ref=e79]: Top Performers by Category
+        - generic [ref=e80]:
+          - generic [ref=e82]:
+            - generic [ref=e83]:
+              - img [ref=e84]
+              - heading [level=6] [ref=e86]: Quality Leaders
+            - table [ref=e88]:
+              - rowgroup [ref=e89]:
+                - row [ref=e90]:
+                  - columnheader [ref=e91]: Rank
+                  - columnheader [ref=e92]: Symbol
+                  - columnheader [ref=e93]: Score
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - img [ref=e97]
+              - heading [level=6] [ref=e99]: Momentum Leaders
+            - table [ref=e101]:
+              - rowgroup [ref=e102]:
+                - row [ref=e103]:
+                  - columnheader [ref=e104]: Rank
+                  - columnheader [ref=e105]: Symbol
+                  - columnheader [ref=e106]: Score
+          - generic [ref=e108]:
+            - generic [ref=e109]:
+              - img [ref=e110]
+              - heading [level=6] [ref=e112]: Value Leaders
+            - table [ref=e114]:
+              - rowgroup [ref=e115]:
+                - row [ref=e116]:
+                  - columnheader [ref=e117]: Rank
+                  - columnheader [ref=e118]: Symbol
+                  - columnheader [ref=e119]: Score
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - img [ref=e123]
+              - heading [level=6] [ref=e125]: Growth Leaders
+            - table [ref=e127]:
+              - rowgroup [ref=e128]:
+                - row [ref=e129]:
+                  - columnheader [ref=e130]: Rank
+                  - columnheader [ref=e131]: Symbol
+                  - columnheader [ref=e132]: Score
+          - generic [ref=e134]:
+            - generic [ref=e135]:
+              - img [ref=e136]
+              - heading [level=6] [ref=e138]: Positioning Leaders
+            - table [ref=e140]:
+              - rowgroup [ref=e141]:
+                - row [ref=e142]:
+                  - columnheader [ref=e143]: Rank
+                  - columnheader [ref=e144]: Symbol
+                  - columnheader [ref=e145]: Score
+          - generic [ref=e147]:
+            - generic [ref=e148]:
+              - img [ref=e149]
+              - heading [level=6] [ref=e153]: Sentiment Leaders
+            - table [ref=e155]:
+              - rowgroup [ref=e156]:
+                - row [ref=e157]:
+                  - columnheader [ref=e158]: Rank
+                  - columnheader [ref=e159]: Symbol
+                  - columnheader [ref=e160]: Score
+  - generic [ref=e163]:
+    - generic [ref=e165]: Financial Platform
+    - list [ref=e166]:
+      - listitem [ref=e167]:
+        - button "Collapse Markets section" [ref=e168] [cursor=pointer]:
+          - heading "Markets" [level=6] [ref=e170] [cursor=pointer]
+          - img [ref=e171] [cursor=pointer]
+      - listitem [ref=e173]:
+        - button "Market Overview" [ref=e174] [cursor=pointer]:
+          - img [ref=e176] [cursor=pointer]
+          - paragraph [ref=e179] [cursor=pointer]: Market Overview
+      - listitem [ref=e180]:
+        - button "Sector Analysis" [ref=e181] [cursor=pointer]:
+          - img [ref=e183] [cursor=pointer]
+          - paragraph [ref=e186] [cursor=pointer]: Sector Analysis
+      - listitem [ref=e187]:
+        - button "Economic Indicators" [ref=e188] [cursor=pointer]:
+          - img [ref=e190] [cursor=pointer]
+          - paragraph [ref=e193] [cursor=pointer]: Economic Indicators
+      - listitem [ref=e194]:
+        - button "Collapse Stocks section" [ref=e195] [cursor=pointer]:
+          - heading "Stocks" [level=6] [ref=e197] [cursor=pointer]
+          - img [ref=e198] [cursor=pointer]
+      - listitem [ref=e200]:
+        - button "Stock Analysis" [ref=e201] [cursor=pointer]:
+          - img [ref=e203] [cursor=pointer]
+          - paragraph [ref=e206] [cursor=pointer]: Stock Analysis
+      - listitem [ref=e207]:
+        - button "Technical Analysis" [ref=e208] [cursor=pointer]:
+          - img [ref=e210] [cursor=pointer]
+          - paragraph [ref=e213] [cursor=pointer]: Technical Analysis
+      - listitem [ref=e214]:
+        - button "Stock Scores" [ref=e215] [cursor=pointer]:
+          - img [ref=e217] [cursor=pointer]
+          - paragraph [ref=e220] [cursor=pointer]: Stock Scores
+      - listitem [ref=e221]:
+        - button "Earnings Hub" [ref=e222] [cursor=pointer]:
+          - img [ref=e224] [cursor=pointer]
+          - paragraph [ref=e227] [cursor=pointer]: Earnings Hub
+      - listitem [ref=e228]:
+        - button "Trading Signals" [ref=e229] [cursor=pointer]:
+          - img [ref=e231] [cursor=pointer]
+          - paragraph [ref=e234] [cursor=pointer]: Trading Signals
+      - listitem [ref=e235]:
+        - button "Financial Data" [ref=e236] [cursor=pointer]:
+          - img [ref=e238] [cursor=pointer]
+          - paragraph [ref=e241] [cursor=pointer]: Financial Data
+      - listitem [ref=e242]:
+        - button "Sentiment Analysis" [ref=e243] [cursor=pointer]:
+          - img [ref=e245] [cursor=pointer]
+          - paragraph [ref=e249] [cursor=pointer]: Sentiment Analysis
+      - listitem [ref=e250]:
+        - button "Analyst Insights" [ref=e251] [cursor=pointer]:
+          - img [ref=e253] [cursor=pointer]
+          - paragraph [ref=e256] [cursor=pointer]: Analyst Insights
+      - listitem [ref=e257]:
+        - button "Collapse Portfolio section" [ref=e258] [cursor=pointer]:
+          - heading "Portfolio" [level=6] [ref=e260] [cursor=pointer]
+          - img [ref=e261] [cursor=pointer]
+      - listitem [ref=e263]:
+        - button "Portfolio Holdings" [ref=e264] [cursor=pointer]:
+          - img [ref=e266] [cursor=pointer]
+          - paragraph [ref=e269] [cursor=pointer]: Portfolio Holdings
+      - listitem [ref=e270]:
+        - button "Trade History" [ref=e271] [cursor=pointer]:
+          - img [ref=e273] [cursor=pointer]
+          - paragraph [ref=e276] [cursor=pointer]: Trade History
+      - listitem [ref=e277]:
+        - button "Order Management" [ref=e278] [cursor=pointer]:
+          - img [ref=e280] [cursor=pointer]
+          - paragraph [ref=e283] [cursor=pointer]: Order Management
+      - listitem [ref=e284]:
+        - button "Optimization Tools" [ref=e285] [cursor=pointer]:
+          - img [ref=e287] [cursor=pointer]
+          - paragraph [ref=e290] [cursor=pointer]: Optimization Tools
+      - listitem [ref=e291]:
+        - button "Expand Tools section" [ref=e292] [cursor=pointer]:
+          - heading "Tools" [level=6] [ref=e294] [cursor=pointer]
+          - img [ref=e295] [cursor=pointer]
+```

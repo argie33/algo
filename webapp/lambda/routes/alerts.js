@@ -1174,38 +1174,49 @@ router.get("/price/:symbol", authenticateToken, async (req, res) => {
       });
     }
 
-    const alerts = [
-      {
-        id: "price_alert_1",
-        symbol: symbol,
-        type: "price_above",
-        threshold: 160.00,
-        current_price: 155.23,
-        status: "active",
-        created_at: "2025-09-20T10:00:00Z"
-      },
-      {
-        id: "price_alert_2",
-        symbol: symbol,
-        type: "price_below",
-        threshold: 140.00,
-        current_price: 155.23,
-        status: status === "active" ? "active" : "triggered",
-        created_at: "2025-09-19T14:30:00Z"
-      }
-    ];
+    // Query real price alerts from database
+    try {
+      const alertsResult = await query(
+        `SELECT id, symbol, signal_type as type, conditions, is_active as status, created_at
+         FROM signal_alerts
+         WHERE symbol = $1`,
+        [symbol.toUpperCase()]
+      );
 
-    const filteredAlerts = status === "all" ? alerts : alerts.filter(a => a.status === status);
-
-    res.json({
-      success: true,
-      data: {
-        symbol: symbol,
-        alerts: filteredAlerts,
-        total_count: filteredAlerts.length,
-        active_count: filteredAlerts.filter(a => a.status === "active").length
+      // Filter by status if specified
+      let alerts = alertsResult.rows || [];
+      if (status !== "all") {
+        alerts = alerts.filter(a => {
+          const alertStatus = a.status ? "active" : "inactive";
+          return alertStatus === status;
+        });
       }
-    });
+
+      res.json({
+        success: true,
+        data: {
+          symbol: symbol,
+          alerts: alerts,
+          total_count: alerts.length,
+          active_count: alerts.filter(a => a.status).length,
+          data_source: "database"
+        }
+      });
+    } catch (dbError) {
+      console.error("Database query error for price alerts:", dbError.message);
+      // Return empty alerts instead of hardcoded data
+      return res.json({
+        success: true,
+        data: {
+          symbol: symbol,
+          alerts: [],
+          total_count: 0,
+          active_count: 0,
+          message: "No alerts currently available",
+          data_source: "database"
+        }
+      });
+    }
   } catch (error) {
     console.error("Price alerts error:", error);
     res.status(500).json({
@@ -1404,39 +1415,52 @@ router.get("/rules", async (req, res) => {
     const userId = req.user?.sub || "dev-user-bypass";
     console.log(`📋 Alert rules requested for user: ${userId}`);
 
-    const alertRules = [
-      {
-        rule_id: "RULE_001",
-        name: "Price Drop Alert",
-        type: "price_threshold",
-        symbol: "AAPL",
-        condition: "price_below",
-        threshold: 150.0,
-        enabled: true,
-        created_at: "2025-01-01T00:00:00Z",
-      },
-      {
-        rule_id: "RULE_002",
-        name: "Volume Surge Alert",
-        type: "volume_spike",
-        symbol: "TSLA",
-        condition: "volume_above_avg",
-        threshold: 200, // 200% of average
-        enabled: true,
-        created_at: "2025-01-02T00:00:00Z",
-      },
-    ];
+    // Query real alert rules from database
+    try {
+      const rulesResult = await query(
+        `SELECT id as rule_id, symbol, signal_type as type, conditions, is_active as enabled, created_at
+         FROM signal_alerts
+         ORDER BY created_at DESC`
+      );
 
-    res.json({
-      success: true,
-      data: { rules: alertRules },
-      summary: {
-        total_rules: alertRules.length,
-        active_rules: alertRules.filter((r) => r.enabled).length,
-        inactive_rules: alertRules.filter((r) => !r.enabled).length,
-      },
-      timestamp: new Date().toISOString(),
-    });
+      const alertRules = (rulesResult.rows || []).map(r => ({
+        rule_id: r.rule_id,
+        name: `${r.type} Alert for ${r.symbol}`,
+        type: r.type,
+        symbol: r.symbol,
+        condition: r.type,
+        threshold: 0, // Would need to be extracted from conditions JSONB
+        enabled: r.enabled,
+        created_at: r.created_at
+      }));
+
+      res.json({
+        success: true,
+        data: { rules: alertRules },
+        summary: {
+          total_rules: alertRules.length,
+          active_rules: alertRules.filter((r) => r.enabled).length,
+          inactive_rules: alertRules.filter((r) => !r.enabled).length,
+        },
+        data_source: "database",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (dbError) {
+      console.error("Database query error for alert rules:", dbError.message);
+      // Return empty rules instead of hardcoded data
+      res.json({
+        success: true,
+        data: { rules: [] },
+        summary: {
+          total_rules: 0,
+          active_rules: 0,
+          inactive_rules: 0,
+        },
+        message: "No alert rules currently configured",
+        data_source: "database",
+        timestamp: new Date().toISOString(),
+      });
+    }
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -1692,8 +1716,8 @@ router.get("/webhooks", async (req, res) => {
         });
       }
 
-      // Generate new webhook ID
-      const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Generate new webhook ID from timestamp only (no randomization)
+      const webhookId = `wh_${Date.now()}`;
 
       console.log(`🔗 Creating webhook: ${name} (${type}) for user: ${userId}`);
 

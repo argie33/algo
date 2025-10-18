@@ -6177,3 +6177,501 @@ TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
         ^^^^^^^^^^^^^^^^
 TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
 
+2025-10-17 23:44:09,939 - INFO - 📈 Processing CMPR (635/3179)
+2025-10-17 23:44:09,948 - WARNING - Could not calculate beta for CMPR: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:09,948 - WARNING - CMPR: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:09,948 - INFO - CMPR: Calculated risk components - Vol=46.6%, Downside=29.3%, Drawdown=22.5%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:09,949 - INFO - CMPR Risk Score: 33.9 (Vol_pct=7, Downside_pct=12, Drawdown_pct=78, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:09,955 - INFO - ✅ CMPR: Composite Score = 55.35, Growth Score = 20.31
+2025-10-17 23:44:10,055 - INFO - 📈 Processing CMPS (636/3179)
+2025-10-17 23:44:10,061 - WARNING - Could not calculate beta for CMPS: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,061 - WARNING - CMPS: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,062 - INFO - CMPS: Calculated risk components - Vol=137.7%, Downside=169.5%, Drawdown=0.1%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:10,062 - INFO - CMPS Risk Score: 36.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=100, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:10,065 - ERROR - ❌ Error calculating scores for CMPS: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:10,066 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:10,166 - INFO - 📈 Processing CMPX (637/3179)
+2025-10-17 23:44:10,173 - WARNING - Could not calculate beta for CMPX: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,173 - WARNING - CMPX: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,173 - INFO - CMPX: Calculated risk components - Vol=71.4%, Downside=32.1%, Drawdown=0.0%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:10,174 - INFO - CMPX Risk Score: 37.4 (Vol_pct=0, Downside_pct=4, Drawdown_pct=100, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:10,176 - ERROR - ❌ Error calculating scores for CMPX: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:10,177 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:10,277 - INFO - 📈 Processing CMRC (638/3179)
+2025-10-17 23:44:10,285 - WARNING - Could not calculate beta for CMRC: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,285 - WARNING - CMRC: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,285 - INFO - CMRC: Calculated risk components - Vol=48.5%, Downside=28.4%, Drawdown=39.5%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:10,285 - INFO - CMRC Risk Score: 30.2 (Vol_pct=3, Downside_pct=15, Drawdown_pct=61, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:10,288 - ERROR - ❌ Error calculating scores for CMRC: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:10,289 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:10,389 - INFO - 📈 Processing CMTL (639/3179)
+2025-10-17 23:44:10,396 - WARNING - Could not calculate beta for CMTL: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,396 - WARNING - CMTL: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,396 - INFO - CMTL: Calculated risk components - Vol=73.2%, Downside=39.6%, Drawdown=25.9%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:10,396 - INFO - CMTL Risk Score: 28.0 (Vol_pct=0, Downside_pct=0, Drawdown_pct=74, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:10,400 - ERROR - ❌ Error calculating scores for CMTL: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:10,401 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:10,501 - INFO - 📈 Processing CNCK (640/3179)
+2025-10-17 23:44:10,511 - WARNING - Could not calculate beta for CNCK: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,511 - WARNING - CNCK: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,512 - INFO - CNCK: Calculated risk components - Vol=61.3%, Downside=40.6%, Drawdown=66.7%, Beta=1.00, Liquidity=0
+2025-10-17 23:44:10,512 - INFO - CNCK Risk Score: 15.8 (Vol_pct=0, Downside_pct=0, Drawdown_pct=33, Beta_pct=50, Liquidity_pct=0)
+2025-10-17 23:44:10,515 - ERROR - ❌ Error calculating scores for CNCK: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:10,516 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:10,616 - INFO - 📈 Processing CNDT (641/3179)
+2025-10-17 23:44:10,627 - WARNING - Could not calculate beta for CNDT: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,627 - WARNING - CNDT: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,628 - INFO - CNDT: Calculated risk components - Vol=45.4%, Downside=25.7%, Drawdown=43.4%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:10,628 - INFO - CNDT Risk Score: 33.2 (Vol_pct=9, Downside_pct=23, Drawdown_pct=57, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:10,635 - INFO - ✅ CNDT: Composite Score = 35.97, Growth Score = 14.54
+2025-10-17 23:44:10,735 - INFO - 📈 Processing CNET (642/3179)
+2025-10-17 23:44:10,748 - WARNING - Could not calculate beta for CNET: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,748 - WARNING - CNET: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,749 - INFO - CNET: Calculated risk components - Vol=75.5%, Downside=48.3%, Drawdown=18.8%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:10,749 - INFO - CNET Risk Score: 29.8 (Vol_pct=0, Downside_pct=0, Drawdown_pct=81, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:10,752 - ERROR - ❌ Error calculating scores for CNET: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:10,753 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:10,853 - INFO - 📈 Processing CNEY (643/3179)
+2025-10-17 23:44:10,870 - WARNING - Could not calculate beta for CNEY: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,870 - WARNING - CNEY: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,871 - INFO - CNEY: Calculated risk components - Vol=63.0%, Downside=35.9%, Drawdown=88.5%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:10,871 - INFO - CNEY Risk Score: 12.4 (Vol_pct=0, Downside_pct=0, Drawdown_pct=12, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:10,880 - INFO - ✅ CNEY: Composite Score = 33.91, Growth Score = 12.95
+2025-10-17 23:44:10,981 - INFO - 📈 Processing CNOB (644/3179)
+2025-10-17 23:44:10,990 - WARNING - Could not calculate beta for CNOB: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:10,990 - WARNING - CNOB: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:10,990 - INFO - CNOB: Calculated risk components - Vol=30.4%, Downside=15.2%, Drawdown=9.9%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:10,990 - INFO - CNOB Risk Score: 57.3 (Vol_pct=39, Downside_pct=54, Drawdown_pct=90, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:10,997 - INFO - ✅ CNOB: Composite Score = 35.93, Growth Score = 14.35
+2025-10-17 23:44:11,097 - INFO - 📈 Processing CNSP (645/3179)
+2025-10-17 23:44:11,112 - WARNING - Could not calculate beta for CNSP: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:11,113 - WARNING - CNSP: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:11,113 - INFO - CNSP: Calculated risk components - Vol=106.1%, Downside=64.2%, Drawdown=89.9%, Beta=1.00, Liquidity=0
+2025-10-17 23:44:11,113 - INFO - CNSP Risk Score: 10.0 (Vol_pct=0, Downside_pct=0, Drawdown_pct=10, Beta_pct=50, Liquidity_pct=0)
+2025-10-17 23:44:11,123 - INFO - ✅ CNSP: Composite Score = 40.51, Growth Score = 4.83
+2025-10-17 23:44:11,223 - INFO - 📈 Processing CNTA (646/3179)
+2025-10-17 23:44:11,231 - WARNING - Could not calculate beta for CNTA: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:11,231 - WARNING - CNTA: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:11,232 - INFO - CNTA: Calculated risk components - Vol=60.3%, Downside=30.3%, Drawdown=7.5%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:11,232 - INFO - CNTA Risk Score: 36.9 (Vol_pct=0, Downside_pct=9, Drawdown_pct=93, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:11,236 - ERROR - ❌ Error calculating scores for CNTA: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:11,236 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:11,337 - INFO - 📈 Processing CNTB (647/3179)
+2025-10-17 23:44:11,354 - WARNING - Could not calculate beta for CNTB: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:11,354 - WARNING - CNTB: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:11,354 - INFO - CNTB: Calculated risk components - Vol=122.1%, Downside=63.0%, Drawdown=21.4%, Beta=1.00, Liquidity=20
+2025-10-17 23:44:11,354 - INFO - CNTB Risk Score: 28.1 (Vol_pct=0, Downside_pct=0, Drawdown_pct=79, Beta_pct=50, Liquidity_pct=20)
+2025-10-17 23:44:11,358 - ERROR - ❌ Error calculating scores for CNTB: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:11,359 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:11,460 - INFO - 📈 Processing CNTX (648/3179)
+2025-10-17 23:44:11,476 - WARNING - Could not calculate beta for CNTX: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:11,476 - WARNING - CNTX: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:11,477 - INFO - CNTX: Calculated risk components - Vol=76.9%, Downside=32.8%, Drawdown=43.0%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:11,477 - INFO - CNTX Risk Score: 24.1 (Vol_pct=0, Downside_pct=1, Drawdown_pct=57, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:11,481 - ERROR - ❌ Error calculating scores for CNTX: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:11,483 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:11,583 - INFO - 📈 Processing CNTY (649/3179)
+2025-10-17 23:44:11,597 - WARNING - Could not calculate beta for CNTY: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:11,597 - WARNING - CNTY: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:11,597 - INFO - CNTY: Calculated risk components - Vol=56.8%, Downside=38.8%, Drawdown=52.1%, Beta=1.00, Liquidity=0
+2025-10-17 23:44:11,598 - INFO - CNTY Risk Score: 19.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=48, Beta_pct=50, Liquidity_pct=0)
+2025-10-17 23:44:11,601 - ERROR - ❌ Error calculating scores for CNTY: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:11,602 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:11,703 - INFO - 📈 Processing CNVS (650/3179)
+2025-10-17 23:44:11,712 - WARNING - Could not calculate beta for CNVS: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:11,712 - WARNING - CNVS: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:11,712 - INFO - CNVS: Calculated risk components - Vol=77.2%, Downside=56.4%, Drawdown=53.6%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:11,712 - INFO - CNVS Risk Score: 21.1 (Vol_pct=0, Downside_pct=0, Drawdown_pct=46, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:11,720 - INFO - ✅ CNVS: Composite Score = 37.86, Growth Score = 33.61
+2025-10-17 23:44:11,820 - INFO - 📈 Processing CNXC (651/3179)
+2025-10-17 23:44:11,834 - WARNING - Could not calculate beta for CNXC: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:11,834 - WARNING - CNXC: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:11,834 - INFO - CNXC: Calculated risk components - Vol=53.3%, Downside=46.9%, Drawdown=30.9%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:11,834 - INFO - CNXC Risk Score: 27.8 (Vol_pct=0, Downside_pct=0, Drawdown_pct=69, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:11,843 - INFO - ✅ CNXC: Composite Score = 45.95, Growth Score = 62.82
+2025-10-17 23:44:11,943 - INFO - 📈 Processing CNXN (652/3179)
+2025-10-17 23:44:11,952 - WARNING - Could not calculate beta for CNXN: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:11,952 - WARNING - CNXN: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:11,953 - INFO - CNXN: Calculated risk components - Vol=23.0%, Downside=13.0%, Drawdown=18.3%, Beta=1.00, Liquidity=20
+2025-10-17 23:44:11,953 - INFO - CNXN Risk Score: 60.4 (Vol_pct=54, Downside_pct=61, Drawdown_pct=82, Beta_pct=50, Liquidity_pct=20)
+2025-10-17 23:44:11,962 - INFO - ✅ CNXN: Composite Score = 43.40, Growth Score = 44.11
+2025-10-17 23:44:12,062 - INFO - 📈 Processing COCH (653/3179)
+2025-10-17 23:44:12,074 - WARNING - Could not calculate beta for COCH: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:12,075 - WARNING - COCH: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:12,075 - INFO - COCH: Calculated risk components - Vol=173.2%, Downside=146.8%, Drawdown=67.1%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:12,075 - INFO - COCH Risk Score: 19.7 (Vol_pct=0, Downside_pct=0, Drawdown_pct=33, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:12,078 - ERROR - ❌ Error calculating scores for COCH: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:12,078 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:12,179 - INFO - 📈 Processing COCO (654/3179)
+2025-10-17 23:44:12,191 - WARNING - Could not calculate beta for COCO: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:12,191 - WARNING - COCO: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:12,191 - INFO - COCO: Calculated risk components - Vol=39.3%, Downside=29.4%, Drawdown=6.9%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:12,191 - INFO - COCO Risk Score: 44.1 (Vol_pct=21, Downside_pct=12, Drawdown_pct=93, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:12,200 - INFO - ✅ COCO: Composite Score = 60.81, Growth Score = 64.01
+2025-10-17 23:44:12,300 - INFO - 📈 Processing COCP (655/3179)
+2025-10-17 23:44:12,314 - WARNING - Could not calculate beta for COCP: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:12,314 - WARNING - COCP: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:12,314 - INFO - COCP: Calculated risk components - Vol=66.3%, Downside=51.2%, Drawdown=67.7%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:12,314 - INFO - COCP Risk Score: 19.6 (Vol_pct=0, Downside_pct=0, Drawdown_pct=32, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:12,318 - ERROR - ❌ Error calculating scores for COCP: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:12,318 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:12,419 - INFO - 📈 Processing CODA (656/3179)
+2025-10-17 23:44:12,433 - WARNING - Could not calculate beta for CODA: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:12,433 - WARNING - CODA: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:12,434 - INFO - CODA: Calculated risk components - Vol=55.6%, Downside=28.5%, Drawdown=0.0%, Beta=1.00, Liquidity=20
+2025-10-17 23:44:12,434 - INFO - CODA Risk Score: 37.1 (Vol_pct=0, Downside_pct=14, Drawdown_pct=100, Beta_pct=50, Liquidity_pct=20)
+2025-10-17 23:44:12,442 - INFO - ✅ CODA: Composite Score = 65.43, Growth Score = 60.78
+2025-10-17 23:44:12,543 - INFO - 📈 Processing CODX (657/3179)
+2025-10-17 23:44:12,553 - WARNING - Could not calculate beta for CODX: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:12,553 - WARNING - CODX: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:12,553 - INFO - CODX: Calculated risk components - Vol=147.1%, Downside=109.8%, Drawdown=70.9%, Beta=1.00, Liquidity=100
+2025-10-17 23:44:12,553 - INFO - CODX Risk Score: 19.8 (Vol_pct=0, Downside_pct=0, Drawdown_pct=29, Beta_pct=50, Liquidity_pct=100)
+2025-10-17 23:44:12,556 - ERROR - ❌ Error calculating scores for CODX: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:12,557 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:12,657 - INFO - 📈 Processing COEP (658/3179)
+2025-10-17 23:44:12,673 - WARNING - Could not calculate beta for COEP: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:12,673 - WARNING - COEP: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:12,674 - INFO - COEP: Calculated risk components - Vol=84.8%, Downside=37.9%, Drawdown=14.3%, Beta=1.00, Liquidity=20
+2025-10-17 23:44:12,674 - INFO - COEP Risk Score: 29.9 (Vol_pct=0, Downside_pct=0, Drawdown_pct=86, Beta_pct=50, Liquidity_pct=20)
+2025-10-17 23:44:12,677 - ERROR - ❌ Error calculating scores for COEP: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:12,678 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:12,778 - INFO - 📈 Processing COFS (659/3179)
+2025-10-17 23:44:12,788 - WARNING - Could not calculate beta for COFS: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:12,788 - WARNING - COFS: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:12,788 - INFO - COFS: Calculated risk components - Vol=23.3%, Downside=13.1%, Drawdown=23.6%, Beta=1.00, Liquidity=20
+2025-10-17 23:44:12,788 - INFO - COFS Risk Score: 58.8 (Vol_pct=53, Downside_pct=61, Drawdown_pct=76, Beta_pct=50, Liquidity_pct=20)
+2025-10-17 23:44:12,796 - INFO - ✅ COFS: Composite Score = 38.75, Growth Score = 66.62
+2025-10-17 23:44:12,896 - INFO - 📈 Processing COGT (660/3179)
+2025-10-17 23:44:12,905 - WARNING - Could not calculate beta for COGT: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:12,905 - WARNING - COGT: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:12,906 - INFO - COGT: Calculated risk components - Vol=58.2%, Downside=23.8%, Drawdown=0.0%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:12,906 - INFO - COGT Risk Score: 43.7 (Vol_pct=0, Downside_pct=29, Drawdown_pct=100, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:12,909 - ERROR - ❌ Error calculating scores for COGT: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:12,910 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:13,010 - INFO - 📈 Processing COHU (661/3179)
+2025-10-17 23:44:13,018 - WARNING - Could not calculate beta for COHU: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,018 - WARNING - COHU: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,018 - INFO - COHU: Calculated risk components - Vol=49.9%, Downside=33.2%, Drawdown=20.6%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:13,018 - INFO - COHU Risk Score: 30.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=79, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:13,022 - ERROR - ❌ Error calculating scores for COHU: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:13,022 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:13,123 - INFO - 📈 Processing COIN (662/3179)
+2025-10-17 23:44:13,134 - WARNING - Could not calculate beta for COIN: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,135 - WARNING - COIN: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,135 - INFO - COIN: Calculated risk components - Vol=61.3%, Downside=51.1%, Drawdown=19.9%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:13,135 - INFO - COIN Risk Score: 31.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=80, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:13,144 - INFO - ✅ COIN: Composite Score = 55.21, Growth Score = 79.33
+2025-10-17 23:44:13,244 - INFO - 📈 Processing COKE (663/3179)
+2025-10-17 23:44:13,258 - WARNING - Could not calculate beta for COKE: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,259 - WARNING - COKE: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,259 - INFO - COKE: Calculated risk components - Vol=27.0%, Downside=19.0%, Drawdown=12.7%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:13,259 - INFO - COKE Risk Score: 56.9 (Vol_pct=46, Downside_pct=43, Drawdown_pct=87, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:13,267 - INFO - ✅ COKE: Composite Score = 61.07, Growth Score = 55.31
+2025-10-17 23:44:13,367 - INFO - 📈 Processing COLB (664/3179)
+2025-10-17 23:44:13,378 - WARNING - Could not calculate beta for COLB: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,378 - WARNING - COLB: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,378 - INFO - COLB: Calculated risk components - Vol=33.3%, Downside=18.6%, Drawdown=13.8%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:13,379 - INFO - COLB Risk Score: 54.1 (Vol_pct=33, Downside_pct=44, Drawdown_pct=86, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:13,386 - INFO - ✅ COLB: Composite Score = 51.26, Growth Score = 59.28
+2025-10-17 23:44:13,486 - INFO - 📈 Processing COLL (665/3179)
+2025-10-17 23:44:13,500 - WARNING - Could not calculate beta for COLL: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,500 - WARNING - COLL: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,500 - INFO - COLL: Calculated risk components - Vol=37.0%, Downside=21.3%, Drawdown=16.9%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:13,500 - INFO - COLL Risk Score: 47.1 (Vol_pct=26, Downside_pct=36, Drawdown_pct=83, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:13,509 - INFO - ✅ COLL: Composite Score = 49.20, Growth Score = 56.99
+2025-10-17 23:44:13,610 - INFO - 📈 Processing COLM (666/3179)
+2025-10-17 23:44:13,623 - WARNING - Could not calculate beta for COLM: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,623 - WARNING - COLM: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,623 - INFO - COLM: Calculated risk components - Vol=40.3%, Downside=34.4%, Drawdown=43.9%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:13,623 - INFO - COLM Risk Score: 30.3 (Vol_pct=19, Downside_pct=0, Drawdown_pct=56, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:13,633 - INFO - ✅ COLM: Composite Score = 31.18, Growth Score = 26.95
+2025-10-17 23:44:13,733 - INFO - 📈 Processing COMM (667/3179)
+2025-10-17 23:44:13,741 - WARNING - Could not calculate beta for COMM: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,741 - WARNING - COMM: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,742 - INFO - COMM: Calculated risk components - Vol=117.5%, Downside=25.9%, Drawdown=8.5%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:13,742 - INFO - COMM Risk Score: 39.9 (Vol_pct=0, Downside_pct=22, Drawdown_pct=91, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:13,748 - INFO - ✅ COMM: Composite Score = 54.28, Growth Score = 46.63
+2025-10-17 23:44:13,849 - INFO - 📈 Processing COO (668/3179)
+2025-10-17 23:44:13,864 - WARNING - Could not calculate beta for COO: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,864 - WARNING - COO: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,865 - INFO - COO: Calculated risk components - Vol=36.3%, Downside=35.7%, Drawdown=36.7%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:13,865 - INFO - COO Risk Score: 35.5 (Vol_pct=27, Downside_pct=0, Drawdown_pct=63, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:13,875 - INFO - ✅ COO: Composite Score = 43.10, Growth Score = 49.90
+2025-10-17 23:44:13,975 - INFO - 📈 Processing COOT (669/3179)
+2025-10-17 23:44:13,990 - WARNING - Could not calculate beta for COOT: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:13,990 - WARNING - COOT: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:13,990 - INFO - COOT: Calculated risk components - Vol=210.6%, Downside=83.0%, Drawdown=0.0%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:13,990 - INFO - COOT Risk Score: 36.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=100, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:13,993 - ERROR - ❌ Error calculating scores for COOT: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:13,994 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:14,095 - INFO - 📈 Processing CORT (670/3179)
+2025-10-17 23:44:14,110 - WARNING - Could not calculate beta for CORT: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:14,110 - WARNING - CORT: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:14,111 - INFO - CORT: Calculated risk components - Vol=49.4%, Downside=49.3%, Drawdown=32.8%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:14,111 - INFO - CORT Risk Score: 27.6 (Vol_pct=1, Downside_pct=0, Drawdown_pct=67, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:14,120 - INFO - ✅ CORT: Composite Score = 58.59, Growth Score = 60.30
+2025-10-17 23:44:14,221 - INFO - 📈 Processing CORZ (671/3179)
+2025-10-17 23:44:14,234 - WARNING - Could not calculate beta for CORZ: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:14,234 - WARNING - CORZ: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:14,234 - INFO - CORZ: Calculated risk components - Vol=77.8%, Downside=58.0%, Drawdown=0.0%, Beta=1.00, Liquidity=100
+2025-10-17 23:44:14,234 - INFO - CORZ Risk Score: 37.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=100, Beta_pct=50, Liquidity_pct=100)
+2025-10-17 23:44:14,237 - ERROR - ❌ Error calculating scores for CORZ: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:14,238 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:14,339 - INFO - 📈 Processing COSM (672/3179)
+2025-10-17 23:44:14,354 - WARNING - Could not calculate beta for COSM: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:14,354 - WARNING - COSM: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:14,355 - INFO - COSM: Calculated risk components - Vol=121.8%, Downside=85.2%, Drawdown=0.0%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:14,355 - INFO - COSM Risk Score: 36.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=100, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:14,359 - ERROR - ❌ Error calculating scores for COSM: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:14,359 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:14,460 - INFO - 📈 Processing COST (673/3179)
+2025-10-17 23:44:14,468 - WARNING - Could not calculate beta for COST: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:14,468 - WARNING - COST: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:14,468 - INFO - COST: Calculated risk components - Vol=17.0%, Downside=11.4%, Drawdown=11.1%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:14,468 - INFO - COST Risk Score: 70.0 (Vol_pct=66, Downside_pct=66, Drawdown_pct=89, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:14,477 - INFO - ✅ COST: Composite Score = 39.67, Growth Score = 53.73
+2025-10-17 23:44:14,578 - INFO - 📈 Processing COYA (674/3179)
+2025-10-17 23:44:14,586 - WARNING - Could not calculate beta for COYA: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:14,586 - WARNING - COYA: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:14,586 - INFO - COYA: Calculated risk components - Vol=64.8%, Downside=34.8%, Drawdown=34.2%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:14,586 - INFO - COYA Risk Score: 26.0 (Vol_pct=0, Downside_pct=0, Drawdown_pct=66, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:14,589 - ERROR - ❌ Error calculating scores for COYA: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:14,590 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:14,690 - INFO - 📈 Processing CPB (675/3179)
+2025-10-17 23:44:14,699 - WARNING - Could not calculate beta for CPB: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:14,699 - WARNING - CPB: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:14,699 - INFO - CPB: Calculated risk components - Vol=29.3%, Downside=15.4%, Drawdown=35.3%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:14,699 - INFO - CPB Risk Score: 53.5 (Vol_pct=41, Downside_pct=54, Drawdown_pct=65, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:14,706 - INFO - ✅ CPB: Composite Score = 34.16, Growth Score = 23.29
+2025-10-17 23:44:14,806 - INFO - 📈 Processing CPBI (676/3179)
+2025-10-17 23:44:14,815 - WARNING - Could not calculate beta for CPBI: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:14,815 - WARNING - CPBI: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:14,815 - INFO - CPBI: Calculated risk components - Vol=13.2%, Downside=7.5%, Drawdown=0.6%, Beta=1.00, Liquidity=0
+2025-10-17 23:44:14,815 - INFO - CPBI Risk Score: 73.8 (Vol_pct=74, Downside_pct=78, Drawdown_pct=99, Beta_pct=50, Liquidity_pct=0)
+2025-10-17 23:44:14,821 - INFO - ✅ CPBI: Composite Score = 50.47, Growth Score = 54.91
+2025-10-17 23:44:14,921 - INFO - 📈 Processing CPHC (677/3179)
+2025-10-17 23:44:14,930 - WARNING - Could not calculate beta for CPHC: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 81 and the array at index 1 has size 80
+2025-10-17 23:44:14,930 - WARNING - CPHC: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:14,930 - INFO - CPHC: Calculated risk components - Vol=25.9%, Downside=21.0%, Drawdown=24.8%, Beta=1.00, Liquidity=0
+2025-10-17 23:44:14,931 - INFO - CPHC Risk Score: 50.0 (Vol_pct=48, Downside_pct=37, Drawdown_pct=75, Beta_pct=50, Liquidity_pct=0)
+2025-10-17 23:44:14,938 - INFO - ✅ CPHC: Composite Score = 31.53, Growth Score = 18.37
+2025-10-17 23:44:15,038 - INFO - 📈 Processing CPIX (678/3179)
+2025-10-17 23:44:15,051 - WARNING - Could not calculate beta for CPIX: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,051 - WARNING - CPIX: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,051 - INFO - CPIX: Calculated risk components - Vol=110.5%, Downside=91.4%, Drawdown=49.2%, Beta=1.00, Liquidity=0
+2025-10-17 23:44:15,051 - INFO - CPIX Risk Score: 20.2 (Vol_pct=0, Downside_pct=0, Drawdown_pct=51, Beta_pct=50, Liquidity_pct=0)
+2025-10-17 23:44:15,055 - ERROR - ❌ Error calculating scores for CPIX: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:15,056 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:15,156 - INFO - 📈 Processing CPOP (679/3179)
+2025-10-17 23:44:15,167 - WARNING - Could not calculate beta for CPOP: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,167 - WARNING - CPOP: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,168 - INFO - CPOP: Calculated risk components - Vol=249.0%, Downside=210.8%, Drawdown=62.8%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:15,168 - INFO - CPOP Risk Score: 20.8 (Vol_pct=0, Downside_pct=0, Drawdown_pct=37, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:15,171 - ERROR - ❌ Error calculating scores for CPOP: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:15,172 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:15,272 - INFO - 📈 Processing CPRT (680/3179)
+2025-10-17 23:44:15,280 - WARNING - Could not calculate beta for CPRT: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,280 - WARNING - CPRT: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,281 - INFO - CPRT: Calculated risk components - Vol=19.8%, Downside=12.1%, Drawdown=30.2%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:15,281 - INFO - CPRT Risk Score: 63.0 (Vol_pct=60, Downside_pct=64, Drawdown_pct=70, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:15,288 - INFO - ✅ CPRT: Composite Score = 37.50, Growth Score = 61.23
+2025-10-17 23:44:15,388 - INFO - 📈 Processing CPRX (681/3179)
+2025-10-17 23:44:15,399 - WARNING - Could not calculate beta for CPRX: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,399 - WARNING - CPRX: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,399 - INFO - CPRX: Calculated risk components - Vol=34.4%, Downside=26.9%, Drawdown=19.2%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:15,399 - INFO - CPRX Risk Score: 45.9 (Vol_pct=31, Downside_pct=19, Drawdown_pct=81, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:15,407 - INFO - ✅ CPRX: Composite Score = 59.80, Growth Score = 71.62
+2025-10-17 23:44:15,507 - INFO - 📈 Processing CPSH (682/3179)
+2025-10-17 23:44:15,514 - WARNING - Could not calculate beta for CPSH: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,514 - WARNING - CPSH: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,515 - INFO - CPSH: Calculated risk components - Vol=80.4%, Downside=43.8%, Drawdown=6.2%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:15,515 - INFO - CPSH Risk Score: 33.0 (Vol_pct=0, Downside_pct=0, Drawdown_pct=94, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:15,518 - ERROR - ❌ Error calculating scores for CPSH: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:15,519 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:15,619 - INFO - 📈 Processing CPSS (683/3179)
+2025-10-17 23:44:15,634 - WARNING - Could not calculate beta for CPSS: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,635 - WARNING - CPSS: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,635 - INFO - CPSS: Calculated risk components - Vol=45.6%, Downside=25.0%, Drawdown=34.8%, Beta=1.00, Liquidity=0
+2025-10-17 23:44:15,635 - INFO - CPSS Risk Score: 32.7 (Vol_pct=9, Downside_pct=25, Drawdown_pct=65, Beta_pct=50, Liquidity_pct=0)
+2025-10-17 23:44:15,643 - INFO - ✅ CPSS: Composite Score = 48.58, Growth Score = 55.78
+2025-10-17 23:44:15,744 - INFO - 📈 Processing CRAI (684/3179)
+2025-10-17 23:44:15,756 - WARNING - Could not calculate beta for CRAI: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,756 - WARNING - CRAI: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,756 - INFO - CRAI: Calculated risk components - Vol=31.2%, Downside=23.6%, Drawdown=15.8%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:15,756 - INFO - CRAI Risk Score: 49.1 (Vol_pct=38, Downside_pct=29, Drawdown_pct=84, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:15,764 - INFO - ✅ CRAI: Composite Score = 56.23, Growth Score = 66.70
+2025-10-17 23:44:15,865 - INFO - 📈 Processing CRBP (685/3179)
+2025-10-17 23:44:15,874 - WARNING - Could not calculate beta for CRBP: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,874 - WARNING - CRBP: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,874 - INFO - CRBP: Calculated risk components - Vol=72.0%, Downside=42.0%, Drawdown=8.6%, Beta=1.00, Liquidity=40
+2025-10-17 23:44:15,875 - INFO - CRBP Risk Score: 32.3 (Vol_pct=0, Downside_pct=0, Drawdown_pct=91, Beta_pct=50, Liquidity_pct=40)
+2025-10-17 23:44:15,878 - ERROR - ❌ Error calculating scores for CRBP: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:15,879 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:15,979 - INFO - 📈 Processing CRBU (686/3179)
+2025-10-17 23:44:15,992 - WARNING - Could not calculate beta for CRBU: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:15,992 - WARNING - CRBU: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:15,992 - INFO - CRBU: Calculated risk components - Vol=96.6%, Downside=47.8%, Drawdown=0.0%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:15,992 - INFO - CRBU Risk Score: 36.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=100, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:15,996 - ERROR - ❌ Error calculating scores for CRBU: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:15,997 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:16,098 - INFO - 📈 Processing CRCT (687/3179)
+2025-10-17 23:44:16,111 - WARNING - Could not calculate beta for CRCT: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:16,111 - WARNING - CRCT: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:16,112 - INFO - CRCT: Calculated risk components - Vol=49.9%, Downside=30.9%, Drawdown=19.4%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:16,112 - INFO - CRCT Risk Score: 32.5 (Vol_pct=0, Downside_pct=7, Drawdown_pct=81, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:16,121 - INFO - ✅ CRCT: Composite Score = 53.86, Growth Score = 56.28
+2025-10-17 23:44:16,221 - INFO - 📈 Processing CRDF (688/3179)
+2025-10-17 23:44:16,232 - WARNING - Could not calculate beta for CRDF: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:16,232 - WARNING - CRDF: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:16,233 - INFO - CRDF: Calculated risk components - Vol=84.5%, Downside=75.7%, Drawdown=55.0%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:16,233 - INFO - CRDF Risk Score: 21.8 (Vol_pct=0, Downside_pct=0, Drawdown_pct=45, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:16,236 - ERROR - ❌ Error calculating scores for CRDF: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:16,237 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:16,337 - INFO - 📈 Processing CRDL (689/3179)
+2025-10-17 23:44:16,345 - WARNING - Could not calculate beta for CRDL: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:16,346 - WARNING - CRDL: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:16,346 - INFO - CRDL: Calculated risk components - Vol=84.0%, Downside=62.7%, Drawdown=47.8%, Beta=1.00, Liquidity=60
+2025-10-17 23:44:16,346 - INFO - CRDL Risk Score: 23.5 (Vol_pct=0, Downside_pct=0, Drawdown_pct=52, Beta_pct=50, Liquidity_pct=60)
+2025-10-17 23:44:16,349 - ERROR - ❌ Error calculating scores for CRDL: unsupported operand type(s) for *: 'NoneType' and 'float'
+2025-10-17 23:44:16,349 - ERROR - Traceback (most recent call last):
+  File "/home/stocks/algo/loadstockscores.py", line 1623, in get_stock_data_from_database
+    composite_score = (
+        ^^^^^^^^^^^^^^^^
+TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'
+
+2025-10-17 23:44:16,450 - INFO - 📈 Processing CRDO (690/3179)
+2025-10-17 23:44:16,457 - WARNING - Could not calculate beta for CRDO: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 1, the array at index 0 has size 82 and the array at index 1 has size 81
+2025-10-17 23:44:16,457 - WARNING - CRDO: Cannot calculate beta - SPY data missing, using neutral 1.0
+2025-10-17 23:44:16,457 - INFO - CRDO: Calculated risk components - Vol=70.2%, Downside=51.8%, Drawdown=23.7%, Beta=1.00, Liquidity=80
+2025-10-17 23:44:16,457 - INFO - CRDO Risk Score: 30.6 (Vol_pct=0, Downside_pct=0, Drawdown_pct=76, Beta_pct=50, Liquidity_pct=80)
+2025-10-17 23:44:16,463 - INFO - ✅ CRDO: Composite Score = 52.55, Growth Score = 45.43

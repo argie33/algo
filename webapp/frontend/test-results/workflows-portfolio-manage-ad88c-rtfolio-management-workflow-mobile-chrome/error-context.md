@@ -1,0 +1,88 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "open drawer" [ref=e6] [cursor=pointer]:
+        - img [ref=e7] [cursor=pointer]
+      - generic: Order Management
+      - button "Sign In" [ref=e9] [cursor=pointer]:
+        - img [ref=e11] [cursor=pointer]
+        - text: Sign In
+  - navigation
+  - main [ref=e13]:
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - heading "Order Management" [level=1] [ref=e18]
+        - heading "Execute trades, manage orders, and monitor positions" [level=6] [ref=e19]
+      - alert [ref=e20]:
+        - img [ref=e22]
+        - generic [ref=e24]: Failed to fetch
+        - button "Close" [ref=e26] [cursor=pointer]:
+          - img [ref=e27] [cursor=pointer]
+      - generic [ref=e29]:
+        - button "New Order" [ref=e30] [cursor=pointer]:
+          - img [ref=e32] [cursor=pointer]
+          - text: New Order
+        - button "Refresh" [ref=e34] [cursor=pointer]:
+          - img [ref=e36] [cursor=pointer]
+          - text: Refresh
+        - button "Export Orders" [ref=e38] [cursor=pointer]:
+          - img [ref=e40] [cursor=pointer]
+          - text: Export Orders
+      - tablist [ref=e45]:
+        - tab "Open Orders" [selected] [ref=e46] [cursor=pointer]:
+          - img [ref=e47] [cursor=pointer]
+          - text: Open Orders
+        - tab "Order History" [ref=e49] [cursor=pointer]:
+          - img [ref=e50] [cursor=pointer]
+          - text: Order History
+        - tab "Positions" [ref=e52] [cursor=pointer]:
+          - img [ref=e53] [cursor=pointer]
+          - text: Positions
+        - tab "Settings" [ref=e55] [cursor=pointer]:
+          - img [ref=e56] [cursor=pointer]
+          - text: Settings
+      - tabpanel [ref=e59]:
+        - generic [ref=e61]:
+          - generic [ref=e64]: Open Orders
+          - generic [ref=e65]:
+            - generic [ref=e66]:
+              - generic [ref=e68]:
+                - img [ref=e70]
+                - textbox "Search orders..." [ref=e72]
+                - group
+              - generic [ref=e73]:
+                - generic [ref=e74]: Status
+                - generic [ref=e75]:
+                  - combobox [ref=e76] [cursor=pointer]: All Status
+                  - textbox: all
+                  - img
+                  - group:
+                    - generic: Status
+              - generic [ref=e77]:
+                - generic [ref=e78]: Side
+                - generic [ref=e79]:
+                  - combobox [ref=e80] [cursor=pointer]: All
+                  - textbox: all
+                  - img
+                  - group:
+                    - generic: Side
+            - table [ref=e82]:
+              - rowgroup [ref=e83]:
+                - row "Order ID Symbol Side Quantity Order Type Price Status Submitted Actions" [ref=e84]:
+                  - columnheader "Order ID" [ref=e85]
+                  - columnheader "Symbol" [ref=e86]
+                  - columnheader "Side" [ref=e87]
+                  - columnheader "Quantity" [ref=e88]
+                  - columnheader "Order Type" [ref=e89]
+                  - columnheader "Price" [ref=e90]
+                  - columnheader "Status" [ref=e91]
+                  - columnheader "Submitted" [ref=e92]
+                  - columnheader "Actions" [ref=e93]
+              - rowgroup [ref=e94]:
+                - row "No orders found" [ref=e95]:
+                  - cell "No orders found" [ref=e96]:
+                    - paragraph [ref=e97]: No orders found
+```

@@ -1,0 +1,166 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - button [ref=e6] [cursor=pointer]:
+          - img [ref=e7] [cursor=pointer]
+        - generic: Trading Signals
+        - button [ref=e9] [cursor=pointer]:
+          - img [ref=e11] [cursor=pointer]
+          - text: Sign In
+    - main [ref=e13]:
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - heading [level=1] [ref=e18]: 🎯 Trading Signals
+          - heading [level=6] [ref=e19]: AI-powered trading signals with real-time market analysis and institutional-grade insights
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - heading [level=6] [ref=e24]:
+              - img [ref=e25]
+              - text: Filters
+            - separator [ref=e27]
+          - generic [ref=e30]:
+            - img [ref=e32]
+            - textbox [ref=e34]
+            - group
+          - generic [ref=e36]:
+            - generic [ref=e37]: Signal Type
+            - generic [ref=e38]:
+              - combobox [ref=e39] [cursor=pointer]: All Signals
+              - textbox: all
+              - img
+              - group:
+                - generic: Signal Type
+          - generic [ref=e41]:
+            - generic [ref=e42]: Timeframe
+            - generic [ref=e43]:
+              - combobox [ref=e44] [cursor=pointer]: Daily
+              - textbox: daily
+              - img
+              - group:
+                - generic: Timeframe
+          - generic [ref=e45]:
+            - generic [ref=e46] [cursor=pointer]:
+              - checkbox [ref=e49] [cursor=pointer]
+              - generic [ref=e52] [cursor=pointer]: Active Only
+            - generic [ref=e53]: Show current positions & recent signals
+          - generic [ref=e55]:
+            - generic [ref=e56]: Date Range
+            - generic [ref=e57]:
+              - combobox [ref=e58] [cursor=pointer]: All Time
+              - textbox: all
+              - img
+              - group:
+                - generic: Date Range
+          - button [ref=e60] [cursor=pointer]: Search
+        - generic [ref=e62]:
+          - alert [ref=e63]:
+            - img [ref=e65]
+            - generic [ref=e67]:
+              - generic [ref=e68]: Failed to Load Trading Signals
+              - paragraph [ref=e69]: Failed to fetch
+            - generic [ref=e71]:
+              - button [ref=e72] [cursor=pointer]:
+                - img [ref=e73] [cursor=pointer]
+              - button [ref=e75] [cursor=pointer]:
+                - img [ref=e77] [cursor=pointer]
+                - text: Retry
+          - generic [ref=e80]:
+            - generic [ref=e82]:
+              - heading [level=6] [ref=e83]: No trading signals found
+              - paragraph [ref=e84]: No signals found. Try adjusting your timeframe or other filters.
+            - generic [ref=e86]:
+              - paragraph [ref=e87]: "Rows per page:"
+              - generic [ref=e88]:
+                - combobox [ref=e89] [cursor=pointer]: "25"
+                - textbox: "25"
+                - img
+              - paragraph [ref=e90]: 0–0 of 0
+              - generic [ref=e91]:
+                - button [disabled]:
+                  - img
+                - button [disabled]:
+                  - img
+  - generic [ref=e94]:
+    - generic [ref=e96]: Financial Platform
+    - list [ref=e97]:
+      - listitem [ref=e98]:
+        - button "Collapse Markets section" [ref=e99] [cursor=pointer]:
+          - heading "Markets" [level=6] [ref=e101] [cursor=pointer]
+          - img [ref=e102] [cursor=pointer]
+      - listitem [ref=e104]:
+        - button "Market Overview" [ref=e105] [cursor=pointer]:
+          - img [ref=e107] [cursor=pointer]
+          - paragraph [ref=e110] [cursor=pointer]: Market Overview
+      - listitem [ref=e111]:
+        - button "Sector Analysis" [ref=e112] [cursor=pointer]:
+          - img [ref=e114] [cursor=pointer]
+          - paragraph [ref=e117] [cursor=pointer]: Sector Analysis
+      - listitem [ref=e118]:
+        - button "Economic Indicators" [ref=e119] [cursor=pointer]:
+          - img [ref=e121] [cursor=pointer]
+          - paragraph [ref=e124] [cursor=pointer]: Economic Indicators
+      - listitem [ref=e125]:
+        - button "Collapse Stocks section" [ref=e126] [cursor=pointer]:
+          - heading "Stocks" [level=6] [ref=e128] [cursor=pointer]
+          - img [ref=e129] [cursor=pointer]
+      - listitem [ref=e131]:
+        - button "Stock Analysis" [ref=e132] [cursor=pointer]:
+          - img [ref=e134] [cursor=pointer]
+          - paragraph [ref=e137] [cursor=pointer]: Stock Analysis
+      - listitem [ref=e138]:
+        - button "Technical Analysis" [ref=e139] [cursor=pointer]:
+          - img [ref=e141] [cursor=pointer]
+          - paragraph [ref=e144] [cursor=pointer]: Technical Analysis
+      - listitem [ref=e145]:
+        - button "Stock Scores" [ref=e146] [cursor=pointer]:
+          - img [ref=e148] [cursor=pointer]
+          - paragraph [ref=e151] [cursor=pointer]: Stock Scores
+      - listitem [ref=e152]:
+        - button "Earnings Hub" [ref=e153] [cursor=pointer]:
+          - img [ref=e155] [cursor=pointer]
+          - paragraph [ref=e158] [cursor=pointer]: Earnings Hub
+      - listitem [ref=e159]:
+        - button "Trading Signals" [ref=e160] [cursor=pointer]:
+          - img [ref=e162] [cursor=pointer]
+          - paragraph [ref=e165] [cursor=pointer]: Trading Signals
+      - listitem [ref=e166]:
+        - button "Financial Data" [ref=e167] [cursor=pointer]:
+          - img [ref=e169] [cursor=pointer]
+          - paragraph [ref=e172] [cursor=pointer]: Financial Data
+      - listitem [ref=e173]:
+        - button "Sentiment Analysis" [ref=e174] [cursor=pointer]:
+          - img [ref=e176] [cursor=pointer]
+          - paragraph [ref=e180] [cursor=pointer]: Sentiment Analysis
+      - listitem [ref=e181]:
+        - button "Analyst Insights" [ref=e182] [cursor=pointer]:
+          - img [ref=e184] [cursor=pointer]
+          - paragraph [ref=e187] [cursor=pointer]: Analyst Insights
+      - listitem [ref=e188]:
+        - button "Collapse Portfolio section" [ref=e189] [cursor=pointer]:
+          - heading "Portfolio" [level=6] [ref=e191] [cursor=pointer]
+          - img [ref=e192] [cursor=pointer]
+      - listitem [ref=e194]:
+        - button "Portfolio Holdings" [ref=e195] [cursor=pointer]:
+          - img [ref=e197] [cursor=pointer]
+          - paragraph [ref=e200] [cursor=pointer]: Portfolio Holdings
+      - listitem [ref=e201]:
+        - button "Trade History" [ref=e202] [cursor=pointer]:
+          - img [ref=e204] [cursor=pointer]
+          - paragraph [ref=e207] [cursor=pointer]: Trade History
+      - listitem [ref=e208]:
+        - button "Order Management" [ref=e209] [cursor=pointer]:
+          - img [ref=e211] [cursor=pointer]
+          - paragraph [ref=e214] [cursor=pointer]: Order Management
+      - listitem [ref=e215]:
+        - button "Optimization Tools" [ref=e216] [cursor=pointer]:
+          - img [ref=e218] [cursor=pointer]
+          - paragraph [ref=e221] [cursor=pointer]: Optimization Tools
+      - listitem [ref=e222]:
+        - button "Expand Tools section" [ref=e223] [cursor=pointer]:
+          - heading "Tools" [level=6] [ref=e225] [cursor=pointer]
+          - img [ref=e226] [cursor=pointer]
+```
