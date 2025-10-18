@@ -87,27 +87,32 @@ function Sentiment() {
     const fetchMarketSentiment = async () => {
       try {
         const responses = await Promise.all([
-          fetch(`${API_BASE}/api/sentiment/fear-greed`).catch(() => null),
-          fetch(`${API_BASE}/api/sentiment/naaim`).catch(() => null),
-          fetch(`${API_BASE}/api/sentiment/aaii`).catch(() => null)
+          fetch(`${API_BASE}/api/market/fear-greed`).catch(() => null),
+          fetch(`${API_BASE}/api/market/naaim`).catch(() => null),
+          fetch(`${API_BASE}/api/market/aaii`).catch(() => null)
         ]);
 
         const data = await Promise.all(
           responses.map(r => r?.ok ? r.json().catch(() => null) : null)
         );
 
+        console.log("Market sentiment data:", data); // Debug log
+
         setMarketSentiment({
-          fearGreedIndex: data[0]?.data?.current_value,
-          naamExposure: data[1]?.data?.mean_exposure,
-          aaiiSentiment: data[2]?.data
+          fearGreedIndex: data[0]?.data?.current_value || data[0]?.data?.[0]?.current_value,
+          naamExposure: data[1]?.data?.mean_exposure || data[1]?.data?.[0]?.mean_exposure,
+          aaiiSentiment: data[2]?.data || data[2]?.data?.[0]
         });
       } catch (error) {
         console.error("Failed to fetch market sentiment:", error);
       }
     };
 
+    // Fetch immediately on load
     fetchMarketSentiment();
-    const interval = setInterval(fetchMarketSentiment, 300000); // Refresh every 5 minutes
+
+    // Set up auto-refresh every 5 minutes (300000ms)
+    const interval = setInterval(fetchMarketSentiment, 300000);
     return () => clearInterval(interval);
   }, []);
 
