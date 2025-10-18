@@ -508,4 +508,284 @@ describe("Sectors Routes", () => {
       expect(query.mock.calls[0][1]).toContain("Consumer Discretionary");
     });
   });
+
+  describe("GET /ranking-history", () => {
+    test("should return sector ranking history for all sectors", async () => {
+      const mockRankingData = {
+        rows: [
+          {
+            sector_name: "Technology",
+            sector_rank: 1,
+            performance_20d: 5.25,
+            rank_date: "2024-01-15",
+            period: "today",
+          },
+          {
+            sector_name: "Technology",
+            sector_rank: 2,
+            performance_20d: 4.1,
+            rank_date: "2024-01-08",
+            period: "1_week_ago",
+          },
+          {
+            sector_name: "Healthcare",
+            sector_rank: 3,
+            performance_20d: 2.75,
+            rank_date: "2024-01-15",
+            period: "today",
+          },
+        ],
+      };
+
+      query.mockResolvedValueOnce(mockRankingData);
+
+      const response = await request(app)
+        .get("/sectors/ranking-history")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            sector: "Technology",
+            rankings: expect.any(Object),
+            trend: expect.stringMatching(/improving|declining|stable/),
+            direction: expect.stringMatching(/↑|↓|→/),
+          }),
+          expect.objectContaining({
+            sector: "Healthcare",
+            rankings: expect.any(Object),
+          }),
+        ]),
+        metadata: expect.objectContaining({
+          total_sectors: expect.any(Number),
+          periods: expect.arrayContaining([
+            "today",
+            "1_week_ago",
+            "3_weeks_ago",
+            "8_weeks_ago",
+          ]),
+          note: expect.stringContaining("Lower rank is better"),
+        }),
+        timestamp: expect.any(String),
+      });
+
+      expect(query).toHaveBeenCalledTimes(1);
+    });
+
+    test("should return ranking history for specific sector", async () => {
+      const mockRankingData = {
+        rows: [
+          {
+            sector_name: "Technology",
+            sector_rank: 1,
+            performance_20d: 5.25,
+            rank_date: "2024-01-15",
+            period: "today",
+          },
+          {
+            sector_name: "Technology",
+            sector_rank: 2,
+            performance_20d: 4.1,
+            rank_date: "2024-01-08",
+            period: "1_week_ago",
+          },
+          {
+            sector_name: "Technology",
+            sector_rank: 3,
+            performance_20d: 3.5,
+            rank_date: "2023-12-25",
+            period: "3_weeks_ago",
+          },
+        ],
+      };
+
+      query.mockResolvedValueOnce(mockRankingData);
+
+      const response = await request(app)
+        .get("/sectors/ranking-history?sector=Technology")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            sector: "Technology",
+            trend: "improving",
+            direction: "↑",
+          }),
+        ]),
+      });
+
+      expect(query).toHaveBeenCalledTimes(1);
+      expect(query.mock.calls[0][1]).toContain("Technology");
+    });
+
+    test("should return empty data when no ranking history available", async () => {
+      query.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get("/sectors/ranking-history")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: [],
+        message: expect.stringContaining("No historical ranking data"),
+        timestamp: expect.any(String),
+      });
+    });
+
+    test("should handle database errors for ranking history", async () => {
+      query.mockRejectedValueOnce(new Error("Database query failed"));
+
+      const response = await request(app)
+        .get("/sectors/ranking-history")
+        .expect(500);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: "Failed to fetch sector ranking history",
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe("GET /industries/ranking-history", () => {
+    test("should return industry ranking history for all industries", async () => {
+      const mockRankingData = {
+        rows: [
+          {
+            industry: "Software Infrastructure",
+            sector_rank: 1,
+            overall_rank: 2,
+            stock_count: 45,
+            rank_date: "2024-01-15",
+            period: "today",
+          },
+          {
+            industry: "Software Infrastructure",
+            sector_rank: 1,
+            overall_rank: 3,
+            stock_count: 45,
+            rank_date: "2024-01-08",
+            period: "1_week_ago",
+          },
+          {
+            industry: "Pharmaceuticals",
+            sector_rank: 2,
+            overall_rank: 5,
+            stock_count: 28,
+            rank_date: "2024-01-15",
+            period: "today",
+          },
+        ],
+      };
+
+      query.mockResolvedValueOnce(mockRankingData);
+
+      const response = await request(app)
+        .get("/sectors/industries/ranking-history")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            industry: expect.any(String),
+            rankings: expect.objectContaining({
+              today: expect.objectContaining({
+                rank: expect.any(Number),
+                sector_rank: expect.any(Number),
+                stock_count: expect.any(Number),
+              }),
+            }),
+            trend: expect.stringMatching(/improving|declining|stable/),
+            direction: expect.stringMatching(/↑|↓|→/),
+          }),
+        ]),
+        metadata: expect.objectContaining({
+          total_industries: expect.any(Number),
+          periods: expect.arrayContaining([
+            "today",
+            "1_week_ago",
+            "3_weeks_ago",
+            "8_weeks_ago",
+          ]),
+        }),
+        timestamp: expect.any(String),
+      });
+
+      expect(query).toHaveBeenCalledTimes(1);
+    });
+
+    test("should return ranking history for specific industry", async () => {
+      const mockRankingData = {
+        rows: [
+          {
+            industry: "Software Infrastructure",
+            sector_rank: 1,
+            overall_rank: 2,
+            stock_count: 45,
+            rank_date: "2024-01-15",
+            period: "today",
+          },
+          {
+            industry: "Software Infrastructure",
+            sector_rank: 1,
+            overall_rank: 3,
+            stock_count: 45,
+            rank_date: "2024-01-08",
+            period: "1_week_ago",
+          },
+        ],
+      };
+
+      query.mockResolvedValueOnce(mockRankingData);
+
+      const response = await request(app)
+        .get("/sectors/industries/ranking-history?industry=Software%20Infrastructure")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            industry: "Software Infrastructure",
+          }),
+        ]),
+      });
+
+      expect(query).toHaveBeenCalledTimes(1);
+    });
+
+    test("should return empty data when no industry ranking history available", async () => {
+      query.mockResolvedValueOnce({ rows: [] });
+
+      const response = await request(app)
+        .get("/sectors/industries/ranking-history")
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        success: true,
+        data: [],
+        message: expect.stringContaining("No historical industry ranking data"),
+        timestamp: expect.any(String),
+      });
+    });
+
+    test("should handle database errors for industry ranking history", async () => {
+      query.mockRejectedValueOnce(new Error("Database query failed"));
+
+      const response = await request(app)
+        .get("/sectors/industries/ranking-history")
+        .expect(500);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: "Failed to fetch industry ranking history",
+        message: expect.any(String),
+      });
+    });
+  });
 });

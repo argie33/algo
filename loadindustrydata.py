@@ -8,7 +8,6 @@ Trigger rebuild: 20251016_143500 - Populate industry performance data to AWS
 """
 
 import gc
-import json
 import logging
 import os
 import sys
@@ -16,11 +15,13 @@ import time
 from datetime import datetime, timedelta
 from statistics import median
 
-import boto3
 import numpy as np
-import psycopg2
 import yfinance as yf
 from psycopg2.extras import execute_values
+
+# Import shared utilities
+from lib.db import get_db_config, get_connection, update_last_updated
+from lib.rankings import calculate_rs_rating
 
 SCRIPT_NAME = "loadindustrydata.py"
 logging.basicConfig(
@@ -28,58 +29,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout,
 )
-
-
-def get_db_config():
-    """Fetch database credentials from AWS Secrets Manager or use local environment"""
-    if os.getenv("USE_LOCAL_DB") == "true" or all(
-        key in os.environ for key in ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"]
-    ):
-        logging.info("Using local database configuration from environment variables")
-        return {
-            "host": os.getenv("DB_HOST", "localhost"),
-            "port": int(os.getenv("DB_PORT", 5432)),
-            "user": os.getenv("DB_USER", "postgres"),
-            "password": os.getenv("DB_PASSWORD", "postgres"),
-            "dbname": os.getenv("DB_NAME", "stocks"),
-        }
-
-    # AWS Secrets Manager for production
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
-    sec = json.loads(resp["SecretString"])
-    return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"],
-    }
-
-
-def calculate_rs_rating(industry_perf, all_perf):
-    """
-    Calculate IBD-style RS Rating (1-99)
-    Compares industry performance to all other industries
-    """
-    if not all_perf or len(all_perf) < 2:
-        return None  # FAIL - Insufficient industry data
-
-    # Sort all performances
-    sorted_perf = sorted(all_perf)
-
-    # Find percentile rank
-    rank = sorted_perf.index(industry_perf) if industry_perf in sorted_perf else 0
-    for i, perf in enumerate(sorted_perf):
-        if industry_perf <= perf:
-            rank = i
-            break
-
-    # Convert to 1-99 scale
-    percentile = (rank / len(sorted_perf)) * 100
-    rs_rating = min(99, max(1, int(percentile)))
-
-    return rs_rating
 
 
 def determine_momentum(perf_1d, perf_5d, perf_20d):
@@ -427,63 +376,6 @@ def insert_industry_data(cur, conn, industry_data):
     return len(rows)
 
 
-def update_sector_rankings(cur, conn):
-    """Update sector_performance table with rankings"""
-    logging.info("Updating sector rankings...")
-
-    # Calculate sector rankings based on performance_1d
-    cur.execute("""
-        WITH ranked AS (
-            SELECT
-                symbol,
-                ROW_NUMBER() OVER (ORDER BY performance_1d DESC) as rank
-            FROM sector_performance
-        )
-        UPDATE sector_performance sp
-        SET sector_rank = r.rank
-        FROM ranked r
-        WHERE sp.symbol = r.symbol
-    """)
-
-    # Calculate RS ratings for sectors (1-99 scale)
-    cur.execute("""
-        WITH perf_stats AS (
-            SELECT
-                symbol,
-                performance_20d,
-                PERCENT_RANK() OVER (ORDER BY performance_20d) as percentile
-            FROM sector_performance
-        )
-        UPDATE sector_performance sp
-        SET rs_rating = GREATEST(1, LEAST(99, ROUND(ps.percentile * 100)::INTEGER))
-        FROM perf_stats ps
-        WHERE sp.symbol = ps.symbol
-    """)
-
-    # Calculate RS vs SPY
-    cur.execute("""
-        UPDATE sector_performance sp1
-        SET rs_vs_spy = sp1.performance_20d - (
-            SELECT performance_20d
-            FROM sector_performance
-            WHERE symbol = 'SPY'
-            LIMIT 1
-        )
-        WHERE EXISTS (SELECT 1 FROM sector_performance WHERE symbol = 'SPY')
-    """)
-
-    # Determine trend
-    cur.execute("""
-        UPDATE sector_performance
-        SET trend = CASE
-            WHEN performance_5d > 1 AND performance_20d > 2 THEN 'Uptrend'
-            WHEN performance_5d < -1 AND performance_20d < -2 THEN 'Downtrend'
-            ELSE 'Sideways'
-        END
-    """)
-
-    conn.commit()
-    logging.info("✅ Sector rankings updated")
 
 
 def get_rankings_for_date(cur, target_date):
@@ -637,15 +529,7 @@ def lambda_handler(event, context):
     logging.info(f"Starting {SCRIPT_NAME}")
 
     try:
-        cfg = get_db_config()
-        conn = psycopg2.connect(
-            host=cfg["host"],
-            port=cfg["port"],
-            user=cfg["user"],
-            password=cfg["password"],
-            dbname=cfg["dbname"],
-        )
-        conn.autocommit = False
+        conn = get_connection()
         cur = conn.cursor()
 
         # Ensure tables exist with proper indexes
@@ -669,26 +553,11 @@ def lambda_handler(event, context):
         # Insert industry data
         inserted = insert_industry_data(cur, conn, industry_data)
 
-        # Update sector rankings
-        update_sector_rankings(cur, conn)
-
         # Calculate and populate historical rankings (consolidated from separate script)
         calculate_complete_historical_rankings(cur, conn)
 
-        # Update last_updated
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS last_updated (
-                script_name VARCHAR(255) PRIMARY KEY,
-                last_run    TIMESTAMP
-            );
-        """)
-        cur.execute("""
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-        conn.commit()
+        # Update last_updated tracking
+        update_last_updated(cur, conn, SCRIPT_NAME)
 
         logging.info(f"✅ Industry data load complete: {inserted} industries")
 

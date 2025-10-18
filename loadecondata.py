@@ -159,7 +159,8 @@ def handler(event, context):
         try:
             cur.close()
             conn.close()
-        except:
+        except Exception as e:
+            logging.error(f"Exception in {file_path}: {e}")
             pass
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 

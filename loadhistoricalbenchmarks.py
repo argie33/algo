@@ -269,7 +269,8 @@ def process_symbol(symbol, conn_pool):
         logging.error(f"❌ Error processing {symbol}: {e}")
         try:
             conn_pool.putconn(conn)
-        except:
+        except Exception as e:
+            logging.error(f"Exception in {file_path}: {e}")
             pass
         return 0
 

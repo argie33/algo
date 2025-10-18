@@ -372,7 +372,8 @@ def get_enhanced_symbol_info(symbol: str, max_retries: int = 3) -> Optional[Dict
                     result["listing_date"] = datetime.fromtimestamp(
                         info["firstTradeDateEpochUtc"]
                     ).date()
-                except:
+                except Exception as e:
+                    logging.error(f"Exception in {file_path}: {e}")
                     pass
 
             return result

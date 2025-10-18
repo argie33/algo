@@ -33,6 +33,7 @@ import boto3
 import numpy as np
 import psycopg2
 import psycopg2.extensions
+import yfinance as yf
 from psycopg2 import pool
 from psycopg2.extras import execute_values
 
@@ -256,8 +257,8 @@ def process_symbol(symbol, conn_pool):
         logging.error(f"❌ Error processing {symbol}: {e}")
         try:
             conn_pool.putconn(conn)
-        except:
-            pass
+        except Exception as pool_err:
+            logging.error(f"Failed to return connection to pool for {symbol}: {pool_err}")
         return 0
 
 

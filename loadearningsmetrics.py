@@ -231,14 +231,14 @@ def normalize_score(value, min_val, max_val, higher_is_better=True):
         normalize_score(None, 0, 100, True) # Missing data -> 0.0
     """
     if value is None:
-        return 0.0  # Missing data gets lowest score
+        return None  # Missing data - no fallback
 
     # Clamp value between min and max thresholds
     clamped = max(min_val, min(max_val, value))
 
     # Normalize to 0-1 scale
     if max_val == min_val:
-        return 0.5  # Edge case: if range is zero, return midpoint
+        return None  # Edge case: if range is zero, insufficient data
 
     normalized = (clamped - min_val) / (max_val - min_val)
 

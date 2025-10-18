@@ -6,18 +6,20 @@ Loads sector ETF performance data from yfinance for sector rotation analysis
 Tracks momentum, money flow, and performance metrics for 11 major sectors
 """
 import gc
-import json
 import logging
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
-import boto3
 import numpy as np
 import psycopg2
 import yfinance as yf
 from psycopg2.extras import execute_values
+
+# Import shared utilities
+from lib.db import get_db_config, get_connection, update_last_updated
+from lib.performance import calculate_rsi, calculate_performance_metrics, calculate_moving_averages, calculate_money_flow
 
 SCRIPT_NAME = "loadsectordata.py"
 logging.basicConfig(
@@ -40,56 +42,6 @@ SECTOR_ETFS = {
     "XLRE": "Real Estate",
     "XLC": "Communication Services",
 }
-
-
-def get_db_config():
-    """Fetch database credentials from AWS Secrets Manager or use local environment"""
-    # Check if running locally
-    if os.getenv("USE_LOCAL_DB") == "true" or all(
-        key in os.environ for key in ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"]
-    ):
-        logging.info("Using local database configuration from environment variables")
-        return {
-            "host": os.getenv("DB_HOST", "localhost"),
-            "port": int(os.getenv("DB_PORT", 5432)),
-            "user": os.getenv("DB_USER", "postgres"),
-            "password": os.getenv("DB_PASSWORD", "postgres"),
-            "dbname": os.getenv("DB_NAME", "stocks"),
-        }
-
-    # AWS Secrets Manager for production
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
-    sec = json.loads(resp["SecretString"])
-    return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"],
-    }
-
-
-def calculate_rsi(prices, period=14):
-    """Calculate Relative Strength Index"""
-    if len(prices) < period + 1:
-        return None
-
-    deltas = np.diff(prices)
-    gains = np.where(deltas > 0, deltas, 0)
-    losses = np.where(deltas < 0, -deltas, 0)
-
-    avg_gain = np.mean(gains[-period:])
-    avg_loss = np.mean(losses[-period:])
-
-    if avg_loss == 0:
-        return 100
-
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return round(rsi, 2)
-
-
 
 
 def calculate_momentum(prices):
@@ -116,42 +68,6 @@ def calculate_momentum(prices):
         return "Weak"
     else:
         return "Moderate"
-
-
-def calculate_money_flow(volume, prices):
-    """
-    Calculate money flow (Inflow/Outflow/Neutral)
-    Based on Chaikin Money Flow indicator
-    """
-    if len(volume) < 20 or len(prices) < 20:
-        return "Neutral"
-
-    # Simple approach: compare volume on up days vs down days
-    recent_vol = volume[-20:]
-    recent_prices = prices[-20:]
-
-    up_volume = 0
-    down_volume = 0
-
-    for i in range(1, len(recent_prices)):
-        if recent_prices[i] > recent_prices[i-1]:
-            up_volume += recent_vol[i]
-        elif recent_prices[i] < recent_prices[i-1]:
-            down_volume += recent_vol[i]
-
-    total_volume = up_volume + down_volume
-    if total_volume == 0:
-        return "Neutral"
-
-    # Calculate ratio
-    ratio = up_volume / total_volume
-
-    if ratio > 0.55:  # More than 55% volume on up days
-        return "Inflow"
-    elif ratio < 0.45:  # Less than 45% volume on up days
-        return "Outflow"
-    else:
-        return "Neutral"
 
 
 def fetch_sector_data(symbol, sector_name, spy_prices=None):
@@ -367,15 +283,7 @@ def lambda_handler(event, context):
     logging.info(f"Starting {SCRIPT_NAME}")
 
     try:
-        cfg = get_db_config()
-        conn = psycopg2.connect(
-            host=cfg["host"],
-            port=cfg["port"],
-            user=cfg["user"],
-            password=cfg["password"],
-            dbname=cfg["dbname"],
-        )
-        conn.autocommit = False
+        conn = get_connection()
         cur = conn.cursor()
 
         # Create table
@@ -385,20 +293,8 @@ def lambda_handler(event, context):
         # Load sector data
         success, failed = load_sector_data(cur, conn)
 
-        # Update last_updated
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS last_updated (
-                script_name VARCHAR(255) PRIMARY KEY,
-                last_run    TIMESTAMP
-            );
-        """)
-        cur.execute("""
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-        conn.commit()
+        # Update last_updated tracking
+        update_last_updated(cur, conn, SCRIPT_NAME)
 
         logging.info(f"Summary: Success={success}, Failed={failed}")
         logging.info("✅ Sector data load complete")

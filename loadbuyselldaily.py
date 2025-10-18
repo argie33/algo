@@ -737,7 +737,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, ma_type='SMA', ma_length=5
                 if convert_fn:
                     try:
                         return convert_fn(val)
-                    except:
+                    except Exception as e:
+                        logging.debug(f"Conversion failed: {e}, using default")
                         return default
                 return val
 

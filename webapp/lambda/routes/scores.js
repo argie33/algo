@@ -945,7 +945,14 @@ router.get("/:symbol", async (req, res) => {
         sma_50: parseFloat(row.sma_50) || 0,
         macd: parseFloat(row.macd) || null,
         last_updated: row.last_updated,
-        score_date: row.score_date
+        score_date: row.score_date,
+        // Risk inputs for frontend display (Risk Factor Analysis)
+        risk_inputs: {
+          volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
+          volatility_risk_component: parseFloat(row.volatility_risk_component) || null,
+          max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
+          beta: parseFloat(row.beta) || null
+        }
       },
       metadata: {
         dataSource: "stock_scores_real_table",

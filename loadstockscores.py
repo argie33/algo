@@ -939,8 +939,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 drawdown_data = cur.fetchone()
                 if drawdown_data and drawdown_data[0] is not None:
                     max_drawdown_52w_pct = float(drawdown_data[0])
-            except:
-                logger.warning(f"{symbol}: risk_metrics table not accessible, calculating drawdown from price data")
+            except Exception as e:
+                logger.warning(f"{symbol}: risk_metrics table error ({e}), calculating drawdown from price data")
 
             # Fallback: Calculate drawdown from price data if not in risk_metrics
             if max_drawdown_52w_pct is None:
@@ -953,11 +953,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         if max_price > 0:
                             max_drawdown_52w_pct = ((max_price - current_price_val) / max_price) * 100
                         else:
-                            max_drawdown_52w_pct = 20  # Default
+                            max_drawdown_52w_pct = None  # Insufficient data - no fallback
                     else:
-                        max_drawdown_52w_pct = 20  # Default if insufficient data
-                except:
-                    max_drawdown_52w_pct = 20  # Default
+                        max_drawdown_52w_pct = None  # Insufficient data - no fallback
+                except Exception as e:
+                    logging.debug(f"Failed to calculate drawdown for {symbol}: {e}")
+                    max_drawdown_52w_pct = None
 
             logger.info(f"{symbol}: Calculated risk components - Vol={volatility_12m_pct:.1f}%, Downside={downside_volatility:.1f}%, Drawdown={max_drawdown_52w_pct:.1f}%, Beta={beta:.2f}, Liquidity={liquidity_risk:.0f}")
 

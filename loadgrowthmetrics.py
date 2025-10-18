@@ -302,22 +302,25 @@ def check_data_availability(cursor, symbol):
         # Check revenue_estimates
         cursor.execute("SELECT COUNT(*) FROM revenue_estimates WHERE symbol = %s;", (symbol,))
         availability['revenue_estimates'] = cursor.fetchone()[0] > 0
-    except:
-        pass
+    except psycopg2.Error as e:
+        logging.warning(f"Failed to check revenue_estimates for {symbol}: {e}")
+        availability['revenue_estimates'] = False
 
     try:
         # Check earnings_history
         cursor.execute("SELECT COUNT(*) FROM earnings_history WHERE symbol = %s;", (symbol,))
         availability['earnings_history'] = cursor.fetchone()[0] > 0
-    except:
-        pass
+    except psycopg2.Error as e:
+        logging.warning(f"Failed to check earnings_history for {symbol}: {e}")
+        availability['earnings_history'] = False
 
     try:
         # Check key_metrics
         cursor.execute("SELECT COUNT(*) FROM key_metrics WHERE ticker = %s;", (symbol,))
         availability['key_metrics'] = cursor.fetchone()[0] > 0
-    except:
-        pass
+    except psycopg2.Error as e:
+        logging.warning(f"Failed to check key_metrics for {symbol}: {e}")
+        availability['key_metrics'] = False
 
     try:
         # Check quarterly_income_statement data
@@ -334,8 +337,10 @@ def check_data_availability(cursor, symbol):
             (symbol,)
         )
         availability['quarterly_income_statement_items'] = [row[0] for row in cursor.fetchall()]
-    except:
-        pass
+    except psycopg2.Error as e:
+        logging.warning(f"Failed to check quarterly_income_statement for {symbol}: {e}")
+        availability['quarterly_income_statement_count'] = 0
+        availability['quarterly_income_statement_items'] = []
 
     try:
         # Check quarterly_cashflow data
@@ -352,8 +357,10 @@ def check_data_availability(cursor, symbol):
             (symbol,)
         )
         availability['quarterly_cashflow_items'] = [row[0] for row in cursor.fetchall()]
-    except:
-        pass
+    except psycopg2.Error as e:
+        logging.warning(f"Failed to check quarterly_cash_flow for {symbol}: {e}")
+        availability['quarterly_cashflow_count'] = 0
+        availability['quarterly_cashflow_items'] = []
 
     try:
         # Check quarterly_balance_sheet data
@@ -362,8 +369,9 @@ def check_data_availability(cursor, symbol):
             (symbol,)
         )
         availability['quarterly_balance_sheet_count'] = cursor.fetchone()[0]
-    except:
-        pass
+    except psycopg2.Error as e:
+        logging.warning(f"Failed to check quarterly_balance_sheet for {symbol}: {e}")
+        availability['quarterly_balance_sheet_count'] = 0
 
     try:
         # Check payout_ratio
@@ -372,8 +380,9 @@ def check_data_availability(cursor, symbol):
             (symbol,)
         )
         availability['payout_ratio_available'] = cursor.fetchone()[0] > 0
-    except:
-        pass
+    except psycopg2.Error as e:
+        logging.warning(f"Failed to check payout_ratio for {symbol}: {e}")
+        availability['payout_ratio_available'] = False
 
     return availability
 
@@ -829,8 +838,8 @@ def process_symbol(symbol, conn_pool):
         logging.error(f"❌ Error processing {symbol}: {e}")
         try:
             conn_pool.putconn(conn)
-        except:
-            pass
+        except Exception as pool_err:
+            logging.error(f"Failed to return connection to pool for {symbol}: {pool_err}")
         return 0
 
 

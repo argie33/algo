@@ -116,7 +116,7 @@ def load_symbols_from_db(conn):
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         return symbols
-    except:
+    except Exception as e:
         return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
 
 def upsert_technical_data(conn, technical_data):
