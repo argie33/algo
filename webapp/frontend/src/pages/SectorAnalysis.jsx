@@ -70,11 +70,11 @@ const SectorAnalysis = () => {
     return sectorMapping[industriesSectorName] || industriesSectorName;
   };
 
-  // Fetch sector performance data with historical rankings
+  // Fetch sector performance data (using original endpoint)
   const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
-    queryKey: ["sector-performance-history"],
+    queryKey: ["sector-performance"],
     queryFn: async () => {
-      const response = await api.get("/api/market/sectors-with-history?limit=20&sortBy=current_rank");
+      const response = await api.get("/api/market/sectors?limit=20");
       return response.data;
     },
     staleTime: 60000,
@@ -82,11 +82,11 @@ const SectorAnalysis = () => {
     retry: false,
   });
 
-  // Fetch industry performance data with historical rankings
+  // Fetch industry performance data (using original endpoint)
   const { data: industryData, isLoading: industryLoading, error: industryError } = useQuery({
-    queryKey: ["industry-performance-history"],
+    queryKey: ["industry-performance"],
     queryFn: async () => {
-      const response = await api.get("/api/market/industries-with-history?limit=50&sortBy=current_rank");
+      const response = await api.get("/api/market/industries?limit=50");
       return response.data;
     },
     staleTime: 60000,
@@ -94,12 +94,16 @@ const SectorAnalysis = () => {
     retry: false,
   });
 
-  // Update lastUpdate timestamp when data successfully loads
+  // Update lastUpdate timestamp when BOTH data sources successfully load
   useEffect(() => {
-    if (rotationData?.data?.sectors || industryData?.data?.industries) {
+    // Only update when both sectors AND industries are loaded
+    if (rotationData?.data?.sectors?.length > 0 && industryData?.data?.industries?.length > 0) {
       setLastUpdate(new Date());
     }
   }, [rotationData, industryData]);
+
+  // Only render sectors if industries are loaded (to ensure filtering works)
+  const shouldRenderSectors = rotationData?.data?.sectors && industryData?.data?.industries;
 
   const formatTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - date) / 1000);
@@ -267,6 +271,10 @@ const SectorAnalysis = () => {
             <Alert severity="info">
               No sector data available.
             </Alert>
+          ) : !shouldRenderSectors ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <LinearProgress sx={{ width: "50%" }} />
+            </Box>
           ) : (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
               {/* Header Row */}
@@ -318,9 +326,11 @@ const SectorAnalysis = () => {
                       sx={{
                         backgroundColor: "grey.50",
                         "&:hover": { backgroundColor: "grey.100" },
+                        overflow: "visible",
+                        minHeight: "60px",
                       }}
                     >
-                      <Grid container spacing={2} alignItems="center" sx={{ width: "100%" }}>
+                      <Grid container spacing={1} alignItems="center" sx={{ width: "100%", overflow: "visible" }}>
                         <Grid item xs={12} sm={1.5}>
                           <Typography variant="body2" fontWeight="bold">
                             {sector.sector_name}
@@ -563,9 +573,11 @@ const SectorAnalysis = () => {
                       sx={{
                         backgroundColor: "grey.50",
                         "&:hover": { backgroundColor: "grey.100" },
+                        overflow: "visible",
+                        minHeight: "60px",
                       }}
                     >
-                      <Grid container spacing={2} alignItems="center" sx={{ width: "100%" }}>
+                      <Grid container spacing={1} alignItems="center" sx={{ width: "100%", overflow: "visible" }}>
                         <Grid item xs={2} sm={0.8}>
                           <Chip
                             label={`#${industry.current_rank || "N/A"}`}
