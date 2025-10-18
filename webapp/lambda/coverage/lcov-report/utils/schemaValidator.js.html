@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">2.56% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>9/351</span>
+                <span class='fraction'>0/351</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">2.32% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/43</span>
+                <span class='fraction'>0/43</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">2.61% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>9/344</span>
+                <span class='fraction'>0/344</span>
             </div>
         
             
@@ -1772,13 +1772,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2381,7 +2381,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -2475,9 +2475,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -3407,9 +3407,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -3476,13 +3476,13 @@
  * Provides comprehensive validation for database operations and schema integrity
  */
 &nbsp;
-const { query } = require("./database");
-const logger = require("./logger");
+const { query } = <span class="cstat-no" title="statement not covered" >require("./database");</span>
+const logger = <span class="cstat-no" title="statement not covered" >require("./logger");</span>
 &nbsp;
 /**
  * Schema definitions for database tables
  */
-const tableSchemas = {
+const tableSchemas = <span class="cstat-no" title="statement not covered" >{</span>
   stocks: {
     required: ["symbol", "name"],
     columns: {
@@ -4085,7 +4085,7 @@ const tableSchemas = {
 /**
  * Application-level schemas for business objects
  */
-const applicationSchemas = {
+const applicationSchemas = <span class="cstat-no" title="statement not covered" >{</span>
   stockQuote: {
     required: ["symbol", "price"],
     properties: {
@@ -4178,10 +4178,10 @@ const applicationSchemas = {
 };
 &nbsp;
 class SchemaValidator {
-  constructor() {
-    this.schemas = tableSchemas;
-    this.applicationSchemas = applicationSchemas;
-    this.customSchemas = new Map(); // Store custom registered schemas
+<span class="fstat-no" title="function not covered" >  co</span>nstructor() {
+<span class="cstat-no" title="statement not covered" >    this.schemas = tableSchemas;</span>
+<span class="cstat-no" title="statement not covered" >    this.applicationSchemas = applicationSchemas;</span>
+<span class="cstat-no" title="statement not covered" >    this.customSchemas = new Map(); </span>// Store custom registered schemas
   }
 &nbsp;
   /**
@@ -5111,9 +5111,9 @@ class SchemaValidator {
 }
 &nbsp;
 // Export singleton instance
-const schemaValidator = new SchemaValidator();
+const schemaValidator = <span class="cstat-no" title="statement not covered" >new SchemaValidator();</span>
 &nbsp;
-module.exports = {
+<span class="cstat-no" title="statement not covered" >module.exports = {</span>
   validate: <span class="fstat-no" title="function not covered" >(d</span>ata, schemaName) =&gt; <span class="cstat-no" title="statement not covered" >schemaValidator.validate(data, schemaName),</span>
   validateWithCustomSchema: <span class="fstat-no" title="function not covered" >(d</span>ata, customSchema) =&gt; <span class="cstat-no" title="statement not covered" >schemaValidator.validateWithCustomSchema(data, customSchema),</span>
   registerSchema: <span class="fstat-no" title="function not covered" >(s</span>chemaName, schema) =&gt; <span class="cstat-no" title="statement not covered" >schemaValidator.registerSchema(schemaName, schema),</span>
@@ -5182,7 +5182,7 @@ module.exports = {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-10-18T16:31:43.069Z
+                at 2025-10-18T18:27:08.409Z
             </div>
         <script src="../prettify.js"></script>
         <script>

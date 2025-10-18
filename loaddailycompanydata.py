@@ -111,21 +111,53 @@ def get_db_config():
         }
 
 
-def safe_float(value, default=None):
+def safe_float(value, default=None, max_val=None, min_val=None):
+    """Safely convert to float with optional bounds checking"""
     if value is None or pd.isna(value):
         return default
     try:
-        return float(value)
+        f = float(value)
+        # Handle NaN/Inf
+        if np.isnan(f) or np.isinf(f):
+            return default
+        # Clamp to bounds if provided
+        if max_val is not None and f > max_val:
+            f = max_val
+        if min_val is not None and f < min_val:
+            f = min_val
+        return f
     except (ValueError, TypeError):
         return default
 
 
-def safe_int(value, default=None):
+def safe_int(value, default=None, max_val=None, min_val=None):
+    """Safely convert to int with optional bounds checking"""
     if value is None or pd.isna(value):
         return default
     try:
-        return int(value)
+        i = int(value)
+        # Clamp to bounds if provided
+        if max_val is not None and i > max_val:
+            i = max_val
+        if min_val is not None and i < min_val:
+            i = min_val
+        return i
     except (ValueError, TypeError):
+        return default
+
+
+def safe_str(value, default=None, max_len=None):
+    """Safely convert to string with optional length truncation"""
+    if value is None or pd.isna(value):
+        return default
+    try:
+        s = str(value).strip()
+        if not s:
+            return default
+        if max_len is not None and len(s) > max_len:
+            s = s[:max_len]
+        return s
+    except (ValueError, TypeError, AttributeError):
         return default
 
 
@@ -437,10 +469,10 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         inst_type = 'INSTITUTIONAL'
 
                     inst_data.append((
-                        symbol, inst_type, inst_name,
-                        safe_float(row.get('Value')),
-                        safe_float(row.get('pctChange')) * 100 if row.get('pctChange') else None,
-                        safe_float(row.get('pctHeld')),
+                        symbol, inst_type, safe_str(inst_name, max_len=300),
+                        safe_float(row.get('Value'), max_val=999999999999),
+                        safe_float(row.get('pctChange'), max_val=1000, min_val=-100) * 100 if row.get('pctChange') else None,
+                        safe_float(row.get('pctHeld'), max_val=100, min_val=0),
                         date_reported, quarter,
                     ))
 
@@ -477,10 +509,10 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
                     mf_data.append((
                         symbol, 'MUTUAL_FUND',
-                        str(row.get('Holder', '')),
-                        safe_float(row.get('Value')),
-                        safe_float(row.get('pctChange')) * 100 if row.get('pctChange') else None,
-                        safe_float(row.get('pctHeld')),
+                        safe_str(row.get('Holder', ''), max_len=300),
+                        safe_float(row.get('Value'), max_val=999999999999),
+                        safe_float(row.get('pctChange'), max_val=1000, min_val=-100) * 100 if row.get('pctChange') else None,
+                        safe_float(row.get('pctHeld'), max_val=100, min_val=0),
                         date_reported, quarter,
                     ))
 
@@ -669,12 +701,12 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 for period, row in earnings_estimate.iterrows():
                     earnings_data.append((
                         symbol, str(period),
-                        pyval(row.get("avg")),
-                        pyval(row.get("low")),
-                        pyval(row.get("high")),
-                        pyval(row.get("yearAgoEps")),
-                        pyval(row.get("numberOfAnalysts")),
-                        pyval(row.get("growth")),
+                        safe_float(row.get("avg"), max_val=1000000, min_val=-1000000),
+                        safe_float(row.get("low"), max_val=1000000, min_val=-1000000),
+                        safe_float(row.get("high"), max_val=1000000, min_val=-1000000),
+                        safe_float(row.get("yearAgoEps"), max_val=1000000, min_val=-1000000),
+                        safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
+                        safe_float(row.get("growth"), max_val=10000, min_val=-10000),
                     ))
 
                 if earnings_data:
@@ -710,12 +742,12 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 for period, row in revenue_estimate.iterrows():
                     revenue_data.append((
                         symbol, str(period),
-                        pyval(row.get("avg")),
-                        pyval(row.get("low")),
-                        pyval(row.get("high")),
-                        pyval(row.get("numberOfAnalysts")),
-                        pyval(row.get("yearAgoRevenue")),
-                        pyval(row.get("growth")),
+                        safe_float(row.get("avg"), max_val=1e15, min_val=0),
+                        safe_float(row.get("low"), max_val=1e15, min_val=0),
+                        safe_float(row.get("high"), max_val=1e15, min_val=0),
+                        safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
+                        safe_float(row.get("yearAgoRevenue"), max_val=1e15, min_val=0),
+                        safe_float(row.get("growth"), max_val=10000, min_val=-10000),
                     ))
 
                 if revenue_data:

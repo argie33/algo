@@ -65,30 +65,25 @@ SENTIMENT_SCORE_DEFAULT = 50.0  # Neutral sentiment (0-100 scale)
 # COMPOSITE SCORE WEIGHTING FRAMEWORK
 # =============================================================================
 """
-Final composite score calculation weights based on Fama-French Factor Model
+Final composite score calculation weights
 
-References:
-- Fama, E. F., & French, K. R. (2018). "Choosing factors"
-  Journal of Financial Economics, 128(2), 234-252
+Current allocation (quality-focused):
+- Quality: 30% → Profitability and financial stability (priority metric)
+- Momentum: 20% → Short-term price momentum
+- Value: 15% → PE/PB ratios relative to market
+- Growth: 15% → Earnings growth momentum
+- Positioning: 10% → Technical support/resistance levels
+- Risk: 10% → Volatility and downside risk
 
-- Verified against 10-year backtest (2013-2023) showing:
-  * Momentum: 25% → Best short-term predictor (Jegadeesh & Titman, 2001)
-  * Value: 20% → Mean reversion factor (Fama & French, 2015)
-  * Quality: 20% → Profitability factor (quality metrics)
-  * Growth: 20% → Earnings growth momentum
-  * Positioning: 7.5% → Technical support/resistance levels
-  * Sentiment: 7.5% → Market sentiment aggregate
-
-These weights were not arbitrary - each factor was tested independently
-and combined to minimize correlation while maximizing predictive power.
+Note: Sentiment factor excluded pending data infrastructure readiness
 """
 COMPOSITE_SCORE_WEIGHTS = {
-    "momentum": 0.25,        # Short-term price momentum (proven 3-12 month effect)
-    "value": 0.20,           # PE/PB ratios relative to market (mean reversion)
-    "quality": 0.20,         # Volatility, margins, ROE (quality of earnings)
-    "growth": 0.20,          # Revenue and earnings momentum (acceleration)
-    "positioning": 0.075,    # Technical positioning (support/resistance)
-    "sentiment": 0.075,      # Market sentiment indicators (aggregate of various metrics)
+    "quality": 0.30,         # Profitability, margins, ROE (quality of earnings) - PRIMARY
+    "momentum": 0.20,        # Short-term price momentum (proven 3-12 month effect)
+    "value": 0.15,           # PE/PB ratios relative to market (mean reversion)
+    "growth": 0.15,          # Revenue and earnings momentum (acceleration)
+    "positioning": 0.10,     # Technical positioning (support/resistance)
+    "risk": 0.10,            # Volatility and downside risk management
 }
 
 # Validation
