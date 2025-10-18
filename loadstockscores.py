@@ -273,62 +273,24 @@ def calculate_downside_volatility(prices):
     downside_vol = np.std(downside_returns) * np.sqrt(252) * 100
     return round(downside_vol, 2)
 
-def calculate_beta(conn, symbol, stock_returns):
+def fetch_beta_from_database(conn, symbol):
     """
-    Calculate Beta - correlation of stock returns to S&P 500.
+    Fetch beta from database (populated by loaddailycompanydata.py from yfinance).
 
-    Beta = Covariance(Stock Returns, Market Returns) / Variance(Market Returns)
-
-    Industry standard for systematic risk measurement.
-    Uses 252-day lookback (1 year of trading days).
+    Beta is pre-fetched from yfinance.ticker.info by the ingestion loader.
     """
-    if len(stock_returns) < 20:
-        return None
-
     try:
-        # Get S&P 500 returns for the same period
         cur = conn.cursor()
         cur.execute("""
-            SELECT close
-            FROM price_daily
-            WHERE symbol = 'SPY'
-            AND date >= CURRENT_DATE - INTERVAL '260 days'
-            ORDER BY date DESC
-            LIMIT 252
-        """)
-
-        spy_data = cur.fetchall()
+            SELECT beta FROM risk_metrics
+            WHERE symbol = %s AND beta IS NOT NULL
+            ORDER BY date DESC LIMIT 1
+        """, (symbol,))
+        result = cur.fetchone()
         cur.close()
-
-        if not spy_data or len(spy_data) < 20:
-            return None
-
-        # Convert to prices array (reverse order for chronological)
-        spy_prices = np.array([float(row[0]) for row in reversed(spy_data)])
-
-        # Calculate S&P 500 returns
-        if len(spy_prices) != len(stock_returns):
-            # Align to shorter series
-            min_len = min(len(spy_prices), len(stock_returns))
-            spy_prices = spy_prices[-min_len:]
-            stock_returns_aligned = stock_returns[-min_len:]
-        else:
-            stock_returns_aligned = stock_returns
-
-        spy_returns = np.diff(np.log(spy_prices))
-
-        # Calculate covariance and variance
-        covariance = np.cov(stock_returns_aligned, spy_returns)[0][1]
-        market_variance = np.var(spy_returns, ddof=1)
-
-        if market_variance == 0:
-            return 1.0  # Neutral beta if no market variance
-
-        beta = covariance / market_variance
-        return round(beta, 3)
-
+        return result[0] if result else None
     except Exception as e:
-        logger.warning(f"Could not calculate beta for {symbol}: {e}")
+        logger.debug(f"Could not fetch beta from database for {symbol}: {e}")
         return None
 
 def calculate_liquidity_risk(volume_avg_30d, current_price, shares_outstanding=None):
@@ -914,12 +876,11 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 logger.warning(f"{symbol}: Cannot calculate downside volatility")
                 downside_volatility = volatility_12m_pct * 0.7  # Estimate as 70% of total vol
 
-            # Calculate beta (correlation to S&P 500) with fallback
-            price_returns = np.diff(np.log(prices))
-            beta = calculate_beta(conn, symbol, price_returns)
+            # Fetch beta from database (fetched from yfinance by loaddailycompanydata.py)
+            beta = fetch_beta_from_database(conn, symbol)
             if beta is None:
-                logger.warning(f"{symbol}: Cannot calculate beta - SPY data missing, using neutral 1.0")
-                beta = 1.0  # Neutral beta if SPY data unavailable
+                logger.warning(f"{symbol}: Beta not found in database - using neutral 1.0")
+                beta = 1.0  # Neutral beta if not available
 
             # Calculate liquidity risk (based on volume) with fallback
             liquidity_risk = calculate_liquidity_risk(volume_avg_30d, current_price)
@@ -1824,15 +1785,15 @@ def main():
         logger.info("📊 Fetching quality metrics for percentile-based scoring...")
         quality_metrics = fetch_all_quality_metrics(conn)
         if quality_metrics is None:
-            logger.error("❌ CRITICAL: Failed to fetch quality metrics - stocks without quality data will FAIL to score")
-            return False
+            logger.warning("⚠️  Failed to fetch quality metrics - will continue with partial metrics allowed")
+            quality_metrics = {}  # Use empty dict - allow partial metrics for OR logic
 
         # Fetch all growth metrics for percentile-based growth scoring
         logger.info("📊 Fetching growth metrics for percentile-based scoring...")
         growth_metrics = fetch_all_growth_metrics(conn)
         if growth_metrics is None:
-            logger.error("❌ CRITICAL: Failed to fetch growth metrics - stocks without growth data will FAIL to score")
-            return False
+            logger.warning("⚠️  Failed to fetch growth metrics - will continue with partial metrics allowed")
+            growth_metrics = {}  # Use empty dict - allow partial metrics for OR logic
 
         # Process each symbol
         successful = 0

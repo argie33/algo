@@ -776,6 +776,27 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 logging.error(f"Error inserting revenue estimates for {symbol}: {e}")
                 conn.rollback()
 
+        # 9. Insert beta from yfinance into risk_metrics
+        try:
+            beta = safe_float(info.get('beta'))
+            if beta is not None:
+                cur.execute(
+                    """
+                    INSERT INTO risk_metrics (symbol, date, beta)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                        beta = EXCLUDED.beta,
+                        fetched_at = CURRENT_TIMESTAMP
+                    """,
+                    (symbol, date.today(), beta)
+                )
+                stats['beta'] = 1
+            else:
+                stats['beta'] = 0
+        except Exception as e:
+            logging.error(f"Error inserting beta for {symbol}: {e}")
+            stats['beta'] = 0
+
         conn.commit()
         return stats
 

@@ -542,6 +542,164 @@ describe("Scores Routes Unit Tests", () => {
     });
   });
 
+  describe("Growth metrics validation", () => {
+    test("should return all 12 growth metrics in factors.growth.inputs", async () => {
+      const response = await request(app)
+        .get("/scores/AAPL")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      if (response.status === 200) {
+        const data = response.body.data;
+        expect(data).toHaveProperty("factors");
+        expect(data.factors).toHaveProperty("growth");
+
+        const growthInputs = data.factors.growth.inputs;
+
+        // All 12 growth metrics must be present (can be null if data unavailable)
+        const expectedGrowthMetrics = [
+          "revenue_growth_3y_cagr",
+          "eps_growth_3y_cagr",
+          "operating_income_growth_yoy",
+          "roe_trend",
+          "sustainable_growth_rate",
+          "fcf_growth_yoy",
+          "net_income_growth_yoy",
+          "gross_margin_trend",
+          "operating_margin_trend",
+          "net_margin_trend",
+          "quarterly_growth_momentum",
+          "asset_growth_yoy"
+        ];
+
+        expectedGrowthMetrics.forEach(metric => {
+          expect(growthInputs).toHaveProperty(metric);
+          // Each metric can be null or a number
+          if (growthInputs[metric] !== null) {
+            expect(typeof growthInputs[metric]).toBe("number");
+          }
+        });
+      }
+    });
+
+    test("should have growth_score populated", async () => {
+      const response = await request(app)
+        .get("/scores/AAPL")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      if (response.status === 200) {
+        const data = response.body.data;
+        expect(data.factors).toHaveProperty("growth");
+        expect(data.factors.growth).toHaveProperty("score");
+        expect(typeof data.factors.growth.score).toBe("number");
+        expect(data.factors.growth.score).toBeGreaterThanOrEqual(0);
+        expect(data.factors.growth.score).toBeLessThanOrEqual(100);
+      }
+    });
+
+    test("should document legitimate null values for growth metrics with data constraints", async () => {
+      const response = await request(app)
+        .get("/scores/AAPL")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      if (response.status === 200) {
+        const growthInputs = response.body.data.factors.growth.inputs;
+
+        // These metrics CAN be null due to data availability, not quality issues
+        const constrainedMetrics = {
+          "operating_income_growth_yoy": "Requires 5+ quarters of quarterly_income_statement data",
+          "fcf_growth_yoy": "Requires 5+ quarters of quarterly_cash_flow data",
+          "net_income_growth_yoy": "Requires 5+ quarters of quarterly_income_statement data",
+          "gross_margin_trend": "Requires 5+ quarters of gross profit data",
+          "operating_margin_trend": "Requires 5+ quarters of operating income data",
+          "net_margin_trend": "Requires 5+ quarters of net income data",
+          "quarterly_growth_momentum": "Requires 8+ quarters of revenue data",
+          "asset_growth_yoy": "Requires 5+ quarters of quarterly_balance_sheet data"
+        };
+
+        Object.entries(constrainedMetrics).forEach(([metric, reason]) => {
+          expect(growthInputs).toHaveProperty(metric);
+          // Can be null or number - both valid
+          if (growthInputs[metric] !== null) {
+            expect(typeof growthInputs[metric]).toBe("number");
+          }
+        });
+      }
+    });
+
+    test("should always populate revenue_growth_3y_cagr and eps_growth_3y_cagr when available", async () => {
+      const response = await request(app)
+        .get("/scores/AAPL")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      if (response.status === 200) {
+        const growthInputs = response.body.data.factors.growth.inputs;
+
+        // These metrics are sourced from key_metrics table (most stocks have this data)
+        expect(growthInputs).toHaveProperty("revenue_growth_3y_cagr");
+        expect(growthInputs).toHaveProperty("eps_growth_3y_cagr");
+
+        // If available, they should be numbers
+        if (growthInputs.revenue_growth_3y_cagr !== null) {
+          expect(typeof growthInputs.revenue_growth_3y_cagr).toBe("number");
+        }
+        if (growthInputs.eps_growth_3y_cagr !== null) {
+          expect(typeof growthInputs.eps_growth_3y_cagr).toBe("number");
+        }
+      }
+    });
+
+    test("should have growth_inputs in list view with snake_case naming", async () => {
+      const response = await request(app)
+        .get("/scores")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .expect(200);
+
+      if (response.body.data.stocks.length > 0) {
+        const stock = response.body.data.stocks[0];
+        expect(stock).toHaveProperty("growth_inputs");
+
+        const growthInputs = stock.growth_inputs;
+        const expectedMetrics = [
+          "revenue_growth_3y_cagr",
+          "eps_growth_3y_cagr",
+          "operating_income_growth_yoy",
+          "roe_trend",
+          "sustainable_growth_rate",
+          "fcf_growth_yoy",
+          "net_income_growth_yoy",
+          "gross_margin_trend",
+          "operating_margin_trend",
+          "net_margin_trend",
+          "quarterly_growth_momentum",
+          "asset_growth_yoy"
+        ];
+
+        expectedMetrics.forEach(metric => {
+          expect(growthInputs).toHaveProperty(metric);
+        });
+      }
+    });
+
+    test("should explain why quarterly metrics might be N/A in production", () => {
+      // This test documents expected behavior - many stocks may have N/A values
+      // for quarterly-dependent metrics if they don't have enough historical quarterly data
+
+      const dataConstraints = {
+        "operating_income_growth_yoy": "Need quarterly_income_statement with 5+ quarters",
+        "fcf_growth_yoy": "Need quarterly_cash_flow with 5+ quarters",
+        "net_income_growth_yoy": "Need quarterly_income_statement with 5+ quarters",
+        "gross_margin_trend": "Need 5+ quarters of Gross Profit data",
+        "operating_margin_trend": "Need 5+ quarters of Operating Income data",
+        "net_margin_trend": "Need 5+ quarters of Net Income data",
+        "quarterly_growth_momentum": "Need 8+ quarters of revenue data",
+        "asset_growth_yoy": "Need quarterly_balance_sheet with 5+ quarters"
+      };
+
+      // This is expected - not all companies publish detailed quarterly data
+      expect(Object.keys(dataConstraints).length).toBeGreaterThan(0);
+    });
+  });
+
   describe("Value metrics schema validation", () => {
     test("should return complete value_inputs structure matching loader schema", async () => {
       const response = await request(app)

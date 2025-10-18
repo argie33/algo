@@ -67,21 +67,22 @@ const {
 describe("Database Utilities - Unit Tests", () => {
   let originalEnv;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
     originalEnv = { ...process.env };
 
-    // Setup successful Pool and client mocks
+    // Setup successful Pool and client mocks BEFORE closing database
     mockPool.connect.mockResolvedValue(mockClient);
     mockClient.query.mockResolvedValue({ rows: [{ now: new Date() }] });
     mockClient.release.mockImplementation(() => {});
+    mockPool.end.mockResolvedValue(undefined);
 
-    // Clear the Pool constructor mock
+    // Clear the Pool constructor mock call history
     mockPoolConstructor.mockClear();
 
     // Reset database module internal state
-    // Force close any existing connections to reset state
-    closeDatabase();
+    // This must be called AFTER mocks are setup but BEFORE tests run
+    await closeDatabase();
   });
 
   afterEach(() => {
