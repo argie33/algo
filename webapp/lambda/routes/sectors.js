@@ -128,7 +128,7 @@ router.get("/:sector/stocks", async (req, res) => {
 // Apply authentication to all routes except health and root
 router.use((req, res, next) => {
   // Skip auth for public endpoints - sectors are PUBLIC DATA
-  const publicEndpoints = ["/health", "/", "/performance", "/leaders", "/rotation", "/analysis", "/ranking-history", "/industries/ranking-history"];
+  const publicEndpoints = ["/health", "/", "/performance", "/leaders", "/rotation", "/analysis", "/ranking-history", "/industries/ranking-history", "/allocation"];
   const stocksPattern = /^\/[^/]+\/stocks$/; // matches /:sector/stocks
 
   if (publicEndpoints.includes(req.path) || stocksPattern.test(req.path)) {
@@ -586,8 +586,8 @@ router.get("/:sector/details", async (req, res) => {
     // Query for sector details using real data only
     const sectorDetailQuery = `
       SELECT
-        s.symbol,
-        s.symbol as short_name,
+        s.ticker as symbol,
+        s.short_name,
         s.industry,
         'US' as market,
         'USA' as country,
@@ -624,7 +624,7 @@ router.get("/:sector/details", async (req, res) => {
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY symbol, date DESC
-      ) pd ON s.symbol = pd.symbol
+      ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close
@@ -632,7 +632,7 @@ router.get("/:sector/details", async (req, res) => {
         WHERE date >= CURRENT_DATE - INTERVAL '37 days'
           AND date < CURRENT_DATE - INTERVAL '30 days'
         ORDER BY symbol, date DESC
-      ) pd_old ON s.symbol = pd_old.symbol
+      ) pd_old ON s.ticker = pd_old.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (ticker)
           ticker, rsi, momentum, macd, macd_signal, sma_20, sma_50,
@@ -641,10 +641,10 @@ router.get("/:sector/details", async (req, res) => {
         FROM technical_indicators
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY ticker, date DESC
-      ) ti ON s.symbol = ti.ticker
+      ) ti ON s.ticker = ti.ticker
       WHERE s.sector = $1
         AND pd.close IS NOT NULL
-      ORDER BY s.symbol
+      ORDER BY s.ticker
       LIMIT $2
     `;
 
@@ -799,7 +799,7 @@ router.get("/allocation", async (req, res) => {
         AVG(ph.average_cost) as avg_cost_basis,
         SUM(ph.quantity * pd.close) - SUM(ph.quantity * ph.average_cost) as unrealized_pnl
       FROM portfolio_holdings ph
-      LEFT JOIN company_profile s ON ph.symbol = s.symbol
+      LEFT JOIN company_profile s ON ph.symbol = s.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, date
