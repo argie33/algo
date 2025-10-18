@@ -1214,7 +1214,7 @@ router.post("/alerts", authenticateToken, async (req, res) => {
     }
 
     // Create alert with real database implementation
-    const alertId = `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const alertId = `alert_${Date.now()}`;
 
     // Insert into signal_alerts table
     const insertQuery = `

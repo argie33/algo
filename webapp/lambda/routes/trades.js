@@ -306,7 +306,7 @@ router.post("/", authenticateToken, async (req, res) => {
     }
 
     // Create trade record
-    const trade_id = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const trade_id = `trade_${Date.now()}`;
     const insertQuery = `
       INSERT INTO trades (
         trade_id, user_id, symbol, side, quantity, type,

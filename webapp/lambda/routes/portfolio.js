@@ -3266,7 +3266,7 @@ router.get("/performance/history", authenticateToken, async (req, res) => {
         // Simplified benchmark data for tests
         performance: performance.map((p) => ({
           date: p.date,
-          benchmarkReturn: Math.random() * 2 - 1, // Random return for testing
+          benchmarkReturn: 0, // Placeholder - real benchmark data requires external data source
         })),
       };
     }
