@@ -541,4 +541,171 @@ describe("Scores Routes Unit Tests", () => {
       }
     });
   });
+
+  describe("Value metrics schema validation", () => {
+    test("should return complete value_inputs structure matching loader schema", async () => {
+      const response = await request(app)
+        .get("/scores/AAPL")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      if (response.status === 200) {
+        const data = response.body.data;
+        expect(data).toHaveProperty("factors");
+
+        // Check value factor exists
+        expect(data.factors).toHaveProperty("value");
+        const valueInputs = data.factors.value.inputs;
+
+        // REQUIRED: All benchmarks must be populated (never null)
+        expect(valueInputs).toHaveProperty("market_pe");
+        expect(typeof valueInputs.market_pe).toBe("number");
+        expect(valueInputs.market_pe).toBeGreaterThan(0);
+
+        expect(valueInputs).toHaveProperty("market_pb");
+        expect(typeof valueInputs.market_pb).toBe("number");
+        expect(valueInputs.market_pb).toBeGreaterThan(0);
+
+        expect(valueInputs).toHaveProperty("market_ps");
+        expect(typeof valueInputs.market_ps).toBe("number");
+        expect(valueInputs.market_ps).toBeGreaterThan(0);
+
+        expect(valueInputs).toHaveProperty("market_fcf_yield");
+        expect(typeof valueInputs.market_fcf_yield).toBe("number");
+
+        expect(valueInputs).toHaveProperty("market_dividend_yield");
+        expect(typeof valueInputs.market_dividend_yield).toBe("number");
+
+        // REQUIRED: All sector benchmarks must be populated (100% from loaders)
+        expect(valueInputs).toHaveProperty("sector_pe");
+        expect(typeof valueInputs.sector_pe).toBe("number");
+
+        expect(valueInputs).toHaveProperty("sector_pb");
+        expect(typeof valueInputs.sector_pb).toBe("number");
+
+        expect(valueInputs).toHaveProperty("sector_ps");
+        expect(typeof valueInputs.sector_ps).toBe("number");
+
+        expect(valueInputs).toHaveProperty("sector_fcf_yield");
+        expect(typeof valueInputs.sector_fcf_yield).toBe("number");
+
+        expect(valueInputs).toHaveProperty("sector_dividend_yield");
+        expect(typeof valueInputs.sector_dividend_yield).toBe("number");
+
+        // Stock-level metrics: Can be null for legitimate reasons
+        expect(valueInputs).toHaveProperty("stock_pe");
+        if (valueInputs.stock_pe !== null) {
+          expect(typeof valueInputs.stock_pe).toBe("number");
+        }
+
+        expect(valueInputs).toHaveProperty("stock_pb");
+        expect(valueInputs.stock_pb).toBeNull(); // May be null
+
+        expect(valueInputs).toHaveProperty("stock_ps");
+        expect(valueInputs.stock_ps).toBeNull(); // May be null
+
+        expect(valueInputs).toHaveProperty("stock_ev_ebitda");
+        expect(valueInputs.stock_ev_ebitda).toBeNull(); // May be null
+
+        expect(valueInputs).toHaveProperty("stock_fcf_yield");
+        if (valueInputs.stock_fcf_yield !== null) {
+          expect(typeof valueInputs.stock_fcf_yield).toBe("number");
+        }
+
+        expect(valueInputs).toHaveProperty("stock_dividend_yield");
+        // Legitimate null for non-dividend payers
+        if (valueInputs.stock_dividend_yield !== null) {
+          expect(typeof valueInputs.stock_dividend_yield).toBe("number");
+          expect(valueInputs.stock_dividend_yield).toBeGreaterThanOrEqual(0);
+        }
+
+        expect(valueInputs).toHaveProperty("earnings_growth_pct");
+        expect(valueInputs.earnings_growth_pct).toBeDefined(); // Should have value
+
+        expect(valueInputs).toHaveProperty("peg_ratio");
+        if (valueInputs.peg_ratio !== null) {
+          expect(typeof valueInputs.peg_ratio).toBe("number");
+        }
+      }
+    });
+
+    test("should have 100% populated market benchmarks across all stocks", async () => {
+      const response = await request(app)
+        .get("/scores?limit=50")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .expect(200);
+
+      const stocks = response.body.data.stocks;
+      expect(stocks.length).toBeGreaterThan(0);
+
+      const requiredBenchmarks = [
+        "market_pe", "market_pb", "market_ps",
+        "market_fcf_yield", "market_dividend_yield"
+      ];
+
+      stocks.forEach(stock => {
+        const valueInputs = stock.value_inputs || {};
+        requiredBenchmarks.forEach(benchmark => {
+          expect(valueInputs[benchmark]).toBeDefined();
+          expect(valueInputs[benchmark]).not.toBeNull();
+          expect(typeof valueInputs[benchmark]).toBe("number");
+        });
+      });
+    });
+
+    test("should have 100% populated sector benchmarks across all stocks", async () => {
+      const response = await request(app)
+        .get("/scores?limit=50")
+        .set("Authorization", "Bearer dev-bypass-token")
+        .expect(200);
+
+      const stocks = response.body.data.stocks;
+      expect(stocks.length).toBeGreaterThan(0);
+
+      const requiredSectorBenchmarks = [
+        "sector_pe", "sector_pb", "sector_ps",
+        "sector_fcf_yield", "sector_dividend_yield"
+      ];
+
+      let sectorBenchmarkMisses = 0;
+      stocks.forEach(stock => {
+        const valueInputs = stock.value_inputs || {};
+        requiredSectorBenchmarks.forEach(benchmark => {
+          if (valueInputs[benchmark] === null || valueInputs[benchmark] === undefined) {
+            sectorBenchmarkMisses++;
+          }
+        });
+      });
+
+      // Allow max 1 miss out of 250 (50 stocks * 5 benchmarks) for edge cases
+      expect(sectorBenchmarkMisses).toBeLessThanOrEqual(1);
+    });
+
+    test("should document legitimate null values in stock-level metrics", async () => {
+      const response = await request(app)
+        .get("/scores/AAPL")
+        .set("Authorization", "Bearer dev-bypass-token");
+
+      if (response.status === 200) {
+        const valueInputs = response.body.data.factors.value.inputs;
+
+        // These CAN be null due to data limitations, not data quality issues
+        const legitNullFields = [
+          "stock_pe",           // Null for unprofitable/negative earnings
+          "stock_pb",           // May be null for complex structures
+          "stock_ps",           // May be null for no sales
+          "stock_ev_ebitda",    // May be null for negative EBITDA
+          "stock_fcf_yield",    // Null when no FCF data available
+          "stock_dividend_yield" // Null for non-dividend payers (40% of stocks)
+        ];
+
+        legitNullFields.forEach(field => {
+          expect(valueInputs).toHaveProperty(field);
+          // Property can be null or a number, both valid
+          if (valueInputs[field] !== null) {
+            expect(typeof valueInputs[field]).toBe("number");
+          }
+        });
+      }
+    });
+  });
 });

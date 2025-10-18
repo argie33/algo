@@ -12,11 +12,14 @@ Base Metrics Calculated:
 
 Data Sources:
 - momentum_metrics: volatility, price vs MAs, 52W positioning
-- yfinance: Historical prices (for downside volatility calculation)
+- price_daily: Historical daily prices (from loadcompanydaily or similar ingestion loader)
 
 Note: Beta comes from daily stock loader (via .ticker data)
 Final risk_score (40% vol + 27% technical + 33% drawdown)
 is calculated in loadstockscores.py, not here
+
+ARCHITECTURE: This is a FACTOR LOADER - it calculates metrics from existing data tables,
+not from external APIs. All source data (prices, volatility) must come from prior loaders.
 """
 
 import concurrent.futures
@@ -33,7 +36,6 @@ import boto3
 import numpy as np
 import psycopg2
 import psycopg2.extensions
-import yfinance as yf
 from psycopg2 import pool
 from psycopg2.extras import execute_values
 
@@ -146,20 +148,33 @@ def create_connection_pool():
     )
 
 
-def calculate_downside_volatility(symbol):
-    """Calculate downside volatility (only negative returns)"""
+def calculate_downside_volatility(symbol, conn_pool):
+    """Calculate downside volatility from price_daily table (only negative returns)"""
     try:
-        # Get 1 year of daily data
+        conn = conn_pool.getconn()
+        cursor = conn.cursor()
+
+        # Get 1 year of daily prices from price_daily table (already loaded by ingestion loader)
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=365)
 
-        data = yf.download(symbol, start=start_date, end=end_date, progress=False)
-        if data is None or len(data) < 20:
+        cursor.execute("""
+            SELECT close_price FROM price_daily
+            WHERE symbol = %s AND date >= %s AND date <= %s
+            ORDER BY date ASC
+        """, (symbol, start_date, end_date))
+
+        rows = cursor.fetchall()
+        conn_pool.putconn(conn)
+
+        if not rows or len(rows) < 20:
             return None
 
-        # Calculate daily returns
-        close_col = 'Adj Close' if 'Adj Close' in data.columns else 'Close'
-        returns = data[close_col].pct_change().dropna()
+        # Extract close prices
+        prices = np.array([float(row[0]) for row in rows])
+
+        # Calculate daily returns (pct change)
+        returns = np.diff(prices) / prices[:-1]
 
         # Filter for only negative returns
         downside_returns = returns[returns < 0]
@@ -168,14 +183,18 @@ def calculate_downside_volatility(symbol):
             return None
 
         # Calculate downside volatility (std of negative returns)
-        downside_vol = downside_returns.std()
+        downside_vol = np.std(downside_returns)
 
         # Annualize: multiply by sqrt(252 trading days)
         annualized_downside_vol = downside_vol * np.sqrt(252) * 100
 
         return safe_numeric(float(annualized_downside_vol))
     except Exception as e:
-        logging.debug(f"Downside volatility calc failed for {symbol}: {e}")
+        logging.debug(f"Downside volatility calc from price_daily failed for {symbol}: {e}")
+        try:
+            conn_pool.putconn(conn)
+        except Exception:
+            pass
         return None
 
 
@@ -217,8 +236,8 @@ def process_symbol(symbol, conn_pool):
         if high_52w and current_price and high_52w > 0:
             drawdown_metric = ((high_52w - current_price) / high_52w) * 100
 
-        # Base Metric 3: Downside Volatility (only negative returns)
-        downside_vol_metric = calculate_downside_volatility(symbol)
+        # Base Metric 3: Downside Volatility (only negative returns, from price_daily table)
+        downside_vol_metric = calculate_downside_volatility(symbol, conn_pool)
 
         # Note: Beta comes from daily stock loader (as per requirements)
         # Not fetching here to avoid yfinance rate limiting

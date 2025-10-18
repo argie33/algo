@@ -206,7 +206,7 @@
           "specs": [
             {
               "title": "should load Sector Analysis page without errors",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -219,120 +219,25 @@
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 1836,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 18,
-                          "line": 34
-                        },
-                        "snippet": "  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 18,
-                            "line": 34
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 27149,
+                      "errors": [],
                       "stdout": [
                         {
                           "text": "🧪 Testing Sector Analysis at /sectors...\n"
                         },
                         {
-                          "text": "⚠️ Sector Analysis failed to load: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n"
+                          "text": "📊 Sector Analysis: 0 total errors, 0 MUI Tabs errors\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.243Z",
+                      "startTime": "2025-10-18T16:26:46.952Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 18,
-                        "line": 34
-                      }
-                    },
-                    {
-                      "workerIndex": 29,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 685,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 18,
-                          "line": 34
-                        },
-                        "snippet": "  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 18,
-                            "line": 34
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "🧪 Testing Sector Analysis at /sectors...\n"
-                        },
-                        {
-                          "text": "⚠️ Sector Analysis failed to load: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:56.115Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 18,
-                        "line": 34
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "581b4c39fbff13a53cbc-d0548239c0172065b3f6",
@@ -342,7 +247,7 @@
             },
             {
               "title": "should display sector analysis elements",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -355,106 +260,18 @@
                     {
                       "workerIndex": 1,
                       "parallelIndex": 1,
-                      "status": "failed",
-                      "duration": 1746,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 16,
-                          "line": 83
-                        },
-                        "snippet": "  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 16,
-                            "line": 83
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 23884,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.455Z",
+                      "startTime": "2025-10-18T16:26:46.928Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 16,
-                        "line": 83
-                      }
-                    },
-                    {
-                      "workerIndex": 28,
-                      "parallelIndex": 1,
-                      "status": "failed",
-                      "duration": 722,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 16,
-                          "line": 83
-                        },
-                        "snippet": "  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 16,
-                            "line": 83
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:55.950Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 16,
-                        "line": 83
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "581b4c39fbff13a53cbc-acb2d95a7ac3e6308ea5",
@@ -464,7 +281,7 @@
             },
             {
               "title": "should load Sector Analysis page without errors",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -477,130 +294,25 @@
                     {
                       "workerIndex": 3,
                       "parallelIndex": 3,
-                      "status": "failed",
-                      "duration": 2815,
-                      "error": {
-                        "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 18,
-                          "line": 34
-                        },
-                        "snippet": "  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 18,
-                            "line": 34
-                          },
-                          "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 24574,
+                      "errors": [],
                       "stdout": [
                         {
                           "text": "🧪 Testing Sector Analysis at /sectors...\n"
                         },
                         {
-                          "text": "⚠️ Sector Analysis failed to load: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n"
+                          "text": "📊 Sector Analysis: 0 total errors, 0 MUI Tabs errors\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.503Z",
+                      "startTime": "2025-10-18T16:26:46.957Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-firefox/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-firefox/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-firefox/error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 18,
-                        "line": 34
-                      }
-                    },
-                    {
-                      "workerIndex": 33,
-                      "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 2485,
-                      "error": {
-                        "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 18,
-                          "line": 34
-                        },
-                        "snippet": "  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 18,
-                            "line": 34
-                          },
-                          "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "🧪 Testing Sector Analysis at /sectors...\n"
-                        },
-                        {
-                          "text": "⚠️ Sector Analysis failed to load: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:59.357Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-firefox-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-firefox-retry1/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-firefox-retry1/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-desktop-firefox-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 18,
-                        "line": 34
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "581b4c39fbff13a53cbc-fb9f79bb6c117df44522",
@@ -610,7 +322,7 @@
             },
             {
               "title": "should display sector analysis elements",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -623,116 +335,18 @@
                     {
                       "workerIndex": 4,
                       "parallelIndex": 4,
-                      "status": "failed",
-                      "duration": 2152,
-                      "error": {
-                        "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 16,
-                          "line": 83
-                        },
-                        "snippet": "  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 16,
-                            "line": 83
-                          },
-                          "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 22374,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.256Z",
+                      "startTime": "2025-10-18T16:26:46.924Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-firefox/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-firefox/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-firefox/error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 16,
-                        "line": 83
-                      }
-                    },
-                    {
-                      "workerIndex": 34,
-                      "parallelIndex": 1,
-                      "status": "failed",
-                      "duration": 2184,
-                      "error": {
-                        "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 16,
-                          "line": 83
-                        },
-                        "snippet": "  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 16,
-                            "line": 83
-                          },
-                          "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:59.490Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-firefox-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-firefox-retry1/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-firefox-retry1/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-desktop-firefox-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 16,
-                        "line": 83
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "581b4c39fbff13a53cbc-d5f0f6c1f7492b476bc7",
@@ -756,7 +370,7 @@
                       "workerIndex": 6,
                       "parallelIndex": 6,
                       "status": "failed",
-                      "duration": 6,
+                      "duration": 16,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -769,7 +383,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.186Z",
+                      "startTime": "2025-10-18T16:26:46.967Z",
                       "annotations": [],
                       "attachments": []
                     },
@@ -777,7 +391,7 @@
                       "workerIndex": 18,
                       "parallelIndex": 6,
                       "status": "failed",
-                      "duration": 5,
+                      "duration": 11,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -790,7 +404,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
-                      "startTime": "2025-10-18T15:55:54.179Z",
+                      "startTime": "2025-10-18T16:26:52.006Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -825,7 +439,7 @@
                       "workerIndex": 7,
                       "parallelIndex": 7,
                       "status": "failed",
-                      "duration": 6,
+                      "duration": 11,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -838,15 +452,15 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.184Z",
+                      "startTime": "2025-10-18T16:26:46.943Z",
                       "annotations": [],
                       "attachments": []
                     },
                     {
-                      "workerIndex": 16,
+                      "workerIndex": 17,
                       "parallelIndex": 7,
                       "status": "failed",
-                      "duration": 6,
+                      "duration": 9,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -859,7 +473,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
-                      "startTime": "2025-10-18T15:55:54.074Z",
+                      "startTime": "2025-10-18T16:26:52.018Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -880,7 +494,7 @@
             },
             {
               "title": "should load Sector Analysis page without errors",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -893,120 +507,25 @@
                     {
                       "workerIndex": 9,
                       "parallelIndex": 9,
-                      "status": "failed",
-                      "duration": 1649,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 18,
-                          "line": 34
-                        },
-                        "snippet": "  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 18,
-                            "line": 34
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 26263,
+                      "errors": [],
                       "stdout": [
                         {
                           "text": "🧪 Testing Sector Analysis at /sectors...\n"
                         },
                         {
-                          "text": "⚠️ Sector Analysis failed to load: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n"
+                          "text": "📊 Sector Analysis: 0 total errors, 0 MUI Tabs errors\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.264Z",
+                      "startTime": "2025-10-18T16:26:46.919Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-tablet-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-tablet-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 18,
-                        "line": 34
-                      }
-                    },
-                    {
-                      "workerIndex": 27,
-                      "parallelIndex": 9,
-                      "status": "failed",
-                      "duration": 647,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 18,
-                          "line": 34
-                        },
-                        "snippet": "  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 18,
-                            "line": 34
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "🧪 Testing Sector Analysis at /sectors...\n"
-                        },
-                        {
-                          "text": "⚠️ Sector Analysis failed to load: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:55.933Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-tablet-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-tablet-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-tablet-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 18,
-                        "line": 34
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "581b4c39fbff13a53cbc-c69942dec049d3fdc0e2",
@@ -1016,7 +535,7 @@
             },
             {
               "title": "should display sector analysis elements",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -1029,106 +548,18 @@
                     {
                       "workerIndex": 10,
                       "parallelIndex": 10,
-                      "status": "failed",
-                      "duration": 1579,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 16,
-                          "line": 83
-                        },
-                        "snippet": "  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 16,
-                            "line": 83
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 23567,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.479Z",
+                      "startTime": "2025-10-18T16:26:46.951Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-tablet-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-tablet-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 16,
-                        "line": 83
-                      }
-                    },
-                    {
-                      "workerIndex": 22,
-                      "parallelIndex": 6,
-                      "status": "failed",
-                      "duration": 618,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 16,
-                          "line": 83
-                        },
-                        "snippet": "  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 16,
-                            "line": 83
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:55.814Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-tablet-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-tablet-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-tablet-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 16,
-                        "line": 83
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "581b4c39fbff13a53cbc-e2b67e3d2dab073ae05a",
@@ -1138,7 +569,7 @@
             },
             {
               "title": "should load Sector Analysis page without errors",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -1151,120 +582,25 @@
                     {
                       "workerIndex": 12,
                       "parallelIndex": 12,
-                      "status": "failed",
-                      "duration": 1866,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 18,
-                          "line": 34
-                        },
-                        "snippet": "  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 18,
-                            "line": 34
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 24225,
+                      "errors": [],
                       "stdout": [
                         {
                           "text": "🧪 Testing Sector Analysis at /sectors...\n"
                         },
                         {
-                          "text": "⚠️ Sector Analysis failed to load: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n"
+                          "text": "📊 Sector Analysis: 0 total errors, 0 MUI Tabs errors\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.290Z",
+                      "startTime": "2025-10-18T16:26:46.975Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-mobile-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-mobile-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 18,
-                        "line": 34
-                      }
-                    },
-                    {
-                      "workerIndex": 30,
-                      "parallelIndex": 12,
-                      "status": "failed",
-                      "duration": 616,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 18,
-                          "line": 34
-                        },
-                        "snippet": "  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 18,
-                            "line": 34
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  32 |     // Navigate to Sector Analysis page\n  33 |     try {\n> 34 |       await page.goto(\"/sectors\", {\n     |                  ^\n  35 |         waitUntil: \"domcontentloaded\",\n  36 |         timeout: 15000,\n  37 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:34:18"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "🧪 Testing Sector Analysis at /sectors...\n"
-                        },
-                        {
-                          "text": "⚠️ Sector Analysis failed to load: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:56.143Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-mobile-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-mobile-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-873d6-nalysis-page-without-errors-mobile-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 18,
-                        "line": 34
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "581b4c39fbff13a53cbc-01f58a52e8f9fd126d0f",
@@ -1274,7 +610,7 @@
             },
             {
               "title": "should display sector analysis elements",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -1287,106 +623,18 @@
                     {
                       "workerIndex": 13,
                       "parallelIndex": 13,
-                      "status": "failed",
-                      "duration": 1740,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 16,
-                          "line": 83
-                        },
-                        "snippet": "  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 16,
-                            "line": 83
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 24037,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.237Z",
+                      "startTime": "2025-10-18T16:26:46.993Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-mobile-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-mobile-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 16,
-                        "line": 83
-                      }
-                    },
-                    {
-                      "workerIndex": 26,
-                      "parallelIndex": 11,
-                      "status": "failed",
-                      "duration": 637,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                          "column": 16,
-                          "line": 83
-                        },
-                        "snippet": "  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                            "column": 16,
-                            "line": 83
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  81 |\n  82 |   test(\"should display sector analysis elements\", async ({ page }) => {\n> 83 |     await page.goto(\"/sectors\", {\n     |                ^\n  84 |       waitUntil: \"domcontentloaded\",\n  85 |       timeout: 15000,\n  86 |     });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js:83:16"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:55.926Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-mobile-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-mobile-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/features-SectorAnalysis-Se-435d3-ay-sector-analysis-elements-mobile-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/features/SectorAnalysis.spec.js",
-                        "column": 16,
-                        "line": 83
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "581b4c39fbff13a53cbc-596358690c9237d89218",
@@ -1410,7 +658,7 @@
                       "workerIndex": 15,
                       "parallelIndex": 15,
                       "status": "failed",
-                      "duration": 5,
+                      "duration": 10,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -1423,15 +671,15 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.160Z",
+                      "startTime": "2025-10-18T16:26:46.920Z",
                       "annotations": [],
                       "attachments": []
                     },
                     {
-                      "workerIndex": 17,
+                      "workerIndex": 16,
                       "parallelIndex": 15,
                       "status": "failed",
-                      "duration": 5,
+                      "duration": 8,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -1444,7 +692,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
-                      "startTime": "2025-10-18T15:55:54.176Z",
+                      "startTime": "2025-10-18T16:26:52.005Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -1476,8 +724,29 @@
                   "projectName": "mobile-safari",
                   "results": [
                     {
-                      "workerIndex": 20,
+                      "workerIndex": 21,
                       "parallelIndex": 7,
+                      "status": "failed",
+                      "duration": 7,
+                      "error": {
+                        "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
+                        "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
+                      },
+                      "errors": [
+                        {
+                          "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-10-18T16:26:53.783Z",
+                      "annotations": [],
+                      "attachments": []
+                    },
+                    {
+                      "workerIndex": 22,
+                      "parallelIndex": 6,
                       "status": "failed",
                       "duration": 6,
                       "error": {
@@ -1491,29 +760,8 @@
                       ],
                       "stdout": [],
                       "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-10-18T15:55:55.651Z",
-                      "annotations": [],
-                      "attachments": []
-                    },
-                    {
-                      "workerIndex": 31,
-                      "parallelIndex": 7,
-                      "status": "failed",
-                      "duration": 5,
-                      "error": {
-                        "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
-                        "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
-                      },
-                      "errors": [
-                        {
-                          "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
                       "retry": 1,
-                      "startTime": "2025-10-18T15:55:57.038Z",
+                      "startTime": "2025-10-18T16:26:55.288Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -1551,7 +799,7 @@
           "specs": [
             {
               "title": "should have no critical console errors on Sector Analysis",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -1564,106 +812,34 @@
                     {
                       "workerIndex": 2,
                       "parallelIndex": 2,
-                      "status": "failed",
-                      "duration": 1718,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                          "column": 18,
-                          "line": 241
-                        },
-                        "snippet": "  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });"
-                      },
-                      "errors": [
+                      "status": "passed",
+                      "duration": 26980,
+                      "errors": [],
+                      "stdout": [
                         {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                            "column": 18,
-                            "line": 241
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18"
+                          "text": "\n📊 Console Error Report for Sector Analysis:\n"
+                        },
+                        {
+                          "text": "   Total Issues: 0\n"
+                        },
+                        {
+                          "text": "   Errors: 0 (0 critical)\n"
+                        },
+                        {
+                          "text": "   Warnings: 0\n"
+                        },
+                        {
+                          "text": "   Network Errors: 0\n"
                         }
                       ],
-                      "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.482Z",
+                      "startTime": "2025-10-18T16:26:46.986Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                        "column": 18,
-                        "line": 241
-                      }
-                    },
-                    {
-                      "workerIndex": 25,
-                      "parallelIndex": 2,
-                      "status": "failed",
-                      "duration": 684,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                          "column": 18,
-                          "line": 241
-                        },
-                        "snippet": "  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                            "column": 18,
-                            "line": 241
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:55.915Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                        "column": 18,
-                        "line": 241
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "0bab488ead9a955808e2-296dfc6ed5636230765b",
@@ -1673,7 +849,7 @@
             },
             {
               "title": "should have no critical console errors on Sector Analysis",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -1686,116 +862,34 @@
                     {
                       "workerIndex": 5,
                       "parallelIndex": 5,
-                      "status": "failed",
-                      "duration": 1733,
-                      "error": {
-                        "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                          "column": 18,
-                          "line": 241
-                        },
-                        "snippet": "  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });"
-                      },
-                      "errors": [
+                      "status": "passed",
+                      "duration": 26792,
+                      "errors": [],
+                      "stdout": [
                         {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                            "column": 18,
-                            "line": 241
-                          },
-                          "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18"
+                          "text": "\n📊 Console Error Report for Sector Analysis:\n"
+                        },
+                        {
+                          "text": "   Total Issues: 1\n"
+                        },
+                        {
+                          "text": "   Errors: 0 (0 critical)\n"
+                        },
+                        {
+                          "text": "   Warnings: 0\n"
+                        },
+                        {
+                          "text": "   Network Errors: 1\n"
                         }
                       ],
-                      "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.231Z",
+                      "startTime": "2025-10-18T16:26:46.887Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-firefox/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-firefox/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-firefox/error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                        "column": 18,
-                        "line": 241
-                      }
-                    },
-                    {
-                      "workerIndex": 35,
-                      "parallelIndex": 2,
-                      "status": "failed",
-                      "duration": 2087,
-                      "error": {
-                        "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                          "column": 18,
-                          "line": 241
-                        },
-                        "snippet": "  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                            "column": 18,
-                            "line": 241
-                          },
-                          "message": "Error: page.goto: NS_ERROR_CONNECTION_REFUSED\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:56:00.107Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-firefox-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-firefox-retry1/video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-firefox-retry1/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-desktop-firefox-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                        "column": 18,
-                        "line": 241
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "0bab488ead9a955808e2-8b73463c0b117fc1d720",
@@ -1819,7 +913,7 @@
                       "workerIndex": 8,
                       "parallelIndex": 8,
                       "status": "failed",
-                      "duration": 6,
+                      "duration": 9,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -1832,7 +926,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.432Z",
+                      "startTime": "2025-10-18T16:26:46.947Z",
                       "annotations": [],
                       "attachments": []
                     },
@@ -1840,7 +934,7 @@
                       "workerIndex": 19,
                       "parallelIndex": 8,
                       "status": "failed",
-                      "duration": 5,
+                      "duration": 7,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -1853,7 +947,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
-                      "startTime": "2025-10-18T15:55:54.174Z",
+                      "startTime": "2025-10-18T16:26:52.214Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -1874,7 +968,7 @@
             },
             {
               "title": "should have no critical console errors on Sector Analysis",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -1887,106 +981,34 @@
                     {
                       "workerIndex": 11,
                       "parallelIndex": 11,
-                      "status": "failed",
-                      "duration": 1600,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                          "column": 18,
-                          "line": 241
-                        },
-                        "snippet": "  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });"
-                      },
-                      "errors": [
+                      "status": "passed",
+                      "duration": 25817,
+                      "errors": [],
+                      "stdout": [
                         {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                            "column": 18,
-                            "line": 241
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18"
+                          "text": "\n📊 Console Error Report for Sector Analysis:\n"
+                        },
+                        {
+                          "text": "   Total Issues: 0\n"
+                        },
+                        {
+                          "text": "   Errors: 0 (0 critical)\n"
+                        },
+                        {
+                          "text": "   Warnings: 0\n"
+                        },
+                        {
+                          "text": "   Network Errors: 0\n"
                         }
                       ],
-                      "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.251Z",
+                      "startTime": "2025-10-18T16:26:46.987Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-tablet-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-tablet-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                        "column": 18,
-                        "line": 241
-                      }
-                    },
-                    {
-                      "workerIndex": 23,
-                      "parallelIndex": 8,
-                      "status": "failed",
-                      "duration": 640,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                          "column": 18,
-                          "line": 241
-                        },
-                        "snippet": "  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                            "column": 18,
-                            "line": 241
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:55.858Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-tablet-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-tablet-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-tablet-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                        "column": 18,
-                        "line": 241
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "0bab488ead9a955808e2-2616d163f3683a379884",
@@ -1996,7 +1018,7 @@
             },
             {
               "title": "should have no critical console errors on Sector Analysis",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -2009,106 +1031,34 @@
                     {
                       "workerIndex": 14,
                       "parallelIndex": 14,
-                      "status": "failed",
-                      "duration": 1722,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                          "column": 18,
-                          "line": 241
-                        },
-                        "snippet": "  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });"
-                      },
-                      "errors": [
+                      "status": "passed",
+                      "duration": 27126,
+                      "errors": [],
+                      "stdout": [
                         {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                            "column": 18,
-                            "line": 241
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18"
+                          "text": "\n📊 Console Error Report for Sector Analysis:\n"
+                        },
+                        {
+                          "text": "   Total Issues: 0\n"
+                        },
+                        {
+                          "text": "   Errors: 0 (0 critical)\n"
+                        },
+                        {
+                          "text": "   Warnings: 0\n"
+                        },
+                        {
+                          "text": "   Network Errors: 0\n"
                         }
                       ],
-                      "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:52.226Z",
+                      "startTime": "2025-10-18T16:26:46.911Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-mobile-chrome/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-mobile-chrome/video.webm"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                        "column": 18,
-                        "line": 241
-                      }
-                    },
-                    {
-                      "workerIndex": 24,
-                      "parallelIndex": 10,
-                      "status": "failed",
-                      "duration": 638,
-                      "error": {
-                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n",
-                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18",
-                        "location": {
-                          "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                          "column": 18,
-                          "line": 241
-                        },
-                        "snippet": "  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                            "column": 18,
-                            "line": 241
-                          },
-                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/sectors\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/sectors\", waiting until \"domcontentloaded\"\u001b[22m\n\n\n  239 |     }) => {\n  240 |       // Navigate to the page\n> 241 |       await page.goto(pageInfo.path, {\n      |                  ^\n  242 |         waitUntil: \"domcontentloaded\",\n  243 |         timeout: 15000,\n  244 |       });\n    at /home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js:241:18"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2025-10-18T15:55:55.924Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-mobile-chrome-retry1/test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-mobile-chrome-retry1/video.webm"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/home/stocks/algo/webapp/frontend/test-results/infrastructure-error-monit-340b9-e-errors-on-Sector-Analysis-mobile-chrome-retry1/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/home/stocks/algo/webapp/frontend/src/tests/e2e/infrastructure/error-monitoring.spec.js",
-                        "column": 18,
-                        "line": 241
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "0bab488ead9a955808e2-fe11d69f7e56e89ed3d5",
@@ -2129,7 +1079,7 @@
                   "projectName": "mobile-safari",
                   "results": [
                     {
-                      "workerIndex": 21,
+                      "workerIndex": 20,
                       "parallelIndex": 15,
                       "status": "failed",
                       "duration": 6,
@@ -2145,15 +1095,15 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-10-18T15:55:55.736Z",
+                      "startTime": "2025-10-18T16:26:53.807Z",
                       "annotations": [],
                       "attachments": []
                     },
                     {
-                      "workerIndex": 32,
-                      "parallelIndex": 13,
+                      "workerIndex": 23,
+                      "parallelIndex": 7,
                       "status": "failed",
-                      "duration": 5,
+                      "duration": 4,
                       "error": {
                         "message": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝",
                         "stack": "Error: browserType.launch: \n╔══════════════════════════════════════════════════════╗\n║ Host system is missing dependencies to run browsers. ║\n║ Missing libraries:                                   ║\n║     libgtk-4.so.1                                    ║\n║     libgraphene-1.0.so.0                             ║\n║     libwoff2dec.so.1.0.2                             ║\n║     libvpx.so.9                                      ║\n║     libevent-2.1.so.7                                ║\n║     libopus.so.0                                     ║\n║     libgstallocators-1.0.so.0                        ║\n║     libgstapp-1.0.so.0                               ║\n║     libgstpbutils-1.0.so.0                           ║\n║     libgstaudio-1.0.so.0                             ║\n║     libgsttag-1.0.so.0                               ║\n║     libgstvideo-1.0.so.0                             ║\n║     libgstgl-1.0.so.0                                ║\n║     libgstcodecparsers-1.0.so.0                      ║\n║     libgstfft-1.0.so.0                               ║\n║     libflite.so.1                                    ║\n║     libflite_usenglish.so.1                          ║\n║     libflite_cmu_grapheme_lang.so.1                  ║\n║     libflite_cmu_grapheme_lex.so.1                   ║\n║     libflite_cmu_indic_lang.so.1                     ║\n║     libflite_cmu_indic_lex.so.1                      ║\n║     libflite_cmulex.so.1                             ║\n║     libflite_cmu_time_awb.so.1                       ║\n║     libflite_cmu_us_awb.so.1                         ║\n║     libflite_cmu_us_kal16.so.1                       ║\n║     libflite_cmu_us_kal.so.1                         ║\n║     libflite_cmu_us_rms.so.1                         ║\n║     libflite_cmu_us_slt.so.1                         ║\n║     libwebpdemux.so.2                                ║\n║     libavif.so.16                                    ║\n║     libharfbuzz-icu.so.0                             ║\n║     libwebpmux.so.3                                  ║\n║     libenchant-2.so.2                                ║\n║     libsecret-1.so.0                                 ║\n║     libhyphen.so.0                                   ║\n║     libmanette-0.2.so.0                              ║\n║     libx264.so                                       ║\n╚══════════════════════════════════════════════════════╝"
@@ -2166,7 +1116,7 @@
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
-                      "startTime": "2025-10-18T15:55:57.195Z",
+                      "startTime": "2025-10-18T16:26:55.288Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -2192,11 +1142,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-10-18T15:55:50.787Z",
-    "duration": 13785.418,
-    "expected": 0,
+    "startTime": "2025-10-18T16:26:44.211Z",
+    "duration": 38382.587,
+    "expected": 12,
     "skipped": 0,
-    "unexpected": 18,
+    "unexpected": 6,
     "flaky": 0
   }
 }
