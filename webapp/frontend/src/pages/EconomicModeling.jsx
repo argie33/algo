@@ -781,7 +781,11 @@ const EconomicModeling = () => {
                         subheader="Next 30 days"
                       />
                       <CardContent>
-                        {economicData.upcomingEvents && economicData.upcomingEvents.length > 0 ? (
+                        {!economicData.upcomingEvents || economicData.upcomingEvents.length === 0 ? (
+                          <Alert severity="error">
+                            ❌ ERROR: Upcoming events data not available from API endpoint
+                          </Alert>
+                        ) : (
                         <List>
                           {economicData.upcomingEvents.map((event, index) => (
                             <ListItem key={index} alignItems="flex-start">
@@ -822,10 +826,6 @@ const EconomicModeling = () => {
                             </ListItem>
                           ))}
                         </List>
-                        ) : (
-                          <Typography color="text.secondary" align="center" py={3}>
-                            No upcoming events available
-                          </Typography>
                         )}
                       </CardContent>
                     </Card>
@@ -845,7 +845,13 @@ const EconomicModeling = () => {
                     subheader="Treasury yield curve and inversion analysis"
                   />
                   <CardContent>
-                    {economicData.yieldCurveData && economicData.yieldCurveData.length > 0 ? (
+                    {!economicData.yieldCurveData || economicData.yieldCurveData.length === 0 ? (
+                      <Alert severity="error" sx={{ height: 400, display: "flex", alignItems: "center" }}>
+                        <Typography>
+                          ❌ ERROR: Yield curve data not available from API endpoint
+                        </Typography>
+                      </Alert>
+                    ) : (
                       <ResponsiveContainer width="100%" height={400}>
                         <LineChart data={economicData.yieldCurveData}>
                           <CartesianGrid strokeDasharray="3 3" />
@@ -868,12 +874,6 @@ const EconomicModeling = () => {
                           />
                         </LineChart>
                       </ResponsiveContainer>
-                    ) : (
-                      <Box display="flex" justifyContent="center" alignItems="center" height={400}>
-                        <Typography color="text.secondary">
-                          Yield curve data not available
-                        </Typography>
-                      </Box>
                     )}
 
                     <Box mt={3}>
