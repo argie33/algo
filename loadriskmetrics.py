@@ -9,13 +9,13 @@ Base Metrics Calculated:
 - volatility_12m_pct: 12-month annualized volatility (%)
 - max_drawdown_52w_pct: Maximum drawdown from 52W high (%)
 - volatility_risk_component: Downside volatility (std of negative returns only)
-- beta: Market beta from yfinance
 
 Data Sources:
 - momentum_metrics: volatility, price vs MAs, 52W positioning
-- yfinance: Historical prices (for downside vol), ticker info (for beta)
+- yfinance: Historical prices (for downside volatility calculation)
 
-Note: Final risk_score (40% vol + 27% technical + 33% drawdown)
+Note: Beta comes from daily stock loader (via .ticker data)
+Final risk_score (40% vol + 27% technical + 33% drawdown)
 is calculated in loadstockscores.py, not here
 """
 
@@ -35,7 +35,6 @@ import psycopg2
 import psycopg2.extensions
 from psycopg2 import pool
 from psycopg2.extras import execute_values
-import yfinance as yf
 
 # Register numpy adapters
 def adapt_numpy_int64(val):
@@ -153,12 +152,13 @@ def calculate_downside_volatility(symbol):
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=365)
 
-        data = yf.download(symbol, start=start_date, end=end_date, progress=False, quiet=True)
+        data = yf.download(symbol, start=start_date, end=end_date, progress=False)
         if data is None or len(data) < 20:
             return None
 
         # Calculate daily returns
-        returns = data['Adj Close'].pct_change().dropna()
+        close_col = 'Adj Close' if 'Adj Close' in data.columns else 'Close'
+        returns = data[close_col].pct_change().dropna()
 
         # Filter for only negative returns
         downside_returns = returns[returns < 0]
@@ -172,20 +172,9 @@ def calculate_downside_volatility(symbol):
         # Annualize: multiply by sqrt(252 trading days)
         annualized_downside_vol = downside_vol * np.sqrt(252) * 100
 
-        return safe_numeric(annualized_downside_vol)
+        return safe_numeric(float(annualized_downside_vol))
     except Exception as e:
         logging.debug(f"Downside volatility calc failed for {symbol}: {e}")
-        return None
-
-
-def get_beta_from_yfinance(symbol):
-    """Get beta from yfinance"""
-    try:
-        ticker = yf.Ticker(symbol)
-        beta = ticker.info.get('beta')
-        return safe_numeric(beta)
-    except Exception as e:
-        logging.debug(f"Beta fetch failed for {symbol}: {e}")
         return None
 
 
@@ -230,24 +219,23 @@ def process_symbol(symbol, conn_pool):
         # Base Metric 3: Downside Volatility (only negative returns)
         downside_vol_metric = calculate_downside_volatility(symbol)
 
-        # Base Metric 4: Beta (from yfinance)
-        beta_metric = get_beta_from_yfinance(symbol)
+        # Note: Beta comes from daily stock loader (as per requirements)
+        # Not fetching here to avoid yfinance rate limiting
 
         # Store the base metrics
-        if volatility_metric is not None or drawdown_metric is not None or downside_vol_metric is not None or beta_metric is not None:
+        if volatility_metric is not None or drawdown_metric is not None or downside_vol_metric is not None:
             cursor.execute(
                 """
                 INSERT INTO risk_metrics
-                (symbol, date, volatility_12m_pct, max_drawdown_52w_pct, volatility_risk_component, beta)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                (symbol, date, volatility_12m_pct, max_drawdown_52w_pct, volatility_risk_component)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (symbol, date) DO UPDATE SET
                     volatility_12m_pct = EXCLUDED.volatility_12m_pct,
                     max_drawdown_52w_pct = EXCLUDED.max_drawdown_52w_pct,
                     volatility_risk_component = EXCLUDED.volatility_risk_component,
-                    beta = EXCLUDED.beta,
                     fetched_at = CURRENT_TIMESTAMP
                 """,
-                (symbol, current_date, volatility_metric, drawdown_metric, downside_vol_metric, beta_metric),
+                (symbol, current_date, volatility_metric, drawdown_metric, downside_vol_metric),
             )
             conn.commit()
             details = []
@@ -257,8 +245,6 @@ def process_symbol(symbol, conn_pool):
                 details.append(f"DD {drawdown_metric:.1f}%")
             if downside_vol_metric is not None:
                 details.append(f"DnVol {downside_vol_metric:.1f}%")
-            if beta_metric is not None:
-                details.append(f"Beta {beta_metric:.2f}")
             logging.info(f"✅ {symbol}: {', '.join(details)}")
         else:
             logging.info(f"⚠️  {symbol}: Insufficient data")

@@ -116,21 +116,21 @@ const SectorAnalysis = () => {
 
   // Prepare chart data from rotation data
   const chartData = (rotationData?.data?.sectors || [])
-    .filter((s) => s.sector_name && s.current_perf_1d != null && !isNaN(s.current_perf_1d))
+    .filter((s) => s.sector && s.performance_1d != null && !isNaN(s.performance_1d))
     .map((s) => ({
-      name: s.sector_name.length > 15 ? s.sector_name.substring(0, 15) + "..." : s.sector_name,
-      fullName: s.sector_name,
-      performance: parseFloat(s.current_perf_1d.toFixed(2)),
-      color: sectorColors[s.sector_name] || "#666",
+      name: s.sector.length > 15 ? s.sector.substring(0, 15) + "..." : s.sector,
+      fullName: s.sector,
+      performance: parseFloat(s.performance_1d.toFixed(2)),
+      color: sectorColors[s.sector] || "#666",
     }))
     .sort((a, b) => b.performance - a.performance);
 
   const pieData = (rotationData?.data?.sectors || [])
-    .filter((s) => s.sector_name && s.current_rank != null && !isNaN(s.current_rank))
+    .filter((s) => s.sector && s.overall_rank != null && !isNaN(s.overall_rank))
     .map((s) => ({
-      name: s.sector_name,
-      value: Math.abs(s.current_rank), // Use rank as proxy for significance
-      color: sectorColors[s.sector_name] || "#666",
+      name: s.sector,
+      value: Math.abs(s.overall_rank), // Use rank as proxy for significance
+      color: sectorColors[s.sector] || "#666",
     }));
 
   return (
@@ -314,13 +314,13 @@ const SectorAnalysis = () => {
               </Box>
               {(rotationData?.data?.sectors || []).map((sector, index) => {
                 // Find matching industries for this sector
-                // Normalize industry sector names to match sector API sector_names
+                // Normalize industry sector names to match sector API sector names
                 const sectorIndustries = (industryData?.data?.industries || []).filter(
-                  (ind) => normalizeSectorName(ind.sector) === sector.sector_name
+                  (ind) => normalizeSectorName(ind.sector) === sector.sector
                 );
 
                 return (
-                  <Accordion key={`${sector.sector_name}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                  <Accordion key={`${sector.sector}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
                     <AccordionSummary
                       expandIcon={<ExpandMore />}
                       sx={{
@@ -333,12 +333,12 @@ const SectorAnalysis = () => {
                       <Grid container spacing={1} alignItems="center" sx={{ width: "100%", overflow: "visible" }}>
                         <Grid item xs={12} sm={1.5}>
                           <Typography variant="body2" fontWeight="bold">
-                            {sector.sector_name}
+                            {sector.sector}
                           </Typography>
                         </Grid>
                         <Grid item xs={3} sm={1.2}>
                           <Chip
-                            label={`#${sector.current_rank || "N/A"}`}
+                            label={`#${sector.overall_rank || "N/A"}`}
                             size="small"
                             color="primary"
                             variant="outlined"
@@ -361,12 +361,12 @@ const SectorAnalysis = () => {
                         </Grid>
                         <Grid item xs={3} sm={1.2}>
                           <Chip
-                            label={sector.current_momentum || "N/A"}
+                            label={sector.momentum || "N/A"}
                             size="small"
                             color={
-                              sector.current_momentum === "Strong"
+                              sector.momentum === "Strong"
                                 ? "success"
-                                : sector.current_momentum === "Moderate"
+                                : sector.momentum === "Moderate"
                                   ? "info"
                                   : "default"
                             }
@@ -374,10 +374,10 @@ const SectorAnalysis = () => {
                         </Grid>
                         <Grid item xs={3} sm={1.2}>
                           <Box display="flex" alignItems="center" justifyContent="center" gap={0.25}>
-                            {sector.current_trend === "Uptrend" && (
+                            {sector.momentum === "Uptrend" && (
                               <TrendingUp color="success" fontSize="small" />
                             )}
-                            {sector.current_trend === "Downtrend" && (
+                            {sector.momentum === "Downtrend" && (
                               <TrendingDown color="error" fontSize="small" />
                             )}
                           </Box>
@@ -386,36 +386,36 @@ const SectorAnalysis = () => {
                           <Typography
                             variant="caption"
                             sx={{
-                              color: getChangeColor(sector.current_perf_1d),
+                              color: getChangeColor(sector.performance_1d),
                               fontWeight: 600,
                             }}
                             align="right"
                           >
-                            {formatPercentage(sector.current_perf_1d)}
+                            {formatPercentage(sector.performance_1d)}
                           </Typography>
                         </Grid>
                         <Grid item xs={3} sm={1}>
                           <Typography
                             variant="caption"
                             sx={{
-                              color: getChangeColor(sector.current_perf_5d),
+                              color: getChangeColor(sector.performance_5d),
                               fontWeight: 600,
                             }}
                             align="right"
                           >
-                            {formatPercentage(sector.current_perf_5d)}
+                            {formatPercentage(sector.performance_5d)}
                           </Typography>
                         </Grid>
                         <Grid item xs={3} sm={1}>
                           <Typography
                             variant="caption"
                             sx={{
-                              color: getChangeColor(sector.current_perf_20d),
+                              color: getChangeColor(sector.performance_20d),
                               fontWeight: 600,
                             }}
                             align="right"
                           >
-                            {formatPercentage(sector.current_perf_20d)}
+                            {formatPercentage(sector.performance_20d)}
                           </Typography>
                         </Grid>
                       </Grid>
@@ -425,42 +425,39 @@ const SectorAnalysis = () => {
                         {/* Metrics Section */}
                         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2 }}>
                           <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📊 Ranking History</Typography>
+                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📊 Current Ranking</Typography>
                             <Typography variant="body2">
-                              • 1W Ago: {sector.rank_1w_ago !== null ? `#${sector.rank_1w_ago}` : "—"}
+                              • Overall Rank: #{sector.overall_rank || "N/A"}
                             </Typography>
                             <Typography variant="body2">
-                              • 4W Ago: {sector.rank_4w_ago !== null ? `#${sector.rank_4w_ago}` : "—"}
+                              • Momentum: {sector.momentum || "N/A"}
                             </Typography>
                             <Typography variant="body2">
-                              • 8W Ago: {sector.rank_12w_ago !== null ? `#${sector.rank_12w_ago}` : "—"}
-                            </Typography>
-                            <Typography variant="body2" sx={{ mt: 0.5, fontWeight: "600", color: "text.primary" }}>
-                              Change: {sector.rank_change_1w !== null ? `${sector.rank_change_1w > 0 ? '+' : ''}${sector.rank_change_1w}` : "—"}
+                              • RSI: {sector.rsi ? sector.rsi.toFixed(2) : "N/A"}
                             </Typography>
                           </Box>
                           <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📈 Current Performance</Typography>
+                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📈 Performance Metrics</Typography>
                             <Typography variant="body2">
-                              • 1-Day: {formatPercentage(sector.current_perf_1d)}
+                              • 1-Day: {formatPercentage(sector.performance_1d)}
                             </Typography>
                             <Typography variant="body2">
-                              • 5-Day: {formatPercentage(sector.current_perf_5d)}
+                              • 5-Day: {formatPercentage(sector.performance_5d)}
                             </Typography>
                             <Typography variant="body2">
-                              • 20-Day: {formatPercentage(sector.current_perf_20d)}
+                              • 20-Day: {formatPercentage(sector.performance_20d)}
                             </Typography>
                           </Box>
                           <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📋 Historical Perf</Typography>
+                            <Typography variant="caption" color="text.secondary" fontWeight="bold">💼 Trading Data</Typography>
                             <Typography variant="body2">
-                              • 1W ago 1D: {sector.perf_1d_1w_ago !== null ? `${sector.perf_1d_1w_ago}%` : "—"}
+                              • Price: ${sector.price?.toFixed(2) || "N/A"}
                             </Typography>
                             <Typography variant="body2">
-                              • 1W ago 5D: {sector.perf_5d_1w_ago !== null ? `${sector.perf_5d_1w_ago}%` : "—"}
+                              • Change: {formatPercentage(sector.change_percent)} ({sector.change >= 0 ? '+' : ''}{sector.change?.toFixed(2)})
                             </Typography>
                             <Typography variant="body2">
-                              • 1W ago 20D: {sector.perf_20d_1w_ago !== null ? `${sector.perf_20d_1w_ago}%` : "—"}
+                              • Volume: {(sector.volume / 1000000).toFixed(2)}M
                             </Typography>
                           </Box>
                         </Box>
