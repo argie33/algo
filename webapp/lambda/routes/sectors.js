@@ -62,7 +62,7 @@ router.get("/", (req, res) => {
 
 /**
  * GET /sectors/:sector/stocks
- * Get stocks in a specific sector from sector_performance table
+ * Get stocks in a specific sector from company_profile table
  */
 router.get("/:sector/stocks", async (req, res) => {
   try {
@@ -79,21 +79,17 @@ router.get("/:sector/stocks", async (req, res) => {
       return Promise.race([queryPromise, timeoutPromise]);
     };
 
-    // Query sector_performance table which has ETF sector data
+    // Query company_profile table which has individual stock sector/industry data from yfinance
     const stocksQuery = `
       SELECT
-        symbol,
-        sector_name as name,
-        sector_name as sector,
-        price,
-        volume,
-        momentum,
-        rsi,
-        relative_strength
-      FROM sector_performance
-      WHERE LOWER(sector_name) = LOWER($1)
-      OR LOWER(symbol) = LOWER($1)
-      ORDER BY fetched_at DESC, sector_rank ASC
+        ticker as symbol,
+        short_name as name,
+        sector,
+        industry
+      FROM company_profile
+      WHERE (LOWER(sector) = LOWER($1) OR LOWER(industry) = LOWER($1))
+      AND sector IS NOT NULL
+      ORDER BY ticker
       LIMIT $2
     `;
 
@@ -102,7 +98,7 @@ router.get("/:sector/stocks", async (req, res) => {
       "sector stocks"
     );
 
-    console.log(`✅ Found ${result.rows.length} entries for sector: ${sector}`);
+    console.log(`✅ Found ${result.rows.length} stocks in ${sector} sector`);
 
     res.json({
       success: true,
@@ -110,11 +106,7 @@ router.get("/:sector/stocks", async (req, res) => {
         symbol: row.symbol,
         name: row.name,
         sector: row.sector,
-        price: parseFloat(row.price || 0),
-        volume: parseInt(row.volume || 0),
-        momentum: row.momentum,
-        rsi: parseFloat(row.rsi || 0),
-        relative_strength: parseFloat(row.relative_strength || 0)
+        industry: row.industry
       })),
       metadata: {
         sector: sector,

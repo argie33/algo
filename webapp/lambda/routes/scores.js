@@ -76,13 +76,11 @@ router.get("/", async (req, res) => {
         km.free_cashflow::NUMERIC / NULLIF(md.market_cap, 0) * 100 as stock_fcf_yield,
         km.dividend_yield as stock_dividend_yield,
         km.earnings_growth_pct,
-        -- Sector benchmarks
+        -- Sector benchmarks (only columns that exist in sector_benchmarks table)
         sb.pe_ratio as sector_pe,
         sb.price_to_book as sector_pb,
-        sb.price_to_sales as sector_ps,
         sb.ev_to_ebitda as sector_ev_ebitda,
-        sb.fcf_yield as sector_fcf_yield,
-        sb.dividend_yield as sector_dividend_yield,
+        sb.debt_to_equity as sector_debt_to_equity,
         -- Market benchmarks (calculated on-the-fly from all stocks)
         (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY trailing_pe) FROM key_metrics WHERE trailing_pe > 0) as market_pe,
         (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_book) FROM key_metrics WHERE price_to_book > 0) as market_pb,
@@ -342,10 +340,8 @@ router.get("/", async (req, res) => {
         stock_dividend_yield: parseFloat(row.stock_dividend_yield) || null,
         sector_pe: parseFloat(row.sector_pe) || null,
         sector_pb: parseFloat(row.sector_pb) || null,
-        sector_ps: parseFloat(row.sector_ps) || null,
         sector_ev_ebitda: parseFloat(row.sector_ev_ebitda) || null,
-        sector_fcf_yield: parseFloat(row.sector_fcf_yield) || null,
-        sector_dividend_yield: parseFloat(row.sector_dividend_yield) || null,
+        sector_debt_to_equity: parseFloat(row.sector_debt_to_equity) || null,
         market_pe: parseFloat(row.market_pe) || null,
         market_pb: parseFloat(row.market_pb) || null,
         market_ps: parseFloat(row.market_ps) || null,
@@ -511,13 +507,11 @@ router.get("/:symbol", async (req, res) => {
         km.free_cashflow::NUMERIC / NULLIF(md.market_cap, 0) * 100 as stock_fcf_yield,
         km.dividend_yield as stock_dividend_yield,
         km.earnings_growth_pct,
-        -- Sector benchmarks
+        -- Sector benchmarks (only columns that exist in sector_benchmarks table)
         sb.pe_ratio as sector_pe,
         sb.price_to_book as sector_pb,
-        sb.price_to_sales as sector_ps,
         sb.ev_to_ebitda as sector_ev_ebitda,
-        sb.fcf_yield as sector_fcf_yield,
-        sb.dividend_yield as sector_dividend_yield,
+        sb.debt_to_equity as sector_debt_to_equity,
         -- Market benchmarks (calculated on-the-fly from all stocks)
         (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY trailing_pe) FROM key_metrics WHERE trailing_pe > 0) as market_pe,
         (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_book) FROM key_metrics WHERE price_to_book > 0) as market_pb,
