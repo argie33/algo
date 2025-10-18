@@ -1614,6 +1614,19 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         sentiment_score = max(0, min(100, sentiment_score))
 
+        # Defensive: Ensure all scores have valid values before composite calculation
+        # This prevents TypeError when multiplying None * float
+        if momentum_score is None:
+            momentum_score = 50
+        if trend_score is None:
+            trend_score = 50
+        if growth_score is None:
+            growth_score = 50
+        if value_score is None:
+            value_score = 50
+        if quality_score is None:
+            quality_score = 50
+
         # Composite Score (5-factor weighted average - Sentiment EXCLUDED)
         # Weights: Momentum (22.11%), Trend (15.79%), Growth (20.00%), Value (15.79%),
         #          Quality (15.79%), Positioning (10.53%)

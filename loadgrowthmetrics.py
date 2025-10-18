@@ -279,15 +279,119 @@ def create_connection_pool():
     )
 
 
+def check_data_availability(cursor, symbol):
+    """
+    DIAGNOSTIC: Check what data is available for a symbol before calculating metrics.
+    Returns dictionary showing data availability for each metric.
+    Helps identify why metrics might be NULL.
+    """
+    availability = {
+        'symbol': symbol,
+        'revenue_estimates': False,
+        'earnings_history': False,
+        'key_metrics': False,
+        'quarterly_income_statement_count': 0,
+        'quarterly_income_statement_items': [],
+        'quarterly_cashflow_count': 0,
+        'quarterly_cashflow_items': [],
+        'quarterly_balance_sheet_count': 0,
+        'payout_ratio_available': False,
+    }
+
+    try:
+        # Check revenue_estimates
+        cursor.execute("SELECT COUNT(*) FROM revenue_estimates WHERE symbol = %s;", (symbol,))
+        availability['revenue_estimates'] = cursor.fetchone()[0] > 0
+    except:
+        pass
+
+    try:
+        # Check earnings_history
+        cursor.execute("SELECT COUNT(*) FROM earnings_history WHERE symbol = %s;", (symbol,))
+        availability['earnings_history'] = cursor.fetchone()[0] > 0
+    except:
+        pass
+
+    try:
+        # Check key_metrics
+        cursor.execute("SELECT COUNT(*) FROM key_metrics WHERE ticker = %s;", (symbol,))
+        availability['key_metrics'] = cursor.fetchone()[0] > 0
+    except:
+        pass
+
+    try:
+        # Check quarterly_income_statement data
+        cursor.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT item_name) FROM quarterly_income_statement WHERE symbol = %s;",
+            (symbol,)
+        )
+        count_result = cursor.fetchone()
+        availability['quarterly_income_statement_count'] = count_result[0] if count_result else 0
+
+        # Get list of available item names
+        cursor.execute(
+            "SELECT DISTINCT item_name FROM quarterly_income_statement WHERE symbol = %s ORDER BY item_name;",
+            (symbol,)
+        )
+        availability['quarterly_income_statement_items'] = [row[0] for row in cursor.fetchall()]
+    except:
+        pass
+
+    try:
+        # Check quarterly_cashflow data
+        cursor.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT item_name) FROM quarterly_cash_flow WHERE symbol = %s;",
+            (symbol,)
+        )
+        count_result = cursor.fetchone()
+        availability['quarterly_cashflow_count'] = count_result[0] if count_result else 0
+
+        # Get list of available item names
+        cursor.execute(
+            "SELECT DISTINCT item_name FROM quarterly_cash_flow WHERE symbol = %s ORDER BY item_name;",
+            (symbol,)
+        )
+        availability['quarterly_cashflow_items'] = [row[0] for row in cursor.fetchall()]
+    except:
+        pass
+
+    try:
+        # Check quarterly_balance_sheet data
+        cursor.execute(
+            "SELECT COUNT(*) FROM quarterly_balance_sheet WHERE symbol = %s;",
+            (symbol,)
+        )
+        availability['quarterly_balance_sheet_count'] = cursor.fetchone()[0]
+    except:
+        pass
+
+    try:
+        # Check payout_ratio
+        cursor.execute(
+            "SELECT COUNT(*) FROM quality_metrics WHERE symbol = %s AND payout_ratio IS NOT NULL;",
+            (symbol,)
+        )
+        availability['payout_ratio_available'] = cursor.fetchone()[0] > 0
+    except:
+        pass
+
+    return availability
+
+
+def log_metric_unavailable(symbol, metric_name, reason):
+    """Log why a specific metric is NULL with diagnostic info."""
+    logging.debug(f"{symbol}: ❌ {metric_name} = NULL → {reason}")
+
+
 def process_symbol(symbol, conn_pool):
     """
     Process a single symbol and calculate growth metrics
 
-    Industry-standard approach:
-    1. Revenue Growth (30%): YoY from revenue_estimates + 3Y CAGR calculated
-    2. Earnings Growth (30%): YoY from earnings_history + 3Y CAGR calculated
-    3. Fundamental Drivers (25%): Op income growth, ROE trend, sustainable growth rate, FCF growth
-    4. Market Expansion (15%): TAM growth (sector-based)
+    STRICT NO-FALLBACK POLICY:
+    - Every metric requires specific data from specific sources
+    - If source data is missing/insufficient: metric stays NULL
+    - No approximations, no proxies, no assumptions
+    - Detailed logging explains exactly why metrics are NULL
 
     Args:
         symbol: Stock symbol to process
@@ -301,6 +405,13 @@ def process_symbol(symbol, conn_pool):
         cursor = conn.cursor()
 
         logging.info(f"Processing growth metrics for {symbol}...")
+
+        # Diagnostic: Check data availability
+        data_avail = check_data_availability(cursor, symbol)
+        if data_avail['quarterly_income_statement_count'] == 0:
+            logging.info(f"{symbol}: No quarterly_income_statement data found - most metrics will be NULL")
+        if data_avail['quarterly_cashflow_count'] == 0:
+            logging.info(f"{symbol}: No quarterly_cash_flow data found - FCF metrics will be NULL")
 
         # ========== STEP 1: Fetch YoY Revenue Growth (from revenue_estimates) ==========
         cursor.execute(
@@ -397,13 +508,22 @@ def process_symbol(symbol, conn_pool):
                 (symbol,),
             )
             op_income_rows = cursor.fetchall()
-            if len(op_income_rows) >= 5:
+            if len(op_income_rows) < 5:
+                log_metric_unavailable(symbol, "operating_income_growth_yoy",
+                    f"Insufficient Op Income data: {len(op_income_rows)} quarters (need 5)")
+            else:
                 current_op_income = safe_numeric(op_income_rows[0][0])
                 year_ago_op_income = safe_numeric(op_income_rows[4][0])
-                if current_op_income is not None and year_ago_op_income is not None and year_ago_op_income != 0:
+                if current_op_income is None:
+                    log_metric_unavailable(symbol, "operating_income_growth_yoy", "Current Op Income is invalid")
+                elif year_ago_op_income is None:
+                    log_metric_unavailable(symbol, "operating_income_growth_yoy", "Year-ago Op Income is invalid")
+                elif year_ago_op_income == 0:
+                    log_metric_unavailable(symbol, "operating_income_growth_yoy", "Year-ago Op Income is zero (cannot divide)")
+                else:
                     operating_income_growth_yoy = ((current_op_income - year_ago_op_income) / abs(year_ago_op_income)) * 100
         except Exception as e:
-            logging.debug(f"{symbol}: Error fetching operating income: {e}")
+            log_metric_unavailable(symbol, "operating_income_growth_yoy", f"Query error: {e}")
 
         # ========== STEP 6: Fetch quarterly cashflow data from quarterly_cash_flow (database) ==========
         fcf_growth_yoy = None
@@ -418,13 +538,22 @@ def process_symbol(symbol, conn_pool):
                 (symbol,),
             )
             fcf_rows = cursor.fetchall()
-            if len(fcf_rows) >= 5:
+            if len(fcf_rows) < 5:
+                log_metric_unavailable(symbol, "fcf_growth_yoy",
+                    f"Insufficient FCF data: {len(fcf_rows)} quarters (need 5)")
+            else:
                 current_fcf = safe_numeric(fcf_rows[0][0])
                 year_ago_fcf = safe_numeric(fcf_rows[4][0])
-                if current_fcf is not None and year_ago_fcf is not None and year_ago_fcf != 0:
+                if current_fcf is None:
+                    log_metric_unavailable(symbol, "fcf_growth_yoy", "Current FCF is invalid")
+                elif year_ago_fcf is None:
+                    log_metric_unavailable(symbol, "fcf_growth_yoy", "Year-ago FCF is invalid")
+                elif year_ago_fcf == 0:
+                    log_metric_unavailable(symbol, "fcf_growth_yoy", "Year-ago FCF is zero (cannot divide)")
+                else:
                     fcf_growth_yoy = ((current_fcf - year_ago_fcf) / abs(year_ago_fcf)) * 100
         except Exception as e:
-            logging.debug(f"{symbol}: Error fetching free cash flow: {e}")
+            log_metric_unavailable(symbol, "fcf_growth_yoy", f"Query error: {e}")
 
         # ========== STEP 7: Net Income Growth (YoY) ==========
         net_income_growth_yoy = None
@@ -439,13 +568,25 @@ def process_symbol(symbol, conn_pool):
                 (symbol,),
             )
             ni_rows = cursor.fetchall()
-            if len(ni_rows) >= 5:
+            if len(ni_rows) < 5:
+                log_metric_unavailable(symbol, "net_income_growth_yoy",
+                    f"Insufficient data: {len(ni_rows)} quarters (need 5)")
+            else:
                 current_ni = safe_numeric(ni_rows[0][0])
                 year_ago_ni = safe_numeric(ni_rows[4][0])
-                if current_ni is not None and year_ago_ni is not None and year_ago_ni != 0:
+                if current_ni is None:
+                    log_metric_unavailable(symbol, "net_income_growth_yoy",
+                        "Current quarter Net Income is invalid")
+                elif year_ago_ni is None:
+                    log_metric_unavailable(symbol, "net_income_growth_yoy",
+                        "Year-ago Net Income is invalid")
+                elif year_ago_ni == 0:
+                    log_metric_unavailable(symbol, "net_income_growth_yoy",
+                        "Year-ago Net Income is zero (cannot divide)")
+                else:
                     net_income_growth_yoy = ((current_ni - year_ago_ni) / abs(year_ago_ni)) * 100
         except Exception as e:
-            logging.debug(f"{symbol}: Error fetching net income: {e}")
+            log_metric_unavailable(symbol, "net_income_growth_yoy", f"Query error: {e}")
 
         # ========== STEP 8: Margin Trends (Gross, Operating, Net) ==========
         gross_margin_trend = None
@@ -465,7 +606,9 @@ def process_symbol(symbol, conn_pool):
             )
             all_rows = cursor.fetchall()
 
-            if len(all_rows) > 0:
+            if len(all_rows) == 0:
+                log_metric_unavailable(symbol, "margin_trends", "No quarterly_income_statement data found")
+            else:
                 # Group by date
                 from collections import defaultdict
                 data_by_date = defaultdict(dict)
@@ -476,10 +619,12 @@ def process_symbol(symbol, conn_pool):
                 # Get sorted unique dates (most recent first)
                 sorted_dates = sorted(data_by_date.keys(), reverse=True)
 
-                if len(sorted_dates) >= 5:
+                if len(sorted_dates) < 5:
+                    log_metric_unavailable(symbol, "margin_trends",
+                        f"Insufficient quarters: {len(sorted_dates)} (need 5)")
+                else:
                     # Current quarter (most recent)
                     current_date = sorted_dates[0]
-                    # Use Total Revenue or Operating Revenue (fallback)
                     current_revenue = data_by_date[current_date].get('Total Revenue') or data_by_date[current_date].get('Operating Revenue')
                     current_gross = data_by_date[current_date].get('Gross Profit')
                     current_op_income = data_by_date[current_date].get('Operating Income')
@@ -487,38 +632,50 @@ def process_symbol(symbol, conn_pool):
 
                     # Year ago quarter (4 quarters back)
                     year_ago_date = sorted_dates[4]
-                    # Use Total Revenue or Operating Revenue (fallback)
                     year_ago_revenue = data_by_date[year_ago_date].get('Total Revenue') or data_by_date[year_ago_date].get('Operating Revenue')
                     year_ago_gross = data_by_date[year_ago_date].get('Gross Profit')
                     year_ago_op_income = data_by_date[year_ago_date].get('Operating Income')
                     year_ago_net = data_by_date[year_ago_date].get('Net Income')
 
-                    # Calculate current margins (as percentages)
-                    if current_revenue and current_revenue > 0:
+                    # VALIDATE: Current revenue required
+                    if current_revenue is None or current_revenue <= 0:
+                        log_metric_unavailable(symbol, "margin_trends",
+                            f"Current revenue invalid: {current_revenue}")
+                    elif year_ago_revenue is None or year_ago_revenue <= 0:
+                        log_metric_unavailable(symbol, "margin_trends",
+                            f"Year-ago revenue invalid: {year_ago_revenue}")
+                    else:
+                        # Calculate current margins (as percentages)
                         current_gross_margin = (current_gross / current_revenue) * 100 if current_gross else None
                         current_op_margin = (current_op_income / current_revenue) * 100 if current_op_income else None
                         current_net_margin = (current_net / current_revenue) * 100 if current_net else None
-                    else:
-                        current_gross_margin = current_op_margin = current_net_margin = None
 
-                    # Calculate year-ago margins (as percentages)
-                    if year_ago_revenue and year_ago_revenue > 0:
+                        # Calculate year-ago margins (as percentages)
                         year_ago_gross_margin = (year_ago_gross / year_ago_revenue) * 100 if year_ago_gross else None
                         year_ago_op_margin = (year_ago_op_income / year_ago_revenue) * 100 if year_ago_op_income else None
                         year_ago_net_margin = (year_ago_net / year_ago_revenue) * 100 if year_ago_net else None
-                    else:
-                        year_ago_gross_margin = year_ago_op_margin = year_ago_net_margin = None
 
-                    # Calculate margin changes (in percentage points)
-                    if current_gross_margin is not None and year_ago_gross_margin is not None:
-                        gross_margin_trend = current_gross_margin - year_ago_gross_margin
-                    if current_op_margin is not None and year_ago_op_margin is not None:
-                        operating_margin_trend = current_op_margin - year_ago_op_margin
-                    if current_net_margin is not None and year_ago_net_margin is not None:
-                        net_margin_trend = current_net_margin - year_ago_net_margin
+                        # Calculate margin changes (in percentage points) - STRICT: BOTH quarters required
+                        if current_gross_margin is not None and year_ago_gross_margin is not None:
+                            gross_margin_trend = round(current_gross_margin - year_ago_gross_margin, 2)
+                        else:
+                            log_metric_unavailable(symbol, "gross_margin_trend",
+                                f"Missing Gross Profit data (current: {current_gross}, yoy: {year_ago_gross})")
+
+                        if current_op_margin is not None and year_ago_op_margin is not None:
+                            operating_margin_trend = round(current_op_margin - year_ago_op_margin, 2)
+                        else:
+                            log_metric_unavailable(symbol, "operating_margin_trend",
+                                f"Missing Operating Income data (current: {current_op_income}, yoy: {year_ago_op_income})")
+
+                        if current_net_margin is not None and year_ago_net_margin is not None:
+                            net_margin_trend = round(current_net_margin - year_ago_net_margin, 2)
+                        else:
+                            log_metric_unavailable(symbol, "net_margin_trend",
+                                f"Missing Net Income data (current: {current_net}, yoy: {year_ago_net})")
 
         except Exception as e:
-            logging.debug(f"{symbol}: Error calculating margin trends: {e}")
+            log_metric_unavailable(symbol, "margin_trends", f"Query error: {e}")
 
         # ========== STEP 9: Quarterly Growth Momentum ==========
         quarterly_growth_momentum = None
@@ -533,31 +690,47 @@ def process_symbol(symbol, conn_pool):
                 (symbol,),
             )
             quarterly_rev_rows = cursor.fetchall()
-            # Deduplicate by date, keeping most recent revenue type
-            from collections import OrderedDict
-            revenue_by_date = OrderedDict()
-            for date, value in quarterly_rev_rows:
-                if date not in revenue_by_date:
-                    revenue_by_date[date] = value
-            quarterly_rev_rows_dedup = [(date, revenue_by_date[date]) for date in sorted(revenue_by_date.keys(), reverse=True)]
 
-            if len(quarterly_rev_rows_dedup) >= 8:
-                # Current quarter (index 0)
-                curr_q_revenue = safe_numeric(quarterly_rev_rows_dedup[0][1])
-                prev_q_revenue = safe_numeric(quarterly_rev_rows_dedup[1][1])
-                year_ago_q_revenue = safe_numeric(quarterly_rev_rows_dedup[4][1])
-                year_ago_prev_q_revenue = safe_numeric(quarterly_rev_rows_dedup[5][1])
+            if len(quarterly_rev_rows) == 0:
+                log_metric_unavailable(symbol, "quarterly_growth_momentum",
+                    "No revenue data in quarterly_income_statement")
+            else:
+                # Deduplicate by date, keeping most recent revenue type
+                from collections import OrderedDict
+                revenue_by_date = OrderedDict()
+                for date, value in quarterly_rev_rows:
+                    if date not in revenue_by_date:
+                        revenue_by_date[date] = value
+                quarterly_rev_rows_dedup = [(date, revenue_by_date[date]) for date in sorted(revenue_by_date.keys(), reverse=True)]
 
-                if (curr_q_revenue and prev_q_revenue and prev_q_revenue > 0 and
-                    year_ago_q_revenue and year_ago_prev_q_revenue and year_ago_prev_q_revenue > 0):
-                    # Current Q growth rate
-                    curr_q_growth = ((curr_q_revenue - prev_q_revenue) / prev_q_revenue) * 100
-                    # Year-ago Q growth rate
-                    year_ago_q_growth = ((year_ago_q_revenue - year_ago_prev_q_revenue) / year_ago_prev_q_revenue) * 100
-                    # Momentum = current growth - year-ago growth (acceleration)
-                    quarterly_growth_momentum = curr_q_growth - year_ago_q_growth
+                if len(quarterly_rev_rows_dedup) < 8:
+                    log_metric_unavailable(symbol, "quarterly_growth_momentum",
+                        f"Insufficient quarters: {len(quarterly_rev_rows_dedup)} (need 8)")
+                else:
+                    # Current quarter (index 0)
+                    curr_q_revenue = safe_numeric(quarterly_rev_rows_dedup[0][1])
+                    prev_q_revenue = safe_numeric(quarterly_rev_rows_dedup[1][1])
+                    year_ago_q_revenue = safe_numeric(quarterly_rev_rows_dedup[4][1])
+                    year_ago_prev_q_revenue = safe_numeric(quarterly_rev_rows_dedup[5][1])
+
+                    if curr_q_revenue is None or prev_q_revenue is None or year_ago_q_revenue is None or year_ago_prev_q_revenue is None:
+                        log_metric_unavailable(symbol, "quarterly_growth_momentum",
+                            f"Invalid revenue data: curr={curr_q_revenue}, prev={prev_q_revenue}, yoy_curr={year_ago_q_revenue}, yoy_prev={year_ago_prev_q_revenue}")
+                    elif prev_q_revenue == 0:
+                        log_metric_unavailable(symbol, "quarterly_growth_momentum",
+                            "Previous quarter revenue is zero")
+                    elif year_ago_prev_q_revenue == 0:
+                        log_metric_unavailable(symbol, "quarterly_growth_momentum",
+                            "Year-ago previous quarter revenue is zero")
+                    else:
+                        # Current Q growth rate
+                        curr_q_growth = ((curr_q_revenue - prev_q_revenue) / abs(prev_q_revenue)) * 100
+                        # Year-ago Q growth rate
+                        year_ago_q_growth = ((year_ago_q_revenue - year_ago_prev_q_revenue) / abs(year_ago_prev_q_revenue)) * 100
+                        # Momentum = current growth - year-ago growth (acceleration)
+                        quarterly_growth_momentum = round(curr_q_growth - year_ago_q_growth, 2)
         except Exception as e:
-            logging.debug(f"{symbol}: Error calculating quarterly growth momentum: {e}")
+            log_metric_unavailable(symbol, "quarterly_growth_momentum", f"Query error: {e}")
 
         # ========== STEP 10: Asset Growth (YoY) ==========
         asset_growth_yoy = None
@@ -572,13 +745,22 @@ def process_symbol(symbol, conn_pool):
                 (symbol,),
             )
             asset_rows = cursor.fetchall()
-            if len(asset_rows) >= 5:
+            if len(asset_rows) < 5:
+                log_metric_unavailable(symbol, "asset_growth_yoy",
+                    f"Insufficient asset data: {len(asset_rows)} quarters (need 5)")
+            else:
                 current_assets = safe_numeric(asset_rows[0][1])
                 year_ago_assets = safe_numeric(asset_rows[4][1])
-                if current_assets is not None and year_ago_assets is not None and year_ago_assets > 0:
+                if current_assets is None:
+                    log_metric_unavailable(symbol, "asset_growth_yoy", "Current assets is invalid")
+                elif year_ago_assets is None:
+                    log_metric_unavailable(symbol, "asset_growth_yoy", "Year-ago assets is invalid")
+                elif year_ago_assets <= 0:
+                    log_metric_unavailable(symbol, "asset_growth_yoy", f"Year-ago assets invalid: {year_ago_assets}")
+                else:
                     asset_growth_yoy = ((current_assets - year_ago_assets) / year_ago_assets) * 100
         except Exception as e:
-            logging.debug(f"{symbol}: Error fetching asset growth: {e}")
+            log_metric_unavailable(symbol, "asset_growth_yoy", f"Query error: {e}")
 
         logging.info(f"{symbol}: Rev Growth: {revenue_growth_3y_cagr}, EPS Growth: {eps_growth_3y_cagr}, ROE: {roe_trend}, SGR: {sustainable_growth_rate}, Op Income YoY: {operating_income_growth_yoy}, FCF YoY: {fcf_growth_yoy}, NI YoY: {net_income_growth_yoy}, Margin Trends (G/O/N): {gross_margin_trend}/{operating_margin_trend}/{net_margin_trend}, Q Momentum: {quarterly_growth_momentum}, Asset Growth: {asset_growth_yoy}")
 

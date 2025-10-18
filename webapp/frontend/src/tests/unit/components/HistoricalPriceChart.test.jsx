@@ -107,7 +107,8 @@ vi.mock("recharts", async () => {
       {...props}
     />
   )
-}));
+  };
+});
 
 describe("HistoricalPriceChart", () => {
   const defaultProps = {

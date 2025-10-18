@@ -308,7 +308,7 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
     await expect(accordion).toBeVisible();
 
     // Check for trading signal in summary (should be BUY, SELL, HOLD, or N/A)
-    const tradingSignal = accordion.locator('text=/^(BUY|SELL|HOLD|N\/A)$/i').first();
+    const tradingSignal = accordion.locator('text=/^(BUY|SELL|HOLD|N/A)$/i').first();
 
     // Trading signal might not be loaded yet for all stocks, so we check if it exists
     const signalCount = await tradingSignal.count();

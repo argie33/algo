@@ -8,10 +8,12 @@ These metrics are then used by loadstockscores.py to calculate final risk_score.
 Base Metrics Calculated:
 - volatility_12m_pct: 12-month annualized volatility (%)
 - max_drawdown_52w_pct: Maximum drawdown from 52W high (%)
-- Technical positioning inputs: Price vs MAs, support/resistance levels
+- volatility_risk_component: Downside volatility (std of negative returns only)
+- beta: Market beta from yfinance
 
 Data Sources:
 - momentum_metrics: volatility, price vs MAs, 52W positioning
+- yfinance: Historical prices (for downside vol), ticker info (for beta)
 
 Note: Final risk_score (40% vol + 27% technical + 33% drawdown)
 is calculated in loadstockscores.py, not here
@@ -24,7 +26,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import boto3
@@ -33,6 +35,7 @@ import psycopg2
 import psycopg2.extensions
 from psycopg2 import pool
 from psycopg2.extras import execute_values
+import yfinance as yf
 
 # Register numpy adapters
 def adapt_numpy_int64(val):
@@ -143,6 +146,49 @@ def create_connection_pool():
     )
 
 
+def calculate_downside_volatility(symbol):
+    """Calculate downside volatility (only negative returns)"""
+    try:
+        # Get 1 year of daily data
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=365)
+
+        data = yf.download(symbol, start=start_date, end=end_date, progress=False, quiet=True)
+        if data is None or len(data) < 20:
+            return None
+
+        # Calculate daily returns
+        returns = data['Adj Close'].pct_change().dropna()
+
+        # Filter for only negative returns
+        downside_returns = returns[returns < 0]
+
+        if len(downside_returns) < 20:
+            return None
+
+        # Calculate downside volatility (std of negative returns)
+        downside_vol = downside_returns.std()
+
+        # Annualize: multiply by sqrt(252 trading days)
+        annualized_downside_vol = downside_vol * np.sqrt(252) * 100
+
+        return safe_numeric(annualized_downside_vol)
+    except Exception as e:
+        logging.debug(f"Downside volatility calc failed for {symbol}: {e}")
+        return None
+
+
+def get_beta_from_yfinance(symbol):
+    """Get beta from yfinance"""
+    try:
+        ticker = yf.Ticker(symbol)
+        beta = ticker.info.get('beta')
+        return safe_numeric(beta)
+    except Exception as e:
+        logging.debug(f"Beta fetch failed for {symbol}: {e}")
+        return None
+
+
 def process_symbol(symbol, conn_pool):
     """Calculate and store base risk metrics for a symbol"""
     try:
@@ -181,26 +227,39 @@ def process_symbol(symbol, conn_pool):
         if high_52w and current_price and high_52w > 0:
             drawdown_metric = ((high_52w - current_price) / high_52w) * 100
 
-        # Base Metric 3: Technical positioning (for context, but score will be calculated in loadstockscores)
-        # Just store the raw inputs - MAs and current price
-        # loadstockscores.py will calculate the technical risk score
+        # Base Metric 3: Downside Volatility (only negative returns)
+        downside_vol_metric = calculate_downside_volatility(symbol)
 
-        # Store only the base metrics - NOT the composite risk_score
-        if volatility_metric is not None or drawdown_metric is not None:
+        # Base Metric 4: Beta (from yfinance)
+        beta_metric = get_beta_from_yfinance(symbol)
+
+        # Store the base metrics
+        if volatility_metric is not None or drawdown_metric is not None or downside_vol_metric is not None or beta_metric is not None:
             cursor.execute(
                 """
                 INSERT INTO risk_metrics
-                (symbol, date, volatility_12m_pct, max_drawdown_52w_pct)
-                VALUES (%s, %s, %s, %s)
+                (symbol, date, volatility_12m_pct, max_drawdown_52w_pct, volatility_risk_component, beta)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (symbol, date) DO UPDATE SET
                     volatility_12m_pct = EXCLUDED.volatility_12m_pct,
                     max_drawdown_52w_pct = EXCLUDED.max_drawdown_52w_pct,
+                    volatility_risk_component = EXCLUDED.volatility_risk_component,
+                    beta = EXCLUDED.beta,
                     fetched_at = CURRENT_TIMESTAMP
                 """,
-                (symbol, current_date, volatility_metric, drawdown_metric),
+                (symbol, current_date, volatility_metric, drawdown_metric, downside_vol_metric, beta_metric),
             )
             conn.commit()
-            logging.info(f"✅ {symbol}: Vol {volatility_metric:.1f}%, DD {drawdown_metric:.1f}%" if drawdown_metric else f"✅ {symbol}: Vol {volatility_metric:.1f}%")
+            details = []
+            if volatility_metric is not None:
+                details.append(f"Vol {volatility_metric:.1f}%")
+            if drawdown_metric is not None:
+                details.append(f"DD {drawdown_metric:.1f}%")
+            if downside_vol_metric is not None:
+                details.append(f"DnVol {downside_vol_metric:.1f}%")
+            if beta_metric is not None:
+                details.append(f"Beta {beta_metric:.2f}")
+            logging.info(f"✅ {symbol}: {', '.join(details)}")
         else:
             logging.info(f"⚠️  {symbol}: Insufficient data")
 

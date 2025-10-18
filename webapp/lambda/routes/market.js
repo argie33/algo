@@ -1066,9 +1066,9 @@ router.get("/sectors", async (req, res) => {
       });
     }
 
-    // Get latest sector data from database
+    // Get latest sector data from database using DISTINCT ON to get most recent data
     const sectorsQuery = `
-      SELECT
+      SELECT DISTINCT ON (sector_name)
         sector_name as sector,
         symbol,
         price,
@@ -1084,14 +1084,21 @@ router.get("/sectors", async (req, res) => {
         sector_rank as overall_rank,
         fetched_at
       FROM sector_performance
-      WHERE DATE(fetched_at) = CURRENT_DATE
-      ORDER BY sector_rank ASC NULLS LAST
+      ORDER BY sector_name, fetched_at DESC
+    `;
+
+    // Wrap in subquery to apply sorting and limit
+    const wrappedQuery = `
+      SELECT * FROM (
+        ${sectorsQuery}
+      ) latest_sectors
+      ORDER BY overall_rank ASC NULLS LAST
       LIMIT $1
     `;
 
     let sectorsResult;
     try {
-      sectorsResult = await query(sectorsQuery, [parseInt(limit) || 20]);
+      sectorsResult = await query(wrappedQuery, [parseInt(limit) || 20]);
     } catch (error) {
       console.error("Sector query error:", error.message);
       return res.status(500).json({

@@ -326,6 +326,13 @@ function StockDetail() {
   });
 
   if (profileLoading) {
+
+  // Helper to render error messages
+  const renderDataError = (title) => (
+    <Alert severity="error" sx={{ mb: 2 }}>
+      ❌ ERROR: {title} data not available from API
+    </Alert>
+  );
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Box
@@ -376,10 +383,14 @@ function StockDetail() {
   }
 
   // Handle both array and object responses from API
-  const stockData = Array.isArray(profile) ? profile[0] || {} : profile || {};
+  const stockData = Array.isArray(profile) ? profile[0] : profile || {};
+  const hasStockDataError = !stockData || Object.keys(stockData).length === 0;
   const currentMetrics = metrics?.data || metrics || {};
+  const hasMetricsError = !currentMetrics || Object.keys(currentMetrics).length === 0;
   const currentFinancials = financials?.data || financials || {};
-  const currentRecs = Array.isArray(recommendations) ? recommendations[0] || {} : recommendations || {};
+  const hasFinancialsError = !currentFinancials || Object.keys(currentFinancials).length === 0;
+  const currentRecs = Array.isArray(recommendations) ? recommendations[0] : recommendations || {};
+  const hasRecsError = !currentRecs || Object.keys(currentRecs).length === 0;
 
   // Price change calculation
   const priceChange =
@@ -2627,7 +2638,7 @@ function StockDetail() {
                     </Table>
                   </TableContainer>
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                    Recent buying by insiders may indicate confidence in the company's prospects
+                    Recent buying by insiders may indicate confidence in the company&apos;s prospects
                   </Typography>
                 </CardContent>
               </Card>

@@ -337,6 +337,7 @@ function TechnicalSignalsWidget({ enabled = true }) {
 
   const signals = data && Array.isArray(data) ? data : [];
 
+
   return (
     <Card sx={{ height: "100%" }}>
       <CardContent>
@@ -784,8 +785,6 @@ const Dashboard = () => {
     pnl: { daily: 0, mtd: 0, ytd: 0 },
     allocation: []
   };
-  const safeWatchlist = []; // No mock fallback
-  const safeNews = []; // No mock fallback
   const safeActivity = []; // No mock fallback
   const safeCalendar = []; // No mock fallback
   const safeSignals = technicalSignalsQuery.data || [];
@@ -1352,7 +1351,7 @@ const Dashboard = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {(safeWatchlist || []).map((item, idx) => (
+                      {([]).map((item, idx) => (
                         <TableRow key={item.symbol || idx}>
                           <TableCell>
                             <Typography variant="body2" fontWeight="bold">
@@ -1518,7 +1517,7 @@ const Dashboard = () => {
                     color="primary.main"
                     fontWeight="bold"
                   >
-                    {safeNews[0]?.title || "Loading latest news..."}
+                    {"News data not available from API"}
                   </Typography>
                 </Box>
               </CardContent>

@@ -455,15 +455,21 @@ function MarketOverview() {
 
   // Real API response structure from loaders
   const breadthInfo = breadthData?.data || {};
+  const hasBreadthError = !breadthInfo || Object.keys(breadthInfo).length === 0;
   const distributionDays = distributionDaysData?.data || {};
+  const hasDistributionError = !distributionDays || Object.keys(distributionDays).length === 0;
   const sentimentHistory = sentimentData?.data || {};
+  const hasSentimentError = !sentimentHistory || Object.keys(sentimentHistory).length === 0;
   console.log("sentimentHistory", sentimentHistory);
 
 
   // Prepare sentiment chart data for all indicators
-  const fearGreedHistory = sentimentHistory.fear_greed_history || [];
-  const naaimHistory = sentimentHistory.naaim_history || [];
-  const aaiiHistory = sentimentHistory.aaii_history || [];
+  const fearGreedHistory = sentimentHistory?.fear_greed_history || [];
+  const hasFearGreedError = !fearGreedHistory || fearGreedHistory.length === 0;
+  const naaimHistory = sentimentHistory?.naaim_history || [];
+  const hasNaaimError = !naaimHistory || naaimHistory.length === 0;
+  const aaiiHistory = sentimentHistory?.aaii_history || [];
+  const hasAaiiError = !aaiiHistory || aaiiHistory.length === 0;
   console.log("aaiiHistory", aaiiHistory);
 
   // Merge by date for multi-line chart (assume all have 'date' or 'timestamp')
@@ -1292,7 +1298,7 @@ function MarketOverview() {
                         color="success.main"
                         fontWeight="600"
                       >
-                        {breadthInfo.advancing || 0}
+                        {(hasBreadthError ? "N/A" : breadthInfo.advancing || 0)}
                       </Typography>
                     </Box>
                     <Box
@@ -1308,7 +1314,7 @@ function MarketOverview() {
                         color="error.main"
                         fontWeight="600"
                       >
-                        {breadthInfo.declining || 0}
+                        {(hasBreadthError ? "N/A" : breadthInfo.declining || 0)}
                       </Typography>
                     </Box>
                     <Box
@@ -1320,7 +1326,7 @@ function MarketOverview() {
                     >
                       <Typography variant="body2">Unchanged:</Typography>
                       <Typography variant="body2" fontWeight="600">
-                        {breadthInfo.unchanged || 0}
+                        {(hasBreadthError ? "N/A" : breadthInfo.unchanged || 0)}
                       </Typography>
                     </Box>
                     <Box
@@ -1373,17 +1379,17 @@ function MarketOverview() {
                             data={[
                               {
                                 name: "Advancing",
-                                value: breadthInfo.advancing || 0,
+                                value: (hasBreadthError ? "N/A" : breadthInfo.advancing || 0),
                                 color: "#4CAF50",
                               },
                               {
                                 name: "Declining",
-                                value: breadthInfo.declining || 0,
+                                value: (hasBreadthError ? "N/A" : breadthInfo.declining || 0),
                                 color: "#F44336",
                               },
                               {
                                 name: "Unchanged",
-                                value: breadthInfo.unchanged || 0,
+                                value: (hasBreadthError ? "N/A" : breadthInfo.unchanged || 0),
                                 color: "#9E9E9E",
                               },
                             ]}

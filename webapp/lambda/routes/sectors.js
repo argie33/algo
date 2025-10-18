@@ -1281,6 +1281,285 @@ router.get("/laggards", async (req, res) => {
 });
 
 /**
+ * GET /sectors-with-history
+ * Get current sector data with historical rankings for display
+ * Used by SectorAnalysis frontend component
+ */
+router.get("/sectors-with-history", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+      });
+    }
+
+    const { limit = 20, sortBy = "current_rank" } = req.query;
+    console.log(`📊 Fetching sectors with history (limit: ${limit})`);
+
+    // Query sectors with historical data from the consolidated rankings table
+    const sectorsQuery = `
+      SELECT DISTINCT ON (sector_name)
+        sector_name,
+        current_rank,
+        rank_1w_ago,
+        rank_4w_ago,
+        rank_12w_ago,
+        current_momentum,
+        current_trend,
+        current_perf_1d,
+        current_perf_5d,
+        current_perf_20d,
+        rank_change_1w,
+        perf_1d_1w_ago,
+        perf_5d_1w_ago,
+        perf_20d_1w_ago
+      FROM sector_ranking_complete
+      ORDER BY sector_name, snapshot_date DESC
+      LIMIT $1
+    `;
+
+    const result = await query(sectorsQuery, [parseInt(limit)]);
+
+    if (!result || result.rows.length === 0) {
+      // Fallback: try to get data from sector_performance table
+      const fallbackQuery = `
+        SELECT DISTINCT ON (sector_name)
+          sector_name,
+          CAST(COALESCE(sector_rank, 999) AS INTEGER) as current_rank,
+          NULL as rank_1w_ago,
+          NULL as rank_4w_ago,
+          NULL as rank_12w_ago,
+          momentum as current_momentum,
+          CASE
+            WHEN performance_20d > 0 THEN 'Uptrend'
+            WHEN performance_20d < 0 THEN 'Downtrend'
+            ELSE 'Sideways'
+          END as current_trend,
+          CAST(performance_1d AS FLOAT) as current_perf_1d,
+          CAST(performance_5d AS FLOAT) as current_perf_5d,
+          CAST(performance_20d AS FLOAT) as current_perf_20d,
+          NULL as rank_change_1w,
+          NULL as perf_1d_1w_ago,
+          NULL as perf_5d_1w_ago,
+          NULL as perf_20d_1w_ago
+        FROM sector_performance
+        ORDER BY sector_name, fetched_at DESC
+        LIMIT $1
+      `;
+
+      const fallbackResult = await query(fallbackQuery, [parseInt(limit)]);
+
+      return res.json({
+        success: true,
+        data: {
+          sectors: (fallbackResult?.rows || []).map(row => {
+            // Convert trend numeric value to text
+            let trend = row.current_trend;
+            if (typeof trend === 'string' && !isNaN(trend)) {
+              const perfValue = parseFloat(trend);
+              trend = perfValue > 0 ? 'Uptrend' : perfValue < 0 ? 'Downtrend' : 'Sideways';
+            }
+            return {
+              sector_name: row.sector_name,
+              current_rank: row.current_rank,
+              rank_1w_ago: row.rank_1w_ago,
+              rank_4w_ago: row.rank_4w_ago,
+              rank_12w_ago: row.rank_12w_ago,
+              current_momentum: row.current_momentum,
+              current_trend: trend,
+              current_perf_1d: parseFloat(row.current_perf_1d || 0),
+              current_perf_5d: parseFloat(row.current_perf_5d || 0),
+              current_perf_20d: parseFloat(row.current_perf_20d || 0),
+              rank_change_1w: row.rank_change_1w,
+              perf_1d_1w_ago: row.perf_1d_1w_ago,
+              perf_5d_1w_ago: row.perf_5d_1w_ago,
+              perf_20d_1w_ago: row.perf_20d_1w_ago,
+            };
+          })
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        sectors: result.rows.map(row => {
+          // Convert trend numeric value to text
+          let trend = row.current_trend;
+          if (typeof trend === 'string' && !isNaN(trend)) {
+            // Convert numeric string to number then to trend text
+            const perfValue = parseFloat(trend);
+            trend = perfValue > 0 ? 'Uptrend' : perfValue < 0 ? 'Downtrend' : 'Sideways';
+          }
+          return {
+            sector_name: row.sector_name,
+            current_rank: row.current_rank,
+            rank_1w_ago: row.rank_1w_ago,
+            rank_4w_ago: row.rank_4w_ago,
+            rank_12w_ago: row.rank_12w_ago,
+            current_momentum: row.current_momentum,
+            current_trend: trend,
+            current_perf_1d: parseFloat(row.current_perf_1d || 0),
+            current_perf_5d: parseFloat(row.current_perf_5d || 0),
+            current_perf_20d: parseFloat(row.current_perf_20d || 0),
+            rank_change_1w: row.rank_change_1w,
+            perf_1d_1w_ago: row.perf_1d_1w_ago,
+            perf_5d_1w_ago: row.perf_5d_1w_ago,
+            perf_20d_1w_ago: row.perf_20d_1w_ago,
+          };
+        })
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Sectors with history error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sectors with history",
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * GET /industries-with-history
+ * Get current industry data with historical rankings for display
+ * Used by SectorAnalysis frontend component
+ */
+router.get("/industries-with-history", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+      });
+    }
+
+    const { limit = 50, sortBy = "current_rank" } = req.query;
+    console.log(`🏭 Fetching industries with history (limit: ${limit})`);
+
+    // Query industries with historical data from the consolidated rankings table
+    const industriesQuery = `
+      SELECT DISTINCT ON (industry)
+        industry,
+        sector,
+        current_rank,
+        rank_1w_ago,
+        rank_4w_ago,
+        rank_12w_ago,
+        momentum,
+        trend,
+        performance_1d,
+        performance_5d,
+        performance_20d,
+        stock_count,
+        rank_change_1w,
+        perf_1d_1w_ago,
+        perf_5d_1w_ago,
+        perf_20d_1w_ago
+      FROM industry_ranking_complete
+      ORDER BY industry, snapshot_date DESC
+      LIMIT $1
+    `;
+
+    const result = await query(industriesQuery, [parseInt(limit)]);
+
+    if (!result || result.rows.length === 0) {
+      // Fallback: try to get data from industry_performance table
+      const fallbackQuery = `
+        SELECT DISTINCT ON (industry)
+          industry,
+          COALESCE(sector, 'Unknown') as sector,
+          CAST(COALESCE(overall_rank, 999) AS INTEGER) as current_rank,
+          NULL as rank_1w_ago,
+          NULL as rank_4w_ago,
+          NULL as rank_12w_ago,
+          'Moderate' as momentum,
+          'Sideways' as trend,
+          0.0 as performance_1d,
+          0.0 as performance_5d,
+          0.0 as performance_20d,
+          COALESCE(stock_count, 0) as stock_count,
+          NULL as rank_change_1w,
+          NULL as perf_1d_1w_ago,
+          NULL as perf_5d_1w_ago,
+          NULL as perf_20d_1w_ago
+        FROM industry_performance
+        ORDER BY industry, fetched_at DESC
+        LIMIT $1
+      `;
+
+      const fallbackResult = await query(fallbackQuery, [parseInt(limit)]);
+
+      return res.json({
+        success: true,
+        data: {
+          industries: (fallbackResult?.rows || []).map(row => ({
+            industry: row.industry,
+            sector: row.sector,
+            current_rank: row.current_rank,
+            rank_1w_ago: row.rank_1w_ago,
+            rank_4w_ago: row.rank_4w_ago,
+            rank_12w_ago: row.rank_12w_ago,
+            momentum: row.momentum,
+            trend: row.trend,
+            performance_1d: parseFloat(row.performance_1d || 0),
+            performance_5d: parseFloat(row.performance_5d || 0),
+            performance_20d: parseFloat(row.performance_20d || 0),
+            stock_count: row.stock_count,
+            rank_change_1w: row.rank_change_1w,
+            perf_1d_1w_ago: row.perf_1d_1w_ago,
+            perf_5d_1w_ago: row.perf_5d_1w_ago,
+            perf_20d_1w_ago: row.perf_20d_1w_ago,
+          })),
+          summary: {
+            total_industries: (fallbackResult?.rows || []).length
+          }
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        industries: result.rows.map(row => ({
+          industry: row.industry,
+          sector: row.sector,
+          current_rank: row.current_rank,
+          rank_1w_ago: row.rank_1w_ago,
+          rank_4w_ago: row.rank_4w_ago,
+          rank_12w_ago: row.rank_12w_ago,
+          momentum: row.momentum,
+          trend: row.trend,
+          performance_1d: parseFloat(row.performance_1d || 0),
+          performance_5d: parseFloat(row.performance_5d || 0),
+          performance_20d: parseFloat(row.performance_20d || 0),
+          stock_count: row.stock_count,
+          rank_change_1w: row.rank_change_1w,
+          perf_1d_1w_ago: row.perf_1d_1w_ago,
+          perf_5d_1w_ago: row.perf_5d_1w_ago,
+          perf_20d_1w_ago: row.perf_20d_1w_ago,
+        })),
+        summary: {
+          total_industries: result.rows.length
+        }
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Industries with history error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch industries with history",
+      message: error.message,
+    });
+  }
+});
+
+/**
  * GET /sectors/ranking-history
  * Get historical ranking progression for sectors to identify trends
  * Queries: today, 7 days ago, 21 days ago (3 weeks), 56 days ago (8 weeks)

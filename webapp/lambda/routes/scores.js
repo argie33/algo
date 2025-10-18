@@ -144,7 +144,12 @@ router.get("/", async (req, res) => {
         rsm.rs_momentum_13w,
         rsm.positive_months_12,
         rsm.timeframe_alignment,
-        rsm.relative_strength_score
+        rsm.relative_strength_score,
+        -- Risk INPUT metrics from risk_metrics table
+        rm.volatility_12m_pct,
+        rm.volatility_risk_component,
+        rm.max_drawdown_52w_pct,
+        rm.beta
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       LEFT JOIN (
@@ -257,6 +262,16 @@ router.get("/", async (req, res) => {
         FROM relative_strength_metrics
         ORDER BY symbol, date DESC
       ) rsm ON ss.symbol = rsm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          volatility_12m_pct,
+          volatility_risk_component,
+          max_drawdown_52w_pct,
+          beta
+        FROM risk_metrics
+        ORDER BY symbol, date DESC
+      ) rm ON ss.symbol = rm.symbol
     `;
 
     const queryParams = [];
@@ -445,6 +460,13 @@ router.get("/", async (req, res) => {
         positive_months_12: parseInt(row.positive_months_12) || null,
         timeframe_alignment: parseInt(row.timeframe_alignment) || null,
         relative_strength_score: parseFloat(row.relative_strength_score) || null
+      },
+      // Add raw risk INPUT metrics for Risk Factor Analysis display
+      risk_inputs: {
+        volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
+        volatility_risk_component: parseFloat(row.volatility_risk_component) || null,
+        max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
+        beta: parseFloat(row.beta) || null
       }
     }));
 
@@ -608,7 +630,12 @@ router.get("/:symbol", async (req, res) => {
         rsm.rs_momentum_13w,
         rsm.positive_months_12,
         rsm.timeframe_alignment,
-        rsm.relative_strength_score
+        rsm.relative_strength_score,
+        -- Risk INPUT metrics from risk_metrics table
+        rm.volatility_12m_pct,
+        rm.volatility_risk_component,
+        rm.max_drawdown_52w_pct,
+        rm.beta
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       LEFT JOIN (
@@ -721,6 +748,16 @@ router.get("/:symbol", async (req, res) => {
         FROM relative_strength_metrics
         ORDER BY symbol, date DESC
       ) rsm ON ss.symbol = rsm.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          volatility_12m_pct,
+          volatility_risk_component,
+          max_drawdown_52w_pct,
+          beta
+        FROM risk_metrics
+        ORDER BY symbol, date DESC
+      ) rm ON ss.symbol = rm.symbol
       WHERE ss.symbol = $1
     `;
 
@@ -881,6 +918,15 @@ router.get("/:symbol", async (req, res) => {
           sentiment: {
             score: parseFloat(row.sentiment_score) || 0,
             components: {}
+          },
+          risk: {
+            score: parseFloat(row.risk_score) || null,
+            inputs: {
+              volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
+              volatility_risk_component: parseFloat(row.volatility_risk_component) || null,
+              max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
+              beta: parseFloat(row.beta) || null
+            }
           }
         },
         // Nested performance object for tests

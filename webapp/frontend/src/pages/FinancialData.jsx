@@ -56,6 +56,13 @@ import {
 } from "../utils/formatters";
 
 function TabPanel({ children, value, index, ...other }) {
+
+  // Helper to render error messages
+  const renderDataError = (title) => (
+    <Alert severity="error" sx={{ mb: 2 }}>
+      ❌ ERROR: {title} data not available from API
+    </Alert>
+  );
   return (
     <div
       role="tabpanel"
