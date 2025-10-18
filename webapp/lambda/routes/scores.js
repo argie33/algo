@@ -133,18 +133,6 @@ router.get("/", async (req, res) => {
         mm.sma_50,
         mm.sma_200,
         mm.volatility_12m,
-        -- Relative Strength INPUT metrics from relative_strength_metrics table
-        rsm.rs_rating,
-        rsm.sector_relative_1m,
-        rsm.sector_relative_3m,
-        rsm.sector_relative_6m,
-        rsm.sector_relative_12m,
-        rsm.sector_percentile,
-        rsm.rs_momentum_4w,
-        rsm.rs_momentum_13w,
-        rsm.positive_months_12,
-        rsm.timeframe_alignment,
-        rsm.relative_strength_score,
         -- Risk INPUT metrics from risk_metrics table
         rm.volatility_12m_pct,
         rm.volatility_risk_component,
@@ -238,23 +226,6 @@ router.get("/", async (req, res) => {
         FROM momentum_metrics
         ORDER BY symbol, date DESC
       ) mm ON ss.symbol = mm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          rs_rating,
-          sector_relative_1m,
-          sector_relative_3m,
-          sector_relative_6m,
-          sector_relative_12m,
-          sector_percentile,
-          rs_momentum_4w,
-          rs_momentum_13w,
-          positive_months_12,
-          timeframe_alignment,
-          relative_strength_score
-        FROM relative_strength_metrics
-        ORDER BY symbol, date DESC
-      ) rsm ON ss.symbol = rsm.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
@@ -440,20 +411,6 @@ router.get("/", async (req, res) => {
           momentum_score: parseFloat(row.momentum_score)?.toFixed(2) || null
         }
       },
-      // Add raw relative strength INPUT metrics for RS factor display
-      relative_strength_inputs: {
-        rs_rating: parseFloat(row.rs_rating) || null,
-        sector_relative_1m: parseFloat(row.sector_relative_1m) || null,
-        sector_relative_3m: parseFloat(row.sector_relative_3m) || null,
-        sector_relative_6m: parseFloat(row.sector_relative_6m) || null,
-        sector_relative_12m: parseFloat(row.sector_relative_12m) || null,
-        sector_percentile: parseFloat(row.sector_percentile) || null,
-        rs_momentum_4w: parseFloat(row.rs_momentum_4w) || null,
-        rs_momentum_13w: parseFloat(row.rs_momentum_13w) || null,
-        positive_months_12: parseInt(row.positive_months_12) || null,
-        timeframe_alignment: parseInt(row.timeframe_alignment) || null,
-        relative_strength_score: parseFloat(row.relative_strength_score) || null
-      },
       // Add raw risk INPUT metrics for Risk Factor Analysis display
       risk_inputs: {
         volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
@@ -612,18 +569,6 @@ router.get("/:symbol", async (req, res) => {
         mm.sma_50,
         mm.sma_200,
         mm.volatility_12m,
-        -- Relative Strength INPUT metrics from relative_strength_metrics table
-        rsm.rs_rating,
-        rsm.sector_relative_1m,
-        rsm.sector_relative_3m,
-        rsm.sector_relative_6m,
-        rsm.sector_relative_12m,
-        rsm.sector_percentile,
-        rsm.rs_momentum_4w,
-        rsm.rs_momentum_13w,
-        rsm.positive_months_12,
-        rsm.timeframe_alignment,
-        rsm.relative_strength_score,
         -- Risk INPUT metrics from risk_metrics table
         rm.volatility_12m_pct,
         rm.volatility_risk_component,
@@ -717,23 +662,6 @@ router.get("/:symbol", async (req, res) => {
         FROM momentum_metrics
         ORDER BY symbol, date DESC
       ) mm ON ss.symbol = mm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          rs_rating,
-          sector_relative_1m,
-          sector_relative_3m,
-          sector_relative_6m,
-          sector_relative_12m,
-          sector_percentile,
-          rs_momentum_4w,
-          rs_momentum_13w,
-          positive_months_12,
-          timeframe_alignment,
-          relative_strength_score
-        FROM relative_strength_metrics
-        ORDER BY symbol, date DESC
-      ) rsm ON ss.symbol = rsm.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol,
@@ -872,21 +800,6 @@ router.get("/:symbol", async (req, res) => {
               net_margin_trend: parseFloat(row.net_margin_trend) || null,
               quarterly_growth_momentum: parseFloat(row.quarterly_growth_momentum) || null,
               asset_growth_yoy: parseFloat(row.asset_growth_yoy) || null
-            }
-          },
-          relative_strength: {
-            score: parseFloat(row.relative_strength_score) || 0,
-            inputs: {
-              rs_rating: parseFloat(row.rs_rating) || null,
-              sector_relative_1m: parseFloat(row.sector_relative_1m) || null,
-              sector_relative_3m: parseFloat(row.sector_relative_3m) || null,
-              sector_relative_6m: parseFloat(row.sector_relative_6m) || null,
-              sector_relative_12m: parseFloat(row.sector_relative_12m) || null,
-              sector_percentile: parseFloat(row.sector_percentile) || null,
-              rs_momentum_4w: parseFloat(row.rs_momentum_4w) || null,
-              rs_momentum_13w: parseFloat(row.rs_momentum_13w) || null,
-              positive_months_12: parseInt(row.positive_months_12) || null,
-              timeframe_alignment: parseInt(row.timeframe_alignment) || null
             }
           },
           positioning: {

@@ -432,10 +432,10 @@ def calculate_complete_historical_rankings(cur, conn):
             if idx % 10 == 0:
                 logging.info(f"  Processing date {idx+1}/{len(all_dates)}: {current_date}")
 
-            # Get rankings for current date and 1W/4W/12W ago
+            # Get rankings for current date and 1W/4W/8W ago (changed from 12W to 8W)
             date_1w_ago = current_date - timedelta(days=7)
             date_4w_ago = current_date - timedelta(days=28)
-            date_12w_ago = current_date - timedelta(days=84)
+            date_12w_ago = current_date - timedelta(days=56)  # 8 weeks = 56 days
 
             ranks_current = get_rankings_for_date(cur, current_date)
             ranks_1w = get_rankings_for_date(cur, date_1w_ago)
