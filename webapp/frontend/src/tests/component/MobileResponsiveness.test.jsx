@@ -593,7 +593,7 @@ describe("Mobile Responsiveness Tests", () => {
     });
   });
 
-  describe("Cross-Device Consistency", () => {
+  describe("Cross-Device Stability", () => {
     test("should maintain data consistency across devices", async () => {
       const MockConsistentDataApp = ({ deviceType }) => {
         const [data, _setData] = React.useState({

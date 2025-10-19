@@ -577,7 +577,7 @@ describe("5xx Server Error Scenarios Integration", () => {
     });
   });
 
-  describe("Cross-Route 5xx Error Consistency", () => {
+  describe("Cross-Route 5xx Error Stability", () => {
     test("should maintain consistent 5xx error format across all routes", async () => {
       const serverErrorTests = [
         { endpoint: "/api/portfolio/complex-analysis", auth: true },

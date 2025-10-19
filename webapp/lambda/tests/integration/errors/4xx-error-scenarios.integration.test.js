@@ -604,7 +604,7 @@ describe("4xx Client Error Scenarios Integration", () => {
     });
   });
 
-  describe("Cross-Route 4xx Error Consistency", () => {
+  describe("Cross-Route 4xx Error Stability", () => {
     test("should maintain consistent 4xx error response format", async () => {
       const errorScenarios = [
         { endpoint: "/api/nonexistent", expectedStatus: 404 },

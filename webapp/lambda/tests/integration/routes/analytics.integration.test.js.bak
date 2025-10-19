@@ -1,8 +1,10 @@
 const request = require("supertest");
 const { app } = require("../../../index");
 
+const { app } = require("../../../index");
 
 describe("Analytics Routes", () => {
+  });
 
   describe("GET /api/analytics", () => {
     test("should return analytics endpoints", async () => {
@@ -15,6 +17,7 @@ describe("Analytics Routes", () => {
         expect(response.body).toHaveProperty("endpoints");
       }
     });
+  });
 
   describe("GET /api/analytics/performance", () => {
     test("should return performance analytics", async () => {
@@ -29,6 +32,7 @@ describe("Analytics Routes", () => {
         expect(response.body.data).toBeDefined();
       }
     });
+  });
 
   describe("GET /api/analytics/risk", () => {
     test("should return risk analytics", async () => {
@@ -43,6 +47,7 @@ describe("Analytics Routes", () => {
         expect(response.body.data).toHaveProperty("risk");
       }
     });
+  });
 
   describe("GET /api/analytics/allocation", () => {
     test("should return allocation analytics", async () => {
@@ -57,6 +62,7 @@ describe("Analytics Routes", () => {
         expect(response.body.data).toHaveProperty("allocation");
       }
     });
+  });
 
   describe("GET /api/analytics/returns", () => {
     test("should return returns analysis", async () => {
@@ -71,6 +77,7 @@ describe("Analytics Routes", () => {
         expect(response.body.data).toHaveProperty("returns");
       }
     });
+  });
 
   describe("GET /api/analytics/sectors", () => {
     test("should return sector analysis", async () => {
@@ -83,6 +90,7 @@ describe("Analytics Routes", () => {
         expect(response.body.data).toHaveProperty("sectors");
       }
     });
+  });
 
   describe("GET /api/analytics/correlation", () => {
     test("should return correlation analysis", async () => {
@@ -97,6 +105,7 @@ describe("Analytics Routes", () => {
         expect(response.body.data).toHaveProperty("correlations");
       }
     });
+  });
 
   describe("GET /api/analytics/volatility", () => {
     test("should return volatility analysis", async () => {
@@ -111,6 +120,7 @@ describe("Analytics Routes", () => {
         expect(response.body.data).toHaveProperty("volatility");
       }
     });
+  });
 
   describe("GET /api/analytics/trends", () => {
     test("should return trend analysis", async () => {
@@ -125,6 +135,7 @@ describe("Analytics Routes", () => {
         expect(response.body.data).toHaveProperty("trends");
       }
     });
+  });
 
   describe("POST /api/analytics/custom", () => {
     test("should handle custom analytics request", async () => {
@@ -145,4 +156,5 @@ describe("Analytics Routes", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
+  });
 });

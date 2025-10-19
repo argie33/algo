@@ -314,7 +314,7 @@ describe("Error Handler Middleware Integration", () => {
     });
   });
 
-  describe("Error Handling Consistency Across Routes", () => {
+  describe("Error Handling Stability Across Routes", () => {
     test("should maintain consistent error format across all routes", async () => {
       const errorScenarios = [
         { endpoint: "/api/invalid", expectedStatus: 404 },

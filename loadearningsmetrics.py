@@ -16,7 +16,7 @@ Methodology:
 - EPS Growth (YoY): 30% - Sustainable long-term growth
 - Earnings Surprise: 25% - Beat expectations
 - Revenue Growth: 20% - Top-line momentum
-- Growth Consistency: 15% - Predictable growth streak
+- Growth Stability: 15% - Predictable growth streak
 - EPS Acceleration (QoQ): 10% - Recent momentum
 """
 # Trigger deployment - 2025-10-09 12:05
@@ -276,7 +276,7 @@ def calculate_earnings_quality_score(metrics_data):
        - Range: -20% to 50% (high-growth companies)
        - Data source: revenue_estimates.growth
 
-    4. Growth Consistency (15% weight)
+    4. Growth Stability (15% weight)
        - Counts positive YoY growth quarters in last 4 quarters
        - Rewards predictable, consistent growth
        - Derived from: EPS YoY Growth (calculated)
@@ -322,10 +322,10 @@ def calculate_earnings_quality_score(metrics_data):
 
     Examples:
         High-quality stock (score ~85):
-        - EPS YoY: 40%, Surprise: 10%, Revenue: 30%, Consistency: 4/4, Acceleration: Yes
+        - EPS YoY: 40%, Surprise: 10%, Revenue: 30%, Stability: 4/4, Acceleration: Yes
 
         Low-quality stock (score ~25):
-        - EPS YoY: -15%, Surprise: -5%, Revenue: -10%, Consistency: 1/4, Acceleration: No
+        - EPS YoY: -15%, Surprise: -5%, Revenue: -10%, Stability: 1/4, Acceleration: No
     """
     if not metrics_data or len(metrics_data) == 0:
         return None
@@ -366,7 +366,7 @@ def calculate_earnings_quality_score(metrics_data):
         component_scores['revenue'] = normalize_score(rev_yoy, -20, 50) * 0.20
         available_weight += 0.20
 
-    # ========== COMPONENT 4: Growth Consistency (15% weight) ==========
+    # ========== COMPONENT 4: Growth Stability (15% weight) ==========
     # Count how many of the last quarters (up to 4) had positive YoY growth
     # Rewards predictable, consistent performers
     # Works with 2-4 quarters of data for maximum compatibility
@@ -401,7 +401,7 @@ def calculate_earnings_quality_score(metrics_data):
     # ========== VALIDATION AND FINAL CALCULATION ==========
     # Require at least 30% of components to have data (minimum: EPS YoY growth)
     # This allows scoring even when surprise_percent and revenue data are unavailable
-    # Most stocks will have eps_actual which gives us: EPS YoY (30%) + Consistency (15%) + Acceleration (10%) = 55%
+    # Most stocks will have eps_actual which gives us: EPS YoY (30%) + Stability (15%) + Acceleration (10%) = 55%
     if available_weight < 0.30:
         logging.warning(f"Insufficient data for quality score (only {available_weight*100:.0f}% weight available)")
         return None

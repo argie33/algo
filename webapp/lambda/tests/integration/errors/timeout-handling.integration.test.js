@@ -568,7 +568,7 @@ describe("Timeout Handling Integration", () => {
     });
   });
 
-  describe("Timeout Error Response Consistency", () => {
+  describe("Timeout Error Response Stability", () => {
     test("should return consistent timeout error responses", async () => {
       const timeoutTestScenarios = [
         {

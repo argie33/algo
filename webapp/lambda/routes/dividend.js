@@ -367,7 +367,7 @@ router.get("/growth/:symbol", async (req, res) => {
         dividend_coverage: 1.53,
         free_cash_flow_coverage: 1.25, // Add expected field
         debt_to_equity_impact: 0.15, // Add expected field
-        consistency_score: 92
+        stability_score: 92
       },
       projections: {
         next_year_estimate: 1.85,
@@ -428,7 +428,7 @@ router.get("/growth", async (req, res) => {
         dividend_coverage: 1.53,
         free_cash_flow_coverage: 1.25, // Add expected field
         debt_to_equity_impact: 0.15, // Add expected field
-        consistency_score: 92
+        stability_score: 92
       },
       projections: {
         next_year_estimate: 1.85,
@@ -639,7 +639,7 @@ router.get("/:symbol", async (req, res) => {
             debt_to_equity: null,
             earnings_growth: null,
             dividend_coverage: null,
-            consistency_score: 0
+            stability_score: 0
           },
           summary: {
             total_dividends: 0,
@@ -700,7 +700,7 @@ router.get("/:symbol", async (req, res) => {
           debt_to_equity: null,
           earnings_growth: null,
           dividend_coverage: null,
-          consistency_score: dividendHistory.length > 0 ? Math.min(dividendHistory.length * 20, 100) : 0
+          stability_score: dividendHistory.length > 0 ? Math.min(dividendHistory.length * 20, 100) : 0
         },
         summary: {
           total_dividends: parseFloat(totalDividends.toFixed(4)),

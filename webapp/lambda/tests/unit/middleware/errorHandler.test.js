@@ -221,7 +221,7 @@ describe("Error Handler Middleware", () => {
     });
   });
 
-  describe("Response Format Consistency", () => {
+  describe("Response Format Stability", () => {
     test("should always include required error fields", async () => {
       const response = await request(app).get("/test-generic-error");
 

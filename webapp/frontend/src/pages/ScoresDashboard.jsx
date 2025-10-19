@@ -274,7 +274,7 @@ const ScoresDashboard = () => {
       growth: avg(stocks.map(s => s.growth_score || 0).filter(v => v > 0)),
       positioning: avg(stocks.map(s => s.positioning_score || 0).filter(v => v > 0)),
       sentiment: avg(stocks.map(s => s.sentiment_score || 0).filter(v => v > 0)),
-      consistency: avg(stocks.map(s => s.consistency_score || 0).filter(v => v > 0)),
+      consistency: avg(stocks.map(s => s.stability_score || 0).filter(v => v > 0)),
     };
   };
 
@@ -1080,22 +1080,22 @@ const ScoresDashboard = () => {
                               Risk
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {(stock.consistency_score || 0).toFixed(0)}
+                              {(stock.stability_score || 0).toFixed(0)}
                             </Typography>
                           </Box>
                           <LinearProgress
                             variant="determinate"
-                            value={Math.min(100, stock.consistency_score || 0)}
+                            value={Math.min(100, stock.stability_score || 0)}
                             sx={{
                               height: 8,
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.consistency_score || 0) < 30
+                                backgroundColor: (stock.stability_score || 0) < 30
                                   ? theme.palette.success.main
-                                  : (stock.consistency_score || 0) < 50
+                                  : (stock.stability_score || 0) < 50
                                   ? theme.palette.warning.main
-                                  : (stock.consistency_score || 0) < 70
+                                  : (stock.stability_score || 0) < 70
                                   ? theme.palette.error.main
                                   : theme.palette.error.main,
                                 borderRadius: 1,
@@ -1546,8 +1546,8 @@ const ScoresDashboard = () => {
                                 <Security sx={{ color: theme.palette.error.main }} />
                                 <Typography variant="h6">Risk Factor Analysis</Typography>
                                 <Chip
-                                  label={(stock.consistency_score || 0).toFixed(1)}
-                                  color={(stock.consistency_score || 0) < 30 ? "success" : (stock.consistency_score || 0) < 50 ? "warning" : "error"}
+                                  label={(stock.stability_score || 0).toFixed(1)}
+                                  color={(stock.stability_score || 0) < 30 ? "success" : (stock.stability_score || 0) < 50 ? "warning" : "error"}
                                   size="small"
                                 />
                               </Box>
@@ -1567,7 +1567,7 @@ const ScoresDashboard = () => {
                                     data={[
                                       {
                                         name: stock.symbol,
-                                        value: stock.consistency_score || 0
+                                        value: stock.stability_score || 0
                                       },
                                       {
                                         name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
@@ -1586,7 +1586,7 @@ const ScoresDashboard = () => {
                                     <RechartsTooltip />
                                     <Bar dataKey="value" name="Risk Score">
                                       {[
-                                        <Cell key="stock" fill={(stock.consistency_score || 0) < 30 ? theme.palette.success.main : (stock.consistency_score || 0) < 50 ? theme.palette.warning.main : theme.palette.error.main} />,
+                                        <Cell key="stock" fill={(stock.stability_score || 0) < 30 ? theme.palette.success.main : (stock.stability_score || 0) < 50 ? theme.palette.warning.main : theme.palette.error.main} />,
                                         <Cell key="sector" fill={theme.palette.primary.main} />,
                                         <Cell key="market" fill={theme.palette.info.light} />
                                       ]}
@@ -1609,40 +1609,40 @@ const ScoresDashboard = () => {
                                     <TableRow>
                                       <TableCell>Volatility (12M)</TableCell>
                                       <TableCell align="right">
-                                        {stock.consistency_inputs?.volatility_12m_pct !== null && stock.consistency_inputs?.volatility_12m_pct !== undefined
-                                          ? `${(stock.consistency_inputs.volatility_12m_pct || 0).toFixed(2)}%`
+                                        {stock.stability_inputs?.volatility_12m_pct !== null && stock.stability_inputs?.volatility_12m_pct !== undefined
+                                          ? `${(stock.stability_inputs.volatility_12m_pct || 0).toFixed(2)}%`
                                           : "N/A"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell>Downside Volatility</TableCell>
                                       <TableCell align="right">
-                                        {stock.consistency_inputs?.downside_volatility_pct !== null && stock.consistency_inputs?.downside_volatility_pct !== undefined
-                                          ? `${(stock.consistency_inputs.downside_volatility_pct || 0).toFixed(2)}%`
+                                        {stock.stability_inputs?.downside_volatility_pct !== null && stock.stability_inputs?.downside_volatility_pct !== undefined
+                                          ? `${(stock.stability_inputs.downside_volatility_pct || 0).toFixed(2)}%`
                                           : "N/A"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell>Max Drawdown (52W)</TableCell>
                                       <TableCell align="right">
-                                        {stock.consistency_inputs?.max_drawdown_52w_pct !== null && stock.consistency_inputs?.max_drawdown_52w_pct !== undefined
-                                          ? `${(stock.consistency_inputs.max_drawdown_52w_pct || 0).toFixed(2)}%`
+                                        {stock.stability_inputs?.max_drawdown_52w_pct !== null && stock.stability_inputs?.max_drawdown_52w_pct !== undefined
+                                          ? `${(stock.stability_inputs.max_drawdown_52w_pct || 0).toFixed(2)}%`
                                           : "N/A"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell>Beta (vs Market)</TableCell>
                                       <TableCell align="right">
-                                        {stock.consistency_inputs?.beta !== null && stock.consistency_inputs?.beta !== undefined
-                                          ? (stock.consistency_inputs.beta || 0).toFixed(2)
+                                        {stock.stability_inputs?.beta !== null && stock.stability_inputs?.beta !== undefined
+                                          ? (stock.stability_inputs.beta || 0).toFixed(2)
                                           : "N/A"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell>Liquidity Risk Score</TableCell>
                                       <TableCell align="right">
-                                        {stock.consistency_inputs?.liquidity_risk !== null && stock.consistency_inputs?.liquidity_risk !== undefined
-                                          ? (stock.consistency_inputs.liquidity_risk || 0).toFixed(1)
+                                        {stock.stability_inputs?.liquidity_risk !== null && stock.stability_inputs?.liquidity_risk !== undefined
+                                          ? (stock.stability_inputs.liquidity_risk || 0).toFixed(1)
                                           : "N/A"}
                                       </TableCell>
                                     </TableRow>
@@ -1810,7 +1810,7 @@ const ScoresDashboard = () => {
                                     </TableRow>
 
                                     <TableRow>
-                                      <TableCell sx={{ fontWeight: 600, pt: 2 }}>Consistency (10pts)</TableCell>
+                                      <TableCell sx={{ fontWeight: 600, pt: 2 }}>Stability (10pts)</TableCell>
                                       <TableCell align="right"></TableCell>
                                     </TableRow>
                                     <TableRow>

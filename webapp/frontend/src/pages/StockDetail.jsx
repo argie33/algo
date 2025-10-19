@@ -2072,7 +2072,7 @@ function StockDetail() {
                       </TableRow>
 
                       <TableRow>
-                        <TableCell sx={{ fontWeight: 600, pt: 2 }}>Consistency (10pts)</TableCell>
+                        <TableCell sx={{ fontWeight: 600, pt: 2 }}>Stability (10pts)</TableCell>
                         <TableCell align="right"></TableCell>
                       </TableRow>
                       <TableRow>

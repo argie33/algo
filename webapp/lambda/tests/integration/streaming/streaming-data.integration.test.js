@@ -220,7 +220,7 @@ describe("Streaming Data Integration", () => {
     });
   });
 
-  describe("Streaming Data Consistency", () => {
+  describe("Streaming Data Stability", () => {
     test("should maintain data consistency across multiple requests", async () => {
       const symbol = "AAPL";
       const requestCount = 5;

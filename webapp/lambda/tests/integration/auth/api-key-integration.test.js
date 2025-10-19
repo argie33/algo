@@ -137,7 +137,7 @@ describe('API Key Integration Tests', () => {
     });
   });
 
-  describe('Authentication Middleware Consistency', () => {
+  describe('Authentication Middleware Stability', () => {
     test('both tokens should work consistently across multiple requests', async () => {
       // Test multiple requests with dev bypass token
       for (let i = 0; i < 3; i++) {

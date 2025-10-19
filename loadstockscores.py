@@ -18,7 +18,7 @@ Data Sources:
 Scoring Methodology (0-100 scale) - 6 Factor Model:
 1. Momentum Score (21%): RSI + MACD + Price momentum across timeframes
 2. Trend Score (15%): Multi-timeframe trend analysis + MA alignment
-3. Growth Score (19%): Earnings growth + Momentum + Consistency
+3. Growth Score (19%): Earnings growth + Momentum + Stability
 4. Value Score (15%): PE ratio + PEG-adjusted valuation
 5. Quality Score (15%): Volatility risk + Liquidity + Price stability
 6. Positioning Score (10%): Institutional holdings changes + Market positioning trends
@@ -851,8 +851,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # LOWER volatility/drawdown/beta = HIGHER score (safer stocks)
         # REQUIRES ALL DATA or None - NO NEUTRAL DEFAULTS
         # ============================================================
-        consistency_score = None
-        consistency_inputs = {
+        stability_score = None
+        stability_inputs = {
             'volatility_12m_pct': None,
             'downside_volatility_pct': None,
             'max_drawdown_52w_pct': None,
@@ -933,23 +933,23 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
             # Calculate composite consistency score with new weighting
             # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
-            consistency_score = (
+            stability_score = (
                 vol_percentile * 0.30 +
                 downside_percentile * 0.25 +
                 drawdown_percentile * 0.25 +
                 beta_percentile * 0.15 +
                 liquidity_percentile * 0.05
             )
-            consistency_score = max(0, min(100, consistency_score))
+            stability_score = max(0, min(100, stability_score))
 
             # Store risk inputs for display
-            consistency_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
-            consistency_inputs['downside_volatility_pct'] = round(downside_volatility, 2)
-            consistency_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2)
-            consistency_inputs['beta'] = round(beta, 3)
-            consistency_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
+            stability_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
+            stability_inputs['downside_volatility_pct'] = round(downside_volatility, 2)
+            stability_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2)
+            stability_inputs['beta'] = round(beta, 3)
+            stability_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
 
-            logger.info(f"{symbol} Consistency Score: {consistency_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
+            logger.info(f"{symbol} Stability Score: {stability_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
 
         except Exception as e:
             import traceback
@@ -957,8 +957,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             logger.error(traceback.format_exc())
             conn.rollback()
             # Use neutral/default consistency score rather than failing
-            consistency_score = 50
-            logger.warning(f"{symbol}: Using neutral default consistency_score of 50")
+            stability_score = 50
+            logger.warning(f"{symbol}: Using neutral default stability_score of 50")
 
         # Get quality metrics from key_metrics table for percentile-based quality score
         stock_roe = None
@@ -1158,10 +1158,10 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             else:
                 longer_term_momentum = 0  # Poor 12M performance
 
-        # Component 5: Momentum Consistency (10 points) - Multi-timeframe alignment
+        # Component 5: Momentum Stability (10 points) - Multi-timeframe alignment
         # Primary: Check alignment across 3M, 6M, 12M returns from momentum_metrics
         # Fallback: Check alignment across ROC timeframes from technical indicators
-        consistency_score = 5  # Start neutral
+        stability_score = 5  # Start neutral
 
         # Check alignment across timeframes
         timeframe_signals = []
@@ -1195,22 +1195,22 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
             if abs(signal_sum) == signal_count:
                 # All timeframes agree (all positive or all negative)
-                consistency_score = 8 + trend_alignment_bonus
+                stability_score = 8 + trend_alignment_bonus
             elif abs(signal_sum) == signal_count - 1:
                 # Mostly aligned (2 out of 3 agree)
-                consistency_score = 6 + (trend_alignment_bonus * 0.5)
+                stability_score = 6 + (trend_alignment_bonus * 0.5)
             elif signal_sum == 0:
                 # Mixed signals - conflicting momentum
-                consistency_score = 3
+                stability_score = 3
             else:
-                consistency_score = 5
+                stability_score = 5
 
-            consistency_score = max(0, min(10, consistency_score))
+            stability_score = max(0, min(10, stability_score))
 
         # Calculate final momentum score (0-100 scale)
         # Components: 10 + 25 + 25 + 15 + 10 = 85 pts (scaled to 100)
         raw_momentum_score = (intraweek_confirmation + short_term_momentum + medium_term_momentum +
-                             longer_term_momentum + consistency_score)
+                             longer_term_momentum + stability_score)
         # Scale from 85-point scale to 100-point scale
         momentum_score = (raw_momentum_score / 85) * 100
         momentum_score = max(0, min(100, momentum_score))
@@ -1588,13 +1588,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             value_score = 50
         if quality_score is None:
             quality_score = 50
-        if consistency_score is None:
-            consistency_score = 50
+        if stability_score is None:
+            stability_score = 50
 
-        # Composite Score (7-factor weighted average - Sentiment EXCLUDED, Consistency NOW INCLUDED)
+        # Composite Score (7-factor weighted average - Sentiment EXCLUDED, Stability NOW INCLUDED)
         # Weights: Momentum (18.95%), Trend (13.68%), Growth (17.11%), Value (13.68%),
-        #          Quality (13.68%), Consistency (12.63%), Positioning (10.26%)
-        # Consistency (12.63%) is NEW - critical for preventing high-volatility stocks from scoring high
+        #          Quality (13.68%), Stability (12.63%), Positioning (10.26%)
+        # Stability (12.63%) is NEW - critical for preventing high-volatility stocks from scoring high
         # Sentiment (5%) redistributed proportionally to all other factors
         # If positioning_score is None, redistribute its 10.26% weight proportionally to other factors
         if positioning_score is not None:
@@ -1604,20 +1604,20 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 growth_score * 0.1711 +                  # Growth drivers
                 value_score * 0.1368 +                   # Valuation
                 quality_score * 0.1368 +                 # Quality (other than consistency)
-                consistency_score * 0.1263 +             # Consistency (NEW)
+                stability_score * 0.1263 +             # Stability (NEW)
                 positioning_score * 0.1026               # Institutional positioning
             )
         else:
             # Redistribute positioning's 10.26% weight proportionally across other factors
             # New weights: Momentum (21.26%), Trend (15.32%), Growth (19.17%), Value (15.32%),
-            #              Quality (15.32%), Consistency (14.16%)
+            #              Quality (15.32%), Stability (14.16%)
             composite_score = (
                 momentum_score * 0.2126 +                # Short-term momentum
                 trend_score * 0.1532 +                   # Trend alignment
                 growth_score * 0.1917 +                  # Growth drivers
                 value_score * 0.1532 +                   # Valuation
                 quality_score * 0.1532 +                 # Quality
-                consistency_score * 0.1416               # Consistency
+                stability_score * 0.1416               # Stability
             )
 
         cur.close()
@@ -1636,8 +1636,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'growth_score': float(round(clamp_score(growth_score), 2)),
             'positioning_score': float(round(clamp_score(positioning_score), 2)),
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)),
-            'consistency_score': float(round(clamp_score(consistency_score), 2)) if consistency_score is not None else None,
-            'consistency_inputs': consistency_inputs,
+            'stability_score': float(round(clamp_score(stability_score), 2)) if stability_score is not None else None,
+            'stability_inputs': stability_inputs,
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
@@ -1655,7 +1655,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'momentum_short_term': float(round(short_term_momentum, 2)),
             'momentum_medium_term': float(round(medium_term_momentum, 2)),
             'momentum_long_term': float(round(longer_term_momentum, 2)),
-            'momentum_consistency': float(round(consistency_score, 2)),
+            'momentum_consistency': float(round(stability_score, 2)),
             'roc_10d': float(round(roc_10d, 2)) if roc_10d is not None else None,
             'roc_20d': float(round(roc_20d, 2)) if roc_20d is not None else None,
             'roc_60d': float(round(roc_60d, 2)) if roc_60d is not None else None,
@@ -1679,15 +1679,15 @@ def save_stock_score(conn, score_data):
     try:
         cur = conn.cursor()
 
-        # Convert consistency_inputs dict to JSON string for JSONB column
-        if score_data.get('consistency_inputs') is not None:
-            score_data['consistency_inputs'] = json.dumps(score_data['consistency_inputs'])
+        # Convert stability_inputs dict to JSON string for JSONB column
+        if score_data.get('stability_inputs') is not None:
+            score_data['stability_inputs'] = json.dumps(score_data['stability_inputs'])
 
         # Upsert query
         upsert_sql = """
         INSERT INTO stock_scores (
             symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
-            positioning_score, sentiment_score, consistency_score, consistency_inputs,
+            positioning_score, sentiment_score, stability_score, stability_inputs,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio,
@@ -1698,7 +1698,7 @@ def save_stock_score(conn, score_data):
             score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
-            %(positioning_score)s, %(sentiment_score)s, %(consistency_score)s, %(consistency_inputs)s,
+            %(positioning_score)s, %(sentiment_score)s, %(stability_score)s, %(stability_inputs)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s,
@@ -1716,8 +1716,8 @@ def save_stock_score(conn, score_data):
             growth_score = EXCLUDED.growth_score,
             positioning_score = EXCLUDED.positioning_score,
             sentiment_score = EXCLUDED.sentiment_score,
-            consistency_score = EXCLUDED.consistency_score,
-            consistency_inputs = EXCLUDED.consistency_inputs,
+            stability_score = EXCLUDED.stability_score,
+            stability_inputs = EXCLUDED.stability_inputs,
             rsi = EXCLUDED.rsi,
             macd = EXCLUDED.macd,
             sma_20 = EXCLUDED.sma_20,

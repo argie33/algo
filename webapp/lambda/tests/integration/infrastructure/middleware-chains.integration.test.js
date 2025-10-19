@@ -114,7 +114,7 @@ describe("Middleware Chain Integration", () => {
     });
   });
 
-  describe("Cross-Route Middleware Consistency", () => {
+  describe("Cross-Route Middleware Stability", () => {
     test("should apply auth middleware consistently across protected routes", async () => {
       const protectedEndpoints = [
         { method: "get", path: "/api/portfolio" },

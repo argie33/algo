@@ -663,7 +663,7 @@ describe("Malformed Request Integration", () => {
     });
   });
 
-  describe("Error Response Consistency", () => {
+  describe("Error Response Stability", () => {
     test("should maintain consistent error format for all malformed requests", async () => {
       const consistencyTests = [
         {

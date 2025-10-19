@@ -605,7 +605,7 @@ describe("WebSocket Integration", () => {
     });
   });
 
-  describe("WebSocket Data Consistency", () => {
+  describe("WebSocket Data Stability", () => {
     test("should maintain consistent WebSocket message ordering", async () => {
       const messageSequence = [
         { type: "authenticate", payload: { token: "dev-bypass-token" } },

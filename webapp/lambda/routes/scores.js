@@ -813,7 +813,7 @@ router.get("/:symbol", async (req, res) => {
             components: {}
           },
           consistency: {
-            score: row.consistency_score == null ? null : parseFloat(row.consistency_score),
+            score: row.stability_score == null ? null : parseFloat(row.stability_score),
             inputs: {
               volatility_12m_pct: row.volatility_12m_pct == null ? null : parseFloat(row.volatility_12m_pct),
               downside_volatility_pct: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
@@ -838,7 +838,7 @@ router.get("/:symbol", async (req, res) => {
         growth_score: row.growth_score == null ? null : parseFloat(row.growth_score),
         positioning_score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
         sentiment_score: row.sentiment_score == null ? null : parseFloat(row.sentiment_score),
-        consistency_score: row.consistency_score == null ? null : parseFloat(row.consistency_score),
+        stability_score: row.stability_score == null ? null : parseFloat(row.stability_score),
         current_price: row.current_price == null ? null : parseFloat(row.current_price),
         price_change_1d: row.price_change_1d == null ? null : parseFloat(row.price_change_1d),
         price_change_5d: row.price_change_5d == null ? null : parseFloat(row.price_change_5d),
@@ -853,8 +853,8 @@ router.get("/:symbol", async (req, res) => {
         macd: row.macd == null ? null : parseFloat(row.macd),
         last_updated: row.last_updated,
         score_date: row.score_date,
-        // Consistency inputs for frontend display (Consistency Factor Analysis)
-        consistency_inputs: {
+        // Stability inputs for frontend display (Stability Factor Analysis)
+        stability_inputs: {
           volatility_12m_pct: row.volatility_12m_pct == null ? null : parseFloat(row.volatility_12m_pct),
           volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
           max_drawdown_52w_pct: row.max_drawdown_52w_pct == null ? null : parseFloat(row.max_drawdown_52w_pct),

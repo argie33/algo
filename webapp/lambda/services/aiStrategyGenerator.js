@@ -3419,19 +3419,19 @@ class SeasonalPatternsStrategy:
             data['p_value'] = p_values
             data['significant'] = np.array(p_values) < 0.05
             
-        # Consistency check - how often does the pattern hold?
-        consistency_scores = []
+        # Stability check - how often does the pattern hold?
+        stability_scores = []
         for idx, row in data.iterrows():
             if row['count'] > 20:  # Minimum sample size
                 # Calculate what percentage of years showed positive returns in historically positive periods
                 period_filter = seasonal_data['raw_data'][pattern_type] == row[pattern_type]
                 period_returns = seasonal_data['raw_data'][period_filter]['returns']
                 positive_rate = (period_returns > 0).mean() if len(period_returns) > 0 else 0.5
-                consistency_scores.append(positive_rate)
+                stability_scores.append(positive_rate)
             else:
-                consistency_scores.append(0.5)  # Neutral if insufficient data
+                stability_scores.append(0.5)  # Neutral if insufficient data
         
-        data['consistency'] = consistency_scores
+        data['consistency'] = stability_scores
         data['reliable'] = (data['consistency'] > 0.6) & (data['count'] > 20)
         
         return data

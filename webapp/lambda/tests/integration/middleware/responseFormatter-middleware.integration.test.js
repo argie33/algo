@@ -196,7 +196,7 @@ describe("Response Formatter Middleware Integration", () => {
     });
   });
 
-  describe("Content-Type Header Consistency", () => {
+  describe("Content-Type Header Stability", () => {
     test("should set JSON content-type for all API responses", async () => {
       const testEndpoints = [
         { endpoint: "/api/health", method: "get", auth: false },
@@ -358,7 +358,7 @@ describe("Response Formatter Middleware Integration", () => {
     });
   });
 
-  describe("Cross-Route Response Consistency", () => {
+  describe("Cross-Route Response Stability", () => {
     test("should maintain consistent response structure across route families", async () => {
       const routeFamilies = [
         {

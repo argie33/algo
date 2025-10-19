@@ -455,12 +455,12 @@ router.get("/:symbol", async (req, res) => {
           ELSE NULL
         END as quality_metric,
 
-        -- Consistency score from margin stability
+        -- Stability score from margin stability
         CASE
           WHEN km.operating_margin_pct IS NOT NULL AND km.gross_margin_pct IS NOT NULL THEN
             ((km.operating_margin_pct + km.gross_margin_pct) / 2)
           ELSE NULL
-        END as consistency_score,
+        END as stability_score,
 
         -- Growth quality combines earnings and revenue growth
         CASE
@@ -631,7 +631,7 @@ router.get("/:symbol", async (req, res) => {
         margin_expansion_metric: parseFloat(metric.margin_expansion_metric) || null,
 
         // Quality factor breakdown
-        consistency_score: parseFloat(metric.consistency_score) || null,
+        stability_score: parseFloat(metric.stability_score) || null,
         growth_quality: parseFloat(metric.growth_quality) || null,
         profitability_score: parseFloat(metric.profitability_score) || null,
 

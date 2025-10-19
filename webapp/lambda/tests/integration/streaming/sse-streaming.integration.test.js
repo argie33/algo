@@ -333,7 +333,7 @@ describe("SSE Streaming Integration Tests", () => {
     });
   });
 
-  describe("Real-time Data Consistency", () => {
+  describe("Real-time Data Stability", () => {
     test("should maintain data consistency across SSE and API endpoints", async () => {
       // Get data from regular API
       const apiResponse = await request(app)
