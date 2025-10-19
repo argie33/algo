@@ -160,6 +160,7 @@ describe("Authentication Routes Integration", () => {
 
   describe("GET /auth/me", () => {
     test("should return user profile with dev bypass token", async () => {
+      const authToken = "dev-bypass-token";
       const response = await request(app)
         .get("/auth/me")
         .set("Authorization", `Bearer ${authToken}`);
@@ -187,6 +188,7 @@ describe("Authentication Routes Integration", () => {
       expect([401, 500]).toContain(response.status);
       expect(response.body.success).toBe(false);
     });
+  });
 
   describe("POST /auth/confirm", () => {
     test("should confirm user registration", async () => {
