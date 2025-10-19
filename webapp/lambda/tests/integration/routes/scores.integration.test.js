@@ -31,11 +31,13 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-const { query } = require("../../../utils/database");
-
 describe("Scores Routes Integration", () => {
   beforeAll(async () => {
-    beforeEach(() => {
+    // Initialize database connection
+    await initializeDatabase();
+  });
+
+  beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
@@ -44,9 +46,6 @@ describe("Scores Routes Integration", () => {
       }
       return Promise.resolve({ rows: [] });
     });
-  });
-    // Initialize database connection
-    await initializeDatabase();
   });
 
   afterAll(async () => {
