@@ -21,7 +21,6 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-const { query } = require("../../../utils/database");
 
 describe('API Key Integration Tests', () => {
   // Alpaca API credentials from environment variables
