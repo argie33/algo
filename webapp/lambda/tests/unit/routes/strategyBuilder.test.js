@@ -73,7 +73,7 @@ describe("Strategy Builder Routes", () => {
       symbols: ["AAPL", "MSFT"],
       preferences: { riskLevel: "medium" },
     };
-    it.skip("should generate strategy successfully (skipped - AI service mock hanging)", async () => {
+    it("should generate strategy successfully (skipped - AI service mock hanging)", async () => {
       const mockStrategy = {
         name: "Momentum Strategy",
         strategyType: "momentum",
@@ -121,7 +121,7 @@ describe("Strategy Builder Routes", () => {
         "No symbols provided for strategy"
       );
     });
-    it.skip("should handle AI generation failure (skipped - AI service mock hanging)", async () => {
+    it("should handle AI generation failure (skipped - AI service mock hanging)", async () => {
       mockGenerateFromNaturalLanguage.mockResolvedValue({
         success: false,
         error: "Unable to generate strategy",
@@ -135,7 +135,7 @@ describe("Strategy Builder Routes", () => {
         error: "Unable to generate strategy",
       });
     });
-    it.skip("should handle AI generation service error (skipped - AI service mock hanging)", async () => {
+    it("should handle AI generation service error (skipped - AI service mock hanging)", async () => {
       mockAiGenerator.generateFromNaturalLanguage.mockRejectedValue(
         new Error("AI service unavailable")
       );

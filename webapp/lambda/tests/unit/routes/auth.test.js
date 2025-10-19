@@ -291,7 +291,7 @@ describe("Auth Routes Unit Tests", () => {
   });
 
   describe("GET /auth/me", () => {
-    test.skip("should return user profile", async () => {
+    test("should return user profile", async () => {
       const response = await request(app)
         .get("/auth/me")
         .set("Authorization", "Bearer test-token");

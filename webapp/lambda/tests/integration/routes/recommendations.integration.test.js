@@ -30,7 +30,7 @@ jest.mock("../../../middleware/auth", () => ({
 // Import app AFTER mocking all dependencies
 let app = require("../../../server");
 
-describe.skip("Recommendations Routes", () => {
+describe("Recommendations Routes", () => {
   beforeAll(async () => {
     process.env.ALLOW_DEV_BYPASS = "true";
     await initializeDatabase();

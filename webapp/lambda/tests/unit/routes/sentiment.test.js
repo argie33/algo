@@ -55,7 +55,6 @@ describe("Sentiment Routes - Unit Tests", () => {
       // Default: return empty rows
       return Promise.resolve({ rows: [], rowCount: 0 });
     });
-    });
   });
   describe("GET /sentiment/health", () => {
     test("should return health status without authentication", async () => {

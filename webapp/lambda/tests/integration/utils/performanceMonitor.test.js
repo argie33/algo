@@ -211,7 +211,7 @@ jest.mock("../../../middleware/auth", () => ({
 
 
 
-describe.skip("Performance Monitor Integration Tests", () => {
+describe("Performance Monitor Integration Tests", () => {
   
     beforeEach(() => {
     jest.clearAllMocks();

@@ -38,7 +38,7 @@ jest.mock("../../../middleware/auth", () => ({
 
 
 app = require("../../../server");
-describe.skip("4xx Client Error Scenarios Integration", () => {
+describe("4xx Client Error Scenarios Integration", () => {
   
     beforeEach(() => {
     jest.clearAllMocks();

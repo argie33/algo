@@ -82,7 +82,7 @@ describe("Risk Routes Integration Tests", () => {
   });
 
   describe("GET /risk/analysis (authenticated)", () => {
-    test.skip("should return risk analysis for empty portfolio - SKIPPED: performance issues", async () => {
+    test("should return risk analysis for empty portfolio - SKIPPED: performance issues", async () => {
       const response = await request(app).get("/risk/analysis");
 
       expect(response.status).toBe(200);
@@ -95,7 +95,7 @@ describe("Risk Routes Integration Tests", () => {
       expect(response.body.data).toHaveProperty("risk_metrics", null);
     });
 
-    test.skip("should handle different period parameters - SKIPPED: performance issues", async () => {
+    test("should handle different period parameters - SKIPPED: performance issues", async () => {
       const response = await request(app)
         .get("/risk/analysis")
         .query({ period: "1y", confidence_level: 0.99 });
@@ -105,7 +105,7 @@ describe("Risk Routes Integration Tests", () => {
       expect(response.body).toHaveProperty("data");
     });
 
-    test.skip("should handle invalid period gracefully - SKIPPED: performance issues", async () => {
+    test("should handle invalid period gracefully - SKIPPED: performance issues", async () => {
       const response = await request(app)
         .get("/risk/analysis")
         .query({ period: "invalid_period" });
@@ -114,7 +114,7 @@ describe("Risk Routes Integration Tests", () => {
       expect(response.body).toHaveProperty("success", true);
     });
 
-    test.skip("should accept confidence level parameter - SKIPPED: performance issues", async () => {
+    test("should accept confidence level parameter - SKIPPED: performance issues", async () => {
       const response = await request(app)
         .get("/risk/analysis")
         .query({ confidence_level: 0.99 });
@@ -123,7 +123,7 @@ describe("Risk Routes Integration Tests", () => {
       expect(response.body).toHaveProperty("success", true);
     });
 
-    test.skip("should handle invalid confidence level gracefully - SKIPPED: performance issues", async () => {
+    test("should handle invalid confidence level gracefully - SKIPPED: performance issues", async () => {
       const response = await request(app)
         .get("/risk/analysis")
         .query({ confidence_level: "invalid" });

@@ -30,7 +30,7 @@ jest.mock("../../../middleware/auth", () => ({
 // Import app AFTER mocking all dependencies
 const app = require("../../../server");
 
-describe.skip("Orders Routes Integration Tests", () => {
+describe("Orders Routes Integration Tests", () => {
   
     beforeEach(() => {
     jest.clearAllMocks();

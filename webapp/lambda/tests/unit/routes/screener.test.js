@@ -365,18 +365,18 @@ describe("Screener Routes Unit Tests", () => {
   });
   // Templates and factors endpoints not implemented in current version
   describe("GET /screener/templates (authenticated)", () => {
-    test.skip("should return pre-built screening templates", async () => {
+    test("should return pre-built screening templates", async () => {
       // Templates endpoint not yet implemented - future feature
     });
-    test.skip("should filter templates by category", async () => {
+    test("should filter templates by category", async () => {
       // Templates endpoint not yet implemented - future feature
     });
-    test.skip("should handle empty templates", async () => {
+    test("should handle empty templates", async () => {
       // Templates endpoint not yet implemented - future feature
     });
   });
   describe("GET /screener/factors (authenticated)", () => {
-    test.skip("should return available screening factors", async () => {
+    test("should return available screening factors", async () => {
       // Factors endpoint not yet implemented - future feature
     });
   });
@@ -420,7 +420,7 @@ describe("Screener Routes Unit Tests", () => {
     });
   });
   describe("Error handling", () => {
-    test.skip("should handle factor scoring engine errors", async () => {
+    test("should handle factor scoring engine errors", async () => {
       // Factor scoring errors are handled gracefully with defaults in implementation
       // This test would need to be rewritten to match actual error handling
     });

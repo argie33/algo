@@ -304,7 +304,7 @@ describe("Signals Route - Unit Tests", () => {
     });
   });
   describe("POST /api/signals/alerts - Alert Creation", () => {
-    test.skip("should create signal alert", async () => {
+    test("should create signal alert", async () => {
       // Skipped - requires auth middleware integration
       mockQuery.mockResolvedValueOnce({
         rows: [{
@@ -327,7 +327,7 @@ describe("Signals Route - Unit Tests", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.symbol).toBe("AAPL");
     });
-    test.skip("should validate required fields", async () => {
+    test("should validate required fields", async () => {
       // Skipped - requires auth middleware integration
       const response = await request(app)
         .post("/api/signals/alerts")
@@ -529,7 +529,7 @@ describe("Signals Route - Unit Tests", () => {
     });
   });
   describe("POST /api/signals/custom - Business Logic", () => {
-    test.skip("should create custom signal alert", async () => {
+    test("should create custom signal alert", async () => {
       // Skipped - requires auth middleware integration
       const customSignalData = {
         name: "Test Custom Signal",
@@ -543,7 +543,7 @@ describe("Signals Route - Unit Tests", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("signal_id");
     });
-    test.skip("should validate required fields for custom signals", async () => {
+    test("should validate required fields for custom signals", async () => {
       // Skipped - requires auth middleware integration
       const response = await request(app)
         .post("/api/signals/custom")

@@ -434,7 +434,7 @@ describe("Schema Validator", () => {
     });
   });
   describe("validateDatabaseIntegrity", () => {
-    test.skip("should validate all tables successfully", async () => {
+    test("should validate all tables successfully", async () => {
       // Mock successful table existence and column queries
       mockQuery
         .mockResolvedValueOnce({ rows: [{ exists: true }] }) // stocks table exists

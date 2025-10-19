@@ -32,7 +32,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
 
 
 // SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
-describe.skip("Database Rollback Scenarios Integration", () => {
+describe("Database Rollback Scenarios Integration", () => {
   
     beforeEach(() => {
     jest.clearAllMocks();

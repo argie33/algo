@@ -7,7 +7,7 @@
 let AIStrategyGenerator;
 let app;
 
-describe.skip("AI Strategy Generator Service Integration Tests", () => {
+describe("AI Strategy Generator Service Integration Tests", () => {
   
   afterAll(async () => {
     await closeDatabase();

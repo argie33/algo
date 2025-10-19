@@ -37,7 +37,7 @@ jest.mock("../../../middleware/auth", () => ({
 let app = require("../../../server");
 
 
-describe.skip("Signals Routes - Integration Tests", () => {
+describe("Signals Routes - Integration Tests", () => {
   beforeAll(async () => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {

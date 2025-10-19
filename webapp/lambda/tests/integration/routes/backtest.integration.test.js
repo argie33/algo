@@ -31,7 +31,7 @@ jest.mock("../../../middleware/auth", () => ({
 let app = require("../../../server");
 
 // SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
-describe.skip("Backtest Routes", () => {
+describe("Backtest Routes", () => {
   beforeAll(async () => {
     beforeEach(() => {
     jest.clearAllMocks();

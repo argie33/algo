@@ -84,7 +84,7 @@ describe("Analysts API", () => {
   });
 
   describe("Analyst Coverage", () => {
-    test.skip("should return error for individual analyst coverage (not available from yfinance)", async () => {
+    test("should return error for individual analyst coverage (not available from yfinance)", async () => {
       // Endpoint /coverage/:symbol doesn't exist in current implementation
       const response = await request(app).get("/api/analysts/coverage/AAPL");
       expect(response.status).toBe(404);
@@ -92,7 +92,7 @@ describe("Analysts API", () => {
   });
 
   describe("Price Targets", () => {
-    test.skip("should retrieve price targets for stock", async () => {
+    test("should retrieve price targets for stock", async () => {
       // Endpoint /price-targets/:symbol doesn't exist in current implementation
       const response = await request(app).get(
         "/api/analysts/price-targets/AAPL"
@@ -119,7 +119,7 @@ describe("Analysts API", () => {
       expect(target.target_price).toBeGreaterThan(0);
     });
 
-    test.skip("should provide consensus price targets", async () => {
+    test("should provide consensus price targets", async () => {
       // Endpoint /consensus/:symbol doesn't exist in current implementation
       const response = await request(app).get("/api/analysts/consensus/AAPL");
 
@@ -146,7 +146,7 @@ describe("Analysts API", () => {
   });
 
   describe("Analyst Research", () => {
-    test.skip("should retrieve research reports", async () => {
+    test("should retrieve research reports", async () => {
       // Endpoint /research doesn't exist in current implementation
       const response = await request(app).get(
         "/api/analysts/research?symbol=AAPL&limit=10"
@@ -170,7 +170,7 @@ describe("Analysts API", () => {
       expect(typeof research.report_summary).toBe("string");
     });
 
-    test.skip("should filter research by analyst firm", async () => {
+    test("should filter research by analyst firm", async () => {
       // Endpoint /research doesn't exist in current implementation
       const response = await request(app).get(
         "/api/analysts/research?firm=Goldman&limit=5"

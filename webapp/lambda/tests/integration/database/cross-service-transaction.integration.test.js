@@ -36,7 +36,7 @@ jest.mock("../../../middleware/auth", () => ({
 
 
 // SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
-describe.skip("Cross-Service Transaction Integration", () => {
+describe("Cross-Service Transaction Integration", () => {
   
     beforeEach(() => {
     jest.clearAllMocks();
