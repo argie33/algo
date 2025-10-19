@@ -19,7 +19,7 @@ describe("Dividend Routes - Real Data Validation", () => {
       console.log('Starting dividend test with app:', typeof app);
       const response = await request(app)
         .get('/api/dividend/AAPL')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Authorization', 'Bearer dev-bypass-token')
         .timeout(5000);
 
       console.log(`Response status: ${response.status}`);
@@ -38,7 +38,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     test("should include dividend yield calculation", async () => {
       const response = await request(app)
         .get("/api/dividend/AAPL")
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Authorization', 'Bearer dev-bypass-token');
 
       expect([200, 404]).toContain(response.status);
 
@@ -61,7 +61,7 @@ describe("Dividend Routes - Real Data Validation", () => {
       for (const timeframe of timeframes) {
         const response = await request(app)
           .get(`/api/dividend/MSFT?timeframe=${timeframe}`)
-          .set('Authorization', `Bearer ${authToken}`);
+          .set('Authorization', 'Bearer dev-bypass-token');
 
         expect([200, 400, 404].includes(response.status)).toBe(true);
 
@@ -83,7 +83,7 @@ describe("Dividend Routes - Real Data Validation", () => {
       for (const symbol of nonDividendStocks) {
         const response = await request(app)
           .get(`/api/dividend/${symbol}`)
-          .set('Authorization', `Bearer ${authToken}`);
+          .set('Authorization', 'Bearer dev-bypass-token');
 
         expect([200, 404]).toContain(response.status);
 
@@ -97,7 +97,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     test("should handle invalid stock symbol", async () => {
       const response = await request(app)
         .get("/api/dividend/INVALID123")
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Authorization', 'Bearer dev-bypass-token');
 
       expect([404, 500, 503].includes(response.status)).toBe(true);
     });
@@ -105,7 +105,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     test("should validate dividend data structure", async () => {
       const response = await request(app)
         .get("/api/dividend/JNJ")
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Authorization', 'Bearer dev-bypass-token');
 
       expect([200, 404]).toContain(response.status);
 
@@ -126,7 +126,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     test("should return upcoming dividend events", async () => {
       const response = await request(app)
         .get("/api/dividend/calendar")
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Authorization', 'Bearer dev-bypass-token');
 
       expect([200, 404]).toContain(response.status);
 
@@ -150,7 +150,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     test("should handle date range for dividend calendar", async () => {
       const response = await request(app)
         .get("/api/dividend/calendar?start_date=2025-01-01&end_date=2025-03-31")
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Authorization', 'Bearer dev-bypass-token');
 
       expect([200, 400, 404, 500, 503].includes(response.status)).toBe(true);
 
@@ -166,7 +166,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     test("should filter by minimum dividend amount", async () => {
       const response = await request(app)
         .get("/api/dividend/calendar?min_amount=1.00")
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Authorization', 'Bearer dev-bypass-token');
 
       expect([200, 400, 404, 500, 503].includes(response.status)).toBe(true);
 

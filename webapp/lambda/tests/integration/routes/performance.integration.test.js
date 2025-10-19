@@ -65,7 +65,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should return benchmark comparison with authentication", async () => {
       const response = await request(app)
         .get("/api/performance/benchmark")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       expect([200, 401].includes(response.status)).toBe(true);
 
@@ -93,7 +93,7 @@ describe("Performance Routes - Real Data Validation", () => {
       for (const benchmark of benchmarks) {
         const response = await request(app)
           .get(`/api/performance/benchmark?benchmark=${benchmark}`)
-          .set("Authorization", `Bearer ${authToken}`);
+          .set("Authorization", `Bearer dev-bypass-token`);
 
         expect([200, 400, 401].includes(response.status)).toBe(true);
 
@@ -112,7 +112,7 @@ describe("Performance Routes - Real Data Validation", () => {
       for (const period of periods) {
         const response = await request(app)
           .get(`/api/performance/benchmark?period=${period}`)
-          .set("Authorization", `Bearer ${authToken}`);
+          .set("Authorization", `Bearer dev-bypass-token`);
 
         expect([200, 400, 401].includes(response.status)).toBe(true);
 
@@ -128,7 +128,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should validate benchmark comparison metrics", async () => {
       const response = await request(app)
         .get("/api/performance/benchmark?benchmark=SPY&period=1m")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       if (response.status === 200 && response.body.data.comparison) {
         const comparison = response.body.data.comparison;
@@ -169,7 +169,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should return portfolio performance data with authentication", async () => {
       const response = await request(app)
         .get("/api/performance/portfolio")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       expect([200, 401].includes(response.status)).toBe(true);
 
@@ -198,7 +198,7 @@ describe("Performance Routes - Real Data Validation", () => {
       for (const period of periods) {
         const response = await request(app)
           .get(`/api/performance/portfolio?period=${period}`)
-          .set("Authorization", `Bearer ${authToken}`);
+          .set("Authorization", `Bearer dev-bypass-token`);
 
         expect([200, 400, 401].includes(response.status)).toBe(true);
       }
@@ -207,7 +207,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should validate portfolio performance metrics", async () => {
       const response = await request(app)
         .get("/api/performance/portfolio")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       if (response.status === 200 && response.body.data.performance) {
         const performance = response.body.data.performance;
@@ -258,7 +258,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should return return calculations with authentication", async () => {
       const response = await request(app)
         .get("/api/performance/returns")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       expect([200, 401].includes(response.status)).toBe(true);
 
@@ -294,7 +294,7 @@ describe("Performance Routes - Real Data Validation", () => {
       for (const calcType of calcTypes) {
         const response = await request(app)
           .get(`/api/performance/returns?type=${calcType}`)
-          .set("Authorization", `Bearer ${authToken}`);
+          .set("Authorization", `Bearer dev-bypass-token`);
 
         expect([200, 400, 401].includes(response.status)).toBe(true);
       }
@@ -311,7 +311,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should return performance attribution analysis", async () => {
       const response = await request(app)
         .get("/api/performance/attribution")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       expect([200, 401].includes(response.status)).toBe(true);
 
@@ -347,7 +347,7 @@ describe("Performance Routes - Real Data Validation", () => {
       for (const attrType of attrTypes) {
         const response = await request(app)
           .get(`/api/performance/attribution?type=${attrType}`)
-          .set("Authorization", `Bearer ${authToken}`);
+          .set("Authorization", `Bearer dev-bypass-token`);
 
         expect([200, 400, 401].includes(response.status)).toBe(true);
       }
@@ -364,7 +364,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should return comprehensive performance metrics", async () => {
       const response = await request(app)
         .get("/api/performance/metrics")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       expect([200, 401].includes(response.status)).toBe(true);
 
@@ -401,7 +401,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should validate metric value ranges", async () => {
       const response = await request(app)
         .get("/api/performance/metrics")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       if (response.status === 200) {
         const data = response.body.data;
@@ -428,7 +428,7 @@ describe("Performance Routes - Real Data Validation", () => {
       for (const period of periods) {
         const response = await request(app)
           .get(`/api/performance/metrics?period=${period}`)
-          .set("Authorization", `Bearer ${authToken}`);
+          .set("Authorization", `Bearer dev-bypass-token`);
 
         expect([200, 400, 401].includes(response.status)).toBe(true);
       }
@@ -445,7 +445,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should return risk analysis metrics", async () => {
       const response = await request(app)
         .get("/api/performance/risk")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       expect([200, 401].includes(response.status)).toBe(true);
 
@@ -484,19 +484,19 @@ describe("Performance Routes - Real Data Validation", () => {
       const requests = [
         request(app)
           .get("/api/performance")
-          .set("Authorization", `Bearer ${authToken}`),
+          .set("Authorization", `Bearer dev-bypass-token`),
         request(app)
           .get("/api/performance/benchmark")
-          .set("Authorization", `Bearer ${authToken}`),
+          .set("Authorization", `Bearer dev-bypass-token`),
         request(app)
           .get("/api/performance/portfolio")
-          .set("Authorization", `Bearer ${authToken}`),
+          .set("Authorization", `Bearer dev-bypass-token`),
         request(app)
           .get("/api/performance/returns")
-          .set("Authorization", `Bearer ${authToken}`),
+          .set("Authorization", `Bearer dev-bypass-token`),
         request(app)
           .get("/api/performance/metrics")
-          .set("Authorization", `Bearer ${authToken}`),
+          .set("Authorization", `Bearer dev-bypass-token`),
       ];
 
       const responses = await Promise.all(requests);
@@ -510,7 +510,7 @@ describe("Performance Routes - Real Data Validation", () => {
       const startTime = Date.now();
       const response = await request(app)
         .get("/api/performance/metrics")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
       const responseTime = Date.now() - startTime;
 
       expect([200, 401].includes(response.status)).toBe(true);
@@ -529,7 +529,7 @@ describe("Performance Routes - Real Data Validation", () => {
       for (const param of invalidParams) {
         const response = await request(app)
           .get(`/api/performance/portfolio?${param}`)
-          .set("Authorization", `Bearer ${authToken}`);
+          .set("Authorization", `Bearer dev-bypass-token`);
 
         expect([200, 400, 401].includes(response.status)).toBe(true);
       }
@@ -563,7 +563,7 @@ describe("Performance Routes - Real Data Validation", () => {
       for (const endpoint of endpoints) {
         const response = await request(app)
           .get(endpoint)
-          .set("Authorization", `Bearer ${authToken}`);
+          .set("Authorization", `Bearer dev-bypass-token`);
 
         if (response.status === 200 && response.body.data) {
           const validateNumbers = (obj) => {
@@ -590,7 +590,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should handle database connection issues gracefully", async () => {
       const response = await request(app)
         .get("/api/performance/portfolio")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       expect([200, 401].includes(response.status)).toBe(true);
 
@@ -613,7 +613,7 @@ describe("Performance Routes - Real Data Validation", () => {
         const authHeader =
           endpoint.includes("health") || endpoint === "/api/performance"
             ? {}
-            : { Authorization: `Bearer ${authToken}` };
+            : { Authorization: `Bearer dev-bypass-token` };
 
         const response = await request(app).get(endpoint).set(authHeader);
 
@@ -626,7 +626,7 @@ describe("Performance Routes - Real Data Validation", () => {
     test("should handle memory pressure with large data requests", async () => {
       const response = await request(app)
         .get("/api/performance/portfolio?period=10y")
-        .set("Authorization", `Bearer ${authToken}`);
+        .set("Authorization", `Bearer dev-bypass-token`);
 
       expect(
         [200, 400, 401, 403, 413, 500, 503].includes(response.status)
