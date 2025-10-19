@@ -369,10 +369,10 @@ router.get("/", async (req, res) => {
         eps_growth_stability: row.eps_growth_stability == null ? null : parseFloat(row.eps_growth_stability),
         payout_ratio: row.payout_ratio == null ? null : parseFloat(row.payout_ratio)
       },
-      // Add growth INPUT metrics for frontend display (12 professional growth inputs)
+      // Add growth INPUT metrics for frontend display (12 professional growth inputs) - NO FALLBACKS
       growth_inputs: {
-        revenue_growth_3y_cagr: parseFloat(row.revenue_growth_3y_cagr) || null,
-        eps_growth_3y_cagr: parseFloat(row.eps_growth_3y_cagr) || null,
+        revenue_growth_3y_cagr: row.revenue_growth_3y_cagr == null ? null : parseFloat(row.revenue_growth_3y_cagr),
+        eps_growth_3y_cagr: row.eps_growth_3y_cagr == null ? null : parseFloat(row.eps_growth_3y_cagr),
         operating_income_growth_yoy: row.operating_income_growth_yoy == null ? null : parseFloat(row.operating_income_growth_yoy),
         roe_trend: row.roe_trend == null ? null : parseFloat(row.roe_trend),
         sustainable_growth_rate: row.sustainable_growth_rate == null ? null : parseFloat(row.sustainable_growth_rate),
@@ -384,35 +384,34 @@ router.get("/", async (req, res) => {
         quarterly_growth_momentum: row.quarterly_growth_momentum == null ? null : parseFloat(row.quarterly_growth_momentum),
         asset_growth_yoy: row.asset_growth_yoy == null ? null : parseFloat(row.asset_growth_yoy)
       },
-      // Add raw momentum INPUT metrics for professional momentum display (dual momentum)
-      // Use momentum_metrics table data if available, otherwise fallback to stock_scores columns
+      // Add raw momentum INPUT metrics for professional momentum display (dual momentum) - NO FALLBACKS
       momentum_inputs: {
         // Relative Momentum (vs other stocks)
-        momentum_12m_1: parseFloat(row.momentum_12m_1) || null,
-        momentum_6m: parseFloat(row.momentum_6m) || row.momentum_medium_term == null ? null : parseFloat(row.momentum_medium_term),
-        momentum_3m: parseFloat(row.momentum_3m) || null,
+        momentum_12m_1: row.momentum_12m_1 == null ? null : parseFloat(row.momentum_12m_1),
+        momentum_6m: row.momentum_6m == null ? null : parseFloat(row.momentum_6m),
+        momentum_3m: row.momentum_3m == null ? null : parseFloat(row.momentum_3m),
         risk_adjusted_momentum: row.risk_adjusted_momentum == null ? null : parseFloat(row.risk_adjusted_momentum),
         // Absolute Momentum (vs itself)
-        price_vs_sma_50: parseFloat(row.price_vs_sma_50) || null,
-        price_vs_sma_200: parseFloat(row.price_vs_sma_200) || null,
-        price_vs_52w_high: parseFloat(row.price_vs_52w_high) || null,
+        price_vs_sma_50: row.price_vs_sma_50 == null ? null : parseFloat(row.price_vs_sma_50),
+        price_vs_sma_200: row.price_vs_sma_200 == null ? null : parseFloat(row.price_vs_sma_200),
+        price_vs_52w_high: row.price_vs_52w_high == null ? null : parseFloat(row.price_vs_52w_high),
         // Supporting data
-        high_52w: parseFloat(row.high_52w) || null,
-        sma_50: parseFloat(row.sma_50) || null,
-        sma_200: parseFloat(row.sma_200) || null,
-        volatility_12m: parseFloat(row.volatility_12m) || null,
+        high_52w: row.high_52w == null ? null : parseFloat(row.high_52w),
+        sma_50: row.sma_50 == null ? null : parseFloat(row.sma_50),
+        sma_200: row.sma_200 == null ? null : parseFloat(row.sma_200),
+        volatility_12m: row.volatility_12m == null ? null : parseFloat(row.volatility_12m),
         // Fallback for legacy display
         fallbacks: {
-          momentum_medium_term: parseFloat(row.momentum_medium_term)?.toFixed(2) || null,
-          roc_252d: parseFloat(row.roc_252d)?.toFixed(2) || undefined,
-          momentum_score: parseFloat(row.momentum_score)?.toFixed(2) || null
+          momentum_medium_term: row.momentum_medium_term == null ? null : parseFloat(row.momentum_medium_term)?.toFixed(2),
+          roc_252d: row.roc_252d == null ? null : parseFloat(row.roc_252d)?.toFixed(2),
+          momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score)?.toFixed(2)
         }
       },
-      // Add raw risk INPUT metrics for Risk Factor Analysis display
+      // Add raw risk INPUT metrics for Risk Factor Analysis display - NO FALLBACKS
       risk_inputs: {
-        volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
+        volatility_12m_pct: row.volatility_12m_pct == null ? null : parseFloat(row.volatility_12m_pct),
         volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
-        max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
+        max_drawdown_52w_pct: row.max_drawdown_52w_pct == null ? null : parseFloat(row.max_drawdown_52w_pct),
         beta: row.beta == null ? null : parseFloat(row.beta)
       }
     }));
