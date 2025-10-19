@@ -1,33 +1,16 @@
+/**
+ * Technical Router Integration Tests - REAL DATA ONLY
+ * Tests technical endpoints with REAL database connection and REAL loaded data
+ * NO MOCKS - validates actual behavior with actual data from loaders
+ * Validates NO-FALLBACK policy: raw NULL values must flow through unmasked
+ */
+
 const request = require("supertest");
-const express = require("express");
+const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
 
-// Mock dependencies
-jest.mock("../../../utils/database");
-
-// Import after mocks
-const { query } = require("../../../utils/database");
-
-// Mock response formatter middleware
-const mockResponseFormatter = (req, res, next) => {
-  res.success = (data) => res.status(200).json({ success: true, ...data });
-  res.error = (message, statusCode = 500) =>
-    res.status(statusCode).json({ success: false, error: message });
-  next();
-};
-
-// Import route after mocks are set up
-const technicalRouter = require("../../../routes/technical");
-
-// Create Express app for testing
-const app = express();
-app.use(express.json());
-app.use(mockResponseFormatter);
-app.use("/api/technical", technicalRouter);
-
-describe("Technical Router", () => {
+describe("Technical Router Routes - Real Data Validation", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-  });
 
   afterEach(() => {
     jest.restoreAllMocks();

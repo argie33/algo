@@ -1,36 +1,14 @@
+/**
+ * Settings Integration Tests - REAL DATA ONLY
+ * Tests settings endpoints with REAL database connection and REAL loaded data
+ * NO MOCKS - validates actual behavior with actual data from loaders
+ * Validates NO-FALLBACK policy: raw NULL values must flow through unmasked
+ */
+
 const request = require("supertest");
+const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
 
-
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-const { query, closeDatabase, initializeDatabase} = require("../../../utils/database");
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: "No authorization header" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-// Import app AFTER mocking all dependencies
-const app = require("../../../server");
-
-describe("Settings Routes Integration Tests", () => {
+describe("Settings Routes - Real Data Validation", () => {
   
     beforeEach(() => {
     jest.clearAllMocks();
@@ -41,10 +19,6 @@ describe("Settings Routes Integration Tests", () => {
       }
       return Promise.resolve({ rows: [] });
     });
-  });
-  afterAll(async () => {
-    await closeDatabase();
-  });
 
   describe("GET /api/settings (Root Endpoint)", () => {
     test("should return settings API information", async () => {

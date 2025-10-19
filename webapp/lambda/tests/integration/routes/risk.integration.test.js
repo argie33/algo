@@ -3,92 +3,21 @@
  * Tests risk management endpoints with real database connection
  */
 
+/**
+ * Risk Integration Integration Tests - REAL DATA ONLY
+ * Tests risk endpoints with REAL database connection and REAL loaded data
+ * NO MOCKS - validates actual behavior with actual data from loaders
+ * Validates NO-FALLBACK policy: raw NULL values must flow through unmasked
+ */
+
 const request = require("supertest");
+const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: "No authorization header" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-const {
-  query,
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
-const { app } = require("../../../index");
-
-// SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
-describe("Risk Routes Integration", () => {
-  beforeAll(async () => {
-    // Initialize database connection
-    await initializeDatabase();
-  });
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Handle table existence checks
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
-      }
-
-      // Handle portfolio risk analysis queries
-      if (sql.includes("portfolio") || sql.includes("risk_metrics")) {
-        return Promise.resolve({
-          rows: [{
-            portfolio_value: 100000.00,
-            total_gain_loss: 5250.00,
-            gain_loss_pct: 5.25,
-            var_95: 2500.00,
-            cvar_95: 3500.00,
-            sharpe_ratio: 1.85,
-            sortino_ratio: 2.45,
-            max_drawdown: -8.5,
-            volatility: 0.18,
-            beta: 1.1,
-            correlation: 0.65
-          }],
-          rowCount: 1
-        });
-      }
-
-      // Handle COUNT queries
-      if (sql.includes("COUNT(*)")) {
-        return Promise.resolve({
-          rows: [{ count: 10 }],
-          rowCount: 1
-        });
-      }
-
-      // Default: return empty rows for all other queries
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
-  });
+describe("Risk Integration Routes - Real Data Validation", () => {
 
   afterAll(async () => {
     // Close database connection
     await closeDatabase();
-  });
 
   describe("GET /risk", () => {
     test("should return risk analysis data", async () => {

@@ -5,10 +5,17 @@
  * Validates NO-FALLBACK policy: raw NULL values must flow through unmasked
  */
 
-const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app
+/**
+ * Scores Integration - Real Data Validation Integration Tests - REAL DATA ONLY
+ * Tests scores endpoints with REAL database connection and REAL loaded data
+ * NO MOCKS - validates actual behavior with actual data from loaders
+ * Validates NO-FALLBACK policy: raw NULL values must flow through unmasked
+ */
 
-describe("Scores Routes Integration - Real Data Validation", () => {
+const request = require("supertest");
+const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
+
+describe("Scores Integration - Real Data Validation Routes - Real Data Validation", () => {
   describe("GET /scores/ping", () => {
     test("should return ping response", async () => {
       const response = await request(app).get("/scores/ping");
@@ -18,7 +25,6 @@ describe("Scores Routes Integration - Real Data Validation", () => {
       expect(response.body).toHaveProperty("endpoint", "scores");
       expect(response.body).toHaveProperty("timestamp");
     });
-  });
 
   describe("GET /scores - Real Data Validation", () => {
     test("should return ALL loaded stocks from database (3000+)", async () => {

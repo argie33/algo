@@ -1,106 +1,14 @@
+/**
+ * Trading Integration Tests - REAL DATA ONLY
+ * Tests trading endpoints with REAL database connection and REAL loaded data
+ * NO MOCKS - validates actual behavior with actual data from loaders
+ * Validates NO-FALLBACK policy: raw NULL values must flow through unmasked
+ */
+
 const request = require("supertest");
+const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-const { query, closeDatabase, initializeDatabase} = require("../../../utils/database");
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    req.user = { sub: "test-user-123" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-// Import app AFTER mocking all dependencies
-const app = require("../../../server");
-const authToken = "dev-bypass-token";
-
-
-describe("Trading Routes Integration Tests", () => {
-  
-    beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Handle table existence checks
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
-      }
-
-      // Handle column existence checks
-      if (sql.includes("information_schema.columns")) {
-        return Promise.resolve({
-          rows: [
-            { column_name: 'signal_type' },
-            { column_name: 'signal' }
-          ],
-          rowCount: 2
-        });
-      }
-
-      // Handle COUNT queries and aggregation queries for signals summary
-      if (sql.includes("COUNT(*)") || sql.includes("COUNT(CASE")) {
-        return Promise.resolve({
-          rows: [{
-            total_signals: 10,
-            buy_signals: 6,
-            sell_signals: 4,
-            strong_buy: 3,
-            strong_sell: 2,
-            active_signals: 9,
-            count: 10
-          }],
-          rowCount: 1
-        });
-      }
-
-      // Handle SELECT from buy_sell tables with pagination
-      if (sql.includes("FROM buy_sell") || sql.includes("FROM swing_trading")) {
-        return Promise.resolve({
-          rows: [
-            {
-              symbol: 'AAPL',
-              signal_type: 'buy',
-              signal: 'BUY',
-              entry_price: 150.25,
-              stop_loss: 148.00,
-              target_price: 155.00,
-              confidence: 0.85,
-              timestamp: new Date().toISOString()
-            },
-            {
-              symbol: 'GOOGL',
-              signal_type: 'sell',
-              signal: 'SELL',
-              entry_price: 140.50,
-              stop_loss: 142.00,
-              target_price: 135.00,
-              confidence: 0.75,
-              timestamp: new Date().toISOString()
-            }
-          ],
-          rowCount: 2
-        });
-      }
-
-      // Default: return empty rows for all other queries
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
-  });
-  afterAll(async () => {
-    await closeDatabase();
-  });
+describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading (Root endpoint)", () => {
     test("should return trading API information", async () => {
@@ -128,7 +36,6 @@ describe("Trading Routes Integration Tests", () => {
         expect(response.headers["content-type"]).toMatch(/json/);
       });
     });
-  });
 
   describe("GET /api/trading/health", () => {
     test("should return health status without authentication", async () => {
