@@ -15,7 +15,7 @@ jest.mock("../../../utils/logger", () => ({
 }))
 // Import mocked functions
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 const mockGenerateFromNaturalLanguage = jest.fn();
 const mockValidateStrategy = jest.fn();
@@ -48,7 +48,6 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import after mocks
-const { query, authenticateToken } = require("../../../middleware/auth");
 const { query } = require("../../../utils/database");
 const mockQuery = query;
 const AIStrategyGenerator = require("../../../services/aiStrategyGenerator");

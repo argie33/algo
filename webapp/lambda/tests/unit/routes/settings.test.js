@@ -6,7 +6,7 @@ const request = require("supertest");
 const express = require("express");
 // Mock database before requiring the route
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
 // Mock authentication middleware

@@ -3,7 +3,7 @@ const express = require("express");
 const newsRouter = require("../../../routes/news");
 // Mock dependencies
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
   initializeDatabase: jest.fn().mockResolvedValue({}),
   healthCheck: jest.fn(),
   getPool: jest.fn(),

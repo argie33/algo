@@ -8,7 +8,7 @@ const serviceInstance = apiKeyService.__getServiceInstance();
 
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
   getPool: jest.fn(),

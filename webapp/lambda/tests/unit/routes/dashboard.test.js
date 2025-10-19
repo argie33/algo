@@ -3,7 +3,7 @@ const request = require("supertest");
 
 // Mock database BEFORE importing routes
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
   initializeDatabase: jest.fn(),
   closeDatabase: jest.fn(),
 }));

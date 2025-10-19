@@ -2,7 +2,7 @@ const request = require("supertest");
 const express = require("express");
 // Mock dependencies BEFORE importing the routes
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
   initializeDatabase: jest.fn(),
   getPool: jest.fn(),
   healthCheck: jest.fn(),

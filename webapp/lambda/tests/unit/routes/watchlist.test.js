@@ -2,7 +2,7 @@ const request = require("supertest");
 const express = require("express");
 // Mock database before importing routes
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 // Mock authentication middleware
 jest.mock("../../../middleware/auth", () => ({

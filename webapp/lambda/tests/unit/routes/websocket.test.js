@@ -13,7 +13,7 @@ jest.mock("crypto", () => ({
 }));
 // Mock dependencies before requiring the route
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 jest.mock("../../../utils/responseFormatter", () => ({
   success: jest.fn((data) => ({

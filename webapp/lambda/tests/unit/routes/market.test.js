@@ -2,7 +2,7 @@ const express = require("express");
 const request = require("supertest");
 // Mock database for unit tests
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");

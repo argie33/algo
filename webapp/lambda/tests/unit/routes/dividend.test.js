@@ -7,7 +7,7 @@ const request = require("supertest");
 const express = require("express");
 // Mock the database functions used in dividend route
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
   tableExists: jest.fn().mockResolvedValue(true), // Mock tableExists to return true
 }));
 

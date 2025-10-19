@@ -3,7 +3,7 @@ const express = require("express");
 const metricsRoutes = require("../../../routes/metrics");
 // Mock database module
 jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
