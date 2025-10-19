@@ -40,6 +40,6 @@ module.exports = {
   restoreMocks: false, // Don't restore real database state
   // Environment variables for testing against real database
   testEnvironmentOptions: {
-    NODE_ENV: "development", // Use development config - points to real database
+    NODE_ENV: "test", // Use test config for graceful error handling
   },
 };

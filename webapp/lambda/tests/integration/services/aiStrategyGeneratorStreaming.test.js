@@ -22,7 +22,7 @@ jest.mock("../../../utils/database", () => ({
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
     if (!req.headers.authorization) {
-      return res.status(401).json({ error: "No authorization header" });
+      return res.status(401).json({ success: false, error: "Authentication required" });
     }
     req.user = { sub: "test-user-123", role: "user" };
     next();
