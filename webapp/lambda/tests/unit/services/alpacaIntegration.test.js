@@ -18,6 +18,8 @@ jest.mock("../../../utils/alpacaService", () => ({
 jest.mock("../../../utils/apiKeyService", () => ({
   getDecryptedApiKey: jest.fn(),
 }));
+
+const { getDecryptedApiKey } = require("../../../utils/apiKeyService");
 const alpacaService = require("../../../utils/alpacaService");
 describe("Alpaca Integration Service Unit Tests", () => {
   const testUserId = "test-user-123";

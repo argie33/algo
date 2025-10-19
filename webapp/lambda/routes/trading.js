@@ -659,8 +659,8 @@ router.get("/signals/:timeframe", async (req, res) => {
     );
     console.log("[TRADING] Both queries successful");
 
-    const total = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(total / pageSize);
+    const total = countResult?.rows?.[0]?.total ? parseInt(countResult.rows[0].total) : 0;
+    const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0;
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.warn("[TRADING] No data found for query:", {

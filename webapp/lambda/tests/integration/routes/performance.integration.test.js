@@ -33,6 +33,10 @@ describe("Performance Routes Integration Tests", () => {
     beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("COUNT(*)") || sql.includes("count(*)")) {
+        return Promise.resolve({ rows: [{ count: 0, total: 0 }] });
+      }
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });
