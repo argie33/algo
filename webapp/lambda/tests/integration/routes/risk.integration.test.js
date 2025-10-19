@@ -5,11 +5,6 @@
 
 const request = require("supertest");
 const { app } = require("../../../index"); // Import the actual Express app
-const {
-  query,
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
 
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
@@ -31,10 +26,19 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+const {
+  query,
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 describe("Risk Routes Integration", () => {
   beforeAll(async () => {
-    beforeEach(() => {
+    // Initialize database connection
+    await initializeDatabase();
+  });
+
+  beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
@@ -43,9 +47,6 @@ describe("Risk Routes Integration", () => {
       }
       return Promise.resolve({ rows: [] });
     });
-  });
-    // Initialize database connection
-    await initializeDatabase();
   });
 
   afterAll(async () => {

@@ -27,6 +27,8 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+// Import the mocked database
+const { query } = require("../../../utils/database");
 
 describe("Analysts API", () => {
   describe("Analyst Recommendations", () => {

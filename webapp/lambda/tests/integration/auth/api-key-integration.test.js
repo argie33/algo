@@ -21,10 +21,12 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+// Import the mocked database
+const { query } = require("../../../utils/database");
 
 describe('API Key Integration Tests', () => {
   // Alpaca API credentials from environment variables
-    beforeEach(() => {
+  beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries

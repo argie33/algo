@@ -34,8 +34,7 @@ jest.mock("../../middleware/auth", () => ({
 }));
 
 describe('Data Pipeline Integration - End-to-End', () => {
-  
-    beforeEach(() => {
+  beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
@@ -45,6 +44,7 @@ describe('Data Pipeline Integration - End-to-End', () => {
       return Promise.resolve({ rows: [] });
     });
   });
+
   afterAll(async () => {
     await closeDatabase();
   });

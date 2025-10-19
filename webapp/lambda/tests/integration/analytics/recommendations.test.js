@@ -17,6 +17,9 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
+// Import the mocked database
+const { query } = require("../../../utils/database");
+
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
@@ -27,10 +30,12 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+// Import the mocked database
+const { query } = require("../../../utils/database");
+
 
 describe("Recommendations API", () => {
-  describe("Stock Recommendations", () => {
-    beforeEach(() => {
+  beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
@@ -40,6 +45,8 @@ describe("Recommendations API", () => {
       return Promise.resolve({ rows: [] });
     });
   });
+
+  describe("Stock Recommendations", () => {
     test("should retrieve personalized stock recommendations", async () => {
       const response = await request(app)
         .get("/api/recommendations")

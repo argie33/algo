@@ -18,6 +18,9 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
+// Import the mocked database
+const { query } = require("../../../utils/database");
+
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
@@ -27,6 +30,9 @@ jest.mock("../../../middleware/auth", () => ({
   authorizeAdmin: jest.fn((req, res, next) => next()),
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
+
+// Import the mocked database
+const { query } = require("../../../utils/database");
 
 
 describe("Middleware Chain Integration", () => {
