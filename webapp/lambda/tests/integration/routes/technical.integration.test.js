@@ -13,13 +13,6 @@ describe("Technical Router Routes - Real Data Validation", () => {
   beforeAll(async () => {
     await initializeDatabase();
   });
-  beforeEach(() => {
-    jest.clearAllMocks();
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
   describe("GET /ping", () => {
     test("should return ping response", async () => {
       const response = await request(app)
