@@ -295,7 +295,7 @@ const ScoresDashboard = () => {
       growth: avg(sectorStocks.map(s => s.growth_score || 0).filter(v => v > 0)),
       positioning: avg(sectorStocks.map(s => s.positioning_score || 0).filter(v => v > 0)),
       sentiment: avg(sectorStocks.map(s => s.sentiment_score || 0).filter(v => v > 0)),
-      risk: avg(sectorStocks.map(s => s.risk_score || 0).filter(v => v > 0)),
+      risk: avg(sectorStocks.map(s => s.stability_score || 0).filter(v => v > 0)),
     };
   };
 

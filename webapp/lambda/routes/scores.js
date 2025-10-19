@@ -839,7 +839,6 @@ router.get("/:symbol", async (req, res) => {
         positioning_score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
         sentiment_score: row.sentiment_score == null ? null : parseFloat(row.sentiment_score),
         stability_score: row.stability_score == null ? null : parseFloat(row.stability_score),
-        risk_score: row.stability_score == null ? null : parseFloat(row.stability_score),
         current_price: row.current_price == null ? null : parseFloat(row.current_price),
         price_change_1d: row.price_change_1d == null ? null : parseFloat(row.price_change_1d),
         price_change_5d: row.price_change_5d == null ? null : parseFloat(row.price_change_5d),
