@@ -153,6 +153,9 @@ describe("Technical Router", () => {
           sma_20: 175 + i,
         }));
 
+// Import the mocked database
+const { query } = require("../../../utils/database");
+
       query.mockResolvedValue({ rows: largeMockData });
 
       await request(app).get("/api/technical/daily/AAPL").expect(200);
@@ -408,6 +411,9 @@ describe("Technical Router", () => {
           rsi: 50 + i,
         }));
 
+// Import the mocked database
+const { query } = require("../../../utils/database");
+
       query.mockResolvedValue({ rows: largeResults });
 
       const response = await request(app)
@@ -541,6 +547,9 @@ describe("Technical Router", () => {
           rsi: 50 + (i % 40),
           macd: (i % 10) - 5,
         }));
+
+// Import the mocked database
+const { query } = require("../../../utils/database");
 
       query.mockResolvedValue({ rows: largeDataset });
 
