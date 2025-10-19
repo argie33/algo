@@ -678,6 +678,7 @@ router.get("/sources", async (req, res) => {
         sources,
         total: sources.length,
       },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching news sources:", error);
@@ -724,6 +725,7 @@ router.get("/categories", async (req, res) => {
         categories,
         total: categories.length,
       },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching news categories:", error);
