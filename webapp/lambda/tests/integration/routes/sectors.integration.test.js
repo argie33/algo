@@ -1,19 +1,105 @@
 const request = require("supertest");
-const {
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
+const express = require("express");
+
+// Mock database BEFORE importing routes
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn().mockResolvedValue(undefined),
+  getPool: jest.fn(),
+  transaction: jest.fn(),
+  healthCheck: jest.fn(),
+}));
+
+// Mock auth middleware
+jest.mock("../../../middleware/auth", () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: "test-user-123" };
+    next();
+  }),
+  authorizeAdmin: jest.fn((req, res, next) => next()),
+  checkApiKey: jest.fn((req, res, next) => next()),
+}));
+
+const { query } = require("../../../utils/database");
+const sectorRouter = require("../../../routes/sectors");
 
 let app;
 
 describe("Sectors Routes", () => {
-  beforeAll(async () => {
-    await initializeDatabase();
-    app = require("../../../server");
+  beforeAll(() => {
+    app = express();
+    app.use(express.json());
+    app.use("/api/sectors", sectorRouter);
   });
 
-  afterAll(async () => {
-    await closeDatabase();
+  afterAll(() => {
+    // Cleanup if needed
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Mock database query responses based on SQL patterns
+    query.mockImplementation((sql, params) => {
+      // Schema validation queries
+      if (sql.includes("information_schema.tables")) {
+        return Promise.resolve({ rows: [{ exists: true }] });
+      }
+
+      // Stock symbols table queries
+      if (sql.includes("stock_symbols")) {
+        return Promise.resolve({
+          rows: [
+            { symbol: "AAPL", name: "Apple Inc." },
+            { symbol: "MSFT", name: "Microsoft Corp" },
+          ],
+        });
+      }
+
+      // Price data queries
+      if (sql.includes("price_daily")) {
+        return Promise.resolve({
+          rows: [
+            { symbol: "AAPL", date: "2025-10-18", close: 230.5, volume: 50000000 },
+            { symbol: "MSFT", date: "2025-10-18", close: 430.0, volume: 30000000 },
+          ],
+        });
+      }
+
+      // Company profile queries
+      if (sql.includes("company_profile")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: "AAPL",
+              name: "Apple Inc.",
+              sector: "Technology",
+              industry: "Consumer Electronics",
+            },
+          ],
+        });
+      }
+
+      // Stock scores queries
+      if (sql.includes("stock_scores")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: "AAPL",
+              quality_score: 75,
+              momentum_score: 80,
+              value_score: 65,
+              growth_score: 72,
+              composite_score: 73,
+            },
+          ],
+        });
+      }
+
+      // Default case - return empty rows
+      return Promise.resolve({ rows: [] });
+    });
   });
 
   describe("GET /api/sectors", () => {

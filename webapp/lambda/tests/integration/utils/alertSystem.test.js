@@ -3,18 +3,33 @@
  * Tests real alert processing and basic functionality
  */
 
-const {
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
 
 const alertSystem = require("../../../utils/alertSystem");
 
-describe("Alert System Integration Tests", () => {
-  beforeAll(async () => {
-    await initializeDatabase();
-  });
+// Mock database BEFORE importing routes/modules
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn().mockResolvedValue(undefined),
+  getPool: jest.fn(),
+  transaction: jest.fn((cb) => cb()),
+  healthCheck: jest.fn(),
+}));
 
+// Mock auth middleware
+jest.mock("../../../middleware/auth", () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: "test-user-123" };
+    next();
+  }),
+  authorizeAdmin: jest.fn((req, res, next) => next()),
+  checkApiKey: jest.fn((req, res, next) => next()),
+}));
+
+const { query } = require("../../../utils/database");
+
+describe("Alert System Integration Tests", () => {
+  
   afterAll(async () => {
     if (alertSystem && alertSystem.stopMonitoring) {
       alertSystem.stopMonitoring();

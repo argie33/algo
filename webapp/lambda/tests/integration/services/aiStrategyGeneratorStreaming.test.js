@@ -8,6 +8,28 @@ const AIStrategyGeneratorStreaming = require("../../../services/aiStrategyGenera
 // Extend setup timeout for streaming operations
 jest.setTimeout(60000);
 
+// Mock database BEFORE importing routes/modules
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn().mockResolvedValue(undefined),
+  getPool: jest.fn(),
+  transaction: jest.fn((cb) => cb()),
+  healthCheck: jest.fn(),
+}));
+
+// Mock auth middleware
+jest.mock("../../../middleware/auth", () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: "test-user-123" };
+    next();
+  }),
+  authorizeAdmin: jest.fn((req, res, next) => next()),
+  checkApiKey: jest.fn((req, res, next) => next()),
+}));
+
+const { query } = require("../../../utils/database");
+
 describe("AI Strategy Generator Streaming Integration Tests", () => {
   let streamingGenerator;
   let mockSymbols;

@@ -3,21 +3,12 @@
  * Tests the complete AI strategy generation workflow with real service integration
  */
 
-const {
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
 
 let AIStrategyGenerator;
 let app;
 
 describe.skip("AI Strategy Generator Service Integration Tests", () => {
-  beforeAll(async () => {
-    await initializeDatabase();
-    AIStrategyGenerator = require("../../../services/aiStrategyGenerator");
-    app = require("../../../server");
-  });
-
+  
   afterAll(async () => {
     await closeDatabase();
   });

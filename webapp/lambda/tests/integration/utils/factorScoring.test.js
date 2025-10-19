@@ -3,92 +3,45 @@
  * Tests factor scoring algorithms with mock financial data
  */
 
-const {
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
 const factorScoring = require("../../../utils/factorScoring");
 const { FactorScoringEngine } = factorScoring;
 
+// Mock database BEFORE importing routes/modules
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn().mockResolvedValue(undefined),
+  getPool: jest.fn(),
+  transaction: jest.fn((cb) => cb()),
+  healthCheck: jest.fn(),
+}));
+
+// Mock auth middleware
+jest.mock("../../../middleware/auth", () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: "test-user-123" };
+    next();
+  }),
+  authorizeAdmin: jest.fn((req, res, next) => next()),
+  checkApiKey: jest.fn((req, res, next) => next()),
+}));
+
+const { query } = require("../../../utils/database");
+
 describe("Factor Scoring Integration Tests", () => {
   let mockStockData;
-
-  beforeAll(async () => {
-    await initializeDatabase();
-
-    // Create mock stock data for testing
-    mockStockData = [
-      {
-        symbol: "AAPL",
-        pe_ratio: 15.2,
-        pb_ratio: 3.1,
-        ps_ratio: 2.8,
-        revenue_growth_1y: 0.15,
-        earnings_growth_1y: 0.12,
-        roe: 0.28,
-        roa: 0.15,
-        debt_to_equity: 0.45,
-        current_ratio: 1.2,
-        price_momentum_3m: 0.08,
-        price_momentum_6m: 0.15,
-        gross_margin: 0.42,
-        operating_margin: 0.28,
-        net_margin: 0.21,
-      },
-      {
-        symbol: "GOOGL",
-        pe_ratio: 18.5,
-        pb_ratio: 2.9,
-        ps_ratio: 3.2,
-        revenue_growth_1y: 0.18,
-        earnings_growth_1y: 0.2,
-        roe: 0.22,
-        roa: 0.12,
-        debt_to_equity: 0.25,
-        current_ratio: 2.1,
-        price_momentum_3m: 0.05,
-        price_momentum_6m: 0.12,
-        gross_margin: 0.58,
-        operating_margin: 0.25,
-        net_margin: 0.19,
-      },
-      {
-        symbol: "MSFT",
-        pe_ratio: 22.1,
-        pb_ratio: 4.2,
-        ps_ratio: 5.1,
-        revenue_growth_1y: 0.12,
-        earnings_growth_1y: 0.18,
-        roe: 0.35,
-        roa: 0.18,
-        debt_to_equity: 0.38,
-        current_ratio: 1.8,
-        price_momentum_3m: 0.12,
-        price_momentum_6m: 0.18,
-        gross_margin: 0.68,
-        operating_margin: 0.42,
-        net_margin: 0.31,
-      },
-      {
-        symbol: "TSLA",
-        pe_ratio: 45.8,
-        pb_ratio: 8.9,
-        ps_ratio: 6.2,
-        revenue_growth_1y: 0.35,
-        earnings_growth_1y: 0.28,
-        roe: 0.18,
-        roa: 0.08,
-        debt_to_equity: 0.65,
-        current_ratio: 1.4,
-        price_momentum_3m: 0.25,
-        price_momentum_6m: 0.38,
-        gross_margin: 0.18,
-        operating_margin: 0.08,
-        net_margin: 0.06,
-      },
-    ];
+    beforeEach(() => {
+    jest.clearAllMocks();
+    query.mockImplementation((sql, params) => {
+      // Default: return empty rows for all queries
+      if (sql.includes("information_schema.tables")) {
+        return Promise.resolve({ rows: [{ exists: true }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
   });
 
+  
   afterAll(async () => {
     await closeDatabase();
   });

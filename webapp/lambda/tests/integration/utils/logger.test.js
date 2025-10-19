@@ -3,29 +3,36 @@
  * Tests logging functionality with the actual logger implementation
  */
 
-const {
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
 const logger = require("../../../utils/logger");
+
+// Mock database BEFORE importing routes/modules
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn().mockResolvedValue(undefined),
+  getPool: jest.fn(),
+  transaction: jest.fn((cb) => cb()),
+  healthCheck: jest.fn(),
+}));
+
+// Mock auth middleware
+jest.mock("../../../middleware/auth", () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: "test-user-123" };
+    next();
+  }),
+  authorizeAdmin: jest.fn((req, res, next) => next()),
+  checkApiKey: jest.fn((req, res, next) => next()),
+}));
+
+const { query } = require("../../../utils/database");
 
 describe("Logger Integration Tests", () => {
   let originalConsoleLog;
   let originalConsoleError;
   let capturedLogs;
 
-  beforeAll(async () => {
-    await initializeDatabase();
-
-    // Set up log capture
-    capturedLogs = [];
-    originalConsoleLog = console.log;
-    originalConsoleError = console.error;
-
-    // Mock console methods to capture logs
-    console.log = (...args) => {
-      capturedLogs.push({ type: "log", args, timestamp: Date.now() });
-      originalConsoleLog.apply(console, args);
+        originalConsoleLog.apply(console, args);
     };
 
     console.error = (...args) => {

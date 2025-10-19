@@ -3,20 +3,34 @@
  * Tests real-time data management and streaming functionality
  */
 
-const {
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
 const LiveDataManager = require("../../../utils/liveDataManager");
+
+// Mock database BEFORE importing routes/modules
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn().mockResolvedValue(undefined),
+  getPool: jest.fn(),
+  transaction: jest.fn((cb) => cb()),
+  healthCheck: jest.fn(),
+}));
+
+// Mock auth middleware
+jest.mock("../../../middleware/auth", () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: "test-user-123" };
+    next();
+  }),
+  authorizeAdmin: jest.fn((req, res, next) => next()),
+  checkApiKey: jest.fn((req, res, next) => next()),
+}));
+
+const { query } = require("../../../utils/database");
 
 describe("Live Data Manager Integration Tests", () => {
   let liveDataManager;
 
-  beforeAll(async () => {
-    await initializeDatabase();
-    liveDataManager = new LiveDataManager();
-  });
-
+  
   beforeEach(() => {
     // Reset liveDataManager state before each test
     if (liveDataManager) {

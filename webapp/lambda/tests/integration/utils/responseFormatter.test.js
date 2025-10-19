@@ -5,8 +5,40 @@
 
 const responseFormatter = require("../../../utils/responseFormatter");
 
+// Mock database BEFORE importing routes/modules
+jest.mock("../../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn().mockResolvedValue(undefined),
+  getPool: jest.fn(),
+  transaction: jest.fn((cb) => cb()),
+  healthCheck: jest.fn(),
+}));
+
+// Mock auth middleware
+jest.mock("../../../middleware/auth", () => ({
+  authenticateToken: jest.fn((req, res, next) => {
+    req.user = { sub: "test-user-123" };
+    next();
+  }),
+  authorizeAdmin: jest.fn((req, res, next) => next()),
+  checkApiKey: jest.fn((req, res, next) => next()),
+}));
+
+const { query } = require("../../../utils/database");
+
 describe("Response Formatter Integration Tests", () => {
   describe("Success Response Formatting", () => {
+    beforeEach(() => {
+    jest.clearAllMocks();
+    query.mockImplementation((sql, params) => {
+      // Default: return empty rows for all queries
+      if (sql.includes("information_schema.tables")) {
+        return Promise.resolve({ rows: [{ exists: true }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+  });
     test("should format successful API responses", () => {
       const testData = {
         symbol: "AAPL",
