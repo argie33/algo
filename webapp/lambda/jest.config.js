@@ -1,6 +1,6 @@
 module.exports = {
   testEnvironment: "node",
-  collectCoverage: false, // Disable during development for speed
+  collectCoverage: true, // Enable coverage for final runs
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov", "html"],
   collectCoverageFrom: [
@@ -15,12 +15,12 @@ module.exports = {
   ],
   testMatch: ["**/tests/**/*.test.js", "**/tests/**/*.spec.js"],
   // setupFilesAfterEnv: ["<rootDir>/tests/setup.js"], // Temporarily disable setup
-  testTimeout: 30000, // Increased timeout for stability
+  testTimeout: 10000, // Reduced timeout - catch hanging tests faster
   maxWorkers: 1, // Run tests serially to avoid conflicts
   forceExit: true, // Force exit after tests complete
-  detectOpenHandles: true, // Enable to detect hanging handles
+  detectOpenHandles: false, // Disable for speed
   openHandlesTimeout: 5000, // Timeout for detecting open handles
-  verbose: true, // Show test details for debugging
+  verbose: false, // Show test details for debugging
   silent: false,
   bail: false, // Don't stop on first failure
   // DISABLE COMPLEX GLOBAL SETUP TO PREVENT HANGING
