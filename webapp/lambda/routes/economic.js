@@ -378,7 +378,7 @@ router.get("/calendar", async (req, res) => {
     // Since we don't have a dedicated calendar table, simulate with economic data releases
     // Map importance filter to our simulated data
     const importanceLevel = importance ? importance.toLowerCase() : null;
-    let importanceFilter = 'Medium'; // default
+    let importanceFilter = 'medium'; // default
     if (importanceLevel === 'high') importanceFilter = 'high';
     if (importanceLevel === 'low') importanceFilter = 'low';
 
@@ -391,7 +391,7 @@ router.get("/calendar", async (req, res) => {
         CASE
           WHEN $3 = 'high' THEN 'high'
           WHEN $3 = 'low' THEN 'low'
-          ELSE 'Medium'
+          ELSE 'medium'
         END as importance,
         'US' as country,
         'Data Release' as event_type
