@@ -49,6 +49,19 @@ describe("Screener Routes Unit Tests", () => {
     const { query } = require("../../../utils/database");
     mockQuery = query;
 
+    // Add default mock implementation with fallback
+    mockQuery.mockImplementation((sql, params) => {
+      if (sql && typeof sql === 'string') {
+        if (sql.includes("information_schema.tables")) {
+          return Promise.resolve({ rows: [{ exists: true }] });
+        }
+        if (sql.includes("stock_symbols") || sql.includes("price_daily") || sql.includes("stock_scores")) {
+          return Promise.resolve({ rows: [] });
+        }
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
     const { FactorScoringEngine } = require("../../../utils/factorScoring");
     mockFactorEngine = new FactorScoringEngine();
 
