@@ -7,11 +7,6 @@
 
 const request = require('supertest');
 const { app } = require('../../index');
-const {
-  query,
-  initializeDatabase,
-  closeDatabase,
-} = require('../../utils/database');
 
 // Mock database BEFORE importing routes/modules
 jest.mock("../../utils/database", () => ({
@@ -23,7 +18,7 @@ jest.mock("../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-
+// Import mocked functions AFTER jest.mock
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../utils/database');
 
 // Mock auth middleware

@@ -82,7 +82,6 @@ const getMetrics = (metricType, timeRange, category) => {
   }));
 
 // Import the mocked database
-const { query, closeDatabase } = require("../../../utils/database");
 };
 
 const getAverageResponseTime = (metricType, timeRange, category) => {
