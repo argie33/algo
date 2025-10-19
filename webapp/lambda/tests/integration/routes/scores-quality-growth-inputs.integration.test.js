@@ -9,15 +9,8 @@
 const request = require('supertest');
 const app = require('../../../server');
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb()),
-  healthCheck: jest.fn(),
-}));
+// Use REAL database - DO NOT mock, use real data from loaders
+// jest.mock("../../../utils/database", ...);
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
@@ -29,20 +22,11 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-const { query } = require("../../../utils/database");
-
 describe('Scores API - Quality and Growth Inputs Integration', () => {
   describe('GET /api/scores (list endpoint)', () => {
     beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Default: return empty rows for all queries
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
-      }
-      return Promise.resolve({ rows: [] });
+      jest.clearAllMocks();
     });
-  });
     it('should return stocks with complete quality_inputs object structure', async () => {
       const response = await request(app)
         .get('/api/scores')
@@ -193,14 +177,13 @@ describe('Scores API - Quality and Growth Inputs Integration', () => {
 
       const inputs = response.body.data.factors.quality.inputs;
 
-      // Verify structure
+      // Verify structure (fields from loadqualitymetrics.py schema)
       const requiredFields = [
-        'accruals_ratio',
         'fcf_to_net_income',
         'debt_to_equity',
         'current_ratio',
-        'interest_coverage',
-        'asset_turnover'
+        'return_on_equity_pct',
+        'profit_margin_pct'
       ];
 
       requiredFields.forEach(field => {
