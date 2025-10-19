@@ -44,6 +44,19 @@ describe("Performance Routes Unit Tests", () => {
     const { query } = require("../../../utils/database");
     mockQuery = query;
 
+    // Add default mock implementation with fallback
+    mockQuery.mockImplementation((sql, params) => {
+      if (sql && typeof sql === 'string') {
+        if (sql.includes("information_schema.tables")) {
+          return Promise.resolve({ rows: [{ exists: true }] });
+        }
+        if (sql.includes("performance") || sql.includes("metrics")) {
+          return Promise.resolve({ rows: [] });
+        }
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
     const performanceMonitor = require("../../../utils/performanceMonitor");
     mockPerformanceMonitor = performanceMonitor;
 

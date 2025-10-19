@@ -80,6 +80,30 @@ describe("Trades Routes - Testing Your Actual Site", () => {
     app.use("/trades", tradesRoutes);
   });
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Set up comprehensive mock query implementation with defaults
+    query.mockImplementation((sql, params) => {
+      // Default: return empty rows for all queries
+      // Tests can override with mockResolvedValueOnce/mockResolvedValue
+      if (sql && typeof sql === 'string') {
+        if (sql.includes("information_schema.tables")) {
+          return Promise.resolve({ rows: [{ exists: true }] });
+        }
+        if (sql.includes("trade")) {
+          return Promise.resolve({ rows: [] });
+        }
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    // Set up transaction mock
+    transaction.mockImplementation((callback) => {
+      return callback({ query: query });
+    });
+  });
+
   describe("GET /trades/health - Health check", () => {
     test("should return trade service health status", async () => {
       const response = await request(app).get("/trades/health").expect(200);
