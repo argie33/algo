@@ -18,7 +18,6 @@ describe("Earnings Routes", () => {
     app.use(responseFormatter);
     app.use("/earnings", earningsRoutes);
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   beforeEach(() => {
     // Reset mocks

@@ -49,7 +49,6 @@ jest.mock("../../../middleware/auth", () => ({
 
 // Import after mocks
 const { authenticateToken } = require("../../../middleware/auth");
-const { query } = require("../../../utils/database");
 const AIStrategyGenerator = require("../../../services/aiStrategyGenerator");
 const app = express();
 app.use(express.json());

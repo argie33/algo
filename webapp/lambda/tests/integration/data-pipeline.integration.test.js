@@ -19,7 +19,6 @@ jest.mock("../../utils/database", () => ({
 }));
 
 // Import mocked functions AFTER jest.mock
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../utils/database');
 
 // Mock auth middleware
 jest.mock("../../middleware/auth", () => ({

@@ -16,7 +16,6 @@ describe("Trading Mode Helper Unit Tests", () => {
     jest.clearAllMocks();
     mockQuery = query;
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("getUserTradingMode", () => {
     test("should return paper mode by default", async () => {

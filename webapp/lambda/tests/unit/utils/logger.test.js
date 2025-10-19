@@ -176,7 +176,6 @@ describe("Logger", () => {
 
       // Reinitialize logger with production environment
       delete require.cache[require.resolve("../../../utils/logger")];
-      const { Logger } = require("../../../utils/logger");
       const prodLogger = new Logger();
 
       const logEntry = {
@@ -229,7 +228,6 @@ describe("Logger", () => {
 
     test("should not log error if level too low", () => {
       // Create a new logger instance instead of modifying the singleton
-      const { Logger } = require("../../../utils/logger");
       const quietLogger = new Logger();
       quietLogger.currentLevel = -1;
 
@@ -288,7 +286,6 @@ describe("Logger", () => {
   describe("Debug Logging", () => {
     test("should not log debug messages with default level", () => {
       // Create a logger with the actual default level (INFO = 2) by creating a new instance
-      const { Logger } = require("../../../utils/logger");
       const defaultLogger = new Logger();
       defaultLogger.currentLevel = 2; // INFO level explicitly
 

@@ -28,7 +28,6 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import the mocked database
-const { query, initializeDatabase} = require("../../../utils/database");
 
 describe("Analysts API", () => {
   describe("Analyst Recommendations", () => {

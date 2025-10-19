@@ -467,7 +467,6 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         dividend_yield: 2.0,
       }));
 
-const { closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
 
       // Clear all mocks and set up fresh
       jest.clearAllMocks();

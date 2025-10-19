@@ -20,7 +20,6 @@ jest.mock("../../../middleware/auth", () => ({
 
 // Import after mocks
 const { authenticateToken } = require("../../../middleware/auth");
-const { query } = require("../../../utils/database");
 // Import the mocked function
 // Mock optional services that may not exist
 jest.mock(
@@ -67,7 +66,6 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       req.token = "test-jwt-token";
       next();
     });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
     app.use("/trades", tradesRoutes);
   });

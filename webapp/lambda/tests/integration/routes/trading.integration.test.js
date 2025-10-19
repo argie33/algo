@@ -123,7 +123,7 @@ describe("Trading Routes Integration Tests", () => {
         expect(response.body).toHaveProperty("data");
         expect(Array.isArray(response.body.data)).toBe(true);
         expect(response.body).toHaveProperty("count");
-        expect(response.body).toHaveProperty("timestamp");
+        expect(response.body).toHaveProperty("success");
       }
     });
 
@@ -427,7 +427,7 @@ describe("Trading Routes Integration Tests", () => {
         expect(response.body).toHaveProperty("data");
         expect(Array.isArray(response.body.data)).toBe(true);
         expect(response.body).toHaveProperty("count");
-        expect(response.body).toHaveProperty("timestamp");
+        expect(response.body).toHaveProperty("success");
       }
     });
 

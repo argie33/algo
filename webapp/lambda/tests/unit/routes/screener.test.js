@@ -10,7 +10,6 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
-const { FactorScoringEngine } = require("../../../utils/factorScoring");
 // Mock the auth middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
@@ -388,7 +387,6 @@ describe("Screener Routes Unit Tests", () => {
       // Should work without authentication
     });
     test("should require authentication for screening endpoint", () => {
-      const { authenticateToken } = require("../../../middleware/auth");
       expect(authenticateToken).toBeDefined();
       // Authentication is tested through successful requests in other tests
     });

@@ -91,7 +91,6 @@ describe("Contract Validation Functions", () => {
       },
     };
 
-    const { validateContract } = require("./contract-test-runner");
     const errors = validateContract("GET /api/health", mockResponse);
 
     expect(Array.isArray(errors)).toBe(true);

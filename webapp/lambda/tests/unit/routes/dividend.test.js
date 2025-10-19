@@ -11,7 +11,7 @@ jest.mock("../../../utils/database", () => ({
   tableExists: jest.fn().mockResolvedValue(true), // Mock tableExists to return true
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck, tableExists } = require('../../../utils/database');
 
 const mockQuery = query;
 const mockTableExists = tableExists;
@@ -49,7 +49,6 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
             }
           ]
         });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
       }
       // Mock dividend calendar query

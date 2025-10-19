@@ -30,7 +30,6 @@ describe("Alpaca Integration Service Unit Tests", () => {
     jest.clearAllMocks();
     getDecryptedApiKey.mockResolvedValue(mockApiKeys);
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("Account Information", () => {
     test("should retrieve account information", async () => {

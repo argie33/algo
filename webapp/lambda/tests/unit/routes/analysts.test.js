@@ -21,7 +21,6 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
     const analystRouter = require("../../../routes/analysts");
     app.use("/api/analysts", analystRouter);
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   beforeEach(() => {
     jest.clearAllMocks();

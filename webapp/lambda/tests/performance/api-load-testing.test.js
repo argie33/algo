@@ -1,7 +1,6 @@
 const request = require("supertest");
 const { app } = require("../../index");
 const jwt = require("jsonwebtoken");
-const { query } = require("../../utils/database");
 
 describe("API Load Testing and Performance", () => {
   const validUserId = "load-test-user";

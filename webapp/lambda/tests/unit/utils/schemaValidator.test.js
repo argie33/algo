@@ -16,6 +16,8 @@ const mockLogger = {
   info: jest.fn(),
 };
 jest.mock("../../../utils/logger", () => mockLogger);
+
+const {
   validateData,
   validateTableStructure,
   validateDatabaseIntegrity,
@@ -29,11 +31,11 @@ jest.mock("../../../utils/logger", () => mockLogger);
   safeQuery,
   schemas,
 } = require("../../../utils/schemaValidator");
+
 describe("Schema Validator", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("validateData", () => {
     test("should validate valid company profile data successfully", () => {

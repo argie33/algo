@@ -1089,7 +1089,6 @@ describe("Alerts Routes Unit Tests", () => {
       }))
 
 // Import mocked functions
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
 
       const response = await request(app)
         .get("/alerts/active")

@@ -35,7 +35,6 @@ describe("Price Route - Unit Tests", () => {
           return Promise.resolve({
             rows: [{ exists: true }]
           });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
         }
         return Promise.resolve({

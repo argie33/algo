@@ -7,8 +7,8 @@ const express = require("express");
 // Mock database before requiring the route
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
-}))
-// Import mocked functions
+}));
+
 // Mock authentication middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
@@ -17,8 +17,6 @@ jest.mock("../../../middleware/auth", () => ({
     next();
   },
 }));
-
-const { query } = require('../../../utils/database');
 
 // Mock API Key Service
 jest.mock("../../../utils/apiKeyService", () => ({
@@ -29,16 +27,26 @@ jest.mock("../../../utils/apiKeyService", () => ({
   deleteApiKey: jest.fn(),
   getHealthStatus: jest.fn(),
 }));
+
+// Import mocked functions
+const { query } = require('../../../utils/database');
+const {
   listProviders,
   storeApiKey,
   getApiKey,
   deleteApiKey,
 } = require("../../../utils/apiKeyService");
 const settingsRoutes = require("../../../routes/settings");
-const app = express();
-app.use(express.json());
-app.use("/api/settings", settingsRoutes);
+
 describe("Settings API Routes", () => {
+  let app;
+
+  beforeAll(() => {
+    app = express();
+    app.use(express.json());
+    app.use("/api/settings", settingsRoutes);
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
   });

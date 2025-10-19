@@ -200,7 +200,6 @@ describe("Database Rollback Scenarios Integration", () => {
       }
 
       // Real database testing code
-      const { Pool } = require("pg");
       const pool = new Pool({
         connectionString:
           process.env.DATABASE_URL ||

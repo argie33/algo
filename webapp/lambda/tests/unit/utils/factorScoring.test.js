@@ -8,6 +8,8 @@ const mockLogger = {
   info: jest.fn(),
 };
 jest.mock("../../../utils/logger", () => mockLogger);
+
+const {
   FactorScoringEngine,
   calculateCompositeScore,
   scoreUniverse,
@@ -17,6 +19,7 @@ jest.mock("../../../utils/logger", () => mockLogger);
   screenByFactors,
   FACTOR_DEFINITIONS,
 } = require("../../../utils/factorScoring");
+
 describe("FactorScoringEngine", () => {
   let engine;
   beforeEach(() => {

@@ -264,7 +264,6 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
 // ================================
 // RequireRole Middleware Tests
 // ================================
-const { requireRole } = require("../../../middleware/auth");
 describe("RequireRole Middleware", () => {
   let req, res, next;
   beforeEach(() => {
@@ -335,7 +334,6 @@ describe("RequireRole Middleware", () => {
 // ================================
 // OptionalAuth Middleware Tests
 // ================================
-const { optionalAuth } = require("../../../middleware/auth");
 describe("OptionalAuth Middleware", () => {
   let req, res, next;
   beforeEach(() => {
@@ -400,7 +398,6 @@ describe("OptionalAuth Middleware", () => {
 // ================================
 // RequireApiKey Middleware Tests
 // ================================
-const { requireApiKey } = require("../../../middleware/auth");
 describe("RequireApiKey Middleware", () => {
   let req, res, next;
   beforeEach(() => {
@@ -434,7 +431,6 @@ describe("RequireApiKey Middleware", () => {
     req.user = { sub: "user123" };
     req.token = "valid-token";
     // Mock getApiKey to return null (no API key configured)
-    const { getApiKey } = require("../../../utils/apiKeyService");
     getApiKey.mockResolvedValue(null);
     const middleware = requireApiKey("alpaca");
     await middleware(req, res, next);
@@ -452,7 +448,6 @@ describe("RequireApiKey Middleware", () => {
     req.user = { sub: "user123" };
     req.token = "valid-token";
     const mockApiKey = "test-api-key-123";
-    const { getApiKey } = require("../../../utils/apiKeyService");
     getApiKey.mockResolvedValue(mockApiKey);
     const middleware = requireApiKey("alpaca");
     await middleware(req, res, next);
@@ -464,7 +459,6 @@ describe("RequireApiKey Middleware", () => {
   test("should handle API key service errors", async () => {
     req.user = { sub: "user123" };
     req.token = "valid-token";
-    const { getApiKey } = require("../../../utils/apiKeyService");
     getApiKey.mockRejectedValue(new Error("Service unavailable"));
     const consoleSpy = jest.spyOn(console, "error").mockImplementation();
     const middleware = requireApiKey("alpaca");
@@ -483,7 +477,6 @@ describe("RequireApiKey Middleware", () => {
 // ================================
 // ValidateSession Middleware Tests
 // ================================
-const { validateSession } = require("../../../middleware/auth");
 describe("ValidateSession Middleware", () => {
   let req, res, next;
   beforeEach(() => {
@@ -552,7 +545,6 @@ describe("ValidateSession Middleware", () => {
 // ================================
 // RateLimitByUser Middleware Tests
 // ================================
-const { rateLimitByUser } = require("../../../middleware/auth");
 describe("RateLimitByUser Middleware", () => {
   let req, res, next;
   beforeEach(() => {
@@ -621,7 +613,6 @@ describe("RateLimitByUser Middleware", () => {
 // ================================
 // LogApiAccess Middleware Tests
 // ================================
-const { logApiAccess } = require("../../../middleware/auth");
 describe("LogApiAccess Middleware", () => {
   let req, res, next, originalEnd;
   beforeEach(() => {

@@ -491,7 +491,6 @@ describe("Performance Routes Unit Tests", () => {
       // Should work without authentication
     });
     test("should require authentication for benchmark endpoint", () => {
-      const { authenticateToken } = require("../../../middleware/auth");
       expect(authenticateToken).toBeDefined();
       // Authentication is tested through successful requests in other tests
     });

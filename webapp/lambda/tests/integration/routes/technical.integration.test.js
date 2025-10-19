@@ -156,7 +156,6 @@ describe("Technical Router", () => {
         }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
 
       query.mockResolvedValue({ rows: largeMockData });
 

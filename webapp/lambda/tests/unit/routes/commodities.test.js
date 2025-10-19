@@ -49,7 +49,6 @@ describe("Commodities Routes", () => {
             }
           ]
         });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
       }
       // Default empty response

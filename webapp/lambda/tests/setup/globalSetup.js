@@ -86,7 +86,6 @@ module.exports = async () => {
 
     // Now populate test data
     console.log('📊 Populating test data...');
-    const { populateLoaderTestData } = require('../setup/database.setup');
     await populateLoaderTestData();
     console.log('✅ Test data populated successfully');
 

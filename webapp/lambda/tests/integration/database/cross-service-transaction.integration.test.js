@@ -4,12 +4,6 @@
  * Validates distributed transaction patterns and data consistency
  */
 
-const {
-  initializeDatabase,
-  closeDatabase,
-  transaction,
-} = require("../../../utils/database");
-
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
@@ -19,7 +13,6 @@ jest.mock("../../../utils/database", () => ({
   transaction: jest.fn((cb) => cb()),
   healthCheck: jest.fn(),
 }));
-
 
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
 

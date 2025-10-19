@@ -18,7 +18,6 @@ describe("Metrics Routes", () => {
     app.use(responseFormatter);
     app.use("/metrics", metricsRoutes);
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   beforeEach(() => {
     // Reset mocks
