@@ -270,12 +270,22 @@ async function populateLoaderTestData() {
     `);
 
     console.log('✅ Economic test data populated for testing');
-    // Insert test data into Python loader tables
+
+    // Insert stock symbols (for JOIN operations)
     await query(`
-      INSERT INTO company_profile (symbol, ticker, short_name, long_name, sector, industry) VALUES
-      ('AAPL', 'AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
-      ('MSFT', 'MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Technology', 'Software'),
-      ('GOOGL', 'GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Technology', 'Internet Services')
+      INSERT INTO stock_symbols (symbol) VALUES
+      ('AAPL'),
+      ('MSFT'),
+      ('GOOGL')
+      ON CONFLICT (symbol) DO NOTHING
+    `);
+
+    // Insert company profile data (ticker as PK per loadstockscores.py)
+    await query(`
+      INSERT INTO company_profile (ticker, short_name, long_name, sector, industry) VALUES
+      ('AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
+      ('MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Technology', 'Software'),
+      ('GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Technology', 'Internet Services')
       ON CONFLICT (ticker) DO NOTHING
     `);
 
@@ -290,10 +300,10 @@ async function populateLoaderTestData() {
 
     // Insert key metrics
     await query(`
-      INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm, ev_to_ebitda, dividend_yield, earnings_growth_pct, revenue_growth_pct, free_cashflow) VALUES
-      ('AAPL', 28.5, 25.2, 45.5, 7.8, 22.3, 0.55, 8.5, 7.1, 84726000000),
-      ('MSFT', 35.8, 29.1, 13.2, 12.4, 28.5, 0.80, 10.3, 9.9, 65149000000),
-      ('GOOGL', 24.2, 21.5, 6.8, 5.1, 18.2, 0.00, 12.6, 8.9, 67012000000)
+      INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm, ev_to_ebitda, dividend_yield, earnings_growth_pct, revenue_growth_pct, free_cashflow, enterprise_value, total_debt, total_cash) VALUES
+      ('AAPL', 28.5, 25.2, 45.5, 7.8, 22.3, 0.55, 8.5, 7.1, 84726000000, 2800000000000, 100000000000, 200000000000),
+      ('MSFT', 35.8, 29.1, 13.2, 12.4, 28.5, 0.80, 10.3, 9.9, 65149000000, 3100000000000, 70000000000, 250000000000),
+      ('GOOGL', 24.2, 21.5, 6.8, 5.1, 18.2, 0.00, 12.6, 8.9, 67012000000, 1750000000000, 80000000000, 150000000000)
       ON CONFLICT (ticker) DO NOTHING
     `);
 
@@ -306,19 +316,19 @@ async function populateLoaderTestData() {
 
     // Insert price daily data
     await query(`
-      INSERT INTO price_daily (symbol, date, open, high, low, close, volume) VALUES
-      ('AAPL', CURRENT_DATE, 175.0, 176.5, 174.0, 175.5, 65000000),
-      ('MSFT', CURRENT_DATE, 420.0, 422.0, 419.0, 420.75, 28000000),
-      ('GOOGL', CURRENT_DATE, 142.0, 144.0, 141.0, 143.5, 22000000)
+      INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume) VALUES
+      ('AAPL', CURRENT_DATE, 175.0, 176.5, 174.0, 175.5, 175.5, 65000000),
+      ('MSFT', CURRENT_DATE, 420.0, 422.0, 419.0, 420.75, 420.75, 28000000),
+      ('GOOGL', CURRENT_DATE, 142.0, 144.0, 141.0, 143.5, 143.5, 22000000)
       ON CONFLICT (symbol, date) DO NOTHING
     `);
 
-    // Insert quality metrics
+    // Insert quality metrics (13 professional inputs)
     await query(`
-      INSERT INTO quality_metrics (symbol, date, return_on_equity_pct, return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income, debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg, eps_growth_stability, payout_ratio, accruals_ratio) VALUES
-      ('AAPL', CURRENT_DATE, 35.0, 18.0, 48.0, 32.5, 25.3, 0.85, 0.92, 1.73, 1.12, 1.00, 4.8, 0.92, 0.15, 0.05),
-      ('MSFT', CURRENT_DATE, 42.0, 15.0, 69.0, 42.0, 36.7, 0.75, 0.88, 0.35, 2.52, 2.19, 2.8, 0.95, 0.20, 0.03),
-      ('GOOGL', CURRENT_DATE, 28.0, 12.0, 56.0, 30.5, 22.4, 0.82, 0.90, 0.12, 2.05, 1.87, 4.3, 0.90, 0.00, 0.04)
+      INSERT INTO quality_metrics (symbol, date, return_on_equity_pct, return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income, debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg, eps_growth_stability, payout_ratio) VALUES
+      ('AAPL', CURRENT_DATE, 35.0, 18.0, 48.0, 32.5, 25.3, 0.85, 0.92, 1.73, 1.12, 1.00, 4.8, 0.92, 0.15),
+      ('MSFT', CURRENT_DATE, 42.0, 15.0, 69.0, 42.0, 36.7, 0.75, 0.88, 0.35, 2.52, 2.19, 2.8, 0.95, 0.20),
+      ('GOOGL', CURRENT_DATE, 28.0, 12.0, 56.0, 30.5, 22.4, 0.82, 0.90, 0.12, 2.05, 1.87, 4.3, 0.90, 0.00)
       ON CONFLICT (symbol, date) DO NOTHING
     `);
 
@@ -333,10 +343,10 @@ async function populateLoaderTestData() {
 
     // Insert momentum metrics
     await query(`
-      INSERT INTO momentum_metrics (symbol, date, momentum_12m_1, momentum_6m, momentum_3m, risk_adjusted_momentum, price_vs_sma_50, price_vs_sma_200, price_vs_52w_high, high_52w, sma_50, sma_200, volatility_12m) VALUES
-      ('AAPL', CURRENT_DATE, 22.5, 18.3, 5.2, 1.05, 1.03, 1.08, 0.97, 180.5, 170.2, 165.8, 18.5),
-      ('MSFT', CURRENT_DATE, 28.5, 24.5, 8.5, 1.12, 1.02, 1.06, 0.98, 445.0, 415.8, 410.2, 22.3),
-      ('GOOGL', CURRENT_DATE, 25.2, 21.5, 6.8, 1.08, 1.01, 1.05, 0.96, 148.5, 140.5, 138.2, 24.1)
+      INSERT INTO momentum_metrics (symbol, date, momentum_12m_1, momentum_6m, momentum_3m, risk_adjusted_momentum, price_vs_sma_50, price_vs_sma_200, price_vs_52w_high, current_price, sma_50, sma_200, high_52w, volatility_12m) VALUES
+      ('AAPL', CURRENT_DATE, 22.5, 18.3, 5.2, 1.05, 1.03, 1.08, 0.97, 175.50, 170.2, 165.8, 180.5, 18.5),
+      ('MSFT', CURRENT_DATE, 28.5, 24.5, 8.5, 1.12, 1.02, 1.06, 0.98, 420.75, 415.8, 410.2, 445.0, 22.3),
+      ('GOOGL', CURRENT_DATE, 25.2, 21.5, 6.8, 1.08, 1.01, 1.05, 0.96, 143.50, 140.5, 138.2, 148.5, 24.1)
       ON CONFLICT (symbol, date) DO NOTHING
     `);
 

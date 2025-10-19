@@ -333,65 +333,65 @@ router.get("/", async (req, res) => {
       },
       // Add raw valuation inputs for frontend display
       value_inputs: {
-        stock_pe: parseFloat(row.stock_pe) || null,
-        stock_pb: parseFloat(row.stock_pb) || null,
-        stock_ps: parseFloat(row.stock_ps) || null,
-        stock_ev_ebitda: parseFloat(row.stock_ev_ebitda) || null,
-        stock_fcf_yield: parseFloat(row.stock_fcf_yield) || null,
-        stock_dividend_yield: parseFloat(row.stock_dividend_yield) || null,
-        sector_pe: parseFloat(row.sector_pe) || null,
-        sector_pb: parseFloat(row.sector_pb) || null,
-        sector_ev_ebitda: parseFloat(row.sector_ev_ebitda) || null,
-        sector_debt_to_equity: parseFloat(row.sector_debt_to_equity) || null,
-        market_pe: parseFloat(row.market_pe) || null,
-        market_pb: parseFloat(row.market_pb) || null,
-        market_ps: parseFloat(row.market_ps) || null,
-        market_fcf_yield: parseFloat(row.market_fcf_yield) || null,
-        market_dividend_yield: parseFloat(row.market_dividend_yield) || null,
-        earnings_growth_pct: parseFloat(row.earnings_growth_pct) || null,
+        stock_pe: row.stock_pe == null ? null : parseFloat(row.stock_pe),
+        stock_pb: row.stock_pb == null ? null : parseFloat(row.stock_pb),
+        stock_ps: row.stock_ps == null ? null : parseFloat(row.stock_ps),
+        stock_ev_ebitda: row.stock_ev_ebitda == null ? null : parseFloat(row.stock_ev_ebitda),
+        stock_fcf_yield: row.stock_fcf_yield == null ? null : parseFloat(row.stock_fcf_yield),
+        stock_dividend_yield: row.stock_dividend_yield == null ? null : parseFloat(row.stock_dividend_yield),
+        sector_pe: row.sector_pe == null ? null : parseFloat(row.sector_pe),
+        sector_pb: row.sector_pb == null ? null : parseFloat(row.sector_pb),
+        sector_ev_ebitda: row.sector_ev_ebitda == null ? null : parseFloat(row.sector_ev_ebitda),
+        sector_debt_to_equity: row.sector_debt_to_equity == null ? null : parseFloat(row.sector_debt_to_equity),
+        market_pe: row.market_pe == null ? null : parseFloat(row.market_pe),
+        market_pb: row.market_pb == null ? null : parseFloat(row.market_pb),
+        market_ps: row.market_ps == null ? null : parseFloat(row.market_ps),
+        market_fcf_yield: row.market_fcf_yield == null ? null : parseFloat(row.market_fcf_yield),
+        market_dividend_yield: row.market_dividend_yield == null ? null : parseFloat(row.market_dividend_yield),
+        earnings_growth_pct: row.earnings_growth_pct == null ? null : parseFloat(row.earnings_growth_pct),
         peg_ratio: (row.stock_pe && row.earnings_growth_pct && row.earnings_growth_pct > 0)
           ? parseFloat((row.stock_pe / row.earnings_growth_pct).toFixed(2))
           : null
       },
       // Add quality INPUT metrics for frontend display (13 professional quality inputs)
       quality_inputs: {
-        return_on_equity_pct: parseFloat(row.return_on_equity_pct) || null,
-        return_on_assets_pct: parseFloat(row.return_on_assets_pct) || null,
-        gross_margin_pct: parseFloat(row.gross_margin_pct) || null,
-        operating_margin_pct: parseFloat(row.operating_margin_pct) || null,
-        profit_margin_pct: parseFloat(row.profit_margin_pct) || null,
-        fcf_to_net_income: parseFloat(row.fcf_to_net_income) || null,
-        operating_cf_to_net_income: parseFloat(row.operating_cf_to_net_income) || null,
-        debt_to_equity: parseFloat(row.debt_to_equity) || null,
-        current_ratio: parseFloat(row.current_ratio) || null,
-        quick_ratio: parseFloat(row.quick_ratio) || null,
-        earnings_surprise_avg: parseFloat(row.earnings_surprise_avg) || null,
-        eps_growth_stability: parseFloat(row.eps_growth_stability) || null,
-        payout_ratio: parseFloat(row.payout_ratio) || null
+        return_on_equity_pct: row.return_on_equity_pct == null ? null : parseFloat(row.return_on_equity_pct),
+        return_on_assets_pct: row.return_on_assets_pct == null ? null : parseFloat(row.return_on_assets_pct),
+        gross_margin_pct: row.gross_margin_pct == null ? null : parseFloat(row.gross_margin_pct),
+        operating_margin_pct: row.operating_margin_pct == null ? null : parseFloat(row.operating_margin_pct),
+        profit_margin_pct: row.profit_margin_pct == null ? null : parseFloat(row.profit_margin_pct),
+        fcf_to_net_income: row.fcf_to_net_income == null ? null : parseFloat(row.fcf_to_net_income),
+        operating_cf_to_net_income: row.operating_cf_to_net_income == null ? null : parseFloat(row.operating_cf_to_net_income),
+        debt_to_equity: row.debt_to_equity == null ? null : parseFloat(row.debt_to_equity),
+        current_ratio: row.current_ratio == null ? null : parseFloat(row.current_ratio),
+        quick_ratio: row.quick_ratio == null ? null : parseFloat(row.quick_ratio),
+        earnings_surprise_avg: row.earnings_surprise_avg == null ? null : parseFloat(row.earnings_surprise_avg),
+        eps_growth_stability: row.eps_growth_stability == null ? null : parseFloat(row.eps_growth_stability),
+        payout_ratio: row.payout_ratio == null ? null : parseFloat(row.payout_ratio)
       },
       // Add growth INPUT metrics for frontend display (12 professional growth inputs)
       growth_inputs: {
         revenue_growth_3y_cagr: parseFloat(row.revenue_growth_3y_cagr) || null,
         eps_growth_3y_cagr: parseFloat(row.eps_growth_3y_cagr) || null,
-        operating_income_growth_yoy: parseFloat(row.operating_income_growth_yoy) || null,
-        roe_trend: parseFloat(row.roe_trend) || null,
-        sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
-        fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null,
-        net_income_growth_yoy: parseFloat(row.net_income_growth_yoy) || null,
-        gross_margin_trend: parseFloat(row.gross_margin_trend) || null,
-        operating_margin_trend: parseFloat(row.operating_margin_trend) || null,
-        net_margin_trend: parseFloat(row.net_margin_trend) || null,
-        quarterly_growth_momentum: parseFloat(row.quarterly_growth_momentum) || null,
-        asset_growth_yoy: parseFloat(row.asset_growth_yoy) || null
+        operating_income_growth_yoy: row.operating_income_growth_yoy == null ? null : parseFloat(row.operating_income_growth_yoy),
+        roe_trend: row.roe_trend == null ? null : parseFloat(row.roe_trend),
+        sustainable_growth_rate: row.sustainable_growth_rate == null ? null : parseFloat(row.sustainable_growth_rate),
+        fcf_growth_yoy: row.fcf_growth_yoy == null ? null : parseFloat(row.fcf_growth_yoy),
+        net_income_growth_yoy: row.net_income_growth_yoy == null ? null : parseFloat(row.net_income_growth_yoy),
+        gross_margin_trend: row.gross_margin_trend == null ? null : parseFloat(row.gross_margin_trend),
+        operating_margin_trend: row.operating_margin_trend == null ? null : parseFloat(row.operating_margin_trend),
+        net_margin_trend: row.net_margin_trend == null ? null : parseFloat(row.net_margin_trend),
+        quarterly_growth_momentum: row.quarterly_growth_momentum == null ? null : parseFloat(row.quarterly_growth_momentum),
+        asset_growth_yoy: row.asset_growth_yoy == null ? null : parseFloat(row.asset_growth_yoy)
       },
       // Add raw momentum INPUT metrics for professional momentum display (dual momentum)
       // Use momentum_metrics table data if available, otherwise fallback to stock_scores columns
       momentum_inputs: {
         // Relative Momentum (vs other stocks)
         momentum_12m_1: parseFloat(row.momentum_12m_1) || null,
-        momentum_6m: parseFloat(row.momentum_6m) || parseFloat(row.momentum_medium_term) || null,
+        momentum_6m: parseFloat(row.momentum_6m) || row.momentum_medium_term == null ? null : parseFloat(row.momentum_medium_term),
         momentum_3m: parseFloat(row.momentum_3m) || null,
-        risk_adjusted_momentum: parseFloat(row.risk_adjusted_momentum) || null,
+        risk_adjusted_momentum: row.risk_adjusted_momentum == null ? null : parseFloat(row.risk_adjusted_momentum),
         // Absolute Momentum (vs itself)
         price_vs_sma_50: parseFloat(row.price_vs_sma_50) || null,
         price_vs_sma_200: parseFloat(row.price_vs_sma_200) || null,
@@ -411,9 +411,9 @@ router.get("/", async (req, res) => {
       // Add raw risk INPUT metrics for Risk Factor Analysis display
       risk_inputs: {
         volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
-        volatility_risk_component: parseFloat(row.volatility_risk_component) || null,
+        volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
         max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
-        beta: parseFloat(row.beta) || null
+        beta: row.beta == null ? null : parseFloat(row.beta)
       }
     }));
 
@@ -689,36 +689,36 @@ router.get("/:symbol", async (req, res) => {
         symbol: row.symbol,
         companyName: row.company_name,
         sector: row.sector,
-        compositeScore: parseFloat(row.composite_score) || 0,
-        currentPrice: parseFloat(row.current_price) || 0,
+        compositeScore: row.composite_score == null ? null : parseFloat(row.composite_score),
+        currentPrice: row.current_price == null ? null : parseFloat(row.current_price),
         priceChange1d: parseFloat(row.price_change_1d) || 0,
         volume: parseInt(row.volume_avg_30d) || 0,
-        marketCap: parseInt(row.market_cap) || 0,
-        peRatio: parseFloat(row.pe_ratio) || null,
+        marketCap: row.market_cap == null ? null : parseInt(row.market_cap),
+        peRatio: row.pe_ratio == null ? null : parseFloat(row.pe_ratio),
         lastUpdated: row.last_updated,
         scoreDate: row.score_date,
         // Nested factors object for tests
         factors: {
           momentum: {
-            score: parseFloat(row.momentum_score) || 0,
+            score: row.momentum_score == null ? null : parseFloat(row.momentum_score),
             components: {
-              short_term: parseFloat(row.momentum_short_term) || null,
-              medium_term: parseFloat(row.momentum_medium_term) || null,
-              longer_term: parseFloat(row.momentum_long_term) || null,
-              relative_strength: parseFloat(row.momentum_relative_strength) || null,
-              consistency: parseFloat(row.momentum_consistency) || null,
-              rsi: parseFloat(row.rsi) || 0,
+              short_term: row.momentum_short_term == null ? null : parseFloat(row.momentum_short_term),
+              medium_term: row.momentum_medium_term == null ? null : parseFloat(row.momentum_medium_term),
+              longer_term: row.momentum_long_term == null ? null : parseFloat(row.momentum_long_term),
+              relative_strength: row.momentum_relative_strength == null ? null : parseFloat(row.momentum_relative_strength),
+              consistency: row.momentum_consistency == null ? null : parseFloat(row.momentum_consistency),
+              rsi: row.rsi == null ? null : parseFloat(row.rsi),
               roc_10d: parseFloat(row.roc_10d) || null,
               roc_60d: parseFloat(row.roc_60d) || null,
               roc_120d: parseFloat(row.roc_120d) || null,
-              mansfield_rs: parseFloat(row.mansfield_rs) || null
+              mansfield_rs: row.mansfield_rs == null ? null : parseFloat(row.mansfield_rs)
             },
             inputs: {
               // Relative Momentum (vs other stocks)
               momentum_12m_1: parseFloat(row.momentum_12m_1) || null,
-              momentum_6m: parseFloat(row.momentum_6m) || parseFloat(row.momentum_medium_term) || null,
+              momentum_6m: parseFloat(row.momentum_6m) || row.momentum_medium_term == null ? null : parseFloat(row.momentum_medium_term),
               momentum_3m: parseFloat(row.momentum_3m) || null,
-              risk_adjusted_momentum: parseFloat(row.risk_adjusted_momentum) || null,
+              risk_adjusted_momentum: row.risk_adjusted_momentum == null ? null : parseFloat(row.risk_adjusted_momentum),
               // Absolute Momentum (vs itself)
               price_vs_sma_50: parseFloat(row.price_vs_sma_50) || null,
               price_vs_sma_200: parseFloat(row.price_vs_sma_200) || null,
@@ -737,89 +737,89 @@ router.get("/:symbol", async (req, res) => {
             }
           },
           value: {
-            score: parseFloat(row.value_score) || 0,
+            score: row.value_score == null ? null : parseFloat(row.value_score),
             inputs: {
-              stock_pe: parseFloat(row.stock_pe) || null,
-              stock_pb: parseFloat(row.stock_pb) || null,
-              stock_ps: parseFloat(row.stock_ps) || null,
-              stock_ev_ebitda: parseFloat(row.stock_ev_ebitda) || null,
-              stock_fcf_yield: parseFloat(row.stock_fcf_yield) || null,
-              stock_dividend_yield: parseFloat(row.stock_dividend_yield) || null,
-              sector_pe: parseFloat(row.sector_pe) || null,
-              sector_pb: parseFloat(row.sector_pb) || null,
-              sector_ps: parseFloat(row.sector_ps) || null,
-              sector_ev_ebitda: parseFloat(row.sector_ev_ebitda) || null,
-              sector_fcf_yield: parseFloat(row.sector_fcf_yield) || null,
-              sector_dividend_yield: parseFloat(row.sector_dividend_yield) || null,
-              market_pe: parseFloat(row.market_pe) || null,
-              market_pb: parseFloat(row.market_pb) || null,
-              market_ps: parseFloat(row.market_ps) || null,
-              market_fcf_yield: parseFloat(row.market_fcf_yield) || null,
-              market_dividend_yield: parseFloat(row.market_dividend_yield) || null,
-              earnings_growth_pct: parseFloat(row.earnings_growth_pct) || null,
+              stock_pe: row.stock_pe == null ? null : parseFloat(row.stock_pe),
+              stock_pb: row.stock_pb == null ? null : parseFloat(row.stock_pb),
+              stock_ps: row.stock_ps == null ? null : parseFloat(row.stock_ps),
+              stock_ev_ebitda: row.stock_ev_ebitda == null ? null : parseFloat(row.stock_ev_ebitda),
+              stock_fcf_yield: row.stock_fcf_yield == null ? null : parseFloat(row.stock_fcf_yield),
+              stock_dividend_yield: row.stock_dividend_yield == null ? null : parseFloat(row.stock_dividend_yield),
+              sector_pe: row.sector_pe == null ? null : parseFloat(row.sector_pe),
+              sector_pb: row.sector_pb == null ? null : parseFloat(row.sector_pb),
+              sector_ps: row.sector_ps == null ? null : parseFloat(row.sector_ps),
+              sector_ev_ebitda: row.sector_ev_ebitda == null ? null : parseFloat(row.sector_ev_ebitda),
+              sector_fcf_yield: row.sector_fcf_yield == null ? null : parseFloat(row.sector_fcf_yield),
+              sector_dividend_yield: row.sector_dividend_yield == null ? null : parseFloat(row.sector_dividend_yield),
+              market_pe: row.market_pe == null ? null : parseFloat(row.market_pe),
+              market_pb: row.market_pb == null ? null : parseFloat(row.market_pb),
+              market_ps: row.market_ps == null ? null : parseFloat(row.market_ps),
+              market_fcf_yield: row.market_fcf_yield == null ? null : parseFloat(row.market_fcf_yield),
+              market_dividend_yield: row.market_dividend_yield == null ? null : parseFloat(row.market_dividend_yield),
+              earnings_growth_pct: row.earnings_growth_pct == null ? null : parseFloat(row.earnings_growth_pct),
               peg_ratio: (row.stock_pe && row.earnings_growth_pct && row.earnings_growth_pct > 0)
                 ? parseFloat((row.stock_pe / row.earnings_growth_pct).toFixed(2))
                 : null
             }
           },
           quality: {
-            score: parseFloat(row.quality_score) || 0,
+            score: row.quality_score == null ? null : parseFloat(row.quality_score),
             inputs: {
-              return_on_equity_pct: parseFloat(row.return_on_equity_pct) || null,
-              return_on_assets_pct: parseFloat(row.return_on_assets_pct) || null,
-              gross_margin_pct: parseFloat(row.gross_margin_pct) || null,
-              operating_margin_pct: parseFloat(row.operating_margin_pct) || null,
-              profit_margin_pct: parseFloat(row.profit_margin_pct) || null,
-              fcf_to_net_income: parseFloat(row.fcf_to_net_income) || null,
-              operating_cf_to_net_income: parseFloat(row.operating_cf_to_net_income) || null,
-              debt_to_equity: parseFloat(row.debt_to_equity) || null,
-              current_ratio: parseFloat(row.current_ratio) || null,
-              quick_ratio: parseFloat(row.quick_ratio) || null,
-              earnings_surprise_avg: parseFloat(row.earnings_surprise_avg) || null,
-              eps_growth_stability: parseFloat(row.eps_growth_stability) || null,
-              payout_ratio: parseFloat(row.payout_ratio) || null
+              return_on_equity_pct: row.return_on_equity_pct == null ? null : parseFloat(row.return_on_equity_pct),
+              return_on_assets_pct: row.return_on_assets_pct == null ? null : parseFloat(row.return_on_assets_pct),
+              gross_margin_pct: row.gross_margin_pct == null ? null : parseFloat(row.gross_margin_pct),
+              operating_margin_pct: row.operating_margin_pct == null ? null : parseFloat(row.operating_margin_pct),
+              profit_margin_pct: row.profit_margin_pct == null ? null : parseFloat(row.profit_margin_pct),
+              fcf_to_net_income: row.fcf_to_net_income == null ? null : parseFloat(row.fcf_to_net_income),
+              operating_cf_to_net_income: row.operating_cf_to_net_income == null ? null : parseFloat(row.operating_cf_to_net_income),
+              debt_to_equity: row.debt_to_equity == null ? null : parseFloat(row.debt_to_equity),
+              current_ratio: row.current_ratio == null ? null : parseFloat(row.current_ratio),
+              quick_ratio: row.quick_ratio == null ? null : parseFloat(row.quick_ratio),
+              earnings_surprise_avg: row.earnings_surprise_avg == null ? null : parseFloat(row.earnings_surprise_avg),
+              eps_growth_stability: row.eps_growth_stability == null ? null : parseFloat(row.eps_growth_stability),
+              payout_ratio: row.payout_ratio == null ? null : parseFloat(row.payout_ratio)
             }
           },
           growth: {
-            score: parseFloat(row.growth_score) || 0,
+            score: row.growth_score == null ? null : parseFloat(row.growth_score),
             inputs: {
               revenue_growth_3y_cagr: parseFloat(row.revenue_growth_3y_cagr) || null,
               eps_growth_3y_cagr: parseFloat(row.eps_growth_3y_cagr) || null,
-              operating_income_growth_yoy: parseFloat(row.operating_income_growth_yoy) || null,
-              roe_trend: parseFloat(row.roe_trend) || null,
-              sustainable_growth_rate: parseFloat(row.sustainable_growth_rate) || null,
-              fcf_growth_yoy: parseFloat(row.fcf_growth_yoy) || null,
-              net_income_growth_yoy: parseFloat(row.net_income_growth_yoy) || null,
-              gross_margin_trend: parseFloat(row.gross_margin_trend) || null,
-              operating_margin_trend: parseFloat(row.operating_margin_trend) || null,
-              net_margin_trend: parseFloat(row.net_margin_trend) || null,
-              quarterly_growth_momentum: parseFloat(row.quarterly_growth_momentum) || null,
-              asset_growth_yoy: parseFloat(row.asset_growth_yoy) || null
+              operating_income_growth_yoy: row.operating_income_growth_yoy == null ? null : parseFloat(row.operating_income_growth_yoy),
+              roe_trend: row.roe_trend == null ? null : parseFloat(row.roe_trend),
+              sustainable_growth_rate: row.sustainable_growth_rate == null ? null : parseFloat(row.sustainable_growth_rate),
+              fcf_growth_yoy: row.fcf_growth_yoy == null ? null : parseFloat(row.fcf_growth_yoy),
+              net_income_growth_yoy: row.net_income_growth_yoy == null ? null : parseFloat(row.net_income_growth_yoy),
+              gross_margin_trend: row.gross_margin_trend == null ? null : parseFloat(row.gross_margin_trend),
+              operating_margin_trend: row.operating_margin_trend == null ? null : parseFloat(row.operating_margin_trend),
+              net_margin_trend: row.net_margin_trend == null ? null : parseFloat(row.net_margin_trend),
+              quarterly_growth_momentum: row.quarterly_growth_momentum == null ? null : parseFloat(row.quarterly_growth_momentum),
+              asset_growth_yoy: row.asset_growth_yoy == null ? null : parseFloat(row.asset_growth_yoy)
             }
           },
           positioning: {
-            score: parseFloat(row.positioning_score) || 0,
+            score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
             components: {
-              institutional_ownership: parseFloat(row.institutional_ownership) || null,
-              insider_ownership: parseFloat(row.insider_ownership) || null,
-              short_percent_of_float: parseFloat(row.short_percent_of_float) || null,
-              short_ratio: parseFloat(row.short_ratio) || null,
-              days_to_cover: parseFloat(row.short_ratio) || null,
-              institution_count: parseInt(row.institution_count) || null,
-              acc_dist_rating: parseFloat(row.acc_dist_rating) || null
+              institutional_ownership: row.institutional_ownership == null ? null : parseFloat(row.institutional_ownership),
+              insider_ownership: row.insider_ownership == null ? null : parseFloat(row.insider_ownership),
+              short_percent_of_float: row.short_percent_of_float == null ? null : parseFloat(row.short_percent_of_float),
+              short_ratio: row.short_ratio == null ? null : parseFloat(row.short_ratio),
+              days_to_cover: row.short_ratio == null ? null : parseFloat(row.short_ratio),
+              institution_count: row.institution_count == null ? null : parseInt(row.institution_count),
+              acc_dist_rating: row.acc_dist_rating == null ? null : parseFloat(row.acc_dist_rating)
             }
           },
           sentiment: {
-            score: parseFloat(row.sentiment_score) || 0,
+            score: row.sentiment_score == null ? null : parseFloat(row.sentiment_score),
             components: {}
           },
           risk: {
-            score: parseFloat(row.risk_score) || null,
+            score: row.risk_score == null ? null : parseFloat(row.risk_score),
             inputs: {
               volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
-              volatility_risk_component: parseFloat(row.volatility_risk_component) || null,
+              volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
               max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
-              beta: parseFloat(row.beta) || null
+              beta: row.beta == null ? null : parseFloat(row.beta)
             }
           }
         },
@@ -832,34 +832,34 @@ router.get("/:symbol", async (req, res) => {
         },
         // Keep snake_case versions for backward compatibility with frontend
         company_name: row.company_name,
-        composite_score: parseFloat(row.composite_score) || 0,
-        momentum_score: parseFloat(row.momentum_score) || 0,
-        value_score: parseFloat(row.value_score) || 0,
-        quality_score: parseFloat(row.quality_score) || 0,
-        growth_score: parseFloat(row.growth_score) || 0,
-        positioning_score: parseFloat(row.positioning_score) || 0,
-        sentiment_score: parseFloat(row.sentiment_score) || 0,
-        risk_score: parseFloat(row.risk_score) || null,
-        current_price: parseFloat(row.current_price) || 0,
+        composite_score: row.composite_score == null ? null : parseFloat(row.composite_score),
+        momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score),
+        value_score: row.value_score == null ? null : parseFloat(row.value_score),
+        quality_score: row.quality_score == null ? null : parseFloat(row.quality_score),
+        growth_score: row.growth_score == null ? null : parseFloat(row.growth_score),
+        positioning_score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
+        sentiment_score: row.sentiment_score == null ? null : parseFloat(row.sentiment_score),
+        risk_score: row.risk_score == null ? null : parseFloat(row.risk_score),
+        current_price: row.current_price == null ? null : parseFloat(row.current_price),
         price_change_1d: parseFloat(row.price_change_1d) || 0,
         price_change_5d: parseFloat(row.price_change_5d) || 0,
         price_change_30d: parseFloat(row.price_change_30d) || 0,
         volatility_30d: parseFloat(row.volatility_30d) || 0,
-        market_cap: parseInt(row.market_cap) || 0,
+        market_cap: row.market_cap == null ? null : parseInt(row.market_cap),
         volume_avg_30d: parseInt(row.volume_avg_30d) || 0,
-        pe_ratio: parseFloat(row.pe_ratio) || null,
-        rsi: parseFloat(row.rsi) || 0,
+        pe_ratio: row.pe_ratio == null ? null : parseFloat(row.pe_ratio),
+        rsi: row.rsi == null ? null : parseFloat(row.rsi),
         sma_20: parseFloat(row.sma_20) || 0,
         sma_50: parseFloat(row.sma_50) || 0,
-        macd: parseFloat(row.macd) || null,
+        macd: row.macd == null ? null : parseFloat(row.macd),
         last_updated: row.last_updated,
         score_date: row.score_date,
         // Risk inputs for frontend display (Risk Factor Analysis)
         risk_inputs: {
           volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
-          volatility_risk_component: parseFloat(row.volatility_risk_component) || null,
+          volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
           max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
-          beta: parseFloat(row.beta) || null
+          beta: row.beta == null ? null : parseFloat(row.beta)
         }
       },
       metadata: {

@@ -823,13 +823,22 @@ describe("Scores Routes Unit Tests", () => {
         }
 
         expect(valueInputs).toHaveProperty("stock_pb");
-        expect(valueInputs.stock_pb).toBeNull(); // May be null
+        // May be null or a number - both valid
+        if (valueInputs.stock_pb !== null) {
+          expect(typeof valueInputs.stock_pb).toBe("number");
+        }
 
         expect(valueInputs).toHaveProperty("stock_ps");
-        expect(valueInputs.stock_ps).toBeNull(); // May be null
+        // May be null or a number - both valid
+        if (valueInputs.stock_ps !== null) {
+          expect(typeof valueInputs.stock_ps).toBe("number");
+        }
 
         expect(valueInputs).toHaveProperty("stock_ev_ebitda");
-        expect(valueInputs.stock_ev_ebitda).toBeNull(); // May be null
+        // May be null or a number - both valid
+        if (valueInputs.stock_ev_ebitda !== null) {
+          expect(typeof valueInputs.stock_ev_ebitda).toBe("number");
+        }
 
         expect(valueInputs).toHaveProperty("stock_fcf_yield");
         if (valueInputs.stock_fcf_yield !== null) {
