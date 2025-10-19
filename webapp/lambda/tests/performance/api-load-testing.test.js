@@ -1,6 +1,18 @@
 const request = require("supertest");
-const { app } = require("../../index");
 const jwt = require("jsonwebtoken");
+
+// Mock database
+jest.mock("../../utils/database", () => ({
+  query: jest.fn(),
+  initializeDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn().mockResolvedValue(undefined),
+  getPool: jest.fn(),
+  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
+  healthCheck: jest.fn(),
+}));
+
+const { query } = require("../../utils/database");
+const { app } = require("../../index");
 
 describe("API Load Testing and Performance", () => {
   const validUserId = "load-test-user";

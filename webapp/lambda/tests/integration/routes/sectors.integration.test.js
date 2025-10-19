@@ -48,6 +48,11 @@ describe("Sectors Routes", () => {
 
     // Mock database query responses based on SQL patterns
     query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("COUNT(*)") || sql.includes("count(*)")) {
+        return Promise.resolve({ rows: [{ count: 0, total: 0 }] });
+      }
+
       // Schema validation queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });
