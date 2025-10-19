@@ -25,7 +25,7 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import app AFTER mocking all dependencies
-const app = require("../../../server");
+let app = require("../../../server");
 
 describe("Alerts Routes", () => {
   beforeAll(async () => {

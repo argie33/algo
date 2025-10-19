@@ -34,6 +34,7 @@ jest.mock("../../../middleware/auth", () => ({
 // Import the mocked database
 
 
+app = require("../../../server");
 describe("5xx Server Error Scenarios Integration", () => {
   
     beforeEach(() => {

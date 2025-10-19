@@ -33,6 +33,7 @@ jest.mock("../../../middleware/auth", () => ({
 // Import the mocked database
 
 
+app = require("../../../server");
 describe("Security Headers Integration", () => {
   
     beforeEach(() => {

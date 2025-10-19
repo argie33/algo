@@ -34,6 +34,7 @@ jest.mock("../../../middleware/auth", () => ({
 // Import the mocked database
 
 
+app = require("../../../server");
 describe("Error Handler Middleware Integration", () => {
   
     beforeEach(() => {
