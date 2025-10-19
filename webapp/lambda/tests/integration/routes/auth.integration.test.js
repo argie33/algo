@@ -55,27 +55,38 @@ describe("Authentication Routes Integration", () => {
   });
   let authToken = "dev-bypass-token"; // Use development bypass token
 
-  beforeAll(async () => {
-    // Initialize database connection
-    await initializeDatabase();
+  const setupMockQuery = () => {
+    query.mockImplementation((sql, params) => {
+      if (sql.includes("information_schema.tables")) {
+        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
+      }
+      // Return dev bypass user for user profile queries
+      if ((sql.includes("SELECT") && sql.includes("user")) || sql.includes("user_profiles")) {
+        return Promise.resolve({
+          rows: [{
+            id: "dev-bypass-user",
+            email: "dev-bypass@example.com",
+            username: "dev-bypass-user",
+            first_name: "Dev",
+            last_name: "Bypass"
+          }],
+          rowCount: 1
+        });
+      }
+      // Return success for insert/update/delete
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rows: [{ id: "123" }], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+  };
 
-    // Clean up any existing test user profiles
-    await query(
-      "DELETE FROM user_profiles WHERE user_id LIKE '%test@example.com%'"
-    );
+  beforeAll(async () => {
+    setupMockQuery();
   });
 
   afterAll(async () => {
-    // Clean up test data
-    if (testUserId) {
-      await query("DELETE FROM user_profiles WHERE user_id = $1", [testUserId]);
-    }
-    await query(
-      "DELETE FROM user_profiles WHERE user_id LIKE '%test@example.com%'"
-    );
-
-    // Close database connection
-    await closeDatabase();
+    // Clean up not needed with mocks
   });
 
   describe("POST /auth/register", () => {

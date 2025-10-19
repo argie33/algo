@@ -47,11 +47,65 @@ describe("Metrics Routes Integration", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
-      // Default: return empty rows for all queries
+      // Handle table existence checks
       if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
+        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
       }
-      return Promise.resolve({ rows: [] });
+
+      // Handle key_metrics queries
+      if (sql.includes("FROM key_metrics")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: 'AAPL',
+              trailing_pe: 25.5,
+              forward_pe: 22.1,
+              price_to_book: 45.2,
+              book_value: 3.32,
+              price_to_sales_ttm: 28.1,
+              enterprise_value: 2800000000,
+              ev_to_revenue: 25.5,
+              ev_to_ebitda: 18.2,
+              profit_margin_pct: 25.5,
+              gross_margin_pct: 46.2,
+              ebitda_margin_pct: 32.1,
+              operating_margin_pct: 30.5,
+              return_on_assets_pct: 15.2,
+              return_on_equity_pct: 85.3,
+              current_ratio: 1.07,
+              quick_ratio: 1.02,
+              debt_to_equity: 1.85,
+              eps_trailing: 6.05,
+              eps_forward: 6.54,
+              eps_current_year: 6.54,
+              price_eps_current_year: 180.2,
+              dividend_yield: 0.5,
+              payout_ratio: 15.2,
+              total_cash: 29200000000,
+              cash_per_share: 1.85,
+              operating_cashflow: 110100000000,
+              free_cashflow: 86500000000,
+              total_debt: 106600000000,
+              ebitda: 130100000000,
+              total_revenue: 383285000000,
+              net_income: 99803000000,
+              gross_profit: 176868000000,
+              earnings_q_growth_pct: 4.7,
+              revenue_growth_pct: 5.1,
+              earnings_growth_pct: 6.2,
+              dividend_rate: 0.24,
+              five_year_avg_dividend_yield: 1.5,
+              last_annual_dividend_amt: 0.97,
+              last_annual_dividend_yield: 0.6,
+              peg_ratio: 2.1
+            }
+          ],
+          rowCount: 1
+        });
+      }
+
+      // Default: return empty rows for all other queries
+      return Promise.resolve({ rows: [], rowCount: 0 });
     });
   });
 

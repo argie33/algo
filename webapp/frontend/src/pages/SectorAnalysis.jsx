@@ -70,11 +70,11 @@ const SectorAnalysis = () => {
     return sectorMapping[industriesSectorName] || industriesSectorName;
   };
 
-  // Fetch sector performance data (using original endpoint)
+  // Fetch sector performance data (consolidated /api/sectors endpoint)
   const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
     queryKey: ["sector-performance"],
     queryFn: async () => {
-      const response = await api.get("/api/market/sectors?limit=20");
+      const response = await api.get("/api/sectors/sectors-with-history?limit=20");
       return response.data;
     },
     staleTime: 60000,
@@ -82,11 +82,11 @@ const SectorAnalysis = () => {
     retry: false,
   });
 
-  // Fetch industry performance data (using original endpoint)
+  // Fetch industry performance data (consolidated /api/sectors endpoint)
   const { data: industryData, isLoading: industryLoading, error: industryError } = useQuery({
     queryKey: ["industry-performance"],
     queryFn: async () => {
-      const response = await api.get("/api/market/industries?limit=50");
+      const response = await api.get("/api/sectors/industries-with-history?limit=50");
       return response.data;
     },
     staleTime: 60000,

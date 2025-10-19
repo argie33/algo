@@ -33,19 +33,20 @@ let app = require("../../../server");
 // SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
 describe("Backtest Routes", () => {
   beforeAll(async () => {
-    beforeEach(() => {
+    process.env.ALLOW_DEV_BYPASS = "true";
+    await initializeDatabase();
+    app = require("../../../server");
+  });
+
+  beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
+        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
       }
-      return Promise.resolve({ rows: [] });
+      return Promise.resolve({ rows: [], rowCount: 0 });
     });
-  });
-    process.env.ALLOW_DEV_BYPASS = "true";
-    await initializeDatabase();
-    app = require("../../../server");
   });
 
   afterAll(async () => {

@@ -734,7 +734,7 @@ function StockExplorer() {
                     <MenuItem value="marketCap">Market Cap</MenuItem>
                     <MenuItem value="currentPrice">Price</MenuItem>
                     <MenuItem value="volume">Volume</MenuItem>
-                    <MenuItem value="risk_score">Risk Score</MenuItem>
+                    <MenuItem value="consistency_score">Consistency Score</MenuItem>
                   </TextField>
 
                   <Button
@@ -891,11 +891,11 @@ function StockExplorer() {
                             </Grid>
                             <Grid item xs={2}>
                               <Chip
-                                label={`Risk: ${(stock.risk_score || 0).toFixed(1)}`}
+                                label={`Consistency: ${(stock.consistency_score || 0).toFixed(1)}`}
                                 color={
-                                  (stock.risk_score || 0) < 30
+                                  (stock.consistency_score || 0) < 30
                                     ? "success"
-                                    : (stock.risk_score || 0) < 50
+                                    : (stock.consistency_score || 0) < 50
                                     ? "warning"
                                     : "error"
                                 }

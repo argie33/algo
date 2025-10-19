@@ -53,12 +53,26 @@ describe("Sectors Routes", () => {
     query.mockImplementation((sql, params) => {
       // Handle COUNT queries
       if (sql.includes("COUNT(*)") || sql.includes("count(*)")) {
-        return Promise.resolve({ rows: [{ count: 0, total: 0 }] });
+        return Promise.resolve({ rows: [{ count: 243, total: 243 }], rowCount: 1 });
       }
 
       // Schema validation queries
       if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
+        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
+      }
+
+      // Sector analysis queries with market data
+      if (sql.includes("SELECT") && sql.includes("sector") && (sql.includes("performance") || sql.includes("return"))) {
+        return Promise.resolve({
+          rows: [
+            { sector: "Technology", performance: 12.5, return_1d: 1.2, return_1m: 5.3, stocks_count: 40 },
+            { sector: "Healthcare", performance: 8.3, return_1d: 0.8, return_1m: 3.2, stocks_count: 35 },
+            { sector: "Financials", performance: 6.2, return_1d: 0.5, return_1m: 2.1, stocks_count: 30 },
+            { sector: "Energy", performance: -2.1, return_1d: -0.3, return_1m: -1.2, stocks_count: 15 },
+            { sector: "Consumer", performance: 4.5, return_1d: 0.3, return_1m: 1.8, stocks_count: 25 }
+          ],
+          rowCount: 5
+        });
       }
 
       // Stock symbols table queries
@@ -67,7 +81,9 @@ describe("Sectors Routes", () => {
           rows: [
             { symbol: "AAPL", name: "Apple Inc." },
             { symbol: "MSFT", name: "Microsoft Corp" },
+            { symbol: "GOOGL", name: "Alphabet Inc." },
           ],
+          rowCount: 3
         });
       }
 
@@ -77,7 +93,9 @@ describe("Sectors Routes", () => {
           rows: [
             { symbol: "AAPL", date: "2025-10-18", close: 230.5, volume: 50000000 },
             { symbol: "MSFT", date: "2025-10-18", close: 430.0, volume: 30000000 },
+            { symbol: "GOOGL", date: "2025-10-18", close: 155.0, volume: 25000000 },
           ],
+          rowCount: 3
         });
       }
 
@@ -91,7 +109,14 @@ describe("Sectors Routes", () => {
               sector: "Technology",
               industry: "Consumer Electronics",
             },
+            {
+              symbol: "MSFT",
+              name: "Microsoft Corp",
+              sector: "Technology",
+              industry: "Software",
+            },
           ],
+          rowCount: 2
         });
       }
 
@@ -107,12 +132,21 @@ describe("Sectors Routes", () => {
               growth_score: 72,
               composite_score: 73,
             },
+            {
+              symbol: "MSFT",
+              quality_score: 72,
+              momentum_score: 75,
+              value_score: 60,
+              growth_score: 70,
+              composite_score: 69,
+            }
           ],
+          rowCount: 2
         });
       }
 
       // Default case - return empty rows
-      return Promise.resolve({ rows: [] });
+      return Promise.resolve({ rows: [], rowCount: 0 });
     });
   });
 

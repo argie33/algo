@@ -851,7 +851,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # LOWER volatility/drawdown/beta = HIGHER score (safer stocks)
         # REQUIRES ALL DATA or None - NO NEUTRAL DEFAULTS
         # ============================================================
-        risk_score = None
+        consistency_score = None
         risk_inputs = {
             'volatility_12m_pct': None,
             'downside_volatility_pct': None,
@@ -931,16 +931,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             beta_percentile = max(0, min(100, 100 - (beta * 50)))  # Scale: 1.0=50, 0.5=75, 1.5=25
             liquidity_percentile = liquidity_risk
 
-            # Calculate composite risk score with new weighting
+            # Calculate composite consistency score with new weighting
             # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
-            risk_score = (
+            consistency_score = (
                 vol_percentile * 0.30 +
                 downside_percentile * 0.25 +
                 drawdown_percentile * 0.25 +
                 beta_percentile * 0.15 +
                 liquidity_percentile * 0.05
             )
-            risk_score = max(0, min(100, risk_score))
+            consistency_score = max(0, min(100, consistency_score))
 
             # Store risk inputs for display
             risk_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
@@ -949,16 +949,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             risk_inputs['beta'] = round(beta, 3)
             risk_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
 
-            logger.info(f"{symbol} Risk Score: {risk_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
+            logger.info(f"{symbol} Consistency Score: {consistency_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
 
         except Exception as e:
             import traceback
             logger.error(f"{symbol}: Risk calculation failed: {e}")
             logger.error(traceback.format_exc())
             conn.rollback()
-            # Use neutral/default risk score rather than failing
-            risk_score = 50
-            logger.warning(f"{symbol}: Using neutral default risk_score of 50")
+            # Use neutral/default consistency score rather than failing
+            consistency_score = 50
+            logger.warning(f"{symbol}: Using neutral default consistency_score of 50")
 
         # Get quality metrics from key_metrics table for percentile-based quality score
         stock_roe = None
@@ -1588,13 +1588,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             value_score = 50
         if quality_score is None:
             quality_score = 50
-        if risk_score is None:
-            risk_score = 50
+        if consistency_score is None:
+            consistency_score = 50
 
-        # Composite Score (7-factor weighted average - Sentiment EXCLUDED, Risk NOW INCLUDED)
+        # Composite Score (7-factor weighted average - Sentiment EXCLUDED, Consistency NOW INCLUDED)
         # Weights: Momentum (18.95%), Trend (13.68%), Growth (17.11%), Value (13.68%),
-        #          Quality (13.68%), Risk (12.63%), Positioning (10.26%)
-        # Risk (12.63%) is NEW - critical for preventing high-risk stocks from scoring high
+        #          Quality (13.68%), Consistency (12.63%), Positioning (10.26%)
+        # Consistency (12.63%) is NEW - critical for preventing high-volatility stocks from scoring high
         # Sentiment (5%) redistributed proportionally to all other factors
         # If positioning_score is None, redistribute its 10.26% weight proportionally to other factors
         if positioning_score is not None:
@@ -1603,21 +1603,21 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 trend_score * 0.1368 +                   # Trend alignment
                 growth_score * 0.1711 +                  # Growth drivers
                 value_score * 0.1368 +                   # Valuation
-                quality_score * 0.1368 +                 # Quality (other than risk)
-                risk_score * 0.1263 +                    # Risk management (NEW)
+                quality_score * 0.1368 +                 # Quality (other than consistency)
+                consistency_score * 0.1263 +             # Consistency (NEW)
                 positioning_score * 0.1026               # Institutional positioning
             )
         else:
             # Redistribute positioning's 10.26% weight proportionally across other factors
             # New weights: Momentum (21.26%), Trend (15.32%), Growth (19.17%), Value (15.32%),
-            #              Quality (15.32%), Risk (14.16%)
+            #              Quality (15.32%), Consistency (14.16%)
             composite_score = (
                 momentum_score * 0.2126 +                # Short-term momentum
                 trend_score * 0.1532 +                   # Trend alignment
                 growth_score * 0.1917 +                  # Growth drivers
                 value_score * 0.1532 +                   # Valuation
                 quality_score * 0.1532 +                 # Quality
-                risk_score * 0.1416                      # Risk management
+                consistency_score * 0.1416               # Consistency
             )
 
         cur.close()
@@ -1636,7 +1636,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'growth_score': float(round(clamp_score(growth_score), 2)),
             'positioning_score': float(round(clamp_score(positioning_score), 2)),
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)),
-            'risk_score': float(round(clamp_score(risk_score), 2)) if risk_score is not None else None,
+            'consistency_score': float(round(clamp_score(consistency_score), 2)) if consistency_score is not None else None,
             'risk_inputs': risk_inputs,
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
@@ -1687,7 +1687,7 @@ def save_stock_score(conn, score_data):
         upsert_sql = """
         INSERT INTO stock_scores (
             symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
-            positioning_score, sentiment_score, risk_score, risk_inputs,
+            positioning_score, sentiment_score, consistency_score, risk_inputs,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio,
@@ -1698,7 +1698,7 @@ def save_stock_score(conn, score_data):
             score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
-            %(positioning_score)s, %(sentiment_score)s, %(risk_score)s, %(risk_inputs)s,
+            %(positioning_score)s, %(sentiment_score)s, %(consistency_score)s, %(risk_inputs)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s,
@@ -1716,7 +1716,7 @@ def save_stock_score(conn, score_data):
             growth_score = EXCLUDED.growth_score,
             positioning_score = EXCLUDED.positioning_score,
             sentiment_score = EXCLUDED.sentiment_score,
-            risk_score = EXCLUDED.risk_score,
+            consistency_score = EXCLUDED.consistency_score,
             risk_inputs = EXCLUDED.risk_inputs,
             rsi = EXCLUDED.rsi,
             macd = EXCLUDED.macd,

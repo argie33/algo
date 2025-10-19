@@ -41,11 +41,55 @@ describe("Portfolio Integration Tests - 100% Coverage", () => {
     beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
-      // Default: return empty rows for all queries
+      // Handle table existence checks
       if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
+        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
       }
-      return Promise.resolve({ rows: [] });
+
+      // Handle portfolio summary queries
+      if (sql.includes("portfolio") && (sql.includes("SUM") || sql.includes("AVG"))) {
+        return Promise.resolve({
+          rows: [{
+            total_value: 100000,
+            cash: 25000,
+            invested_value: 75000,
+            total_gain_loss: 5250,
+            gain_loss_pct: 5.25,
+            buying_power: 50000
+          }],
+          rowCount: 1
+        });
+      }
+
+      // Handle holdings/positions queries
+      if (sql.includes("holdings") || sql.includes("positions")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: 'AAPL',
+              quantity: 50,
+              average_price: 150.00,
+              current_price: 155.00,
+              position_value: 7750,
+              gain_loss: 250,
+              gain_loss_pct: 3.33
+            },
+            {
+              symbol: 'MSFT',
+              quantity: 30,
+              average_price: 300.00,
+              current_price: 310.00,
+              position_value: 9300,
+              gain_loss: 300,
+              gain_loss_pct: 3.33
+            }
+          ],
+          rowCount: 2
+        });
+      }
+
+      // Default: return empty rows for all queries
+      return Promise.resolve({ rows: [], rowCount: 0 });
     });
   });
   describe("Core Portfolio APIs", () => {

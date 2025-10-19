@@ -37,13 +37,49 @@ describe("Stocks Routes Integration Tests", () => {
     query.mockImplementation((sql, params) => {
       // Handle COUNT queries
       if (sql.includes("COUNT(*)") || sql.includes("count(*)")) {
-        return Promise.resolve({ rows: [{ count: 0, total: 0 }] });
+        return Promise.resolve({ rows: [{ count: 3153, total: 3153 }], rowCount: 1 });
       }
-      // Default: return empty rows for all queries
+      // Handle table existence checks
       if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
+        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
       }
-      return Promise.resolve({ rows: [] });
+      // Handle stock data queries with comprehensive metrics
+      if (sql.includes("FROM")) {
+        return Promise.resolve({
+          rows: [
+            {
+              symbol: "AAPL",
+              sector: "Technology",
+              marketCap: 2800000000000,
+              price: 150.5,
+              volume: 50000000,
+              financialMetrics: {
+                trailingPE: 25.5,
+                forwardPE: 22.1,
+                dividendYield: 0.5,
+                profitMargin: 25.5,
+                debtToEquity: 1.85
+              }
+            },
+            {
+              symbol: "MSFT",
+              sector: "Technology",
+              marketCap: 2500000000000,
+              price: 300.0,
+              volume: 30000000,
+              financialMetrics: {
+                trailingPE: 30.2,
+                forwardPE: 27.5,
+                dividendYield: 0.8,
+                profitMargin: 35.2,
+                debtToEquity: 0.95
+              }
+            }
+          ],
+          rowCount: 2
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
     });
   });
   afterAll(async () => {
