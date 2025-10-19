@@ -714,24 +714,24 @@ router.get("/:symbol", async (req, res) => {
             },
             inputs: {
               // Relative Momentum (vs other stocks)
-              momentum_12m_1: parseFloat(row.momentum_12m_1) || null,
-              momentum_6m: parseFloat(row.momentum_6m) || row.momentum_medium_term == null ? null : parseFloat(row.momentum_medium_term),
-              momentum_3m: parseFloat(row.momentum_3m) || null,
+              momentum_12m_1: row.momentum_12m_1 == null ? null : parseFloat(row.momentum_12m_1),
+              momentum_6m: row.momentum_6m == null ? null : parseFloat(row.momentum_6m),
+              momentum_3m: row.momentum_3m == null ? null : parseFloat(row.momentum_3m),
               risk_adjusted_momentum: row.risk_adjusted_momentum == null ? null : parseFloat(row.risk_adjusted_momentum),
               // Absolute Momentum (vs itself)
-              price_vs_sma_50: parseFloat(row.price_vs_sma_50) || null,
-              price_vs_sma_200: parseFloat(row.price_vs_sma_200) || null,
-              price_vs_52w_high: parseFloat(row.price_vs_52w_high) || null,
+              price_vs_sma_50: row.price_vs_sma_50 == null ? null : parseFloat(row.price_vs_sma_50),
+              price_vs_sma_200: row.price_vs_sma_200 == null ? null : parseFloat(row.price_vs_sma_200),
+              price_vs_52w_high: row.price_vs_52w_high == null ? null : parseFloat(row.price_vs_52w_high),
               // Supporting data
-              high_52w: parseFloat(row.high_52w) || null,
-              sma_50: parseFloat(row.sma_50) || null,
-              sma_200: parseFloat(row.sma_200) || null,
-              volatility_12m: parseFloat(row.volatility_12m) || null,
+              high_52w: row.high_52w == null ? null : parseFloat(row.high_52w),
+              sma_50: row.sma_50 == null ? null : parseFloat(row.sma_50),
+              sma_200: row.sma_200 == null ? null : parseFloat(row.sma_200),
+              volatility_12m: row.volatility_12m == null ? null : parseFloat(row.volatility_12m),
               // Fallback for legacy display
               fallbacks: {
-                momentum_medium_term: parseFloat(row.momentum_medium_term)?.toFixed(2) || null,
-                roc_252d: parseFloat(row.roc_252d)?.toFixed(2) || undefined,
-                momentum_score: parseFloat(row.momentum_score)?.toFixed(2) || null
+                momentum_medium_term: row.momentum_medium_term == null ? null : parseFloat(row.momentum_medium_term)?.toFixed(2),
+                roc_252d: row.roc_252d == null ? null : parseFloat(row.roc_252d)?.toFixed(2),
+                momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score)?.toFixed(2)
               }
             }
           },
@@ -782,8 +782,8 @@ router.get("/:symbol", async (req, res) => {
           growth: {
             score: row.growth_score == null ? null : parseFloat(row.growth_score),
             inputs: {
-              revenue_growth_3y_cagr: parseFloat(row.revenue_growth_3y_cagr) || null,
-              eps_growth_3y_cagr: parseFloat(row.eps_growth_3y_cagr) || null,
+              revenue_growth_3y_cagr: row.revenue_growth_3y_cagr == null ? null : parseFloat(row.revenue_growth_3y_cagr),
+              eps_growth_3y_cagr: row.eps_growth_3y_cagr == null ? null : parseFloat(row.eps_growth_3y_cagr),
               operating_income_growth_yoy: row.operating_income_growth_yoy == null ? null : parseFloat(row.operating_income_growth_yoy),
               roe_trend: row.roe_trend == null ? null : parseFloat(row.roe_trend),
               sustainable_growth_rate: row.sustainable_growth_rate == null ? null : parseFloat(row.sustainable_growth_rate),
@@ -824,10 +824,10 @@ router.get("/:symbol", async (req, res) => {
         },
         // Nested performance object for tests
         performance: {
-          priceChange1d: parseFloat(row.price_change_1d) || 0,
-          priceChange5d: parseFloat(row.price_change_5d) || 0,
-          priceChange30d: parseFloat(row.price_change_30d) || 0,
-          volatility30d: parseFloat(row.volatility_30d) || 0
+          priceChange1d: row.price_change_1d == null ? null : parseFloat(row.price_change_1d),
+          priceChange5d: row.price_change_5d == null ? null : parseFloat(row.price_change_5d),
+          priceChange30d: row.price_change_30d == null ? null : parseFloat(row.price_change_30d),
+          volatility30d: row.volatility_30d == null ? null : parseFloat(row.volatility_30d)
         },
         // Keep snake_case versions for backward compatibility with frontend
         company_name: row.company_name,
