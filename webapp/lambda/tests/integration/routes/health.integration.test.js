@@ -6,9 +6,13 @@
  */
 
 const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
+const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database"); // Import the actual Express app - NO MOCKS
 
 describe("Health Routes - Real Data Validation", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/health", () => {
     test("should return quick health check", async () => {

@@ -6,9 +6,13 @@
  */
 
 const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
+const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database"); // Import the actual Express app - NO MOCKS
 
 describe("Calendar Routes - Real Data Validation", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/calendar", () => {
     test("should return calendar endpoints", async () => {

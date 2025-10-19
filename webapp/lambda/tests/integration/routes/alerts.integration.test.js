@@ -6,9 +6,13 @@
  */
 
 const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
+const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database"); // Import the actual Express app - NO MOCKS
 
 describe("Alerts Routes - Real Data Validation", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/alerts/active", () => {
     test("should return active alerts with proper structure", async () => {

@@ -1,9 +1,13 @@
 const request = require("supertest");
 const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 
 
 
 describe("Dashboard Routes Integration Tests", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/dashboard (Dashboard Root)", () => {
     test("should return dashboard endpoints and operational status", async () => {

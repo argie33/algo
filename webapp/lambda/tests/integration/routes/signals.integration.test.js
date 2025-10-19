@@ -15,6 +15,9 @@ const request = require("supertest");
 const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
 
 describe("Signals - Routes - Real Data Validation", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
       }
       return Promise.resolve({ rows: [] });
     });

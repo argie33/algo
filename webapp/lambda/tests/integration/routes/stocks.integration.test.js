@@ -6,9 +6,13 @@
  */
 
 const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
+const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database"); // Import the actual Express app - NO MOCKS
 
 describe("Stocks Routes Integration - Real Data Validation", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
   describe("GET /stocks - Real Data Validation", () => {
     test("should return stocks from real database (NOT mocked)", async () => {
       const response = await request(app).get("/stocks");

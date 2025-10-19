@@ -1,9 +1,13 @@
 const request = require("supertest");
 const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 
 
 
 describe("Market Routes Unit Tests", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/market", () => {
     test("should return market endpoint information", async () => {

@@ -13,9 +13,13 @@
  */
 
 const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
+const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database"); // Import the actual Express app - NO MOCKS
 
 describe("Scores Integration - Real Data Validation Routes - Real Data Validation", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
   describe("GET /scores/ping", () => {
     test("should return ping response", async () => {
       const response = await request(app).get("/scores/ping");

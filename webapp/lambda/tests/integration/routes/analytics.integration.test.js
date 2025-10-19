@@ -1,8 +1,12 @@
 const request = require("supertest");
 const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 
 
 describe("Analytics Routes", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/analytics", () => {
     test("should return analytics endpoints", async () => {

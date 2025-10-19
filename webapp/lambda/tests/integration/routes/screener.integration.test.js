@@ -1,8 +1,12 @@
 const request = require("supertest");
 const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 
 
 describe("Screener Routes", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/screener", () => {
     test("should return screener endpoints", async () => {

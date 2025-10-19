@@ -5,10 +5,14 @@
 
 const request = require("supertest");
 const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 
 const auth = { Authorization: "Bearer dev-bypass-token" };
 
 describe("Portfolio Integration Tests - Real Data", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
   // Core Portfolio Endpoints
   describe("Core Portfolio APIs", () => {
     test("GET /api/portfolio - should return portfolio API info", async () => {

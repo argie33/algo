@@ -1,8 +1,12 @@
 const request = require("supertest");
 const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 
 
 describe("Trades Routes", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/trades", () => {
     test("should return trade API information", async () => {

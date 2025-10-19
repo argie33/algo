@@ -1,9 +1,13 @@
 const request = require("supertest");
 const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 
 
 // SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
 describe("Backtest Routes", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
 
   describe("GET /api/backtest", () => {
     test("should return user backtest results", async () => {

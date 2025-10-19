@@ -6,9 +6,13 @@
  */
 
 const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
+const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database"); // Import the actual Express app - NO MOCKS
 
 describe("Earnings Data - Real Data Validation", () => {
+  beforeAll(async () => {
+    await initializeDatabase();
+  });
   describe("Earnings Calendar (Using Real Data)", () => {
     test("should return earnings data using loader table schemas", async () => {
       const response = await request(app).get("/api/earnings");
