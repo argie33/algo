@@ -8,6 +8,9 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+
 describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
   let app;
   beforeAll(() => {

@@ -17,6 +17,10 @@ jest.mock("../../../middleware/auth", () => ({
     next();
   }),
 }));
+
+// Import after mocks
+const { authenticateToken } = require("../../../middleware/auth");
+const { query } = require("../../../utils/database");
 // Import the mocked function
 // Mock optional services that may not exist
 jest.mock(

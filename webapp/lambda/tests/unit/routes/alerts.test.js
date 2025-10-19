@@ -8,6 +8,9 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+
 describe("Alerts Routes Unit Tests", () => {
   let app;
 

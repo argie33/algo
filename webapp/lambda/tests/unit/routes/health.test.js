@@ -7,6 +7,9 @@ jest.mock("../../../utils/database", () => ({
   getPool: jest.fn(),
   healthCheck: jest.fn(),
 }));
+
+const { query, initializeDatabase, getPool, healthCheck } = require('../../../utils/database');
+
 // Now import the routes after mocking
 const healthRoutes = require("../../../routes/health");
   query,

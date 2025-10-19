@@ -7,6 +7,9 @@ const tradingModeHelper = require("../../../utils/tradingModeHelper");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+
 describe("Trading Mode Helper Unit Tests", () => {
   let mockQuery;
   beforeEach(() => {

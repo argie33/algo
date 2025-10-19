@@ -17,6 +17,9 @@ jest.mock("../../../middleware/auth", () => ({
     next();
   },
 }));
+
+const { query } = require('../../../utils/database');
+
 // Mock API Key Service
 jest.mock("../../../utils/apiKeyService", () => ({
   listProviders: jest.fn(),

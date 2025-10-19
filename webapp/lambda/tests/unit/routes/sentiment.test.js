@@ -9,6 +9,8 @@ const express = require("express");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 // Import sentiment route
 const sentimentRoutes = require("../../../routes/sentiment");
 describe("Sentiment Routes - Unit Tests", () => {
@@ -23,7 +25,6 @@ describe("Sentiment Routes - Unit Tests", () => {
       req.user = { sub: "test-user-123" }; // Mock authenticated user
       next();
     });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
     // Add response formatter middleware
     const responseFormatter = require("../../../middleware/responseFormatter");

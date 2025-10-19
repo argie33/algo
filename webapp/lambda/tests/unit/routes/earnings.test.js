@@ -5,6 +5,9 @@ const earningsRoutes = require("../../../routes/earnings");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+
 describe("Earnings Routes", () => {
   let app;
   beforeAll(() => {

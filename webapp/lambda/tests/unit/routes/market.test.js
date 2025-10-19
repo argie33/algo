@@ -4,6 +4,8 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 describe("Market Routes Unit Tests", () => {
   let app;
   beforeAll(() => {
@@ -15,7 +17,6 @@ describe("Market Routes Unit Tests", () => {
       req.user = { sub: "test-user-123" }; // Mock authenticated user
       next();
     });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
     // Add response formatter middleware
     const responseFormatter = require("../../../middleware/responseFormatter");

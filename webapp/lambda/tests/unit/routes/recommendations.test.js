@@ -8,6 +8,8 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 // Mock the authentication middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
@@ -25,7 +27,6 @@ describe("Recommendations Routes Unit Tests", () => {
     mockQuery = query;
     // Default mock for all tests - return empty rows
     mockQuery.mockResolvedValue({ rows: [] });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
     // Create test app
     app = express();

@@ -5,6 +5,9 @@ const metricsRoutes = require("../../../routes/metrics");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+
 describe("Metrics Routes", () => {
   let app;
   beforeAll(() => {

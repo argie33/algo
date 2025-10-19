@@ -8,6 +8,9 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const { FactorScoringEngine } = require("../../../utils/factorScoring");
 // Mock the auth middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
@@ -44,7 +47,6 @@ describe("Screener Routes Unit Tests", () => {
       if (sql && typeof sql === 'string') {
         if (sql.includes("information_schema.tables")) {
           return Promise.resolve({ rows: [{ exists: true }] });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
         }
         if (sql.includes("stock_symbols") || sql.includes("price_daily") || sql.includes("stock_scores")) {
@@ -53,7 +55,6 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       }
       return Promise.resolve({ rows: [] });
     });
-    const { FactorScoringEngine } = require("../../../utils/factorScoring");
     mockFactorEngine = new FactorScoringEngine();
     // Set up the factor engine mock functions
     mockFactorEngine.calculateCompositeScore = mockCalculateCompositeScore;

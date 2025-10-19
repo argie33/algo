@@ -17,6 +17,10 @@ jest.mock("../../../middleware/auth", () => ({
     next();
   },
 }));
+
+// Import after mocks
+const { authenticateToken } = require("../../../middleware/auth");
+const { query } = require("../../../utils/database");
 jest.mock("../../../utils/newsAnalyzer", () => ({
   calculateReliabilityScore: jest.fn((source) => {
     const scores = {

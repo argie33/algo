@@ -2,10 +2,14 @@ const request = require("supertest");
 const express = require("express");
 const sectorsRoutes = require("../../../routes/sectors");
 // Mock database
-const { query } = require("../../../utils/database");
 jest.mock("../../../utils/database");
 // Mock authentication middleware
 jest.mock("../../../middleware/auth");
+
+// Import after mocks
+const { query } = require("../../../utils/database");
+const { authenticateToken } = require("../../../middleware/auth");
+
 describe("Sectors Routes", () => {
   let app;
   beforeAll(() => {

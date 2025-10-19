@@ -11,6 +11,9 @@ jest.mock("../../../utils/database", () => ({
   query: mockQuery,
   tableExists: mockTableExists,
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+
 // Create test app
 const app = express();
 app.use(express.json());

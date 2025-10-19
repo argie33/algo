@@ -10,6 +10,9 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
   tableExists: jest.fn().mockResolvedValue(true), // Mock tableExists to return true
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+
 const mockQuery = query;
 const mockTableExists = tableExists;
 // Create test app

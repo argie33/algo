@@ -8,6 +8,8 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 // Mock the auth middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
@@ -53,7 +55,6 @@ describe("Performance Routes Unit Tests", () => {
                 { column_name: 'updated_at', ordinal_position: 7 }
               ]
             });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
           }
           if (sql.includes("tables")) {

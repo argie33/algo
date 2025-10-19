@@ -8,6 +8,8 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 describe("Economic Routes Unit Tests", () => {
   let app;
   let economicRouter;
@@ -23,7 +25,6 @@ describe("Economic Routes Unit Tests", () => {
     economicRouter = require("../../../routes/economic");
     app.use("/economic", economicRouter);
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("GET /economic", () => {
     test("should return economic data with pagination", async () => {

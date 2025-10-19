@@ -8,6 +8,8 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 describe("Financials Routes Unit Tests", () => {
   let app;
   let financialsRouter;
@@ -26,7 +28,6 @@ describe("Financials Routes Unit Tests", () => {
           success: false,
           error: message,
         });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
       res.success = (data) =>
         res.json({

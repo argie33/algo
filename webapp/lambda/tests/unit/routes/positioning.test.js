@@ -6,6 +6,8 @@ const responseFormatterMiddleware = require("../../../middleware/responseFormatt
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 const app = express();
 app.use(responseFormatterMiddleware);
 app.use("/api/positioning", positioningRouter);
@@ -18,7 +20,6 @@ describe("Positioning Routes", () => {
     jest.clearAllMocks();
     mockQuery.mockClear();
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   afterEach(() => {
     consoleSpy.mockRestore();
