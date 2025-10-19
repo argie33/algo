@@ -32,6 +32,7 @@ describe("Backtest Routes", () => {
       expect(response.body.count).toBeGreaterThanOrEqual(0);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
+  });
 
   describe("POST /api/backtest", () => {
     test("should create new backtest", async () => {
@@ -79,6 +80,7 @@ describe("Backtest Routes", () => {
         expect(response.body.data.symbols).toEqual(["AAPL"]);
       }
     });
+  });
 
   describe("GET /api/backtest/:id", () => {
     test("should return backtest by ID", async () => {
@@ -122,6 +124,7 @@ describe("Backtest Routes", () => {
       expect(response.body).toHaveProperty("error");
       expect(response.body.error).toContain("Backtest not found");
     });
+  });
 
   describe("DELETE /api/backtest/:id", () => {
     test("should delete backtest by ID", async () => {
@@ -164,6 +167,7 @@ describe("Backtest Routes", () => {
       expect(response.body).toHaveProperty("error");
       expect(response.body.error).toContain("Backtest not found");
     });
+  });
 
   describe("GET /api/backtest/results", () => {
     test("should return backtest results", async () => {
@@ -207,6 +211,7 @@ describe("Backtest Routes", () => {
       expect(response.status).toBe(200);
       expect(response.body.filters.status).toBe("completed");
     });
+  });
 
   describe("GET /api/backtest/symbols", () => {
     test("should return available symbols", async () => {
@@ -238,6 +243,7 @@ describe("Backtest Routes", () => {
 
       expect([200, 404, 500].includes(response.status)).toBe(true);
     });
+  });
 
   describe("GET /api/backtest/templates", () => {
     test("should return strategy templates", async () => {
@@ -324,6 +330,7 @@ describe("Backtest Routes", () => {
       expect(response.body).toHaveProperty("error");
       expect(response.body.error).toContain("Strategy code is required");
     });
+  });
 
   describe("GET /api/backtest/optimize", () => {
     test("should require strategy_id parameter", async () => {
@@ -336,6 +343,7 @@ describe("Backtest Routes", () => {
       expect(response.body).toHaveProperty("error");
       expect(response.body.error).toContain("Strategy ID is required");
     });
+  });
 
   describe("Strategy Management", () => {
     describe("GET /api/backtest/strategies", () => {
@@ -381,6 +389,7 @@ describe("Backtest Routes", () => {
         expect(response.body.error).toContain("Name and code required");
       });
     });
+  });
 
   describe("Backtest Execution", () => {
     describe("POST /api/backtest/run", () => {

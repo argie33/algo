@@ -174,6 +174,21 @@ router.get("/active", async (req, res) => {
         success: true,
         data: {
           alerts: [],
+          summary: {
+            total_alerts: 0,
+            active_alerts: 0,
+            triggered_alerts: 0,
+            urgent_alerts: 0,
+            alert_categories: {
+              price_alerts: 0,
+              risk_alerts: 0,
+            },
+            severity_breakdown: {
+              high: 0,
+              medium: 0,
+              low: 0,
+            },
+          },
           total: 0,
           pagination: {
             page: Math.ceil(offset / limit) + 1,

@@ -270,7 +270,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
 AAPL,buy,100,150.00,2024-01-15
 MSFT,sell,50,300.00,2024-01-16`;
       query.mockResolvedValue({ rows: [{ imported: 2 }] });
-      _transaction.mockImplementation(async (callback) => {
+      transaction.mockImplementation(async (callback) => {
         return await callback({ query });
       });
       const response = await request(app)
@@ -585,7 +585,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       expect(response.body.error || response.body.success).toBeDefined();
     });
     test("should handle transaction rollback on import errors", async () => {
-      _transaction.mockRejectedValue(new Error("Transaction failed"));
+      transaction.mockRejectedValue(new Error("Transaction failed"));
       const response = await request(app)
         .post("/trades/import")
         .set("Authorization", "Bearer dev-bypass-token")
