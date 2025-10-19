@@ -2,6 +2,7 @@ const alertSystem = require("../../../utils/alertSystem");
 
 jest.mock("../../../utils/database");
 
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 describe("Alert System", () => {
   beforeEach(() => {
     jest.clearAllMocks();

@@ -25,6 +25,7 @@ jest.mock("../../../middleware/auth", () => ({
 
 // Mock the performance monitor
 jest.mock("../../../utils/performanceMonitor", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   getSystemMetrics: jest.fn(),
   getPortfolioMetrics: jest.fn(),
   calculateBenchmarkComparison: jest.fn(),

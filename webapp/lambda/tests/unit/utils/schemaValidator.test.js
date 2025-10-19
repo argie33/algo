@@ -16,6 +16,7 @@ const mockLogger = {
 };
 jest.mock("../../../utils/logger", () => mockLogger);
 
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 const {
   validateData,
   validateTableStructure,

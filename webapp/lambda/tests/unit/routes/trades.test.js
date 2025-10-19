@@ -48,6 +48,7 @@ jest.mock(
 );
 
 jest.mock(
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   "../../../utils/alpacaService",
   () => {
     return jest.fn().mockImplementation(() => ({

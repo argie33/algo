@@ -46,6 +46,7 @@ jest.mock("../../../services/aiStrategyGeneratorStreaming", () => {
 });
 
 jest.mock("../../../middleware/auth", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   authenticateToken: (req, res, next) => {
     req.user = { id: "test-user-123" };
     next();

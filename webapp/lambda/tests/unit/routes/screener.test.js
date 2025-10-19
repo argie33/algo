@@ -29,6 +29,7 @@ const mockGetAvailableFactors = jest.fn();
 const mockApplyFactorWeights = jest.fn();
 
 jest.mock("../../../utils/factorScoring", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   FactorScoringEngine: jest.fn().mockImplementation(() => ({
     calculateCompositeScore: mockCalculateCompositeScore,
     getAvailableFactors: mockGetAvailableFactors,

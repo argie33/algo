@@ -31,6 +31,7 @@ jest.mock("qrcode", () => ({
 // Mock middleware
 jest.mock("../../../middleware/responseFormatter", () => (req, res, next) => {
   res.success = (data) => res.json({ success: true, ...data });
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   res.error = (message, statusCode = 500) =>
     res.status(statusCode).json({ success: false, error: message });
   next();

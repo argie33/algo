@@ -9,6 +9,7 @@ const express = require("express");
 // Mock database queries
 const mockQuery = jest.fn();
 jest.mock("../../../utils/database", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   query: mockQuery,
 }));
 

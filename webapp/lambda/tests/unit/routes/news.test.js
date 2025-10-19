@@ -33,6 +33,7 @@ jest.mock("../../../utils/newsAnalyzer", () => ({
 }));
 
 jest.mock("../../../utils/sentimentEngine", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   scoreToLabel: jest.fn((score) => {
     if (score > 0.1) return "positive";
     if (score < -0.1) return "negative";

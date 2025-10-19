@@ -9,6 +9,7 @@ const express = require("express");
 
 // Mock the database functions used in dividend route
 jest.mock("../../../utils/database", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   query: jest.fn(),
   tableExists: jest.fn().mockResolvedValue(true), // Mock tableExists to return true
 }));

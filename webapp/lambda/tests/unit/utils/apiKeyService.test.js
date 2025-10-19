@@ -10,6 +10,7 @@ jest.mock("@aws-sdk/client-secrets-manager");
 jest.mock("aws-jwt-verify");
 jest.mock("jsonwebtoken");
 
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 const mockQuery = require("../../../utils/database").query;
 const crypto = require("crypto");
 const { SecretsManagerClient } = require("@aws-sdk/client-secrets-manager");

@@ -3,6 +3,7 @@ const analyzer = require("../../../utils/newsAnalyzer");
 jest.mock("../../../utils/database");
 jest.mock("../../../utils/logger");
 
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 describe("News Analyzer", () => {
   beforeEach(() => {
     jest.clearAllMocks();

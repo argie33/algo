@@ -8,6 +8,7 @@ jest.mock("../../../utils/database", () => ({
 
 // Mock authentication middleware
 jest.mock("../../../middleware/auth", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   authenticateToken: (req, res, next) => {
     req.user = { sub: "test-user-123" };
     req.token = "test-jwt-token";

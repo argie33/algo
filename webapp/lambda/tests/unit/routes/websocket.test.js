@@ -58,6 +58,7 @@ const mockAlpacaService = jest.fn(() => mockAlpacaInstance);
 jest.mock("../../../utils/alpacaService", () => mockAlpacaService);
 
 jest.mock("../../../middleware/validation", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   createValidationMiddleware: jest.fn(),
 }));
 

@@ -15,6 +15,7 @@ jest.mock("../../../utils/alpacaService", () => ({
 
 // Mock API Key Service
 jest.mock("../../../utils/apiKeyService", () => ({
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   getDecryptedApiKey: jest.fn(),
 }));
 
