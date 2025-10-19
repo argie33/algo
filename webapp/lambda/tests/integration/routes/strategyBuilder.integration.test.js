@@ -20,6 +20,11 @@ jest.mock("../../../middleware/auth", () => ({
     if (!req.headers.authorization) {
       return res.status(401).json({ success: false, error: "Authentication required" });
     }
+    // Reject obviously invalid tokens
+    const token = req.headers.authorization.replace("Bearer ", "");
+    if (token === "invalid-token" || !token.includes("test") && !token.includes("dev-bypass")) {
+      return res.status(401).json({ success: false, error: "Invalid token" });
+    }
     req.user = { sub: "test-user-123", role: "user" };
     next();
   }),
