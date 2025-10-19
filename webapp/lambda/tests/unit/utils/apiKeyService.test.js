@@ -12,6 +12,7 @@ const mockQuery = require("../../../utils/database").query;
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 // Import ApiKeyService functions after mocking
+const {
   storeApiKey,
   getApiKey,
   validateApiKey,

@@ -13,11 +13,9 @@ jest.mock("../../../utils/database", () => ({
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
   getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb()),
+  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
   healthCheck: jest.fn(),
 }));
-
-// Import the mocked database
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
@@ -29,7 +27,9 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-// Import the mocked database
+// Import the mocked database and auth
+const { query } = require("../../../utils/database");
+const { authenticateToken } = require("../../../middleware/auth");
 
 
 describe("Insider Trading API", () => {

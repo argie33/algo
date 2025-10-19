@@ -14,13 +14,12 @@ jest.mock("../../../utils/database", () => ({
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
   getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb()),
+  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
   healthCheck: jest.fn(),
 }));
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   authenticateToken: jest.fn((req, res, next) => {
     req.user = { sub: "test-user-123" };
     next();
@@ -29,6 +28,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
 describe("AI Strategy Generator Streaming Integration Tests", () => {
   let streamingGenerator;

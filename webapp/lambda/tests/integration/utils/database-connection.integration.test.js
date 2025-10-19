@@ -3,22 +3,13 @@
  * Tests real database operations and connection management
  */
 
-const {
-  initializeDatabase,
-  closeDatabase,
-  query,
-  transaction,
-  getPool,
-  healthCheck,
-} = require("../../../utils/database");
-
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
   getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb()),
+  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
   healthCheck: jest.fn(),
 }));
 

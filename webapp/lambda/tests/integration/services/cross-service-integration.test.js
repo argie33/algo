@@ -5,11 +5,6 @@
  */
 
 const request = require("supertest");
-const {
-  initializeDatabase,
-  closeDatabase,
-  query,
-} = require("../../../utils/database");
 
 let app;
 const authToken = "Bearer dev-bypass-token";
@@ -20,7 +15,7 @@ jest.mock("../../../utils/database", () => ({
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
   getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb()),
+  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
   healthCheck: jest.fn(),
 }));
 

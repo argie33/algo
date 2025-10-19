@@ -8,6 +8,7 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const mockQuery = query;
 const app = express();
 app.use(responseFormatterMiddleware);
 app.use("/api/positioning", positioningRouter);
