@@ -89,7 +89,7 @@ router.get("/:sector/stocks", async (req, res) => {
       FROM company_profile
       WHERE (LOWER(sector) = LOWER($1) OR LOWER(industry) = LOWER($1))
       AND sector IS NOT NULL
-      ORDER BY ticker DESC
+      ORDER BY ticker ASC
       LIMIT $2
     `;
 
