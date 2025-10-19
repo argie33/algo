@@ -11,7 +11,6 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
-const { query } = require("../../../utils/database");
 
 // Mock authentication middleware
 jest.mock("../../../middleware/auth", () => ({

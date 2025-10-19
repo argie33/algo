@@ -20,7 +20,6 @@ describe("Economic Routes Unit Tests", () => {
     jest.clearAllMocks();
 
     // Set up mocks
-    const { query } = require("../../../utils/database");
     mockQuery = query;
 
     // Create test app

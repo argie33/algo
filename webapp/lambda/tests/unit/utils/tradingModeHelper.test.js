@@ -15,7 +15,6 @@ describe("Trading Mode Helper Unit Tests", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    const { query } = require("../../../utils/database");
     mockQuery = query;
   });
 

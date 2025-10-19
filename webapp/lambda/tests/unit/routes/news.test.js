@@ -47,7 +47,6 @@ jest.mock("../../../utils/sentimentEngine", () => ({
   }),
 }));
 
-const { query } = require("../../../utils/database");
 const newsAnalyzer = require("../../../utils/newsAnalyzer");
 const sentimentEngine = require("../../../utils/sentimentEngine");
 

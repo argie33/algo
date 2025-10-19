@@ -28,7 +28,6 @@ describe("Recommendations Routes Unit Tests", () => {
     jest.clearAllMocks();
 
     // Set up mocks
-    const { query } = require("../../../utils/database");
     mockQuery = query;
 
     // Default mock for all tests - return empty rows

@@ -8,7 +8,6 @@ jest.mock("../../../utils/database", () => ({
   closeDatabase: jest.fn(),
 }));
 
-const { query } = require("../../../utils/database");
 
 describe("Dashboard Routes Unit Tests", () => {
   let app;

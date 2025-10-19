@@ -11,7 +11,6 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
-const { query } = require("../../../utils/database");
 
 describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
   let app;

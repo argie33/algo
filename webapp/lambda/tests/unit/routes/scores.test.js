@@ -11,7 +11,6 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
-const { query } = require("../../../utils/database");
 const scoresRouter = require("../../../routes/scores");
 
 describe("Scores Routes Unit Tests", () => {

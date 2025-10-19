@@ -19,7 +19,6 @@ jest.mock("../../../utils/apiKeyService", () => ({
 }));
 
 const alpacaService = require("../../../utils/alpacaService");
-const { query } = require("../../../utils/database");
 const { getDecryptedApiKey } = require("../../../utils/apiKeyService");
 
 describe("Alpaca Integration Service Unit Tests", () => {

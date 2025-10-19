@@ -28,7 +28,6 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-const { query } = require("../../../utils/database");
 
 describe("Portfolio Integration Tests - 100% Coverage", () => {
   // Core Portfolio Endpoints

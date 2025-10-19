@@ -46,7 +46,6 @@ describe("Screener Routes Unit Tests", () => {
     jest.clearAllMocks();
 
     // Set up mocks
-    const { query } = require("../../../utils/database");
     mockQuery = query;
 
     // Add default mock implementation with fallback

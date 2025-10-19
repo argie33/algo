@@ -10,7 +10,6 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 // Import mocked functions
-const { query, transaction } = require("../../../utils/database");
 const _transaction = transaction;
 
 // Mock authentication middleware for unit tests

@@ -6,7 +6,6 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
-const { query } = require("../../../utils/database");
 
 describe("Alerts Routes Unit Tests", () => {
   let app;

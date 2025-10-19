@@ -6,7 +6,6 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
-const { query } = require("../../../utils/database");
 
 // Import Jest functions
 const { describe, test, expect, beforeAll } = require("@jest/globals");

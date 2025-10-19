@@ -16,7 +16,6 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 const watchlistRoutes = require("../../../routes/watchlist");
-const { query } = require("../../../utils/database");
 
 // Create test app
 const app = express();

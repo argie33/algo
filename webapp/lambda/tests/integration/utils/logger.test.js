@@ -25,7 +25,6 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-const { query } = require("../../../utils/database");
 
 describe("Logger Integration Tests", () => {
   let originalConsoleLog;

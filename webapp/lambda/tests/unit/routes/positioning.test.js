@@ -8,7 +8,6 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
-const { query: mockQuery } = require("../../../utils/database");
 
 const app = express();
 app.use(responseFormatterMiddleware);

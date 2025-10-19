@@ -52,7 +52,6 @@ jest.mock("../../../middleware/auth", () => ({
   },
 }));
 
-const { query: mockQuery } = require("../../../utils/database");
 const AIStrategyGenerator = require("../../../services/aiStrategyGenerator");
 
 const app = express();

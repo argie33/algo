@@ -12,7 +12,6 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
-const { query } = require("../../../utils/database");
 
 // Import sentiment route
 const sentimentRoutes = require("../../../routes/sentiment");
