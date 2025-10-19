@@ -199,7 +199,7 @@ describe("Dividend Routes - Real Data Validation", () => {
 
   describe("GET /api/dividend/aristocrats (Dividend Aristocrats)", () => {
     test("should return dividend aristocrat stocks", async () => {
-      const response = await request(app).get("/api/dividend/aristocrats").set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get("/api/dividend/aristocrats").set('Authorization', `Bearer dev-bypass-token`);
 
       expect([200, 404]).toContain(response.status);
 
@@ -309,7 +309,7 @@ describe("Dividend Routes - Real Data Validation", () => {
 
   describe("GET /api/dividend/screener (Dividend Stock Screener)", () => {
     test("should return dividend stock screening results", async () => {
-      const response = await request(app).get("/api/dividend/screener").set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get("/api/dividend/screener").set('Authorization', `Bearer dev-bypass-token`);
 
       expect([200, 404]).toContain(response.status);
 
@@ -430,7 +430,7 @@ describe("Dividend Routes - Real Data Validation", () => {
 
     test("should handle concurrent dividend data requests", async () => {
       const requests = ["AAPL", "MSFT", "JNJ", "KO", "PFE"].map((symbol) =>
-        request(app).get(`/api/dividend/${symbol}`).set('Authorization', `Bearer ${authToken}`)
+        request(app).get(`/api/dividend/${symbol}`).set('Authorization', `Bearer dev-bypass-token`)
       );
 
       const responses = await Promise.all(requests);
@@ -457,7 +457,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     });
 
     test("should validate dividend amount ranges", async () => {
-      const response = await request(app).get("/api/dividend/AAPL").set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get("/api/dividend/AAPL").set('Authorization', `Bearer dev-bypass-token`);
 
       if (response.status === 200 && response.body.data.dividends.length > 0) {
         response.body.data.dividends.forEach((dividend) => {
@@ -488,7 +488,7 @@ describe("Dividend Routes - Real Data Validation", () => {
 
     test("should maintain response time consistency", async () => {
       const startTime = Date.now();
-      const response = await request(app).get("/api/dividend/calendar").set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get("/api/dividend/calendar").set('Authorization', `Bearer dev-bypass-token`);
       const responseTime = Date.now() - startTime;
 
       expect([200, 404]).toContain(response.status);
@@ -499,7 +499,7 @@ describe("Dividend Routes - Real Data Validation", () => {
       const specialSymbols = ["BRK.A", "BRK.B", "BF.A", "BF.B"];
 
       for (const symbol of specialSymbols) {
-        const response = await request(app).get(`/api/dividend/${symbol}`).set('Authorization', `Bearer ${authToken}`);
+        const response = await request(app).get(`/api/dividend/${symbol}`).set('Authorization', `Bearer dev-bypass-token`);
 
         expect([200, 404]).toContain(response.status);
       }
@@ -515,7 +515,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     });
 
     test("should handle database connection failures gracefully", async () => {
-      const response = await request(app).get("/api/dividend/AAPL").set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get("/api/dividend/AAPL").set('Authorization', `Bearer dev-bypass-token`);
 
       expect([200, 404]).toContain(response.status);
 
@@ -525,7 +525,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     });
 
     test("should validate yield calculation accuracy", async () => {
-      const response = await request(app).get("/api/dividend/JNJ").set('Authorization', `Bearer ${authToken}`);
+      const response = await request(app).get("/api/dividend/JNJ").set('Authorization', `Bearer dev-bypass-token`);
 
       if (
         response.status === 200 &&
@@ -541,7 +541,7 @@ describe("Dividend Routes - Real Data Validation", () => {
     test("should handle stress testing with multiple concurrent requests", async () => {
       const promises = Array(10)
         .fill()
-        .map(() => request(app).get("/api/dividend/screener").set('Authorization', `Bearer ${authToken}`).timeout(10000));
+        .map(() => request(app).get("/api/dividend/screener").set('Authorization', `Bearer dev-bypass-token`).timeout(10000));
 
       const responses = await Promise.all(
         promises.map((p) => p.catch((err) => ({ status: 500, error: err })))
