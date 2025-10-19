@@ -8,9 +8,17 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
+  getPool: jest.fn().mockReturnValue({
+    totalCount: 10,
+    idleCount: 8,
+    waitingCount: 0,
+  }),
   transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
+  healthCheck: jest.fn().mockResolvedValue({
+    status: "healthy",
+    version: "PostgreSQL 15.1",
+    timestamp: "2025-10-19T12:00:00.000Z",
+  }),
 }));
 
 
@@ -20,7 +28,10 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
-    req.user = { sub: "test-user-123" };
+    if (!req.headers.authorization) {
+      return res.status(401).json({ error: "No authorization header" });
+    }
+    req.user = { sub: "test-user-123", role: "user" };
     next();
   }),
   authorizeAdmin: jest.fn((req, res, next) => next()),
