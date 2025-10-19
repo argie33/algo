@@ -6,7 +6,6 @@
 
 const request = require("supertest");
 
-let app;
 
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
@@ -30,6 +29,9 @@ jest.mock("../../../middleware/auth", () => ({
   authorizeAdmin: jest.fn((req, res, next) => next()),
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
+
+// Import app AFTER mocking all dependencies
+const app = require("../../../server");
 
 
 describe("Signals Routes - Integration Tests", () => {

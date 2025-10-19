@@ -24,11 +24,13 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+// Import app AFTER mocking all dependencies
+const app = require("../../../server");
+
 // Import the mocked database
 
 const sectorRouter = require("../../../routes/sectors");
 
-let app;
 
 describe("Sectors Routes", () => {
   beforeAll(() => {
