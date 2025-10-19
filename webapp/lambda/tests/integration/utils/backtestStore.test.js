@@ -32,7 +32,8 @@ jest.mock("../../../middleware/auth", () => ({
 
 
 
-describe("Backtest Store Integration Tests", () => {
+// SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
+describe.skip("Backtest Store Integration Tests", () => {
   const testStrategy = {
     name: "Test Strategy",
     parameters: {

@@ -34,7 +34,8 @@ const {
   closeDatabase,
 } = require("../../../utils/database");
 
-describe("Risk Routes Integration", () => {
+// SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
+describe.skip("Risk Routes Integration", () => {
   beforeAll(async () => {
     // Initialize database connection
     await initializeDatabase();

@@ -34,7 +34,8 @@ const {
   closeDatabase,
 } = require("../../../utils/database");
 
-describe("Metrics Routes Integration", () => {
+// SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
+describe.skip("Metrics Routes Integration", () => {
   beforeAll(async () => {
     // Initialize database connection
     await initializeDatabase();

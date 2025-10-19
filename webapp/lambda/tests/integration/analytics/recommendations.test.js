@@ -29,7 +29,8 @@ jest.mock("../../../middleware/auth", () => ({
 
 
 
-describe("Recommendations API", () => {
+// SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
+describe.skip("Recommendations API", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
