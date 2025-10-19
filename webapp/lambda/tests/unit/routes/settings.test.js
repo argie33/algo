@@ -2,19 +2,13 @@
  * Settings API Routes Tests
  * Tests for API key management, onboarding, and user preferences
  */
-
 const request = require("supertest");
 const express = require("express");
-
 // Mock database before requiring the route
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }))
-
 // Import mocked functions
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
-
-
 // Mock authentication middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
@@ -23,10 +17,8 @@ jest.mock("../../../middleware/auth", () => ({
     next();
   },
 }));
-
 // Mock API Key Service
 jest.mock("../../../utils/apiKeyService", () => ({
-
   listProviders: jest.fn(),
   storeApiKey: jest.fn(),
   getApiKey: jest.fn(),
@@ -34,15 +26,12 @@ jest.mock("../../../utils/apiKeyService", () => ({
   deleteApiKey: jest.fn(),
   getHealthStatus: jest.fn(),
 }));
-
-const {
   listProviders,
   storeApiKey,
   getApiKey,
   deleteApiKey,
 } = require("../../../utils/apiKeyService");
 const settingsRoutes = require("../../../routes/settings");
-
 const app = express();
 app.use(express.json());
 app.use("/api/settings", settingsRoutes);
@@ -50,7 +39,6 @@ describe("Settings API Routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
-
   describe("GET /api/settings/api-keys", () => {
     it("should return API keys for authenticated user", async () => {
       const mockProviders = [
@@ -61,30 +49,23 @@ describe("Settings API Routes", () => {
           last_used: null,
         },
       ];
-
       listProviders.mockResolvedValue(mockProviders);
-
       const response = await request(app)
         .get("/api/settings/api-keys")
         .expect(200);
-
       expect(response.body).toEqual({
         success: true,
         apiKeys: mockProviders,
         providers: mockProviders,
         timestamp: expect.any(String),
       });
-
       expect(listProviders).toHaveBeenCalledWith("test-jwt-token");
     });
-
     it("should handle database errors gracefully", async () => {
       listProviders.mockRejectedValue(new Error("Database connection failed"));
-
       const response = await request(app)
         .get("/api/settings/api-keys")
         .expect(500);
-
       expect(response.body).toEqual({
         success: false,
         error: "Failed to fetch API keys",
@@ -92,7 +73,6 @@ describe("Settings API Routes", () => {
       });
     });
   });
-
   describe("POST /api/settings/api-keys", () => {
     it("should add new API key successfully", async () => {
       const mockStoreResult = {
@@ -101,9 +81,7 @@ describe("Settings API Routes", () => {
         encrypted: true,
         user: "test-user-id",
       };
-
       storeApiKey.mockResolvedValue(mockStoreResult);
-
       const response = await request(app)
         .post("/api/settings/api-keys")
         .send({
@@ -114,7 +92,6 @@ describe("Settings API Routes", () => {
           description: "New API Key",
         })
         .expect(200);
-
       expect(response.body).toEqual({
         success: true,
         message: "alpaca API key stored successfully",
@@ -125,7 +102,6 @@ describe("Settings API Routes", () => {
           user: "test-user-id",
         },
       });
-
       expect(storeApiKey).toHaveBeenCalledWith(
         "test-jwt-token",
         "alpaca",
@@ -137,7 +113,6 @@ describe("Settings API Routes", () => {
         })
       );
     });
-
     it("should validate required fields", async () => {
       const response = await request(app)
         .post("/api/settings/api-keys")
@@ -146,18 +121,15 @@ describe("Settings API Routes", () => {
           // Missing apiKey
         })
         .expect(400);
-
       expect(response.body).toEqual({
         success: false,
         error: "Provider and API key are required",
         requiredFields: ["provider", "apiKey"],
       });
     });
-
     it("should handle duplicate API key errors", async () => {
       const error = new Error("API key for this provider already exists");
       storeApiKey.mockRejectedValue(error);
-
       const response = await request(app)
         .post("/api/settings/api-keys")
         .send({
@@ -165,7 +137,6 @@ describe("Settings API Routes", () => {
           apiKey: "test-api-key",
         })
         .expect(500);
-
       expect(response.body).toEqual({
         success: false,
         error: "Failed to store API key",
@@ -173,7 +144,6 @@ describe("Settings API Routes", () => {
       });
     });
   });
-
   describe("PUT /api/settings/api-keys/:provider", () => {
     it("should update API key successfully", async () => {
       const mockExistingData = {
@@ -182,16 +152,13 @@ describe("Settings API Routes", () => {
         isSandbox: true,
         description: "Existing API Key",
       };
-
       const mockUpdateResult = {
         id: "1",
         provider: "alpaca",
         encrypted: true,
       };
-
       getApiKey.mockResolvedValue(mockExistingData);
       storeApiKey.mockResolvedValue(mockUpdateResult);
-
       const response = await request(app)
         .put("/api/settings/api-keys/alpaca")
         .send({
@@ -199,7 +166,6 @@ describe("Settings API Routes", () => {
           isSandbox: false,
         })
         .expect(200);
-
       expect(response.body).toEqual({
         success: true,
         message: "alpaca API key updated successfully",
@@ -209,7 +175,6 @@ describe("Settings API Routes", () => {
           encrypted: true,
         },
       });
-
       expect(getApiKey).toHaveBeenCalledWith("test-jwt-token", "alpaca");
       expect(storeApiKey).toHaveBeenCalledWith(
         "test-jwt-token",
@@ -222,17 +187,14 @@ describe("Settings API Routes", () => {
         })
       );
     });
-
     it("should handle not found errors", async () => {
       getApiKey.mockResolvedValue(null);
-
       const response = await request(app)
         .put("/api/settings/api-keys/nonexistent")
         .send({
           description: "Updated API Key",
         })
         .expect(404);
-
       expect(response.body).toEqual({
         success: false,
         error: "API key configuration not found",
@@ -240,30 +202,24 @@ describe("Settings API Routes", () => {
       });
     });
   });
-
   describe("DELETE /api/settings/api-keys/:provider", () => {
     it("should delete API key successfully", async () => {
       const mockDeleteResult = {
         deleted: true,
         provider: "alpaca",
       };
-
       deleteApiKey.mockResolvedValue(mockDeleteResult);
-
       const response = await request(app)
         .delete("/api/settings/api-keys/alpaca")
         .expect(200);
-
       expect(response.body).toEqual({
         success: true,
         message: "alpaca API key deleted successfully",
         provider: "alpaca",
       });
-
       expect(deleteApiKey).toHaveBeenCalledWith("test-jwt-token", "alpaca");
     });
   });
-
   describe("GET /api/settings/onboarding-status", () => {
     it("should return onboarding status", async () => {
       query.mockResolvedValue({
@@ -272,11 +228,9 @@ describe("Settings API Routes", () => {
       listProviders.mockResolvedValue([
         { provider: "alpaca", configured: true },
       ]);
-
       const response = await request(app)
         .get("/api/settings/onboarding-status")
         .expect(200);
-
       expect(response.body).toEqual({
         success: true,
         onboarding: {
@@ -288,30 +242,24 @@ describe("Settings API Routes", () => {
         timestamp: expect.any(String),
       });
     });
-
     it("should handle missing user gracefully", async () => {
       query.mockResolvedValue({ rows: [] });
       listProviders.mockResolvedValue([]);
-
       const response = await request(app)
         .get("/api/settings/onboarding-status")
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.onboarding.completed).toBe(false);
       expect(response.body.onboarding.hasApiKeys).toBe(false);
       expect(response.body.onboarding.nextStep).toBe("configure-api-keys");
     });
   });
-
   describe("POST /api/settings/onboarding-complete", () => {
     it("should mark onboarding as complete", async () => {
       query.mockResolvedValue({ rows: [] });
-
       const response = await request(app)
         .post("/api/settings/onboarding-complete")
         .expect(200);
-
       expect(response.body).toEqual({
         success: true,
         message: "Onboarding completed successfully",
@@ -319,7 +267,6 @@ describe("Settings API Routes", () => {
       });
     });
   });
-
   describe("GET /api/settings/preferences", () => {
     it("should return user preferences", async () => {
       const mockPreferences = {
@@ -327,29 +274,23 @@ describe("Settings API Routes", () => {
         investmentStyle: "growth",
         notifications: true,
       };
-
       query.mockResolvedValue({
         rows: [{ preferences: mockPreferences }],
       });
-
       const response = await request(app)
         .get("/api/settings/preferences")
         .expect(200);
-
       expect(response.body).toEqual({
         success: true,
         preferences: mockPreferences,
         timestamp: expect.any(String),
       });
     });
-
     it("should handle missing preferences gracefully", async () => {
       query.mockResolvedValue({ rows: [] });
-
       const response = await request(app)
         .get("/api/settings/preferences")
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.preferences).toEqual({
         theme: "light",
@@ -358,23 +299,19 @@ describe("Settings API Routes", () => {
       });
     });
   });
-
   describe("POST /api/settings/preferences", () => {
     it("should save user preferences", async () => {
       query.mockResolvedValue({ rows: [] });
-
       const preferences = {
         riskTolerance: "aggressive",
         investmentStyle: "value",
         notifications: false,
         autoRefresh: true,
       };
-
       const response = await request(app)
         .post("/api/settings/preferences")
         .send({ preferences })
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.preferences).toEqual({
         riskTolerance: "aggressive",
@@ -382,16 +319,13 @@ describe("Settings API Routes", () => {
         notifications: false,
         autoRefresh: true,
       });
-
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining("INSERT INTO user_profiles"),
         ["test-user-id", JSON.stringify(preferences)]
       );
     });
-
     it("should handle invalid preferences format", async () => {
       query.mockResolvedValue({ rows: [] });
-
       const response = await request(app)
         .post("/api/settings/preferences")
         .send({
@@ -399,7 +333,6 @@ describe("Settings API Routes", () => {
           maliciousField: '<script>alert("xss")</script>',
         })
         .expect(400);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Valid preferences object is required");
     });

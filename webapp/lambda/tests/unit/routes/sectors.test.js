@@ -1,40 +1,29 @@
 const request = require("supertest");
 const express = require("express");
-
 const sectorsRoutes = require("../../../routes/sectors");
-
 // Mock database
 const { query } = require("../../../utils/database");
-
 jest.mock("../../../utils/database");
-
 // Mock authentication middleware
-const { authenticateToken } = require("../../../middleware/auth");
-
 jest.mock("../../../middleware/auth");
 describe("Sectors Routes", () => {
   let app;
-
   beforeAll(() => {
     app = express();
     app.use(express.json());
     app.use("/sectors", sectorsRoutes);
-
     // Mock authentication to pass for all tests
     authenticateToken.mockImplementation((req, res, next) => {
       req.user = { sub: "test-user-123" };
       next();
     });
   });
-
   beforeEach(() => {
     jest.clearAllMocks();
   });
-
   describe("GET /sectors/health", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/sectors/health").expect(200);
-
       expect(response.body).toMatchObject({
         status: "operational",
         service: "sectors",
@@ -43,11 +32,9 @@ describe("Sectors Routes", () => {
       });
     });
   });
-
   describe("GET /sectors/", () => {
     test("should return API status", async () => {
       const response = await request(app).get("/sectors/").expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         message: "Sectors API - Ready",
@@ -56,7 +43,6 @@ describe("Sectors Routes", () => {
       });
     });
   });
-
   describe("GET /sectors/analysis", () => {
     test("should return comprehensive sector analysis with default timeframe", async () => {
       const mockSectorAnalysis = {
@@ -153,11 +139,8 @@ describe("Sectors Routes", () => {
           },
         ],
       };
-
       query.mockResolvedValueOnce(mockSectorAnalysis);
-
       const response = await request(app).get("/sectors/analysis").expect(200);
-
       // Verify response structure with real database data
       expect(response.body.success).toBe(true);
       expect(response.body.data.timeframe).toBe("daily");
@@ -165,7 +148,6 @@ describe("Sectors Routes", () => {
       expect(response.body.data.summary).toHaveProperty("total_stocks_analyzed");
       expect(response.body.data.sectors).toBeInstanceOf(Array);
       expect(response.body.data.sectors.length).toBeGreaterThan(0);
-
       // Verify first sector has required structure
       const firstSector = response.body.data.sectors[0];
       expect(firstSector).toHaveProperty("sector");
@@ -173,49 +155,38 @@ describe("Sectors Routes", () => {
       expect(firstSector.metrics).toHaveProperty("stock_count");
       expect(firstSector.metrics).toHaveProperty("avg_price");
       expect(response.body).toHaveProperty("timestamp");
-
       expect(query).toHaveBeenCalledTimes(1);
     });
-
     test("should handle timeframe parameter validation", async () => {
       const response = await request(app)
         .get("/sectors/analysis")
         .query({ timeframe: "invalid" })
         .expect(400);
-
       expect(response.body).toEqual({
         success: false,
         error: "Invalid timeframe. Must be daily, weekly, or monthly.",
       });
-
       expect(query).not.toHaveBeenCalled();
     });
-
     test("should accept valid timeframes", async () => {
       const mockData = { rows: [] };
       query.mockResolvedValueOnce(mockData);
-
       const response = await request(app)
         .get("/sectors/analysis")
         .query({ timeframe: "weekly" })
         .expect(200);
-
       expect(response.body.data.timeframe).toBe("weekly");
       expect(query).toHaveBeenCalledTimes(1);
     });
-
     test("should handle database errors", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
-
       const response = await request(app).get("/sectors/analysis").expect(500);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Database connection failed",
       });
     });
   });
-
   describe("GET /sectors/list", () => {
     test("should return list of available sectors", async () => {
       const mockSectorsList = {
@@ -252,11 +223,8 @@ describe("Sectors Routes", () => {
           },
         ],
       };
-
       query.mockResolvedValueOnce(mockSectorsList);
-
       const response = await request(app).get("/sectors/list").expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -283,15 +251,11 @@ describe("Sectors Routes", () => {
         }),
         timestamp: expect.any(String),
       });
-
       expect(query).toHaveBeenCalledTimes(1);
     });
-
     test("should handle empty sector list", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app).get("/sectors/list").expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -306,19 +270,15 @@ describe("Sectors Routes", () => {
         timestamp: expect.any(String),
       });
     });
-
     test("should handle database errors for sector list", async () => {
       query.mockRejectedValueOnce(new Error("Database query failed"));
-
       const response = await request(app).get("/sectors/list").expect(500);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Database query failed",
       });
     });
   });
-
   describe("GET /sectors/:sector/details", () => {
     test("should return detailed sector information", async () => {
       const mockSectorDetails = {
@@ -383,13 +343,10 @@ describe("Sectors Routes", () => {
           },
         ],
       };
-
       query.mockResolvedValueOnce(mockSectorDetails);
-
       const response = await request(app)
         .get("/sectors/Technology/details")
         .expect(200);
-
       // Verify response structure with real database data
       expect(response.body.success).toBe(true);
       expect(response.body.data.sector).toBe("Technology");
@@ -399,7 +356,6 @@ describe("Sectors Routes", () => {
       expect(response.body.data.industries).toBeInstanceOf(Array);
       expect(response.body.data.stocks).toBeInstanceOf(Array);
       expect(response.body.data.stocks.length).toBeGreaterThan(0);
-
       // Verify first stock has required fields (varies based on response format)
       const firstStock = response.body.data.stocks[0];
       expect(firstStock).toHaveProperty("name");
@@ -408,46 +364,36 @@ describe("Sectors Routes", () => {
       expect(firstStock).toHaveProperty("momentum");
       expect(response.body).toHaveProperty("timestamp");
     });
-
     test("should handle non-existent sector", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app)
         .get("/sectors/NonExistentSector/details")
         .expect(404);
-
       expect(response.body).toEqual({
         success: false,
         error:
           "Sector 'NonExistentSector' not found or has no current price data",
       });
     });
-
     test("should handle database errors for sector details", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
-
       const response = await request(app)
         .get("/sectors/Technology/details")
         .expect(500);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Database connection failed",
       });
     });
-
     test("should handle URL encoded sector names", async () => {
       const mockData = { rows: [] };
       query.mockResolvedValueOnce(mockData);
-
       const _response = await request(app)
         .get("/sectors/Consumer%20Discretionary/details")
         .expect(404); // Will be 404 because rows is empty
-
       expect(query.mock.calls[0][1]).toContain("Consumer Discretionary");
     });
   });
-
   describe("GET /ranking-history", () => {
     test("should return sector ranking history for all sectors", async () => {
       const mockRankingData = {
@@ -475,13 +421,10 @@ describe("Sectors Routes", () => {
           },
         ],
       };
-
       query.mockResolvedValueOnce(mockRankingData);
-
       const response = await request(app)
         .get("/sectors/ranking-history")
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.arrayContaining([
@@ -508,10 +451,8 @@ describe("Sectors Routes", () => {
         }),
         timestamp: expect.any(String),
       });
-
       expect(query).toHaveBeenCalledTimes(1);
     });
-
     test("should return ranking history for specific sector", async () => {
       const mockRankingData = {
         rows: [
@@ -538,13 +479,10 @@ describe("Sectors Routes", () => {
           },
         ],
       };
-
       query.mockResolvedValueOnce(mockRankingData);
-
       const response = await request(app)
         .get("/sectors/ranking-history?sector=Technology")
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.arrayContaining([
@@ -555,18 +493,14 @@ describe("Sectors Routes", () => {
           }),
         ]),
       });
-
       expect(query).toHaveBeenCalledTimes(1);
       expect(query.mock.calls[0][1]).toContain("Technology");
     });
-
     test("should return empty data when no ranking history available", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app)
         .get("/sectors/ranking-history")
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: [],
@@ -574,14 +508,11 @@ describe("Sectors Routes", () => {
         timestamp: expect.any(String),
       });
     });
-
     test("should handle database errors for ranking history", async () => {
       query.mockRejectedValueOnce(new Error("Database query failed"));
-
       const response = await request(app)
         .get("/sectors/ranking-history")
         .expect(500);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch sector ranking history",
@@ -589,7 +520,6 @@ describe("Sectors Routes", () => {
       });
     });
   });
-
   describe("GET /industries/ranking-history", () => {
     test("should return industry ranking history for all industries", async () => {
       const mockRankingData = {
@@ -620,13 +550,10 @@ describe("Sectors Routes", () => {
           },
         ],
       };
-
       query.mockResolvedValueOnce(mockRankingData);
-
       const response = await request(app)
         .get("/sectors/industries/ranking-history")
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.arrayContaining([
@@ -654,10 +581,8 @@ describe("Sectors Routes", () => {
         }),
         timestamp: expect.any(String),
       });
-
       expect(query).toHaveBeenCalledTimes(1);
     });
-
     test("should return ranking history for specific industry", async () => {
       const mockRankingData = {
         rows: [
@@ -679,13 +604,10 @@ describe("Sectors Routes", () => {
           },
         ],
       };
-
       query.mockResolvedValueOnce(mockRankingData);
-
       const response = await request(app)
         .get("/sectors/industries/ranking-history?industry=Software%20Infrastructure")
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.arrayContaining([
@@ -694,17 +616,13 @@ describe("Sectors Routes", () => {
           }),
         ]),
       });
-
       expect(query).toHaveBeenCalledTimes(1);
     });
-
     test("should return empty data when no industry ranking history available", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app)
         .get("/sectors/industries/ranking-history")
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: [],
@@ -712,14 +630,11 @@ describe("Sectors Routes", () => {
         timestamp: expect.any(String),
       });
     });
-
     test("should handle database errors for industry ranking history", async () => {
       query.mockRejectedValueOnce(new Error("Database query failed"));
-
       const response = await request(app)
         .get("/sectors/industries/ranking-history")
         .expect(500);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to fetch industry ranking history",

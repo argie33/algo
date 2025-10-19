@@ -1,40 +1,31 @@
 const request = require("supertest");
 const express = require("express");
-
 const metricsRoutes = require("../../../routes/metrics");
-
 // Mock database module
 jest.mock("../../../utils/database", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   query: jest.fn(),
 }));
-
-
 describe("Metrics Routes", () => {
   let app;
-
   beforeAll(() => {
     app = express();
     app.use(express.json());
-
     // Add response formatter middleware for proper res.error, res.success methods
     const responseFormatter = require("../../../middleware/responseFormatter");
     app.use(responseFormatter);
-
     app.use("/metrics", metricsRoutes);
   });
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   beforeEach(() => {
     // Reset mocks
     jest.clearAllMocks();
-
     // Set up default mock responses for database queries
     query.mockImplementation((sql) => {
       // Basic connection test
       if (sql.includes("SELECT 1 as test")) {
         return Promise.resolve({ rows: [{ test: 1 }] });
       }
-
       // Main metrics query - mock data matching loader key_metrics table structure
       if (sql.includes("SELECT") && sql.includes("km.ticker")) {
         return Promise.resolve({
@@ -85,16 +76,13 @@ describe("Metrics Routes", () => {
           ]
         });
       }
-
       // Default fallback
       return Promise.resolve({ rows: [] });
     });
   });
-
   describe("GET /metrics/ping", () => {
     test("should return ping status", async () => {
       const response = await request(app).get("/metrics/ping").expect(200);
-
       expect(response.body).toMatchObject({
         status: "ok",
         endpoint: "metrics",
@@ -102,11 +90,9 @@ describe("Metrics Routes", () => {
       });
     });
   });
-
   describe("GET /metrics/", () => {
     test("should return comprehensive metrics with default pagination", async () => {
       const response = await request(app).get("/metrics/").expect(200);
-
       expect(response.body).toHaveProperty("data");
       expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toMatchObject({
@@ -115,15 +101,12 @@ describe("Metrics Routes", () => {
         totalPages: expect.any(Number),
         total: expect.any(Number),
       });
-
       // Verify comprehensive yfinance key metrics data structure
       if (response.body.data && response.body.data.length > 0) {
         const firstStock = response.body.data[0];
-
         // Basic required fields
         expect(firstStock).toHaveProperty("symbol");
         expect(typeof firstStock.symbol).toBe("string");
-
         // Valuation metrics from yfinance
         expect(firstStock).toHaveProperty("pe"); // trailing_pe
         expect(firstStock).toHaveProperty("forwardPE"); // forward_pe
@@ -131,53 +114,43 @@ describe("Metrics Routes", () => {
         expect(firstStock).toHaveProperty("bookValue");
         expect(firstStock).toHaveProperty("priceToSales");
         expect(firstStock).toHaveProperty("pegRatio");
-
         // Enterprise value metrics
         expect(firstStock).toHaveProperty("enterpriseValue");
         expect(firstStock).toHaveProperty("evToRevenue");
         expect(firstStock).toHaveProperty("evToEbitda");
-
         // Profitability margins
         expect(firstStock).toHaveProperty("profitMargin");
         expect(firstStock).toHaveProperty("grossMargin");
         expect(firstStock).toHaveProperty("ebitdaMargin");
         expect(firstStock).toHaveProperty("operatingMargin");
-
         // Returns
         expect(firstStock).toHaveProperty("returnOnAssets");
         expect(firstStock).toHaveProperty("returnOnEquity");
-
         // Liquidity ratios
         expect(firstStock).toHaveProperty("currentRatio");
         expect(firstStock).toHaveProperty("quickRatio");
-
         // Debt metrics
         expect(firstStock).toHaveProperty("debtToEquity");
         expect(firstStock).toHaveProperty("totalDebt");
-
         // EPS metrics
         expect(firstStock).toHaveProperty("eps");
         expect(firstStock).toHaveProperty("forwardEPS");
         expect(firstStock).toHaveProperty("epsCurrentYear");
         expect(firstStock).toHaveProperty("priceEpsCurrentYear");
-
         // Cash metrics
         expect(firstStock).toHaveProperty("totalCash");
         expect(firstStock).toHaveProperty("cashPerShare");
         expect(firstStock).toHaveProperty("operatingCashflow");
         expect(firstStock).toHaveProperty("freeCashflow");
-
         // Financial data
         expect(firstStock).toHaveProperty("ebitda");
         expect(firstStock).toHaveProperty("totalRevenue");
         expect(firstStock).toHaveProperty("netIncome");
         expect(firstStock).toHaveProperty("grossProfit");
-
         // Growth metrics
         expect(firstStock).toHaveProperty("earningsGrowth");
         expect(firstStock).toHaveProperty("revenueGrowth");
         expect(firstStock).toHaveProperty("earningsGrowthQuarterly");
-
         // Dividend metrics
         expect(firstStock).toHaveProperty("dividendYield");
         expect(firstStock).toHaveProperty("dividendRate");
@@ -185,13 +158,11 @@ describe("Metrics Routes", () => {
         expect(firstStock).toHaveProperty("fiveYearAvgDividendYield");
         expect(firstStock).toHaveProperty("trailingAnnualDividendRate");
         expect(firstStock).toHaveProperty("trailingAnnualDividendYield");
-
         // Metadata
         expect(firstStock).toHaveProperty("lastUpdated");
         expect(firstStock).toHaveProperty("dataSource");
         expect(firstStock.dataSource).toBe("yfinance");
         expect(typeof firstStock.lastUpdated).toBe("string");
-
         // Verify numeric fields are numbers or null (not strings)
         if (firstStock.pe !== null) expect(typeof firstStock.pe).toBe("number");
         if (firstStock.pb !== null) expect(typeof firstStock.pb).toBe("number");
@@ -200,13 +171,11 @@ describe("Metrics Routes", () => {
         if (firstStock.currentRatio !== null) expect(typeof firstStock.currentRatio).toBe("number");
       }
     });
-
     test("should handle search filtering", async () => {
       const response = await request(app)
         .get("/metrics/")
         .query({ search: "AAPL", limit: 10, page: 1 })
         .expect(200);
-
       expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toMatchObject({
         page: 1,
@@ -215,7 +184,6 @@ describe("Metrics Routes", () => {
         total: expect.any(Number),
       });
     });
-
     test("should handle sector filtering", async () => {
       const response = await request(app)
         .get("/metrics/")
@@ -225,21 +193,17 @@ describe("Metrics Routes", () => {
           sortOrder: "desc",
         })
         .expect(200);
-
       expect(response.body.data).toBeDefined();
       expect(response.body).toHaveProperty("pagination");
     });
-
     test("should handle metric range filtering", async () => {
       const response = await request(app)
         .get("/metrics/")
         .query({ minMetric: 0.7, maxMetric: 0.9 })
         .expect(200);
-
       expect(response.body.data).toBeDefined();
       expect(response.body).toHaveProperty("pagination");
     });
-
     test("should prevent SQL injection in sort parameters", async () => {
       const response = await request(app)
         .get("/metrics/")
@@ -248,22 +212,17 @@ describe("Metrics Routes", () => {
           sortOrder: "malicious",
         })
         .expect(200);
-
       expect(response.body.data).toBeDefined();
       expect(response.body).toHaveProperty("pagination");
     });
-
     test("should limit page size to maximum", async () => {
       const response = await request(app)
         .get("/metrics/")
         .query({ limit: 1000 }) // Exceeds max of 200
         .expect(200);
-
       expect(response.body.pagination.limit).toBe(200);
     });
-
     // Database error testing skipped - using real database
   });
-
   // Other endpoints need schema updates - testing basic endpoints only for now
 });

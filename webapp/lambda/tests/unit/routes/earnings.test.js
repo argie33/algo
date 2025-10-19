@@ -1,40 +1,31 @@
 const request = require("supertest");
 const express = require("express");
-
 const earningsRoutes = require("../../../routes/earnings");
-
 // Mock database module
 jest.mock("../../../utils/database", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   query: jest.fn(),
 }));
-
-
 describe("Earnings Routes", () => {
   let app;
-
   beforeAll(() => {
     app = express();
     app.use(express.json());
-
     // Add response formatter middleware for proper res.error, res.success methods
     const responseFormatter = require("../../../middleware/responseFormatter");
     app.use(responseFormatter);
-
     app.use("/earnings", earningsRoutes);
   });
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   beforeEach(() => {
     // Reset mocks
     jest.clearAllMocks();
-
     // Set up default mock responses for database queries
     query.mockImplementation((sql) => {
       // Table existence check
       if (sql.includes("SELECT EXISTS")) {
         return Promise.resolve({ rows: [{ exists: true }] });
       }
-
       // Main earnings query - using earnings_estimates table structure
       if (sql.includes("earnings_estimates")) {
         return Promise.resolve({
@@ -64,7 +55,6 @@ describe("Earnings Routes", () => {
           ]
         });
       }
-
       // Earnings calendar query - SQL: SELECT eh.quarter as date, EXTRACT(QUARTER FROM eh.quarter) as quarter, EXTRACT(YEAR FROM eh.quarter) as year
       if (sql.includes("earnings_history") && sql.includes("as date")) {
         return Promise.resolve({
@@ -85,12 +75,10 @@ describe("Earnings Routes", () => {
           ]
         });
       }
-
       // Legacy earnings_reports handling for backward compatibility
       if (sql.includes("earnings_reports")) {
         return Promise.resolve({ rows: [] });
       }
-
       // Earnings history query - using earnings_history table structure
       if (sql.includes("earnings_history")) {
         return Promise.resolve({
@@ -108,16 +96,13 @@ describe("Earnings Routes", () => {
           ]
         });
       }
-
       // Default fallback
       return Promise.resolve({ rows: [] });
     });
   });
-
   describe("GET /earnings", () => {
     test("should return earnings estimates data with default pagination", async () => {
       const response = await request(app).get("/earnings").expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("earnings");
       expect(response.body).toHaveProperty("data");
@@ -128,11 +113,9 @@ describe("Earnings Routes", () => {
         total: expect.any(Number),
         hasMore: expect.any(Boolean),
       });
-
       // Verify earnings estimates data structure
       if (response.body.earnings && response.body.earnings.length > 0) {
         const firstEarning = response.body.earnings[0];
-
         expect(firstEarning).toHaveProperty("symbol");
         expect(firstEarning).toHaveProperty("report_date");
         expect(firstEarning).toHaveProperty("eps_estimate");
@@ -144,13 +127,11 @@ describe("Earnings Routes", () => {
         expect(firstEarning).toHaveProperty("last_updated");
       }
     });
-
     test("should handle pagination parameters", async () => {
       const response = await request(app)
         .get("/earnings")
         .query({ page: 2, limit: 25 })
         .expect(200);
-
       expect(response.body.pagination).toMatchObject({
         page: 2,
         limit: 25,
@@ -158,7 +139,6 @@ describe("Earnings Routes", () => {
         hasMore: expect.any(Boolean),
       });
     });
-
     test("should return empty array when earnings_estimates table doesn't exist", async () => {
       // Mock table existence check to return false
       query.mockImplementation((sql) => {
@@ -167,9 +147,7 @@ describe("Earnings Routes", () => {
         }
         return Promise.resolve({ rows: [] });
       });
-
       const response = await request(app).get("/earnings").expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         earnings: [],
@@ -178,22 +156,18 @@ describe("Earnings Routes", () => {
       });
     });
   });
-
   describe("GET /earnings/calendar", () => {
     test("should return earnings calendar data", async () => {
       // Request past earnings since our test data has historical earnings
       const response = await request(app).get("/earnings/calendar?period=past").expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("calendar");
       expect(response.body.data).toHaveProperty("period");
       expect(response.body.data).toHaveProperty("total");
       expect(response.body.data).toHaveProperty("filters");
-
       // Should have actual calendar data since we have past earnings
       expect(response.body.data.calendar.length).toBeGreaterThan(0);
-
       // Verify calendar data structure with real API data
       const firstEvent = response.body.data.calendar[0];
       expect(firstEvent).toHaveProperty("symbol");
@@ -204,41 +178,33 @@ describe("Earnings Routes", () => {
       expect(firstEvent).toHaveProperty("estimated_eps");
       expect(firstEvent).toHaveProperty("is_reported");
     });
-
     test("should filter by period parameter", async () => {
       const response = await request(app)
         .get("/earnings/calendar")
         .query({ period: "past" })
         .expect(200);
-
       expect(response.body.data.period).toBe("past");
       expect(response.body.data.filters.period).toBe("past");
     });
-
     test("should filter by date range", async () => {
       const response = await request(app)
         .get("/earnings/calendar")
         .query({ startDate: "2024-01-01", endDate: "2024-12-31" })
         .expect(200);
-
       expect(response.body.data.filters.startDate).toBe("2024-01-01");
       expect(response.body.data.filters.endDate).toBe("2024-12-31");
     });
   });
-
   describe("GET /earnings/surprises", () => {
     test("should return earnings surprises data", async () => {
       const response = await request(app).get("/earnings/surprises").expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("surprises");
       expect(response.body.data).toHaveProperty("filters");
       expect(response.body.data).toHaveProperty("total");
-
       // Should have surprises data from our real earnings history
       expect(response.body.data.surprises.length).toBeGreaterThan(0);
-
       if (response.body.data.surprises.length > 0) {
         const firstSurprise = response.body.data.surprises[0];
         expect(firstSurprise).toHaveProperty("symbol");
@@ -249,41 +215,32 @@ describe("Earnings Routes", () => {
         expect(firstSurprise).toHaveProperty("sector");
       }
     });
-
     test("should filter by symbol", async () => {
       const response = await request(app)
         .get("/earnings/surprises")
         .query({ symbol: "AAPL" })
         .expect(200);
-
       expect(response.body.data.filters.symbol).toBe("AAPL");
     });
-
     test("should filter by minimum surprise percentage", async () => {
       const response = await request(app)
         .get("/earnings/surprises")
         .query({ minSurprise: 5 })
         .expect(200);
-
       expect(response.body.data.filters.minSurprise).toBe(5);
     });
   });
-
   describe("GET /earnings/:symbol", () => {
     test("should return earnings data for specific symbol", async () => {
       const response = await request(app).get("/earnings/AAPL").expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body).toHaveProperty("symbol", "AAPL");
       expect(response.body).toHaveProperty("count");
-
       // Should have multiple records for AAPL
       expect(response.body.data.length).toBeGreaterThan(0);
-
       // Find a record with actual earnings (not null)
       const recordWithActual = response.body.data.find(r => r.eps_actual !== null);
-
       if (recordWithActual) {
         expect(recordWithActual).toHaveProperty("symbol");
         expect(recordWithActual).toHaveProperty("report_date");
@@ -295,7 +252,6 @@ describe("Earnings Routes", () => {
         expect(recordWithActual).toHaveProperty("last_updated");
       }
     });
-
     test("should return 404 for symbol with no data", async () => {
       // Mock empty result
       query.mockImplementation((sql) => {
@@ -304,24 +260,19 @@ describe("Earnings Routes", () => {
         }
         return Promise.resolve({ rows: [] });
       });
-
       const response = await request(app).get("/earnings/INVALID").expect(404);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "No earnings data found for symbol",
         symbol: "INVALID",
       });
     });
-
     test("should handle database errors gracefully", async () => {
       // Mock database error
       query.mockImplementation(() => {
         throw new Error("Database connection failed");
       });
-
       const response = await request(app).get("/earnings/AAPL").expect(500);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Earnings query failed",
@@ -329,7 +280,6 @@ describe("Earnings Routes", () => {
       });
     });
   });
-
   describe("Error handling", () => {
     test("should handle database query failures", async () => {
       // Mock database error for main earnings endpoint
@@ -339,16 +289,13 @@ describe("Earnings Routes", () => {
         }
         throw new Error("Database query failed");
       });
-
       const response = await request(app).get("/earnings").expect(500);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Earnings query failed",
         details: "Database query failed",
       });
     });
-
     test("should handle calendar query failures", async () => {
       // Mock database error for calendar endpoint
       query.mockImplementation((sql) => {
@@ -357,10 +304,8 @@ describe("Earnings Routes", () => {
         }
         return Promise.resolve({ rows: [] });
       });
-
       // Calendar endpoint now returns 200 with empty data when no earnings_reports data
       const response = await request(app).get("/earnings/calendar").expect(200);
-
       // Should return successful response with empty calendar data
       expect(response.body).toMatchObject({
         success: true,

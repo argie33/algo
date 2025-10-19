@@ -1,6 +1,5 @@
 const express = require("express");
 const request = require("supertest");
-
 // Mock database for unit tests
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
@@ -10,19 +9,15 @@ jest.mock("../../../utils/database", () => ({
   transaction: jest.fn(),
   healthCheck: jest.fn(),
 }));
-
 // Import mocked functions
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
-
 describe("Calendar Routes Unit Tests", () => {
   let app;
-
   beforeAll(() => {
     // Create test app
     app = express();
     app.use(express.json());
-
     // Mock authentication middleware - allow all requests through
     app.use((req, res, next) => {
       req.user = { sub: "test-user-123" }; // Mock authenticated user
@@ -32,26 +27,21 @@ describe("Calendar Routes Unit Tests", () => {
     // Add response formatter middleware
     const responseFormatter = require("../../../middleware/responseFormatter");
     app.use(responseFormatter);
-
     // Load calendar routes
     const calendarRouter = require("../../../routes/calendar");
     app.use("/calendar", calendarRouter);
   });
-
   beforeEach(() => {
     // Reset all mocks before each test
     jest.clearAllMocks();
   });
-
   describe("GET /calendar/", () => {
     test("should return calendar info", async () => {
       const response = await request(app).get("/calendar/").expect(200);
-
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("status");
     });
   });
-
   describe("GET /calendar/earnings", () => {
     test("should return earnings calendar", async () => {
       // Mock successful database response matching earnings_history table structure
@@ -79,9 +69,7 @@ describe("Calendar Routes Unit Tests", () => {
           }
         ]
       });
-
       const response = await request(app).get("/calendar/earnings").expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("earnings");
@@ -93,21 +81,17 @@ describe("Calendar Routes Unit Tests", () => {
       expect(response.body.data.summary).toHaveProperty("total_earnings", 2);
     });
   });
-
   describe("GET /calendar/dividends", () => {
     test("should return dividend calendar", async () => {
       const response = await request(app).get("/calendar/dividends");
-
       // API may return 200 for implemented or 501 for not implemented
       expect([200, 501]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
     });
   });
-
   describe("GET /calendar/economic", () => {
     test("should return economic calendar with default parameters", async () => {
       const response = await request(app).get("/calendar/economic").expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("economic_events");
       expect(response.body.data).toHaveProperty("summary");
@@ -117,14 +101,12 @@ describe("Calendar Routes Unit Tests", () => {
       expect(response.body.data.filters).toHaveProperty("country", "US");
       expect(response.body.timestamp).toBeDefined();
     });
-
     test("should return economic calendar with custom parameters", async () => {
       const response = await request(app)
         .get(
           "/calendar/economic?country=EU&importance=high&days_ahead=7&limit=10"
         )
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.data.economic_events.length).toBeLessThanOrEqual(10);
       expect(response.body.data.summary.country).toBe("EU");
@@ -132,21 +114,17 @@ describe("Calendar Routes Unit Tests", () => {
       expect(response.body.data.filters.days_ahead).toBe(7);
       expect(response.body.data.filters.limit).toBe(10);
     });
-
     test("should handle invalid parameters gracefully", async () => {
       const response = await request(app)
         .get("/calendar/economic?days_ahead=500&limit=300")
         .expect(400);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid days_ahead parameter");
     });
-
     test("should include proper economic event structure", async () => {
       const response = await request(app)
         .get("/calendar/economic?limit=5")
         .expect(200);
-
       if (response.body.data.economic_events.length > 0) {
         const event = response.body.data.economic_events[0];
         expect(event).toHaveProperty("event_id");
@@ -161,12 +139,10 @@ describe("Calendar Routes Unit Tests", () => {
         expect(event).toHaveProperty("previous");
       }
     });
-
     test("should filter by importance correctly", async () => {
       const response = await request(app)
         .get("/calendar/economic?importance=high&limit=20")
         .expect(200);
-
       const highImportanceEvents = response.body.data.economic_events.filter(
         (e) => e.importance === "high"
       );
@@ -174,10 +150,8 @@ describe("Calendar Routes Unit Tests", () => {
         response.body.data.economic_events.length
       );
     });
-
     test("should include available filters", async () => {
       const response = await request(app).get("/calendar/economic").expect(200);
-
       expect(response.body.data.available_filters).toHaveProperty("countries");
       expect(response.body.data.available_filters).toHaveProperty(
         "importance_levels"
@@ -190,7 +164,6 @@ describe("Calendar Routes Unit Tests", () => {
       expect(response.body.data.available_filters.countries).toContain("EU");
     });
   });
-
   describe("GET /calendar/earnings-metrics", () => {
     test("should return earnings metrics with quality scores", async () => {
       // Mock successful database response for earnings metrics
@@ -236,14 +209,11 @@ describe("Calendar Routes Unit Tests", () => {
           }
         ]
       });
-
       const response = await request(app).get("/calendar/earnings-metrics").expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("AAPL");
       expect(response.body.data).toHaveProperty("MSFT");
-
       // Verify AAPL metrics
       const aaplData = response.body.data.AAPL;
       expect(aaplData).toHaveProperty("metrics");
@@ -251,7 +221,6 @@ describe("Calendar Routes Unit Tests", () => {
       expect(aaplData.metrics[0]).toHaveProperty("earnings_quality_score", 78.5);
       expect(aaplData.metrics[0]).toHaveProperty("eps_yoy_growth", 18.3);
       expect(aaplData.metrics[0]).toHaveProperty("revenue_yoy_growth", 15.2);
-
       // Verify metrics array
       expect(aaplData.metrics).toBeDefined();
       expect(Array.isArray(aaplData.metrics)).toBe(true);
@@ -259,7 +228,6 @@ describe("Calendar Routes Unit Tests", () => {
       expect(aaplData.metrics[0]).toHaveProperty("earnings_quality_score", 78.5);
       expect(aaplData.metrics[0]).toHaveProperty("eps_yoy_growth", 18.3);
     });
-
     test("should handle pagination parameters", async () => {
       query.mockResolvedValueOnce({
         rows: []
@@ -268,23 +236,18 @@ describe("Calendar Routes Unit Tests", () => {
       }).mockResolvedValueOnce({
         rows: []
       });
-
       const response = await request(app)
         .get("/calendar/earnings-metrics?page=2&limit=50")
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("pagination");
       expect(response.body.pagination).toHaveProperty("page", 2);
       expect(response.body.pagination).toHaveProperty("limit", 50);
       expect(response.body.pagination).toHaveProperty("total", 100);
     });
-
     test("should handle database errors gracefully", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
-
       const response = await request(app).get("/calendar/earnings-metrics").expect(200);
-
       // Route returns gracefully with empty data when database fails
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");

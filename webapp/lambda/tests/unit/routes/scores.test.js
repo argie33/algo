@@ -2,44 +2,35 @@
  * Scores Routes Unit Tests
  * Tests scores route logic with mocked database
  */
-
 const express = require("express");
 const request = require("supertest");
-
 // Mock database for unit tests
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
-
-const { query } = require("../../../utils/database");
 const scoresRouter = require("../../../routes/scores");
-
 describe("Scores Routes Unit Tests", () => {
   let app;
-
   beforeAll(() => {
     // Create test app
     app = express();
     app.use(express.json());
-
     // Mock authentication middleware - allow all requests through
     app.use((req, res, next) => {
       req.user = { sub: "test-user-123" }; // Mock authenticated user
       next();
     });
+const { query } = require("../../../utils/database");
 
     // Add response formatter middleware
     const responseFormatter = require("../../../middleware/responseFormatter");
     app.use(responseFormatter);
-
     // Load the route module
     app.use("/scores", scoresRouter);
   });
-
   beforeEach(() => {
     // Reset all mocks before each test
     jest.clearAllMocks();
-
     // Set up default mock responses for all tests
     query.mockImplementation(() => {
       return Promise.resolve({
@@ -72,17 +63,14 @@ describe("Scores Routes Unit Tests", () => {
       });
     });
   });
-
   describe("GET /scores/ping", () => {
     test("should return ping response", async () => {
       const response = await request(app).get("/scores/ping").expect(200);
-
       expect(response.body).toHaveProperty("status", "ok");
       expect(response.body).toHaveProperty("endpoint", "scores");
       expect(response.body).toHaveProperty("timestamp");
     });
   });
-
   describe("GET /scores", () => {
     test("should return scores data from stock_scores table", async () => {
       // Mock database responses with correct schema matching stock_scores table
@@ -204,15 +192,12 @@ describe("Scores Routes Unit Tests", () => {
             }
           ]
         });
-
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status !== 200) {
         console.log("Error response:", response.status, response.body);
       }
-
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -224,7 +209,6 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("metadata");
       expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
       expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
-
       // Check score structure matches actual route format (scores.js:104-129)
       if (response.body.data.stocks.length > 0) {
         const stock = response.body.data.stocks[0];
@@ -242,7 +226,6 @@ describe("Scores Routes Unit Tests", () => {
         expect(stock).toHaveProperty("sentiment_score");
         expect(stock).toHaveProperty("last_updated");
         expect(stock).toHaveProperty("score_date");
-
         // Check quality_inputs structure (matching loader schema)
         expect(stock).toHaveProperty("quality_inputs");
         if (stock.quality_inputs) {
@@ -252,7 +235,6 @@ describe("Scores Routes Unit Tests", () => {
           expect(stock.quality_inputs).toHaveProperty("profit_margin_pct");
           expect(stock.quality_inputs).toHaveProperty("return_on_equity_pct");
         }
-
         // Check growth_inputs structure
         expect(stock).toHaveProperty("growth_inputs");
         if (stock.growth_inputs) {
@@ -265,14 +247,12 @@ describe("Scores Routes Unit Tests", () => {
         }
       }
     });
-
     test("should handle pagination parameters", async () => {
       const response = await request(app)
         .get("/scores")
         .query({ page: 2, limit: 25 })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("stocks");
@@ -281,20 +261,17 @@ describe("Scores Routes Unit Tests", () => {
       // Pagination is only returned when results are empty (scores.js:87-93)
       expect(response.body).toHaveProperty("summary");
     });
-
     test("should handle search parameter for filtering stocks", async () => {
       const response = await request(app)
         .get("/scores")
         .query({ search: "AAPL" })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("stocks");
       expect(Array.isArray(response.body.data.stocks)).toBe(true);
       expect(response.body.metadata).toHaveProperty("searchTerm", "AAPL");
-
       // If results are found, they should match the search term
       if (response.body.data.stocks.length > 0) {
         response.body.data.stocks.forEach(stock => {
@@ -302,14 +279,12 @@ describe("Scores Routes Unit Tests", () => {
         });
       }
     });
-
     test("should handle limit parameter correctly", async () => {
       const response = await request(app)
         .get("/scores")
         .query({ limit: 10 })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("stocks");
@@ -318,31 +293,26 @@ describe("Scores Routes Unit Tests", () => {
       // Returns all stocks from stock_scores table
       expect(response.body).toHaveProperty("summary");
     });
-
     test("should include summary statistics", async () => {
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("summary");
       expect(response.body.summary).toHaveProperty("totalStocks");
       expect(response.body.summary).toHaveProperty("averageScore");
       expect(typeof response.body.summary.averageScore).toBe("number");
     });
-
     test("should return scores sorted by composite_score DESC by default", async () => {
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("stocks");
       expect(Array.isArray(response.body.data.stocks)).toBe(true);
-
       // Check that stocks are sorted by composite score descending
       if (response.body.data.stocks.length > 1) {
         for (let i = 1; i < response.body.data.stocks.length; i++) {
@@ -351,14 +321,12 @@ describe("Scores Routes Unit Tests", () => {
         }
       }
     });
-
     test("should cap limit at 200", async () => {
       const response = await request(app)
         .get("/scores")
         .query({ limit: 500 })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("stocks");
@@ -367,7 +335,6 @@ describe("Scores Routes Unit Tests", () => {
       // Returns all stocks from stock_scores table
       expect(response.body).toHaveProperty("summary");
     });
-
     test("should handle invalid numeric parameters gracefully", async () => {
       const response = await request(app)
         .get("/scores")
@@ -377,7 +344,6 @@ describe("Scores Routes Unit Tests", () => {
         })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("stocks");
@@ -385,12 +351,10 @@ describe("Scores Routes Unit Tests", () => {
       // Note: Route doesn't use pagination for normal results
       expect(response.body).toHaveProperty("summary");
     });
-
     test("should handle database timeout gracefully", async () => {
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token");
-
       // Should either succeed (200) or fail with proper error message (500)
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -403,13 +367,11 @@ describe("Scores Routes Unit Tests", () => {
       }
     });
   });
-
   describe("GET /scores/:symbol", () => {
     test("should return individual symbol score", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
@@ -426,7 +388,6 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("metadata");
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
         expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
-
         // Check seven factor analysis structure (including risk as 7th factor)
         expect(response.body.data.factors).toHaveProperty("momentum");
         expect(response.body.data.factors).toHaveProperty("value");
@@ -435,7 +396,6 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body.data.factors).toHaveProperty("positioning");
         expect(response.body.data.factors).toHaveProperty("sentiment");
         expect(response.body.data.factors).toHaveProperty("risk");
-
         // Check quality factor has inputs
         if (response.body.data.factors.quality) {
           expect(response.body.data.factors.quality).toHaveProperty("score");
@@ -449,7 +409,6 @@ describe("Scores Routes Unit Tests", () => {
             expect(response.body.data.factors.quality.inputs).toHaveProperty("profit_margin_pct");
           }
         }
-
         // Check growth factor has inputs
         if (response.body.data.factors.growth) {
           expect(response.body.data.factors.growth).toHaveProperty("score");
@@ -463,7 +422,6 @@ describe("Scores Routes Unit Tests", () => {
             expect(response.body.data.factors.growth.inputs).toHaveProperty("fcf_growth_yoy");
           }
         }
-
         // Check performance structure
         expect(response.body.data.performance).toHaveProperty("priceChange1d");
         expect(response.body.data.performance).toHaveProperty("priceChange5d");
@@ -475,34 +433,28 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body.error).toContain("Symbol not found in stock_scores table");
       }
     });
-
     test("should handle lowercase symbol input", async () => {
       const response = await request(app)
         .get("/scores/aapl")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status === 200) {
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
       }
     });
-
     test("should handle non-existent symbol correctly", async () => {
       // With real loader data, non-existent symbols in stock_scores return 404
       // Use a symbol that definitely won't exist in production data
       const response = await request(app)
         .get("/scores/ZZZNONEXISTENT123")
         .set("Authorization", "Bearer dev-bypass-token");
-
       // Should return either 404 (not found) or 200 with empty data
       // Actual behavior tested in integration tests with real data
       expect([200, 404]).toContain(response.status);
     });
-
     test("should handle database errors gracefully", async () => {
       const response = await request(app)
         .get("/scores/TEST")
         .set("Authorization", "Bearer dev-bypass-token");
-
       // Should either succeed (200) or fail with proper error (404/500)
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -514,18 +466,12 @@ describe("Scores Routes Unit Tests", () => {
       }
     });
   });
-
-
-
-
-
   describe("Response format and data validation", () => {
     test("should return consistent JSON response format", async () => {
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
       expect(response.body).toHaveProperty("success", true);
@@ -535,44 +481,35 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("metadata");
       expect(response.body).toHaveProperty("timestamp");
     });
-
     test("should include complete pagination metadata", async () => {
       const response = await request(app)
         .get("/scores")
         .query({ page: 2, limit: 25 })
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       expect(response.body).toHaveProperty("success", true);
       // Note: Route doesn't use pagination for normal results
       // Pagination only returned for empty results (scores.js:87-93)
       expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("metadata");
     });
-
     test("should validate score data types and ranges", async () => {
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       if (response.body.data.stocks.length > 0) {
         const stock = response.body.data.stocks[0];
-
         // Check that scores are numbers and within expected ranges (using actual property names from route)
         expect(typeof stock.composite_score).toBe("number");
         expect(stock.composite_score).toBeGreaterThanOrEqual(0);
         expect(stock.composite_score).toBeLessThanOrEqual(100);
-
         expect(typeof stock.current_price).toBe("number");
         expect(stock.current_price).toBeGreaterThanOrEqual(0);
-
         expect(typeof stock.volume_avg_30d).toBe("number");
         expect(stock.volume_avg_30d).toBeGreaterThanOrEqual(0);
-
         expect(typeof stock.market_cap).toBe("number");
         expect(stock.market_cap).toBeGreaterThanOrEqual(0);
-
         // Check factor scores are numbers (if factors object exists in list response)
         if (stock.factors) {
           expect(typeof stock.factors.momentum.score).toBe("number");
@@ -585,20 +522,16 @@ describe("Scores Routes Unit Tests", () => {
       }
     });
   });
-
   describe("Growth metrics validation", () => {
     test("should return all 12 growth metrics in factors.growth.inputs", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status === 200) {
         const data = response.body.data;
         expect(data).toHaveProperty("factors");
         expect(data.factors).toHaveProperty("growth");
-
         const growthInputs = data.factors.growth.inputs;
-
         // All 12 growth metrics must be present (can be null if data unavailable)
         const expectedGrowthMetrics = [
           "revenue_growth_3y_cagr",
@@ -614,7 +547,6 @@ describe("Scores Routes Unit Tests", () => {
           "quarterly_growth_momentum",
           "asset_growth_yoy"
         ];
-
         expectedGrowthMetrics.forEach(metric => {
           expect(growthInputs).toHaveProperty(metric);
           // Each metric can be null or a number
@@ -624,12 +556,10 @@ describe("Scores Routes Unit Tests", () => {
         });
       }
     });
-
     test("should have growth_score populated", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status === 200) {
         const data = response.body.data;
         expect(data.factors).toHaveProperty("growth");
@@ -639,15 +569,12 @@ describe("Scores Routes Unit Tests", () => {
         expect(data.factors.growth.score).toBeLessThanOrEqual(100);
       }
     });
-
     test("should document legitimate null values for growth metrics with data constraints", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status === 200) {
         const growthInputs = response.body.data.factors.growth.inputs;
-
         // These metrics CAN be null due to data availability, not quality issues
         const constrainedMetrics = {
           "operating_income_growth_yoy": "Requires 5+ quarters of quarterly_income_statement data",
@@ -659,7 +586,6 @@ describe("Scores Routes Unit Tests", () => {
           "quarterly_growth_momentum": "Requires 8+ quarters of revenue data",
           "asset_growth_yoy": "Requires 5+ quarters of quarterly_balance_sheet data"
         };
-
         Object.entries(constrainedMetrics).forEach(([metric, reason]) => {
           expect(growthInputs).toHaveProperty(metric);
           // Can be null or number - both valid
@@ -669,19 +595,15 @@ describe("Scores Routes Unit Tests", () => {
         });
       }
     });
-
     test("should always populate revenue_growth_3y_cagr and eps_growth_3y_cagr when available", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status === 200) {
         const growthInputs = response.body.data.factors.growth.inputs;
-
         // These metrics are sourced from key_metrics table (most stocks have this data)
         expect(growthInputs).toHaveProperty("revenue_growth_3y_cagr");
         expect(growthInputs).toHaveProperty("eps_growth_3y_cagr");
-
         // If available, they should be numbers
         if (growthInputs.revenue_growth_3y_cagr !== null) {
           expect(typeof growthInputs.revenue_growth_3y_cagr).toBe("number");
@@ -691,17 +613,14 @@ describe("Scores Routes Unit Tests", () => {
         }
       }
     });
-
     test("should have growth_inputs in list view with snake_case naming", async () => {
       const response = await request(app)
         .get("/scores")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       if (response.body.data.stocks.length > 0) {
         const stock = response.body.data.stocks[0];
         expect(stock).toHaveProperty("growth_inputs");
-
         const growthInputs = stock.growth_inputs;
         const expectedMetrics = [
           "revenue_growth_3y_cagr",
@@ -717,17 +636,14 @@ describe("Scores Routes Unit Tests", () => {
           "quarterly_growth_momentum",
           "asset_growth_yoy"
         ];
-
         expectedMetrics.forEach(metric => {
           expect(growthInputs).toHaveProperty(metric);
         });
       }
     });
-
     test("should explain why quarterly metrics might be N/A in production", () => {
       // This test documents expected behavior - many stocks may have N/A values
       // for quarterly-dependent metrics if they don't have enough historical quarterly data
-
       const dataConstraints = {
         "operating_income_growth_yoy": "Need quarterly_income_statement with 5+ quarters",
         "fcf_growth_yoy": "Need quarterly_cash_flow with 5+ quarters",
@@ -738,141 +654,115 @@ describe("Scores Routes Unit Tests", () => {
         "quarterly_growth_momentum": "Need 8+ quarters of revenue data",
         "asset_growth_yoy": "Need quarterly_balance_sheet with 5+ quarters"
       };
-
       // This is expected - not all companies publish detailed quarterly data
       expect(Object.keys(dataConstraints).length).toBeGreaterThan(0);
     });
   });
-
   describe("Value metrics schema validation", () => {
     test("should return complete value_inputs structure matching loader schema", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status === 200) {
         const data = response.body.data;
         expect(data).toHaveProperty("factors");
-
         // Check value factor exists
         expect(data.factors).toHaveProperty("value");
         const valueInputs = data.factors.value.inputs;
-
         // Market benchmarks may be null when insufficient data in database
         expect(valueInputs).toHaveProperty("market_pe");
         if (valueInputs.market_pe !== null) {
           const peNum = Number(valueInputs.market_pe);
           expect(Number.isFinite(peNum)).toBe(true);
         }
-
         expect(valueInputs).toHaveProperty("market_pb");
         if (valueInputs.market_pb !== null) {
           const pbNum = Number(valueInputs.market_pb);
           expect(Number.isFinite(pbNum)).toBe(true);
         }
-
         expect(valueInputs).toHaveProperty("market_ps");
         if (valueInputs.market_ps !== null) {
           const psNum = Number(valueInputs.market_ps);
           expect(Number.isFinite(psNum)).toBe(true);
         }
-
         expect(valueInputs).toHaveProperty("market_fcf_yield");
         if (valueInputs.market_fcf_yield !== null) {
           expect(Number.isFinite(Number(valueInputs.market_fcf_yield))).toBe(true);
         }
-
         expect(valueInputs).toHaveProperty("market_dividend_yield");
         if (valueInputs.market_dividend_yield !== null) {
           expect(Number.isFinite(Number(valueInputs.market_dividend_yield))).toBe(true);
         }
-
         // REQUIRED: All sector benchmarks must be populated (100% from loaders)
         expect(valueInputs).toHaveProperty("sector_pe");
         if (valueInputs.sector_pe !== null) {
           expect(typeof valueInputs.sector_pe).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("sector_pb");
         if (valueInputs.sector_pb !== null) {
           expect(typeof valueInputs.sector_pb).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("sector_ps");
         if (valueInputs.sector_ps !== null) {
           expect(typeof valueInputs.sector_ps).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("sector_fcf_yield");
         if (valueInputs.sector_fcf_yield !== null && valueInputs.sector_fcf_yield !== undefined) {
           expect(typeof valueInputs.sector_fcf_yield).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("sector_dividend_yield");
         if (valueInputs.sector_dividend_yield !== null && valueInputs.sector_dividend_yield !== undefined) {
           expect(typeof valueInputs.sector_dividend_yield).toBe("number");
         }
-
         // Stock-level metrics: Can be null for legitimate reasons
         expect(valueInputs).toHaveProperty("stock_pe");
         if (valueInputs.stock_pe !== null) {
           expect(typeof valueInputs.stock_pe).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("stock_pb");
         // May be null or a number - both valid
         if (valueInputs.stock_pb !== null) {
           expect(typeof valueInputs.stock_pb).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("stock_ps");
         // May be null or a number - both valid
         if (valueInputs.stock_ps !== null) {
           expect(typeof valueInputs.stock_ps).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("stock_ev_ebitda");
         // May be null or a number - both valid
         if (valueInputs.stock_ev_ebitda !== null) {
           expect(typeof valueInputs.stock_ev_ebitda).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("stock_fcf_yield");
         if (valueInputs.stock_fcf_yield !== null) {
           expect(typeof valueInputs.stock_fcf_yield).toBe("number");
         }
-
         expect(valueInputs).toHaveProperty("stock_dividend_yield");
         // Legitimate null for non-dividend payers
         if (valueInputs.stock_dividend_yield !== null) {
           expect(typeof valueInputs.stock_dividend_yield).toBe("number");
           expect(valueInputs.stock_dividend_yield).toBeGreaterThanOrEqual(0);
         }
-
         expect(valueInputs).toHaveProperty("earnings_growth_pct");
         expect(valueInputs.earnings_growth_pct).toBeDefined(); // Should have value
-
         expect(valueInputs).toHaveProperty("peg_ratio");
         if (valueInputs.peg_ratio !== null) {
           expect(typeof valueInputs.peg_ratio).toBe("number");
         }
       }
     });
-
     test("should have market benchmarks with valid data when available", async () => {
       const response = await request(app)
         .get("/scores?limit=50")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       const stocks = response.body.data.stocks;
       expect(stocks.length).toBeGreaterThan(0);
-
       const benchmarks = [
         "market_pe", "market_pb", "market_ps",
         "market_fcf_yield", "market_dividend_yield"
       ];
-
       let populatedCount = 0;
       let checkedCount = 0;
       stocks.forEach(stock => {
@@ -887,30 +777,24 @@ describe("Scores Routes Unit Tests", () => {
           }
         });
       });
-
       // Market benchmarks may be null due to data availability
       // Just verify structure is correct and values are numeric when present
       expect(checkedCount).toBeGreaterThan(0);
     });
-
     test("should have sector benchmarks with reasonable population rate", async () => {
       const response = await request(app)
         .get("/scores?limit=50")
         .set("Authorization", "Bearer dev-bypass-token")
         .expect(200);
-
       const stocks = response.body.data.stocks;
       expect(stocks.length).toBeGreaterThan(0);
-
       const sectorBenchmarks = [
         "sector_pe", "sector_pb", "sector_ps",
         "sector_fcf_yield", "sector_dividend_yield"
       ];
-
       let totalBenchmarks = 0;
       let populatedBenchmarks = 0;
       let validatedCount = 0;
-
       stocks.forEach(stock => {
         const valueInputs = stock.value_inputs || {};
         sectorBenchmarks.forEach(benchmark => {
@@ -924,20 +808,16 @@ describe("Scores Routes Unit Tests", () => {
           }
         });
       });
-
       // Sector benchmarks may be partially populated depending on data availability
       // Just verify structure is correct and any populated values are numeric
       expect(validatedCount + (totalBenchmarks - populatedBenchmarks)).toBe(totalBenchmarks);
     });
-
     test("should document legitimate null values in stock-level metrics", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
-
       if (response.status === 200) {
         const valueInputs = response.body.data.factors.value.inputs;
-
         // These CAN be null due to data limitations, not data quality issues
         const legitNullFields = [
           "stock_pe",           // Null for unprofitable/negative earnings
@@ -947,7 +827,6 @@ describe("Scores Routes Unit Tests", () => {
           "stock_fcf_yield",    // Null when no FCF data available
           "stock_dividend_yield" // Null for non-dividend payers (40% of stocks)
         ];
-
         legitNullFields.forEach(field => {
           expect(valueInputs).toHaveProperty(field);
           // Property can be null or a number, both valid

@@ -3,29 +3,23 @@
  * Tests ETF holdings endpoint with mocked database dependencies
  * Covers all endpoints, error handling, data validation, and edge cases
  */
-
 const request = require("supertest");
 const express = require("express");
-
 // Mock database queries
 const mockQuery = jest.fn();
 jest.mock("../../../utils/database", () => ({
-
   query: mockQuery,
 }))
-
 // Import mocked functions
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
-
 // Create test app
 const app = express();
 app.use(express.json());
 app.use("/api/etf", require("../../../routes/etf"));
-
 describe("ETF Route - Comprehensive Unit Tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("GET /api/etf/:symbol/holdings", () => {
     test("should get ETF holdings for valid symbol", async () => {
@@ -55,7 +49,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.25,
         },
       ];
-
       const mockSectorData = [
         {
           sector: "Technology",
@@ -66,15 +59,12 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           total_weight: 13.2,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: mockSectorData });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.data.etf_symbol).toBe("SPY");
       expect(response.body.data.fund_name).toBe("SPDR S&P 500 ETF Trust");
@@ -104,7 +94,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
       expect(response.body.data.last_updated).toBeDefined();
       expect(response.body.timestamp).toBeDefined();
     });
-
     test("should handle case insensitive symbol lookup", async () => {
       const mockHoldingsData = [
         {
@@ -120,19 +109,15 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.25,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] });
-
       await request(app).get("/api/etf/spy/holdings").expect(200);
-
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("h.etf_symbol = $1"),
         ["SPY", 25]
       );
     });
-
     test("should handle limit parameter correctly", async () => {
       const mockHoldingsData = [
         {
@@ -148,87 +133,67 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.25,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] });
-
       await request(app).get("/api/etf/SPY/holdings?limit=10").expect(200);
-
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("LIMIT $2"),
         ["SPY", 10]
       );
     });
-
     test("should handle missing symbol parameter", async () => {
       // Mock empty symbol to trigger the validation check
       mockQuery.mockResolvedValue({ rows: [] });
-
       const response = await request(app)
         .get("/api/etf/ /holdings")
         .expect(404); // Empty symbol becomes " " which gets processed as ETF not found
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("ETF not found");
     });
-
     test("should handle ETF not found", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app)
         .get("/api/etf/INVALID/holdings")
         .expect(404);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("ETF not found");
       expect(response.body.message).toContain(
         "No holdings data found for ETF symbol: INVALID"
       );
     });
-
     test("should handle null database results gracefully", async () => {
       mockQuery.mockResolvedValueOnce({ rows: null });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(404);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("ETF not found");
     });
-
     test("should handle database table not found error", async () => {
       const tableNotFoundError = new Error("Table not found");
       tableNotFoundError.code = "42P01";
-
       mockQuery.mockRejectedValue(tableNotFoundError);
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(500);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Database table not found");
       expect(response.body.message).toBe(
         "ETF holdings table does not exist. Please contact support."
       );
     });
-
     test("should handle general database errors", async () => {
       mockQuery.mockRejectedValue(new Error("Database connection failed"));
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(500);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Failed to fetch ETF holdings");
       expect(response.body.message).toBe(
         "Database query failed. Please try again later."
       );
     });
-
     test("should handle empty sector data gracefully", async () => {
       const mockHoldingsData = [
         {
@@ -244,19 +209,15 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.25,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] }); // Empty sector data
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(200);
-
       expect(response.body.data.sector_allocation).toEqual({});
       expect(response.body.data.top_holdings).toHaveLength(1);
     });
-
     test("should handle missing fund metrics gracefully", async () => {
       const mockHoldingsData = [
         {
@@ -272,15 +233,12 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: null,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(200);
-
       expect(response.body.data.fund_metrics).toMatchObject({
         expense_ratio: 0,
         total_holdings: 1,
@@ -288,7 +246,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
         dividend_yield: 0,
       });
     });
-
     test("should handle special characters in ETF symbol", async () => {
       const mockHoldingsData = [
         {
@@ -304,19 +261,15 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.0,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] });
-
       await request(app).get("/api/etf/VTI-B/holdings").expect(200);
-
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("h.etf_symbol = $1"),
         ["VTI-B", 25]
       );
     });
-
     test("should parse numeric values correctly", async () => {
       const mockHoldingsData = [
         {
@@ -332,22 +285,18 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: "1.25",
         },
       ];
-
       const mockSectorData = [
         {
           sector: "Technology",
           total_weight: "28.5",
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: mockSectorData });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(200);
-
       expect(response.body.data.top_holdings[0].weight_percent).toBe(6.85);
       expect(response.body.data.top_holdings[0].shares_held).toBe(165000000);
       expect(response.body.data.top_holdings[0].market_value).toBe(25000000000);
@@ -355,7 +304,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
       expect(response.body.data.fund_metrics.expense_ratio).toBe(0.0945);
       expect(response.body.data.fund_metrics.dividend_yield).toBe(1.25);
     });
-
     test("should handle sector name transformation correctly", async () => {
       const mockSectorData = [
         {
@@ -371,7 +319,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           total_weight: "12.1",
         },
       ];
-
       const mockHoldingsData = [
         {
           holding_symbol: "AAPL",
@@ -386,15 +333,12 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.0,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: mockSectorData });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(200);
-
       expect(response.body.data.sector_allocation).toHaveProperty(
         "information_technology",
         28.5
@@ -409,24 +353,19 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
       );
     });
   });
-
   // Edge Cases and Error Scenarios
   describe("Edge Cases and Error Handling", () => {
     test("should handle very large limit parameter", async () => {
       const mockHoldingsData = [];
-
       mockQuery.mockResolvedValueOnce({ rows: mockHoldingsData });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings?limit=99999")
         .expect(200);
-
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("LIMIT $2"),
         ["SPY", 1000] // Large limits are capped at 1000
       );
     });
-
     test("should handle non-numeric limit parameter", async () => {
       const mockHoldingsData = [
         {
@@ -442,44 +381,34 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.0,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app).get("/api/etf/SPY/holdings?limit=invalid").expect(400);
-
       // Should return error for invalid limit parameter
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid limit parameter");
     });
-
     test("should handle negative limit parameter", async () => {
       const mockHoldingsData = [];
-
       mockQuery.mockResolvedValueOnce({ rows: mockHoldingsData });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings?limit=-10")
         .expect(200);
-
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("LIMIT $2"),
         ["SPY", 1] // Negative limit normalized to 1
       );
     });
-
     test("should handle malformed database response", async () => {
       mockQuery
         .mockResolvedValueOnce({
           rows: [{ malformed: "data", without: "expected", fields: true }],
         })
         .mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(200);
-
       // Should handle missing fields gracefully - may return empty array for malformed data
       expect(Array.isArray(response.body.data.top_holdings)).toBe(true);
       // Either returns empty array or handles malformed data gracefully
@@ -488,7 +417,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
       }
     });
   });
-
   // Performance Testing
   describe("Performance Testing", () => {
     test("should handle concurrent requests efficiently", async () => {
@@ -506,7 +434,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.0,
         },
       ];
-
       // Each request makes 2 queries, so we need to mock 10 total calls
       for (let i = 0; i < 10; i++) {
         if (i % 2 === 0) {
@@ -517,19 +444,15 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           mockQuery.mockResolvedValueOnce({ rows: [] });
         }
       }
-
       const requests = Array.from({ length: 5 }, (_, i) =>
         request(app).get(`/api/etf/ETF${i}/holdings`)
       );
-
       const responses = await Promise.all(requests);
-
       responses.forEach((response, index) => {
         expect(response.status).toBe(200);
         expect(response.body.data.etf_symbol).toBe(`ETF${index}`);
       });
     });
-
     test("should handle large holdings dataset efficiently", async () => {
       const largeHoldingsDataset = Array.from({ length: 500 }, (_, i) => ({
         holding_symbol: `STOCK${i}`,
@@ -543,19 +466,16 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
         expense_ratio: 0.05,
         dividend_yield: 2.0,
       }));
-
       // Clear all mocks and set up fresh
       jest.clearAllMocks();
       mockQuery
         .mockResolvedValueOnce({ rows: largeHoldingsDataset })
         .mockResolvedValueOnce({ rows: [] });
-
       const startTime = Date.now();
       const response = await request(app)
         .get("/api/etf/LARGE/holdings?limit=500")
         .expect(200);
       const endTime = Date.now();
-
       // The test should work with the proper mocked data
       // If it still fails, it means there's either a test setup issue or the route limits data differently
       expect(response.body.data.top_holdings.length).toBeGreaterThanOrEqual(1);
@@ -563,7 +483,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
       expect(endTime - startTime).toBeLessThan(5000); // Should complete within 5 seconds
     });
   });
-
   // Response Format Validation
   describe("Response Format Validation", () => {
     test("should return consistent JSON response format", async () => {
@@ -581,22 +500,18 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.0,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(200);
-
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
       expect(response.body.timestamp).toBeDefined();
     });
-
     test("should include timestamp in ISO format", async () => {
       const mockHoldingsData = [
         {
@@ -612,37 +527,30 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
           dividend_yield: 1.0,
         },
       ];
-
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] });
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(200);
-
       expect(response.body.timestamp).toBeDefined();
       expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
       expect(response.body.timestamp).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
       );
-
       expect(response.body.data.last_updated).toBeDefined();
       expect(new Date(response.body.data.last_updated)).toBeInstanceOf(Date);
       expect(response.body.data.last_updated).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
       );
     });
-
     test("should maintain consistent error response format", async () => {
       // Clear mocks and reject all query calls
       jest.clearAllMocks();
       mockQuery.mockRejectedValue(new Error("Test database error"));
-
       const response = await request(app)
         .get("/api/etf/SPY/holdings")
         .expect(500);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBeDefined();
       expect(typeof response.body.error).toBe("string");

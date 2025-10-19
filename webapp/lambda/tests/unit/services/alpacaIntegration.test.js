@@ -2,7 +2,6 @@
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
-
 // Mock Alpaca Service
 jest.mock("../../../utils/alpacaService", () => ({
   getAccountInfo: jest.fn(),
@@ -12,16 +11,11 @@ jest.mock("../../../utils/alpacaService", () => ({
   getMarketData: jest.fn(),
   getPortfolioHistory: jest.fn(),
 }));
-
 // Mock API Key Service
 jest.mock("../../../utils/apiKeyService", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   getDecryptedApiKey: jest.fn(),
 }));
-
 const alpacaService = require("../../../utils/alpacaService");
-const { getDecryptedApiKey } = require("../../../utils/apiKeyService");
-
 describe("Alpaca Integration Service Unit Tests", () => {
   const testUserId = "test-user-123";
   const mockApiKeys = {
@@ -29,11 +23,11 @@ describe("Alpaca Integration Service Unit Tests", () => {
     apiSecret: "test-secret",
     isSandbox: true,
   };
-
   beforeEach(() => {
     jest.clearAllMocks();
     getDecryptedApiKey.mockResolvedValue(mockApiKeys);
   });
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("Account Information", () => {
     test("should retrieve account information", async () => {
@@ -47,37 +41,29 @@ describe("Alpaca Integration Service Unit Tests", () => {
         day_trade_count: 0,
         account_blocked: false,
       };
-
       alpacaService.getAccountInfo.mockResolvedValue(mockAccountInfo);
-
       const result = await alpacaService.getAccountInfo(testUserId);
-
       expect(result).toEqual(mockAccountInfo);
       expect(alpacaService.getAccountInfo).toHaveBeenCalledWith(testUserId);
     });
-
     test("should handle account information errors", async () => {
       alpacaService.getAccountInfo.mockRejectedValue(
         new Error("API connection failed")
       );
-
       await expect(alpacaService.getAccountInfo(testUserId)).rejects.toThrow(
         "API connection failed"
       );
     });
-
     test("should handle missing API keys", async () => {
       getDecryptedApiKey.mockResolvedValue(null);
       alpacaService.getAccountInfo.mockRejectedValue(
         new Error("No API keys configured")
       );
-
       await expect(alpacaService.getAccountInfo(testUserId)).rejects.toThrow(
         "No API keys configured"
       );
     });
   });
-
   describe("Portfolio Positions", () => {
     test("should retrieve current positions", async () => {
       const mockPositions = [
@@ -102,36 +88,27 @@ describe("Alpaca Integration Service Unit Tests", () => {
           current_price: "350.25",
         },
       ];
-
       alpacaService.getPositions.mockResolvedValue(mockPositions);
-
       const result = await alpacaService.getPositions(testUserId);
-
       expect(result).toEqual(mockPositions);
       expect(result).toHaveLength(2);
       expect(result[0].symbol).toBe("AAPL");
       expect(alpacaService.getPositions).toHaveBeenCalledWith(testUserId);
     });
-
     test("should handle empty positions", async () => {
       alpacaService.getPositions.mockResolvedValue([]);
-
       const result = await alpacaService.getPositions(testUserId);
-
       expect(result).toEqual([]);
     });
-
     test("should handle positions API errors", async () => {
       alpacaService.getPositions.mockRejectedValue(
         new Error("Positions API unavailable")
       );
-
       await expect(alpacaService.getPositions(testUserId)).rejects.toThrow(
         "Positions API unavailable"
       );
     });
   });
-
   describe("Order Management", () => {
     test("should retrieve order history", async () => {
       const mockOrders = [
@@ -156,17 +133,13 @@ describe("Alpaca Integration Service Unit Tests", () => {
           submitted_at: "2023-01-01T11:00:00Z",
         },
       ];
-
       alpacaService.getOrders.mockResolvedValue(mockOrders);
-
       const result = await alpacaService.getOrders(testUserId);
-
       expect(result).toEqual(mockOrders);
       expect(result).toHaveLength(2);
       expect(result[0].status).toBe("filled");
       expect(alpacaService.getOrders).toHaveBeenCalledWith(testUserId);
     });
-
     test("should place market buy order", async () => {
       const orderRequest = {
         symbol: "TSLA",
@@ -174,18 +147,14 @@ describe("Alpaca Integration Service Unit Tests", () => {
         qty: "10",
         type: "market",
       };
-
       const mockOrderResponse = {
         id: "order-125",
         status: "accepted",
         ...orderRequest,
         submitted_at: "2023-01-01T12:00:00Z",
       };
-
       alpacaService.placeOrder.mockResolvedValue(mockOrderResponse);
-
       const result = await alpacaService.placeOrder(testUserId, orderRequest);
-
       expect(result).toEqual(mockOrderResponse);
       expect(result.status).toBe("accepted");
       expect(alpacaService.placeOrder).toHaveBeenCalledWith(
@@ -193,7 +162,6 @@ describe("Alpaca Integration Service Unit Tests", () => {
         orderRequest
       );
     });
-
     test("should place limit sell order", async () => {
       const orderRequest = {
         symbol: "NVDA",
@@ -202,22 +170,17 @@ describe("Alpaca Integration Service Unit Tests", () => {
         type: "limit",
         limit_price: "450.00",
       };
-
       const mockOrderResponse = {
         id: "order-126",
         status: "accepted",
         ...orderRequest,
         submitted_at: "2023-01-01T13:00:00Z",
       };
-
       alpacaService.placeOrder.mockResolvedValue(mockOrderResponse);
-
       const result = await alpacaService.placeOrder(testUserId, orderRequest);
-
       expect(result).toEqual(mockOrderResponse);
       expect(result.limit_price).toBe("450.00");
     });
-
     test("should handle order placement errors", async () => {
       const orderRequest = {
         symbol: "INVALID",
@@ -225,14 +188,11 @@ describe("Alpaca Integration Service Unit Tests", () => {
         qty: "100",
         type: "market",
       };
-
       alpacaService.placeOrder.mockRejectedValue(new Error("Invalid symbol"));
-
       await expect(
         alpacaService.placeOrder(testUserId, orderRequest)
       ).rejects.toThrow("Invalid symbol");
     });
-
     test("should validate order parameters", async () => {
       const invalidOrder = {
         symbol: "",
@@ -240,17 +200,14 @@ describe("Alpaca Integration Service Unit Tests", () => {
         qty: "-10",
         type: "market",
       };
-
       alpacaService.placeOrder.mockRejectedValue(
         new Error("Invalid order parameters")
       );
-
       await expect(
         alpacaService.placeOrder(testUserId, invalidOrder)
       ).rejects.toThrow("Invalid order parameters");
     });
   });
-
   describe("Market Data", () => {
     test("should retrieve real-time quotes", async () => {
       const symbols = ["AAPL", "MSFT", "GOOGL"];
@@ -277,11 +234,8 @@ describe("Alpaca Integration Service Unit Tests", () => {
           timestamp: "2023-01-01T15:30:00Z",
         },
       };
-
       alpacaService.getMarketData.mockResolvedValue(mockQuotes);
-
       const result = await alpacaService.getMarketData(testUserId, symbols);
-
       expect(result).toEqual(mockQuotes);
       expect(Object.keys(result)).toHaveLength(3);
       expect(result.AAPL.last).toBe("189.45");
@@ -290,27 +244,21 @@ describe("Alpaca Integration Service Unit Tests", () => {
         symbols
       );
     });
-
     test("should handle market data API errors", async () => {
       const symbols = ["AAPL"];
       alpacaService.getMarketData.mockRejectedValue(
         new Error("Market data unavailable")
       );
-
       await expect(
         alpacaService.getMarketData(testUserId, symbols)
       ).rejects.toThrow("Market data unavailable");
     });
-
     test("should handle empty symbol list", async () => {
       alpacaService.getMarketData.mockResolvedValue({});
-
       const result = await alpacaService.getMarketData(testUserId, []);
-
       expect(result).toEqual({});
     });
   });
-
   describe("Portfolio History", () => {
     test("should retrieve portfolio performance history", async () => {
       const mockHistory = {
@@ -321,11 +269,8 @@ describe("Alpaca Integration Service Unit Tests", () => {
         base_value: "70000.00",
         timeframe: "1D",
       };
-
       alpacaService.getPortfolioHistory.mockResolvedValue(mockHistory);
-
       const result = await alpacaService.getPortfolioHistory(testUserId, "1M");
-
       expect(result).toEqual(mockHistory);
       expect(result.timestamp).toHaveLength(3);
       expect(result.base_value).toBe("70000.00");
@@ -334,18 +279,15 @@ describe("Alpaca Integration Service Unit Tests", () => {
         "1M"
       );
     });
-
     test("should handle portfolio history errors", async () => {
       alpacaService.getPortfolioHistory.mockRejectedValue(
         new Error("History data unavailable")
       );
-
       await expect(
         alpacaService.getPortfolioHistory(testUserId, "1M")
       ).rejects.toThrow("History data unavailable");
     });
   });
-
   describe("Database Integration", () => {
     test("should store portfolio data in database", async () => {
       const portfolioData = {
@@ -355,9 +297,7 @@ describe("Alpaca Integration Service Unit Tests", () => {
         buying_power: "25000.00",
         day_trade_count: 0,
       };
-
       query.mockResolvedValue({ rows: [{ ...portfolioData, id: 1 }] });
-
       // Since this is a unit test, we just mock the database interaction
       const result = await query(
         "INSERT INTO user_portfolios (user_id, alpaca_account_id, portfolio_value, buying_power, day_trade_count) VALUES ($1, $2, $3, $4, $5) RETURNING *",
@@ -369,59 +309,47 @@ describe("Alpaca Integration Service Unit Tests", () => {
           portfolioData.day_trade_count,
         ]
       );
-
       expect(result.rows[0]).toMatchObject(portfolioData);
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining("INSERT INTO user_portfolios"),
         expect.arrayContaining([testUserId, "test-account-123"])
       );
     });
-
     test("should handle database insertion errors", async () => {
       query.mockRejectedValue(new Error("Database constraint violation"));
-
       await expect(query("INSERT INTO user_portfolios...", [])).rejects.toThrow(
         "Database constraint violation"
       );
     });
   });
-
   describe("Error Handling", () => {
     test("should handle network timeouts", async () => {
       alpacaService.getAccountInfo.mockRejectedValue(
         new Error("Request timeout")
       );
-
       await expect(alpacaService.getAccountInfo(testUserId)).rejects.toThrow(
         "Request timeout"
       );
     });
-
     test("should handle authentication failures", async () => {
       alpacaService.getAccountInfo.mockRejectedValue(
         new Error("Invalid API credentials")
       );
-
       await expect(alpacaService.getAccountInfo(testUserId)).rejects.toThrow(
         "Invalid API credentials"
       );
     });
-
     test("should handle API rate limiting", async () => {
       alpacaService.getMarketData.mockRejectedValue(
         new Error("Rate limit exceeded")
       );
-
       await expect(
         alpacaService.getMarketData(testUserId, ["AAPL"])
       ).rejects.toThrow("Rate limit exceeded");
     });
-
     test("should handle malformed API responses", async () => {
       alpacaService.getPositions.mockResolvedValue(null);
-
       const result = await alpacaService.getPositions(testUserId);
-
       expect(result).toBeNull();
     });
   });

@@ -1,53 +1,41 @@
 const request = require("supertest");
 const express = require("express");
-
 const technicalRouter = require("../../../routes/technical");
-
 // Mock dependencies to match your actual site pattern
 jest.mock("../../../utils/database", () => ({
-
   query: jest.fn(),
 }))
-
 // Import mocked functions
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
-
-
 describe("Technical Analysis Routes - Testing Your Actual Site", () => {
   let app;
-
   beforeAll(() => {
     app = express();
     app.use(express.json());
     app.use("/technical", technicalRouter);
   });
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   beforeEach(() => {
     jest.clearAllMocks();
-
     // Set up default mock responses for database queries
     query.mockImplementation((sql, params) => {
       // Test query
       if (sql.includes("SELECT 1 as test")) {
         return Promise.resolve({ rows: [{ test: 1 }] });
       }
-
       // Table existence checks - allow override by mockResolvedValueOnce
       if (sql.includes("EXISTS") && sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });
       }
-
       // Count queries for technical data
       if (sql.includes("COUNT(DISTINCT symbol)") || (sql.includes("COUNT(*)") && sql.includes("technical_data_daily"))) {
         return Promise.resolve({ rows: [{ total: "150" }] });
       }
-
       // Technical data queries with comprehensive indicators
       if (sql.includes("technical_data_daily") || (sql.includes("SELECT") && sql.includes("symbol"))) {
         // Check if filtering by symbol or RSI
         const filterBySymbol = params && params.includes("AAPL");
         const filterByRSI = params && (params.includes(60) || params.includes(80));
-
         let filteredData;
         if (filterByRSI) {
           // Return only data within RSI range 60-80
@@ -199,12 +187,10 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           }
         ];
         }
-
         return Promise.resolve({
           rows: filteredData
         });
       }
-
       // Chart data queries
       if (sql.includes("chart") || sql.includes("ohlcv")) {
         return Promise.resolve({
@@ -221,7 +207,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           ]
         });
       }
-
       // Pattern analysis queries
       if (sql.includes("patterns") || sql.includes("support") || sql.includes("resistance")) {
         return Promise.resolve({
@@ -234,16 +219,13 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           ]
         });
       }
-
       // Default fallback
       return Promise.resolve({ rows: [] });
     });
   });
-
   describe("GET /technical/ping - Basic endpoint", () => {
     test("should return ping response", async () => {
       const response = await request(app).get("/technical/ping").expect(200);
-
       expect(response.body).toEqual({
         success: true,
         data: {
@@ -255,7 +237,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       });
     });
   });
-
   describe("GET /technical/ - Root technical endpoint", () => {
     test("should return latest technical data for all symbols using daily timeframe", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
@@ -291,13 +272,10 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           },
         ],
       };
-
       query
         .mockResolvedValueOnce(mockTableExists) // Table exists check
         .mockResolvedValueOnce(mockTechnicalData); // Latest data query
-
       const response = await request(app).get("/technical/").expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.arrayContaining([
@@ -317,7 +295,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           timestamp: expect.any(String),
         }),
       });
-
       // Verify your actual database queries
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining("information_schema.tables"),
@@ -325,14 +302,10 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       );
       expect(query).toHaveBeenCalledWith(expect.stringContaining("technical_data_daily"));
     });
-
     test("should return 404 when technical_data_daily table doesn't exist", async () => {
       const mockTableExists = { rows: [{ exists: false }] };
-
       query.mockResolvedValueOnce(mockTableExists);
-
       const response = await request(app).get("/technical/").expect(404);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Technical data not available",
@@ -341,7 +314,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       });
     });
   });
-
   describe("GET /technical/:timeframe - Timeframe-based data", () => {
     test("should return daily technical data with pagination", async () => {
       const mockCountResult = { rows: [{ total: "150" }] };
@@ -401,17 +373,14 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           },
         ],
       };
-
       query
         .mockResolvedValueOnce({ rows: [{ test: 1 }] }) // Test query first
         .mockResolvedValueOnce(mockTechnicalData) // Main data query
         .mockResolvedValueOnce(mockCountResult); // Count query
-
       const response = await request(app)
         .get("/technical/daily")
         .query({ page: 1, limit: 50 })
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -448,33 +417,27 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           }),
         }),
       });
-
       // Verify your actual queries with technical_data_daily table
       expect(query).toHaveBeenCalledWith(
         expect.stringContaining("technical_data_daily"),
         expect.any(Array)
       );
     });
-
     test("should validate timeframe parameter", async () => {
       const response = await request(app)
         .get("/technical/invalid_timeframe")
         .expect(400);
-
       expect(response.body).toEqual({
         error: "Invalid timeframe. Use daily, weekly, or monthly.",
       });
     });
-
     test("should handle symbol filtering", async () => {
       const response = await request(app)
         .get("/technical/daily")
         .query({ symbol: "AAPL" })
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.data.data).toEqual(expect.any(Array));
-
       // Verify all returned data is for AAPL
       if (response.body.data.data.length > 0) {
         response.body.data.data.forEach(item => {
@@ -482,16 +445,13 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         });
       }
     });
-
     test("should handle RSI filtering", async () => {
       const response = await request(app)
         .get("/technical/daily")
         .query({ rsi_min: 60, rsi_max: 80 })
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.data.data).toEqual(expect.any(Array));
-
       // Verify all returned data has RSI within the specified range
       if (response.body.data.data.length > 0) {
         response.body.data.data.forEach(item => {
@@ -501,7 +461,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       }
     });
   });
-
   describe("GET /technical/:timeframe/summary - Technical summary", () => {
     test("should return technical summary statistics", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
@@ -526,16 +485,13 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           { symbol: "GOOGL", record_count: "250" },
         ],
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)    // Table exists check
         .mockResolvedValueOnce(mockSummaryResult)  // Summary data query
         .mockResolvedValueOnce(mockTopSymbols);    // Top symbols query
-
       const response = await request(app)
         .get("/technical/daily/summary")
         .expect(200);
-
       expect(response.body).toMatchObject({
         timeframe: "daily",
         summary: expect.objectContaining({
@@ -564,18 +520,14 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         ]),
       });
     });
-
     test("should return error when table doesn't exist", async () => {
       const mockTableExists = { rows: [{ exists: false }] };
-
       // Mock all potential database calls to ensure table existence check is honored
       query
         .mockResolvedValueOnce(mockTableExists) // Table existence check
         .mockResolvedValue({ rows: [] }); // Any additional calls default to empty
-
       const response = await request(app)
         .get("/technical/weekly/summary");
-
       expect([200, 404, 503]).toContain(response.status);
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -585,7 +537,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       }
     });
   });
-
   describe("GET /technical/data/:symbol - Individual symbol data", () => {
     test("should return latest technical data for specific symbol", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
@@ -611,15 +562,12 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           },
         ],
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)
         .mockResolvedValueOnce(mockSymbolData);
-
       const response = await request(app)
         .get("/technical/data/AAPL")
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -633,38 +581,29 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         }),
         symbol: "AAPL",
       });
-
       // Verify query for specific symbol
       expect(query.mock.calls[1][1]).toEqual(["AAPL"]);
     });
-
     test("should return 404 for non-existent symbol", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
       const mockSymbolData = { rows: [] };
-
       query
         .mockResolvedValueOnce(mockTableExists)
         .mockResolvedValueOnce(mockSymbolData);
-
       const response = await request(app)
         .get("/technical/data/NONEXISTENT")
         .expect(404);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "No technical data found for symbol NONEXISTENT",
       });
     });
-
     test("should return error when table missing", async () => {
       const mockTableExists = { rows: [{ exists: false }] };
-
       query.mockResolvedValueOnce(mockTableExists);
-
       const response = await request(app)
         .get("/technical/data/AAPL")
         .expect(404);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Technical data not available",
@@ -673,7 +612,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       });
     });
   });
-
   describe("GET /technical/indicators/:symbol - Technical indicators", () => {
     test("should return 30-day technical indicators for symbol", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
@@ -691,15 +629,12 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           stochastic_k: 20 + Math.random() * 60,
         })),
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)
         .mockResolvedValueOnce(mockIndicators);
-
       const response = await request(app)
         .get("/technical/indicators/AAPL")
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -708,7 +643,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           symbol: "AAPL",
         }),
       });
-
       expect(response.body.data.data).toHaveLength(30);
       expect(response.body.data.data[0]).toMatchObject({
         symbol: "AAPL",
@@ -716,12 +650,10 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         macd: expect.any(Number),
         sma_20: expect.any(Number),
       });
-
       // Verify 30-day limit query
       expect(query.mock.calls[1][0]).toContain("LIMIT 30");
     });
   });
-
   describe("GET /technical/history/:symbol - Technical history", () => {
     test("should return technical history with custom days parameter", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
@@ -737,16 +669,13 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           volume: 40000000 + Math.random() * 20000000,
         })),
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)
         .mockResolvedValueOnce(mockHistory);
-
       const response = await request(app)
         .get("/technical/history/AAPL")
         .query({ days: 60 })
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -756,12 +685,10 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           period_days: "60",
         }),
       });
-
       // Verify days parameter in query
       expect(query.mock.calls[1][0]).toContain("INTERVAL '60 days'");
     });
   });
-
   describe("GET /technical/support-resistance/:symbol - Support/Resistance levels", () => {
     test("should return support and resistance levels", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
@@ -781,16 +708,13 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           },
         ],
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)
         .mockResolvedValueOnce(mockPivotData);
-
       const response = await request(app)
         .get("/technical/support-resistance/AAPL")
         .query({ timeframe: "daily" })
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -815,13 +739,11 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         }),
       });
     });
-
     test("should validate timeframe for support/resistance", async () => {
       const response = await request(app)
         .get("/technical/support-resistance/AAPL")
         .query({ timeframe: "hourly" })
         .expect(400);
-
       expect(response.body).toMatchObject({
         error: "Unsupported timeframe",
         message: expect.stringContaining(
@@ -830,7 +752,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       });
     });
   });
-
   describe("GET /technical/daily - Filtered technical data", () => {
     test("should handle filtered technical data requests", async () => {
       // Test with existing table and data (your actual working behavior)
@@ -846,11 +767,9 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           },
         ],
       };
-
       query
         .mockResolvedValueOnce(mockTechnicalData)
         .mockResolvedValueOnce(mockCountResult);
-
       const response = await request(app)
         .get("/technical/daily")
         .query({
@@ -861,7 +780,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           limit: 25,
         })
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -876,20 +794,16 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         }),
       });
     });
-
     test("should handle technical data queries safely", async () => {
       const mockCountResult = { rows: [{ total: "10" }] };
       const mockData = { rows: [] };
-
       query
         .mockResolvedValueOnce(mockData)
         .mockResolvedValueOnce(mockCountResult);
-
       await request(app)
         .get("/technical/daily")
         .query({ symbol: "AAPL" })
         .expect(200);
-
       // Should safely query technical data
       expect(query).toHaveBeenCalled();
       if (query.mock.calls.length > 2 && query.mock.calls[2]) {
@@ -897,7 +811,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       }
     });
   });
-
   describe("GET /technical/patterns/:symbol - Pattern recognition", () => {
     test("should return technical pattern analysis", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
@@ -911,16 +824,13 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           },
         ],
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)
         .mockResolvedValueOnce(mockPriceData);
-
       const response = await request(app)
         .get("/technical/patterns/AAPL")
         .query({ timeframe: "1D", limit: 5 })
         .expect(200);
-
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -938,7 +848,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           last_updated: expect.any(String),
         }),
       });
-
       // Each pattern should have required fields
       if (response.body.data.patterns.length > 0) {
         const firstPattern = response.body.data.patterns[0];
@@ -952,21 +861,17 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           detected_at: expect.any(String),
           time_to_target: expect.any(Number),
         });
-
         // Your site returns null for target_price and stop_loss (acceptable)
         expect(firstPattern).toHaveProperty("target_price");
         expect(firstPattern).toHaveProperty("stop_loss");
       }
     });
-
     test("should return error on database failures", async () => {
       // Mock all database calls to fail to ensure error handling
       query
         .mockRejectedValue(new Error("Database connection failed")); // All calls fail
-
       const response = await request(app)
         .get("/technical/patterns/AAPL");
-
       expect([200, 500, 503]).toContain(response.status);
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -976,13 +881,10 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       }
     });
   });
-
   describe("Error handling - Your site's error patterns", () => {
     test("should handle database errors with proper error responses", async () => {
       query.mockRejectedValueOnce(new Error("Connection timeout"));
-
       const response = await request(app).get("/technical/").expect(500);
-
       expect(response.body).toMatchObject({
         success: false,
         error: "Failed to retrieve technical overview data",
@@ -991,43 +893,34 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         message: "Connection timeout",
       });
     });
-
     test("should return structured error responses for invalid timeframes", async () => {
       const response = await request(app).get("/technical/hourly").expect(400);
-
       expect(response.body).toEqual({
         error: "Invalid timeframe. Use daily, weekly, or monthly.",
       });
     });
-
     test("should handle large limit values safely", async () => {
       const mockCountResult = { rows: [{ total: "1000" }] };
       const mockData = { rows: [] };
-
       query
         .mockResolvedValueOnce(mockData)
         .mockResolvedValueOnce(mockCountResult);
-
       const response = await request(app)
         .get("/technical/daily")
         .query({ limit: 500 }) // Large but reasonable limit
         .expect(200);
-
       // Your site handles large limits by capping them at 100 (route safety)
       expect(response.body.data.pagination.limit).toBe(100);
-
       // Verify the endpoint responds successfully
       expect(response.status).toBe(200);
       expect(query).toHaveBeenCalled();
     });
   });
-
   describe("GET /technical/chart/:symbol - Chart data for symbol", () => {
     beforeEach(() => {
       // Clear mocks for each test - individual tests will set up their own mocks
       jest.clearAllMocks();
     });
-
     test("should return chart data with default parameters", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
       const mockChartData = {
@@ -1044,15 +937,12 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           }
         ]
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)  // Table exists check
         .mockResolvedValueOnce(mockChartData);   // Chart data query
-
       const response = await request(app)
         .get("/technical/chart/AAPL")
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("chart_data");
       expect(response.body.data).toHaveProperty("symbol");
@@ -1063,7 +953,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
       expect(response.body.data.period).toBe("1M");
       expect(response.body.data.interval).toBe("1d");
     });
-
     test("should return chart data with custom parameters", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
       const mockChartData = {
@@ -1078,30 +967,25 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           timestamp: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
         }))
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)  // Table exists check
         .mockResolvedValueOnce(mockChartData);   // Chart data query
-
       const response = await request(app)
         .get(
           "/technical/chart/MSFT?period=1Y&interval=1d&include_volume=true&limit=50"
         )
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.data.chart_data.length).toBeLessThanOrEqual(50);
       expect(response.body.data.symbol).toBe("MSFT");
       expect(response.body.data.period).toBe("1Y");
       expect(response.body.data.interval).toBe("1d");
       expect(response.body.data.include_volume).toBe(true);
-
       // Check if volume is included when requested
       if (response.body.data.chart_data.length > 0) {
         expect(response.body.data.chart_data[0]).toHaveProperty("volume");
       }
     });
-
     test("should include proper OHLCV structure", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
       const mockChartData = {
@@ -1118,15 +1002,12 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           }
         ]
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)  // Table exists check
         .mockResolvedValueOnce(mockChartData);   // Chart data query
-
       const response = await request(app)
         .get("/technical/chart/AAPL?limit=5")
         .expect(200);
-
       if (response.body.data.chart_data.length > 0) {
         const candle = response.body.data.chart_data[0];
         expect(candle).toHaveProperty("date");
@@ -1143,7 +1024,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         expect(typeof candle.close).toBe("number");
       }
     });
-
     test("should include complete chart metadata", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
       const mockChartData = {
@@ -1160,21 +1040,17 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           }
         ]
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)  // Table exists check
         .mockResolvedValueOnce(mockChartData);   // Chart data query
-
       const response = await request(app)
         .get("/technical/chart/AAPL?limit=5")
         .expect(200);
-
       expect(response.body.data).toHaveProperty("records_count");
       expect(response.body.data).toHaveProperty("source");
       expect(response.body.data.source).toBe("price_daily_table");
       expect(response.body.data.records_count).toBe(1);
     });
-
     test("should include chart data with proper timestamp", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
       const mockChartData = {
@@ -1191,15 +1067,12 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           }
         ]
       };
-
       query
         .mockResolvedValueOnce(mockTableExists)  // Table exists check
         .mockResolvedValueOnce(mockChartData);   // Chart data query
-
       const response = await request(app)
         .get("/technical/chart/AAPL?limit=10")
         .expect(200);
-
       expect(response.body.data.symbol).toBe("AAPL");
       expect(response.body).toHaveProperty("timestamp");
       expect(response.body.data.chart_data.length).toBeGreaterThan(0);
@@ -1209,7 +1082,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
         expect(candle.date).toBeDefined();
       }
     });
-
     test("should handle volume inclusion correctly", async () => {
       const mockTableExists = { rows: [{ exists: true }] };
       const mockChartData = {
@@ -1226,79 +1098,63 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
           }
         ]
       };
-
       // Mock for first request (include_volume=true)
       query
         .mockResolvedValueOnce(mockTableExists)  // Table exists check
         .mockResolvedValueOnce(mockChartData)    // Chart data query
         .mockResolvedValueOnce(mockTableExists)  // Table exists check for second request
         .mockResolvedValueOnce(mockChartData);   // Chart data query for second request
-
       const responseWithVolume = await request(app)
         .get("/technical/chart/AAPL?include_volume=true&limit=5")
         .expect(200);
-
       const responseWithoutVolume = await request(app)
         .get("/technical/chart/AAPL?include_volume=false&limit=5")
         .expect(200);
-
       if (responseWithVolume.body.data.chart_data.length > 0) {
         expect(responseWithVolume.body.data.chart_data[0]).toHaveProperty(
           "volume"
         );
         expect(responseWithVolume.body.data.include_volume).toBe(true);
       }
-
       if (responseWithoutVolume.body.data.chart_data.length > 0) {
         expect(responseWithoutVolume.body.data.include_volume).toBe(false);
       }
-
     });
-
     test("should handle table not exists gracefully", async () => {
       query.mockResolvedValue({
         rows: [{ exists: false }],
       });
-
       const response = await request(app)
         .get("/technical/chart/AAPL")
         .expect(404);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Chart data not available");
     });
   });
-
   describe("GET /technical/chart - Query-based chart endpoint", () => {
     test("should validate timeframe parameter", async () => {
       const response = await request(app)
         .get("/technical/chart?symbol=AAPL&timeframe=invalid")
         .expect(400);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid timeframe");
     });
-
     test("should validate period parameter", async () => {
       const response = await request(app)
         .get("/technical/chart?symbol=AAPL&period=invalid")
         .expect(400);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid period");
     });
-
     test("should filter indicators correctly", async () => {
       query.mockResolvedValue({
         rows: [],
       });
-
       const response = await request(app)
         .get(
           "/technical/chart?symbol=AAPL&indicators=sma,rsi&timeframe=daily&period=1m"
         )
         .expect(404); // Will return 404 because no data in mock
-
       // The request should be processed and query should be called
       expect(query).toHaveBeenCalled();
     });

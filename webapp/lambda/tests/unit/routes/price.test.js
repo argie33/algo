@@ -2,36 +2,27 @@
  * Unit Tests for Price Route
  * Tests the /api/price endpoint functionality with mocked dependencies
  */
-
 const request = require("supertest");
 const express = require("express");
-
 // Mock database queries
 const mockQuery = jest.fn();
 const mockTableExists = jest.fn();
 jest.mock("../../../utils/database", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   query: mockQuery,
   tableExists: mockTableExists,
 }));
-
 // Create test app
 const app = express();
 app.use(express.json());
-
 // Add response formatter middleware for proper res.error, res.success methods
 const responseFormatter = require("../../../middleware/responseFormatter");
 app.use(responseFormatter);
-
 app.use("/api/price", require("../../../routes/price"));
-
 describe("Price Route - Unit Tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-
     // Mock tableExists to return true for price-related tables
     mockTableExists.mockResolvedValue(true);
-
     // Setup default mock responses
     mockQuery.mockImplementation((sql, params) => {
       // Mock table existence checks for information_schema.tables
@@ -41,12 +32,13 @@ describe("Price Route - Unit Tests", () => {
           return Promise.resolve({
             rows: [{ exists: true }]
           });
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
         }
         return Promise.resolve({
           rows: [{ exists: false }]
         });
       }
-
       // Mock price_daily queries
       if (sql.includes("FROM price_daily") && sql.includes("WHERE symbol")) {
         const symbol = params && params[0] ? params[0] : "AAPL";
@@ -68,7 +60,6 @@ describe("Price Route - Unit Tests", () => {
           ]
         });
       }
-
       // Mock intraday data queries
       if (sql.includes("intraday") || sql.includes("minute_data")) {
         return Promise.resolve({
@@ -86,7 +77,6 @@ describe("Price Route - Unit Tests", () => {
           ]
         });
       }
-
       // Mock futures data queries
       if (sql.includes("futures_pricing") || sql.includes("futures")) {
         const symbol = params && params[0] ? params[0] : "CLZ24";
@@ -109,7 +99,6 @@ describe("Price Route - Unit Tests", () => {
           ]
         });
       }
-
       // Mock prediction/analysis queries
       if (sql.includes("technical") || sql.includes("prediction") || sql.includes("analysis")) {
         const symbol = params && params[0] ? params[0] : "AAPL";
@@ -126,7 +115,6 @@ describe("Price Route - Unit Tests", () => {
           ]
         });
       }
-
       // Mock batch price queries
       if (sql.includes("WHERE symbol = ANY")) {
         return Promise.resolve({
@@ -137,16 +125,13 @@ describe("Price Route - Unit Tests", () => {
           ]
         });
       }
-
       // Default empty response
       return Promise.resolve({ rows: [] });
     });
   });
-
   describe("GET /api/price/", () => {
     test("should return API overview", async () => {
       const response = await request(app).get("/api/price/").expect(200);
-
       expect(response.body.message).toBe("Price API - Ready");
       expect(response.body.status).toBe("operational");
       expect(response.body.endpoints).toBeDefined();
@@ -154,21 +139,17 @@ describe("Price Route - Unit Tests", () => {
       expect(response.body.timestamp).toBeDefined();
     });
   });
-
   describe("GET /api/price/ping", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/api/price/ping").expect(200);
-
       expect(response.body.status).toBe("ok");
       expect(response.body.endpoint).toBe("price");
       expect(response.body.timestamp).toBeDefined();
     });
   });
-
   describe("GET /api/price/:symbol", () => {
     test("should get current price for valid symbol", async () => {
       const response = await request(app).get("/api/price/AAPL").expect(200);
-
       expect(response.body.symbol).toBe("AAPL");
       expect(response.body.data.current_price).toBe(153.5);
       expect(response.body.data.open).toBe(150.0);
@@ -179,34 +160,27 @@ describe("Price Route - Unit Tests", () => {
         ["AAPL"]
       );
     });
-
     test("should handle symbol not found", async () => {
       const response = await request(app).get("/api/price/INVALID").expect(404);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid symbol format");
     });
-
     test("should handle database errors", async () => {
       // Override the mock for this specific test to simulate database error
       mockQuery.mockImplementation((sql, params) => {
         return Promise.reject(new Error("Database connection failed"));
       });
-
       // When database fails, tableExists returns false, causing 404 "Price data not available"
       const response = await request(app).get("/api/price/AAPL").expect(404);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Price data not available");
     });
   });
-
   describe("GET /api/price/:symbol/intraday", () => {
     test("should return intraday data with default 5min interval", async () => {
       const response = await request(app)
         .get("/api/price/AAPL/intraday")
         .expect(200);
-
       expect(response.body.meta.symbol).toBe("AAPL");
       expect(response.body.meta.interval).toBe("daily");
       expect(Array.isArray(response.body.data)).toBe(true);
@@ -215,28 +189,22 @@ describe("Price Route - Unit Tests", () => {
       expect(response.body.data[0]).toHaveProperty("open");
       expect(response.body.data[0]).toHaveProperty("volume");
     });
-
     test("should handle different intervals", async () => {
       const response = await request(app)
         .get("/api/price/AAPL/intraday?interval=1min")
         .expect(200);
-
       expect(response.body.meta.interval).toBe("daily");
     });
-
     test("should validate interval parameter", async () => {
       const response = await request(app)
         .get("/api/price/AAPL/intraday?interval=invalid")
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.meta.interval).toBe("daily");
     });
   });
-
   // Note: futures, prediction, and symbol-specific alerts routes don't exist in current implementation
   // These tests are commented out to match actual route implementation
-
   describe("POST /api/price/batch", () => {
     test("should handle batch price requests", async () => {
       const mockBatchData = [
@@ -244,14 +212,11 @@ describe("Price Route - Unit Tests", () => {
         { symbol: "MSFT", close_price: 375.0 },
         { symbol: "GOOGL", close_price: 140.0 },
       ];
-
       mockQuery.mockResolvedValue({ rows: mockBatchData });
-
       const response = await request(app)
         .post("/api/price/batch")
         .send({ symbols: ["AAPL", "MSFT", "GOOGL"] })
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveProperty("prices");
       expect(response.body.meta).toHaveProperty("count");
@@ -260,25 +225,20 @@ describe("Price Route - Unit Tests", () => {
       expect(response.body.data.prices).toHaveProperty("MSFT");
       expect(response.body.data.prices).toHaveProperty("GOOGL");
     });
-
     test("should validate batch request body", async () => {
       const response = await request(app)
         .post("/api/price/batch")
         .send({}) // Missing symbols array
         .expect(400);
-
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("symbols array is required");
     });
-
     test("should handle large batch size", async () => {
       const manySymbols = Array.from({ length: 101 }, (_, i) => `STOCK${i}`);
-
       const response = await request(app)
         .post("/api/price/batch")
         .send({ symbols: manySymbols })
         .expect(200);
-
       expect(response.body.success).toBe(true);
       expect(response.body.meta.count).toBe(101);
     });
