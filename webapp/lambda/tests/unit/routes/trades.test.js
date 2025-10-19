@@ -88,8 +88,30 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       // Default: return empty rows for all queries
       // Tests can override with mockResolvedValueOnce/mockResolvedValue
       if (sql && typeof sql === 'string') {
-        if (sql.includes("information_schema.tables")) {
-          return Promise.resolve({ rows: [{ exists: true }] });
+        // Handle information_schema queries for table/column introspection
+        if (sql.includes("information_schema")) {
+          if (sql.includes("columns")) {
+            // Return mock columns for any table being checked
+            return Promise.resolve({
+              rows: [
+                { column_name: 'id', ordinal_position: 1 },
+                { column_name: 'user_id', ordinal_position: 2 },
+                { column_name: 'symbol', ordinal_position: 3 },
+                { column_name: 'quantity', ordinal_position: 4 },
+                { column_name: 'side', ordinal_position: 5 },
+                { column_name: 'status', ordinal_position: 6 },
+                { column_name: 'type', ordinal_position: 7 },
+                { column_name: 'executed_at', ordinal_position: 8 },
+                { column_name: 'average_fill_price', ordinal_position: 9 },
+                { column_name: 'filled_quantity', ordinal_position: 10 },
+                { column_name: 'created_at', ordinal_position: 11 },
+                { column_name: 'updated_at', ordinal_position: 12 }
+              ]
+            });
+          }
+          if (sql.includes("tables")) {
+            return Promise.resolve({ rows: [{ exists: true }] });
+          }
         }
         if (sql.includes("trade")) {
           return Promise.resolve({ rows: [] });

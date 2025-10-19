@@ -47,8 +47,25 @@ describe("Performance Routes Unit Tests", () => {
     // Add default mock implementation with fallback
     mockQuery.mockImplementation((sql, params) => {
       if (sql && typeof sql === 'string') {
-        if (sql.includes("information_schema.tables")) {
-          return Promise.resolve({ rows: [{ exists: true }] });
+        // Handle information_schema queries for table/column introspection
+        if (sql.includes("information_schema")) {
+          if (sql.includes("columns")) {
+            // Return mock columns for any table being checked
+            return Promise.resolve({
+              rows: [
+                { column_name: 'id', ordinal_position: 1 },
+                { column_name: 'user_id', ordinal_position: 2 },
+                { column_name: 'date', ordinal_position: 3 },
+                { column_name: 'value', ordinal_position: 4 },
+                { column_name: 'return_pct', ordinal_position: 5 },
+                { column_name: 'created_at', ordinal_position: 6 },
+                { column_name: 'updated_at', ordinal_position: 7 }
+              ]
+            });
+          }
+          if (sql.includes("tables")) {
+            return Promise.resolve({ rows: [{ exists: true }] });
+          }
         }
         if (sql.includes("performance") || sql.includes("metrics")) {
           return Promise.resolve({ rows: [] });

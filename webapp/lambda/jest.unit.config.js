@@ -1,36 +1,22 @@
-// Load environment variables before any tests run
-require('dotenv').config();
-
 module.exports = {
   testEnvironment: "node",
-  collectCoverage: false,
-  coverageDirectory: "coverage-unit",
+  collectCoverage: false, // Disable for faster test runs
+  coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov", "html"],
-  collectCoverageFrom: [
-    "utils/**/*.js",
-    "routes/**/*.js",
-    "middleware/**/*.js",
-    "handlers/**/*.js",
-    "services/**/*.js",
-    "!**/node_modules/**",
-    "!tests/**",
-    "!coverage/**",
-  ],
-  // Use real database module - NO mock database
   testMatch: ["**/tests/unit/**/*.test.js", "**/tests/unit/**/*.spec.js"],
-  setupFilesAfterEnv: ["<rootDir>/tests/setup/database.setup.js"],
-  testTimeout: 30000, // Increased for real database operations
+  // NO GLOBAL SETUP FOR UNIT TESTS - use mocks instead
+  testTimeout: 10000,
   maxWorkers: 1,
   forceExit: true,
   detectOpenHandles: false,
-  verbose: false,
+  openHandlesTimeout: 5000,
+  verbose: true, // Show test details
   silent: false,
-  globalSetup: "<rootDir>/tests/setup/globalSetup.js",
+  bail: false,
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true,
   testEnvironmentOptions: {
     NODE_ENV: "test",
   },
-  // Clear mocks but allow real database connections
-  clearMocks: true,
-  resetMocks: false, // Keep real database module
-  restoreMocks: false
 };
