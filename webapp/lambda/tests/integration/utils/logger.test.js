@@ -34,7 +34,14 @@ describe("Logger Integration Tests", () => {
   let originalConsoleError;
   let capturedLogs;
 
-        originalConsoleLog.apply(console, args);
+  beforeAll(() => {
+    originalConsoleLog = console.log;
+    originalConsoleError = console.error;
+    capturedLogs = [];
+
+    console.log = (...args) => {
+      capturedLogs.push({ type: "log", args, timestamp: Date.now() });
+      originalConsoleLog.apply(console, args);
     };
 
     console.error = (...args) => {
