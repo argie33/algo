@@ -1588,31 +1588,36 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             value_score = 50
         if quality_score is None:
             quality_score = 50
+        if risk_score is None:
+            risk_score = 50
 
-        # Composite Score (5-factor weighted average - Sentiment EXCLUDED)
-        # Weights: Momentum (22.11%), Trend (15.79%), Growth (20.00%), Value (15.79%),
-        #          Quality (15.79%), Positioning (10.53%)
+        # Composite Score (7-factor weighted average - Sentiment EXCLUDED, Risk NOW INCLUDED)
+        # Weights: Momentum (18.95%), Trend (13.68%), Growth (17.11%), Value (13.68%),
+        #          Quality (13.68%), Risk (12.63%), Positioning (10.26%)
+        # Risk (12.63%) is NEW - critical for preventing high-risk stocks from scoring high
         # Sentiment (5%) redistributed proportionally to all other factors
-        # If positioning_score is None, redistribute its 10.53% weight proportionally to other factors
+        # If positioning_score is None, redistribute its 10.26% weight proportionally to other factors
         if positioning_score is not None:
             composite_score = (
-                momentum_score * 0.2211 +                # Short-term momentum (21% + 5%*21/95)
-                trend_score * 0.1579 +                   # Trend alignment (15% + 5%*15/95)
-                growth_score * 0.2000 +                  # Growth drivers (19% + 5%*19/95)
-                value_score * 0.1579 +                   # Valuation (15% + 5%*15/95)
-                quality_score * 0.1579 +                 # Quality/Risk (15% + 5%*15/95)
-                positioning_score * 0.1053               # Institutional positioning (10% + 5%*10/95)
+                momentum_score * 0.1895 +                # Short-term momentum
+                trend_score * 0.1368 +                   # Trend alignment
+                growth_score * 0.1711 +                  # Growth drivers
+                value_score * 0.1368 +                   # Valuation
+                quality_score * 0.1368 +                 # Quality (other than risk)
+                risk_score * 0.1263 +                    # Risk management (NEW)
+                positioning_score * 0.1026               # Institutional positioning
             )
         else:
-            # Redistribute positioning's 10.53% weight proportionally across other factors
-            # New weights: Momentum (24.71%), Trend (17.65%), Growth (22.36%), Value (17.65%),
-            #              Quality (17.65%)
+            # Redistribute positioning's 10.26% weight proportionally across other factors
+            # New weights: Momentum (21.26%), Trend (15.32%), Growth (19.17%), Value (15.32%),
+            #              Quality (15.32%), Risk (14.16%)
             composite_score = (
-                momentum_score * 0.2471 +                # Short-term momentum
-                trend_score * 0.1765 +                   # Trend alignment
-                growth_score * 0.2236 +                  # Growth drivers
-                value_score * 0.1765 +                   # Valuation
-                quality_score * 0.1765                   # Quality/Risk
+                momentum_score * 0.2126 +                # Short-term momentum
+                trend_score * 0.1532 +                   # Trend alignment
+                growth_score * 0.1917 +                  # Growth drivers
+                value_score * 0.1532 +                   # Valuation
+                quality_score * 0.1532 +                 # Quality
+                risk_score * 0.1416                      # Risk management
             )
 
         cur.close()
