@@ -94,16 +94,16 @@ const SectorAnalysis = () => {
     retry: false,
   });
 
-  // Update lastUpdate timestamp when BOTH data sources successfully load
+  // Update lastUpdate timestamp when sectors data loads (industries optional)
   useEffect(() => {
-    // Only update when both sectors AND industries are loaded
-    if (rotationData?.data?.sectors?.length > 0 && industryData?.data?.industries?.length > 0) {
+    // Update when sectors are loaded (industries are optional for display)
+    if (rotationData?.data?.sectors?.length > 0) {
       setLastUpdate(new Date());
     }
-  }, [rotationData, industryData]);
+  }, [rotationData]);
 
-  // Only render sectors if industries are loaded (to ensure filtering works)
-  const shouldRenderSectors = rotationData?.data?.sectors && industryData?.data?.industries;
+  // Render sectors if sectors data is available (industries are optional for filtering)
+  const shouldRenderSectors = rotationData?.data?.sectors && rotationData?.data?.sectors.length > 0;
 
   const formatTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - date) / 1000);
@@ -520,13 +520,10 @@ const SectorAnalysis = () => {
             <Box display="flex" justifyContent="center" py={4}>
               <LinearProgress sx={{ width: "50%" }} />
             </Box>
-          ) : industryError ? (
-            <Alert severity="warning">
-              Industry rankings not available. Run loadindustrydata.py to populate data.
-            </Alert>
-          ) : !industryData?.data?.industries?.length ? (
-            <Alert severity="info">
-              No industry performance data available yet. Run loadindustrydata.py loader.
+          ) : industryError || !industryData?.data?.industries?.length ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Industry performance data is currently loading or unavailable.
+              {industryError && " The data will appear once the industry loader completes."}
             </Alert>
           ) : (
             <>
