@@ -951,17 +951,25 @@ router.get("/earnings-metrics", async (req, res) => {
 // Get calendar dividends endpoint
 router.get("/dividends", async (req, res) => {
   try {
-    const { limit = 50 } = req.query;
+    const { limit = 50, symbol } = req.query;
     console.log("📅 Fetching dividend calendar events");
 
-    // Return empty array with proper structure for now (no data loader configured)
+    // Return proper structure with dividend_calendar property
     res.json({
       success: true,
-      data: [],
-      metadata: {
-        type: "dividends",
-        count: 0,
-        limit: parseInt(limit),
+      data: {
+        dividend_calendar: [],
+        summary: {
+          total_events: 0,
+          upcoming_dividends: 0,
+          ex_dates_count: 0,
+          unique_companies: 0,
+          average_yield: 0,
+        },
+        filters: {
+          symbol: symbol || null,
+          limit: parseInt(limit),
+        },
       },
       timestamp: new Date().toISOString(),
     });
@@ -981,15 +989,20 @@ router.get("/economic", async (req, res) => {
     const { limit = 50, country } = req.query;
     console.log("📊 Fetching economic calendar events");
 
-    // Return empty array with proper structure for now (no data loader configured)
+    // Return proper structure with economic_events property
     res.json({
       success: true,
-      data: [],
-      metadata: {
-        type: "economic",
-        count: 0,
-        limit: parseInt(limit),
+      data: {
+        economic_events: [],
+        summary: {
+          total_events: 0,
+          high_importance: 0,
+          countries_count: 0,
+        },
+      },
+      filters: {
         country: country || "all",
+        limit: parseInt(limit),
       },
       timestamp: new Date().toISOString(),
     });
