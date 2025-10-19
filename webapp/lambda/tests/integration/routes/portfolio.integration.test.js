@@ -32,7 +32,6 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
 
 
 describe("Portfolio Integration Tests - 100% Coverage", () => {

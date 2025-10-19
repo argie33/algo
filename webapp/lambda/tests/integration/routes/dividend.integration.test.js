@@ -14,7 +14,7 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
+const { query, closeDatabase } = require("../../../utils/database");
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
@@ -27,7 +27,6 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
 
 
 describe("Dividend Routes Integration Tests", () => {

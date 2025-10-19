@@ -82,7 +82,7 @@ const getMetrics = (metricType, timeRange, category) => {
   }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
+const { query, closeDatabase } = require("../../../utils/database");
 };
 
 const getAverageResponseTime = (metricType, timeRange, category) => {
@@ -184,7 +184,6 @@ const generatePerformanceReport = (timeRange, category) => {
     }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
   }
 
   return summary;
@@ -200,8 +199,6 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-// Import the mocked database
-const { query } = require("../../../utils/database");
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
@@ -213,8 +210,6 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-// Import the mocked database
-const { query } = require("../../../utils/database");
 
 
 describe("Performance Monitor Integration Tests", () => {

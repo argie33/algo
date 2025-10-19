@@ -25,7 +25,6 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
 
 const sectorRouter = require("../../../routes/sectors");
 

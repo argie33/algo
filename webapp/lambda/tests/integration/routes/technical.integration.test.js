@@ -412,7 +412,6 @@ const { query } = require("../../../utils/database");
         }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
 
       query.mockResolvedValue({ rows: largeResults });
 
@@ -549,7 +548,6 @@ const { query } = require("../../../utils/database");
         }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
 
       query.mockResolvedValue({ rows: largeDataset });
 

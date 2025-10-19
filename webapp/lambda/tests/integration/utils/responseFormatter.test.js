@@ -29,7 +29,6 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
 
 
 describe("Response Formatter Integration Tests", () => {
@@ -123,7 +122,6 @@ describe("Response Formatter Integration Tests", () => {
       }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
 
       const paginationMeta = {
         page: 2,

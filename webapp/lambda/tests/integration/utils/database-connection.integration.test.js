@@ -22,8 +22,6 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-// Import the mocked database
-const { query } = require("../../../utils/database");
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
@@ -35,8 +33,6 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-// Import the mocked database
-const { query } = require("../../../utils/database");
 
 
 describe("Database Comprehensive Integration Tests", () => {
