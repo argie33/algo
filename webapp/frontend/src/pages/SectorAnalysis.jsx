@@ -58,24 +58,44 @@ const SectorAnalysis = () => {
     "Communication Services": "#00BCD4",
   };
 
-  // Normalize industry sector names to match sector API sector_names
-  // Industries API uses different names than Sectors API - map all variants
-  const normalizeSectorName = (industriesSectorName) => {
+  // Normalize sector names to handle mismatches between APIs
+  // Both sectors and industries APIs may use different naming conventions
+  const normalizeSectorName = (sectorName) => {
+    if (!sectorName) return '';
+
     const sectorMapping = {
+      // Industries API naming variants
       "Basic Materials": "Materials",
       "Consumer Cyclical": "Consumer Discretionary",
       "Consumer Defensive": "Consumer Staples",
       "Financial Services": "Financials",
+      // Additional variants that might appear
+      "Financials": "Financials",
+      "Financials Services": "Financials",
       "Communication Services": "Communication Services",
+      "Communications": "Communication Services",
+      "Consumer Staples": "Consumer Staples",
+      "Consumer Discretionary": "Consumer Discretionary",
       "Energy": "Energy",
       "Healthcare": "Healthcare",
+      "Health Care": "Healthcare",
       "Industrials": "Industrials",
       "Technology": "Technology",
+      "Tech": "Technology",
       "Utilities": "Utilities",
       "Real Estate": "Real Estate",
-      "Financials": "Financials",
+      "Realty": "Real Estate",
+      "REITs": "Real Estate",
+      "Materials": "Materials",
     };
-    return sectorMapping[industriesSectorName] || industriesSectorName;
+
+    // Try direct mapping first
+    if (sectorMapping[sectorName]) {
+      return sectorMapping[sectorName];
+    }
+
+    // If not found, return as-is (in case it's already normalized)
+    return sectorName;
   };
 
   // Fetch sector performance data (consolidated /api/sectors endpoint)
@@ -330,11 +350,14 @@ const SectorAnalysis = () => {
                 // Find matching industries for this sector
                 // Industries API returns `sector` field, Sectors API returns `sector_name`
                 const sectorName = sector.sector_name || sector.sector;
+                // Normalize sector name for consistent matching
+                const normalizedSectorName = normalizeSectorName(sectorName);
+
                 const sectorIndustries = (industryData?.data?.industries || []).filter(
                   (ind) => {
-                    // Industries return `sector` field, need to normalize it to match sector_name
+                    // Normalize industry sector to match normalized sector name
                     const normalizedIndSector = normalizeSectorName(ind.sector || ind.sector_name || '');
-                    return normalizedIndSector === sectorName;
+                    return normalizedIndSector === normalizedSectorName;
                   }
                 );
 
