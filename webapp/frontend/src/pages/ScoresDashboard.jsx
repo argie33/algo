@@ -677,55 +677,6 @@ const ScoresDashboard = () => {
         </Grid>
       </Grid>
 
-      {/* Score Guide */}
-      <Paper
-        sx={{
-          p: 2,
-          mb: 3,
-          border: `1px solid ${theme.palette.divider}`,
-          backgroundColor: alpha(theme.palette.info.main, 0.02),
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-          <Typography variant="body2" fontWeight={600} color="text.secondary">
-            Score Guide:
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 60,
-                height: 8,
-                borderRadius: 1,
-                backgroundColor: theme.palette.success.main,
-              }}
-            />
-            <Typography variant="caption">80-100 Excellent</Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 60,
-                height: 8,
-                borderRadius: 1,
-                backgroundColor: theme.palette.warning.main,
-              }}
-            />
-            <Typography variant="caption">60-79 Good</Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 60,
-                height: 8,
-                borderRadius: 1,
-                backgroundColor: theme.palette.error.main,
-              }}
-            />
-            <Typography variant="caption">0-59 Needs Improvement</Typography>
-          </Box>
-        </Box>
-      </Paper>
-
       {/* Search and Filter Controls */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center", mb: showFilters ? 2 : 0 }}>
@@ -2656,6 +2607,56 @@ const ScoresDashboard = () => {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* Score Guide */}
+      <Paper
+        sx={{
+          p: 2,
+          mt: 4,
+          mb: 3,
+          border: `1px solid ${theme.palette.divider}`,
+          backgroundColor: alpha(theme.palette.info.main, 0.02),
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+          <Typography variant="body2" fontWeight={600} color="text.secondary">
+            Score Guide:
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box
+              sx={{
+                width: 60,
+                height: 8,
+                borderRadius: 1,
+                backgroundColor: theme.palette.success.main,
+              }}
+            />
+            <Typography variant="caption">80-100 Excellent</Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box
+              sx={{
+                width: 60,
+                height: 8,
+                borderRadius: 1,
+                backgroundColor: theme.palette.warning.main,
+              }}
+            />
+            <Typography variant="caption">60-79 Good</Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box
+              sx={{
+                width: 60,
+                height: 8,
+                borderRadius: 1,
+                backgroundColor: theme.palette.error.main,
+              }}
+            />
+            <Typography variant="caption">0-59 Needs Improvement</Typography>
+          </Box>
+        </Box>
+      </Paper>
     </Container>
   );
 };
