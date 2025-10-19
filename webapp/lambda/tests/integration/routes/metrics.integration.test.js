@@ -4,7 +4,6 @@
  */
 
 const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app
 
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
@@ -33,6 +32,7 @@ const {
   initializeDatabase,
   closeDatabase,
 } = require("../../../utils/database");
+const { app } = require("../../../index");
 
 // SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
 describe.skip("Metrics Routes Integration", () => {

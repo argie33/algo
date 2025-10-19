@@ -4,12 +4,6 @@
  */
 
 const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app
-const {
-  query,
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
 
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
@@ -33,6 +27,14 @@ jest.mock("../../../middleware/auth", () => ({
   authorizeAdmin: jest.fn((req, res, next) => next()),
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
+
+// Import after all mocks
+const {
+  query,
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
+const { app } = require("../../../index");
 
 
 
