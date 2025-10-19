@@ -1,6 +1,7 @@
 module.exports = {
   testEnvironment: "node",
-  collectCoverage: true, // Enable coverage for final runs
+  // Use real database - NO MOCKS - full integration testing
+  collectCoverage: false, // Disable coverage for speed - enable only for final validation
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov", "html"],
   collectCoverageFrom: [
@@ -14,24 +15,22 @@ module.exports = {
     "!coverage/**",
   ],
   testMatch: ["**/tests/**/*.test.js", "**/tests/**/*.spec.js"],
-  // setupFilesAfterEnv: ["<rootDir>/tests/setup.js"], // Temporarily disable setup
-  testTimeout: 10000, // Reduced timeout - catch hanging tests faster
-  maxWorkers: 1, // Run tests serially to avoid conflicts
+  // NO SETUP - use real database directly
+  testTimeout: 60000, // 60s timeout for real database queries
+  maxWorkers: 1, // Serial execution to avoid connection pool exhaustion
   forceExit: true, // Force exit after tests complete
   detectOpenHandles: false, // Disable for speed
-  openHandlesTimeout: 5000, // Timeout for detecting open handles
-  verbose: false, // Show test details for debugging
+  openHandlesTimeout: 5000,
+  verbose: true, // Show all test details
   silent: false,
-  bail: false, // Don't stop on first failure
-  // DISABLE COMPLEX GLOBAL SETUP TO PREVENT HANGING
-  // globalSetup: "<rootDir>/tests/setup/globalSetup.js",
-  // globalTeardown: "<rootDir>/tests/setup/globalTeardown.js",
-  // Improved isolation settings
-  clearMocks: true,
-  resetMocks: true,
-  restoreMocks: true,
-  // Environment variables for testing
+  bail: false, // Don't stop on first failure - see all issues
+  // NO GLOBAL SETUP - use real database as-is
+  // Isolation settings for real database
+  clearMocks: false, // Don't clear real database connections
+  resetMocks: false, // Don't reset real database functions
+  restoreMocks: false, // Don't restore real database state
+  // Environment variables for testing against real database
   testEnvironmentOptions: {
-    NODE_ENV: "test",
+    NODE_ENV: "development", // Use development config - points to real database
   },
 };
