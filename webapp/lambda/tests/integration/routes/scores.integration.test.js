@@ -29,6 +29,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
       expect(response.body).toHaveProperty("endpoint", "scores");
       expect(response.body).toHaveProperty("timestamp");
     });
+  });
 
   describe("GET /scores - Real Data Validation", () => {
     test("should return ALL loaded stocks from database (3000+)", async () => {

@@ -1,10 +1,6 @@
 const request = require("supertest");
 const { app } = require("../../../index");
 
- */
-
-const request = require("supertest");
-
 const {
   query,
   initializeDatabase,
@@ -42,9 +38,11 @@ describe("Authentication Routes Integration", () => {
 
   beforeAll(async () => {
     setupMockQuery();
+  });
 
   afterAll(async () => {
     // Clean up not needed with mocks
+  });
 
   describe("POST /auth/register", () => {
     test("should register new user successfully", async () => {
@@ -119,6 +117,7 @@ describe("Authentication Routes Integration", () => {
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid parameters");
     });
+  });
 
   describe("POST /auth/login", () => {
     test("should login user with valid credentials", async () => {
@@ -157,6 +156,7 @@ describe("Authentication Routes Integration", () => {
       expect([401, 500]).toContain(response.status);
       expect(response.body.success).toBe(false);
     });
+  });
 
   describe("GET /auth/me", () => {
     test("should return user profile with dev bypass token", async () => {
@@ -216,6 +216,7 @@ describe("Authentication Routes Integration", () => {
       expect([400, 422]).toContain(response.status);
       expect(response.body.error).toContain("Missing parameters");
     });
+  });
 
   describe("POST /auth/forgot-password", () => {
     test("should initiate password reset", async () => {
@@ -238,6 +239,7 @@ describe("Authentication Routes Integration", () => {
       expect([400, 422]).toContain(response.status);
       expect(response.body.error).toContain("Missing username");
     });
+  });
 
   describe("POST /auth/reset-password", () => {
     test("should reset password with valid code", async () => {
@@ -260,6 +262,7 @@ describe("Authentication Routes Integration", () => {
       expect([400, 422]).toContain(response.status);
       expect(response.body.error).toContain("Missing parameters");
     });
+  });
 
   describe("Security and edge cases", () => {
     test("should handle SQL injection attempts", async () => {
@@ -328,6 +331,7 @@ describe("Authentication Routes Integration", () => {
       expect([400, 422]).toContain(response.status);
       expect(response.body.success).toBe(false);
     });
+  });
 
   describe("Health check", () => {
     test("should return auth service health", async () => {
@@ -338,4 +342,5 @@ describe("Authentication Routes Integration", () => {
       expect(response.body.service).toBe("Authentication Service");
       expect(response.body.cognito).toBeDefined();
     });
+  });
 });

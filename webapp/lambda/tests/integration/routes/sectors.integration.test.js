@@ -17,6 +17,7 @@ describe("Sectors Routes - Real Data Validation", () => {
     app = express();
     app.use(express.json());
     app.use("/api/sectors", sectorRouter);
+  });
 
   afterAll(() => {
     // Cleanup if needed
