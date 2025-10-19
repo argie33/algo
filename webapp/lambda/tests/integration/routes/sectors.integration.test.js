@@ -13,11 +13,6 @@ describe("Sectors Routes - Real Data Validation", () => {
   beforeAll(async () => {
     await initializeDatabase();
   });
-  beforeAll(() => {
-    app = express();
-    app.use(express.json());
-    app.use("/api/sectors", sectorRouter);
-  });
 
   afterAll(() => {
     // Cleanup if needed

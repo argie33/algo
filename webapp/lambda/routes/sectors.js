@@ -785,7 +785,29 @@ router.get("/:sector/details", async (req, res) => {
 // Get portfolio sector allocation
 router.get("/allocation", async (req, res) => {
   try {
-    const userId = req.user.sub;
+    const userId = req.user?.sub;
+
+    // If no authenticated user, return empty allocation
+    if (!userId) {
+      return res.json({
+        success: true,
+        data: {
+          user_id: null,
+          allocation: [],
+          summary: {
+            total_sectors: 0,
+            total_value: 0,
+            total_cost: 0,
+            total_pnl: 0,
+            total_stocks: 0,
+            diversification_score: 0,
+          },
+        },
+        message: "No authenticated user",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     console.log(`📊 Sector allocation requested for user: ${userId}`);
 
     // Get user's portfolio holdings with sector information using real data
