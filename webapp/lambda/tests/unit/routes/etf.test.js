@@ -10,9 +10,12 @@ const express = require("express");
 // Mock database queries
 const mockQuery = jest.fn();
 jest.mock("../../../utils/database", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
   query: mockQuery,
-}));
+}))
+
+// Import mocked functions
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
 
 // Create test app
 const app = express();

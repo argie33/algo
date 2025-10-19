@@ -5,9 +5,12 @@ const technicalRouter = require("../../../routes/technical");
 
 // Mock dependencies to match your actual site pattern
 jest.mock("../../../utils/database", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
   query: jest.fn(),
-}));
+}))
+
+// Import mocked functions
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
 
 
 describe("Technical Analysis Routes - Testing Your Actual Site", () => {

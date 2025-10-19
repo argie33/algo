@@ -11,11 +11,14 @@ const express = require("express");
 const mockQuery = jest.fn();
 jest.mock("../../../utils/database", () => ({
   query: mockQuery
-}));
+}))
+
+// Import mocked functions
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
   authenticateToken: jest.fn((req, res, next) => {
     req.user = { sub: "test-user-123" };
     next();

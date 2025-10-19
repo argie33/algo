@@ -3,7 +3,7 @@ const request = require("supertest");
 
 // Mock database for unit tests
 jest.mock("../../../utils/database", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
   query: jest.fn(),
 }));
 
@@ -1083,7 +1083,10 @@ describe("Alerts Routes Unit Tests", () => {
       const originalQuery = query;
       jest.doMock("../../../utils/database", () => ({
         query: jest.fn().mockRejectedValue(new Error("Connection timeout")),
-      }));
+      }))
+
+// Import mocked functions
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
 
       const response = await request(app)
         .get("/alerts/active")

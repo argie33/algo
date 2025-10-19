@@ -13,7 +13,10 @@ jest.mock("../../../utils/logger", () => ({
     warn: jest.fn(),
     error: jest.fn(),
   })),
-}));
+}))
+
+// Import mocked functions
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
 
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
@@ -46,7 +49,7 @@ jest.mock("../../../services/aiStrategyGeneratorStreaming", () => {
 });
 
 jest.mock("../../../middleware/auth", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
   authenticateToken: (req, res, next) => {
     req.user = { id: "test-user-123" };
     next();

@@ -3,9 +3,16 @@ const request = require("supertest");
 
 // Mock database for unit tests
 jest.mock("../../../utils/database", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
   query: jest.fn(),
+  closeDatabase: jest.fn(),
+  initializeDatabase: jest.fn(),
+  getPool: jest.fn(),
+  transaction: jest.fn(),
+  healthCheck: jest.fn(),
 }));
+
+// Import mocked functions
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
 
 describe("Calendar Routes Unit Tests", () => {

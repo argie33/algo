@@ -9,7 +9,10 @@ const express = require("express");
 // Mock database before requiring the route
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
-}));
+}))
+
+// Import mocked functions
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
 
 
 // Mock authentication middleware
@@ -23,7 +26,7 @@ jest.mock("../../../middleware/auth", () => ({
 
 // Mock API Key Service
 jest.mock("../../../utils/apiKeyService", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
   listProviders: jest.fn(),
   storeApiKey: jest.fn(),
   getApiKey: jest.fn(),

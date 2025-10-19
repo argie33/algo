@@ -11,7 +11,10 @@ jest.mock("../../../utils/database", () => ({
   getPool: jest.fn(),
   closeDatabase: jest.fn(),
   transaction: jest.fn(),
-}));
+}))
+
+// Import mocked functions
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");;
 
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
@@ -33,7 +36,7 @@ jest.mock("../../../utils/newsAnalyzer", () => ({
 }));
 
 jest.mock("../../../utils/sentimentEngine", () => ({
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
   scoreToLabel: jest.fn((score) => {
     if (score > 0.1) return "positive";
     if (score < -0.1) return "negative";
