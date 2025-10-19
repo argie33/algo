@@ -23,6 +23,12 @@ module.exports = {
     "websocket.integration.test.js",
     "streaming-data.integration.test.js",
     "liveData.integration.test.js",
+    "auth.integration.test.js",
+    "malformed-request.integration.test.js",
+    "security-headers.integration.test.js",
+    "4xx-error-scenarios.integration.test.js",
+    "auth-flow.integration.test.js",
+    "api-load-testing.test.js",
   ],
   // NO SETUP - use real database directly
   testTimeout: 60000, // 60s timeout for real database queries

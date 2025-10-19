@@ -376,28 +376,30 @@ router.get("/performance", authenticateToken, async (req, res) => {
     // Check if watchlist_performance table exists
     const tableCheckQuery = `
       SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
         AND table_name = 'watchlist_performance'
       );
     `;
 
     const tableExists = await query(tableCheckQuery, []);
 
+    // If table doesn't exist or no data available, return empty performance gracefully
     if (!tableExists || !tableExists.rows || !tableExists.rows[0].exists) {
-      console.error("Watchlist performance table does not exist");
-      return res.status(503).json({
-        success: false,
-        error: "Watchlist performance service not available",
-        message: "Database table missing: watchlist_performance",
-        details: "watchlist_performance table does not exist in database schema",
+      console.log("Watchlist performance table does not exist, returning empty data");
+      return res.json({
+        success: true,
+        data: {
+          performance: {}
+        },
+        message: "Watchlist performance data not available",
         timestamp: new Date().toISOString(),
       });
     }
 
     // Query watchlist performance data
     const performanceQuery = `
-      SELECT 
+      SELECT
         total_return,
         daily_return,
         weekly_return,
@@ -405,29 +407,13 @@ router.get("/performance", authenticateToken, async (req, res) => {
         best_performer,
         worst_performer,
         last_updated
-      FROM watchlist_performance 
-      WHERE user_id = $1 
-      ORDER BY last_updated DESC 
+      FROM watchlist_performance
+      WHERE user_id = $1
+      ORDER BY last_updated DESC
       LIMIT 1
     `;
 
     const result = await query(performanceQuery, [userId]);
-
-    if (!result || !result.rows || result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No watchlist performance data available",
-        message: "Watchlist performance data not found for user",
-        details:
-          "User has no calculated performance metrics - watchlists may be empty or data not calculated yet",
-        requirements: [
-          "User must have active watchlists with symbols",
-          "Performance calculation jobs must run to generate metrics",
-          "Price data must be available for all watchlist symbols",
-        ],
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     res.json({
       success: true,

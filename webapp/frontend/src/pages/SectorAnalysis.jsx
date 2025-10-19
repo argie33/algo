@@ -59,13 +59,21 @@ const SectorAnalysis = () => {
   };
 
   // Normalize industry sector names to match sector API sector_names
-  // Industries API uses different names than Sectors API
+  // Industries API uses different names than Sectors API - map all variants
   const normalizeSectorName = (industriesSectorName) => {
     const sectorMapping = {
       "Basic Materials": "Materials",
       "Consumer Cyclical": "Consumer Discretionary",
       "Consumer Defensive": "Consumer Staples",
       "Financial Services": "Financials",
+      "Communication Services": "Communication Services",
+      "Energy": "Energy",
+      "Healthcare": "Healthcare",
+      "Industrials": "Industrials",
+      "Technology": "Technology",
+      "Utilities": "Utilities",
+      "Real Estate": "Real Estate",
+      "Financials": "Financials",
     };
     return sectorMapping[industriesSectorName] || industriesSectorName;
   };
@@ -316,7 +324,7 @@ const SectorAnalysis = () => {
                 // Find matching industries for this sector
                 // Normalize industry sector names to match sector API sector names
                 const sectorIndustries = (industryData?.data?.industries || []).filter(
-                  (ind) => normalizeSectorName(ind.sector) === sector.sector
+                  (ind) => normalizeSectorName(ind.sector) === (sector.sector_name || sector.sector)
                 );
 
                 return (
