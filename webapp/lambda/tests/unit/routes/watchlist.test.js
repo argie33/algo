@@ -12,6 +12,10 @@ jest.mock("../../../middleware/auth", () => ({
     next();
   },
 }));
+
+// Import mocked functions AFTER jest.mock declarations
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
 const watchlistRoutes = require("../../../routes/watchlist");
 // Create test app
 const app = express();
@@ -21,7 +25,6 @@ describe("Watchlist Routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("GET /api/watchlist/", () => {
     test("should return user watchlists", async () => {
