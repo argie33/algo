@@ -32,7 +32,6 @@ let app = require("../../../server");
 
 describe("Sentiment Routes", () => {
   beforeAll(async () => {
-    beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Handle COUNT queries
@@ -45,7 +44,6 @@ describe("Sentiment Routes", () => {
       }
       return Promise.resolve({ rows: [] });
     });
-  });
     process.env.ALLOW_DEV_BYPASS = "true";
     await initializeDatabase();
     app = require("../../../server");

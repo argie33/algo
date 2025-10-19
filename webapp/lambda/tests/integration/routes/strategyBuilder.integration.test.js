@@ -32,7 +32,6 @@ let app = require("../../../server");
 
 describe("Strategy Builder Routes", () => {
   beforeAll(async () => {
-    beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
@@ -41,7 +40,6 @@ describe("Strategy Builder Routes", () => {
       }
       return Promise.resolve({ rows: [] });
     });
-  });
     process.env.ALLOW_DEV_BYPASS = "true";
     await initializeDatabase();
     app = require("../../../server");

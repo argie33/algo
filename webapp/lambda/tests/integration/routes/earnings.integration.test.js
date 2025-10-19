@@ -1,52 +1,15 @@
 /**
- * Earnings Data Integration Tests
- * Tests for earnings functionality via calendar delegation
- * Route: /routes/earnings.js -> /routes/calendar.js
+ * Earnings Routes Integration Tests - REAL DATA ONLY
+ * Tests earnings endpoints with REAL database connection and REAL loaded data
+ * NO MOCKS - validates actual behavior with actual data from loaders
+ * Validates NO-FALLBACK policy: raw NULL values must flow through unmasked
  */
 
 const request = require("supertest");
-const { app } = require("../../../index");
+const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-const { query } = require("../../../utils/database");
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: "No authorization header" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-const { authenticateToken } = require("../../../middleware/auth");
-
-describe("Earnings Data Integration", () => {
-  describe("Earnings Calendar (Using Loader Schema)", () => {
-    beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Default: return empty rows for all queries
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-  });
+describe("Earnings Data - Real Data Validation", () => {
+  describe("Earnings Calendar (Using Real Data)", () => {
     test("should return earnings data using loader table schemas", async () => {
       const response = await request(app).get("/api/earnings");
 
