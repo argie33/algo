@@ -6,12 +6,12 @@
  */
 
 const request = require('supertest');
-const { app } = require('../../webapp/lambda/index');
+const { app } = require('../../index');
 const {
   query,
   initializeDatabase,
   closeDatabase,
-} = require('../../webapp/lambda/utils/database');
+} = require('../../utils/database');
 
 // Mock database BEFORE importing routes/modules
 jest.mock("../../utils/database", () => ({

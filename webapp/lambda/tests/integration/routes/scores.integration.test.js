@@ -3,14 +3,6 @@
  * Tests scores endpoints with real database connection
  */
 
-const request = require("supertest");
-const { app } = require("../../../index"); // Import the actual Express app
-const {
-  query,
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
-
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
@@ -30,6 +22,14 @@ jest.mock("../../../middleware/auth", () => ({
   authorizeAdmin: jest.fn((req, res, next) => next()),
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
+
+const request = require("supertest");
+const { app } = require("../../../index"); // Import the actual Express app
+const {
+  query,
+  initializeDatabase,
+  closeDatabase,
+} = require("../../../utils/database");
 
 describe("Scores Routes Integration", () => {
   beforeAll(async () => {
