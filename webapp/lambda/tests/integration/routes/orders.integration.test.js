@@ -65,6 +65,8 @@ describe("Orders Routes Integration Tests", () => {
       expect([200, 401, 403].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("GET /api/orders/:orderId (Get Specific Order)", () => {
     test("should handle order lookup", async () => {
       const response = await request(app)
@@ -92,6 +94,8 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403, 404].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("POST /api/orders (Create Order)", () => {
     test("should create new order with valid data", async () => {
@@ -176,6 +180,8 @@ describe("Orders Routes Integration Tests", () => {
       expect([200, 400, 401, 403].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("PUT /api/orders/:orderId (Update Order)", () => {
     test("should update order", async () => {
       const updateRequest = {
@@ -215,6 +221,8 @@ describe("Orders Routes Integration Tests", () => {
       expect([200, 401, 403, 404].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("DELETE /api/orders/:orderId (Cancel Order)", () => {
     test("should cancel order", async () => {
       const response = await request(app)
@@ -241,6 +249,8 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403, 404].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("GET /api/orders/history (Order History)", () => {
     test("should return order history", async () => {
@@ -286,6 +296,8 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("Performance and Edge Cases", () => {
     jest.setTimeout(10000);
@@ -390,6 +402,8 @@ describe("Orders Routes Integration Tests", () => {
       }
     });
 
+  });
+
   describe("Authentication and Trading Mode", () => {
     test("should respect trading mode restrictions", async () => {
       const response = await request(app)
@@ -418,6 +432,8 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("GET /api/orders/recent (Recent Orders)", () => {
     test("should return recent orders with sample data", async () => {
@@ -459,4 +475,6 @@ describe("Orders Routes Integration Tests", () => {
       expect(response.body.metadata).toHaveProperty("days", 30);
       expect(response.body.metadata).toHaveProperty("status", "filled");
     });
+  });
+
 });

@@ -20,8 +20,9 @@ describe("Risk Integration Routes - Real Data Validation", () => {
   });
 
   afterAll(async () => {
-    // Close database connection
-    await closeDatabase();
+    // Close database connection if closeDatabase is defined
+    // await closeDatabase();
+  });
 
   describe("GET /risk", () => {
     test("should return risk analysis data", async () => {

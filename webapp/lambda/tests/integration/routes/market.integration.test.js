@@ -27,6 +27,8 @@ describe("Market Routes Unit Tests", () => {
       }
     });
 
+  });
+
   describe("GET /api/market/overview", () => {
     test("should return market overview data or handle missing data gracefully", async () => {
       const response = await request(app).get("/api/market/overview");
@@ -67,6 +69,8 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
+
+  });
 
   describe("GET /api/market/data", () => {
     test("should return market data or handle service unavailable", async () => {
@@ -113,6 +117,8 @@ describe("Market Routes Unit Tests", () => {
       }
     });
 
+  });
+
   describe("GET /api/market/sentiment", () => {
     test("should return market sentiment data or handle missing data", async () => {
       const response = await request(app).get("/api/market/sentiment");
@@ -137,6 +143,8 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
+
+  });
 
   describe("GET /api/market/sentiment/history", () => {
     test("should return sentiment history or handle service unavailable", async () => {
@@ -172,6 +180,8 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", true);
       }
     });
+
+  });
 
   describe("GET /api/market/movers", () => {
     test("should return top movers or handle missing data", async () => {
@@ -213,6 +223,8 @@ describe("Market Routes Unit Tests", () => {
       }
     });
 
+  });
+
   describe("GET /api/market/indices", () => {
     test("should return market indices or handle missing data", async () => {
       const response = await request(app).get("/api/market/indices");
@@ -237,6 +249,8 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
+
+  });
 
   describe("GET /api/market/status", () => {
     test("should return market status", async () => {
@@ -266,6 +280,8 @@ describe("Market Routes Unit Tests", () => {
       }
     });
 
+  });
+
   describe("GET /api/sectors/sectors-with-history", () => {
     test("should return sector performance or handle missing data", async () => {
       const response = await request(app).get("/api/sectors/sectors-with-history");
@@ -289,6 +305,8 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
+
+  });
 
   describe("GET /api/market/distribution-days", () => {
     test("should return distribution days data or handle missing data", async () => {
@@ -400,6 +418,8 @@ describe("Market Routes Unit Tests", () => {
       }
     });
 
+  });
+
   describe("Error Handling", () => {
     test("should handle invalid endpoints gracefully", async () => {
       const response = await request(app).get("/api/market/invalid-endpoint");
@@ -422,6 +442,8 @@ describe("Market Routes Unit Tests", () => {
 
       expect([200, 404, 503]).toContain(response.status);
     });
+
+  });
 
   describe("Performance Tests", () => {
     test("should respond to overview requests within reasonable time", async () => {
@@ -452,4 +474,6 @@ describe("Market Routes Unit Tests", () => {
         statusCodes.some((status) => [200, 500, 503].includes(status))
       ).toBe(true);
     });
+  });
+
 });

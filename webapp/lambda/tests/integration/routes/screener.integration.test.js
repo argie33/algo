@@ -18,6 +18,8 @@ describe("Screener Routes", () => {
       expect(response.body.data).toHaveProperty("available_endpoints");
     });
 
+  });
+
   describe("GET /api/screener/screen", () => {
     test("should screen stocks with basic criteria", async () => {
       const response = await request(app)
@@ -49,6 +51,8 @@ describe("Screener Routes", () => {
       expect(response.body.success).toBe(true);
     });
 
+  });
+
   describe("GET /api/screener/presets", () => {
     test("should return screening presets", async () => {
       const response = await request(app)
@@ -66,6 +70,8 @@ describe("Screener Routes", () => {
       }
     });
 
+  });
+
   describe("GET /api/screener/presets/:presetName", () => {
     test("should return specific preset", async () => {
       const response = await request(app)
@@ -81,6 +87,8 @@ describe("Screener Routes", () => {
         expect(response.body.data).toHaveProperty("filters");
       }
     });
+
+  });
 
   describe("GET /api/screener/growth", () => {
     test("should return growth stocks", async () => {
@@ -102,6 +110,8 @@ describe("Screener Routes", () => {
       expect(response.body.success).toBe(true);
     });
 
+  });
+
   describe("GET /api/screener/value", () => {
     test("should return value stocks", async () => {
       const response = await request(app)
@@ -113,6 +123,8 @@ describe("Screener Routes", () => {
       expect(Array.isArray(response.body.data)).toBe(true);
     });
 
+  });
+
   describe("GET /api/screener/growth", () => {
     test("should return growth stocks", async () => {
       const response = await request(app)
@@ -123,6 +135,8 @@ describe("Screener Routes", () => {
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
+
+  });
 
   describe("GET /api/screener/dividend", () => {
     test("should return dividend stocks", async () => {
@@ -142,6 +156,8 @@ describe("Screener Routes", () => {
       expect(response.body.success).toBe(true);
     });
 
+  });
+
   describe("GET /api/screener/technical", () => {
     test("should return error for non-existent technical endpoint", async () => {
       const response = await request(app)
@@ -151,6 +167,8 @@ describe("Screener Routes", () => {
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
     });
+
+  });
 
   describe("POST /api/screener/custom", () => {
     test("should create custom screen", async () => {
@@ -182,6 +200,8 @@ describe("Screener Routes", () => {
       expect([400, 401, 422]).toContain(response.status);
     });
 
+  });
+
   describe("GET /api/screener/backtest", () => {
     test("should return error for non-existent backtest endpoint", async () => {
       const response = await request(app)
@@ -201,6 +221,8 @@ describe("Screener Routes", () => {
       expect(response.body.success).toBe(false);
     });
 
+  });
+
   describe("GET /api/screener/export", () => {
     test("should return error for non-existent export endpoint", async () => {
       const response = await request(app)
@@ -210,4 +232,6 @@ describe("Screener Routes", () => {
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
     });
+  });
+
 });

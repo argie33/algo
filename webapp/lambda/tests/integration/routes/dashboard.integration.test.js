@@ -2,7 +2,8 @@ const request = require("supertest");
 const { app } = require("../../../index");
 const { initializeDatabase } = require("../../../utils/database");
 
-
+// Auth token for tests - using dev bypass token for integration testing
+const authToken = "dev-bypass-token";
 
 describe("Dashboard Routes Integration Tests", () => {
   beforeAll(async () => {
@@ -43,6 +44,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(response.status).toBe(200);
       });
     });
+  });
 
   describe("GET /api/dashboard/summary (Dashboard Summary)", () => {
     test("should return comprehensive dashboard summary data", async () => {
@@ -122,6 +124,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(response.body).toHaveProperty("message");
       }
     });
+  });
 
   describe("GET /api/dashboard/holdings (Portfolio Holdings)", () => {
     test("should require authentication", async () => {
@@ -168,6 +171,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
+  });
 
   describe("GET /api/dashboard/performance (Portfolio Performance)", () => {
     test("should require authentication for performance data", async () => {
@@ -226,6 +230,7 @@ describe("Dashboard Routes Integration Tests", () => {
         }
       }
     });
+  });
 
   describe("GET /api/dashboard/alerts (Trading Alerts)", () => {
     test("should require authentication for alerts", async () => {
@@ -280,6 +285,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(typeof summaryItem.active_count).toBe("number");
       }
     });
+  });
 
   describe("GET /api/dashboard/market-data (Market Data)", () => {
     test("should return comprehensive market data", async () => {
@@ -352,6 +358,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(validTypes.includes(internalData.type)).toBe(true);
       }
     });
+  });
 
   describe("GET /api/dashboard/debug (Debug Endpoint)", () => {
     test("should return debug information about database connectivity", async () => {
@@ -412,6 +419,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(status === "connected" || status.includes("error")).toBe(true);
       }
     });
+  });
 
   describe("GET /api/dashboard/overview (Market Overview)", () => {
     test("should return market overview data", async () => {
@@ -492,6 +500,7 @@ describe("Dashboard Routes Integration Tests", () => {
         expect(response.body.troubleshooting).toHaveProperty("check_tables");
       }
     });
+  });
 
   describe("Performance and Edge Cases", () => {
     jest.setTimeout(15000);
@@ -647,4 +656,5 @@ describe("Dashboard Routes Integration Tests", () => {
         expect([200, 401].includes(validTokenResponse.status)).toBe(true);
       }
     });
+  });
 });

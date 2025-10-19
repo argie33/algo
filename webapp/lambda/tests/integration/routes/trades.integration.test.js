@@ -26,6 +26,8 @@ describe("Trades Routes", () => {
       expect(timestamp.getTime()).not.toBeNaN();
     });
 
+  });
+
   describe("GET /api/trades/health", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/api/trades/health");
@@ -39,6 +41,8 @@ describe("Trades Routes", () => {
       );
       expect(response.body).toHaveProperty("timestamp");
     });
+
+  });
 
   describe("GET /api/trades/recent", () => {
     test("should return 501 not implemented", async () => {
@@ -93,6 +97,8 @@ describe("Trades Routes", () => {
       expect([401].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("GET /api/trades/import/status", () => {
     test("should return broker status for authenticated user", async () => {
       const response = await request(app)
@@ -117,6 +123,8 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("POST /api/trades/import/alpaca", () => {
     test("should handle Alpaca import request", async () => {
@@ -149,6 +157,8 @@ describe("Trades Routes", () => {
       expect([401].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("GET /api/trades/summary", () => {
     test("should return trade summary for authenticated user", async () => {
       const response = await request(app)
@@ -169,6 +179,8 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("GET /api/trades/positions", () => {
     test("should return positions data", async () => {
@@ -205,6 +217,8 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("GET /api/trades/analytics", () => {
     test("should return comprehensive trade analytics", async () => {
@@ -259,6 +273,8 @@ describe("Trades Routes", () => {
       expect([401].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("GET /api/trades/analytics/overview", () => {
     test("should return analytics overview", async () => {
       const response = await request(app)
@@ -286,6 +302,8 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("GET /api/trades/history", () => {
     test("should return trade history or service unavailable", async () => {
@@ -328,6 +346,8 @@ describe("Trades Routes", () => {
       expect([401].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("GET /api/trades/performance", () => {
     test("should return performance data or error", async () => {
       const response = await request(app)
@@ -358,6 +378,8 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("GET /api/trades/insights", () => {
     test("should return trade insights", async () => {
@@ -390,6 +412,8 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("GET /api/trades/export", () => {
     test("should export trade data as JSON by default", async () => {
@@ -456,6 +480,8 @@ describe("Trades Routes", () => {
       expect([401].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("DELETE /api/trades/data", () => {
     test("should require confirmation", async () => {
       const response = await request(app)
@@ -492,6 +518,8 @@ describe("Trades Routes", () => {
       expect([401].includes(response.status)).toBe(true);
     });
 
+  });
+
   describe("Error Handling", () => {
     test("should handle malformed requests", async () => {
       const response = await request(app)
@@ -508,6 +536,8 @@ describe("Trades Routes", () => {
 
       expect([200, 400, 404, 500].includes(response.status)).toBe(true);
     });
+
+  });
 
   describe("Performance", () => {
     test("should respond within reasonable time", async () => {
@@ -546,4 +576,6 @@ describe("Trades Routes", () => {
         }
       });
     });
+  });
+
 });

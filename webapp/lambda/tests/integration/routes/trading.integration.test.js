@@ -9,6 +9,9 @@ const request = require("supertest");
 const { app } = require("../../../index");
 const { initializeDatabase } = require("../../../utils/database"); // Import the actual Express app - NO MOCKS
 
+// Auth token for tests - using dev bypass token for integration testing
+const authToken = "dev-bypass-token";
+
 describe("Trading Routes - Real Data Validation", () => {
   beforeAll(async () => {
     await initializeDatabase();
@@ -40,6 +43,7 @@ describe("Trading Routes - Real Data Validation", () => {
         expect(response.headers["content-type"]).toMatch(/json/);
       });
     });
+  });
 
   describe("GET /api/trading/health", () => {
     test("should return health status without authentication", async () => {

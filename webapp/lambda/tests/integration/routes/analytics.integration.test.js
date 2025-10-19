@@ -19,6 +19,7 @@ describe("Analytics Routes", () => {
         expect(response.body).toHaveProperty("endpoints");
       }
     });
+  });
 
   describe("GET /api/analytics/performance", () => {
     test("should return performance analytics", async () => {
@@ -149,4 +150,13 @@ describe("Analytics Routes", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
+  });
+  });  // GET /api/analytics/trends
+  });  // GET /api/analytics/volatility
+  });  // GET /api/analytics/correlation
+  });  // GET /api/analytics/sectors
+  });  // GET /api/analytics/returns
+  });  // GET /api/analytics/allocation
+  });  // GET /api/analytics/risk
+  });  // GET /api/analytics/performance
 });

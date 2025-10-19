@@ -67,7 +67,7 @@ router.get("/", (req, res) => {
 router.get("/:sector/stocks", async (req, res) => {
   try {
     const { sector } = req.params;
-    const { limit = 50 } = req.query;
+    const { limit = 9999999 } = req.query;
 
     console.log(`📊 Fetching stocks for sector: ${sector}`);
 
@@ -89,7 +89,7 @@ router.get("/:sector/stocks", async (req, res) => {
       FROM company_profile
       WHERE (LOWER(sector) = LOWER($1) OR LOWER(industry) = LOWER($1))
       AND sector IS NOT NULL
-      ORDER BY ticker
+      ORDER BY ticker DESC
       LIMIT $2
     `;
 

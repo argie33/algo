@@ -276,6 +276,7 @@ describe("Backtest Routes", () => {
       expect(templateIds).toContain("moving_average_crossover");
       expect(templateIds).toContain("rsi_strategy");
     });
+  });
 
   describe("POST /api/backtest/validate", () => {
     test("should validate correct strategy code", async () => {
@@ -462,6 +463,7 @@ describe("Backtest Routes", () => {
         expect([200, 400, 500].includes(response.status)).toBe(true);
       });
     });
+  });
 
   describe("Authentication", () => {
     test("should require authentication for protected endpoints", async () => {
@@ -478,6 +480,7 @@ describe("Backtest Routes", () => {
         expect([200, 401].includes(response.status)).toBe(true);
       }
     });
+  });
 
   describe("Error Handling", () => {
     test("should handle database errors gracefully", async () => {
@@ -499,6 +502,7 @@ describe("Backtest Routes", () => {
 
       expect([200, 400].includes(response.status)).toBe(true);
     });
+  });
 
   describe("GET /api/backtest/run (Info Endpoint)", () => {
     test("should return information about backtest run endpoint", async () => {
@@ -535,6 +539,7 @@ describe("Backtest Routes", () => {
       expect(response.body.example).toHaveProperty("symbols");
       expect(Array.isArray(response.body.example.symbols)).toBe(true);
     });
+  });
 
   describe("Performance", () => {
     test("should respond within reasonable time", async () => {
@@ -549,4 +554,5 @@ describe("Backtest Routes", () => {
       expect(responseTime).toBeLessThan(5000); // 5 second timeout
       expect([200, 404, 500].includes(response.status)).toBe(true);
     });
+  });
 });

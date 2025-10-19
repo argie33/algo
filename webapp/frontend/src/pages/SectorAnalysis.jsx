@@ -328,13 +328,18 @@ const SectorAnalysis = () => {
               </Box>
               {(rotationData?.data?.sectors || []).map((sector, index) => {
                 // Find matching industries for this sector
-                // Normalize industry sector names to match sector API sector names
+                // Industries API returns `sector` field, Sectors API returns `sector_name`
+                const sectorName = sector.sector_name || sector.sector;
                 const sectorIndustries = (industryData?.data?.industries || []).filter(
-                  (ind) => normalizeSectorName(ind.sector) === (sector.sector_name || sector.sector)
+                  (ind) => {
+                    // Industries return `sector` field, need to normalize it to match sector_name
+                    const normalizedIndSector = normalizeSectorName(ind.sector || ind.sector_name || '');
+                    return normalizedIndSector === sectorName;
+                  }
                 );
 
                 return (
-                  <Accordion key={`${sector.sector}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                  <Accordion key={`${sector.sector_name || sector.sector}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
                     <AccordionSummary
                       expandIcon={<ExpandMore />}
                       sx={{

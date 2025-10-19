@@ -2,7 +2,6 @@ const request = require("supertest");
 const { app } = require("../../../index");
 
 const {
-  query,
   initializeDatabase,
   closeDatabase,
 } = require("../../../utils/database");
@@ -10,38 +9,13 @@ const {
 describe("Authentication Routes Integration", () => {
   let testUserId;
 
-  const setupMockQuery = () => {
-    query.mockImplementation((sql, params) => {
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
-      }
-      // Return dev bypass user for user profile queries
-      if ((sql.includes("SELECT") && sql.includes("user")) || sql.includes("user_profiles")) {
-        return Promise.resolve({
-          rows: [{
-            id: "dev-bypass-user",
-            email: "dev-bypass@example.com",
-            username: "dev-bypass-user",
-            first_name: "Dev",
-            last_name: "Bypass"
-          }],
-          rowCount: 1
-        });
-      }
-      // Return success for insert/update/delete
-      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
-        return Promise.resolve({ rows: [{ id: "123" }], rowCount: 1 });
-      }
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
-  };
-
+  // NO MOCKS - Use REAL DATABASE ONLY
   beforeAll(async () => {
-    setupMockQuery();
+    await initializeDatabase();
   });
 
   afterAll(async () => {
-    // Clean up not needed with mocks
+    // Database connection cleanup if needed
   });
 
   describe("POST /auth/register", () => {

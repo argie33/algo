@@ -1,56 +1,10 @@
 const request = require("supertest");
-
-
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-const { query, closeDatabase, initializeDatabase} = require("../../../utils/database");
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-// Import app AFTER mocking all dependencies
-let app = require("../../../server");
+const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 
 describe("Positioning Routes", () => {
   beforeAll(async () => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Handle COUNT queries
-      if (sql.includes("COUNT(*)") || sql.includes("count(*)")) {
-        return Promise.resolve({ rows: [{ count: 0, total: 0 }] });
-      }
-      // Default: return empty rows for all queries
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-    process.env.ALLOW_DEV_BYPASS = "true";
     await initializeDatabase();
-    app = require("../../../server");
-  });
-
-  afterAll(async () => {
-    await closeDatabase();
   });
 
   describe("GET /api/positioning/stocks", () => {

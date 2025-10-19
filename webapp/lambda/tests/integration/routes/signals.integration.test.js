@@ -13,17 +13,12 @@
 
 const request = require("supertest");
 const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
+const { initializeDatabase } = require("../../../utils/database");
 
 describe("Signals - Routes - Real Data Validation", () => {
   beforeAll(async () => {
     await initializeDatabase();
   });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-    console.log(`✅ Using real database integration testing for signals`);
-    await initializeDatabase();
-    app = require("../../../server");
 
   beforeEach(() => {
     jest.clearAllMocks();
