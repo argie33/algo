@@ -1,8 +1,5 @@
 const request = require("supertest");
 
-let app;
-const authToken = "dev-bypass-token";
-
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
@@ -26,7 +23,9 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-// Import the mocked database
+// Import app AFTER mocking all dependencies
+const app = require("../../../server");
+const authToken = "dev-bypass-token";
 
 
 describe("Trading Routes Integration Tests", () => {
