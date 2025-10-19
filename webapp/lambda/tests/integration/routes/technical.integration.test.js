@@ -4,6 +4,8 @@ const express = require("express");
 // Mock dependencies
 jest.mock("../../../utils/database");
 
+// Import after mocks
+const { query } = require("../../../utils/database");
 
 // Mock response formatter middleware
 const mockResponseFormatter = (req, res, next) => {

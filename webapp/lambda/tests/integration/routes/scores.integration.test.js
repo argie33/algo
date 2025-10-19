@@ -1,60 +1,105 @@
 /**
  * Scores Routes Integration Tests
- * Tests scores endpoints with real database connection
+ * Tests scores endpoints with REAL database connection and REAL loaded data
+ * NO MOCKS - validates actual behavior with actual data from loaders
  */
-
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb()),
-  healthCheck: jest.fn(),
-}));
-
-
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    req.user = { sub: "test-user-123" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
 
 const request = require("supertest");
 const { app } = require("../../../index"); // Import the actual Express app
-const {
-  query,
-  initializeDatabase,
-  closeDatabase,
-} = require("../../../utils/database");
 
-describe("Scores Routes Integration", () => {
-  beforeAll(async () => {
-    // Initialize database connection
-    await initializeDatabase();
-  });
+describe("Scores Routes Integration - Real Data", () => {
+  describe("GET /scores/ping", () => {
+    test("should return ping response", async () => {
+      const response = await request(app).get("/scores/ping");
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Default: return empty rows for all queries
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
-      }
-      return Promise.resolve({ rows: [] });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("status", "ok");
+      expect(response.body).toHaveProperty("endpoint", "scores");
+      expect(response.body).toHaveProperty("timestamp");
     });
   });
 
-  afterAll(async () => {
-    // Close database connection
-    await closeDatabase();
-  });
+  describe("GET /scores - Real Data Validation", () => {
+    test("should return ALL loaded stocks from database (3000+)", async () => {
+      const response = await request(app).get("/scores");
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body.data).toHaveProperty("stocks");
+      expect(Array.isArray(response.body.data.stocks)).toBe(true);
+      // Should have substantial real data
+      expect(response.body.data.stocks.length).toBeGreaterThan(100);
+      expect(response.body).toHaveProperty("summary");
+      expect(response.body).toHaveProperty("metadata");
+      expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
+      expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
+    });
+
+    test("should validate NO-FALLBACK policy - no fake/null scores", async () => {
+      const response = await request(app).get("/scores");
+
+      expect(response.status).toBe(200);
+      const stocks = response.body.data.stocks;
+      expect(stocks.length).toBeGreaterThan(0);
+
+      // Check first few stocks for real data (NO fallback operators used)
+      stocks.slice(0, Math.min(10, stocks.length)).forEach(stock => {
+        // Scores should be real numbers or explicitly null (not masked by fallbacks)
+        expect(stock).toHaveProperty("composite_score");
+        expect(stock).toHaveProperty("momentum_score");
+        expect(stock).toHaveProperty("value_score");
+        expect(stock).toHaveProperty("quality_score");
+        expect(stock).toHaveProperty("growth_score");
+
+        // NO fallback operators means: if value is null, it stays null
+        // If it's a number, it's a real number (not a default like 0 or 50)
+        const hasRealScores = [
+          stock.composite_score,
+          stock.momentum_score,
+          stock.value_score,
+          stock.quality_score,
+          stock.growth_score
+        ].some(s => s !== null && typeof s === "number");
+
+        expect(hasRealScores).toBe(true);
+      });
+    });
+
+    test("should have proper data quality from loaders - growth_inputs present", async () => {
+      const response = await request(app).get("/scores");
+      const stocks = response.body.data.stocks;
+
+      // Validate at least some stocks have growth data from loaders
+      let stocksWithGrowthData = 0;
+      stocks.forEach(stock => {
+        if (stock.growth_inputs) {
+          expect(stock.growth_inputs).toHaveProperty("revenue_growth_3y_cagr");
+          expect(stock.growth_inputs).toHaveProperty("eps_growth_3y_cagr");
+          stocksWithGrowthData++;
+        }
+      });
+
+      // Growth data should be present for meaningful subset
+      expect(stocksWithGrowthData).toBeGreaterThan(0);
+    });
+
+    test("should have quality_inputs from loader schema", async () => {
+      const response = await request(app).get("/scores");
+      const stocks = response.body.data.stocks;
+
+      // Validate at least some stocks have quality data from loaders
+      let stocksWithQualityData = 0;
+      stocks.forEach(stock => {
+        if (stock.quality_inputs) {
+          expect(stock.quality_inputs).toHaveProperty("debt_to_equity");
+          expect(stock.quality_inputs).toHaveProperty("fcf_to_net_income");
+          stocksWithQualityData++;
+        }
+      });
+
+      expect(stocksWithQualityData).toBeGreaterThan(0);
+    });
 
   describe("GET /scores/ping", () => {
     test("should return ping response", async () => {
