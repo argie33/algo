@@ -12,7 +12,7 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
+const { query, initializeDatabase} = require("../../../utils/database");
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({

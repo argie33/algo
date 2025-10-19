@@ -1,11 +1,16 @@
 const express = require("express");
 const request = require("supertest");
-// Mock database for unit tests
+
+// Mock database BEFORE importing routes
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
   initializeDatabase: jest.fn(),
   closeDatabase: jest.fn(),
 }));
+
+// Import mocked functions AFTER jest.mock
+const { query, closeDatabase, initializeDatabase } = require("../../../utils/database");
+
 describe("Dashboard Routes Unit Tests", () => {
   let app;
   beforeAll(() => {
@@ -19,7 +24,6 @@ describe("Dashboard Routes Unit Tests", () => {
             { symbol: "GOOGL", value: 2700.00, change: -5.25, change_percent: -0.19 }
           ]
         });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
       }
       // Mock other queries with empty results

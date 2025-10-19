@@ -22,7 +22,7 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import the mocked database
-const { query } = require("../../../utils/database");
+const { query, initializeDatabase} = require("../../../utils/database");
 
 describe('API Key Integration Tests', () => {
   // Alpaca API credentials from environment variables

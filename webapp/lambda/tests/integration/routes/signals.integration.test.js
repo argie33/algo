@@ -19,7 +19,7 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 // Import the mocked database
-const { query, closeDatabase } = require("../../../utils/database");
+const { query, closeDatabase, initializeDatabase } = require("../../../utils/database");
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
@@ -31,12 +31,9 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-// Import the mocked database
-
 
 describe("Signals Routes - Integration Tests", () => {
   beforeAll(async () => {
-    beforeEach(() => {
     jest.clearAllMocks();
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
@@ -45,10 +42,13 @@ describe("Signals Routes - Integration Tests", () => {
       }
       return Promise.resolve({ rows: [] });
     });
-  });
     console.log(`✅ Using real database integration testing for signals`);
     await initializeDatabase();
     app = require("../../../server");
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   afterAll(async () => {
