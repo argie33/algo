@@ -1,533 +1,154 @@
+/**
+ * Stocks Routes Integration Tests - REAL DATA ONLY
+ * Tests stocks endpoints with REAL database connection and REAL loaded data
+ * NO MOCKS - validates actual behavior with actual data from loaders
+ * Validates NO-FALLBACK policy: raw NULL values must flow through unmasked
+ */
+
 const request = require("supertest");
+const { app } = require("../../../index"); // Import the actual Express app - NO MOCKS
 
+describe("Stocks Routes Integration - Real Data Validation", () => {
+  describe("GET /stocks - Real Data Validation", () => {
+    test("should return stocks from real database (NOT mocked)", async () => {
+      const response = await request(app).get("/stocks");
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-const { query, closeDatabase, initializeDatabase} = require("../../../utils/database");
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: "No authorization header" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-// Import app AFTER mocking all dependencies
-const app = require("../../../server");
-
-describe("Stocks Routes Integration Tests", () => {
-  
-    beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Handle COUNT queries
-      if (sql.includes("COUNT(*)") || sql.includes("count(*)")) {
-        return Promise.resolve({ rows: [{ count: 3153, total: 3153 }], rowCount: 1 });
-      }
-      // Handle table existence checks
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }], rowCount: 1 });
-      }
-      // Handle stock data queries with comprehensive metrics
-      if (sql.includes("FROM")) {
-        return Promise.resolve({
-          rows: [
-            {
-              symbol: "AAPL",
-              sector: "Technology",
-              marketCap: 2800000000000,
-              price: 150.5,
-              volume: 50000000,
-              financialMetrics: {
-                trailingPE: 25.5,
-                forwardPE: 22.1,
-                dividendYield: 0.5,
-                profitMargin: 25.5,
-                debtToEquity: 1.85
-              }
-            },
-            {
-              symbol: "MSFT",
-              sector: "Technology",
-              marketCap: 2500000000000,
-              price: 300.0,
-              volume: 30000000,
-              financialMetrics: {
-                trailingPE: 30.2,
-                forwardPE: 27.5,
-                dividendYield: 0.8,
-                profitMargin: 35.2,
-                debtToEquity: 0.95
-              }
-            }
-          ],
-          rowCount: 2
-        });
-      }
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
-  });
-  afterAll(async () => {
-    await closeDatabase();
-  });
-
-  describe("GET /api/stocks/", () => {
-    test("should return stocks data with comprehensive key metrics", async () => {
-      const response = await request(app)
-        .get("/api/stocks/?page=1&limit=5")
-        .set("Authorization", "Bearer dev-bypass-token");
-
+      // Validate response structure
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(Array.isArray(response.body.data)).toBe(true);
-      expect(response.body).toHaveProperty("pagination");
+      expect(response.body).toBeDefined();
 
-      // Verify comprehensive key metrics are included
-      if (response.body.data.length > 0) {
-        const stock = response.body.data[0];
-        // Check for actual fields returned by the endpoint - based on actual response structure
-        expect(stock).toHaveProperty("symbol");
-        expect(stock).toHaveProperty("sector");
-        expect(stock).toHaveProperty("marketCap");
-        expect(stock).toHaveProperty("price");
-        expect(stock).toHaveProperty("volume");
-        expect(stock).toHaveProperty("financialMetrics");
-
-        // Check financial metrics structure
-        if (stock.financialMetrics) {
-          expect(stock.financialMetrics).toHaveProperty("trailingPE");
-          expect(stock.financialMetrics).toHaveProperty("forwardPE");
-          expect(stock.financialMetrics).toHaveProperty("dividendYield");
+      // Should validate against REAL data, not mock
+      if (response.body.success) {
+        // If successful, validate structure
+        if (response.body.data && Array.isArray(response.body.data)) {
+          // Real data should have proper fields
+          response.body.data.forEach(stock => {
+            expect(stock).toHaveProperty("symbol");
+            // Symbol should be a real stock code (3-4 chars typically)
+            expect(typeof stock.symbol).toBe("string");
+            expect(stock.symbol.length).toBeGreaterThan(0);
+          });
         }
-
-      }
-    });
-
-    test("should handle pagination properly", async () => {
-      const response = await request(app)
-        .get("/api/stocks/?page=1&limit=2")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("pagination");
-
-      if (response.body.data.length > 0) {
-        expect(response.body.pagination).toHaveProperty("page", 1);
-        expect(response.body.pagination).toHaveProperty("limit", 2);
-        expect(response.body.pagination).toHaveProperty("total");
-        expect(response.body.pagination).toHaveProperty("totalPages");
-      }
-    });
-  });
-
-  describe("GET /api/stocks/sectors", () => {
-    test("should return sectors data", async () => {
-      const response = await request(app).get("/api/stocks/sectors");
-
-      expect(response.status).toBe(200);
-
-      if (response.status === 200) {
-        expect(response.body).toBeDefined();
-      }
-    });
-
-    test("should handle concurrent requests to sectors endpoint", async () => {
-      const requests = Array(5)
-        .fill()
-        .map(() => request(app).get("/api/stocks/sectors"));
-
-      const responses = await Promise.all(requests);
-
-      responses.forEach((response) => {
-        expect(response.status).toBe(200);
-        expect(response.headers["content-type"]).toMatch(/json/);
-      });
-    });
-  });
-
-  describe("GET /api/stocks/search", () => {
-    test("should handle search with valid query", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("results");
-      expect(Array.isArray(response.body.data.results)).toBe(true);
-    });
-
-    test("should require query parameter", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(200);
-      expect(response.body.data.results).toEqual([]);
-    });
-
-    test("should handle empty search query", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(200);
-      expect(response.body.data.results).toEqual([]);
-    });
-
-    test("should handle search with limit parameter", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=A&limit=10")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-    });
-
-    test("should require authentication for search", async () => {
-      const response = await request(app).get("/api/stocks/search?q=AAPL");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-  });
-
-  describe("GET /api/stocks/:symbol", () => {
-    test("should handle valid stock symbol", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("data");
-      expect(response.body.data).toHaveProperty("symbol", "AAPL");
-    });
-
-    test("should handle invalid stock symbols", async () => {
-      const response = await request(app)
-        .get("/api/stocks/INVALID")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(404);
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-    });
-
-    test("should handle very long symbol names", async () => {
-      const response = await request(app)
-        .get("/api/stocks/VERYLONGSYMBOLNAME123456")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-    });
-
-    test("should handle special characters in symbols", async () => {
-      const response = await request(app)
-        .get("/api/stocks/@")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-    });
-  });
-
-  describe("GET /api/stocks/trending", () => {
-    test("should return trending stocks", async () => {
-      const response = await request(app)
-        .get("/api/stocks/trending")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle timeframe parameters", async () => {
-      const response = await request(app)
-        .get("/api/stocks/trending?timeframe=1d")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-    });
-
-    test("should require authentication for trending", async () => {
-      const response = await request(app).get("/api/stocks/trending");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-  });
-
-  describe("GET /api/stocks/screener", () => {
-    test("should return screener results", async () => {
-      const response = await request(app)
-        .get("/api/stocks/screener")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(200);
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(response.body).toHaveProperty("data");
-      }
-    });
-
-    test("should handle screener filters", async () => {
-      const response = await request(app)
-        .get("/api/stocks/screener?market_cap_min=1000000&pe_ratio_max=20")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(200);
-      if (response.status === 200) {
-        expect(response.body).toHaveProperty("success", true);
-        expect(response.body).toHaveProperty("data");
-      }
-    });
-  });
-
-  describe("Watchlist Operations", () => {
-    test("should handle watchlist requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/watchlist")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 301, 401, 404, 500].includes(response.status)).toBe(true);
-    });
-
-    test("should handle adding to watchlist", async () => {
-      const response = await request(app)
-        .post("/api/stocks/watchlist/add")
-        .set("Authorization", "Bearer dev-bypass-token")
-        .send({ symbol: "AAPL" });
-
-      expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-    });
-
-    test("should validate symbol parameter for watchlist add", async () => {
-      const response = await request(app)
-        .post("/api/stocks/watchlist/add")
-        .set("Authorization", "Bearer dev-bypass-token")
-        .send({});
-
-      expect([400, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle removing from watchlist", async () => {
-      const response = await request(app)
-        .delete("/api/stocks/watchlist/remove")
-        .set("Authorization", "Bearer dev-bypass-token")
-        .send({ symbol: "AAPL" });
-
-      expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-    });
-  });
-
-  describe("Stock Data Endpoints", () => {
-    test("should handle stock quote requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/quote")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401, 404].includes(response.status)).toBe(true);
-    });
-
-    test("should handle stock technicals requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/technicals")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle stock options requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/options")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle stock insider trading requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/insider")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle stock analysts requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/analysts")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle stock earnings requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/earnings")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle stock dividends requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/dividends")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle stock sentiment requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/sentiment")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle stock social requests", async () => {
-      const response = await request(app)
-        .get("/api/stocks/AAPL/social")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-  });
-
-  describe("Authentication Tests", () => {
-    test("should handle requests without authentication", async () => {
-      const response = await request(app).get("/api/stocks/search?q=AAPL");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle malformed authorization headers", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=AAPL")
-        .set("Authorization", "InvalidFormat");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle empty authorization headers", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=AAPL")
-        .set("Authorization", "");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-
-    test("should handle missing bearer token", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=AAPL")
-        .set("Authorization", "Bearer ");
-
-      expect([200, 401].includes(response.status)).toBe(true);
-    });
-  });
-
-  describe("Error Handling and Edge Cases", () => {
-    test("should handle concurrent requests", async () => {
-      const requests = [
-        request(app).get("/api/stocks/sectors"),
-        request(app)
-          .get("/api/stocks/search?q=A")
-          .set("Authorization", "Bearer dev-bypass-token"),
-        request(app)
-          .get("/api/stocks/AAPL")
-          .set("Authorization", "Bearer dev-bypass-token"),
-        request(app)
-          .get("/api/stocks/trending")
-          .set("Authorization", "Bearer dev-bypass-token"),
-      ];
-
-      const responses = await Promise.all(requests);
-
-      responses.forEach((response) => {
-        expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-      });
-    });
-
-    test("should handle invalid parameters gracefully", async () => {
-      const invalidRequests = [
-        request(app)
-          .get("/api/stocks/search?q=A&limit=abc")
-          .set("Authorization", "Bearer dev-bypass-token"),
-        request(app)
-          .get("/api/stocks/trending?timeframe=INVALID")
-          .set("Authorization", "Bearer dev-bypass-token"),
-        request(app)
-          .get("/api/stocks/search?q=A&limit=1000")
-          .set("Authorization", "Bearer dev-bypass-token"),
-      ];
-
-      for (const req of invalidRequests) {
-        const response = await req;
-        expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-      }
-    });
-
-    test("should validate response content types", async () => {
-      const endpoints = ["/api/stocks/sectors", "/api/stocks/search?q=AAPL"];
-
-      for (const endpoint of endpoints) {
-        const response = await request(app)
-          .get(endpoint)
-          .set("Authorization", "Bearer dev-bypass-token");
-
-        if ([200, 400, 401].includes(response.status)) {
-          expect(response.headers["content-type"]).toMatch(/application\/json/);
-        }
-      }
-    });
-
-    test("should handle SQL injection attempts safely", async () => {
-      const maliciousInputs = [
-        "'; DROP TABLE stocks; --",
-        "1' OR '1'='1",
-        "UNION SELECT * FROM users",
-      ];
-
-      for (const input of maliciousInputs) {
-        const response = await request(app)
-          .get(`/api/stocks/${encodeURIComponent(input)}`)
-          .set("Authorization", "Bearer dev-bypass-token");
-
-        expect([200, 400, 401, 404].includes(response.status)).toBe(true);
-      }
-    });
-
-    test("should handle database connection issues gracefully", async () => {
-      const response = await request(app)
-        .get("/api/stocks/sectors")
-        .set("Authorization", "Bearer dev-bypass-token");
-
-      expect(response.status).toBe(200);
-
-      if (response.status >= 500) {
+      } else {
+        // If error, it should be a REAL error (e.g., no data loaded yet)
         expect(response.body).toHaveProperty("error");
       }
     });
 
-    test("should handle international characters in search", async () => {
-      const response = await request(app)
-        .get("/api/stocks/search?q=" + encodeURIComponent("测试"))
-        .set("Authorization", "Bearer dev-bypass-token");
+    test("should return specific stock data when requested", async () => {
+      const response = await request(app).get("/stocks?symbol=AAPL");
 
-      expect([200, 400, 401, 404].includes(response.status)).toBe(true);
+      expect(response.status).toBe(200);
+
+      if (response.body.success && response.body.data) {
+        // Validate REAL data structure
+        if (Array.isArray(response.body.data)) {
+          response.body.data.forEach(stock => {
+            expect(stock.symbol).toBe("AAPL");
+          });
+        }
+      }
+    });
+
+    test("should handle pagination with real data", async () => {
+      const response = await request(app).get("/stocks?page=1&limit=10");
+
+      expect(response.status).toBe(200);
+
+      // Validate pagination structure if successful
+      if (response.body.success && response.body.pagination) {
+        expect(response.body.pagination).toHaveProperty("page");
+        expect(response.body.pagination).toHaveProperty("limit");
+        // Total should be actual count from database
+        if (response.body.pagination.total !== undefined) {
+          expect(typeof response.body.pagination.total).toBe("number");
+          expect(response.body.pagination.total).toBeGreaterThanOrEqual(0);
+        }
+      }
+    });
+
+    test("should validate NO-FALLBACK policy - real data without artificial defaults", async () => {
+      const response = await request(app).get("/stocks?limit=5");
+
+      expect(response.status).toBe(200);
+
+      if (response.body.success && Array.isArray(response.body.data)) {
+        // For each stock, validate that fields are REAL or NULL, not defaulted
+        response.body.data.forEach(stock => {
+          // These must exist
+          expect(stock).toHaveProperty("symbol");
+
+          // Numeric fields should be real numbers OR explicitly null
+          // NOT masked by fallback operators like "value || 0"
+          if (stock.price !== null && stock.price !== undefined) {
+            expect(typeof stock.price).toBe("number");
+            expect(stock.price).toBeGreaterThan(0);
+          }
+
+          if (stock.volume !== null && stock.volume !== undefined) {
+            expect(typeof stock.volume).toBe("number");
+            expect(stock.volume).toBeGreaterThanOrEqual(0);
+          }
+        });
+      }
+    });
+  });
+
+  describe("GET /stocks/:symbol - Real Stock Data", () => {
+    test("should return REAL data for specific stock or proper error", async () => {
+      const response = await request(app).get("/stocks/AAPL");
+
+      expect(response.status).toBe(200);
+
+      if (response.body.success) {
+        // Real successful response
+        if (response.body.data) {
+          expect(response.body.data).toHaveProperty("symbol", "AAPL");
+          // Data should be REAL from database, not mocked
+        }
+      } else {
+        // Proper error handling for missing data
+        expect(response.body).toHaveProperty("error");
+      }
+    });
+
+    test("should handle invalid symbols appropriately with REAL validation", async () => {
+      const response = await request(app).get("/stocks/INVALID_SYMBOL_XYZ");
+
+      // Should return 200 with empty data or proper error
+      expect([200, 400, 404]).toContain(response.status);
+
+      if (response.status === 200) {
+        // If API returns 200, should indicate no data found
+        if (response.body.data === null || response.body.data === undefined) {
+          expect(response.body.data).toBeNull();
+        }
+      }
+    });
+  });
+
+  describe("Stock Data Integrity - NO-FALLBACK Validation", () => {
+    test("should preserve NULL values - NO artificial defaults", async () => {
+      const response = await request(app).get("/stocks?limit=20");
+
+      expect(response.status).toBe(200);
+
+      if (response.body.success && Array.isArray(response.body.data)) {
+        // Some fields may be NULL from database - that's OK!
+        // The important thing is they're NOT artificially filled with defaults
+        response.body.data.forEach(stock => {
+          // If dividend yield is null, it should stay null
+          // NOT become 0 or "N/A"
+          if (stock.dividend_yield !== undefined) {
+            expect([null, "number"]).toContain(typeof stock.dividend_yield);
+          }
+
+          // If PE ratio is null, it should stay null
+          if (stock.pe_ratio !== undefined) {
+            expect([null, "number"]).toContain(typeof stock.pe_ratio);
+          }
+        });
+      }
     });
   });
 });

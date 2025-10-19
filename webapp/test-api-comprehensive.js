@@ -111,7 +111,7 @@ class ApiTester {
     const marketEndpoints = [
       '/api/market/overview',
       '/api/market/breadth', 
-      '/api/market/sectors',
+      '/api/sectors/sectors-with-history',
       '/api/market/economic-indicators',
       '/api/market/seasonality'
     ];

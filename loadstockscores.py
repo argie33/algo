@@ -852,7 +852,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # REQUIRES ALL DATA or None - NO NEUTRAL DEFAULTS
         # ============================================================
         consistency_score = None
-        risk_inputs = {
+        consistency_inputs = {
             'volatility_12m_pct': None,
             'downside_volatility_pct': None,
             'max_drawdown_52w_pct': None,
@@ -943,11 +943,11 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             consistency_score = max(0, min(100, consistency_score))
 
             # Store risk inputs for display
-            risk_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
-            risk_inputs['downside_volatility_pct'] = round(downside_volatility, 2)
-            risk_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2)
-            risk_inputs['beta'] = round(beta, 3)
-            risk_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
+            consistency_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
+            consistency_inputs['downside_volatility_pct'] = round(downside_volatility, 2)
+            consistency_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2)
+            consistency_inputs['beta'] = round(beta, 3)
+            consistency_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
 
             logger.info(f"{symbol} Consistency Score: {consistency_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
 
@@ -1637,7 +1637,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'positioning_score': float(round(clamp_score(positioning_score), 2)),
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)),
             'consistency_score': float(round(clamp_score(consistency_score), 2)) if consistency_score is not None else None,
-            'risk_inputs': risk_inputs,
+            'consistency_inputs': consistency_inputs,
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
@@ -1679,15 +1679,15 @@ def save_stock_score(conn, score_data):
     try:
         cur = conn.cursor()
 
-        # Convert risk_inputs dict to JSON string for JSONB column
-        if score_data.get('risk_inputs') is not None:
-            score_data['risk_inputs'] = json.dumps(score_data['risk_inputs'])
+        # Convert consistency_inputs dict to JSON string for JSONB column
+        if score_data.get('consistency_inputs') is not None:
+            score_data['consistency_inputs'] = json.dumps(score_data['consistency_inputs'])
 
         # Upsert query
         upsert_sql = """
         INSERT INTO stock_scores (
             symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
-            positioning_score, sentiment_score, consistency_score, risk_inputs,
+            positioning_score, sentiment_score, consistency_score, consistency_inputs,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
             market_cap, pe_ratio,
@@ -1698,7 +1698,7 @@ def save_stock_score(conn, score_data):
             score_date, last_updated
         ) VALUES (
             %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
-            %(positioning_score)s, %(sentiment_score)s, %(consistency_score)s, %(risk_inputs)s,
+            %(positioning_score)s, %(sentiment_score)s, %(consistency_score)s, %(consistency_inputs)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
             %(market_cap)s, %(pe_ratio)s,
@@ -1717,7 +1717,7 @@ def save_stock_score(conn, score_data):
             positioning_score = EXCLUDED.positioning_score,
             sentiment_score = EXCLUDED.sentiment_score,
             consistency_score = EXCLUDED.consistency_score,
-            risk_inputs = EXCLUDED.risk_inputs,
+            consistency_inputs = EXCLUDED.consistency_inputs,
             rsi = EXCLUDED.rsi,
             macd = EXCLUDED.macd,
             sma_20 = EXCLUDED.sma_20,

@@ -1,35 +1,9 @@
-/**
- * Authentication Routes Integration Tests
- * Tests actual auth routes with real database connection
+const request = require("supertest");
+const { app } = require("../../../index");
+
  */
 
 const request = require("supertest");
-
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-
-
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: "No authorization header" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
 
 // Import after all mocks
 const {
@@ -39,19 +13,8 @@ const {
 } = require("../../../utils/database");
 const { app } = require("../../../index");
 
-
-
 describe("Authentication Routes Integration", () => {
   let testUserId;
-    beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Default: return empty rows for all queries
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
   });
   let authToken = "dev-bypass-token"; // Use development bypass token
 

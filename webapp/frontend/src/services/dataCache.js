@@ -237,7 +237,7 @@ class DataCacheService {
 
       const commonEndpoints = [
         { endpoint: "/api/market/overview", cacheType: "marketData" },
-        { endpoint: "/api/market/sectors", cacheType: "sectorData" },
+        { endpoint: "/api/sectors/sectors-with-history", cacheType: "sectorData" },
         { endpoint: "/api/market/sentiment", cacheType: "sentiment" },
       ];
 

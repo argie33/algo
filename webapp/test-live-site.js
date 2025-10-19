@@ -112,7 +112,7 @@ class LiveSiteTester {
     })();
 
     await this.test('Market Sectors Data', async () => {
-      const response = await this.makeRequest(`${API_BASE}/api/market/sectors`);
+      const response = await this.makeRequest(`${API_BASE}/api/sectors/sectors-with-history`);
       // Sectors endpoint returns 404 when no data loaded (expected until loaders run)
       if (response.status === 404 && response.data.error && response.data.error.includes('No sector performance data')) {
         return; // Expected behavior - pass the test
@@ -157,7 +157,7 @@ class LiveSiteTester {
     // API Route Coverage
     const publicRoutes = [
       '/api/market/overview',
-      '/api/market/sectors', 
+      '/api/sectors/sectors-with-history', 
       '/api/market/breadth',
       '/api/technical/indicators',
       '/api/sentiment/overview'

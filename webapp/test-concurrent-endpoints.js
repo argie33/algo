@@ -31,7 +31,7 @@ async function main() {
   const endpoints = [
     '/health',
     '/api/market/overview',
-    '/api/market/sectors',
+    '/api/sectors/sectors-with-history',
     '/api/technical'
   ];
   

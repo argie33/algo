@@ -319,7 +319,7 @@ describe("Market Data Contract Tests", () => {
       return;
 
     // STEP 1: Verify backend API returns sector data
-    const sectorsResponse = await fetch(`${API_BASE_URL}/api/market/sectors`, {
+    const sectorsResponse = await fetch(`${API_BASE_URL}/api/sectors/sectors-with-history`, {
       headers: AUTH_HEADERS,
     });
 

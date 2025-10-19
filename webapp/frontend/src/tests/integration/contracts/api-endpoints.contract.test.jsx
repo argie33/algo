@@ -69,7 +69,7 @@ describe("API Endpoints Contract Tests", () => {
     it("should return sector analysis data", async () => {
       if (!serverAvailable) return;
 
-      const response = await fetch(`${API_BASE_URL}/api/market/sectors`);
+      const response = await fetch(`${API_BASE_URL}/api/sectors/sectors-with-history`);
       const data = await response.json();
 
       expect(response.ok).toBe(true);

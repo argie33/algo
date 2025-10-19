@@ -1112,7 +1112,7 @@ export const getMarketSectorPerformance = async () => {
   console.log(`📊 [API] Fetching market sector performance...`);
 
   try {
-    const response = await api.get(`/api/market/sectors/performance`);
+    const response = await api.get(`/api/sectors/sectors-with-history/performance`);
     console.log(`📊 [API] Fetched sector performance:`, response.data);
 
     // Always return { data: ... } structure for consistency
@@ -3057,7 +3057,7 @@ export const getMarketIndices = async () => {
 export const getSectorPerformance = async () => {
   console.log("🚀 getSectorPerformance: Starting API call...");
   try {
-    const response = await api.get("/api/market/sectors");
+    const response = await api.get("/api/sectors/sectors-with-history");
 
     console.log("📊 getSectorPerformance: Raw response:", {
       status: response?.status,
