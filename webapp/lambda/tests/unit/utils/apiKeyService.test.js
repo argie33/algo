@@ -11,6 +11,8 @@ jest.mock("jsonwebtoken");
 const mockQuery = require("../../../utils/database").query;
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const { SecretsManagerClient } = require("@aws-sdk/client-secrets-manager");
+const { CognitoJwtVerifier } = require("aws-jwt-verify");
 // Import ApiKeyService functions after mocking
 const {
   storeApiKey,

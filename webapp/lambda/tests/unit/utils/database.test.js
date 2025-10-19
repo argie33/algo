@@ -295,7 +295,22 @@ describe("Database Utilities - Unit Tests", () => {
       const slowQuery = new Promise((resolve) =>
         setTimeout(() => resolve({ rows: [], rowCount: 0 }), 100)
       );
-      mockPool.query.mockImplementation(() => slowQuery);
+      mockPool.query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Handle information_schema queries
+      if (sql.includes("information_schema.tables")) {
+        return Promise.resolve({ rows: [{ exists: true }] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
       const result = await query("SELECT * FROM slow_table");
       expect(result).toEqual({ rows: [], rowCount: 0 });
     });

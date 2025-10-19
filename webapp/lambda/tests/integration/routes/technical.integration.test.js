@@ -121,7 +121,18 @@ describe("Technical Router", () => {
     });
 
     test("should return 404 for symbol with no technical data", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
 
       const response = await request(app)
         .get("/api/technical/daily/NONEXISTENT")
@@ -195,7 +206,18 @@ describe("Technical Router", () => {
     });
 
     test("should handle empty weekly data", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
 
       const response = await request(app)
         .get("/api/technical/weekly/UNKNOWN")
@@ -329,7 +351,18 @@ describe("Technical Router", () => {
     });
 
     test("should handle no signals available", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
 
       const response = await request(app)
         .get("/api/technical/signals/AAPL")
@@ -341,7 +374,18 @@ describe("Technical Router", () => {
     });
 
     test("should filter signals by type", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
 
       const response = await request(app)
         .get("/api/technical/signals/AAPL?type=BUY")
@@ -391,7 +435,18 @@ describe("Technical Router", () => {
     });
 
     test("should handle various screening criteria", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
 
       const response = await request(app)
         .get("/api/technical/screener?rsi_min=30&rsi_max=70&volume_min=1000000")
@@ -490,7 +545,18 @@ describe("Technical Router", () => {
     });
 
     test("should handle SQL injection attempts", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
 
       const response = await request(app)
         .get("/api/technical/daily/AAPL'; DROP TABLE technical_data_daily; --")

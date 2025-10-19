@@ -36,7 +36,16 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     // Reset all mocks before each test
     jest.clearAllMocks();
     // Set up default mock responses for all tests
-    query.mockImplementation(() => {
+    query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return portfolio holdings data
       return Promise.resolve({
         rows: [
           {
@@ -71,7 +80,8 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
             purchase_date: "2024-02-10",
             last_updated: "2025-01-27T10:00:00Z"
           }
-        ]
+        ],
+        rowCount: 2
       });
     });
   });

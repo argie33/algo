@@ -39,18 +39,22 @@ describe("Sentiment Routes - Unit Tests", () => {
     // Reset all mocks before each test
     jest.clearAllMocks();
     // Set up default mock responses using REAL AAII sentiment loader schema
-    query.mockImplementation(() => {
-      return Promise.resolve({
-        rows: [
-          {
-            date: "2025-01-27",
-            bullish: 45.2,
-            neutral: 28.1,
-            bearish: 26.7,
-            created_at: "2025-01-27T10:00:00Z"
-          }
-        ]
-      });
+    query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Handle information_schema queries
+      if (sql.includes("information_schema.tables")) {
+        return Promise.resolve({ rows: [{ exists: true }] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
     });
   });
   describe("GET /sentiment/health", () => {

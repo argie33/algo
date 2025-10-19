@@ -254,7 +254,18 @@ describe("Settings API Routes", () => {
       });
     });
     it("should handle missing user gracefully", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
       listProviders.mockResolvedValue([]);
       const response = await request(app)
         .get("/api/settings/onboarding-status")
@@ -267,7 +278,18 @@ describe("Settings API Routes", () => {
   });
   describe("POST /api/settings/onboarding-complete", () => {
     it("should mark onboarding as complete", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
       const response = await request(app)
         .post("/api/settings/onboarding-complete")
         .expect(200);
@@ -298,7 +320,18 @@ describe("Settings API Routes", () => {
       });
     });
     it("should handle missing preferences gracefully", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
       const response = await request(app)
         .get("/api/settings/preferences")
         .expect(200);
@@ -312,7 +345,18 @@ describe("Settings API Routes", () => {
   });
   describe("POST /api/settings/preferences", () => {
     it("should save user preferences", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
       const preferences = {
         riskTolerance: "aggressive",
         investmentStyle: "value",
@@ -336,7 +380,18 @@ describe("Settings API Routes", () => {
       );
     });
     it("should handle invalid preferences format", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
       const response = await request(app)
         .post("/api/settings/preferences")
         .send({

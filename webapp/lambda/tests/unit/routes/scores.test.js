@@ -35,35 +35,21 @@ describe("Scores Routes Unit Tests", () => {
     // Reset all mocks before each test
     jest.clearAllMocks();
     // Set up default mock responses for all tests
-    query.mockImplementation(() => {
-      return Promise.resolve({
-        rows: [
-          {
-            symbol: "AAPL",
-            composite_score: 85.5,
-            momentum_score: 75.2,
-            value_score: 88.7,
-            quality_score: 70.3,
-            growth_score: 82.5,
-            positioning_score: 65.4,
-            sentiment_score: 72.3,
-            rsi: 65.4,
-            macd: 2.34,
-            sma_20: 150.25,
-            sma_50: 145.80,
-            volume_avg_30d: 50000000,
-            current_price: 155.32,
-            price_change_1d: 2.1,
-            price_change_5d: 5.3,
-            price_change_30d: 12.5,
-            volatility_30d: 28.4,
-            market_cap: 2500000000000,
-            pe_ratio: 25.8,
-            score_date: "2025-01-27",
-            last_updated: "2025-01-27T10:00:00Z"
-          }
-        ]
-      });
+    query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Handle information_schema queries
+      if (sql.includes("information_schema.tables")) {
+        return Promise.resolve({ rows: [{ exists: true }] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
     });
   });
   describe("GET /scores/ping", () => {

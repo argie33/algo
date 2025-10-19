@@ -376,7 +376,18 @@ describe("Risk Engine", () => {
 
   describe("error handling and edge cases", () => {
     test("should handle missing price data", async () => {
-      query.mockResolvedValue({ rows: [] });
+      query.mockImplementation((sql, params) => {
+      // Handle COUNT queries
+      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+      }
+      // Handle INSERT/UPDATE/DELETE queries
+      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      // Default: return empty rows
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
 
       const volatility = await riskEngine.calculateVolatility("INVALID", 30);
 
