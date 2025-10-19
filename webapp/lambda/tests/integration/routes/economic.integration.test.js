@@ -23,6 +23,7 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+const { query } = require("../../../utils/database");
 
 describe("Economic Routes Integration Tests", () => {
   

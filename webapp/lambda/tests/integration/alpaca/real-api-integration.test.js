@@ -11,6 +11,7 @@
 require('dotenv').config({ path: '.env.test' });
 
 const AlpacaService = require("../../../utils/alpacaService");
+const { query, initializeDatabase, closeDatabase } = require("../../../utils/database");
 
 // Mock database BEFORE importing routes/modules
 jest.mock("../../../utils/database", () => ({
@@ -32,6 +33,7 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+const { query } = require("../../../utils/database");
 
 describe("Real Alpaca API Integration Tests", () => {
   let alpacaService;

@@ -78,7 +78,7 @@ describe("Scores Routes Integration", () => {
       expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("metadata");
       expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-      expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
+      expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
     });
 
     test("should handle pagination parameters", async () => {
@@ -173,7 +173,7 @@ describe("Scores Routes Integration", () => {
         expect(response.body.data).toHaveProperty("current_price");
         expect(response.body).toHaveProperty("metadata");
         expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-        expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
+        expect(response.body.metadata).toHaveProperty("factorAnalysis", "six_factor_scoring_system");
 
         // Check six factor scores are present
         expect(response.body.data).toHaveProperty("momentum_score");

@@ -29,6 +29,7 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+const { query } = require("../../../utils/database");
 
 describe('Scores API - Quality and Growth Inputs Integration', () => {
   describe('GET /api/scores (list endpoint)', () => {
