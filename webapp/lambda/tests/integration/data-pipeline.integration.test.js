@@ -14,7 +14,7 @@ const {
 } = require('../../webapp/lambda/utils/database');
 
 // Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
+jest.mock("../../utils/database", () => ({
   query: jest.fn(),
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
@@ -24,7 +24,7 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 // Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
+jest.mock("../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
     req.user = { sub: "test-user-123" };
     next();
@@ -32,8 +32,6 @@ jest.mock("../../../middleware/auth", () => ({
   authorizeAdmin: jest.fn((req, res, next) => next()),
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
-
-const { query } = require("../../../utils/database");
 
 describe('Data Pipeline Integration - End-to-End', () => {
   

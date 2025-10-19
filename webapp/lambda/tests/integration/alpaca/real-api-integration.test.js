@@ -33,7 +33,6 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-const { query } = require("../../../utils/database");
 
 describe("Real Alpaca API Integration Tests", () => {
   let alpacaService;

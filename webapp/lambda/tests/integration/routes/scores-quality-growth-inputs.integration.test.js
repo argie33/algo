@@ -43,13 +43,13 @@ describe('Scores API - Quality and Growth Inputs Integration', () => {
         expect(stock.quality_inputs).toBeInstanceOf(Object);
 
         // Verify all required fields exist (may be null if no data)
+        // These fields match the actual loader schema from loadqualitymetrics.py
         const requiredQualityFields = [
-          'accruals_ratio',
-          'fcf_to_net_income',
-          'debt_to_equity',
           'current_ratio',
-          'interest_coverage',
-          'asset_turnover'
+          'debt_to_equity',
+          'fcf_to_net_income',
+          'profit_margin_pct',
+          'return_on_equity_pct'
         ];
 
         requiredQualityFields.forEach(field => {
@@ -101,30 +101,27 @@ describe('Scores API - Quality and Growth Inputs Integration', () => {
         .expect(200);
 
       const stocksWithQualityData = response.body.data.stocks.filter(s =>
-        s.quality_inputs?.accruals_ratio !== null
+        s.quality_inputs?.current_ratio !== null
       );
 
       if (stocksWithQualityData.length > 0) {
         const stock = stocksWithQualityData[0];
 
-        // Verify numeric types for quality metrics
-        if (stock.quality_inputs.accruals_ratio !== null) {
-          expect(typeof stock.quality_inputs.accruals_ratio).toBe('number');
-        }
-        if (stock.quality_inputs.fcf_to_net_income !== null) {
-          expect(typeof stock.quality_inputs.fcf_to_net_income).toBe('number');
+        // Verify numeric types for quality metrics (actual fields from loader schema)
+        if (stock.quality_inputs.current_ratio !== null) {
+          expect(typeof stock.quality_inputs.current_ratio).toBe('number');
         }
         if (stock.quality_inputs.debt_to_equity !== null) {
           expect(typeof stock.quality_inputs.debt_to_equity).toBe('number');
         }
-        if (stock.quality_inputs.current_ratio !== null) {
-          expect(typeof stock.quality_inputs.current_ratio).toBe('number');
+        if (stock.quality_inputs.fcf_to_net_income !== null) {
+          expect(typeof stock.quality_inputs.fcf_to_net_income).toBe('number');
         }
-        if (stock.quality_inputs.interest_coverage !== null) {
-          expect(typeof stock.quality_inputs.interest_coverage).toBe('number');
+        if (stock.quality_inputs.profit_margin_pct !== null) {
+          expect(typeof stock.quality_inputs.profit_margin_pct).toBe('number');
         }
-        if (stock.quality_inputs.asset_turnover !== null) {
-          expect(typeof stock.quality_inputs.asset_turnover).toBe('number');
+        if (stock.quality_inputs.return_on_equity_pct !== null) {
+          expect(typeof stock.quality_inputs.return_on_equity_pct).toBe('number');
         }
       }
     });
@@ -271,9 +268,10 @@ describe('Scores API - Quality and Growth Inputs Integration', () => {
           expect(stock.quality_inputs.current_ratio).toBeGreaterThan(0);
         }
 
-        // Asset turnover should typically be positive
-        if (stock.quality_inputs.asset_turnover !== null) {
-          expect(stock.quality_inputs.asset_turnover).toBeGreaterThan(0);
+        // Profit margin should be a reasonable percentage (-100 to 100)
+        if (stock.quality_inputs.profit_margin_pct !== null) {
+          expect(stock.quality_inputs.profit_margin_pct).toBeGreaterThan(-100);
+          expect(stock.quality_inputs.profit_margin_pct).toBeLessThan(100);
         }
       }
     });
