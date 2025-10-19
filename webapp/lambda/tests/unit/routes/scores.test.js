@@ -8,7 +8,11 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
+
+// Import after mocks
+const { query } = require("../../../utils/database");
 const scoresRouter = require("../../../routes/scores");
+
 describe("Scores Routes Unit Tests", () => {
   let app;
   beforeAll(() => {
@@ -20,7 +24,6 @@ describe("Scores Routes Unit Tests", () => {
       req.user = { sub: "test-user-123" }; // Mock authenticated user
       next();
     });
-const { query } = require("../../../utils/database");
 
     // Add response formatter middleware
     const responseFormatter = require("../../../middleware/responseFormatter");
