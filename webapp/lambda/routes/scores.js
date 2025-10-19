@@ -690,8 +690,8 @@ router.get("/:symbol", async (req, res) => {
         sector: row.sector,
         compositeScore: row.composite_score == null ? null : parseFloat(row.composite_score),
         currentPrice: row.current_price == null ? null : parseFloat(row.current_price),
-        priceChange1d: parseFloat(row.price_change_1d) || 0,
-        volume: parseInt(row.volume_avg_30d) || 0,
+        priceChange1d: row.price_change_1d == null ? null : parseFloat(row.price_change_1d),
+        volume: row.volume_avg_30d == null ? null : parseInt(row.volume_avg_30d),
         marketCap: row.market_cap == null ? null : parseInt(row.market_cap),
         peRatio: row.pe_ratio == null ? null : parseFloat(row.pe_ratio),
         lastUpdated: row.last_updated,
@@ -707,9 +707,9 @@ router.get("/:symbol", async (req, res) => {
               relative_strength: row.momentum_relative_strength == null ? null : parseFloat(row.momentum_relative_strength),
               consistency: row.momentum_consistency == null ? null : parseFloat(row.momentum_consistency),
               rsi: row.rsi == null ? null : parseFloat(row.rsi),
-              roc_10d: parseFloat(row.roc_10d) || null,
-              roc_60d: parseFloat(row.roc_60d) || null,
-              roc_120d: parseFloat(row.roc_120d) || null,
+              roc_10d: row.roc_10d == null ? null : parseFloat(row.roc_10d),
+              roc_60d: row.roc_60d == null ? null : parseFloat(row.roc_60d),
+              roc_120d: row.roc_120d == null ? null : parseFloat(row.roc_120d),
               mansfield_rs: row.mansfield_rs == null ? null : parseFloat(row.mansfield_rs)
             },
             inputs: {
@@ -815,9 +815,9 @@ router.get("/:symbol", async (req, res) => {
           risk: {
             score: row.risk_score == null ? null : parseFloat(row.risk_score),
             inputs: {
-              volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
+              volatility_12m_pct: row.volatility_12m_pct == null ? null : parseFloat(row.volatility_12m_pct),
               volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
-              max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
+              max_drawdown_52w_pct: row.max_drawdown_52w_pct == null ? null : parseFloat(row.max_drawdown_52w_pct),
               beta: row.beta == null ? null : parseFloat(row.beta)
             }
           }
@@ -840,24 +840,24 @@ router.get("/:symbol", async (req, res) => {
         sentiment_score: row.sentiment_score == null ? null : parseFloat(row.sentiment_score),
         risk_score: row.risk_score == null ? null : parseFloat(row.risk_score),
         current_price: row.current_price == null ? null : parseFloat(row.current_price),
-        price_change_1d: parseFloat(row.price_change_1d) || 0,
-        price_change_5d: parseFloat(row.price_change_5d) || 0,
-        price_change_30d: parseFloat(row.price_change_30d) || 0,
-        volatility_30d: parseFloat(row.volatility_30d) || 0,
+        price_change_1d: row.price_change_1d == null ? null : parseFloat(row.price_change_1d),
+        price_change_5d: row.price_change_5d == null ? null : parseFloat(row.price_change_5d),
+        price_change_30d: row.price_change_30d == null ? null : parseFloat(row.price_change_30d),
+        volatility_30d: row.volatility_30d == null ? null : parseFloat(row.volatility_30d),
         market_cap: row.market_cap == null ? null : parseInt(row.market_cap),
-        volume_avg_30d: parseInt(row.volume_avg_30d) || 0,
+        volume_avg_30d: row.volume_avg_30d == null ? null : parseInt(row.volume_avg_30d),
         pe_ratio: row.pe_ratio == null ? null : parseFloat(row.pe_ratio),
         rsi: row.rsi == null ? null : parseFloat(row.rsi),
-        sma_20: parseFloat(row.sma_20) || 0,
-        sma_50: parseFloat(row.sma_50) || 0,
+        sma_20: row.sma_20 == null ? null : parseFloat(row.sma_20),
+        sma_50: row.sma_50 == null ? null : parseFloat(row.sma_50),
         macd: row.macd == null ? null : parseFloat(row.macd),
         last_updated: row.last_updated,
         score_date: row.score_date,
         // Risk inputs for frontend display (Risk Factor Analysis)
         risk_inputs: {
-          volatility_12m_pct: parseFloat(row.volatility_12m_pct) || null,
+          volatility_12m_pct: row.volatility_12m_pct == null ? null : parseFloat(row.volatility_12m_pct),
           volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
-          max_drawdown_52w_pct: parseFloat(row.max_drawdown_52w_pct) || null,
+          max_drawdown_52w_pct: row.max_drawdown_52w_pct == null ? null : parseFloat(row.max_drawdown_52w_pct),
           beta: row.beta == null ? null : parseFloat(row.beta)
         }
       },
