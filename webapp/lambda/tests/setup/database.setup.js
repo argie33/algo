@@ -272,67 +272,99 @@ async function populateLoaderTestData() {
     console.log('✅ Economic test data populated for testing');
     // Insert test data into Python loader tables
     await query(`
-      INSERT INTO company_profile (ticker, short_name, long_name, sector, industry) VALUES
-      ('AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
-      ('MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Technology', 'Software'),
-      ('GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Technology', 'Internet Services')
+      INSERT INTO company_profile (symbol, ticker, short_name, long_name, sector, industry) VALUES
+      ('AAPL', 'AAPL', 'Apple Inc.', 'Apple Inc.', 'Technology', 'Consumer Electronics'),
+      ('MSFT', 'MSFT', 'Microsoft Corp.', 'Microsoft Corporation', 'Technology', 'Software'),
+      ('GOOGL', 'GOOGL', 'Alphabet Inc.', 'Alphabet Inc.', 'Technology', 'Internet Services')
       ON CONFLICT (ticker) DO NOTHING
     `);
 
-    // Try to insert market data - handle any conflicts gracefully
-    try {
-      // Use only columns that exist in the actual market_data table schema
-      await query(`
-        INSERT INTO market_data (ticker, date, regular_market_price, previous_close) VALUES
-        ('AAPL', CURRENT_DATE, 175.50, 174.25),
-        ('MSFT', CURRENT_DATE, 420.75, 419.50),
-        ('GOOGL', CURRENT_DATE, 143.50, 142.75)
-        ON CONFLICT DO NOTHING
-      `);
-    } catch (error) {
-      console.warn('Could not insert market_data test data:', error.message);
-    }
-
+    // Insert market data
     await query(`
-      INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, dividend_yield, eps_trailing, price_to_sales_ttm, price_to_book, peg_ratio, profit_margin_pct, return_on_assets_pct, return_on_equity_pct, eps_forward, total_revenue, net_income, debt_to_equity, current_ratio, quick_ratio, total_cash, cash_per_share, operating_cashflow, free_cashflow, beta, earnings_growth_pct, revenue_growth_pct, enterprise_value) VALUES
-      ('AAPL', 28.5, 25.2, 0.55, 6.15, 7.8, 45.5, 2.1, 25.3, 0.18, 0.35, 7.20, 394328000000, 99803000000, 1.73, 1.12, 1.00, 29965000000, 1.85, 99584000000, 84726000000, 1.29, 0.085, 0.071, 2750000000000),
-      ('MSFT', 35.8, 29.1, 0.80, 11.75, 12.4, 13.2, 2.5, 36.7, 0.15, 0.42, 13.50, 245122000000, 88136000000, 0.35, 2.52, 2.19, 104757000000, 14.05, 87582000000, 65149000000, 0.89, 0.103, 0.099, 3050000000000),
-      ('GOOGL', 24.2, 21.5, 0.00, 5.89, 5.1, 6.8, 1.8, 22.4, 0.12, 0.28, 6.75, 307394000000, 73795000000, 0.12, 2.05, 1.87, 115696000000, 8.89, 91495000000, 67012000000, 1.05, 0.126, 0.089, 1680000000000)
+      INSERT INTO market_data (ticker, market_cap) VALUES
+      ('AAPL', 3400000000000),
+      ('MSFT', 3200000000000),
+      ('GOOGL', 1800000000000)
       ON CONFLICT (ticker) DO NOTHING
     `);
 
+    // Insert key metrics
     await query(`
-      INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume) VALUES
-      ('AAPL', CURRENT_DATE, 175.0, 176.5, 174.0, 175.5, 175.5, 65000000),
-      ('MSFT', CURRENT_DATE, 420.0, 422.0, 419.0, 420.75, 420.75, 28000000),
-      ('GOOGL', CURRENT_DATE, 142.0, 144.0, 141.0, 143.5, 143.5, 22000000)
+      INSERT INTO key_metrics (ticker, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm, ev_to_ebitda, dividend_yield, earnings_growth_pct, revenue_growth_pct, free_cashflow) VALUES
+      ('AAPL', 28.5, 25.2, 45.5, 7.8, 22.3, 0.55, 8.5, 7.1, 84726000000),
+      ('MSFT', 35.8, 29.1, 13.2, 12.4, 28.5, 0.80, 10.3, 9.9, 65149000000),
+      ('GOOGL', 24.2, 21.5, 6.8, 5.1, 18.2, 0.00, 12.6, 8.9, 67012000000)
+      ON CONFLICT (ticker) DO NOTHING
+    `);
+
+    // Insert sector benchmarks
+    await query(`
+      INSERT INTO sector_benchmarks (sector, pe_ratio, price_to_book, ev_to_ebitda, debt_to_equity) VALUES
+      ('Technology', 28.5, 8.5, 20.0, 0.15)
+      ON CONFLICT (sector) DO NOTHING
+    `);
+
+    // Insert price daily data
+    await query(`
+      INSERT INTO price_daily (symbol, date, open, high, low, close, volume) VALUES
+      ('AAPL', CURRENT_DATE, 175.0, 176.5, 174.0, 175.5, 65000000),
+      ('MSFT', CURRENT_DATE, 420.0, 422.0, 419.0, 420.75, 28000000),
+      ('GOOGL', CURRENT_DATE, 142.0, 144.0, 141.0, 143.5, 22000000)
       ON CONFLICT (symbol, date) DO NOTHING
     `);
 
+    // Insert quality metrics
     await query(`
-      INSERT INTO stock_scores (symbol, composite_score, momentum_score, value_score, quality_score, rsi, macd, sma_20, sma_50, volume_avg_30d, current_price, price_change_1d, price_change_5d, price_change_30d, volatility_30d, market_cap, pe_ratio, score_date, last_updated) VALUES
-      ('AAPL', 88.7, 85.2, 78.3, 88.7, 65.4, 2.45, 174.5, 170.2, 45000000, 175.50, 1.2, 3.5, 8.2, 18.5, 3400000000000, 28.5, CURRENT_DATE, CURRENT_TIMESTAMP),
-      ('MSFT', 91.2, 88.5, 85.1, 91.2, 72.1, 5.67, 418.3, 415.8, 25000000, 420.75, 2.1, 5.2, 12.1, 22.3, 3200000000000, 35.8, CURRENT_DATE, CURRENT_TIMESTAMP),
-      ('GOOGL', 82.5, 78.9, 75.6, 82.5, 58.3, 1.23, 142.8, 140.5, 20000000, 143.50, -0.5, 2.1, 4.8, 24.1, 1800000000000, 24.2, CURRENT_DATE, CURRENT_TIMESTAMP)
-      ON CONFLICT (symbol) DO UPDATE SET
-        composite_score = EXCLUDED.composite_score,
-        momentum_score = EXCLUDED.momentum_score,
-        value_score = EXCLUDED.value_score,
-        quality_score = EXCLUDED.quality_score,
-        rsi = EXCLUDED.rsi,
-        macd = EXCLUDED.macd,
-        sma_20 = EXCLUDED.sma_20,
-        sma_50 = EXCLUDED.sma_50,
-        volume_avg_30d = EXCLUDED.volume_avg_30d,
-        current_price = EXCLUDED.current_price,
-        price_change_1d = EXCLUDED.price_change_1d,
-        price_change_5d = EXCLUDED.price_change_5d,
-        price_change_30d = EXCLUDED.price_change_30d,
-        volatility_30d = EXCLUDED.volatility_30d,
-        market_cap = EXCLUDED.market_cap,
-        pe_ratio = EXCLUDED.pe_ratio,
-        score_date = EXCLUDED.score_date,
-        last_updated = EXCLUDED.last_updated
+      INSERT INTO quality_metrics (symbol, date, return_on_equity_pct, return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income, debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg, eps_growth_stability, payout_ratio, accruals_ratio) VALUES
+      ('AAPL', CURRENT_DATE, 35.0, 18.0, 48.0, 32.5, 25.3, 0.85, 0.92, 1.73, 1.12, 1.00, 4.8, 0.92, 0.15, 0.05),
+      ('MSFT', CURRENT_DATE, 42.0, 15.0, 69.0, 42.0, 36.7, 0.75, 0.88, 0.35, 2.52, 2.19, 2.8, 0.95, 0.20, 0.03),
+      ('GOOGL', CURRENT_DATE, 28.0, 12.0, 56.0, 30.5, 22.4, 0.82, 0.90, 0.12, 2.05, 1.87, 4.3, 0.90, 0.00, 0.04)
+      ON CONFLICT (symbol, date) DO NOTHING
+    `);
+
+    // Insert growth metrics
+    await query(`
+      INSERT INTO growth_metrics (symbol, date, revenue_growth_3y_cagr, eps_growth_3y_cagr, operating_income_growth_yoy, roe_trend, sustainable_growth_rate, fcf_growth_yoy, net_income_growth_yoy, gross_margin_trend, operating_margin_trend, net_margin_trend, quarterly_growth_momentum, asset_growth_yoy) VALUES
+      ('AAPL', CURRENT_DATE, 8.5, 9.2, 12.5, 0.08, 7.5, 15.2, 11.8, 0.5, 1.2, 0.8, 5.5, 3.2),
+      ('MSFT', CURRENT_DATE, 11.2, 12.5, 15.8, 0.10, 9.2, 18.5, 14.2, 1.5, 2.1, 1.5, 7.2, 4.5),
+      ('GOOGL', CURRENT_DATE, 10.5, 11.8, 14.2, 0.09, 8.8, 16.5, 12.8, 0.8, 1.8, 1.2, 6.8, 3.8)
+      ON CONFLICT (symbol, date) DO NOTHING
+    `);
+
+    // Insert momentum metrics
+    await query(`
+      INSERT INTO momentum_metrics (symbol, date, momentum_12m_1, momentum_6m, momentum_3m, risk_adjusted_momentum, price_vs_sma_50, price_vs_sma_200, price_vs_52w_high, high_52w, sma_50, sma_200, volatility_12m) VALUES
+      ('AAPL', CURRENT_DATE, 22.5, 18.3, 5.2, 1.05, 1.03, 1.08, 0.97, 180.5, 170.2, 165.8, 18.5),
+      ('MSFT', CURRENT_DATE, 28.5, 24.5, 8.5, 1.12, 1.02, 1.06, 0.98, 445.0, 415.8, 410.2, 22.3),
+      ('GOOGL', CURRENT_DATE, 25.2, 21.5, 6.8, 1.08, 1.01, 1.05, 0.96, 148.5, 140.5, 138.2, 24.1)
+      ON CONFLICT (symbol, date) DO NOTHING
+    `);
+
+    // Insert risk metrics
+    await query(`
+      INSERT INTO risk_metrics (symbol, date, volatility_12m_pct, volatility_risk_component, max_drawdown_52w_pct, beta) VALUES
+      ('AAPL', CURRENT_DATE, 18.5, 0.45, 12.3, 1.29),
+      ('MSFT', CURRENT_DATE, 22.3, 0.52, 15.8, 0.89),
+      ('GOOGL', CURRENT_DATE, 24.1, 0.58, 18.5, 1.05)
+      ON CONFLICT (symbol, date) DO NOTHING
+    `);
+
+    // Insert positioning metrics
+    await query(`
+      INSERT INTO positioning_metrics (symbol, date, institutional_ownership, insider_ownership, short_percent_of_float, short_ratio, institution_count, acc_dist_rating, days_to_cover) VALUES
+      ('AAPL', CURRENT_DATE, 58.2, 0.05, 1.2, 2.5, 3500, 42.5, 2.8),
+      ('MSFT', CURRENT_DATE, 62.5, 0.08, 0.8, 1.8, 3200, 55.2, 1.9),
+      ('GOOGL', CURRENT_DATE, 61.8, 0.12, 0.6, 1.2, 2800, 48.5, 1.5)
+      ON CONFLICT (symbol, date) DO NOTHING
+    `);
+
+    // Insert stock scores with all required fields
+    await query(`
+      INSERT INTO stock_scores (symbol, date, composite_score, momentum_score, value_score, quality_score, growth_score, positioning_score, risk_score, sentiment_score, rsi, macd, sma_20, sma_50, current_price, price_change_1d, price_change_5d, price_change_30d, volatility_30d, market_cap, pe_ratio, volume_avg_30d, score_date, last_updated) VALUES
+      ('AAPL', CURRENT_DATE, 88.7, 85.2, 78.3, 88.7, 82.5, 75.5, 80.0, 72.5, 65.4, 2.45, 174.5, 170.2, 175.50, 1.2, 3.5, 8.2, 18.5, 3400000000000, 28.5, 45000000, CURRENT_DATE, CURRENT_TIMESTAMP),
+      ('MSFT', CURRENT_DATE, 91.2, 88.5, 85.1, 91.2, 89.5, 85.2, 82.0, 78.5, 72.1, 5.67, 418.3, 415.8, 420.75, 2.1, 5.2, 12.1, 22.3, 3200000000000, 35.8, 25000000, CURRENT_DATE, CURRENT_TIMESTAMP),
+      ('GOOGL', CURRENT_DATE, 82.5, 78.9, 75.6, 82.5, 80.2, 72.5, 75.0, 68.5, 58.3, 1.23, 142.8, 140.5, 143.50, -0.5, 2.1, 4.8, 24.1, 1800000000000, 24.2, 20000000, CURRENT_DATE, CURRENT_TIMESTAMP)
+      ON CONFLICT (symbol, date) DO NOTHING
     `);
 
     await query(`

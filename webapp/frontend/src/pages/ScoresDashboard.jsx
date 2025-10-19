@@ -301,37 +301,9 @@ const ScoresDashboard = () => {
 
   // Transform data to handle both old and new API formats
   const transformStockData = (stock) => {
-    if (stock.composite_score !== undefined) {
-      return stock; // Return real data as-is (includes momentum_components, positioning_components)
-    }
-
-    return {
-      symbol: stock.symbol,
-      composite_score: stock.compositeScore || 0,
-      momentum_score: stock.factors?.momentum?.score || 0,
-      value_score: stock.factors?.value?.score || 0,
-      quality_score: stock.factors?.quality?.score || 0,
-      growth_score: stock.growth_score || 0,
-      positioning_score: stock.positioning_score || 0,
-      sentiment_score: stock.sentiment_score || 0,
-      risk_score: stock.factors?.risk?.score || 0,
-      current_price: stock.currentPrice || 0,
-      price_change_1d: stock.priceChange1d || 0,
-      price_change_5d: stock.factors?.technical?.priceChange5d || 0,
-      price_change_30d: stock.factors?.technical?.priceChange30d || 0,
-      volatility_30d: stock.factors?.quality?.volatility || stock.factors?.risk?.volatility30d || 0,
-      market_cap: stock.marketCap || 0,
-      volume_avg_30d: stock.volume || 0,
-      pe_ratio: stock.factors?.value?.peRatio || null,
-      rsi: stock.factors?.momentum?.rsi || 0,
-      sma_20: stock.factors?.trend?.sma20 || 0,
-      sma_50: stock.factors?.trend?.sma50 || 0,
-      macd: stock.factors?.technical?.macd || null,
-      last_updated: stock.lastUpdated,
-      score_date: stock.scoreDate,
-      momentum_components: stock.factors?.momentum?.components || stock.momentum_components || {},
-      positioning_components: stock.positioning_components || {},
-    };
+    // Return data as-is from API without any fallbacks or defaults
+    // No fake data - only real data from database
+    return stock;
   };
 
   useEffect(() => {
@@ -350,7 +322,7 @@ const ScoresDashboard = () => {
       const { default: api } = await import("../services/api");
       const response = await api.get("/api/scores");
 
-      if (response?.data?.success && response.data.data?.stocks) {
+      if (response?.data?.success && response.data?.data?.stocks) {
         const transformedStocks = response.data.data.stocks.map(transformStockData);
         setScores(transformedStocks);
       } else {
@@ -1077,20 +1049,20 @@ const ScoresDashboard = () => {
                               Sentiment
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {(stock.sentiment_score || 0).toFixed(0)}
+                              {stock.sentiment_score?.toFixed(0) ?? "N/A"}
                             </Typography>
                           </Box>
                           <LinearProgress
                             variant="determinate"
-                            value={stock.sentiment_score || 0}
+                            value={Math.max(0, stock.sentiment_score ?? 0)}
                             sx={{
                               height: 8,
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.sentiment_score || 0) >= 80
+                                backgroundColor: (stock.sentiment_score ?? 0) >= 80
                                   ? theme.palette.success.main
-                                  : (stock.sentiment_score || 0) >= 60
+                                  : (stock.sentiment_score ?? 0) >= 60
                                   ? theme.palette.warning.main
                                   : theme.palette.error.main,
                                 borderRadius: 1,
@@ -2219,8 +2191,8 @@ const ScoresDashboard = () => {
                             <SentimentSatisfied sx={{ color: theme.palette.success.main }} />
                             <Typography variant="h6">Market Sentiment</Typography>
                             <Chip
-                              label={(stock.sentiment_score || 0).toFixed(1)}
-                              color={(stock.sentiment_score || 0) >= 80 ? "success" : "warning"}
+                              label={stock.sentiment_score?.toFixed(1) ?? "N/A"}
+                              color={(stock.sentiment_score ?? 0) >= 80 ? "success" : "warning"}
                               size="small"
                             />
                           </Box>
@@ -2594,9 +2566,9 @@ const ScoresDashboard = () => {
                       </TableCell>
                       <TableCell align="right">
                         <Chip
-                          label={(stock.sentiment_score || 0).toFixed(1)}
+                          label={stock.sentiment_score?.toFixed(1) ?? "N/A"}
                           size="small"
-                          color={(stock.sentiment_score || 0) >= 80 ? "success" : "warning"}
+                          color={(stock.sentiment_score ?? 0) >= 80 ? "success" : "warning"}
                         />
                       </TableCell>
                     </TableRow>

@@ -1,0 +1,175 @@
+CRITICAL TEST FILES - PRIORITIZED FOR FIXING
+=============================================
+
+PHASE 1: CONVERT INTEGRATION ROUTE TESTS TO UNIT TESTS (4-6 hours, saves 6,700-27,000 seconds)
+================================================================================================
+
+PRIORITY 1A - FASTEST WINS (Most Impact per Hour):
+  1. /tests/integration/routes/sectors.integration.test.js (218 seconds)
+  2. /tests/integration/routes/trades.integration.test.js (200-300 seconds)
+  3. /tests/integration/routes/performance.integration.test.js (200-300 seconds)
+
+PRIORITY 1B - REMAINING 31 ROUTE TESTS (Same Pattern):
+  /tests/integration/routes/stocks.integration.test.js
+  /tests/integration/routes/portfolio.integration.test.js
+  /tests/integration/routes/risk.integration.test.js
+  /tests/integration/routes/metrics.integration.test.js
+  /tests/integration/routes/health.integration.test.js
+  /tests/integration/routes/etf.integration.test.js
+  /tests/integration/routes/commodities.integration.test.js
+  /tests/integration/routes/dividend.integration.test.js
+  /tests/integration/routes/earnings.integration.test.js
+  /tests/integration/routes/calendar.integration.test.js
+  /tests/integration/routes/news.integration.test.js
+  /tests/integration/routes/alerts.integration.test.js
+  /tests/integration/routes/watchlist.integration.test.js
+  /tests/integration/routes/analysts.integration.test.js
+  /tests/integration/routes/recommendations.integration.test.js
+  /tests/integration/routes/auth.integration.test.js
+  /tests/integration/routes/analytics.integration.test.js
+  /tests/integration/routes/liveData.integration.test.js
+  /tests/integration/routes/backtest.integration.test.js
+  /tests/integration/routes/orders.integration.test.js
+  /tests/integration/routes/settings.integration.test.js
+  /tests/integration/routes/pricing.integration.test.js
+  /tests/integration/routes/technical.integration.test.js
+  /tests/integration/routes/trading.integration.test.js
+  /tests/integration/routes/insider.integration.test.js
+  /tests/integration/routes/websocket.integration.test.js
+  /tests/integration/routes/dashboards.integration.test.js
+  /tests/integration/routes/screener.integration.test.js
+  /tests/integration/routes/strategyBuilder.integration.test.js
+  /tests/integration/routes/financials.integration.test.js
+  /tests/integration/routes/economic.integration.test.js
+  /tests/integration/routes/positioning.integration.test.js
+  /tests/integration/routes/signals.integration.test.js
+  /tests/integration/routes/sentiment.integration.test.js
+
+PHASE 2: DEBUG SLOW UNIT TESTS (2-3 hours, saves 1,400+ seconds)
+================================================================
+
+PRIORITY 2A - MYSTERY SLOW UNIT TESTS (MUST INVESTIGATE):
+  /tests/unit/routes/trades.test.js (842 seconds - should be 100-300ms)
+  /tests/unit/routes/performance.test.js (623 seconds - should be 100-300ms)
+
+PHASE 3: FIX OTHER INTEGRATION TESTS (4-6 hours, saves 100-400 seconds)
+========================================================================
+
+PRIORITY 3A - UTILITY/SERVICE/MIDDLEWARE TESTS (50+ files):
+  /tests/integration/utils/
+  /tests/integration/services/
+  /tests/integration/middleware/
+  /tests/integration/auth/
+  /tests/integration/streaming/
+  /tests/integration/errors/
+  /tests/integration/database/
+  /tests/integration/infrastructure/
+  /tests/integration/websocket/
+  /tests/integration/analytics/
+  (All use pattern: await initializeDatabase())
+
+REFERENCE FILES FOR UNDERSTANDING PATTERNS
+===========================================
+
+GOOD EXAMPLE (Proper Unit Test Mock):
+  /tests/unit/routes/alerts.test.js
+  - Uses jest.mock() for database
+  - Has proper beforeEach with jest.clearAllMocks()
+  - Implements query.mockImplementation() with all SQL patterns
+  - No database initialization attempts
+  - Execution: <1 second
+
+BROKEN EXAMPLE (Real DB Initialization):
+  /tests/integration/routes/sectors.integration.test.js
+  - Calls initializeDatabase() in beforeAll
+  - Requires full server app
+  - Attempts database connection
+  - Execution: 218 seconds (timeout)
+
+INCOMPLETE MOCK EXAMPLE (Hangs Waiting):
+  /tests/unit/routes/performance.test.js
+  - Has mock setup but no custom implementations
+  - Query returns undefined for unknown patterns
+  - Routes wait forever for response
+  - Execution: 623 seconds (hangs)
+
+KEY FILES TO UNDERSTAND THE ISSUE
+==================================
+
+Database Initialization Logic:
+  /utils/database.js (lines 242-250)
+  - Where integration tests try to connect
+  - Why they timeout in test environment
+
+Jest Configuration:
+  /jest.config.js (testTimeout: 10000)
+  - Why tests timeout after 10 seconds
+  - Why integration tests hang
+
+Module Structure:
+  /routes/sectors.js - Example route being tested
+  /routes/trades.js - Example route being tested
+  /routes/performance.js - Example route being tested
+
+EXPECTED OUTCOMES BY PHASE
+===========================
+
+CURRENT STATE:
+  Total execution: 3.7-12.2 hours
+  Pass rate: 0-20%
+  Blocker: Database initialization timeouts
+
+AFTER PHASE 1 (34 Integration Routes -> Unit Tests):
+  Time saved: 6,700-27,000 seconds
+  Total execution: 2.4-5 hours
+  Pass rate: 50-70%
+  Improvement: 39-75%
+
+AFTER PHASE 2 (Fix Slow Unit Tests):
+  Time saved: 1,400+ seconds additional
+  Total execution: 2-4.6 hours
+  Pass rate: 70-80%
+  Improvement: 49-84%
+
+AFTER PHASE 3 (Fix 50+ Integration Tests):
+  Time saved: 100-400 seconds additional
+  Total execution: 5-8 minutes
+  Pass rate: 90%+
+  Improvement: 95%+
+
+QUICK START COMMANDS
+====================
+
+# Verify slow unit tests:
+npm test -- tests/unit/routes/trades.test.js --verbose
+npm test -- tests/unit/routes/performance.test.js --verbose
+
+# Test integration test (should take 200+ seconds):
+npm test -- tests/integration/routes/sectors.integration.test.js --verbose
+
+# After fix (should take <1 second):
+npm test -- tests/unit/routes/sectors.test.js --verbose
+
+# Run full suite:
+npm test 2>&1 | tail -50
+
+# Check for all initializeDatabase calls:
+grep -r "initializeDatabase" tests/ | grep -v node_modules | wc -l
+
+# List all integration test files:
+find tests/integration -name "*.test.js" | wc -l
+
+# List all unit test files:
+find tests/unit -name "*.test.js" | wc -l
+
+WHAT CHANGED IN GIT STATUS
+==========================
+
+Modified files indicate recent test runs:
+  M tests/integration/data-pipeline.integration.test.js
+  M tests/integration/routes/performance.integration.test.js
+  M tests/unit/routes/trades.test.js
+  M tests/unit/routes/performance.test.js
+
+These are the EXACT files showing the problem pattern.
+

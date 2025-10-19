@@ -281,54 +281,55 @@ router.get("/", async (req, res) => {
     }
 
     // Map results to flat format matching frontend expectations
+    // NO FALLBACK OPERATORS - Return NULL for missing data, don't mask with default values
     const stocksList = stocksResult.rows.map(row => ({
       symbol: row.symbol,
       company_name: row.company_name,
       sector: row.sector,
-      composite_score: parseFloat(row.composite_score) || 0,
-      momentum_score: parseFloat(row.momentum_score) || 0,
-      value_score: parseFloat(row.value_score) || 0,
-      quality_score: parseFloat(row.quality_score) || 0,
-      growth_score: parseFloat(row.growth_score),
-      positioning_score: parseFloat(row.positioning_score) || 0,
-      sentiment_score: parseFloat(row.sentiment_score) || 0,
-      risk_score: parseFloat(row.risk_score) || null,
-      current_price: parseFloat(row.current_price) || 0,
-      price_change_1d: parseFloat(row.price_change_1d) || 0,
-      price_change_5d: parseFloat(row.price_change_5d) || 0,
-      price_change_30d: parseFloat(row.price_change_30d) || 0,
-      volatility_30d: parseFloat(row.volatility_30d) || 0,
-      market_cap: parseInt(row.market_cap) || 0,
-      volume_avg_30d: parseInt(row.volume_avg_30d) || 0,
-      pe_ratio: parseFloat(row.pe_ratio) || null,
-      rsi: parseFloat(row.rsi) || 0,
-      sma_20: parseFloat(row.sma_20) || 0,
-      sma_50: parseFloat(row.sma_50) || 0,
-      macd: parseFloat(row.macd) || null,
+      composite_score: row.composite_score == null ? null : parseFloat(row.composite_score),
+      momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score),
+      value_score: row.value_score == null ? null : parseFloat(row.value_score),
+      quality_score: row.quality_score == null ? null : parseFloat(row.quality_score),
+      growth_score: row.growth_score == null ? null : parseFloat(row.growth_score),
+      positioning_score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
+      sentiment_score: row.sentiment_score == null ? null : parseFloat(row.sentiment_score),
+      risk_score: row.risk_score == null ? null : parseFloat(row.risk_score),
+      current_price: row.current_price == null ? null : parseFloat(row.current_price),
+      price_change_1d: row.price_change_1d == null ? null : parseFloat(row.price_change_1d),
+      price_change_5d: row.price_change_5d == null ? null : parseFloat(row.price_change_5d),
+      price_change_30d: row.price_change_30d == null ? null : parseFloat(row.price_change_30d),
+      volatility_30d: row.volatility_30d == null ? null : parseFloat(row.volatility_30d),
+      market_cap: row.market_cap == null ? null : parseInt(row.market_cap),
+      volume_avg_30d: row.volume_avg_30d == null ? null : parseInt(row.volume_avg_30d),
+      pe_ratio: row.pe_ratio == null ? null : parseFloat(row.pe_ratio),
+      rsi: row.rsi == null ? null : parseFloat(row.rsi),
+      sma_20: row.sma_20 == null ? null : parseFloat(row.sma_20),
+      sma_50: row.sma_50 == null ? null : parseFloat(row.sma_50),
+      macd: row.macd == null ? null : parseFloat(row.macd),
       last_updated: row.last_updated,
       score_date: row.score_date,
-      // Momentum component breakdown (5-component system)
+      // Momentum component breakdown (5-component system) - NO FALLBACKS
       momentum_components: {
-        short_term: parseFloat(row.momentum_short_term) || null,
-        medium_term: parseFloat(row.momentum_medium_term) || null,
-        longer_term: parseFloat(row.momentum_long_term) || null,
-        relative_strength: parseFloat(row.momentum_relative_strength) || null,
-        consistency: parseFloat(row.momentum_consistency) || null,
-        roc_10d: parseFloat(row.roc_10d) || null,
-        roc_20d: parseFloat(row.roc_20d) || null,
-        roc_60d: parseFloat(row.roc_60d) || null,
-        roc_120d: parseFloat(row.roc_120d) || null,
-        mansfield_rs: parseFloat(row.mansfield_rs) || null
+        short_term: row.momentum_short_term == null ? null : parseFloat(row.momentum_short_term),
+        medium_term: row.momentum_medium_term == null ? null : parseFloat(row.momentum_medium_term),
+        longer_term: row.momentum_long_term == null ? null : parseFloat(row.momentum_long_term),
+        relative_strength: row.momentum_relative_strength == null ? null : parseFloat(row.momentum_relative_strength),
+        consistency: row.momentum_consistency == null ? null : parseFloat(row.momentum_consistency),
+        roc_10d: row.roc_10d == null ? null : parseFloat(row.roc_10d),
+        roc_20d: row.roc_20d == null ? null : parseFloat(row.roc_20d),
+        roc_60d: row.roc_60d == null ? null : parseFloat(row.roc_60d),
+        roc_120d: row.roc_120d == null ? null : parseFloat(row.roc_120d),
+        mansfield_rs: row.mansfield_rs == null ? null : parseFloat(row.mansfield_rs)
       },
-      // Add positioning components for frontend chart display
+      // Add positioning components for frontend chart display - NO FALLBACKS
       positioning_components: {
-        institutional_ownership: parseFloat(row.institutional_ownership) || null,
-        insider_ownership: parseFloat(row.insider_ownership) || null,
-        short_percent_of_float: parseFloat(row.short_percent_of_float) || null,
-        short_ratio: parseFloat(row.short_ratio) || null,
-        days_to_cover: parseFloat(row.short_ratio) || null, // days_to_cover is same as short_ratio
-        institution_count: parseInt(row.institution_count) || null,
-        acc_dist_rating: parseFloat(row.acc_dist_rating) || null
+        institutional_ownership: row.institutional_ownership == null ? null : parseFloat(row.institutional_ownership),
+        insider_ownership: row.insider_ownership == null ? null : parseFloat(row.insider_ownership),
+        short_percent_of_float: row.short_percent_of_float == null ? null : parseFloat(row.short_percent_of_float),
+        short_ratio: row.short_ratio == null ? null : parseFloat(row.short_ratio),
+        days_to_cover: row.short_ratio == null ? null : parseFloat(row.short_ratio), // days_to_cover is same as short_ratio
+        institution_count: row.institution_count == null ? null : parseInt(row.institution_count),
+        acc_dist_rating: row.acc_dist_rating == null ? null : parseFloat(row.acc_dist_rating)
       },
       // Add raw valuation inputs for frontend display
       value_inputs: {

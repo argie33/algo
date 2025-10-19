@@ -82,10 +82,13 @@ module.exports = async () => {
       }
     }
 
-    console.log('✅ Real database schema loaded successfully - no mocks or demo data');
+    console.log('✅ Real database schema loaded successfully');
 
-    // Skip additional database setup for now to isolate issues
-    console.log('⚠️ Skipping additional database setup temporarily');
+    // Now populate test data
+    console.log('📊 Populating test data...');
+    const { populateLoaderTestData } = require('../setup/database.setup');
+    await populateLoaderTestData();
+    console.log('✅ Test data populated successfully');
 
   } catch (error) {
     console.error('❌ Global setup failed:', error);
