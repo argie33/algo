@@ -8,7 +8,7 @@ jest.mock("../../../utils/database", () => ({
   closeDatabase: jest.fn(),
 }));
 // Import mocked functions
-const { transaction } = require("../../../utils/database");
+const { query, transaction } = require("../../../utils/database");
 // Mock authentication middleware for unit tests
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {

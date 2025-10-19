@@ -8,7 +8,7 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
 
-const { closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
 
 describe("Trading Mode Helper Unit Tests", () => {
   let mockQuery;
