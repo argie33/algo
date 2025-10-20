@@ -193,14 +193,14 @@ def calculate_buy_sell_signals_weekly(price_tech_data):
         resistance = row["resistance"]
 
         # Calculate derived metrics for weekly timeframe
-        price_vs_ma10w = ((close - ma10w) / ma10w) * 100 if ma10w > 0 else 0
-        price_vs_ma26w = ((close - ma26w) / ma26w) * 100 if ma26w > 0 else 0
+        price_vs_ma10w = ((close - ma10w) / ma10w) * 100 if ma10w > 0 else None  # NO mock fallback
+        price_vs_ma26w = ((close - ma26w) / ma26w) * 100 if ma26w > 0 else None  # NO mock fallback
         bollinger_pos = (
             ((close - bb_lower) / (bb_upper - bb_lower)) * 100
             if (bb_upper - bb_lower) > 0
-            else 50
+            else None  # NO mock fallback
         )
-        volume_ratio = volume / volume_avg if volume_avg > 0 else 1
+        volume_ratio = volume / volume_avg if volume_avg > 0 else None  # NO mock fallback
 
         # Weekly signal calculation (more conservative thresholds)
         buy_score = 0
@@ -245,8 +245,8 @@ def calculate_buy_sell_signals_weekly(price_tech_data):
 
         # Pattern and momentum scores
         pattern_score = min(buy_score, sell_score) / max(buy_score, sell_score, 1) * 50
-        momentum_score = abs(macd) * 10 if abs(macd) < 10 else 100
-        risk_score = min(rsi, 100 - rsi) + (volume_ratio * 5)
+        momentum_score = abs(macd) * 10 if abs(macd) < 10 else None  # NO mock fallback
+        risk_score = min(rsi, 100 - rsi) + (volume_ratio * 5) if volume_ratio else None
 
         # Generate signals (higher threshold for weekly)
         if buy_score >= 50:
