@@ -413,6 +413,15 @@ router.get("/", async (req, res) => {
         volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
         max_drawdown_52w_pct: row.max_drawdown_52w_pct == null ? null : parseFloat(row.max_drawdown_52w_pct),
         beta: row.beta == null ? null : parseFloat(row.beta)
+      },
+      // RENAMED: stability_inputs for frontend display (Stability Factor Analysis)
+      // Maps risk_metrics fields to expected frontend structure
+      stability_inputs: {
+        volatility_12m_pct: row.volatility_12m_pct == null ? null : parseFloat(row.volatility_12m_pct),
+        downside_volatility_pct: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
+        max_drawdown_52w_pct: row.max_drawdown_52w_pct == null ? null : parseFloat(row.max_drawdown_52w_pct),
+        beta: row.beta == null ? null : parseFloat(row.beta),
+        liquidity_risk: null  // TODO: Add liquidity risk calculation from quality_metrics
       }
     }));
 

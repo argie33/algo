@@ -956,26 +956,28 @@ const ScoresDashboard = () => {
                               Value
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {(stock.value_score ?? 0).toFixed(0)}
+                              {stock.value_score != null ? stock.value_score.toFixed(0) : "N/A"}
                             </Typography>
                           </Box>
-                          <LinearProgress
-                            variant="determinate"
-                            value={stock.value_score ?? 0}
-                            sx={{
-                              height: 8,
-                              borderRadius: 1,
-                              backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                              "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.value_score ?? 0) >= 80
-                                  ? theme.palette.success.main
-                                  : (stock.value_score ?? 0) >= 60
-                                  ? theme.palette.warning.main
-                                  : theme.palette.error.main,
+                          {stock.value_score != null && (
+                            <LinearProgress
+                              variant="determinate"
+                              value={stock.value_score}
+                              sx={{
+                                height: 8,
                                 borderRadius: 1,
-                              },
-                            }}
-                          />
+                                backgroundColor: alpha(theme.palette.action.disabled, 0.1),
+                                "& .MuiLinearProgress-bar": {
+                                  backgroundColor: stock.value_score >= 80
+                                    ? theme.palette.success.main
+                                    : stock.value_score >= 60
+                                    ? theme.palette.warning.main
+                                    : theme.palette.error.main,
+                                  borderRadius: 1,
+                                },
+                              }}
+                            />
+                          )}
                         </Box>
                       </Grid>
 
@@ -2452,9 +2454,9 @@ const ScoresDashboard = () => {
                       </TableCell>
                       <TableCell align="right">
                         <Chip
-                          label={stock.value_score.toFixed(1)}
+                          label={stock.value_score != null ? stock.value_score.toFixed(1) : "N/A"}
                           size="small"
-                          color={stock.value_score >= 80 ? "success" : "warning"}
+                          color={stock.value_score != null && stock.value_score >= 80 ? "success" : "warning"}
                         />
                       </TableCell>
                     </TableRow>

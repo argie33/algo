@@ -747,7 +747,7 @@ const PortfolioOptimization = () => {
                     color="text.secondary"
                     gutterBottom
                   >
-                    Portfolio Risk Score
+                    Portfolio Stability Score
                   </Typography>
                   <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
                     <Box sx={{ width: "100%", mr: 1 }}>
