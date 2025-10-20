@@ -22,7 +22,7 @@ export default defineConfig({
   },
   
   use: {
-    baseURL: 'http://localhost:3001',
+    baseURL: 'http://localhost:5001',
     trace: 'retain-on-failure',
     actionTimeout: 10000,
     navigationTimeout: 15000,
@@ -69,7 +69,7 @@ export default defineConfig({
   // Start dev server for testing
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3001',
+    url: 'http://localhost:5001',
     reuseExistingServer: !process.env.CI,
     timeout: 60000,
     stdout: 'pipe',

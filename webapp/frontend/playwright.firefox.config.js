@@ -22,7 +22,7 @@ export default defineConfig({
   },
   
   use: {
-    baseURL: 'http://localhost:3001',
+    baseURL: 'http://localhost:5001',
     trace: 'on',
     screenshot: 'on',
     video: 'on',
@@ -50,7 +50,7 @@ export default defineConfig({
   // Start dev server
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3001',
+    url: 'http://localhost:5001',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 console.log("🚀 Setting up development environment...");
 
 // Get API URL and environment name from command line or use defaults
-const apiUrl = process.argv[2] || "http://localhost:3001";
+const apiUrl = process.argv[2] || "http://localhost:5001";
 const environment = process.argv[3] || "development";
 
 // Create environment configuration
