@@ -10,10 +10,8 @@ const request = require('supertest');
 const app = require('../../../server');
 
 // Use REAL database - DO NOT mock, use real data from loaders
-// jest.mock("../../../utils/database", ...);
 
 // Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
     if (!req.headers.authorization) {
       return res.status(401).json({ success: false, error: "Authentication required" });
