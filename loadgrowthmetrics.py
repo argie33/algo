@@ -773,11 +773,6 @@ def process_symbol(symbol, conn_pool):
 
         logging.info(f"{symbol}: Rev Growth: {revenue_growth_3y_cagr}, EPS Growth: {eps_growth_3y_cagr}, ROE: {roe_trend}, SGR: {sustainable_growth_rate}, Op Income YoY: {operating_income_growth_yoy}, FCF YoY: {fcf_growth_yoy}, NI YoY: {net_income_growth_yoy}, Margin Trends (G/O/N): {gross_margin_trend}/{operating_margin_trend}/{net_margin_trend}, Q Momentum: {quarterly_growth_momentum}, Asset Growth: {asset_growth_yoy}")
 
-        if revenue_growth_3y_cagr is None and eps_growth_3y_cagr is None:
-            logging.warning(f"No growth data for {symbol}, skipping.")
-            conn_pool.putconn(conn)
-            return 0
-
         # Get current date for the record
         current_date = datetime.now().date()
 
