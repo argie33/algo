@@ -866,7 +866,7 @@ if __name__ == "__main__":
 
     peak = get_rss_mb()
     logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    success_rate = (p_s / t_s * 100) if t_s > 0 else 0
+    success_rate = (p_s / t_s * 100) if t_s > 0 else None  # NO mock fallback
     logging.info(f"Stocks — total: {t_s}, processed: {p_s}, failed: {len(f_s)} ({success_rate:.1f}% success)")
 
     # CRITICAL: Retry failed symbols to ensure NO data loss
@@ -993,7 +993,7 @@ if __name__ == "__main__":
             logging.error("These symbols could not be retrieved even with aggressive retries - likely delisted or API issues")
 
         # Update final success rate
-        success_rate = (p_s / t_s * 100) if t_s > 0 else 0
+        success_rate = (p_s / t_s * 100) if t_s > 0 else None  # NO mock fallback
         logging.info(f"FINAL — total: {t_s}, processed: {p_s}, failed: {len(retry_failed)} ({success_rate:.1f}% success)")
 
     cur.close()
