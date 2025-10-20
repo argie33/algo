@@ -2353,6 +2353,47 @@ router.get("/seasonality", async (req, res) => {
       ],
     };
 
+    // EARLY FETCH: Monthly S&P 500 performance for current year (needed for monthly seasonality chart overlay)
+    let monthlySpPerformance = [];
+    try {
+      const spyMonthlyQuery = `
+        SELECT
+          month,
+          DATE_TRUNC('month', date) as month_date,
+          CAST(MAX(cumulative_year_return) AS NUMERIC(10,2)) as ytd_return,
+          CAST((MAX(close) - MIN(close)) / MIN(close) * 100 AS NUMERIC(10,2)) as monthly_return
+        FROM benchmark_index_history
+        WHERE symbol = 'SPY' AND year = $1 AND month <= $2
+        GROUP BY month, DATE_TRUNC('month', date)
+        ORDER BY month ASC
+      `;
+
+      const spyResult = await query(spyMonthlyQuery, [currentYear, currentMonth]);
+
+      // Build full 12-month array with current year data
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+
+      if (spyResult && spyResult.rows) {
+        for (let m = 1; m <= 12; m++) {
+          const monthData = spyResult.rows.find((r) => r.month === m);
+          monthlySpPerformance.push({
+            month: m,
+            name: monthNames[m - 1],
+            ytd: monthData ? parseFloat(monthData.ytd_return) : null,
+            mtd: monthData ? parseFloat(monthData.monthly_return) : null,
+            hasData: !!monthData,
+          });
+        }
+        console.log("✅ SPY monthly performance data loaded:", monthlySpPerformance.slice(0, 3));
+      }
+    } catch (e) {
+      console.log("Note: SPY monthly performance data not available:", e.message);
+      // Continue without SPY data - chart will still work with historical bars
+    }
+
     // 2. MONTHLY SEASONALITY
     const monthlySeasonality = [
       {
@@ -2360,74 +2401,97 @@ router.get("/seasonality", async (req, res) => {
         name: "January",
         avgReturn: 1.2,
         description: "January Effect - small cap outperformance",
+        cumulativeSPTypicalYear: 1.2,
       },
       {
         month: 2,
         name: "February",
         avgReturn: 0.4,
         description: "Typically weak month",
+        cumulativeSPTypicalYear: 1.6,
       },
       {
         month: 3,
         name: "March",
         avgReturn: 1.1,
         description: "End of Q1 rebalancing",
+        cumulativeSPTypicalYear: 2.7,
       },
       {
         month: 4,
         name: "April",
         avgReturn: 1.6,
         description: "Strong historical performance",
+        cumulativeSPTypicalYear: 4.3,
       },
       {
         month: 5,
         name: "May",
         avgReturn: 0.2,
         description: "Sell in May and go away begins",
+        cumulativeSPTypicalYear: 4.5,
       },
       {
         month: 6,
         name: "June",
         avgReturn: 0.1,
         description: "FOMC meeting impacts",
+        cumulativeSPTypicalYear: 4.6,
       },
       {
         month: 7,
         name: "July",
         avgReturn: 1.2,
         description: "Summer rally potential",
+        cumulativeSPTypicalYear: 5.8,
       },
       {
         month: 8,
         name: "August",
         avgReturn: -0.1,
         description: "Vacation month - low volume",
+        cumulativeSPTypicalYear: 5.7,
       },
       {
         month: 9,
         name: "September",
         avgReturn: -0.7,
         description: "Historically worst month",
+        cumulativeSPTypicalYear: 5.0,
       },
       {
         month: 10,
         name: "October",
         avgReturn: 0.8,
         description: "Volatility and opportunity",
+        cumulativeSPTypicalYear: 5.8,
       },
       {
         month: 11,
         name: "November",
         avgReturn: 1.8,
         description: "Holiday rally begins",
+        cumulativeSPTypicalYear: 7.6,
       },
       {
         month: 12,
         name: "December",
         avgReturn: 1.6,
         description: "Santa Claus rally",
+        cumulativeSPTypicalYear: 9.2,
       },
-    ].map((m) => ({ ...m, isCurrent: m.month === currentMonth }));
+    ].map((m, index) => {
+      // Add cumulative S&P for current year from monthlySpPerformance
+      let cumulativeSPCurrentYear = null;
+      if (monthlySpPerformance && monthlySpPerformance[index]) {
+        cumulativeSPCurrentYear = monthlySpPerformance[index].ytd;
+      }
+      return {
+        ...m,
+        isCurrent: m.month === currentMonth,
+        cumulativeSPCurrentYear: cumulativeSPCurrentYear,
+      };
+    });
 
     // 3. QUARTERLY PATTERNS
     const quarterlySeasonality = [
@@ -2664,47 +2728,6 @@ router.get("/seasonality", async (req, res) => {
       nextMajorEvent: getNextSeasonalEvent(currentDate),
       seasonalScore: calculateSeasonalScore(currentDate),
     };
-
-    // Fetch monthly S&P 500 performance for current year (for chart overlay)
-    let monthlySpPerformance = [];
-    try {
-      const spyMonthlyQuery = `
-        SELECT
-          month,
-          DATE_TRUNC('month', date) as month_date,
-          CAST(MAX(cumulative_year_return) AS NUMERIC(10,2)) as ytd_return,
-          CAST((MAX(close) - MIN(close)) / MIN(close) * 100 AS NUMERIC(10,2)) as monthly_return
-        FROM benchmark_index_history
-        WHERE symbol = 'SPY' AND year = $1 AND month <= $2
-        GROUP BY month, DATE_TRUNC('month', date)
-        ORDER BY month ASC
-      `;
-
-      const spyResult = await query(spyMonthlyQuery, [currentYear, currentMonth]);
-
-      // Build full 12-month array with current year data
-      const monthNames = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-      ];
-
-      if (spyResult && spyResult.rows) {
-        for (let m = 1; m <= 12; m++) {
-          const monthData = spyResult.rows.find((r) => r.month === m);
-          monthlySpPerformance.push({
-            month: m,
-            name: monthNames[m - 1],
-            ytd: monthData ? parseFloat(monthData.ytd_return) : null,
-            mtd: monthData ? parseFloat(monthData.monthly_return) : null,
-            hasData: !!monthData,
-          });
-        }
-        console.log("✅ SPY monthly performance data loaded:", monthlySpPerformance.slice(0, 3));
-      }
-    } catch (e) {
-      console.log("Note: SPY monthly performance data not available:", e.message);
-      // Continue without SPY data - chart will still work with historical bars
-    }
 
     res.json({
       success: true,

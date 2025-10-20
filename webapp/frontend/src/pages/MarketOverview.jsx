@@ -32,6 +32,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  ComposedChart,
   PieChart,
   Pie,
   Cell,
@@ -699,90 +700,6 @@ function MarketOverview() {
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }} data-testid="market-overview-page">
-      {/* Sentiment Indicators - Above Header */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Fear & Greed Index
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Current Value:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestFG.value ?? "N/A"}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Classification:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestFG.value_text || latestFG.classification || "N/A"}
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                Scale: 0 (Extreme Fear) - 100 (Extreme Greed)
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                NAAIM Exposure
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Mean Exposure:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Bearish Exposure:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestNAAIM.bearish_exposure ?? "N/A"}
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                Active manager equity exposure (0=out, 100=in)
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                AAII Sentiment
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Bullish:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestAAII.bullish ?? "N/A"}%
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Neutral:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestAAII.neutral ?? "N/A"}%
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Bearish:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestAAII.bearish ?? "N/A"}%
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                Retail investor sentiment survey
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
       {/* Enhanced Header Section */}
       <Box sx={{ mb: 4 }}>
         <Grid container spacing={2} alignItems="center">
@@ -872,6 +789,89 @@ function MarketOverview() {
         </Grid>
       )}
 
+      {/* Sentiment Indicators - Below Header */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Fear & Greed Index
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Current Value:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestFG.value ?? "N/A"}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Classification:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestFG.value_text || latestFG.classification || "N/A"}
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Scale: 0 (Extreme Fear) - 100 (Extreme Greed)
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                NAAIM Exposure
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Mean Exposure:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Bearish Exposure:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestNAAIM.bearish_exposure ?? "N/A"}
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Active manager equity exposure (0=out, 100=in)
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                AAII Sentiment
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Bullish:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestAAII.bullish ?? "N/A"}%
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Neutral:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestAAII.neutral ?? "N/A"}%
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">Bearish:</Typography>
+                <Typography variant="body2" fontWeight="600">
+                  {latestAAII.bearish ?? "N/A"}%
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Retail investor sentiment survey
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Top Movers Section */}
       {(topMovers.gainers?.length > 0 || topMovers.losers?.length > 0) && (
@@ -1635,58 +1635,153 @@ function MarketOverview() {
                     </Card>
                   </Grid>
 
-                  {/* Presidential Cycle Details */}
-                  <Grid item xs={12} md={6}>
+                  {/* Presidential Cycle - 4 Year Chart */}
+                  <Grid item xs={12}>
                     <Card>
                       <CardContent>
                         <Typography
                           variant="h6"
                           sx={{ mb: 2, fontWeight: 600 }}
                         >
-                          Presidential Cycle (4-Year Pattern)
+                          Presidential Cycle - 4 Year Pattern
                         </Typography>
-                        <TableContainer>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Year</TableCell>
-                                <TableCell>Phase</TableCell>
-                                <TableCell align="right">Avg Return</TableCell>
-                                <TableCell align="center">Status</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {(
-                                seasonalityData?.data.presidentialCycle?.data ||
-                                []
-                              ).map((cycle) => (
-                                <TableRow
-                                  key={cycle.year}
-                                  sx={{
-                                    backgroundColor: cycle.isCurrent
-                                      ? "primary.light"
-                                      : "transparent",
-                                  }}
-                                >
-                                  <TableCell>Year {cycle.year}</TableCell>
-                                  <TableCell>{cycle.label}</TableCell>
-                                  <TableCell align="right">
-                                    {formatPercentage(cycle.avgReturn)}
-                                  </TableCell>
-                                  <TableCell align="center">
-                                    {cycle.isCurrent && (
-                                      <Chip
-                                        label="CURRENT"
-                                        color="primary"
-                                        size="small"
-                                      />
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
+                        <Box sx={{ height: 300, width: '100%' }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={seasonalityData?.data.presidentialCycle?.data || []}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis
+                                dataKey="label"
+                                tick={{ fontSize: 12 }}
+                              />
+                              <YAxis
+                                label={{
+                                  value: "Avg Return %",
+                                  angle: -90,
+                                  position: "insideLeft",
+                                }}
+                              />
+                              <Tooltip
+                                formatter={(value) => [`${(value || 0).toFixed(2)}%`, "Average Return"]}
+                                contentStyle={{
+                                  backgroundColor: "rgba(0,0,0,0.8)",
+                                  border: "1px solid #ccc",
+                                  color: "#fff"
+                                }}
+                              />
+                              <Legend />
+                              <Bar
+                                dataKey="avgReturn"
+                                name="Average Return"
+                                fill={(entry) =>
+                                  entry?.isCurrent ? "#3b82f6" : "#8884d8"
+                                }
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Presidential Cycle - Current Year Monthly with S&P Overlay */}
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent>
+                        <Typography
+                          variant="h6"
+                          sx={{ mb: 2, fontWeight: 600 }}
+                        >
+                          Current Year Monthly Performance vs Typical Cycle Year
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: "block" }}>
+                          Bars: Monthly average gain | Lines: Cumulative S&P return (current year vs typical cycle year)
+                        </Typography>
+                        <Box sx={{ height: 400, width: '100%' }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart
+                              data={seasonalityData?.data.monthlySeasonality || []}
+                              margin={{ top: 10, right: 60, left: 20, bottom: 0 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis
+                                dataKey="name"
+                                tick={{ fontSize: 12 }}
+                              />
+                              <YAxis
+                                yAxisId="left"
+                                label={{
+                                  value: "Monthly Return %",
+                                  angle: -90,
+                                  position: "insideLeft",
+                                }}
+                              />
+                              <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                label={{
+                                  value: "Cumulative Return %",
+                                  angle: 90,
+                                  position: "outsideRight",
+                                }}
+                              />
+                              <Tooltip
+                                formatter={(value, name) => {
+                                  if (name === "Monthly Avg Return") {
+                                    return [`${(value || 0).toFixed(2)}%`, name];
+                                  }
+                                  return [`${(value || 0).toFixed(2)}%`, name];
+                                }}
+                                contentStyle={{
+                                  backgroundColor: "rgba(0,0,0,0.8)",
+                                  border: "1px solid #ccc",
+                                  color: "#fff"
+                                }}
+                              />
+                              <Legend
+                                verticalAlign="top"
+                                height={36}
+                              />
+                              <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="cumulativeSPCurrentYear"
+                                name="Cumulative S&P (Current Year)"
+                                stroke="#10b981"
+                                strokeWidth={4}
+                                dot={{ r: 5, fill: "#10b981", strokeWidth: 2 }}
+                                activeDot={{ r: 7 }}
+                                connectNulls={true}
+                              />
+                              <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="cumulativeSPTypicalYear"
+                                name="Cumulative S&P (Typical Cycle Year)"
+                                stroke="#f59e0b"
+                                strokeWidth={4}
+                                dot={{ r: 5, fill: "#f59e0b", strokeWidth: 2 }}
+                                activeDot={{ r: 7 }}
+                                connectNulls={true}
+                              />
+                              <Bar
+                                yAxisId="left"
+                                dataKey="avgReturn"
+                                name="Monthly Avg Return"
+                                opacity={0.75}
+                                radius={[4, 4, 0, 0]}
+                              >
+                                {(seasonalityData?.data.monthlySeasonality || []).map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={(entry.avgReturn || 0) >= 0 ? "#22c55e" : "#ef4444"}
+                                  />
+                                ))}
+                              </Bar>
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        </Box>
                       </CardContent>
                     </Card>
                   </Grid>

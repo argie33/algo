@@ -361,7 +361,9 @@ const SectorAnalysis = () => {
                   </Grid>
                 </Grid>
               </Box>
-              {(rotationData?.data?.sectors || []).map((sector, index) => {
+              {(rotationData?.data?.sectors || [])
+                .sort((a, b) => (a.current_rank || a.overall_rank || 999) - (b.current_rank || b.overall_rank || 999))
+                .map((sector, index) => {
                 // Find matching industries for this sector
                 // Industries API returns `sector` field, Sectors API returns `sector_name`
                 const sectorName = sector.sector_name || sector.sector;
@@ -531,7 +533,7 @@ const SectorAnalysis = () => {
                           </Typography>
                           {sectorIndustries.length > 0 ? (
                             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 1 }}>
-                              {sectorIndustries.slice(0, 10).map((industry, idx) => (
+                              {sectorIndustries.map((industry, idx) => (
                                 <Box
                                   key={idx}
                                   sx={{
@@ -622,7 +624,9 @@ const SectorAnalysis = () => {
                     </Grid>
                   </Grid>
                 </Box>
-                {(industryData?.data?.industries || []).map((industry, index) => (
+                {(industryData?.data?.industries || [])
+                  .sort((a, b) => (a.current_rank || 999) - (b.current_rank || 999))
+                  .map((industry, index) => (
                   <Accordion key={`${industry.industry}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
                     <AccordionSummary
                       expandIcon={<ExpandMore />}

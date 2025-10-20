@@ -437,5 +437,25 @@
     "code": "buy('AAPL', 100, data['AAPL'].close);",
     "language": "javascript",
     "id": "1760993963501"
+  },
+  "test-backtest-1760994116220",
+  "test-backtest-1760994116223",
+  "test-backtest-1760994116226",
+  "test-backtest-1760994116235",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760994116266"
+  },
+  "test-backtest-1760998260087",
+  "test-backtest-1760998260091",
+  "test-backtest-1760998260094",
+  "test-backtest-1760998260105",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760998260153"
   }
 ]

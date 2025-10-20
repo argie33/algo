@@ -387,12 +387,11 @@ def get_stock_data_from_database(conn, symbol):
     try:
         cur = conn.cursor()
 
-        # Get price data from stock_prices table (last 90 days for calculations)
+        # Get price data from price_daily table (all available historical data for calculations)
         cur.execute("""
-            SELECT date, open, high, low, close, volume, adjusted_close
-            FROM stock_prices
+            SELECT date, open, high, low, close, adj_close, volume
+            FROM price_daily
             WHERE symbol = %s
-            AND date >= CURRENT_DATE - INTERVAL '90 days'
             ORDER BY date DESC
             LIMIT 90
         """, (symbol,))
@@ -404,7 +403,7 @@ def get_stock_data_from_database(conn, symbol):
             return None
 
         # Convert to pandas DataFrame for easier calculations
-        df = pd.DataFrame(price_data, columns=['date', 'open', 'high', 'low', 'close', 'volume', 'adjusted_close'])
+        df = pd.DataFrame(price_data, columns=['date', 'open', 'high', 'low', 'close', 'adj_close', 'volume'])
         df = df.sort_values('date')  # Sort chronologically for calculations
 
         # Get current price (most recent)

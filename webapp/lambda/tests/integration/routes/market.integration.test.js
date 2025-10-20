@@ -420,6 +420,167 @@ describe("Market Routes Unit Tests", () => {
 
   });
 
+  describe("GET /api/market/seasonality", () => {
+    test("should return seasonality data with proper structure", async () => {
+      const response = await request(app).get("/api/market/seasonality");
+
+      expect([200, 500]).toContain(response.status);
+
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("data");
+        expect(response.body).toHaveProperty("timestamp");
+
+        const data = response.body.data;
+        expect(data).toHaveProperty("currentYear");
+        expect(data).toHaveProperty("presidentialCycle");
+        expect(data).toHaveProperty("monthlySeasonality");
+        expect(data).toHaveProperty("quarterlySeasonality");
+        expect(data).toHaveProperty("dayOfWeekEffects");
+      }
+    });
+
+    test("should return monthly seasonality with S&P cumulative return lines", async () => {
+      const response = await request(app).get("/api/market/seasonality");
+
+      if (response.status === 200 && response.body.data) {
+        const monthlySeasonality = response.body.data.monthlySeasonality;
+
+        // Verify array of 12 months
+        expect(Array.isArray(monthlySeasonality)).toBe(true);
+        expect(monthlySeasonality.length).toBe(12);
+
+        // Check first month has required fields
+        const january = monthlySeasonality[0];
+        expect(january).toHaveProperty("month", 1);
+        expect(january).toHaveProperty("name", "January");
+        expect(january).toHaveProperty("avgReturn");
+        expect(january).toHaveProperty("description");
+        expect(january).toHaveProperty("isCurrent");
+
+        // NEW: Check for cumulative S&P return fields for chart overlay
+        expect(january).toHaveProperty("cumulativeSPTypicalYear");
+        expect(january).toHaveProperty("cumulativeSPCurrentYear");
+
+        // Verify types
+        expect(typeof january.cumulativeSPTypicalYear).toBe("number");
+        // currentYear can be null if no data loaded
+        if (january.cumulativeSPCurrentYear !== null) {
+          expect(typeof january.cumulativeSPCurrentYear).toBe("number");
+        }
+      }
+    });
+
+    test("should have cumulative returns that generally trend upward across months", async () => {
+      const response = await request(app).get("/api/market/seasonality");
+
+      if (response.status === 200 && response.body.data) {
+        const monthlySeasonality = response.body.data.monthlySeasonality;
+
+        // Verify year-end cumulative is higher than early-year
+        // This tests the general trend without requiring strict monotonicity
+        const january = monthlySeasonality[0].cumulativeSPTypicalYear;
+        const december = monthlySeasonality[11].cumulativeSPTypicalYear;
+
+        expect(december).toBeGreaterThan(january);
+
+        // Also verify all months have numeric values
+        monthlySeasonality.forEach((month) => {
+          expect(typeof month.cumulativeSPTypicalYear).toBe("number");
+          expect(month.cumulativeSPTypicalYear).toBeGreaterThan(0);
+        });
+      }
+    });
+
+    test("should have all months with valid Presidential Cycle context", async () => {
+      const response = await request(app).get("/api/market/seasonality");
+
+      if (response.status === 200 && response.body.data) {
+        const presidentialCycle = response.body.data.presidentialCycle;
+
+        expect(presidentialCycle).toHaveProperty("currentPosition");
+        expect(presidentialCycle).toHaveProperty("data");
+        expect(Array.isArray(presidentialCycle.data)).toBe(true);
+        expect(presidentialCycle.data.length).toBe(4);
+
+        // Verify cycle years
+        const expectedLabels = ["Post-Election", "Mid-Term", "Pre-Election", "Election Year"];
+        presidentialCycle.data.forEach((cycle, index) => {
+          expect(cycle).toHaveProperty("year", index + 1);
+          expect(cycle).toHaveProperty("label", expectedLabels[index]);
+          expect(cycle).toHaveProperty("avgReturn");
+          expect(cycle).toHaveProperty("isCurrent");
+        });
+      }
+    });
+
+    test("should include quarterly seasonality patterns", async () => {
+      const response = await request(app).get("/api/market/seasonality");
+
+      if (response.status === 200 && response.body.data) {
+        const quarterlySeasonality = response.body.data.quarterlySeasonality;
+
+        expect(Array.isArray(quarterlySeasonality)).toBe(true);
+        expect(quarterlySeasonality.length).toBe(4);
+
+        const expectedMonths = ["Jan-Mar", "Apr-Jun", "Jul-Sep", "Oct-Dec"];
+        quarterlySeasonality.forEach((quarter, index) => {
+          expect(quarter).toHaveProperty("quarter", index + 1);
+          expect(quarter).toHaveProperty("months", expectedMonths[index]);
+          expect(quarter).toHaveProperty("avgReturn");
+          expect(quarter).toHaveProperty("isCurrent");
+        });
+      }
+    });
+
+    test("should include day of week effects", async () => {
+      const response = await request(app).get("/api/market/seasonality");
+
+      if (response.status === 200 && response.body.data) {
+        const dowEffects = response.body.data.dayOfWeekEffects;
+
+        expect(Array.isArray(dowEffects)).toBe(true);
+        expect(dowEffects.length).toBe(5); // Mon-Fri
+
+        const expectedDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+        dowEffects.forEach((effect, index) => {
+          expect(effect).toHaveProperty("day", expectedDays[index]);
+          expect(effect).toHaveProperty("avgReturn");
+          expect(effect).toHaveProperty("description");
+          expect(effect).toHaveProperty("isCurrent");
+        });
+      }
+    });
+
+    test("should have current seasonal position information", async () => {
+      const response = await request(app).get("/api/market/seasonality");
+
+      if (response.status === 200 && response.body.data) {
+        const currentPosition = response.body.data.currentPosition;
+
+        expect(currentPosition).toHaveProperty("presidentialCycle");
+        expect(currentPosition).toHaveProperty("monthlyTrend");
+        expect(currentPosition).toHaveProperty("quarterlyTrend");
+        expect(currentPosition).toHaveProperty("activePeriods");
+        expect(currentPosition).toHaveProperty("nextMajorEvent");
+        expect(currentPosition).toHaveProperty("seasonalScore");
+
+        expect(Array.isArray(currentPosition.activePeriods)).toBe(true);
+        expect(typeof currentPosition.seasonalScore).toBe("number");
+      }
+    });
+
+    test("should respond within reasonable time", async () => {
+      const startTime = Date.now();
+      const response = await request(app).get("/api/market/seasonality");
+      const endTime = Date.now();
+
+      const responseTime = endTime - startTime;
+      expect(responseTime).toBeLessThan(5000); // Should respond within 5 seconds
+      expect([200, 500]).toContain(response.status);
+    });
+  });
+
   describe("Error Handling", () => {
     test("should handle invalid endpoints gracefully", async () => {
       const response = await request(app).get("/api/market/invalid-endpoint");

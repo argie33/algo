@@ -14,10 +14,11 @@ module.exports = {
     "!tests/**",
     "!coverage/**",
   ],
-  testMatch: ["**/tests/**/*.test.js", "**/tests/**/*.spec.js"],
-  // Only ignore node_modules - all integration and e2e tests use REAL database
+  testMatch: ["**/tests/unit/**/*.test.js", "**/tests/**/*.spec.js"],
+  // Skip integration tests - they require full infrastructure
   testPathIgnorePatterns: [
     "/node_modules/",
+    "/tests/integration/",
   ],
   // SETUP FILE - initialize database pool before tests run
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],

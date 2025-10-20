@@ -193,7 +193,7 @@ INSERT INTO earnings (symbol, report_date, actual_eps, estimated_eps) VALUES
 -- Emulates: loadstockscores.py loader output
 -- =============================================
 
-INSERT INTO stock_scores (symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
+INSERT INTO stock_scores (symbol, composite_score, momentum_score, value_score, quality_score, growth_score,
                          rsi, macd, sma_20, sma_50, volume_avg_30d, current_price, price_change_1d, price_change_5d,
                          price_change_30d, volatility_30d, market_cap, pe_ratio, score_date, last_updated)
 SELECT
@@ -202,8 +202,6 @@ SELECT
     (55 + random() * 30)::DECIMAL(5,2) as composite_score,
     -- Momentum score based on RSI
     (50 + (td.rsi - 50) * 0.8)::DECIMAL(5,2) as momentum_score,
-    -- Trend score based on price vs SMAs
-    (50 + ((sp.close / td.sma_50 - 1) * 200))::DECIMAL(5,2) as trend_score,
     -- Value score (simplified - based on random for test data)
     (50 + random() * 30)::DECIMAL(5,2) as value_score,
     -- Quality score based on volatility
@@ -237,7 +235,6 @@ AND sp.symbol IN ('AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'META', 'AMZN', 'NFLX
 ON CONFLICT (symbol) DO UPDATE SET
     composite_score = EXCLUDED.composite_score,
     momentum_score = EXCLUDED.momentum_score,
-    trend_score = EXCLUDED.trend_score,
     value_score = EXCLUDED.value_score,
     quality_score = EXCLUDED.quality_score,
     growth_score = EXCLUDED.growth_score,

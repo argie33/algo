@@ -48,7 +48,6 @@ CREATE TABLE IF NOT EXISTS stock_scores (
   symbol VARCHAR(50) PRIMARY KEY,
   composite_score DECIMAL(5,2),
   momentum_score DECIMAL(5,2),
-  trend_score DECIMAL(5,2),
   value_score DECIMAL(5,2),
   quality_score DECIMAL(5,2),
   growth_score DECIMAL(5,2),
