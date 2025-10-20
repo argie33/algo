@@ -512,20 +512,31 @@ def get_stock_data_from_database(conn, symbol):
 
         growth_score = max(0, min(100, growth_score))
 
-        # Positioning and Sentiment Scores - set to None if data not available
-        # These require real data from positioning/sentiment loaders
-        positioning_score = None  # Requires real positioning data
-        sentiment_score = None  # Requires real sentiment data
+        # Positioning Score - calculated with z-score normalization
+        # Uses institutional ownership, insider ownership, short interest data
+        # Population stats cached for efficiency (reused across all stocks)
+        if not hasattr(get_stock_data_from_database, '_pop_stats'):
+            get_stock_data_from_database._pop_stats = _calculate_population_stats(conn)
 
-        # Composite Score (weighted average of available factors)
-        # Using only momentum, value, quality, growth (primary 4 factors = 85% weight)
-        # positioning and sentiment excluded until real data available
-        composite_score = (
-            momentum_score * 0.25 +
-            value_score * 0.20 +
-            quality_score * 0.20 +
-            growth_score * 0.20
+        positioning_score = calculate_positioning_score(
+            conn, symbol, get_stock_data_from_database._pop_stats
         )
+
+        # Sentiment Score - placeholder for future implementation
+        sentiment_score = None  # Requires real sentiment data source
+
+        # Composite Score (weighted average of all available factors)
+        # Weights: momentum(25%) + value(20%) + quality(20%) + growth(20%) + positioning(10%)
+        # Total: 95% (5% buffer for future factors like risk or sentiment)
+        weights = [
+            (momentum_score, 0.25),
+            (value_score, 0.20),
+            (quality_score, 0.20),
+            (growth_score, 0.20),
+            (positioning_score if positioning_score is not None else 50, 0.10),  # Use neutral 50 if positioning unavailable
+        ]
+
+        composite_score = sum(score * weight for score, weight in weights)
 
         return {
             'symbol': symbol,
