@@ -1260,28 +1260,31 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 timeframe_signals.append(1 if roc_120d > 0 else -1)
             trend_alignment_bonus = 0
 
+        # Initialize momentum_consistency for use later in return dict
+        momentum_consistency = None
+
         if len(timeframe_signals) >= 2:
             signal_sum = sum(timeframe_signals)
             signal_count = len(timeframe_signals)
 
             if abs(signal_sum) == signal_count:
                 # All timeframes agree (all positive or all negative)
-                stability_score = 8 + trend_alignment_bonus
+                momentum_consistency = 8 + trend_alignment_bonus
             elif abs(signal_sum) == signal_count - 1:
                 # Mostly aligned (2 out of 3 agree)
-                stability_score = 6 + (trend_alignment_bonus * 0.5)
+                momentum_consistency = 6 + (trend_alignment_bonus * 0.5)
             elif signal_sum == 0:
                 # Mixed signals - conflicting momentum
-                stability_score = 3
+                momentum_consistency = 3
             else:
-                stability_score = 5
+                momentum_consistency = 5
 
-            stability_score = max(0, min(10, stability_score))
+            momentum_consistency = max(0, min(10, momentum_consistency))
 
         # Calculate final momentum score (0-100 scale)
         # Components: 10 + 25 + 25 + 15 + 10 = 85 pts (scaled to 100)
         raw_momentum_score = (intraweek_confirmation + short_term_momentum + medium_term_momentum +
-                             longer_term_momentum + stability_score)
+                             longer_term_momentum + momentum_consistency)
         # Scale from 85-point scale to 100-point scale
         momentum_score = (raw_momentum_score / 85) * 100
         momentum_score = max(0, min(100, momentum_score))
@@ -1750,7 +1753,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'momentum_short_term': float(round(short_term_momentum, 2)),
             'momentum_medium_term': float(round(medium_term_momentum, 2)),
             'momentum_long_term': float(round(longer_term_momentum, 2)),
-            'momentum_consistency': float(round(stability_score, 2)),
+            'momentum_consistency': float(round(momentum_consistency, 2)) if momentum_consistency is not None else None,
             'roc_10d': float(round(roc_10d, 2)) if roc_10d is not None else None,
             'roc_20d': float(round(roc_20d, 2)) if roc_20d is not None else None,
             'roc_60d': float(round(roc_60d, 2)) if roc_60d is not None else None,
