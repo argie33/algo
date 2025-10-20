@@ -1074,7 +1074,7 @@ const ScoresDashboard = () => {
                         </Box>
                       </Grid>
 
-                      {/* Risk Score */}
+                      {/* Stability Score */}
                       <Grid item xs={6} sm={4}>
                         <Box>
                           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
@@ -1641,7 +1641,7 @@ const ScoresDashboard = () => {
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
-                                      <TableCell>Liquidity Risk Score</TableCell>
+                                      <TableCell>Liquidity Stability Score</TableCell>
                                       <TableCell align="right">
                                         {stock.stability_inputs?.liquidity_risk !== null && stock.stability_inputs?.liquidity_risk !== undefined
                                           ? (stock.stability_inputs.liquidity_risk || 0).toFixed(1)
