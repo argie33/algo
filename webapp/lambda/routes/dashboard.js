@@ -748,7 +748,10 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     const userId = req.user?.sub;
 
     if (!userId) {
-      return res.unauthorized("User authentication required");
+      return res.status(401).json({
+        success: false,
+        error: "User authentication required"
+      });
     }
 
     const alertsQuery = `
