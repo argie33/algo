@@ -3,6 +3,8 @@
 Value Metrics Calculator
 Calculates raw value input metrics (not scores) for use in loadstockscores.py
 
+Storage: Metrics are stored as JSON in stock_scores.value_inputs (JSONB column)
+
 Metrics Calculated:
 1. Valuation Multiples: P/E (forward/trailing), P/B, P/S, EV/EBITDA
 2. Dividend Yield: Annual dividend as % of stock price
@@ -10,12 +12,14 @@ Metrics Calculated:
 4. Market Benchmarks: P/E, P/B, P/S, EV/EBITDA, FCF Yield, Dividend Yield
 5. Sector Benchmarks: P/E, P/B, P/S, EV/EBITDA, FCF Yield, Dividend Yield
 6. PEG Ratio: P/E / earnings growth rate
-7. DCF Intrinsic Value: Discounted cash flow valuation
-8. DCF Discount: Percentage difference from intrinsic value
+7. DCF Intrinsic Value: Discounted cash flow valuation (currently disabled)
+8. Percentile Ranks: Per-metric ranking across all stocks
 
 Note: Scoring logic is in loadstockscores.py - this only calculates inputs
+Phase 1: Calculate and store value metrics as JSON
+Phase 2: Calculate percentile ranks and merge into value_inputs
 
-Updated: 2025-10-16 14:47 - Trigger rebuild: 20251016_144700 - Populate value metrics to AWS"""
+Updated: 2025-10-20 - Fixed: Removed unused value_metrics table, clarified storage location"""
 
 import json
 import logging
@@ -80,10 +84,10 @@ def calculate_market_benchmarks(cursor):
             COUNT(*) as stock_count
         FROM key_metrics km
         LEFT JOIN stock_symbols ss ON km.ticker = ss.symbol
-        WHERE km.trailing_pe > 0
-          AND km.trailing_pe < 100
-          AND km.price_to_book > 0
-          AND km.ev_to_ebitda > 0
+        WHERE km.trailing_pe IS NOT NULL
+          AND km.trailing_pe < 1000
+          AND km.price_to_book IS NOT NULL
+          AND km.ev_to_ebitda IS NOT NULL
           AND (ss.etf IS NULL OR ss.etf != 'Y')
     """)
 
@@ -134,10 +138,10 @@ def get_sector_benchmarks(cursor):
         FROM key_metrics km
         LEFT JOIN company_profile cp ON km.ticker = cp.ticker
         LEFT JOIN stock_symbols ss ON km.ticker = ss.symbol
-        WHERE km.trailing_pe > 0
-          AND km.trailing_pe < 100
-          AND km.price_to_book > 0
-          AND km.ev_to_ebitda > 0
+        WHERE km.trailing_pe IS NOT NULL
+          AND km.trailing_pe < 1000
+          AND km.price_to_book IS NOT NULL
+          AND km.ev_to_ebitda IS NOT NULL
           AND cp.sector IS NOT NULL
           AND cp.sector != ''
           AND (ss.etf IS NULL OR ss.etf != 'Y')
@@ -305,8 +309,12 @@ def calculate_value_metrics_for_stock(
     elif price and shares:
         market_cap = price * shares
 
-    if not pe or pe <= 0:
-        logging.debug(f"  {ticker}: Skipping (no valid P/E)")
+    # NOTE: NO P/E FILTER - We include ALL stocks, even unprofitable ones (pe=None/0)
+    # Unprofitable companies will use alternative metrics (P/B, P/S, EV/EBITDA)
+    # This ensures we capture ALL available data without artificial exclusions
+    has_any_metric = pe or pb or ev_ebitda or price_to_sales
+    if not has_any_metric:
+        logging.debug(f"  {ticker}: Skipping (no valuation metrics available)")
         return None
 
     # Get sector benchmarks (fallback to market if sector not available)
@@ -634,37 +642,25 @@ def calculate_percentile_ranks(cursor):
     return percentile_ranks
 
 
-def create_value_metrics_table(cursor):
-    """Create value_metrics table if it doesn't exist"""
-    logging.info("Ensuring value_metrics table exists...")
+def ensure_stock_scores_ready(cursor):
+    """Ensure stock_scores table has value_inputs column"""
+    logging.info("Verifying stock_scores table structure...")
 
+    # Check if value_inputs column exists
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS value_metrics (
-            id SERIAL PRIMARY KEY,
-            symbol VARCHAR(10) NOT NULL,
-            date DATE NOT NULL,
-            value_metric NUMERIC(5,2),
-            multiples_metric NUMERIC(5,2),
-            intrinsic_value NUMERIC(10,2),
-            fair_value NUMERIC(10,2),
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            pe_relative_score NUMERIC(5,2),
-            pb_relative_score NUMERIC(5,2),
-            ev_relative_score NUMERIC(5,2),
-            peg_ratio_score NUMERIC(5,2),
-            dcf_intrinsic_score NUMERIC(5,2),
-            pe_ratio NUMERIC(8,2),
-            pb_ratio NUMERIC(8,2),
-            ev_ebitda NUMERIC(8,2),
-            peg_ratio NUMERIC(8,2),
-            sector VARCHAR(100),
-            CONSTRAINT value_metrics_symbol_date_key UNIQUE (symbol, date)
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='stock_scores' AND column_name='value_inputs'
         );
-
-        CREATE INDEX IF NOT EXISTS idx_value_metrics_symbol ON value_metrics(symbol);
-        CREATE INDEX IF NOT EXISTS idx_value_metrics_date ON value_metrics(date DESC);
     """)
-    logging.info("✅ value_metrics table ready")
+
+    if not cursor.fetchone()[0]:
+        logging.warning("  Adding value_inputs column to stock_scores...")
+        cursor.execute("""
+            ALTER TABLE stock_scores ADD COLUMN value_inputs JSONB DEFAULT NULL;
+        """)
+
+    logging.info("✅ stock_scores table ready for value metrics")
 
 def main():
     """Main execution function"""
@@ -679,8 +675,8 @@ def main():
     cursor = conn.cursor()
 
     try:
-        # Create table if needed
-        create_value_metrics_table(cursor)
+        # Ensure stock_scores table is ready
+        ensure_stock_scores_ready(cursor)
         conn.commit()
         # Calculate market benchmarks
         market_benchmarks = calculate_market_benchmarks(cursor)
