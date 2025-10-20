@@ -199,8 +199,8 @@ def calculate_buy_sell_signals(price_tech_data):
         resistance = row["resistance"]
 
         # Calculate derived metrics
-        price_vs_ma20 = ((close - ma20) / ma20) * 100 if ma20 > 0 else 0
-        price_vs_ma50 = ((close - ma50) / ma50) * 100 if ma50 > 0 else 0
+        price_vs_ma20 = ((close - ma20) / ma20) * 100 if ma20 > 0 else None  # NO mock fallback
+        price_vs_ma50 = ((close - ma50) / ma50) * 100 if ma50 > 0 else None  # NO mock fallback
         bollinger_pos = (
             ((close - bb_lower) / (bb_upper - bb_lower)) * 100
             if (bb_upper - bb_lower) > 0
@@ -251,7 +251,7 @@ def calculate_buy_sell_signals(price_tech_data):
 
         # Pattern recognition (simplified)
         pattern_score = min(buy_score, sell_score) / max(buy_score, sell_score, 1) * 50
-        momentum_score = abs(macd) * 10 if abs(macd) < 10 else 100
+        momentum_score = abs(macd) * 10 if abs(macd) < 10 else None  # NO mock fallback
         risk_score = min(rsi, 100 - rsi) + (volume_ratio * 10)
 
         # Generate signals based on scores
