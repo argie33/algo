@@ -13,8 +13,10 @@ describe("Analytics Routes Unit Tests", () => {
     app.use(express.json());
 
     // Mock authentication middleware - allow all requests through
+    // This replaces the real auth middleware so we don't hit security checks
     app.use((req, res, next) => {
-      req.user = { sub: "test-user-123" }; // Mock authenticated user
+      // Always set authenticated user, ignore Authorization header for unit tests
+      req.user = { sub: "test-user-123", email: "test@example.com", role: "user" };
       next();
     });
 
@@ -39,8 +41,7 @@ describe("Analytics Routes Unit Tests", () => {
   describe("GET /analytics/performance", () => {
     test("should handle performance analytics", async () => {
       const response = await request(app)
-        .get("/analytics/performance")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .get("/analytics/performance");
 
       // API may return 200 for success or 401 for auth or 500/503 for database issues
       expect([200, 401, 500, 503]).toContain(response.status);
@@ -51,8 +52,7 @@ describe("Analytics Routes Unit Tests", () => {
   describe("GET /analytics/risk", () => {
     test("should handle risk analytics", async () => {
       const response = await request(app)
-        .get("/analytics/risk")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .get("/analytics/risk");
 
       // API may return 200 for success or 401 for auth or 500 for database issues
       expect([200, 401, 500]).toContain(response.status);
@@ -73,7 +73,6 @@ describe("Analytics Routes Unit Tests", () => {
     test("should handle allocation analytics", async () => {
       const response = await request(app)
         .get("/analytics/allocation")
-        .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -84,7 +83,6 @@ describe("Analytics Routes Unit Tests", () => {
     test("should handle returns analytics", async () => {
       const response = await request(app)
         .get("/analytics/returns")
-        .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -95,7 +93,6 @@ describe("Analytics Routes Unit Tests", () => {
     test("should handle sectors analytics", async () => {
       const response = await request(app)
         .get("/analytics/sectors")
-        .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -106,7 +103,6 @@ describe("Analytics Routes Unit Tests", () => {
     test("should handle volatility analytics", async () => {
       const response = await request(app)
         .get("/analytics/volatility")
-        .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -117,7 +113,6 @@ describe("Analytics Routes Unit Tests", () => {
     test("should handle trends analytics", async () => {
       const response = await request(app)
         .get("/analytics/trends")
-        .set("Authorization", "Bearer dev-bypass-token");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -134,7 +129,6 @@ describe("Analytics Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/analytics/custom")
-        .set("Authorization", "Bearer dev-bypass-token")
         .send(customRequest);
 
       expect([200, 401, 422, 500]).toContain(response.status);

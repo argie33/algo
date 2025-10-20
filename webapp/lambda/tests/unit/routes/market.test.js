@@ -83,19 +83,20 @@ describe("Market Routes Unit Tests", () => {
           ]
         });
       }
-      // Mock sector_performance table queries
-      if (sql.includes("sector_performance") && sql.includes("DISTINCT ON")) {
+      // Mock sector_performance queries (both DISTINCT ON and ORDER BY variants)
+      if (sql.includes("sector_performance") && (sql.includes("DISTINCT ON") || sql.includes("ORDER BY performance_1d"))) {
         return Promise.resolve({
           rows: [
             {
+              etf_symbol: "XLK",
               sector: "Technology",
-              symbol: "AAPL",
               price: 228.50,
               change_percent: 1.25,
               change: 2.82,
               volume: 45000000,
+              market_cap: 12500000000,
               momentum: 0.15,
-              flow: 12500000,
+              money_flow: 12500000,
               rsi: 65.2,
               performance_1d: 1.25,
               performance_5d: 3.45,
@@ -104,14 +105,15 @@ describe("Market Routes Unit Tests", () => {
               fetched_at: "2025-09-28"
             },
             {
+              etf_symbol: "XLV",
               sector: "Healthcare",
-              symbol: "JNJ",
               price: 159.30,
               change_percent: -0.45,
               change: -0.72,
               volume: 32000000,
+              market_cap: 8500000000,
               momentum: -0.05,
-              flow: -8500000,
+              money_flow: -8500000,
               rsi: 42.1,
               performance_1d: -0.45,
               performance_5d: 1.23,
@@ -120,14 +122,15 @@ describe("Market Routes Unit Tests", () => {
               fetched_at: "2025-09-28"
             },
             {
+              etf_symbol: "XLF",
               sector: "Finance",
-              symbol: "JPM",
               price: 195.75,
               change_percent: 0.78,
               change: 1.52,
               volume: 22000000,
+              market_cap: 5500000000,
               momentum: 0.08,
-              flow: 5500000,
+              money_flow: 5500000,
               rsi: 58.3,
               performance_1d: 0.78,
               performance_5d: 2.34,
@@ -218,8 +221,9 @@ describe("Market Routes Unit Tests", () => {
           ]
         });
       }
-      // Mock breadth data - handle various breadth query patterns
-      if (sql.includes("daily_changes") || (sql.includes("WITH") && sql.includes("price_daily")) || sql.includes("strong_advancing")) {
+      // Mock breadth data - handle CTE queries for breadth data
+      if (sql.includes("daily_changes") || (sql.includes("WITH") && sql.includes("calculated_change_percent")) || sql.includes("strong_advancing")) {
+        // Return comprehensive breadth data for CTE queries - includes all required fields
         return Promise.resolve({
           rows: [
             {
@@ -230,7 +234,13 @@ describe("Market Routes Unit Tests", () => {
               strong_advancing: 89,
               strong_declining: 34,
               strong_unchanged: 0,
-              ad_ratio: 1.25
+              ad_ratio: 1.2520,
+              breadth_percent: 55.54,
+              internal_strength: "Strong",
+              fetched_at: "2025-09-28",
+              // Fields required by response formatting
+              avg_change: 0.45,
+              avg_volume: 25000000
             }
           ]
         });
@@ -373,7 +383,29 @@ describe("Market Routes Unit Tests", () => {
           rows: [{ exists: true }]
         });
       }
-      // Default empty response for unmatched queries
+      // Default responses for unmatched queries - provide smart defaults
+      // If it's a query with price_daily joins, return breadth-like data
+      if (sql.includes("price_daily") || sql.toUpperCase().includes("COUNT") || sql.toUpperCase().includes("WITH")) {
+        // Return breadth data structure for any aggregation query
+        return Promise.resolve({
+          rows: [
+            {
+              total_stocks: 3300,
+              advancing: 1823,
+              declining: 1456,
+              unchanged: 21,
+              strong_advancing: 89,
+              strong_declining: 34,
+              strong_unchanged: 0,
+              ad_ratio: 1.2520,
+              breadth_percent: 55.54,
+              avg_change: 0.45,
+              avg_volume: 25000000
+            }
+          ]
+        });
+      }
+      // Default empty response for truly unmatched queries
       return Promise.resolve({
         rows: []
       });

@@ -22,15 +22,17 @@ if (!process.env.DB_SSL) process.env.DB_SSL = "false";
 console.log('\n🔧 Jest setup file loaded');
 console.log(`Database config: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
 
+// Load database module at top level to ensure it's available in Jest environment
+const db = require('./utils/database');
+
 // Initialize database connection pool BEFORE tests run
 // This uses Jest's beforeAll which runs once per test suite
 beforeAll(async () => {
   try {
-    const { initializeDatabase } = require('./utils/database');
     console.log('🔧 Initializing database connection pool...');
 
     // Initialize database connection pool
-    await initializeDatabase();
+    await db.initializeDatabase();
 
     console.log('✅ Database connection pool initialized successfully');
   } catch (error) {
@@ -42,10 +44,9 @@ beforeAll(async () => {
 // Cleanup after tests complete
 afterAll(async () => {
   try {
-    const { closeDatabase } = require('./utils/database');
-    if (typeof closeDatabase === 'function') {
+    if (typeof db.closeDatabase === 'function') {
       console.log('🔧 Closing database connection pool...');
-      await closeDatabase();
+      await db.closeDatabase();
       console.log('✅ Database connection pool closed');
     }
   } catch (error) {

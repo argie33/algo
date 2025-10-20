@@ -73,33 +73,32 @@ def calculate_market_benchmarks(cursor):
 
     cursor.execute("""
         SELECT
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.trailing_pe) as market_pe_median,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_book) as market_pb_median,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_sales_ttm) as market_ps_median,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.ev_to_ebitda) as market_ev_ebitda_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.trailing_pe) FILTER (WHERE km.trailing_pe > 0 AND km.trailing_pe < 1000) as market_pe_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_book) FILTER (WHERE km.price_to_book > 0) as market_pb_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_sales_ttm) FILTER (WHERE km.price_to_sales_ttm > 0) as market_ps_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.ev_to_ebitda) FILTER (WHERE km.ev_to_ebitda > 0) as market_ev_ebitda_median,
+            -- FCF Yield: use only stocks where FCF data actually exists and market cap can be calculated
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
                 (km.free_cashflow / NULLIF(km.enterprise_value - km.total_debt + km.total_cash, 0)) * 100
-            ) as market_fcf_yield_median,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.dividend_yield) as market_dividend_yield_median,
+            ) FILTER (WHERE km.free_cashflow IS NOT NULL AND km.free_cashflow > 0
+                      AND km.enterprise_value IS NOT NULL AND km.total_debt IS NOT NULL AND km.total_cash IS NOT NULL
+                      AND (km.enterprise_value - km.total_debt + km.total_cash) > 0) as market_fcf_yield_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.dividend_yield) FILTER (WHERE km.dividend_yield >= 0) as market_dividend_yield_median,
             COUNT(*) as stock_count
         FROM key_metrics km
         LEFT JOIN stock_symbols ss ON km.ticker = ss.symbol
-        WHERE km.trailing_pe IS NOT NULL
-          AND km.trailing_pe < 1000
-          AND km.price_to_book IS NOT NULL
-          AND km.ev_to_ebitda IS NOT NULL
-          AND (ss.etf IS NULL OR ss.etf != 'Y')
+        WHERE (ss.etf IS NULL OR ss.etf != 'Y')
     """)
 
     row = cursor.fetchone()
     benchmarks = {
-        "pe_median": float(row[0]) if row[0] else None,
-        "pb_median": float(row[1]) if row[1] else None,
-        "ps_median": float(row[2]) if row[2] else None,
-        "ev_ebitda_median": float(row[3]) if row[3] else None,
-        "fcf_yield_median": float(row[4]) if row[4] else None,
-        "dividend_yield_median": float(row[5]) if row[5] else None,
-        "stock_count": int(row[6]) if row[6] else 0,
+        "pe_median": float(row[0]) if row[0] is not None else None,
+        "pb_median": float(row[1]) if row[1] is not None else None,
+        "ps_median": float(row[2]) if row[2] is not None else None,
+        "ev_ebitda_median": float(row[3]) if row[3] is not None else None,
+        "fcf_yield_median": float(row[4]) if row[4] is not None else None,
+        "dividend_yield_median": float(row[5]) if row[5] is not None else None,
+        "stock_count": int(row[6]) if row[6] is not None else 0,
     }
 
     pe_val = f"{benchmarks['pe_median']:.2f}" if benchmarks['pe_median'] is not None else 'N/A'
@@ -126,23 +125,22 @@ def get_sector_benchmarks(cursor):
     cursor.execute("""
         SELECT
             cp.sector,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.trailing_pe) as sector_pe_median,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_book) as sector_pb_median,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_sales_ttm) as sector_ps_median,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.ev_to_ebitda) as sector_ev_ebitda_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.trailing_pe) FILTER (WHERE km.trailing_pe > 0 AND km.trailing_pe < 1000) as sector_pe_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_book) FILTER (WHERE km.price_to_book > 0) as sector_pb_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.price_to_sales_ttm) FILTER (WHERE km.price_to_sales_ttm > 0) as sector_ps_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.ev_to_ebitda) FILTER (WHERE km.ev_to_ebitda > 0) as sector_ev_ebitda_median,
+            -- FCF Yield: use only stocks where FCF data actually exists
             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
                 (km.free_cashflow / NULLIF(km.enterprise_value - km.total_debt + km.total_cash, 0)) * 100
-            ) as sector_fcf_yield_median,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.dividend_yield) as sector_dividend_yield_median,
+            ) FILTER (WHERE km.free_cashflow IS NOT NULL AND km.free_cashflow > 0
+                      AND km.enterprise_value IS NOT NULL AND km.total_debt IS NOT NULL AND km.total_cash IS NOT NULL
+                      AND (km.enterprise_value - km.total_debt + km.total_cash) > 0) as sector_fcf_yield_median,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km.dividend_yield) FILTER (WHERE km.dividend_yield >= 0) as sector_dividend_yield_median,
             COUNT(*) as stock_count
         FROM key_metrics km
         LEFT JOIN company_profile cp ON km.ticker = cp.ticker
         LEFT JOIN stock_symbols ss ON km.ticker = ss.symbol
-        WHERE km.trailing_pe IS NOT NULL
-          AND km.trailing_pe < 1000
-          AND km.price_to_book IS NOT NULL
-          AND km.ev_to_ebitda IS NOT NULL
-          AND cp.sector IS NOT NULL
+        WHERE cp.sector IS NOT NULL
           AND cp.sector != ''
           AND (ss.etf IS NULL OR ss.etf != 'Y')
         GROUP BY cp.sector

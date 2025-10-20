@@ -146,7 +146,7 @@ router.get("/data", async (req, res) => {
 
 // Root portfolio route - returns available endpoints
 router.get("/", authenticateToken, async (req, res) => {
-  res.json({ success: true, performance: {
+  return res.json({
     success: true,
     message: "Portfolio API - Ready",
     timestamp: new Date().toISOString(),
@@ -164,7 +164,7 @@ router.get("/", authenticateToken, async (req, res) => {
       "/transactions/:brokerName - Get transactions",
       "/value - Portfolio value and asset allocation",
       "/returns - Portfolio returns analysis",
-    ],
+    ]
   });
 });
 
@@ -181,7 +181,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
     ]);
 
     if (!holdingsExists || !performanceExists) {
-      return res.json({ success: true, performance: {
+      return res.json({
         success: true,
         data: {
           total_value: 0,
@@ -283,11 +283,13 @@ router.get("/positions", authenticateToken, async (req, res) => {
 
     // Check if portfolio_holdings table exists
     if (!(await tableExists("portfolio_holdings"))) {
-      return res.json({ success: true, performance: {
+      return res.json({
         success: true,
-        data: [],
-        message: "Portfolio data not yet loaded",
-        total: 0,
+        data: {
+          holdings: [],
+          message: "Portfolio data not yet loaded",
+          total: 0,
+        },
         timestamp: new Date().toISOString(),
       });
     }
@@ -327,7 +329,7 @@ router.get("/positions", authenticateToken, async (req, res) => {
       updated_at: row.updated_at,
     }));
 
-    res.json({ success: true, performance: {
+    return res.json({
       success: true,
       data: {
         positions: positions,
