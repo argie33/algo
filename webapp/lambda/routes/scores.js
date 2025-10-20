@@ -246,7 +246,7 @@ router.get("/", async (req, res) => {
       paramIndex++;
     }
 
-    stocksQuery += ` ORDER BY ss.composite_score DESC`;
+    stocksQuery += ` ORDER BY ss.composite_score DESC NULLS LAST`;
     // No LIMIT or OFFSET - return all results for frontend filtering
 
     const stocksResult = await query(stocksQuery, queryParams);
@@ -858,9 +858,10 @@ router.get("/:symbol", async (req, res) => {
         // Stability inputs for frontend display (Stability Factor Analysis)
         stability_inputs: {
           volatility_12m_pct: row.volatility_12m_pct == null ? null : parseFloat(row.volatility_12m_pct),
-          volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
+          downside_volatility_pct: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
           max_drawdown_52w_pct: row.max_drawdown_52w_pct == null ? null : parseFloat(row.max_drawdown_52w_pct),
-          beta: row.beta == null ? null : parseFloat(row.beta)
+          beta: row.beta == null ? null : parseFloat(row.beta),
+          liquidity_risk: null  // TODO: Add liquidity risk calculation from quality_metrics
         }
       },
       metadata: {

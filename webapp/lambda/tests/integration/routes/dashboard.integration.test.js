@@ -2,8 +2,8 @@ const request = require("supertest");
 const { app } = require("../../../index");
 const { initializeDatabase } = require("../../../utils/database");
 
-// Auth token for tests - using dev bypass token for integration testing
-const authToken = "dev-bypass-token";
+// Auth token for tests - using test token that auth middleware accepts
+const authToken = "test-token";
 
 describe("Dashboard Routes Integration Tests", () => {
   beforeAll(async () => {

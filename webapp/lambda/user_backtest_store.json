@@ -57,5 +57,155 @@
     "code": "buy('AAPL', 100, data['AAPL'].close);",
     "language": "javascript",
     "id": "1760921584890"
+  },
+  "test-backtest-1760926606953",
+  "test-backtest-1760926606957",
+  "test-backtest-1760926606963",
+  "test-backtest-1760926606970",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760926607005"
+  },
+  "test-backtest-1760926873356",
+  "test-backtest-1760926873362",
+  "test-backtest-1760926873365",
+  "test-backtest-1760926873371",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760926873417"
+  },
+  "test-backtest-1760926953775",
+  "test-backtest-1760926953778",
+  "test-backtest-1760926953781",
+  "test-backtest-1760926953797",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760926953897"
+  },
+  "test-backtest-1760927148892",
+  "test-backtest-1760927148895",
+  "test-backtest-1760927148898",
+  "test-backtest-1760927148904",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760927148947"
+  },
+  "test-backtest-1760927177833",
+  "test-backtest-1760927177837",
+  "test-backtest-1760927177840",
+  "test-backtest-1760927177848",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760927177890"
+  },
+  "test-backtest-1760927366944",
+  "test-backtest-1760927366947",
+  "test-backtest-1760927366949",
+  "test-backtest-1760927366955",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760927366996"
+  },
+  "test-backtest-1760927573826",
+  "test-backtest-1760927573828",
+  "test-backtest-1760927573837",
+  "test-backtest-1760927573843",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760927573880"
+  },
+  "test-backtest-1760927751587",
+  "test-backtest-1760927751594",
+  "test-backtest-1760927751598",
+  "test-backtest-1760927751604",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760927751642"
+  },
+  "test-backtest-1760930679761",
+  "test-backtest-1760930679765",
+  "test-backtest-1760930679767",
+  "test-backtest-1760930679773",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760930679815"
+  },
+  "test-backtest-1760930691122",
+  "test-backtest-1760930691125",
+  "test-backtest-1760930691127",
+  "test-backtest-1760930691142",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760930691179"
+  },
+  "test-backtest-1760930693594",
+  "test-backtest-1760930693605",
+  "test-backtest-1760930693607",
+  "test-backtest-1760930693613",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760930693648"
+  },
+  "test-backtest-1760930746443",
+  "test-backtest-1760930746445",
+  "test-backtest-1760930746453",
+  "test-backtest-1760930746459",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760930746493"
+  },
+  "test-backtest-1760941548768",
+  "test-backtest-1760941548771",
+  "test-backtest-1760941548773",
+  "test-backtest-1760941548782",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760941548817"
+  },
+  "test-backtest-1760941551583",
+  "test-backtest-1760941551588",
+  "test-backtest-1760941551590",
+  "test-backtest-1760941551596",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760941551628"
+  },
+  "test-backtest-1760941864943",
+  "test-backtest-1760941864946",
+  "test-backtest-1760941864948",
+  "test-backtest-1760941864954",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760941864988"
   }
 ]

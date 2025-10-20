@@ -723,7 +723,7 @@ function StockDetail() {
                         <YAxis domain={["dataMin - 5", "dataMax + 5"]} />
                         <RechartsTooltip
                           formatter={(value, name) => [
-                            `$${value.toFixed(2)}`,
+                            `$${(value || 0).toFixed(2)}`,
                             name === "close" ? "Close Price" : name,
                           ]}
                         />

@@ -19,7 +19,8 @@ module.exports = {
   testPathIgnorePatterns: [
     "/node_modules/",
   ],
-  // NO SETUP - use real database directly
+  // SETUP FILE - initialize database pool before tests run
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
   testTimeout: 60000, // 60s timeout for real database queries
   maxWorkers: 1, // Serial execution to avoid connection pool exhaustion
   forceExit: true, // Force exit after tests complete
@@ -28,7 +29,6 @@ module.exports = {
   verbose: true, // Show all test details
   silent: false,
   bail: false, // Don't stop on first failure - see all issues
-  // NO GLOBAL SETUP - use real database as-is
   // Isolation settings for real database
   clearMocks: false, // Don't clear real database connections
   resetMocks: false, // Don't reset real database functions

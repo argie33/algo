@@ -350,19 +350,19 @@ def get_stock_data_from_database(conn, symbol):
 
         growth_score = max(0, min(100, growth_score))
 
-        # Positioning and Sentiment Scores (placeholder values for now)
-        positioning_score = 70.0  # Default neutral score
-        sentiment_score = 70.0  # Default neutral score
+        # Positioning and Sentiment Scores - set to None if data not available
+        # These require real data from positioning/sentiment loaders
+        positioning_score = None  # Requires real positioning data
+        sentiment_score = None  # Requires real sentiment data
 
-        # Composite Score (weighted average of 5 factors: momentum, value, quality, growth, positioning, sentiment)
-        # Redistributed weights after removing trend_score (was 0.25)
+        # Composite Score (weighted average of available factors)
+        # Using only momentum, value, quality, growth (primary 4 factors = 85% weight)
+        # positioning and sentiment excluded until real data available
         composite_score = (
             momentum_score * 0.25 +
             value_score * 0.20 +
             quality_score * 0.20 +
-            growth_score * 0.20 +
-            positioning_score * 0.075 +
-            sentiment_score * 0.075
+            growth_score * 0.20
         )
 
         return {

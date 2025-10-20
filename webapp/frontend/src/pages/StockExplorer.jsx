@@ -1539,7 +1539,7 @@ function StockExplorer() {
                             <YAxis domain={["dataMin", "dataMax"]} />
                             <RechartsTooltip
                               formatter={(value) => [
-                                `$${value.toFixed(2)}`,
+                                `$${(value || 0).toFixed(2)}`,
                                 "Close",
                               ]}
                             />

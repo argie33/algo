@@ -27,8 +27,20 @@ router.get("/", async (req, res) => {
 // GET /upgrades - Real upgrade/downgrade data from YFinance
 router.get("/upgrades", async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    // BUG FIX: Validate parseInt results for NaN
+    const parsedPage = parseInt(req.query.page, 10);
+    const page = !isNaN(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+
+    const parsedLimit = parseInt(req.query.limit, 10);
+    const limit = Math.min(!isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : 50, 200);
+
+    if (page < 1 || limit < 1) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid pagination parameters: page and limit must be positive integers"
+      });
+    }
+
     const offset = (page - 1) * limit;
 
     // Query your actual analyst_upgrade_downgrade table from YFinance
@@ -99,8 +111,20 @@ router.get("/downgrades", async (req, res) => {
   try {
     console.log("📉 Analyst downgrades endpoint called - real database data only");
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    // BUG FIX: Validate parseInt results for NaN
+    const parsedPage = parseInt(req.query.page, 10);
+    const page = !isNaN(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+
+    const parsedLimit = parseInt(req.query.limit, 10);
+    const limit = Math.min(!isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : 50, 200);
+
+    if (page < 1 || limit < 1) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid pagination parameters: page and limit must be positive integers"
+      });
+    }
+
     const offset = (page - 1) * limit;
 
     // Get real downgrade data from database

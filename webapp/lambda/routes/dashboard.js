@@ -296,10 +296,10 @@ router.get("/summary", authenticateToken, async (req, res) => {
 
     console.log("🔍 Executing comprehensive dashboard queries with timeout protection...");
 
-    // Add timeout protection for AWS Lambda (3-second timeout)
+    // Add timeout protection for AWS Lambda (15-second timeout for complex queries)
     const executeQueryWithTimeout = (queryPromise, name) => {
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`${name} query timeout after 3 seconds`)), 3000)
+        setTimeout(() => reject(new Error(`${name} query timeout after 15 seconds`)), 15000)
       );
       return Promise.race([queryPromise, timeoutPromise]);
     };
@@ -479,7 +479,8 @@ router.get("/holdings", authenticateToken, async (req, res) => {
             total_gain_loss: 0,
             avg_gain_loss_percent: 0,
             market_value: 0
-          }
+          },
+          count: 0
         },
         message: "Portfolio holdings data not yet loaded",
         timestamp: new Date().toISOString(),
@@ -615,6 +616,7 @@ router.get("/performance", authenticateToken, async (req, res) => {
       return res.json({
         success: true,
         data: {
+          performance: [],
           performance_data: [],
           metrics: {
             avg_daily_return: 0,

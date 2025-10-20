@@ -187,8 +187,15 @@ router.get("/symbols", async (req, res) => {
 
     symbolsQuery += ` ORDER BY market_cap DESC NULLS LAST`;
 
+    // BUG FIX: Validate LIMIT parameter to prevent SQL injection and invalid queries
     if (limit && !isNaN(limit)) {
-      symbolsQuery += ` LIMIT ${parseInt(limit)}`;
+      const limitNum = parseInt(limit, 10);
+      // Ensure limit is positive and bounded
+      if (limitNum > 0 && limitNum <= 10000) {
+        symbolsQuery += ` LIMIT ${limitNum}`;
+      } else {
+        symbolsQuery += ` LIMIT 100`; // Default to 100 if invalid
+      }
     } else {
       symbolsQuery += ` LIMIT 100`; // Default limit
     }
@@ -723,15 +730,12 @@ router.get("/quotes", async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    try {
-      console.error("Live quotes error:", error);
-    } catch (e) {
-      // Ignore console logging errors
-    }
+    // BUG FIX: Don't suppress console errors - log them directly
+    console.error("Live quotes error:", error.message || error);
     res.status(500).json({
       success: false,
       error: "Failed to fetch live quotes",
-      details: error.message,
+      details: error.message || "Unknown error",
     });
   }
 });
@@ -896,14 +900,12 @@ router.get("/stream/:symbols", authenticateToken, async (req, res) => {
       data: responseData,
     });
   } catch (error) {
-    try {
-      console.error("Stream symbols error:", error);
-    } catch (e) {
-      // Ignore console logging errors
-    }
+    // BUG FIX: Don't suppress console errors - log them directly
+    console.error("Stream symbols error:", error.message || error);
     res.status(500).json({
       success: false,
       error: "Failed to initialize symbol stream",
+      details: error.message || "Unknown error",
     });
   }
 });

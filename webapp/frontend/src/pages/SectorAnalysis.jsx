@@ -287,7 +287,7 @@ const SectorAnalysis = () => {
                     </Pie>
                     <Tooltip
                       formatter={(value) => [
-                        `$${value.toFixed(1)}T`,
+                        `$${(value || 0).toFixed(1)}T`,
                         "Market Cap",
                       ]}
                     />

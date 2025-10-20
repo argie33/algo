@@ -201,7 +201,7 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" tickFormatter={(value) => new Date(value).toLocaleDateString()} />
                 <YAxis tickFormatter={(value) => `${value}%`} />
-                <RechartChartTooltip formatter={(value, name) => [`${parseFloat(value).toFixed(2)}%`, name]} labelFormatter={(value) => new Date(value).toLocaleDateString()} />
+                <RechartChartTooltip formatter={(value, name) => [`${(parseFloat(value) || 0).toFixed(2)}%`, name]} labelFormatter={(value) => new Date(value).toLocaleDateString()} />
                 <Legend />
                 <Line type="monotone" dataKey="pnl_percent" stroke="#8884d8" strokeWidth={2} name="Portfolio" />
                 <Line type="monotone" dataKey="benchmark_return" stroke="#82ca9d" strokeWidth={2} name={`${benchmark} Benchmark`} data={performanceData?.data?.benchmark_comparison?.data || []} />

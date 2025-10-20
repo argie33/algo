@@ -522,7 +522,7 @@ function SectorPerformanceWidget() {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="sector" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <RechartsTooltip formatter={(value) => `${value.toFixed(2)}%`} />
+            <RechartsTooltip formatter={(value) => `${(value || 0).toFixed(2)}%`} />
             <Bar dataKey="performance" fill="#8884d8">
               {(sectors || []).map((entry, index) => (
                 <Cell

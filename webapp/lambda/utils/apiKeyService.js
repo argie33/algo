@@ -85,16 +85,12 @@ class ApiKeyService {
         // In test environment, use a mock verifier with secure token validation
         this.jwtVerifier = {
           verify: async (token) => {
-            // Accept any token when ALLOW_DEV_BYPASS is enabled for testing
-            if (process.env.ALLOW_DEV_BYPASS === "true") {
-              return { sub: "dev-user-bypass", email: "dev-bypass@example.com", username: "dev-user" };
-            }
-            // Mock verification for tests - validate specific test tokens only
-            if (token === "test-token") {
-              return { sub: "test-user-123", email: "test@example.com", username: "test-user" };
-            }
+            // Mock verification for tests - validate specific test tokens
             if (token === "dev-bypass-token") {
               return { sub: "dev-user-bypass", email: "dev-bypass@example.com", username: "dev-user" };
+            }
+            if (token === "test-token") {
+              return { sub: "test-user-123", email: "test@example.com", username: "test-user" };
             }
             throw new Error("Invalid test token provided");
           },
@@ -110,12 +106,18 @@ class ApiKeyService {
         }
         this.jwtVerifier = {
           verify: async (token) => {
-            // Handle test tokens first (not JWT format)
-            if (token === "dev-bypass-token" && process.env.ALLOW_DEV_BYPASS === "true") {
+            // Handle dev-bypass-token - allow in dev/test, reject in production
+            if (token === "dev-bypass-token") {
+              if (process.env.NODE_ENV === "production") {
+                throw new Error("Invalid token");
+              }
               return { sub: "dev-user-bypass", email: "dev-bypass@example.com", username: "dev-user" };
             }
-            if (token === "test-token") {
-              return { sub: "test-user-123", email: "test@example.com", username: "test-user" };
+            // Handle test tokens ONLY in test environment (not JWT format)
+            if (process.env.NODE_ENV === "test") {
+              if (token === "test-token") {
+                return { sub: "test-user-123", email: "test@example.com", username: "test-user" };
+              }
             }
 
             // For AWS Lambda deployment without Cognito configured, use JWT secret validation
@@ -148,21 +150,31 @@ class ApiKeyService {
       };
     }
 
-    // Handle test bypass tokens first (before JWT parsing)
-    if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development" || process.env.LOCAL_DEV_MODE === "true") {
-      // Handle special test tokens that are not JWT format
-      if (token === "dev-bypass-token") {
+    // Handle dev-bypass-token - only allow in development, reject in production
+    if (token === "dev-bypass-token") {
+      if (process.env.NODE_ENV === "production") {
         return {
-          valid: true,
-          user: {
-            sub: "dev-user-bypass",
-            email: "dev-bypass@example.com",
-            username: "dev-user",
-            role: "admin",
-            sessionId: "dev-bypass-session"
-          }
+          valid: false,
+          error: "Invalid token",
+          code: "INVALID_TOKEN"
         };
       }
+      // Allow in development/test
+      return {
+        valid: true,
+        user: {
+          sub: "dev-user-bypass",
+          email: "dev-bypass@example.com",
+          username: "dev-user",
+          role: "user",  // User role, not admin
+          sessionId: "dev-bypass-session"
+        }
+      };
+    }
+
+    // Handle test tokens ONLY in test environment (before JWT parsing)
+    if (process.env.NODE_ENV === "test") {
+      // Handle special test tokens that are not JWT format
       if (token === "test-token") {
         return {
           valid: true,
@@ -315,45 +327,47 @@ class ApiKeyService {
         }
       }
 
-      // For test/dev mode, handle simple test tokens
-      try {
-        // First, check for specific test tokens that should always be valid
-        if (
-          token === "valid.jwt.token" ||
-          token === "valid-jwt-token"
-        ) {
+      // For test environment, handle simple test tokens only
+      if (process.env.NODE_ENV === "test") {
+        try {
+          // Specific test patterns allowed only in test environment
+          if (
+            token === "valid.jwt.token" ||
+            token === "valid-jwt-token"
+          ) {
+            return {
+              valid: true,
+              user: {
+                sub: "test-user-id",
+                email: "test@example.com",
+                username: "testuser",
+                role: "user",
+                groups: [],
+                sessionId: generateUUID(),
+              },
+            };
+          }
+
+          // For tokens without dots in test environment, treat as simple test tokens
+          // This allows tests to use simple string tokens for validation
           return {
             valid: true,
             user: {
-              sub: "test-user-id",
-              email: "test@example.com",
-              username: "testuser",
+              sub: token,
+              email: `${token}@test.local`,
+              username: token,
               role: "user",
               groups: [],
               sessionId: generateUUID(),
             },
           };
+        } catch (error) {
+          // In test environment, properly reject invalid JWT tokens
+          return {
+            valid: false,
+            error: `JWT validation failed: ${error.message}`,
+          };
         }
-
-        // For tokens without dots in test environment, treat as simple test tokens
-        // This allows tests to use simple string tokens for validation
-        return {
-          valid: true,
-          user: {
-            sub: token,
-            email: `${token}@test.local`,
-            username: token,
-            role: "user",
-            groups: [],
-            sessionId: generateUUID(),
-          },
-        };
-      } catch (error) {
-        // In test environment, properly reject invalid JWT tokens
-        return {
-          valid: false,
-          error: `JWT validation failed: ${error.message}`,
-        };
       }
     }
 
@@ -452,11 +466,8 @@ class ApiKeyService {
    * Check JWT circuit breaker state
    */
   checkJwtCircuitBreaker() {
-    // DEVELOPMENT: Reset JWT circuit breaker if ALLOW_DEV_BYPASS is set
-    if (
-      process.env.ALLOW_DEV_BYPASS === "true" ||
-      process.env.NODE_ENV === "development"
-    ) {
+    // DEVELOPMENT: Reset JWT circuit breaker only in development mode (not production)
+    if (process.env.NODE_ENV === "development") {
       if (this.jwtCircuitBreaker.state === "OPEN") {
         console.log(
           "🔧 Development mode: Resetting JWT circuit breaker to CLOSED state"
@@ -586,11 +597,8 @@ class ApiKeyService {
       return { allowed: true };
     }
 
-    // DEVELOPMENT: Reset circuit breaker if ALLOW_DEV_BYPASS is set
-    if (
-      process.env.ALLOW_DEV_BYPASS === "true" ||
-      process.env.NODE_ENV === "development"
-    ) {
+    // DEVELOPMENT: Reset circuit breaker only in development mode (not production)
+    if (process.env.NODE_ENV === "development") {
       if (this.circuitBreaker.state === "OPEN") {
         console.log(
           "🔧 Development mode: Resetting API key circuit breaker to CLOSED state"

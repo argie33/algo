@@ -352,7 +352,8 @@ router.get("/", async (req, res) => {
       entry_quality_score: parseInt(row.entry_quality_score || 0),
       passes_minervini_template: row.passes_minervini_template || false,
 
-      // Profit targets (O'Neill/Minervini: 20-25% targets)
+      // Profit targets (O'Neill/Minervini: 8%, 20-25% targets)
+      profit_target_8pct: parseFloat(row.profit_target_8pct || 0),
       profit_target_20pct: parseFloat(row.profit_target_20pct || 0),
       profit_target_25pct: parseFloat(row.profit_target_25pct || 0),
       current_gain_loss_pct: parseFloat(row.current_gain_loss_pct || 0),

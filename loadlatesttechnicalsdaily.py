@@ -176,87 +176,85 @@ def load_symbols_from_db(conn):
         raise  # Raise instead of silencing - we have real data to use
 
 def create_latest_technicals_table(conn):
-    """Create latest_technicals_daily table if it doesn't exist"""
+    """Verify technical_data_daily table exists (created by main loader)"""
     try:
         cursor = conn.cursor()
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS latest_technicals_daily (
-            id SERIAL PRIMARY KEY,
-            symbol VARCHAR(10) NOT NULL,
-            date DATE NOT NULL,
-            timeframe VARCHAR(10) DEFAULT 'daily',
-            close_price DECIMAL(12,4),
-            volume BIGINT,
-            sma_5 DECIMAL(12,4),
-            sma_10 DECIMAL(12,4),
-            sma_20 DECIMAL(12,4),
-            sma_50 DECIMAL(12,4),
-            rsi DECIMAL(8,4),
-            macd DECIMAL(12,6),
-            macd_signal DECIMAL(12,6),
-            macd_histogram DECIMAL(12,6),
-            bb_upper DECIMAL(12,4),
-            bb_middle DECIMAL(12,4), 
-            bb_lower DECIMAL(12,4),
-            volume_sma DECIMAL(15,2),
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(symbol, date, timeframe)
-        );
-        
-        CREATE INDEX IF NOT EXISTS idx_latest_technicals_daily_symbol ON latest_technicals_daily(symbol);
-        CREATE INDEX IF NOT EXISTS idx_latest_technicals_daily_date ON latest_technicals_daily(date);
-        CREATE INDEX IF NOT EXISTS idx_latest_technicals_daily_updated ON latest_technicals_daily(updated_at);
-        """
-        cursor.execute(create_table_sql)
-        conn.commit()
+        # Just verify the table exists - it should be created by loadtechnicalsdaily.py
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'technical_data_daily'
+            );
+        """)
+        exists = cursor.fetchone()[0]
         cursor.close()
-        logging.info("latest_technicals_daily table created/verified successfully")
+        if exists:
+            logging.info("technical_data_daily table verified successfully")
+        else:
+            raise Exception("technical_data_daily table does not exist - run loadtechnicalsdaily.py first")
     except Exception as e:
-        logging.error(f"Error creating latest_technicals_daily table: {e}")
+        logging.error(f"Error verifying technical_data_daily table: {e}")
         raise
 
 def upsert_technical_data(conn, technical_data):
-    """Upsert technical data using batch insert"""
+    """Upsert technical data for latest daily indicators (delta updates)"""
     if not technical_data:
         return
 
     try:
         cursor = conn.cursor()
 
-        # Prepare data for insertion
+        # Only upsert the technical indicators we actually calculate
+        # (not price data - that's handled by other loaders)
         columns = [
-            'symbol', 'date', 'timeframe', 'close_price', 'volume',
-            'sma_5', 'sma_10', 'sma_20', 'sma_50', 'rsi',
-            'macd', 'macd_signal', 'macd_histogram',
-            'bb_upper', 'bb_middle', 'bb_lower', 'volume_sma', 'updated_at'
+            'symbol', 'date',
+            'sma_10', 'sma_20', 'sma_50', 'rsi',
+            'macd', 'macd_signal', 'macd_hist',
+            'bbands_upper', 'bbands_middle', 'bbands_lower'
         ]
 
-        # Build template for execute_values with proper structure
-        placeholders = ', '.join(['%s'] * len(columns))
-        columns_str = ', '.join(columns)
-        update_columns = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns[3:]])  # Skip symbol, date, timeframe
-
-        # Use execute_values with proper template format for bulk insert with ON CONFLICT
-        upsert_sql = f"""
-        INSERT INTO latest_technicals_daily ({columns_str})
-        VALUES %s
-        ON CONFLICT (symbol, date, timeframe)
-        DO UPDATE SET {update_columns}
-        """
-
-        # Prepare values as list of tuples
+        # Build values - map from calculated indicators to table columns
         values = []
         for data in technical_data:
-            row = tuple(data.get(col) for col in columns)
+            # Handle the mapping of calculated values
+            row = (
+                data.get('symbol'),
+                data.get('date'),
+                data.get('sma_10'),          # We calculate sma_10 directly
+                data.get('sma_20'),          # We calculate sma_20 directly
+                data.get('sma_50'),          # We calculate sma_50 directly
+                data.get('rsi'),
+                data.get('macd'),
+                data.get('macd_signal'),
+                data.get('macd_histogram'),  # Maps to macd_hist in DB
+                data.get('bb_upper'),        # Maps to bbands_upper in DB
+                data.get('bb_middle'),       # Maps to bbands_middle in DB
+                data.get('bb_lower')         # Maps to bbands_lower in DB
+            )
             values.append(row)
 
-        # Use execute_values with the VALUES %s template for multi-row insert
+        # Build the INSERT statement for only the columns we calculate
+        columns_str = ', '.join(columns)
+
+        # For ON CONFLICT, we only update the indicator columns (skip symbol and date which are the key)
+        update_cols = [f"{col} = EXCLUDED.{col}" for col in columns[2:]]  # Skip symbol, date
+        update_str = ', '.join(update_cols)
+
+        # execute_values expects VALUES %s for the tuple placeholder
+        upsert_sql = f"""
+        INSERT INTO technical_data_daily ({columns_str})
+        VALUES %s
+        ON CONFLICT (symbol, date)
+        DO UPDATE SET {update_str}
+        """
+
+        # Use execute_values with proper template format for bulk insert
         from psycopg2.extras import execute_values
         execute_values(cursor, upsert_sql, values, template=None, page_size=100)
         conn.commit()
         cursor.close()
 
-        logging.info(f"Successfully upserted {len(values)} latest technical records")
+        logging.info(f"Successfully upserted {len(values)} latest daily technical records")
 
     except Exception as e:
         logging.error(f"Error upserting technical data: {e}")

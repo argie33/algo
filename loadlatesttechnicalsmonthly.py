@@ -82,30 +82,23 @@ def get_latest_technical_data(symbol):
         return None
 
 def create_latest_technicals_table(conn):
-    """Create latest_technicals_monthly table if it doesn't exist"""
+    """Verify technical_data_monthly table exists (created by main loader)"""
     try:
         cursor = conn.cursor()
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS latest_technicals_monthly (
-            id SERIAL PRIMARY KEY,
-            symbol VARCHAR(10) NOT NULL,
-            date DATE NOT NULL,
-            timeframe VARCHAR(10) DEFAULT 'monthly',
-            close_price DECIMAL(12,4),
-            volume BIGINT,
-            sma_3 DECIMAL(12,4),
-            sma_6 DECIMAL(12,4),
-            sma_12 DECIMAL(12,4),
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(symbol, date, timeframe)
-        );
-        CREATE INDEX IF NOT EXISTS idx_latest_technicals_monthly_symbol ON latest_technicals_monthly(symbol);
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'technical_data_monthly'
+            );
         """)
-        conn.commit()
+        exists = cursor.fetchone()[0]
         cursor.close()
-        logging.info("latest_technicals_monthly table created/verified")
+        if exists:
+            logging.info("technical_data_monthly table verified successfully")
+        else:
+            raise Exception("technical_data_monthly table does not exist - run loadtechnicalsmonthly.py first")
     except Exception as e:
-        logging.error(f"Error creating table: {e}")
+        logging.error(f"Error verifying technical_data_monthly table: {e}")
         raise
 
 def load_symbols_from_db(conn):
@@ -120,16 +113,17 @@ def load_symbols_from_db(conn):
         raise  # Raise instead of silencing - we have real data to use
 
 def upsert_technical_data(conn, technical_data):
-    """Upsert technical data"""
+    """Upsert technical data for latest monthly indicators (delta updates)"""
     if not technical_data:
         return
     try:
         cursor = conn.cursor()
-        columns = ['symbol', 'date', 'timeframe', 'close_price', 'volume', 'sma_3', 'sma_6', 'sma_12', 'updated_at']
+        # Only upsert the columns we actually calculate
+        columns = ['symbol', 'date', 'close_price', 'volume', 'sma_3', 'sma_6', 'sma_12']
         values = [tuple(data.get(col) for col in columns) for data in technical_data]
-        placeholders = ', '.join(['%s'] * len(columns))
-        update_columns = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns[3:]])
-        upsert_sql = f"INSERT INTO latest_technicals_monthly ({', '.join(columns)}) VALUES ({placeholders}) ON CONFLICT (symbol, date, timeframe) DO UPDATE SET {update_columns}"
+        # For ON CONFLICT, only update indicator columns (skip symbol, date which are the key)
+        update_columns = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns[2:]])
+        upsert_sql = f"INSERT INTO technical_data_monthly ({', '.join(columns)}) VALUES %s ON CONFLICT (symbol, date) DO UPDATE SET {update_columns}"
         execute_values(cursor, upsert_sql, values, template=None)
         conn.commit()
         cursor.close()

@@ -1575,7 +1575,7 @@ function MarketOverview() {
                               />
                               <Tooltip
                                 formatter={(value) => [
-                                  `${value.toFixed(1)}%`,
+                                  `${(value || 0).toFixed(1)}%`,
                                   "Average Return",
                                 ]}
                               />
@@ -1619,7 +1619,7 @@ function MarketOverview() {
                               />
                               <Tooltip
                                 formatter={(value, _name, _props) => [
-                                  `${value.toFixed(1)}%`,
+                                  `${(value || 0).toFixed(1)}%`,
                                   "Average Return",
                                 ]}
                               />

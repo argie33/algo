@@ -77,42 +77,26 @@ async function syncPortfolioData() {
     const isLocal = environment === 'local' || environment === 'test' || environment === 'development';
 
     if (isLocal) {
-      const transactionCount = await query('SELECT COUNT(*) FROM portfolio_transactions');
-      if (parseInt(transactionCount.rows[0].count) === 0) {
-        console.log('📝 Inserting test transaction data (LOCAL ONLY)...');
-
-        // Create transaction data for all authentication user IDs
-        const testUsers = ['default_user', 'dev-user-bypass', 'test-user-123', 'mock-user-123'];
-
-        for (const userId of testUsers) {
-          const insertTransactions = `
-            INSERT INTO portfolio_transactions (symbol, transaction_type, quantity, price, total_amount, commission, transaction_date, settlement_date, notes, user_id, broker) VALUES
-            ('AAPL', 'BUY', 100.00, 150.00, 15000.00, 7.50, '2024-01-01', '2024-01-03', 'Initial AAPL purchase', $1, 'manual'),
-            ('MSFT', 'BUY', 50.00, 400.00, 20000.00, 5.00, '2024-01-02', '2024-01-04', 'MSFT position', $1, 'manual'),
-            ('GOOGL', 'BUY', 50.00, 160.00, 8000.00, 4.00, '2024-01-03', '2024-01-05', 'GOOGL initial purchase', $1, 'manual'),
-            ('GOOGL', 'SELL', 25.00, 140.00, 3500.00, 3.50, '2024-01-05', '2024-01-07', 'Partial GOOGL sale', $1, 'manual'),
-            ('TSLA', 'BUY', 30.00, 250.00, 7500.00, 4.00, '2024-01-10', '2024-01-12', 'Tesla investment', $1, 'manual'),
-            ('AMZN', 'DIVIDEND', 10.00, 3.50, 35.00, 0.00, '2024-01-15', '2024-01-15', 'Quarterly dividend', $1, 'manual')
-          `;
-          await query(insertTransactions, [userId]);
-          console.log(`✅ Test transaction data inserted for ${userId} (LOCAL ONLY)`);
-        }
-      } else {
-        console.log('📊 Transaction data already exists');
-      }
+      // NOTE: Test data should only be inserted via proper test migrations/fixtures
+      // NOT via inline scripts that run during production sync
+      console.log('📝 Database initialization handled by migration scripts');
     } else {
-      console.log('🏭 Production/Staging environment - skipping test data insertion');
+      console.log('🏭 Production environment - database sync active');
     }
 
-    // Clear existing holdings for all test users
-    const testUsers = ['default_user', 'dev-user-bypass', 'test-user-123', 'mock-user-123'];
-    for (const userId of testUsers) {
-      await query('DELETE FROM portfolio_holdings WHERE user_id = $1', [userId]);
-    }
-    console.log('🗑️ Cleared existing holdings for all test users');
+    // Calculate and insert portfolio holdings from transactions for all users with transactions
+    // Get distinct user IDs from actual transactions in database
+    const getUsersQuery = `SELECT DISTINCT user_id FROM portfolio_transactions ORDER BY user_id`;
+    const usersResult = await query(getUsersQuery);
+    const dbUsers = usersResult.rows.map(row => row.user_id);
 
-    // Calculate and insert portfolio holdings from transactions for all test users
-    for (const userId of testUsers) {
+    if (dbUsers.length === 0) {
+      console.log('⚠️  No users found in portfolio_transactions');
+    } else {
+      console.log(`Processing holdings for ${dbUsers.length} users with transactions`);
+    }
+
+    for (const userId of dbUsers) {
       const calculateHoldings = `
         INSERT INTO portfolio_holdings (user_id, symbol, quantity, average_cost, current_price, market_value, unrealized_pnl, unrealized_pnl_percent, last_updated)
         SELECT
@@ -129,14 +113,7 @@ async function syncPortfolioData() {
               SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE 0 END)
             ELSE 0
           END as avg_cost,
-          CASE symbol
-            WHEN 'AAPL' THEN 175.50
-            WHEN 'MSFT' THEN 420.75
-            WHEN 'GOOGL' THEN 143.50
-            WHEN 'TSLA' THEN 285.00
-            WHEN 'AMZN' THEN 148.90
-            ELSE 100.00
-          END as current_price,
+          NULL as current_price,
           0 as market_value,
           0 as unrealized_pnl,
           0 as unrealized_pnl_percent,

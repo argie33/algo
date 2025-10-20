@@ -61,29 +61,25 @@ const authenticateToken = (req, res, next) => {
       });
     }
 
-    // Check for special bypass tokens in test environment
-    if (token === "dev-bypass-token" || token === "test-token" || token === "mock-access-token") {
-      if (process.env.NODE_ENV !== 'test') {
-        console.log(`🔧 Test mode: Using ${token} for authentication`);
-      }
-      const userId = token === "dev-bypass-token" ? "dev-user-bypass" :
-                     token === "mock-access-token" ? "mock-user-123" : "test-user-123";
+    // SECURITY: Never accept bypass tokens in production
+    if (token === "dev-bypass-token") {
+      // dev-bypass-token is NEVER allowed in any environment
+      return res.status(403).json({
+        error: "Invalid token",
+        code: "INVALID_TOKEN"
+      });
+    }
+
+    // Only allow test tokens in test environment
+    if ((token === "test-token" || token === "mock-access-token") && process.env.NODE_ENV === 'test') {
+      const userId = token === "mock-access-token" ? "mock-user-123" : "test-user-123";
       req.user = {
-        id: userId,  // Add id field for route compatibility
+        id: userId,
         sub: userId,
-        email:
-          token === "dev-bypass-token"
-            ? "dev-bypass@example.com"
-            : token === "mock-access-token"
-            ? "mock@example.com"
-            : "test@example.com",
-        username:
-          token === "dev-bypass-token" ? "dev-bypass-user" :
-          token === "mock-access-token" ? "mock-user" : "test-user",
-        role: "admin",
-        sessionId:
-          token === "dev-bypass-token" ? "dev-bypass-session" :
-          token === "mock-access-token" ? "mock-session" : "test-session",
+        email: token === "mock-access-token" ? "mock@example.com" : "test@example.com",
+        username: token === "mock-access-token" ? "mock-user" : "test-user",
+        role: "user",  // Regular user role, not admin
+        sessionId: token === "mock-access-token" ? "mock-session" : "test-session",
       };
       req.token = token;
       return next();
@@ -107,7 +103,17 @@ const authenticateToken = (req, res, next) => {
       }
 
       try {
-        const jwtSecret = process.env.JWT_SECRET || "test-secret";
+        // SECURITY FIX: Require JWT_SECRET, never use hardcoded fallback
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          const errMsg = `JWT_SECRET environment variable not set. This is required for production security.`;
+          console.error(errMsg);
+          return res.status(500).json({
+            success: false,
+            error: "Authentication service misconfigured",
+            code: "MISSING_JWT_SECRET"
+          });
+        }
         const decoded = jwt.verify(token, jwtSecret);
 
         // Validate required claims - be flexible for tests
@@ -214,27 +220,38 @@ const authenticateTokenAsync = async (req, res, next) => {
       });
     }
 
-    // Check for special bypass tokens (for development and testing)
+    // SECURITY FIX: Only accept test bypass tokens in test environment
     if (token === "dev-bypass-token" || token === "test-token" || token === "mock-access-token") {
-      if (process.env.NODE_ENV !== 'test') {
-        console.log(`🔧 Using bypass token for authentication: ${token}`);
+      // Reject dev-bypass-token immediately in all environments
+      if (token === "dev-bypass-token") {
+        console.warn(`⚠️ SECURITY: Attempted use of dev-bypass-token in ${process.env.NODE_ENV} environment`);
+        return res.status(401).json({
+          success: false,
+          error: "Invalid authentication token",
+          code: "INVALID_TOKEN"
+        });
       }
+
+      // Only allow test tokens in test environment
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(`⚠️ SECURITY: Attempted use of test token (${token}) in ${process.env.NODE_ENV} environment`);
+        return res.status(401).json({
+          success: false,
+          error: "Invalid authentication token",
+          code: "INVALID_TOKEN"
+        });
+      }
+
       req.user = {
-        sub: token === "dev-bypass-token" ? "dev-user-bypass" :
-             token === "mock-access-token" ? "mock-user-123" : "test-user-123",
+        sub: token === "mock-access-token" ? "mock-user-123" : "test-user-123",
         email:
-          token === "dev-bypass-token"
-            ? "dev-bypass@example.com"
-            : token === "mock-access-token"
+          token === "mock-access-token"
             ? "mock@example.com"
             : "test@example.com",
         username:
-          token === "dev-bypass-token" ? "dev-bypass-user" :
           token === "mock-access-token" ? "mock-user" : "test-user",
-        role: "admin",
-        sessionId:
-          token === "dev-bypass-token" ? "dev-bypass-session" :
-          token === "mock-access-token" ? "mock-session" : "test-session",
+        role: "user",  // Test users get regular user role, not admin
+        sessionId: token === "mock-access-token" ? "mock-session" : "test-session",
       };
       req.token = token;
       return next();

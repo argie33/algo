@@ -602,19 +602,13 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
     } catch (error) {
       console.error(`❌ Failed to send AWS SES email: ${error.message}`);
 
-      // Fallback to console logging in development
-      if (
-        !process.env.SES_FROM_EMAIL ||
-        process.env.NODE_ENV === "development"
-      ) {
-        console.log("📧 DEV: Email would be sent with SES:", {
-          to: emailData.to,
-          subject: emailData.subject,
-          text: emailData.text.substring(0, 100) + "...",
-        });
-        return { success: true, messageId: "dev-mock-message-id" };
+      // Fail explicitly when SES is not configured
+      if (!process.env.SES_FROM_EMAIL) {
+        throw new Error("AWS SES not configured - cannot send email alert");
       }
 
+      // In development, log but still fail if configuration is missing
+      console.log("📧 SES email send failed in development:", error.message);
       throw error;
     }
   }
@@ -625,11 +619,7 @@ Metadata: ${JSON.stringify(alert.metadata, null, 2)}
   async sendSendGridEmail(emailData) {
     try {
       if (!process.env.SENDGRID_API_KEY) {
-        console.log(
-          "📧 DEV: SendGrid not configured, email would be sent:",
-          emailData.subject
-        );
-        return { success: true, messageId: "dev-sendgrid-mock-id" };
+        throw new Error("SendGrid API key not configured - cannot send email alert");
       }
 
       if (!emailData.to || !emailData.subject || !emailData.text) {

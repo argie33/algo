@@ -214,13 +214,22 @@ class RiskEngine {
         lookbackDays = arguments[2] !== undefined ? arguments[2] : 252; // Third argument is lookbackDays
         method = "historical";
 
-        // For tests: use provided portfolio array to calculate VaR with mock returns
-        positions = portfolio.map(pos => ({
-          symbol: pos.symbol || "TEST",
-          quantity: pos.quantity || 100,
-          current_price: pos.current_price || pos.currentPrice || 100,
-          total_value: pos.total_value || pos.value || (pos.quantity * (pos.current_price || pos.currentPrice || 100)) || 10000
-        }));
+        // Validate required position data - fail explicitly instead of using fallbacks
+        positions = portfolio.map(pos => {
+          if (!pos.symbol || !pos.quantity || (!pos.current_price && !pos.currentPrice)) {
+            throw new Error(
+              `Invalid position data for ${pos.symbol || "unknown"}: ` +
+              `symbol=${pos.symbol}, quantity=${pos.quantity}, ` +
+              `current_price=${pos.current_price || pos.currentPrice}`
+            );
+          }
+          return {
+            symbol: pos.symbol,
+            quantity: pos.quantity,
+            current_price: pos.current_price || pos.currentPrice,
+            total_value: pos.total_value || pos.value || (pos.quantity * (pos.current_price || pos.currentPrice))
+          };
+        });
       } else {
         // Production signature: calculateVaR(portfolioId, method, confidenceLevel, timeHorizon, lookbackDays)
         portfolioId = portfolioIdOrData;

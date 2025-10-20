@@ -399,11 +399,12 @@ router.get("/run", async (req, res) => {
     example: {
       strategy: "// Simple moving average crossover strategy",
       config: { sma_short: 20, sma_long: 50 },
-      symbols: ["AAPL", "MSFT", "GOOGL"],
+      symbols: ["User provided stock symbols"],
       startDate: "2023-01-01",
       endDate: "2024-01-01",
       initialCapital: 10000,
     },
+    note: "symbols should be provided by user or fetched dynamically based on user selection",
     usage:
       "Use POST method to submit backtest request with strategy and parameters",
     timestamp: new Date().toISOString(),

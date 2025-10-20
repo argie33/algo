@@ -884,11 +884,15 @@ router.get("/summary/:timeframe", async (req, res) => {
 // Get swing trading signals
 router.get("/swing-signals", async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const offset = (page - 1) * limit;
+
     // Check if swing_trading_signals table exists
     const tableCheck = await query(`
       SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
         AND table_name = 'swing_trading_signals'
       );
     `);
@@ -899,8 +903,8 @@ router.get("/swing-signals", async (req, res) => {
         success: true,
         data: [], // Return empty array for test compatibility
         pagination: {
-          page: 1,
-          limit: 25,
+          page: page,
+          limit: limit,
           total: 0,
           totalPages: 0,
           hasNext: false,
@@ -908,10 +912,6 @@ router.get("/swing-signals", async (req, res) => {
         }
       });
     }
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const offset = (page - 1) * limit;
 
     const swingQuery = `
       SELECT
@@ -1769,6 +1769,17 @@ router.get("/strategies", async (req, res) => {
           total_strategies: 0,
           active_strategies: 0,
           filtered_count: 0,
+        },
+        filters_applied: {
+          category: category !== "all" ? category : null,
+          risk_level: risk_level !== "all" ? risk_level : null,
+          active_only: active_only === "true",
+          limit: limit,
+        },
+        metadata: {
+          data_status: "pending",
+          last_updated: null,
+          record_count: 0,
         },
         message: "Trading strategies data not yet loaded",
         timestamp: new Date().toISOString(),

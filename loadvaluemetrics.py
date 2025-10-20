@@ -498,12 +498,15 @@ def calculate_percentile_ranks(cursor):
     logging.info("Calculating percentile ranks for all stocks...")
 
     # Fetch all stocks' value metrics from the value_inputs JSON column
+    # NOTE: We fetch ALL stocks (including those with NULL value_inputs) because
+    # this function is responsible for calculating and populating value_inputs.
+    # The circular dependency WHERE value_inputs IS NOT NULL was preventing
+    # calculation for ~1,829 stocks that had never been processed.
     cursor.execute("""
         SELECT
             symbol,
             value_inputs
         FROM stock_scores
-        WHERE value_inputs IS NOT NULL
         ORDER BY symbol
     """)
 
@@ -686,13 +689,16 @@ def main():
         sector_benchmarks = get_sector_benchmarks(cursor)
 
         # Get all active stocks
+        # NOTE: We process ALL stocks, even those without trailing_pe, because:
+        # - Some companies are unprofitable (no earnings, no PE)
+        # - We still have other valuation metrics (P/B, P/S, EV, etc.) for these stocks
+        # - Removed WHERE km.trailing_pe > 0 filter that was excluding ~1,829 stocks
         cursor.execute("""
-            SELECT DISTINCT km.ticker
-            FROM key_metrics km
-            LEFT JOIN stock_symbols ss ON km.ticker = ss.symbol
-            WHERE km.trailing_pe > 0
-              AND (ss.etf IS NULL OR ss.etf != 'Y')
-            ORDER BY km.ticker
+            SELECT DISTINCT ss.symbol
+            FROM stock_symbols ss
+            WHERE (ss.etf IS NULL OR ss.etf != 'Y')
+              AND ss.symbol IS NOT NULL
+            ORDER BY ss.symbol
         """)
 
         tickers = [row[0] for row in cursor.fetchall()]

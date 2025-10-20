@@ -79,26 +79,21 @@ def get_latest_technical_data(symbol):
 def create_table(conn):
     try:
         cursor = conn.cursor()
+        # Verify the technical_data_weekly table exists (created by main loader)
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS latest_technicals_weekly (
-            id SERIAL PRIMARY KEY,
-            symbol VARCHAR(10) NOT NULL,
-            date DATE NOT NULL,
-            timeframe VARCHAR(10) DEFAULT 'weekly',
-            close_price DECIMAL(12,4),
-            volume BIGINT,
-            sma_4 DECIMAL(12,4),
-            sma_13 DECIMAL(12,4),
-            sma_26 DECIMAL(12,4),
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(symbol, date, timeframe)
-        );
-        CREATE INDEX IF NOT EXISTS idx_latest_technicals_weekly_symbol ON latest_technicals_weekly(symbol);
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'technical_data_weekly'
+            );
         """)
-        conn.commit()
+        exists = cursor.fetchone()[0]
         cursor.close()
+        if exists:
+            logging.info("technical_data_weekly table verified successfully")
+        else:
+            raise Exception("technical_data_weekly table does not exist - run loadtechnicalsweekly.py first")
     except Exception as e:
-        logging.error(f"Error creating table: {e}")
+        logging.error(f"Error verifying technical_data_weekly table: {e}")
         raise
 
 def load_symbols_from_db(conn):
@@ -116,11 +111,12 @@ def upsert_data(conn, data):
         return
     try:
         cursor = conn.cursor()
-        columns = ['symbol', 'date', 'timeframe', 'close_price', 'volume', 'sma_4', 'sma_13', 'sma_26', 'updated_at']
+        # Only upsert the columns we actually calculate
+        columns = ['symbol', 'date', 'close_price', 'volume', 'sma_4', 'sma_13', 'sma_26']
         values = [tuple(d.get(col) for col in columns) for d in data]
-        placeholders = ', '.join(['%s'] * len(columns))
-        update_columns = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns[3:]])
-        sql = f"INSERT INTO latest_technicals_weekly ({', '.join(columns)}) VALUES ({placeholders}) ON CONFLICT (symbol, date, timeframe) DO UPDATE SET {update_columns}"
+        # For ON CONFLICT, only update indicator columns (skip symbol, date which are the key)
+        update_columns = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns[2:]])
+        sql = f"INSERT INTO technical_data_weekly ({', '.join(columns)}) VALUES %s ON CONFLICT (symbol, date) DO UPDATE SET {update_columns}"
         execute_values(cursor, sql, values, template=None)
         conn.commit()
         cursor.close()

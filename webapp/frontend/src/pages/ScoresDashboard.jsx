@@ -894,20 +894,20 @@ const ScoresDashboard = () => {
                               Quality
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {stock.quality_score.toFixed(0)}
+                              {(stock.quality_score ?? 0).toFixed(0)}
                             </Typography>
                           </Box>
                           <LinearProgress
                             variant="determinate"
-                            value={stock.quality_score}
+                            value={stock.quality_score ?? 0}
                             sx={{
                               height: 8,
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: stock.quality_score >= 80
+                                backgroundColor: (stock.quality_score ?? 0) >= 80
                                   ? theme.palette.success.main
-                                  : stock.quality_score >= 60
+                                  : (stock.quality_score ?? 0) >= 60
                                   ? theme.palette.warning.main
                                   : theme.palette.error.main,
                                 borderRadius: 1,
@@ -925,20 +925,20 @@ const ScoresDashboard = () => {
                               Momentum
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {stock.momentum_score.toFixed(0)}
+                              {(stock.momentum_score ?? 0).toFixed(0)}
                             </Typography>
                           </Box>
                           <LinearProgress
                             variant="determinate"
-                            value={stock.momentum_score}
+                            value={stock.momentum_score ?? 0}
                             sx={{
                               height: 8,
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: stock.momentum_score >= 80
+                                backgroundColor: (stock.momentum_score ?? 0) >= 80
                                   ? theme.palette.success.main
-                                  : stock.momentum_score >= 60
+                                  : (stock.momentum_score ?? 0) >= 60
                                   ? theme.palette.warning.main
                                   : theme.palette.error.main,
                                 borderRadius: 1,
@@ -956,20 +956,20 @@ const ScoresDashboard = () => {
                               Value
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {stock.value_score.toFixed(0)}
+                              {(stock.value_score ?? 0).toFixed(0)}
                             </Typography>
                           </Box>
                           <LinearProgress
                             variant="determinate"
-                            value={stock.value_score}
+                            value={stock.value_score ?? 0}
                             sx={{
                               height: 8,
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: stock.value_score >= 80
+                                backgroundColor: (stock.value_score ?? 0) >= 80
                                   ? theme.palette.success.main
-                                  : stock.value_score >= 60
+                                  : (stock.value_score ?? 0) >= 60
                                   ? theme.palette.warning.main
                                   : theme.palette.error.main,
                                 borderRadius: 1,
@@ -987,20 +987,20 @@ const ScoresDashboard = () => {
                               Growth
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {stock.growth_score.toFixed(0)}
+                              {(stock.growth_score ?? 0).toFixed(0)}
                             </Typography>
                           </Box>
                           <LinearProgress
                             variant="determinate"
-                            value={stock.growth_score}
+                            value={stock.growth_score ?? 0}
                             sx={{
                               height: 8,
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: stock.growth_score >= 80
+                                backgroundColor: (stock.growth_score ?? 0) >= 80
                                   ? theme.palette.success.main
-                                  : stock.growth_score >= 60
+                                  : (stock.growth_score ?? 0) >= 60
                                   ? theme.palette.warning.main
                                   : theme.palette.error.main,
                                 borderRadius: 1,
@@ -1018,20 +1018,20 @@ const ScoresDashboard = () => {
                               Positioning
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {stock.positioning_score.toFixed(0)}
+                              {(stock.positioning_score ?? 0).toFixed(0)}
                             </Typography>
                           </Box>
                           <LinearProgress
                             variant="determinate"
-                            value={stock.positioning_score}
+                            value={stock.positioning_score ?? 0}
                             sx={{
                               height: 8,
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: stock.positioning_score >= 80
+                                backgroundColor: (stock.positioning_score ?? 0) >= 80
                                   ? theme.palette.success.main
-                                  : stock.positioning_score >= 60
+                                  : (stock.positioning_score ?? 0) >= 60
                                   ? theme.palette.warning.main
                                   : theme.palette.error.main,
                                 borderRadius: 1,

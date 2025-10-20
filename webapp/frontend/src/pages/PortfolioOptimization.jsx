@@ -965,7 +965,7 @@ const PortfolioOptimization = () => {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value) => [`${value.toFixed(2)}%`, "Weight"]}
+                      formatter={(value) => [`${(value || 0).toFixed(2)}%`, "Weight"]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
