@@ -194,14 +194,14 @@ def calculate_buy_sell_signals_monthly(price_tech_data):
         resistance = row["resistance"]
 
         # Calculate derived metrics for monthly timeframe
-        price_vs_ma6m = ((close - ma6m) / ma6m) * 100 if ma6m > 0 else 0
-        price_vs_ma12m = ((close - ma12m) / ma12m) * 100 if ma12m > 0 else 0
+        price_vs_ma6m = ((close - ma6m) / ma6m) * 100 if ma6m > 0 else None  # NO mock fallback
+        price_vs_ma12m = ((close - ma12m) / ma12m) * 100 if ma12m > 0 else None  # NO mock fallback
         bollinger_pos = (
             ((close - bb_lower) / (bb_upper - bb_lower)) * 100
             if (bb_upper - bb_lower) > 0
-            else 50
+            else None  # NO mock fallback
         )
-        volume_ratio = volume / volume_avg if volume_avg > 0 else 1
+        volume_ratio = volume / volume_avg if volume_avg > 0 else None  # NO mock fallback
 
         # Monthly signal calculation (very conservative, trend-focused)
         buy_score = 0
@@ -252,8 +252,8 @@ def calculate_buy_sell_signals_monthly(price_tech_data):
 
         # Pattern and momentum scores
         pattern_score = min(buy_score, sell_score) / max(buy_score, sell_score, 1) * 50
-        momentum_score = abs(macd) * 5 if abs(macd) < 20 else 100
-        risk_score = min(rsi, 100 - rsi) + (volume_ratio * 3)
+        momentum_score = abs(macd) * 5 if abs(macd) < 20 else None  # NO mock fallback
+        risk_score = min(rsi, 100 - rsi) + (volume_ratio * 3) if volume_ratio else None
 
         # Generate signals (very high threshold for monthly - focus on strong trends)
         if buy_score >= 60:
