@@ -329,7 +329,7 @@ def check_data_availability(cursor, symbol):
             (symbol,)
         )
         count_result = cursor.fetchone()
-        availability['quarterly_income_statement_count'] = count_result[0] if count_result else 0
+        availability['quarterly_income_statement_count'] = count_result[0] if count_result else None  # NO mock fallback
 
         # Get list of available item names
         cursor.execute(
@@ -349,7 +349,7 @@ def check_data_availability(cursor, symbol):
             (symbol,)
         )
         count_result = cursor.fetchone()
-        availability['quarterly_cashflow_count'] = count_result[0] if count_result else 0
+        availability['quarterly_cashflow_count'] = count_result[0] if count_result else None  # NO mock fallback
 
         # Get list of available item names
         cursor.execute(
