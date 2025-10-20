@@ -218,7 +218,6 @@ router.get("/analysis", async (req, res) => {
       GROUP BY s.sector
       HAVING COUNT(DISTINCT s.ticker) >= 1
       ORDER BY monthly_change_pct DESC NULLS LAST
-      LIMIT 20
     `;
 
     const sectorData = await executeQueryWithTimeout(
@@ -1135,7 +1134,6 @@ router.get("/leaders", async (req, res) => {
         AND pd_old.close IS NOT NULL
       GROUP BY s.sector
       ORDER BY return_pct DESC NULLS LAST
-      LIMIT 5
     `;
 
     const result = await query(leadersQuery);
@@ -1262,7 +1260,6 @@ router.get("/laggards", async (req, res) => {
         AND pd_old.close IS NOT NULL
       GROUP BY s.sector
       ORDER BY return_pct ASC NULLS LAST
-      LIMIT 5
     `;
 
     const result = await query(laggardsQuery);
