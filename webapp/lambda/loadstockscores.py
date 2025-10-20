@@ -188,6 +188,168 @@ def calculate_volatility(prices, period=30):
     volatility = np.std(returns) * np.sqrt(252) * 100  # Annualized volatility
     return round(volatility, 2)
 
+def _calculate_population_stats(conn):
+    """
+    Calculate population statistics for z-score normalization.
+    Used to normalize positioning metrics to comparable scales.
+    """
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT
+                AVG(institutional_ownership) as inst_own_mean,
+                STDDEV(institutional_ownership) as inst_own_std,
+                AVG(insider_ownership) as insider_own_mean,
+                STDDEV(insider_ownership) as insider_own_std,
+                AVG(short_interest_change) as short_change_mean,
+                STDDEV(short_interest_change) as short_change_std,
+                AVG(short_percent_of_float) as short_pct_mean,
+                STDDEV(short_percent_of_float) as short_pct_std
+            FROM positioning_metrics
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        """)
+        row = cur.fetchone()
+        cur.close()
+
+        if not row or all(v is None for v in row):
+            # Return defaults if no data
+            return {
+                'inst_own_mean': 0.56,
+                'inst_own_std': 0.37,
+                'insider_own_mean': 0.15,
+                'insider_own_std': 0.21,
+                'short_change_mean': 0.0,
+                'short_change_std': 0.15,
+                'short_pct_mean': 0.067,
+                'short_pct_std': 0.095,
+            }
+
+        return {
+            'inst_own_mean': float(row[0] or 0.56),
+            'inst_own_std': float(row[1] or 0.37),
+            'insider_own_mean': float(row[2] or 0.15),
+            'insider_own_std': float(row[3] or 0.21),
+            'short_change_mean': float(row[4] or 0.0),
+            'short_change_std': float(row[5] or 0.15),
+            'short_pct_mean': float(row[6] or 0.067),
+            'short_pct_std': float(row[7] or 0.095),
+        }
+    except Exception as e:
+        logger.warning(f"Error calculating population stats: {e}")
+        # Return defaults on error
+        return {
+            'inst_own_mean': 0.56,
+            'inst_own_std': 0.37,
+            'insider_own_mean': 0.15,
+            'insider_own_std': 0.21,
+            'short_change_mean': 0.0,
+            'short_change_std': 0.15,
+            'short_pct_mean': 0.067,
+            'short_pct_std': 0.095,
+        }
+
+def calculate_positioning_score(conn, symbol, population_stats):
+    """
+    Calculate positioning score using z-score normalization.
+
+    Components (weighted):
+    - Institutional ownership (30%): Higher = more bullish
+    - Insider ownership (25%): Higher = very bullish (insider confidence)
+    - Short interest change (25%): Lower/negative = bullish (shorts covering)
+    - Short interest % (20%): Lower = bullish (less bearish pressure)
+
+    Uses z-score normalization to standardize different scales:
+    - All metrics converted to -3 to +3 standard deviations
+    - Converted to 0-100 scale for final score
+    """
+    try:
+        cur = conn.cursor()
+
+        # Get latest positioning data
+        cur.execute("""
+            SELECT
+                institutional_ownership,
+                insider_ownership,
+                short_interest_change,
+                short_percent_of_float
+            FROM positioning_metrics
+            WHERE symbol = %s
+            ORDER BY date DESC
+            LIMIT 1
+        """, (symbol,))
+
+        data = cur.fetchone()
+        cur.close()
+
+        if not data or all(v is None for v in data):
+            return None
+
+        inst_own, insider_own, short_change, short_pct = data
+
+        # Calculate z-scores for each component
+        z_scores = {}
+
+        # 1. Institutional Ownership (higher = bullish)
+        if inst_own is not None and population_stats['inst_own_std'] > 0:
+            z_scores['inst_own'] = (
+                (float(inst_own) - population_stats['inst_own_mean']) /
+                population_stats['inst_own_std']
+            )
+
+        # 2. Insider Ownership (higher = very bullish)
+        if insider_own is not None and population_stats['insider_own_std'] > 0:
+            z_scores['insider_own'] = (
+                (float(insider_own) - population_stats['insider_own_mean']) /
+                population_stats['insider_own_std']
+            )
+
+        # 3. Short Interest Change (negative = bullish, shorts covering)
+        if short_change is not None and population_stats['short_change_std'] > 0:
+            z_scores['short_change'] = (
+                (float(short_change) - population_stats['short_change_mean']) /
+                population_stats['short_change_std']
+            ) * -1  # Invert: lower/negative change is bullish
+
+        # 4. Short Interest Percentage (lower = bullish)
+        if short_pct is not None and population_stats['short_pct_std'] > 0:
+            z_scores['short_pct'] = (
+                (float(short_pct) - population_stats['short_pct_mean']) /
+                population_stats['short_pct_std']
+            ) * -1  # Invert: lower % is bullish
+
+        # If we have at least 2 components, calculate weighted score
+        if len(z_scores) < 2:
+            return None
+
+        # Weights (must sum to 1.0)
+        weights = {
+            'inst_own': 0.30,      # Institutional ownership bullish signal
+            'insider_own': 0.25,   # Insider confidence (strong signal)
+            'short_change': 0.25,  # Short covering bullish signal
+            'short_pct': 0.20,     # Overall short pressure
+        }
+
+        # Calculate weighted z-score
+        weighted_z = sum(
+            z_scores.get(component, 0) * weight
+            for component, weight in weights.items()
+            if component in z_scores
+        )
+
+        # Clamp to ±3 standard deviations (handles outliers)
+        weighted_z = max(-3, min(3, weighted_z))
+
+        # Convert z-score to 0-100 scale
+        # z=-3 → 12.5, z=0 → 50, z=+3 → 87.5
+        positioning_score = 50 + (weighted_z * 12.5)
+        positioning_score = max(0, min(100, positioning_score))
+
+        return float(round(positioning_score, 2))
+
+    except Exception as e:
+        logger.warning(f"Error calculating positioning score for {symbol}: {e}")
+        return None
+
 def get_stock_data_from_database(conn, symbol):
     """Get stock data from database tables and calculate all scores."""
     try:
