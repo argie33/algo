@@ -659,8 +659,8 @@ const MockRiskManagementComponent = ({ positions = [], orders = [] }) => {
             Max Concentration: {riskMetrics.maxConcentration.toFixed(1)}%
           </div>
           <div>Pending Orders: ${riskMetrics.pendingOrderValue.toFixed(2)}</div>
-          <div data-testid="risk-score">
-            Risk Score: {riskMetrics.riskScore.toFixed(0)}/100
+          <div data-testid="stability-score">
+            Stability Score: {riskMetrics.stabilityScore.toFixed(0)}/100
           </div>
         </div>
       )}

@@ -79,7 +79,7 @@ describe("Scores Routes Unit Tests", () => {
               growth_score: 82.5,
               positioning_score: 65.4,
               sentiment_score: 72.3,
-              risk_score: 68.5,
+              stability_score: 68.5,
               rsi: 65.4,
               macd: 2.34,
               sma_20: 150.25,

@@ -104,7 +104,7 @@ describe('Data Pipeline Integration - End-to-End', () => {
       expect(columns).toContain('value_score');
       expect(columns).toContain('quality_score');
       expect(columns).toContain('growth_score');
-      expect(columns).toContain('risk_score');
+      expect(columns).toContain('stability_score');
     });
 
     test('growth_metrics table schema should be consistent', async () => {

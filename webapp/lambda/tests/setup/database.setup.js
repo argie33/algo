@@ -370,7 +370,7 @@ async function populateLoaderTestData() {
 
     // Insert stock scores with all required fields
     await query(`
-      INSERT INTO stock_scores (symbol, date, composite_score, momentum_score, value_score, quality_score, growth_score, positioning_score, risk_score, sentiment_score, rsi, macd, sma_20, sma_50, current_price, price_change_1d, price_change_5d, price_change_30d, volatility_30d, market_cap, pe_ratio, volume_avg_30d, score_date, last_updated) VALUES
+      INSERT INTO stock_scores (symbol, date, composite_score, momentum_score, value_score, quality_score, growth_score, positioning_score, stability_score, sentiment_score, rsi, macd, sma_20, sma_50, current_price, price_change_1d, price_change_5d, price_change_30d, volatility_30d, market_cap, pe_ratio, volume_avg_30d, score_date, last_updated) VALUES
       ('AAPL', CURRENT_DATE, 88.7, 85.2, 78.3, 88.7, 82.5, 75.5, 80.0, 72.5, 65.4, 2.45, 174.5, 170.2, 175.50, 1.2, 3.5, 8.2, 18.5, 3400000000000, 28.5, 45000000, CURRENT_DATE, CURRENT_TIMESTAMP),
       ('MSFT', CURRENT_DATE, 91.2, 88.5, 85.1, 91.2, 89.5, 85.2, 82.0, 78.5, 72.1, 5.67, 418.3, 415.8, 420.75, 2.1, 5.2, 12.1, 22.3, 3200000000000, 35.8, 25000000, CURRENT_DATE, CURRENT_TIMESTAMP),
       ('GOOGL', CURRENT_DATE, 82.5, 78.9, 75.6, 82.5, 80.2, 72.5, 75.0, 68.5, 58.3, 1.23, 142.8, 140.5, 143.50, -0.5, 2.1, 4.8, 24.1, 1800000000000, 24.2, 20000000, CURRENT_DATE, CURRENT_TIMESTAMP)

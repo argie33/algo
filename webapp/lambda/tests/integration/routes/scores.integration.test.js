@@ -211,7 +211,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
         expect(response.body.data).toHaveProperty("growth_score");
         expect(response.body.data).toHaveProperty("positioning_score");
         expect(response.body.data).toHaveProperty("sentiment_score");
-        expect(response.body.data).toHaveProperty("risk_score");
+        expect(response.body.data).toHaveProperty("stability_score");
 
         // Validate factor inputs are present and have real data
         if (response.body.data.growth_inputs) {
