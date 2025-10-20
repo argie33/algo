@@ -352,7 +352,7 @@ router.get("/", async (req, res) => {
       entry_quality_score: parseInt(row.entry_quality_score || 0),
       passes_minervini_template: row.passes_minervini_template || false,
 
-      // Profit targets (O'Neill/Minervini: 8%, 20-25% targets)
+      // Profit targets (8%, 20-25% targets)
       profit_target_8pct: parseFloat(row.profit_target_8pct || 0),
       profit_target_20pct: parseFloat(row.profit_target_20pct || 0),
       profit_target_25pct: parseFloat(row.profit_target_25pct || 0),
@@ -366,7 +366,7 @@ router.get("/", async (req, res) => {
       next_earnings_date: row.next_earnings_date || null,
       days_to_earnings: row.days_to_earnings || null,
 
-      // Signal State (5% Rule - Minervini/O'Neill Method)
+      // Signal State (5% Rule - Price action pattern recognition method)
       signal_state: row.signal_state || null,
       signal_state_changed_date: row.signal_state_changed_date || null,
       previous_signal_state: row.previous_signal_state || null,
