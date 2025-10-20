@@ -112,12 +112,12 @@ def load_symbols_from_db(conn):
     """Load all active symbols from database"""
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT symbol FROM symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         return symbols
     except Exception as e:
-        return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
+        raise  # Raise instead of silencing - we have real data to use
 
 def upsert_technical_data(conn, technical_data):
     """Upsert technical data"""

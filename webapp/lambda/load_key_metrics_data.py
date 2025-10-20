@@ -87,7 +87,8 @@ def load_key_metrics_for_symbol(conn, symbol):
             'five_year_avg_dividend_yield': info.get('fiveYearAvgDividendYield'),
             'last_annual_dividend_amt': info.get('trailingAnnualDividendRate'),
             'last_annual_dividend_yield': info.get('trailingAnnualDividendYield'),
-            'payout_ratio': info.get('payoutRatio')
+            'payout_ratio': info.get('payoutRatio'),
+            'beta': info.get('beta')
         }
 
         # Insert into database

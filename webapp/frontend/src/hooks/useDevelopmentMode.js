@@ -21,7 +21,7 @@ export function useDevelopmentMode() {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout
 
-          const apiUrl = window.__CONFIG__?.API_URL || "http://localhost:5001";
+          const apiUrl = window.__CONFIG__?.API_URL || "http://localhost:3001";
           const response = await fetch(`${apiUrl}/api/health?quick=true`, {
             signal: controller.signal,
             headers: { Accept: "application/json" },

@@ -76,7 +76,8 @@ psql -h localhost -U postgres -d stocks -c "SELECT COUNT(*) as table_count FROM 
 
 ## Setup Step 4: Configure Environment
 
-Verify `.env` file has correct settings:
+### Backend Configuration
+Verify `webapp/lambda/.env` has correct settings:
 
 ```bash
 cat webapp/lambda/.env
@@ -91,6 +92,24 @@ DB_NAME=stocks
 DB_PORT=5432
 NODE_ENV=development
 LOCAL_DEV_MODE=true
+```
+
+### Frontend Configuration
+Verify `webapp/frontend/.env` has correct API port:
+
+```bash
+cat webapp/frontend/.env | grep VITE_API_URL
+```
+
+Should show:
+```
+VITE_API_URL=http://localhost:5001
+```
+
+⚠️ **CRITICAL**: If it shows `http://localhost:3001`, update it to `http://localhost:5001`
+
+```bash
+sed -i 's|http://localhost:3001|http://localhost:5001|g' webapp/frontend/.env
 ```
 
 ---

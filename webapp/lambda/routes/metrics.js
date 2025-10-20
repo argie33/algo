@@ -377,7 +377,7 @@ router.get("/:symbol", async (req, res) => {
     const { symbol } = req.params;
     console.log(`📊 Metrics requested for symbol: ${symbol.toUpperCase()}`);
 
-    // Query comprehensive financial metrics from key_metrics table with factor metrics
+    // Query comprehensive financial metrics from key_metrics table with growth and value metrics
     const symbolQuery = `
       SELECT
         km.ticker as symbol,
@@ -422,7 +422,36 @@ router.get("/:symbol", async (req, res) => {
         md.market_cap as market_capitalization,
         pd.date as last_updated,
 
-        -- Calculated value metrics from key_metrics data
+        -- Growth metrics from growth_metrics table
+        gm.revenue_growth_3y_cagr,
+        gm.eps_growth_3y_cagr,
+        gm.fcf_growth_yoy,
+        gm.net_income_growth_yoy,
+        gm.operating_income_growth_yoy,
+        gm.roe_trend,
+        gm.sustainable_growth_rate,
+        gm.asset_growth_yoy,
+        gm.gross_margin_trend,
+        gm.operating_margin_trend,
+        gm.net_margin_trend,
+        gm.quarterly_growth_momentum,
+
+        -- Value metrics from value_metrics table
+        vm.pe_ratio as vm_pe_ratio,
+        vm.pb_ratio,
+        vm.peg_ratio as vm_peg_ratio,
+        vm.ev_ebitda as vm_ev_ebitda,
+        vm.value_metric as vm_value_metric,
+        vm.multiples_metric as vm_multiples_metric,
+        vm.intrinsic_value,
+        vm.fair_value,
+        vm.pe_relative_score,
+        vm.pb_relative_score,
+        vm.ev_relative_score,
+        vm.peg_ratio_score,
+        vm.dcf_intrinsic_score,
+
+        -- Calculated value metrics from key_metrics data (fallback if vm data missing)
         CASE
           WHEN km.trailing_pe IS NOT NULL AND km.trailing_pe > 0 AND km.trailing_pe < 50 THEN 100 - (km.trailing_pe * 2)
           ELSE 50
@@ -440,13 +469,13 @@ router.get("/:symbol", async (req, res) => {
         CASE
           WHEN km.eps_trailing IS NOT NULL AND km.eps_trailing > 0 THEN km.eps_trailing * 15
           ELSE NULL
-        END as intrinsic_value,
+        END as intrinsic_value_calc,
 
         -- Fair value based on PEG ratio
         CASE
           WHEN km.peg_ratio IS NOT NULL AND km.peg_ratio > 0 AND km.peg_ratio < 3 THEN md.current_price * (1.5 / km.peg_ratio)
           ELSE NULL
-        END as fair_value,
+        END as fair_value_calc,
 
         -- Quality score from profitability metrics
         CASE
@@ -528,7 +557,11 @@ router.get("/:symbol", async (req, res) => {
         ORDER BY symbol, date DESC
       ) pd ON km.ticker = pd.symbol
       LEFT JOIN market_data md ON km.ticker = md.ticker
+      LEFT JOIN growth_metrics gm ON km.ticker = gm.symbol AND gm.date >= NOW() - INTERVAL '1 day'
+      LEFT JOIN value_metrics vm ON km.ticker = vm.symbol AND vm.date >= NOW() - INTERVAL '1 day'
       WHERE km.ticker = $1
+      ORDER BY gm.date DESC, vm.date DESC
+      LIMIT 1
     `;
 
     const result = await query(symbolQuery, [symbol.toUpperCase()]);
@@ -645,6 +678,39 @@ router.get("/:symbol", async (req, res) => {
         rsi: null,
         macd: null,
         sma20: null,
+
+        // Growth metrics from database
+        growth_metrics: {
+          revenue_growth_3y_cagr: parseFloat(metric.revenue_growth_3y_cagr) || null,
+          eps_growth_3y_cagr: parseFloat(metric.eps_growth_3y_cagr) || null,
+          fcf_growth_yoy: parseFloat(metric.fcf_growth_yoy) || null,
+          net_income_growth_yoy: parseFloat(metric.net_income_growth_yoy) || null,
+          operating_income_growth_yoy: parseFloat(metric.operating_income_growth_yoy) || null,
+          roe_trend: parseFloat(metric.roe_trend) || null,
+          sustainable_growth_rate: parseFloat(metric.sustainable_growth_rate) || null,
+          asset_growth_yoy: parseFloat(metric.asset_growth_yoy) || null,
+          gross_margin_trend: parseFloat(metric.gross_margin_trend) || null,
+          operating_margin_trend: parseFloat(metric.operating_margin_trend) || null,
+          net_margin_trend: parseFloat(metric.net_margin_trend) || null,
+          quarterly_growth_momentum: parseFloat(metric.quarterly_growth_momentum) || null,
+        },
+
+        // Value metrics from database
+        value_metrics: {
+          pe_ratio: parseFloat(metric.vm_pe_ratio) || null,
+          pb_ratio: parseFloat(metric.pb_ratio) || null,
+          peg_ratio: parseFloat(metric.vm_peg_ratio) || null,
+          ev_ebitda: parseFloat(metric.vm_ev_ebitda) || null,
+          value_metric: parseFloat(metric.vm_value_metric) || null,
+          multiples_metric: parseFloat(metric.vm_multiples_metric) || null,
+          intrinsic_value: parseFloat(metric.intrinsic_value) || null,
+          fair_value: parseFloat(metric.fair_value) || null,
+          pe_relative_score: parseFloat(metric.pe_relative_score) || null,
+          pb_relative_score: parseFloat(metric.pb_relative_score) || null,
+          ev_relative_score: parseFloat(metric.ev_relative_score) || null,
+          peg_ratio_score: parseFloat(metric.peg_ratio_score) || null,
+          dcf_intrinsic_score: parseFloat(metric.dcf_intrinsic_score) || null,
+        },
 
         lastUpdated: metric.last_updated || new Date().toISOString(),
       },

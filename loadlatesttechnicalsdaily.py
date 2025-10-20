@@ -166,15 +166,14 @@ def load_symbols_from_db(conn):
     """Load all active symbols from database"""
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT symbol FROM symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         logging.info(f"Loaded {len(symbols)} symbols from database")
         return symbols
     except Exception as e:
         logging.error(f"Error loading symbols from database: {e}")
-        # Fallback to common symbols
-        return ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'JNJ', 'V']
+        raise  # Raise instead of silencing - we have real data to use
 
 def create_latest_technicals_table(conn):
     """Create latest_technicals_daily table if it doesn't exist"""
@@ -220,41 +219,45 @@ def upsert_technical_data(conn, technical_data):
     """Upsert technical data using batch insert"""
     if not technical_data:
         return
-        
+
     try:
         cursor = conn.cursor()
-        
+
         # Prepare data for insertion
         columns = [
-            'symbol', 'date', 'timeframe', 'close_price', 'volume', 
+            'symbol', 'date', 'timeframe', 'close_price', 'volume',
             'sma_5', 'sma_10', 'sma_20', 'sma_50', 'rsi',
-            'macd', 'macd_signal', 'macd_histogram', 
+            'macd', 'macd_signal', 'macd_histogram',
             'bb_upper', 'bb_middle', 'bb_lower', 'volume_sma', 'updated_at'
         ]
-        
+
+        # Build template for execute_values with proper structure
+        placeholders = ', '.join(['%s'] * len(columns))
+        columns_str = ', '.join(columns)
+        update_columns = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns[3:]])  # Skip symbol, date, timeframe
+
+        # Use execute_values with proper template format for bulk insert with ON CONFLICT
+        upsert_sql = f"""
+        INSERT INTO latest_technicals_daily ({columns_str})
+        VALUES %s
+        ON CONFLICT (symbol, date, timeframe)
+        DO UPDATE SET {update_columns}
+        """
+
+        # Prepare values as list of tuples
         values = []
         for data in technical_data:
             row = tuple(data.get(col) for col in columns)
             values.append(row)
-        
-        # Create upsert query with ON CONFLICT
-        placeholders = ', '.join(['%s'] * len(columns))
-        columns_str = ', '.join(columns)
-        update_columns = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns[3:]])  # Skip symbol, date, timeframe
-        
-        upsert_sql = f"""
-        INSERT INTO latest_technicals_daily ({columns_str})
-        VALUES ({placeholders})
-        ON CONFLICT (symbol, date, timeframe) 
-        DO UPDATE SET {update_columns}
-        """
-        
-        execute_values(cursor, upsert_sql, values, template=None)
+
+        # Use execute_values with the VALUES %s template for multi-row insert
+        from psycopg2.extras import execute_values
+        execute_values(cursor, upsert_sql, values, template=None, page_size=100)
         conn.commit()
         cursor.close()
-        
+
         logging.info(f"Successfully upserted {len(values)} latest technical records")
-        
+
     except Exception as e:
         logging.error(f"Error upserting technical data: {e}")
         conn.rollback()

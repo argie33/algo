@@ -1213,7 +1213,7 @@ def get_risk_free_rate_fred(api_key):
     r = requests.get(url, timeout=10)
     r.raise_for_status()
     obs = [o for o in r.json().get("observations", []) if o["value"] != "."]
-    return float(obs[-1]["value"]) / 100.0 if obs else 0.0
+    return float(obs[-1]["value"]) / 100.0 if obs else None  # NO mock fallback
 
 
 ###############################################################################
@@ -1557,10 +1557,11 @@ def calculate_signal_state_metrics(df):
     # =========================================================================
 
     # Volume percentile (rank today's volume vs last 50 days)
+    # NO FALLBACK DEFAULTS - only calculate when sufficient data available
     df['volume_percentile'] = df['volume'].rolling(window=50).apply(
-        lambda x: (x.rank(pct=True).iloc[-1] * 100) if len(x) >= 50 else 50.0,
+        lambda x: (x.rank(pct=True).iloc[-1] * 100) if len(x) >= 50 else None,
         raw=False
-    ).fillna(50.0).astype(int)
+    ).astype('Int64', errors='ignore')  # Use nullable int type for None values
 
     # Volume surge on breakout (2x average on day of breakout)
     df['volume_avg_50'] = df['volume'].rolling(window=50).mean()
@@ -1925,14 +1926,14 @@ def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
         return {}
     wins = [r for r in rets if r > 0]
     losses = [r for r in rets if r < 0]
-    avg = np.mean(rets) if n else 0.0
-    std = np.std(rets, ddof=1) if n > 1 else 0.0
+    avg = np.mean(rets) if n else None  # NO mock fallback
+    std = np.std(rets, ddof=1) if n > 1 else None  # NO mock fallback
     return {
         "num_trades": n,
         "win_rate": len(wins) / n,
         "avg_return": avg,
         "profit_factor": sum(wins) / abs(sum(losses)) if losses else float("inf"),
-        "sharpe_ratio": ((avg - annual_rfr) / std * np.sqrt(n)) if std > 0 else 0.0,
+        "sharpe_ratio": ((avg - annual_rfr) / std * np.sqrt(n)) if std and std > 0 else None,  # NO mock fallback
     }
 
 
