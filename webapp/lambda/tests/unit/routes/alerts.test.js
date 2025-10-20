@@ -179,7 +179,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return alerts info", async () => {
       const response = await request(app)
         .get("/alerts/")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success");
@@ -195,7 +195,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return active alerts with proper structure", async () => {
       const response = await request(app)
         .get("/alerts/active")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -217,7 +217,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle limit parameter", async () => {
       const response = await request(app)
         .get("/alerts/active?limit=5")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body.data.alerts.length).toBeLessThanOrEqual(5);
@@ -227,7 +227,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle offset parameter", async () => {
       const response = await request(app)
         .get("/alerts/active?offset=10&limit=5")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -238,7 +238,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle priority filter", async () => {
       const response = await request(app)
         .get("/alerts/active?priority=high")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -250,7 +250,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle status filter", async () => {
       const response = await request(app)
         .get("/alerts/active?status=triggered")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       // Test that the endpoint accepts the status parameter and returns a valid response
       expect(response.status).toBe(200);
@@ -268,7 +268,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return distance-based alert analysis", async () => {
       const response = await request(app)
         .get("/alerts/distance/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -292,7 +292,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle invalid symbol", async () => {
       const response = await request(app)
         .get("/alerts/distance/INVALID")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body.data).toHaveProperty("symbol", "INVALID");
@@ -306,7 +306,7 @@ describe("Alerts Routes Unit Tests", () => {
       // First try to get an active alert ID
       const alertsResponse = await request(app)
         .get("/alerts/active")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (
         alertsResponse.status === 200 &&
@@ -316,7 +316,7 @@ describe("Alerts Routes Unit Tests", () => {
 
         const response = await request(app)
           .put(`/alerts/${alertId}/dismiss`)
-          .set("Authorization", "Bearer dev-bypass-token");
+          .set("Authorization", "Bearer test-token");
 
         expect(response.status).toBe(200);
         if (response.status === 200) {
@@ -327,7 +327,7 @@ describe("Alerts Routes Unit Tests", () => {
         // Test with non-existent ID
         const response = await request(app)
           .put("/alerts/99999/dismiss")
-          .set("Authorization", "Bearer dev-bypass-token");
+          .set("Authorization", "Bearer test-token");
 
         expect([404, 401]).toContain(response.status);
       }
@@ -336,7 +336,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle invalid alert ID format", async () => {
       const response = await request(app)
         .put("/alerts/invalid-id/dismiss")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       expect([400, 404, 401]).toContain(response.status);
     });
@@ -352,7 +352,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(alertData);
 
       expect([200, 201, 400, 401]).toContain(response.status);
@@ -377,7 +377,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/price")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(priceAlertData);
 
       if (response.status === 201) {
@@ -400,7 +400,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/price")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(incompleteData)
         .expect(400);
 
@@ -418,13 +418,13 @@ describe("Alerts Routes Unit Tests", () => {
       // First create
       const firstResponse = await request(app)
         .post("/alerts/price")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(alertData);
 
       // Second create (duplicate)
       const secondResponse = await request(app)
         .post("/alerts/price")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(alertData);
 
       if (firstResponse.status === 201) {
@@ -437,7 +437,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return price alerts for symbol", async () => {
       const response = await request(app)
         .get("/alerts/price/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -450,7 +450,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should filter alerts by status", async () => {
       const response = await request(app)
         .get("/alerts/price/AAPL?status=active")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -478,7 +478,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/volume")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(volumeAlertData);
 
       if (response.status === 201) {
@@ -499,7 +499,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/volume")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(invalidData)
         .expect(400);
 
@@ -512,7 +512,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return volume analysis for symbol", async () => {
       const response = await request(app)
         .get("/alerts/volume/analysis/TSLA")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -532,7 +532,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should include historical volume data", async () => {
       const response = await request(app)
         .get("/alerts/volume/analysis/TSLA?include_history=true")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -559,7 +559,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/technical")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(rsiAlertData);
 
       if (response.status === 201) {
@@ -583,7 +583,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/technical")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(macdAlertData);
 
       if (response.status === 201) {
@@ -604,7 +604,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/technical")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(unsupportedIndicator)
         .expect(400);
 
@@ -617,7 +617,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return technical alert status", async () => {
       const response = await request(app)
         .get("/alerts/technical/status/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -635,7 +635,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should filter by indicator type", async () => {
       const response = await request(app)
         .get("/alerts/technical/status/AAPL?indicator=RSI")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -682,7 +682,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/news")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(newsAlertData);
 
       if (response.status === 201) {
@@ -705,7 +705,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/news")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(invalidSourceData);
 
       // API may accept invalid sources - just verify response structure
@@ -722,7 +722,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return recent news alerts", async () => {
       const response = await request(app)
         .get("/alerts/news/recent/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -741,7 +741,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should filter by time period", async () => {
       const response = await request(app)
         .get("/alerts/news/recent/AAPL?hours=24")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -764,7 +764,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/portfolio")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(portfolioAlertData);
 
       if (response.status === 201) {
@@ -789,7 +789,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/portfolio")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(sectorAlertData);
 
       if (response.status === 201) {
@@ -805,7 +805,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return portfolio alert status", async () => {
       const response = await request(app)
         .get("/alerts/portfolio/status")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -817,7 +817,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should include triggered alerts summary", async () => {
       const response = await request(app)
         .get("/alerts/portfolio/status?include_triggered=true")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -841,7 +841,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .put("/alerts/1/update")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(updateData);
 
       if (response.status === 200) {
@@ -860,7 +860,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .put("/alerts/1/update")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(invalidUpdate)
         .expect(400);
 
@@ -873,7 +873,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should delete alert", async () => {
       const response = await request(app)
         .delete("/alerts/1")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -886,7 +886,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle non-existent alert deletion", async () => {
       const response = await request(app)
         .delete("/alerts/99999")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(404);
 
       expect(response.body.success).toBe(false);
@@ -903,7 +903,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/bulk/dismiss")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(dismissData);
 
       if (response.status === 200) {
@@ -922,7 +922,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/alerts/bulk/dismiss")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(invalidData)
         .expect(400);
 
@@ -939,7 +939,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return alert history with pagination", async () => {
       const response = await request(app)
         .get("/alerts/history")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -951,7 +951,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should filter history by date range", async () => {
       const response = await request(app)
         .get("/alerts/history?start_date=2024-01-01&end_date=2024-01-31")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -970,7 +970,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should filter by alert type", async () => {
       const response = await request(app)
         .get("/alerts/history?alert_type=price_above")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -986,7 +986,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return alert performance analytics", async () => {
       const response = await request(app)
         .get("/alerts/history/performance")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -998,7 +998,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should break down performance by alert type", async () => {
       const response = await request(app)
         .get("/alerts/history/performance?breakdown=alert_type")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -1016,7 +1016,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should return user alert settings", async () => {
       const response = await request(app)
         .get("/alerts/settings")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
 
       expect(response.body).toHaveProperty("success", true);
@@ -1046,7 +1046,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .put("/alerts/settings")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(settingsData);
 
       if (response.status === 200) {
@@ -1066,7 +1066,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .put("/alerts/settings")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(invalidSettings)
         .expect(400);
 
@@ -1092,7 +1092,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       const response = await request(app)
         .get("/alerts/active")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .timeout(5000);
 
       expect([200, 500, 503]).toContain(response.status);
@@ -1109,7 +1109,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle malformed request data", async () => {
       const response = await request(app)
         .post("/alerts/price")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send("invalid json string")
         .expect(400);
 
@@ -1119,7 +1119,7 @@ describe("Alerts Routes Unit Tests", () => {
     test("should handle invalid symbol format", async () => {
       const response = await request(app)
         .get("/alerts/price/INVALID_SYMBOL_123!")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(400);
 
       expect(response.body.success).toBe(false);
@@ -1137,7 +1137,7 @@ describe("Alerts Routes Unit Tests", () => {
       const promises = Array.from({ length: 10 }, () =>
         request(app)
           .post("/alerts/price")
-          .set("Authorization", "Bearer dev-bypass-token")
+          .set("Authorization", "Bearer test-token")
           .send(alertData)
       );
 

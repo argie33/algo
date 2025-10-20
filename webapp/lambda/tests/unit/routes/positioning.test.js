@@ -305,7 +305,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(mockRetailSummary);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("market_overview");
       expect(response.body).toHaveProperty("key_metrics");
@@ -333,7 +333,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(bullishRetail);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.market_overview.overall_positioning).toBe("BULLISH");
     });
@@ -353,7 +353,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(modBullishRetail);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.market_overview.overall_positioning).toBe(
         "MODERATELY_BULLISH"
@@ -375,7 +375,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(bearishRetail);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.market_overview.overall_positioning).toBe("BEARISH");
     });
@@ -395,7 +395,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(modBearishRetail);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.market_overview.overall_positioning).toBe(
         "MODERATELY_BEARISH"
@@ -418,7 +418,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(neutralRetail);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.market_overview.overall_positioning).toBe("NEUTRAL");
     });
@@ -451,7 +451,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(nullRetail);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.key_metrics.avg_institutional_ownership).toBe(0);
       expect(response.body.key_metrics.avg_insider_ownership).toBe(0);
@@ -483,7 +483,7 @@ describe("Positioning Routes", () => {
           .mockResolvedValueOnce(retailData);
         const response = await request(app)
           .get("/api/positioning/summary")
-          .set("Authorization", "Bearer dev-bypass-token")
+          .set("Authorization", "Bearer test-token")
           .expect(200);
         expect(response.body.market_overview.retail_sentiment).toBe(
           testCase.expected
@@ -496,7 +496,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(mockRetailSummary);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.last_updated).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
@@ -507,7 +507,7 @@ describe("Positioning Routes", () => {
       mockQuery.mockRejectedValue(new Error("Summary query failed"));
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(500);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Failed to fetch positioning summary");
@@ -520,7 +520,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(mockInstitutionalSummary)
         .mockResolvedValueOnce(mockRetailSummary);
-      await request(app).get("/api/positioning/summary").set("Authorization", "Bearer dev-bypass-token").expect(200);
+      await request(app).get("/api/positioning/summary").set("Authorization", "Bearer test-token").expect(200);
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("FROM positioning_metrics pm")
       );
@@ -539,7 +539,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce(mockRetailSummary);
       const response = await request(app)
         .get("/api/positioning/summary")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("market_overview");
       expect(response.body.market_overview).toHaveProperty(

@@ -141,7 +141,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
     test("should return import status information", async () => {
       const response = await request(app)
         .get("/trades/import/status")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect([200, 400, 500]); // May succeed, fail validation, or have missing dependencies
       // Should have a response body structure
       expect(response.body).toHaveProperty("success");
@@ -579,7 +579,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       query.mockRejectedValue(new Error("Connection timeout"));
       const response = await request(app)
         .get("/trades/history")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect([500, 503]); // Accept both Internal Server Error and Service Unavailable
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error || response.body.success).toBeDefined();
@@ -588,7 +588,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       transaction.mockRejectedValue(new Error("Transaction failed"));
       const response = await request(app)
         .post("/trades/import")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send({ format: "json", trades: [] })
         .expect([400, 500, 503]); // Accept Bad Request, Internal Server Error and Service Unavailable
       expect(response.body.success).toBe(false);
@@ -616,7 +616,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       });
       const response = await request(app)
         .get("/trades/import/status")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       // Should return 500, 503, or 401 depending on auth and error handling
       expect([401, 500, 503]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
@@ -624,7 +624,7 @@ MSFT,sell,50,300.00,2024-01-16`;
     test("should validate request parameters", async () => {
       const response = await request(app)
         .get("/trades/history?page=invalid&limit=abc")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect([200, 400, 401]); // May succeed with defaults, return validation error, or auth error
       expect(response.body).toHaveProperty("success");
     });

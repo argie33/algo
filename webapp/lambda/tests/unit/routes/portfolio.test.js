@@ -89,7 +89,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return portfolio info", async () => {
       const response = await request(app)
         .get("/portfolio")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -101,7 +101,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return holdings data", async () => {
       const response = await request(app)
         .get("/portfolio/holdings")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -114,7 +114,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return performance data", async () => {
       const response = await request(app)
         .get("/portfolio/performance")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -127,7 +127,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return analytics data", async () => {
       const response = await request(app)
         .get("/portfolio/analytics")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -138,7 +138,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return portfolio value data", async () => {
       const response = await request(app)
         .get("/portfolio/value")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -149,7 +149,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return risk analysis data", async () => {
       const response = await request(app)
         .get("/portfolio/risk-analysis")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -160,7 +160,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return returns data", async () => {
       const response = await request(app)
         .get("/portfolio/returns")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -171,7 +171,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return benchmark data", async () => {
       const response = await request(app)
         .get("/portfolio/benchmark")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -182,7 +182,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return risk data", async () => {
       const response = await request(app)
         .get("/portfolio/risk")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -193,7 +193,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return risk metrics", async () => {
       const response = await request(app)
         .get("/portfolio/risk-metrics")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
@@ -218,7 +218,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       ];
       const response = await request(app)
         .post("/portfolio/rebalance/execute")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send({ recommendations });
       // Test passes if either succeeds or fails gracefully with database schema issues
       if (response.status === 200) {
@@ -239,7 +239,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should reject rebalance without recommendations", async () => {
       const response = await request(app)
         .post("/portfolio/rebalance/execute")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send({})
         .expect(400);
       expect(response.body).toHaveProperty("success", false);
@@ -248,7 +248,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should reject invalid recommendations format", async () => {
       const response = await request(app)
         .post("/portfolio/rebalance/execute")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send({ recommendations: "invalid" })
         .expect(400);
       expect(response.body).toHaveProperty("success", false);
@@ -260,7 +260,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       // First execute a rebalance to create metadata
       await request(app)
         .post("/portfolio/rebalance/execute")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send({
           recommendations: [
             {
@@ -274,7 +274,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       // Then check allocation includes last rebalance date
       const response = await request(app)
         .get("/portfolio/allocation")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -295,7 +295,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return portfolio optimization recommendations", async () => {
       const response = await request(app)
         .get("/portfolio/optimization")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -308,7 +308,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should handle optimization with risk tolerance parameters", async () => {
       const response = await request(app)
         .get("/portfolio/optimization?risk_tolerance=conservative")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.optimization.parameters) {
@@ -321,7 +321,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should include rebalancing suggestions", async () => {
       const response = await request(app)
         .get("/portfolio/optimization?include_rebalancing=true")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.optimization.rebalancing) {
@@ -348,7 +348,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       const response = await request(app)
         .post("/portfolio/optimization/execute")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(optimizationData);
       expect([200, 400, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -365,7 +365,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return comprehensive portfolio analysis", async () => {
       const response = await request(app)
         .get("/portfolio/analysis")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -379,7 +379,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should include sector breakdown", async () => {
       const response = await request(app)
         .get("/portfolio/analysis?include_sectors=true")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.analysis.sectors) {
@@ -394,7 +394,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should handle time period analysis", async () => {
       const response = await request(app)
         .get("/portfolio/analysis?period=1y")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.analysis.period_analysis) {
@@ -415,7 +415,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return rebalancing recommendations", async () => {
       const response = await request(app)
         .get("/portfolio/rebalance")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -437,7 +437,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       const response = await request(app)
         .post("/portfolio/rebalance")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(customAllocations)
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -453,7 +453,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       const response = await request(app)
         .post("/portfolio/rebalance")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(invalidAllocations)
         .expect(400);
       expect(response.body.success).toBe(false);
@@ -467,7 +467,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return detailed portfolio metrics", async () => {
       const response = await request(app)
         .get("/portfolio/metrics")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -482,7 +482,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should include advanced risk metrics", async () => {
       const response = await request(app)
         .get("/portfolio/metrics?include_risk=true")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.risk_metrics) {
@@ -497,7 +497,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should support different time periods", async () => {
       const response = await request(app)
         .get("/portfolio/metrics?period=30d")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.metrics.period) {
@@ -512,7 +512,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return detailed holdings information", async () => {
       const response = await request(app)
         .get("/portfolio/holdings/detailed")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -535,7 +535,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should filter holdings by minimum value", async () => {
       const response = await request(app)
         .get("/portfolio/holdings/detailed?min_value=1000")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.holdings.length > 0) {
@@ -547,7 +547,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should sort holdings by different criteria", async () => {
       const response = await request(app)
         .get("/portfolio/holdings/detailed?sort_by=unrealized_pnl&order=desc")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.holdings.length > 1) {
@@ -570,7 +570,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       const response = await request(app)
         .post("/portfolio/holdings/add")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(holdingData);
       expect([201, 400, 409, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -584,7 +584,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       const incompleteData = { symbol: "TEST" };
       const response = await request(app)
         .post("/portfolio/holdings/add")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(incompleteData)
         .expect(400);
       expect(response.body.success).toBe(false);
@@ -598,7 +598,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       const response = await request(app)
         .post("/portfolio/holdings/add")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(holdingData);
       // Should either create or update existing holding
       expect([201, 200, 409]).toContain(response.status);
@@ -612,7 +612,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return historical performance data", async () => {
       const response = await request(app)
         .get("/portfolio/performance/history")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -630,7 +630,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         .get(
           "/portfolio/performance/history?start_date=2024-01-01&end_date=2024-01-31"
         )
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.date_range) {
@@ -647,7 +647,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should include benchmark comparison", async () => {
       const response = await request(app)
         .get("/portfolio/performance/history?benchmark=SPY")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.benchmark) {
@@ -660,7 +660,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return performance attribution analysis", async () => {
       const response = await request(app)
         .get("/portfolio/performance/attribution")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -674,7 +674,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should break down attribution by holdings", async () => {
       const response = await request(app)
         .get("/portfolio/performance/attribution?breakdown=holdings")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.holdings_attribution) {
@@ -696,7 +696,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return portfolio watchlist", async () => {
       const response = await request(app)
         .get("/portfolio/watchlist")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -706,7 +706,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should include price alerts", async () => {
       const response = await request(app)
         .get("/portfolio/watchlist?include_alerts=true")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.watchlist.length > 0) {
@@ -726,7 +726,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       const response = await request(app)
         .post("/portfolio/watchlist/add")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(watchlistData);
       expect([201, 409]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -739,7 +739,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       const invalidData = { symbol: "123INVALID" };
       const response = await request(app)
         .post("/portfolio/watchlist/add")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(invalidData)
         .expect(400);
       expect(response.body.success).toBe(false);
@@ -753,7 +753,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should export portfolio data in CSV format", async () => {
       const response = await request(app)
         .get("/portfolio/export?format=csv")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -763,7 +763,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should export portfolio data in JSON format", async () => {
       const response = await request(app)
         .get("/portfolio/export?format=json")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body.data).toHaveProperty("format", "json");
@@ -774,7 +774,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         .get(
           "/portfolio/export?format=json&include=holdings,performance,analytics"
         )
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body.success).toBe(true);
       if (response.body.data.export_data) {
@@ -790,7 +790,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should handle invalid endpoints gracefully", async () => {
       const response = await request(app)
         .get("/portfolio/invalid-endpoint")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(404);
     });
     test("should handle missing authorization", async () => {
@@ -803,7 +803,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should handle database connection errors", async () => {
       const response = await request(app)
         .get("/portfolio/holdings")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .timeout(5000);
       expect([200, 500, 503]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -811,7 +811,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should handle invalid query parameters", async () => {
       const response = await request(app)
         .get("/portfolio/metrics?period=invalid&include_risk=notboolean")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       // Should use defaults for invalid parameters
@@ -819,7 +819,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should handle large data requests with pagination", async () => {
       const response = await request(app)
         .get("/portfolio/performance/history?limit=10000")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .timeout(10000);
       expect([200, 400]).toContain(response.status);
       if (response.status === 200) {

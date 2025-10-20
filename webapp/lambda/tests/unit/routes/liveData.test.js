@@ -40,7 +40,7 @@ describe("Live Data Routes Unit Tests", () => {
     test("should return live quotes with proper structure", async () => {
       const response = await request(app)
         .get("/live-data/quotes")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -74,7 +74,7 @@ describe("Live Data Routes Unit Tests", () => {
     test("should handle symbols filter", async () => {
       const response = await request(app)
         .get("/live-data/quotes?symbols=AAPL,MSFT,GOOGL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body.data.quotes.length).toBeLessThanOrEqual(3);
@@ -88,7 +88,7 @@ describe("Live Data Routes Unit Tests", () => {
     test("should handle limit parameter", async () => {
       const response = await request(app)
         .get("/live-data/quotes?limit=5")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body.data.quotes.length).toBeLessThanOrEqual(5);
@@ -100,7 +100,7 @@ describe("Live Data Routes Unit Tests", () => {
     test("should setup SSE stream with proper headers", async () => {
       const response = await request(app)
         .get("/live-data/stream")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .timeout(2000); // Short timeout for test
 
       // SSE requests should either establish connection (200) or fail auth (401)
@@ -119,7 +119,7 @@ describe("Live Data Routes Unit Tests", () => {
     test("should return optimization status", async () => {
       const response = await request(app)
         .post("/live-data/admin/optimize")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -140,7 +140,7 @@ describe("Live Data Routes Unit Tests", () => {
     test("should handle service restart for admin", async () => {
       const response = await request(app)
         .post("/live-data/admin/restart")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -155,7 +155,7 @@ describe("Live Data Routes Unit Tests", () => {
     test("should handle cache clearing for admin", async () => {
       const response = await request(app)
         .post("/live-data/cache/clear")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -170,7 +170,7 @@ describe("Live Data Routes Unit Tests", () => {
     test("should return live data service health", async () => {
       const response = await request(app)
         .get("/live-data/health")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);

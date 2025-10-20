@@ -183,7 +183,7 @@ describe("Scores Routes Unit Tests", () => {
         });
       const response = await request(app)
         .get("/scores")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status !== 200) {
         console.log("Error response:", response.status, response.body);
       }
@@ -240,7 +240,7 @@ describe("Scores Routes Unit Tests", () => {
       const response = await request(app)
         .get("/scores")
         .query({ page: 2, limit: 25 })
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -254,7 +254,7 @@ describe("Scores Routes Unit Tests", () => {
       const response = await request(app)
         .get("/scores")
         .query({ search: "AAPL" })
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -272,7 +272,7 @@ describe("Scores Routes Unit Tests", () => {
       const response = await request(app)
         .get("/scores")
         .query({ limit: 10 })
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -285,7 +285,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should include summary statistics", async () => {
       const response = await request(app)
         .get("/scores")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("summary");
@@ -296,7 +296,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should return scores sorted by composite_score DESC by default", async () => {
       const response = await request(app)
         .get("/scores")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -314,7 +314,7 @@ describe("Scores Routes Unit Tests", () => {
       const response = await request(app)
         .get("/scores")
         .query({ limit: 500 })
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -331,7 +331,7 @@ describe("Scores Routes Unit Tests", () => {
           page: "invalid",
           limit: "not_a_number",
         })
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -343,7 +343,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should handle database timeout gracefully", async () => {
       const response = await request(app)
         .get("/scores")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       // Should either succeed (200) or fail with proper error message (500)
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -360,7 +360,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should return individual symbol score", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
         expect(response.body).toHaveProperty("data");
@@ -425,7 +425,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should handle lowercase symbol input", async () => {
       const response = await request(app)
         .get("/scores/aapl")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status === 200) {
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
       }
@@ -435,7 +435,7 @@ describe("Scores Routes Unit Tests", () => {
       // Use a symbol that definitely won't exist in production data
       const response = await request(app)
         .get("/scores/ZZZNONEXISTENT123")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       // Should return either 404 (not found) or 200 with empty data
       // Actual behavior tested in integration tests with real data
       expect([200, 404]).toContain(response.status);
@@ -443,7 +443,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should handle database errors gracefully", async () => {
       const response = await request(app)
         .get("/scores/TEST")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       // Should either succeed (200) or fail with proper error (404/500)
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -459,7 +459,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should return consistent JSON response format", async () => {
       const response = await request(app)
         .get("/scores")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
@@ -474,7 +474,7 @@ describe("Scores Routes Unit Tests", () => {
       const response = await request(app)
         .get("/scores")
         .query({ page: 2, limit: 25 })
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       // Note: Route doesn't use pagination for normal results
@@ -485,7 +485,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should validate score data types and ranges", async () => {
       const response = await request(app)
         .get("/scores")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       if (response.body.data.stocks.length > 0) {
         const stock = response.body.data.stocks[0];
@@ -515,7 +515,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should return all 12 growth metrics in factors.growth.inputs", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status === 200) {
         const data = response.body.data;
         expect(data).toHaveProperty("factors");
@@ -548,7 +548,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should have growth_score populated", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status === 200) {
         const data = response.body.data;
         expect(data.factors).toHaveProperty("growth");
@@ -561,7 +561,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should document legitimate null values for growth metrics with data constraints", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status === 200) {
         const growthInputs = response.body.data.factors.growth.inputs;
         // These metrics CAN be null due to data availability, not quality issues
@@ -587,7 +587,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should always populate revenue_growth_3y_cagr and eps_growth_3y_cagr when available", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status === 200) {
         const growthInputs = response.body.data.factors.growth.inputs;
         // These metrics are sourced from key_metrics table (most stocks have this data)
@@ -605,7 +605,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should have growth_inputs in list view with snake_case naming", async () => {
       const response = await request(app)
         .get("/scores")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       if (response.body.data.stocks.length > 0) {
         const stock = response.body.data.stocks[0];
@@ -651,7 +651,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should return complete value_inputs structure matching loader schema", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status === 200) {
         const data = response.body.data;
         expect(data).toHaveProperty("factors");
@@ -744,7 +744,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should have market benchmarks with valid data when available", async () => {
       const response = await request(app)
         .get("/scores?limit=50")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       const stocks = response.body.data.stocks;
       expect(stocks.length).toBeGreaterThan(0);
@@ -773,7 +773,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should have sector benchmarks with reasonable population rate", async () => {
       const response = await request(app)
         .get("/scores?limit=50")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       const stocks = response.body.data.stocks;
       expect(stocks.length).toBeGreaterThan(0);
@@ -804,7 +804,7 @@ describe("Scores Routes Unit Tests", () => {
     test("should document legitimate null values in stock-level metrics", async () => {
       const response = await request(app)
         .get("/scores/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       if (response.status === 200) {
         const valueInputs = response.body.data.factors.value.inputs;
         // These CAN be null due to data limitations, not data quality issues

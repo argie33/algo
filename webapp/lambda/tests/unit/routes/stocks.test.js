@@ -172,7 +172,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should return stocks data with correct loader table structure", async () => {
       const response = await request(app)
         .get("/stocks/")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -208,7 +208,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should return search results", async () => {
       const response = await request(app)
         .get("/stocks/search?q=AAPL")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("data");
@@ -218,7 +218,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should return stock list with correct loader table structure", async () => {
       const response = await request(app)
         .get("/stocks/list")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -252,7 +252,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should return stock details", async () => {
       const response = await request(app)
         .get("/stocks/AAPL")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
       // Handle both success and error cases gracefully
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -301,7 +301,7 @@ describe("Stocks Routes Unit Tests", () => {
     test("should return trending stocks", async () => {
       const response = await request(app)
         .get("/stocks/trending")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -309,14 +309,14 @@ describe("Stocks Routes Unit Tests", () => {
     test("should handle trending with timeframe", async () => {
       const response = await request(app)
         .get("/stocks/trending?timeframe=1d")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
     });
     test("should handle trending with different categories", async () => {
       const response = await request(app)
         .get("/stocks/trending?category=gainers")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
     });

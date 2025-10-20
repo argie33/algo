@@ -13,6 +13,7 @@ jest.mock("crypto", () => mockCrypto);
 // Clear module cache to ensure logger uses the mock
 delete require.cache[require.resolve("../../../utils/logger")];
 let logger; // Will be initialized in beforeEach
+let Logger; // Will be initialized in beforeEach
 
 describe("Logger", () => {
   let originalEnv;
@@ -44,7 +45,9 @@ describe("Logger", () => {
     delete require.cache[require.resolve("../../../utils/logger")];
 
     // Reinitialize logger with fresh environment
-    logger = require("../../../utils/logger");
+    const loggerModule = require("../../../utils/logger");
+    logger = loggerModule;
+    Logger = loggerModule.Logger;
   });
 
   afterEach(() => {

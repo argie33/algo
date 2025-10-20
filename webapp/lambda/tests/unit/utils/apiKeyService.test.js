@@ -82,7 +82,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
   });
   describe("validateJwtToken", () => {
     test("should validate JWT token in test environment", async () => {
-      const token = "dev-bypass-token";
+      const token = "test-token";
       jwt.verify.mockReturnValue({ sub: "dev-user-bypass" });
       const result = await validateJwtToken(token);
       expect(result.valid).toBe(true);
@@ -103,9 +103,9 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       expect(result.valid).toBe(false);
       expect(result.error).toBe("Invalid or missing JWT token");
     });
-    test("should accept dev-bypass-token in development", async () => {
+    test("should accept test-token in development", async () => {
       process.env.NODE_ENV = "development";
-      const result = await validateJwtToken("dev-bypass-token");
+      const result = await validateJwtToken("test-token");
       expect(result.valid).toBe(true);
       expect(result.user.sub).toBe("dev-user-bypass");
     });
@@ -122,7 +122,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -134,14 +134,14 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       );
     });
     test("should validate input parameters", async () => {
-      const result = await storeApiKey("dev-bypass-token", "alpaca", null);
+      const result = await storeApiKey("test-token", "alpaca", null);
       expect(result.success).toBe(false);
       expect(result.error).toContain("API key data must be a valid object");
     });
     test("should validate provider name for SQL injection", async () => {
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "'; DROP TABLE users; --",
         apiKeyData
       );
@@ -151,7 +151,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should validate required fields", async () => {
       const apiKeyData = { keyId: "test-key" }; // Missing secret
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -166,7 +166,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         secret: "test-secret",
       };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -193,7 +193,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       mockQuery.mockRejectedValue(dbError);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -220,7 +220,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await getApiKey("dev-bypass-token", "alpaca");
+      const result = await getApiKey("test-token", "alpaca");
       expect(result).toEqual({
         keyId: "stored_key",
         secret: "stored_secret",
@@ -233,7 +233,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return null for non-existent keys", async () => {
       const mockResult = { rows: [], rowCount: 0 };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await getApiKey("dev-bypass-token", "nonexistent");
+      const result = await getApiKey("test-token", "nonexistent");
       expect(result).toBeNull();
     });
     test("should handle JWT validation failure", async () => {
@@ -257,7 +257,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         ],
       };
       mockQuery.mockResolvedValue(mockResult);
-      await getApiKey("dev-bypass-token", "alpaca");
+      await getApiKey("test-token", "alpaca");
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("UPDATE user_api_keys"),
         ["dev-user-bypass", "alpaca"]
@@ -282,14 +282,14 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         ],
       };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await validateApiKey("dev-bypass-token", "alpaca", false);
+      const result = await validateApiKey("test-token", "alpaca", false);
       expect(result.valid).toBe(true);
       expect(result.provider).toBe("alpaca");
     });
     test("should handle API key not configured", async () => {
       const mockResult = { rows: [], rowCount: 0 };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await validateApiKey("dev-bypass-token", "alpaca", false);
+      const result = await validateApiKey("test-token", "alpaca", false);
       expect(result.valid).toBe(false);
       expect(result.error).toBe("API key not configured");
     });
@@ -315,7 +315,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         ],
       };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await validateApiKey("dev-bypass-token", "polygon", true);
+      const result = await validateApiKey("test-token", "polygon", true);
       expect(result.valid).toBe(true);
       expect(result.provider).toBe("polygon");
     });
@@ -330,7 +330,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await deleteApiKey("dev-bypass-token", "alpaca");
+      const result = await deleteApiKey("test-token", "alpaca");
       expect(result.success).toBe(true);
       expect(result.deleted).toBe(true);
       expect(mockQuery).toHaveBeenCalledWith(
@@ -341,7 +341,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should handle deletion of non-existent key", async () => {
       const mockResult = { rowCount: 0 };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await deleteApiKey("dev-bypass-token", "nonexistent");
+      const result = await deleteApiKey("test-token", "nonexistent");
       expect(result.success).toBe(true);
       expect(result.deleted).toBe(false);
     });
@@ -357,7 +357,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should handle database errors", async () => {
       const dbError = new Error("Database connection failed");
       mockQuery.mockRejectedValue(dbError);
-      const result = await deleteApiKey("dev-bypass-token", "alpaca");
+      const result = await deleteApiKey("test-token", "alpaca");
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to delete API key");
     });
@@ -384,7 +384,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         ],
       };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await listProviders("dev-bypass-token");
+      const result = await listProviders("test-token");
       expect(Array.isArray(result)).toBe(true);
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual(
@@ -399,7 +399,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     test("should return empty array for no providers", async () => {
       const mockResult = { rows: [] };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await listProviders("dev-bypass-token");
+      const result = await listProviders("test-token");
       expect(result).toEqual([]);
     });
     test("should handle JWT validation failure", async () => {
@@ -411,7 +411,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     });
     test("should handle database unavailable gracefully", async () => {
       mockQuery.mockResolvedValue(null);
-      const result = await listProviders("dev-bypass-token");
+      const result = await listProviders("test-token");
       expect(result).toEqual([]);
     });
   });
@@ -496,7 +496,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       // First few failures should return error responses (before circuit breaker opens)
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -541,7 +541,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "SENSITIVE_KEY", secret: "SENSITIVE_SECRET" };
-      await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      await storeApiKey("test-token", "alpaca", apiKeyData);
       // Ensure sensitive data not logged in console.log calls
       const logCalls = consoleSpy.mock.calls.flat();
       const hasLeakedData = logCalls.some(
@@ -559,7 +559,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         secret: "test-secret",
       };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -606,7 +606,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -630,7 +630,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -654,7 +654,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -719,7 +719,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     });
     test("should handle database null result", async () => {
       mockQuery.mockResolvedValue(null);
-      const result = await getApiKey("dev-bypass-token", "alpaca");
+      const result = await getApiKey("test-token", "alpaca");
       expect(result).toBeNull();
     });
     test("should handle missing required fields for provider", async () => {
@@ -740,7 +740,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         .mockResolvedValueOnce(incompleteApiKeyMockResult)
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 });
-      const result = await validateApiKey("dev-bypass-token", "alpaca", false);
+      const result = await validateApiKey("test-token", "alpaca", false);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Missing required fields");
     });
@@ -770,7 +770,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       jest.doMock("../../../utils/alpacaService", () => {
         return jest.fn().mockImplementation(() => mockAlpacaService);
       });
-      const result = await validateApiKey("dev-bypass-token", "alpaca", true);
+      const result = await validateApiKey("test-token", "alpaca", true);
       expect(result.valid).toBe(true);
     });
   });
@@ -785,7 +785,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      await storeApiKey("dev-bypass-token", "alpaca", apiKeyData);
+      await storeApiKey("test-token", "alpaca", apiKeyData);
       // Should call database for INSERT and audit log
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("INSERT INTO api_key_audit_log"),
@@ -802,7 +802,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         .mockRejectedValueOnce(new Error("Audit log failed"));
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -816,7 +816,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       process.env.ALLOW_DEV_BYPASS = "true";
     });
     test("should handle development bypass token", async () => {
-      const result = await validateJwtToken("dev-bypass-token");
+      const result = await validateJwtToken("test-token");
       expect(result.valid).toBe(true);
       expect(result.user.sub).toBe("dev-user-bypass");
       expect(result.user.role).toBe("admin");
@@ -833,7 +833,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       mockQuery.mockResolvedValue(mockResult);
       const result = await storeApiKey(
-        "dev-bypass-token",
+        "test-token",
         "alpaca",
         apiKeyData
       );
@@ -860,7 +860,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         .mockResolvedValueOnce(polygonResult)
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 });
-      const result = await validateApiKey("dev-bypass-token", "polygon", false);
+      const result = await validateApiKey("test-token", "polygon", false);
       expect(result.valid).toBe(true);
     });
     test("should handle unknown provider gracefully", async () => {
@@ -882,7 +882,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 });
       const result = await validateApiKey(
-        "dev-bypass-token",
+        "test-token",
         "unknown_provider",
         true
       );

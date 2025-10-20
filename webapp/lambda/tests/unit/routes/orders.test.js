@@ -31,7 +31,7 @@ describe("Orders Routes Unit Tests", () => {
     test("should handle user orders request", async () => {
       const response = await request(app)
         .get("/orders/")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       expect([200, 401]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -49,7 +49,7 @@ describe("Orders Routes Unit Tests", () => {
 
       const response = await request(app)
         .post("/orders/")
-        .set("Authorization", "Bearer dev-bypass-token")
+        .set("Authorization", "Bearer test-token")
         .send(orderData);
 
       expect([200, 201, 400, 401]).toContain(response.status);
@@ -61,7 +61,7 @@ describe("Orders Routes Unit Tests", () => {
     test("should handle specific order request", async () => {
       const response = await request(app)
         .get("/orders/test-order-123")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .set("Authorization", "Bearer test-token");
 
       // Expect 400 (invalid order ID), 404 (order not found), 503 (orders table missing), or 200 (if order exists)
       expect([200, 400, 401, 404, 503]).toContain(response.status);

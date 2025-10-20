@@ -240,9 +240,9 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       });
     });
   });
-  describe("dev-bypass-token handling", () => {
-    test("should allow dev-bypass-token in test environment", () => {
-      req.headers.authorization = "Bearer dev-bypass-token";
+  describe("test-token handling", () => {
+    test("should allow test-token in test environment", () => {
+      req.headers.authorization = "Bearer test-token";
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
       authenticateToken(req, res, next);
       expect(req.user).toEqual({
@@ -253,7 +253,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         role: "admin",
         sessionId: "dev-bypass-session",
       });
-      expect(req.token).toBe("dev-bypass-token");
+      expect(req.token).toBe("test-token");
       expect(next).toHaveBeenCalled();
       // Console logging is disabled during tests for performance
       expect(consoleSpy).not.toHaveBeenCalled();
