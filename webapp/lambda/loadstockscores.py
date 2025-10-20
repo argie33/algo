@@ -123,14 +123,25 @@ def get_stock_symbols(conn, limit=100):
 
         # Get symbols, prioritizing non-ETF stocks and larger symbols
         # Get symbols with sufficient price data (at least 20 records)
-        cur.execute("""
-            SELECT symbol
-            FROM stock_prices
-            GROUP BY symbol
-            HAVING COUNT(*) >= 20
-            ORDER BY symbol
-            LIMIT %s
-        """, (limit,))
+        if limit is None:
+            # Process all symbols
+            cur.execute("""
+                SELECT symbol
+                FROM stock_prices
+                GROUP BY symbol
+                HAVING COUNT(*) >= 20
+                ORDER BY symbol
+            """)
+        else:
+            # Process up to limit symbols
+            cur.execute("""
+                SELECT symbol
+                FROM stock_prices
+                GROUP BY symbol
+                HAVING COUNT(*) >= 20
+                ORDER BY symbol
+                LIMIT %s
+            """, (limit,))
 
         logger.info("🔍 Query executed, fetching results...")
         rows = cur.fetchall()
@@ -634,7 +645,7 @@ def main():
 
         # Get stock symbols
         try:
-            symbols = get_stock_symbols(conn, limit=100)  # Process up to 100 symbols
+            symbols = get_stock_symbols(conn, limit=None)  # Process ALL symbols
             if not symbols:
                 logger.error("❌ No stock symbols found")
                 return False
