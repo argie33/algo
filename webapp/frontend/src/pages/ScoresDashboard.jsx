@@ -1020,26 +1020,28 @@ const ScoresDashboard = () => {
                               Positioning
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
-                              {(stock.positioning_score ?? 0).toFixed(0)}
+                              {stock.positioning_score != null ? stock.positioning_score.toFixed(0) : "N/A"}
                             </Typography>
                           </Box>
-                          <LinearProgress
-                            variant="determinate"
-                            value={stock.positioning_score ?? 0}
-                            sx={{
-                              height: 8,
-                              borderRadius: 1,
-                              backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                              "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.positioning_score ?? 0) >= 80
-                                  ? theme.palette.success.main
-                                  : (stock.positioning_score ?? 0) >= 60
-                                  ? theme.palette.warning.main
-                                  : theme.palette.error.main,
+                          {stock.positioning_score != null && (
+                            <LinearProgress
+                              variant="determinate"
+                              value={stock.positioning_score}
+                              sx={{
+                                height: 8,
                                 borderRadius: 1,
-                              },
-                            }}
-                          />
+                                backgroundColor: alpha(theme.palette.action.disabled, 0.1),
+                                "& .MuiLinearProgress-bar": {
+                                  backgroundColor: stock.positioning_score >= 80
+                                    ? theme.palette.success.main
+                                    : stock.positioning_score >= 60
+                                    ? theme.palette.warning.main
+                                    : theme.palette.error.main,
+                                  borderRadius: 1,
+                                },
+                              }}
+                            />
+                          )}
                         </Box>
                       </Grid>
 
@@ -1079,7 +1081,7 @@ const ScoresDashboard = () => {
                         <Box>
                           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
                             <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                              Risk
+                              Stability
                             </Typography>
                             <Typography variant="caption" fontWeight={700}>
                               {(stock.stability_score || 0).toFixed(0)}
@@ -2530,9 +2532,9 @@ const ScoresDashboard = () => {
                       </TableCell>
                       <TableCell align="right">
                         <Chip
-                          label={stock.positioning_score.toFixed(1)}
+                          label={stock.positioning_score != null ? stock.positioning_score.toFixed(1) : "N/A"}
                           size="small"
-                          color={stock.positioning_score >= 80 ? "success" : "warning"}
+                          color={stock.positioning_score != null && stock.positioning_score >= 80 ? "success" : "warning"}
                         />
                       </TableCell>
                     </TableRow>

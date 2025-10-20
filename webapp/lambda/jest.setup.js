@@ -12,13 +12,13 @@ process.env.ALLOW_DEV_BYPASS = "true";
 process.env.JWT_SECRET = "test-secret-key-for-testing-only";
 
 // Set database connection environment variables FOR TESTS
-// IMPORTANT: Tests use stocks_test database, NOT production stocks database
-// Override DB_NAME unconditionally to prevent .env file from interfering
+// IMPORTANT: Tests use stocks database - same database as loaders
+// All tests point to same database where data is loaded
 if (!process.env.DB_HOST) process.env.DB_HOST = "localhost";
 if (!process.env.DB_PORT) process.env.DB_PORT = "5432";
 if (!process.env.DB_USER) process.env.DB_USER = "postgres";
 if (!process.env.DB_PASSWORD) process.env.DB_PASSWORD = "password";
-process.env.DB_NAME = "stocks_test"; // ALWAYS use test database for tests (override any .env setting)
+process.env.DB_NAME = "stocks"; // Use stocks database - same as loaders (override any .env setting)
 if (!process.env.DB_SSL) process.env.DB_SSL = "false";
 
 console.log('\n🔧 Jest setup file loaded');

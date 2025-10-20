@@ -3,12 +3,13 @@
  * Tests the complete AI strategy generation workflow with real service integration
  */
 
-
-let AIStrategyGenerator;
+const AIStrategyGeneratorModule = require("../../../services/aiStrategyGenerator");
+const AIStrategyGenerator = AIStrategyGeneratorModule.AIStrategyGenerator || AIStrategyGeneratorModule;
+const { closeDatabase } = require("../../../utils/database");
 let app;
 
 describe("AI Strategy Generator Service Integration Tests", () => {
-  
+
   afterAll(async () => {
     await closeDatabase();
   });

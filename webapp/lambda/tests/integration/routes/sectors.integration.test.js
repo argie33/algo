@@ -78,8 +78,7 @@ describe("Sectors Routes - Real Data Validation", () => {
   describe("GET /api/sectors/:sector/details", () => {
     test("should return specific sector data", async () => {
       const response = await request(app)
-        .get("/api/sectors/Technology/details")
-        .set("Authorization", "Bearer dev-bypass-token");
+        .get("/api/sectors/Technology/details");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);

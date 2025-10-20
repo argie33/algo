@@ -2,131 +2,117 @@
 
 ## Overview
 
-Integration tests now use a **separate test database** (`stocks_test`) instead of mocking database queries. This ensures tests catch real data quality issues and integration bugs.
+All tests use the **same database** (`stocks`) as the data loaders. This ensures:
+- ✅ No confusion about which database tests access
+- ✅ Tests have access to all loaded data
+- ✅ Real integration testing with production data
+- ✅ Tests validate both schema AND data
 
 ## Setup
 
-### 1. Test Database Created
-- Database: `stocks_test` (localhost:5432)
-- Schema: Copied from production `stocks` database (106 tables)
+### 1. Test Database Configuration
+- Database: `stocks` (localhost:5432)
+- Schema: Same as production (107 tables)
+- Data: Populated by Python loaders
 - Status: ✅ Ready for testing
 
 ### 2. Test Configuration
 - **File**: `jest.setup.js`
-- **Key Change**: `DB_NAME` is set to `stocks_test` for all test runs
-- **Important**: Tests NEVER use production `stocks` database
+- **Key Setting**: `DB_NAME` is set to `stocks` for all test runs
+- **Important**: Tests use the SAME database as data loaders - NO separate test database
 
 ### 3. Environment Variables for Tests
 ```bash
-DB_HOST=localhost        # Test database host
-DB_PORT=5432             # Test database port
+DB_HOST=localhost        # Database host
+DB_PORT=5432             # Database port
 DB_USER=postgres         # PostgreSQL user
 DB_PASSWORD=password     # PostgreSQL password
-DB_NAME=stocks_test      # TEST database (not production!)
+DB_NAME=stocks           # STOCKS database (same as loaders)
 DB_SSL=false             # No SSL for local testing
 ```
 
+## Data Loading
+
+Python loaders populate `stocks` database with real data:
+- `loaddailycompanydata.py` - Company profiles and stock symbols
+- `loadstockscores.py` - Stock scoring data
+- `loadpricedaily.py` - Historical price data
+- `loadnews.py` - News and sentiment data
+- `loadinfo.py` - Additional info data
+- `loadlatesttechnicalsdaily.py` - Technical indicators
+
+All tests access this same data.
+
 ## Benefits
 
+✅ **Single Source of Truth**
+- One database for both loaders and tests
+- No data synchronization required
+- No confusion about test database location
+
 ✅ **Real Integration Testing**
-- Tests query real PostgreSQL, not mocks
-- Catches schema mismatches immediately
-- Prevents data quality issues
+- Tests query real PostgreSQL with actual data
+- Validates schema correctness
+- Tests real query performance
 
-✅ **Isolated from Production**
-- Test database is completely separate
-- Tests can safely truncate/modify data
-- No risk to production data
+✅ **Complete Test Coverage**
+- Tests have access to all loaded data
+- Can validate against real data patterns
+- Catches data quality issues immediately
 
-✅ **Reproducible Results**
-- Same schema as production
-- Real query execution paths
-- Accurate performance characteristics
+## Test Data Expectations
 
-## Test Data
-
-Test database starts empty. Individual tests can:
-1. Insert specific test data
-2. Use the `db-test-helper.js` to set up fixtures
-3. Clear data between tests for isolation
-
-Example:
-```javascript
-const { resetTestDatabase } = require('../helpers/db-test-helper');
-
-beforeEach(async () => {
-  await resetTestDatabase(); // Clean state for each test
-});
-```
+Tests expect the `stocks` database to contain:
+- **price_daily**: 7.5M+ historical price records
+- **company_profile**: 5,000+ company records
+- **stock_symbols**: 5,000+ stock symbol records
+- **stock_scores**: 2,000+ scoring records
+- **technical_indicators**: 80+ indicator records
+- Plus other tables loaded by loaders
 
 ## Important Notes
 
-⚠️ **Production Safety**
-- Tests ONLY use `stocks_test` database
-- Jest setup enforces `DB_NAME=stocks_test`
-- No test can ever modify production data
+⚠️ **Single Database**
+- Tests use `stocks` database (same as loaders)
+- Jest setup enforces `DB_NAME=stocks`
+- No separate test database
 
-⚠️ **Test Isolation**
-- Each test should clean up after itself
-- Use `resetTestDatabase()` for clean state
-- Avoid test interdependencies
+⚠️ **Data Persistence**
+- Test data persists between runs
+- Tests query real data from loaders
+- Clean data for specific tests if needed
 
 ⚠️ **Debugging**
-- If tests fail, check `stocks_test` database directly:
+- If tests fail, check `stocks` database directly:
   ```bash
-  psql -h localhost -U postgres -d stocks_test
+  psql -h localhost -U postgres -d stocks
   ```
-- View test data: `SELECT * FROM stock_scores;`
-- Clear data: Queries are auto-rolled back or use truncate
-
-## Migration from Mocks
-
-### Before (Mock-based)
-```javascript
-// ❌ Mock database doesn't match reality
-jest.mock('../utils/database', () => ({
-  query: jest.fn().mockResolvedValue({
-    rows: [{ indicator: 'test' }] // Wrong field name!
-  })
-}));
-```
-
-### After (Real database)
-```javascript
-// ✅ Real database ensures correctness
-const { query } = require('../utils/database');
-const result = await query('SELECT * FROM economic_indicators');
-// Actual schema with correct field names
-```
+- View test data: `SELECT * FROM stock_scores LIMIT 10;`
+- Check loader status: `SELECT COUNT(*) FROM price_daily;`
 
 ## Troubleshooting
 
-### Test fails with "stocks_test database not found"
-```bash
-# Recreate test database
-PGPASSWORD=password psql -h localhost -U postgres << EOF
-DROP DATABASE IF EXISTS stocks_test;
-CREATE DATABASE stocks_test;
-GRANT ALL PRIVILEGES ON DATABASE stocks_test TO postgres;
-EOF
-
-# Copy schema from production
-PGPASSWORD=password pg_dump -h localhost -U postgres --schema-only stocks | \
-  PGPASSWORD=password psql -h localhost -U postgres -d stocks_test
-```
-
-### Tests running against production instead of test database
-- Verify `jest.setup.js` has `DB_NAME=stocks_test`
+### Tests running against wrong database
+- Verify `jest.setup.js` has `DB_NAME=stocks`
 - Check `process.env.DB_NAME` in running tests
 - Ensure no `.env` file overrides `DB_NAME`
 
-### Test data persists between test runs
-- Add `afterEach(() => resetTestDatabase())` to test suites
-- Or use `beforeEach` to start with clean state
-- This ensures test isolation
+### Tests report "No data found"
+- Run data loaders to populate `stocks` database:
+  ```bash
+  cd /home/stocks/algo
+  python3 loaddailycompanydata.py
+  python3 loadstockscores.py
+  ```
+- Verify data was loaded: `SELECT COUNT(*) FROM stock_symbols;`
+
+### Unexpected test failures
+- May indicate real data quality issues
+- Check data in database directly
+- Validate loader output
 
 ## References
 
-- Test Helper: `tests/helpers/db-test-helper.js`
 - Jest Setup: `jest.setup.js`
 - Database Utils: `utils/database.js`
+- Data Loaders: `/home/stocks/algo/*.py`

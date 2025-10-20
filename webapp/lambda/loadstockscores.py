@@ -36,14 +36,25 @@ import boto3
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Get database credentials from AWS Secrets Manager
-DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
-if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN not set; aborting")
-    sys.exit(1)
-
 def get_db_config():
-    """Fetch database configuration from AWS Secrets Manager."""
+    """Fetch database configuration from environment variables or AWS Secrets Manager."""
+    # Try local environment variables first (for development/testing)
+    if os.environ.get("DB_HOST"):
+        return {
+            'host': os.environ.get("DB_HOST", "localhost"),
+            'port': int(os.environ.get("DB_PORT", "5432")),
+            'user': os.environ.get("DB_USER", "postgres"),
+            'password': os.environ.get("DB_PASSWORD", "password"),
+            'dbname': os.environ.get("DB_NAME", "stocks"),
+            'sslmode': 'disable'
+        }
+
+    # Fall back to AWS Secrets Manager for production
+    DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
+    if not DB_SECRET_ARN:
+        logger.error("DB_SECRET_ARN not set and DB_HOST not set; aborting")
+        sys.exit(1)
+
     try:
         client = boto3.client("secretsmanager")
         secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
@@ -121,24 +132,22 @@ def get_stock_symbols(conn, limit=100):
         cur = conn.cursor()
         logger.info("🔍 Executing stock symbols query...")
 
-        # Get symbols, prioritizing non-ETF stocks and larger symbols
-        # Get symbols with sufficient price data (at least 20 records)
+        # Get symbols, excluding ETFs
+        # Process all stocks from stock_symbols that are not ETFs
         if limit is None:
-            # Process all symbols
+            # Process ALL non-ETF symbols
             cur.execute("""
                 SELECT symbol
-                FROM stock_prices
-                GROUP BY symbol
-                HAVING COUNT(*) >= 20
+                FROM stock_symbols
+                WHERE etf != 'Y'
                 ORDER BY symbol
             """)
         else:
-            # Process up to limit symbols
+            # Process up to limit non-ETF symbols
             cur.execute("""
                 SELECT symbol
-                FROM stock_prices
-                GROUP BY symbol
-                HAVING COUNT(*) >= 20
+                FROM stock_symbols
+                WHERE etf != 'Y'
                 ORDER BY symbol
                 LIMIT %s
             """, (limit,))
@@ -259,24 +268,25 @@ def _calculate_population_stats(conn):
             'short_pct_std': 0.095,
         }
 
-def calculate_positioning_score(conn, symbol, population_stats):
+def calculate_positioning_score(conn, symbol):
     """
-    Calculate positioning score using z-score normalization.
+    Calculate positioning score using percentile ranking.
 
-    Components (weighted):
-    - Institutional ownership (30%): Higher = more bullish
-    - Insider ownership (25%): Higher = very bullish (insider confidence)
-    - Short interest change (25%): Lower/negative = bullish (shorts covering)
-    - Short interest % (20%): Lower = bullish (less bearish pressure)
+    Components (averaged):
+    - Institutional ownership: Higher percentile = more bullish
+    - Insider ownership: Higher percentile = very bullish (insider confidence)
+    - Short interest change: Lower percentile = bullish (shorts covering)
+    - Short interest % of float: Lower percentile = bullish (less bearish pressure)
 
-    Uses z-score normalization to standardize different scales:
-    - All metrics converted to -3 to +3 standard deviations
-    - Converted to 0-100 scale for final score
+    Uses percentile ranking to automatically spread scores across 0-100:
+    - Each component ranked relative to entire population
+    - Inverted metrics (shorts) flip percentile (high value = low percentile)
+    - Final score is average of 4 percentiles
     """
     try:
         cur = conn.cursor()
 
-        # Get latest positioning data
+        # Get latest positioning data for this stock
         cur.execute("""
             SELECT
                 institutional_ownership,
@@ -290,69 +300,80 @@ def calculate_positioning_score(conn, symbol, population_stats):
         """, (symbol,))
 
         data = cur.fetchone()
-        cur.close()
 
         if not data or all(v is None for v in data):
+            cur.close()
             return None
 
         inst_own, insider_own, short_change, short_pct = data
 
-        # Calculate z-scores for each component
-        z_scores = {}
+        # Track available components
+        percentiles = []
 
-        # 1. Institutional Ownership (higher = bullish)
-        if inst_own is not None and population_stats['inst_own_std'] > 0:
-            z_scores['inst_own'] = (
-                (float(inst_own) - population_stats['inst_own_mean']) /
-                population_stats['inst_own_std']
-            )
+        # 1. Institutional Ownership - Higher is bullish
+        if inst_own is not None:
+            cur.execute("""
+                SELECT PERCENT_RANK() OVER (ORDER BY institutional_ownership)
+                FROM positioning_metrics
+                WHERE institutional_ownership IS NOT NULL
+                AND symbol = %s
+            """, (symbol,))
 
-        # 2. Insider Ownership (higher = very bullish)
-        if insider_own is not None and population_stats['insider_own_std'] > 0:
-            z_scores['insider_own'] = (
-                (float(insider_own) - population_stats['insider_own_mean']) /
-                population_stats['insider_own_std']
-            )
+            pct_row = cur.fetchone()
+            if pct_row:
+                pct = float(pct_row[0]) * 100  # Convert 0-1 to 0-100
+                percentiles.append(pct)
 
-        # 3. Short Interest Change (negative = bullish, shorts covering)
-        if short_change is not None and population_stats['short_change_std'] > 0:
-            z_scores['short_change'] = (
-                (float(short_change) - population_stats['short_change_mean']) /
-                population_stats['short_change_std']
-            ) * -1  # Invert: lower/negative change is bullish
+        # 2. Insider Ownership - Higher is bullish
+        if insider_own is not None:
+            cur.execute("""
+                SELECT PERCENT_RANK() OVER (ORDER BY insider_ownership)
+                FROM positioning_metrics
+                WHERE insider_ownership IS NOT NULL
+                AND symbol = %s
+            """, (symbol,))
 
-        # 4. Short Interest Percentage (lower = bullish)
-        if short_pct is not None and population_stats['short_pct_std'] > 0:
-            z_scores['short_pct'] = (
-                (float(short_pct) - population_stats['short_pct_mean']) /
-                population_stats['short_pct_std']
-            ) * -1  # Invert: lower % is bullish
+            pct_row = cur.fetchone()
+            if pct_row:
+                pct = float(pct_row[0]) * 100
+                percentiles.append(pct)
 
-        # If we have at least 2 components, calculate weighted score
-        if len(z_scores) < 2:
+        # 3. Short Interest Change - Lower (more negative) is bullish, so INVERT
+        if short_change is not None:
+            cur.execute("""
+                SELECT PERCENT_RANK() OVER (ORDER BY short_interest_change DESC)
+                FROM positioning_metrics
+                WHERE short_interest_change IS NOT NULL
+                AND symbol = %s
+            """, (symbol,))
+
+            pct_row = cur.fetchone()
+            if pct_row:
+                pct = float(pct_row[0]) * 100
+                percentiles.append(pct)
+
+        # 4. Short % of Float - Lower is bullish, so INVERT
+        if short_pct is not None:
+            cur.execute("""
+                SELECT PERCENT_RANK() OVER (ORDER BY short_percent_of_float DESC)
+                FROM positioning_metrics
+                WHERE short_percent_of_float IS NOT NULL
+                AND symbol = %s
+            """, (symbol,))
+
+            pct_row = cur.fetchone()
+            if pct_row:
+                pct = float(pct_row[0]) * 100
+                percentiles.append(pct)
+
+        cur.close()
+
+        # Need at least 2 components
+        if len(percentiles) < 2:
             return None
 
-        # Weights (must sum to 1.0)
-        weights = {
-            'inst_own': 0.30,      # Institutional ownership bullish signal
-            'insider_own': 0.25,   # Insider confidence (strong signal)
-            'short_change': 0.25,  # Short covering bullish signal
-            'short_pct': 0.20,     # Overall short pressure
-        }
-
-        # Calculate weighted z-score
-        weighted_z = sum(
-            z_scores.get(component, 0) * weight
-            for component, weight in weights.items()
-            if component in z_scores
-        )
-
-        # Clamp to ±3 standard deviations (handles outliers)
-        weighted_z = max(-3, min(3, weighted_z))
-
-        # Convert z-score to 0-100 scale
-        # z=-3 → 12.5, z=0 → 50, z=+3 → 87.5
-        positioning_score = 50 + (weighted_z * 12.5)
+        # Average the percentiles (0-100 scale)
+        positioning_score = sum(percentiles) / len(percentiles)
         positioning_score = max(0, min(100, positioning_score))
 
         return float(round(positioning_score, 2))
@@ -423,13 +444,13 @@ def get_stock_data_from_database(conn, symbol):
         volatility_30d = calculate_volatility(prices)
 
         # Get earnings data for PE ratio and growth calculation
-        # Use earnings_history table (16,768 records) instead of earnings table (40 records)
+        # Use earnings_history table (4000+ records for EPS data)
         cur.execute("""
-            SELECT actual_eps, report_date
+            SELECT eps_actual, quarter
             FROM earnings_history
             WHERE symbol = %s
-            AND report_date >= CURRENT_DATE - INTERVAL '24 months'
-            ORDER BY report_date DESC
+            AND quarter >= CURRENT_DATE - INTERVAL '24 months'
+            ORDER BY quarter DESC
             LIMIT 8
         """, (symbol,))
 
@@ -524,15 +545,10 @@ def get_stock_data_from_database(conn, symbol):
 
         growth_score = max(0, min(100, growth_score))
 
-        # Positioning Score - calculated with z-score normalization
+        # Positioning Score - calculated with percentile ranking
         # Uses institutional ownership, insider ownership, short interest data
-        # Population stats cached for efficiency (reused across all stocks)
-        if not hasattr(get_stock_data_from_database, '_pop_stats'):
-            get_stock_data_from_database._pop_stats = _calculate_population_stats(conn)
-
-        positioning_score = calculate_positioning_score(
-            conn, symbol, get_stock_data_from_database._pop_stats
-        )
+        # Each component ranked relative to population for automatic 0-100 spread
+        positioning_score = calculate_positioning_score(conn, symbol)
 
         # Sentiment Score - placeholder for future implementation
         sentiment_score = None  # Requires real sentiment data source

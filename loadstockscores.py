@@ -873,30 +873,61 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Get real positioning data from positioning_metrics table
         try:
-            cur.execute("""
-                SELECT
-                    institutional_ownership,
-                    insider_ownership,
-                    short_percent_of_float,
-                    institution_count
-                FROM positioning_metrics
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT 1
-            """, (symbol,))
-            positioning_data = cur.fetchone()
+            # Query positioning data directly from yfinance-sourced tables
+            # NO positioning_metrics table needed - get data from yfinance tables instead
+
             institutional_ownership = None
             insider_ownership = None
-            short_percent_of_float = None
+            short_percent_of_float = None  # Will remain None if not available in data
             institution_count = None
-            if positioning_data:
-                institutional_ownership = float(positioning_data[0]) if positioning_data[0] is not None else None
-                insider_ownership = float(positioning_data[1]) if positioning_data[1] is not None else None
-                short_percent_of_float = float(positioning_data[2]) if positioning_data[2] is not None else None
-                institution_count = int(positioning_data[3]) if positioning_data[3] is not None else None
+
+            # 1. Get institutional ownership & count from institutional_positioning (yfinance data)
+            try:
+                cur.execute("""
+                    SELECT
+                        SUM(CASE WHEN market_share IS NOT NULL THEN market_share ELSE 0 END) as total_market_share,
+                        COUNT(DISTINCT institution_name) as count
+                    FROM institutional_positioning
+                    WHERE symbol = %s
+                """, (symbol,))
+                inst_data = cur.fetchone()
+                if inst_data:
+                    # market_share is already as decimal (0.0-1.0)
+                    institutional_ownership = float(inst_data[0]) if inst_data[0] is not None and inst_data[0] > 0 else None
+                    institution_count = int(inst_data[1]) if inst_data[1] is not None and inst_data[1] > 0 else None
+            except psycopg2.Error as e:
+                logger.debug(f"Institutional positioning query failed for {symbol}: {e}")
+
+            # 2. Get insider ownership count from insider_roster (yfinance data)
+            # NOTE: We can't calculate true insider ownership % without market cap/shares outstanding
+            # So we use insider_count as a presence indicator instead
+            insider_count = None
+            try:
+                cur.execute("""
+                    SELECT COUNT(DISTINCT insider_name) as insider_count
+                    FROM insider_roster
+                    WHERE symbol = %s AND shares_owned_directly > 0
+                """, (symbol,))
+                insider_count_data = cur.fetchone()
+                if insider_count_data and insider_count_data[0] is not None:
+                    insider_count = int(insider_count_data[0]) if insider_count_data[0] > 0 else None
+            except psycopg2.Error as e:
+                logger.debug(f"Insider count query failed for {symbol}: {e}")
+
+            # Use insider_count as a proxy for insider_ownership score
+            # (more insiders = more confidence in the company)
+            # This will be scored using the institution_count thresholds (50+ = good support)
+            if insider_count is not None and insider_count >= 5:
+                insider_ownership = 5  # Presence of 5+ insiders with holdings = good sign
+            elif insider_count is not None and insider_count >= 3:
+                insider_ownership = 3  # 3-4 insiders = moderate confidence
+            # else: insider_ownership stays None if <3 or no data
+
+            # Note: short_percent_of_float may not exist in yfinance tables and will remain None
+
         except psycopg2.Error as e:
             conn.rollback()
-            logger.warning(f"Positioning metrics table query failed for {symbol}: {e}")
+            logger.warning(f"Positioning data query failed for {symbol}: {e}")
             institutional_ownership = None
             insider_ownership = None
             short_percent_of_float = None
@@ -1353,18 +1384,22 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
                     if fcf_yield is not None:
                         fcf_yield = float(fcf_yield)
-                        market_fcf_yield = float(market_fcf_yield) if market_fcf_yield else None  # NO mock fallback
+                        # FIX: Use explicit None check, not falsy check (0.0 is valid, not None)
+                        if market_fcf_yield is not None:
+                            market_fcf_yield = float(market_fcf_yield)
+                        else:
+                            market_fcf_yield = None
 
                         if fcf_yield < 0:
                             # Negative FCF = value trap
                             fcf_modifier = 0.5
-                        elif fcf_yield < market_fcf_yield * 0.5:
+                        elif market_fcf_yield is not None and fcf_yield < market_fcf_yield * 0.5:
                             # Low FCF yield
                             fcf_modifier = 0.8
-                        elif fcf_yield > market_fcf_yield:
+                        elif market_fcf_yield is not None and fcf_yield > market_fcf_yield:
                             # Strong FCF yield above market
                             fcf_modifier = 1.2
-                        elif fcf_yield > market_fcf_yield * 0.75:
+                        elif market_fcf_yield is not None and fcf_yield > market_fcf_yield * 0.75:
                             # Good FCF yield
                             fcf_modifier = 1.1
 
