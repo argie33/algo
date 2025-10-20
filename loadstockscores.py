@@ -866,28 +866,32 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # Calculate volatility directly from price data (30-day)
             volatility_12m_pct = calculate_volatility(prices)  # Annualized
             if volatility_12m_pct is None:
-                logger.warning(f"{symbol}: Cannot calculate volatility - insufficient price data")
-                volatility_12m_pct = 50  # Default to mid-range if missing
+                # No fallback - stability will be None if volatility missing
+                stability_score = None
+                logger.warning(f"{symbol}: Cannot calculate volatility - cannot calculate stability score")
 
             # Calculate downside volatility (only on down days)
             downside_volatility = calculate_downside_volatility(prices)
             if downside_volatility is None:
-                logger.warning(f"{symbol}: Cannot calculate downside volatility")
-                downside_volatility = volatility_12m_pct * 0.7  # Estimate as 70% of total vol
+                # No fallback - stability will be None if downside volatility missing
+                stability_score = None
+                logger.warning(f"{symbol}: Cannot calculate downside volatility - cannot calculate stability score")
 
             # Fetch beta from database (fetched from yfinance by loaddailycompanydata.py)
             beta = fetch_beta_from_database(conn, symbol)
             if beta is None:
-                logger.warning(f"{symbol}: Beta not found in database - using neutral 1.0")
-                beta = 1.0  # Neutral beta if not available
+                # No fallback - stability will be None if beta missing
+                stability_score = None
+                logger.warning(f"{symbol}: Beta not found in database - cannot calculate stability score")
 
-            # Calculate liquidity risk (based on volume) with fallback
+            # Calculate liquidity risk (based on volume)
             liquidity_risk = calculate_liquidity_risk(volume_avg_30d, current_price)
             if liquidity_risk is None:
-                logger.warning(f"{symbol}: Cannot calculate liquidity risk - no volume data, using 50 (neutral)")
-                liquidity_risk = 50  # Neutral liquidity score if no volume
+                # No fallback - stability will be None if liquidity missing
+                stability_score = None
+                logger.warning(f"{symbol}: Cannot calculate liquidity risk - cannot calculate stability score")
 
-            # Try to get drawdown from risk_metrics table with fallback calculation
+            # Try to get drawdown from risk_metrics table
             max_drawdown_52w_pct = None
             try:
                 cur.execute("""
@@ -920,35 +924,46 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     logging.debug(f"Failed to calculate drawdown for {symbol}: {e}")
                     max_drawdown_52w_pct = None
 
-            logger.info(f"{symbol}: Calculated risk components - Vol={volatility_12m_pct:.1f}%, Downside={downside_volatility:.1f}%, Drawdown={max_drawdown_52w_pct:.1f}%, Beta={beta:.2f}, Liquidity={liquidity_risk:.0f}")
+            vol_str = f"{volatility_12m_pct:.1f}%" if volatility_12m_pct is not None else "N/A"
+            downside_str = f"{downside_volatility:.1f}%" if downside_volatility is not None else "N/A"
+            drawdown_str = f"{max_drawdown_52w_pct:.1f}%" if max_drawdown_52w_pct is not None else "N/A"
+            beta_str = f"{beta:.2f}" if beta is not None else "N/A"
+            liquidity_str = f"{liquidity_risk:.0f}" if liquidity_risk is not None else "N/A"
+            logger.info(f"{symbol}: Calculated risk components - Vol={vol_str}, Downside={downside_str}, Drawdown={drawdown_str}, Beta={beta_str}, Liquidity={liquidity_str}")
 
-            # All components available (with fallbacks) - calculate risk score
-            # Convert all to 0-100 scale for risk components
-            vol_percentile = max(0, min(100, 100 - (volatility_12m_pct * 2)))  # Inverted: lower vol = higher score
-            downside_percentile = max(0, min(100, 100 - (downside_volatility * 3)))  # Inverted
-            drawdown_percentile = max(0, min(100, 100 - max_drawdown_52w_pct))  # Inverted: lower drawdown = higher score
-            beta_percentile = max(0, min(100, 100 - (beta * 50)))  # Scale: 1.0=50, 0.5=75, 1.5=25
-            liquidity_percentile = liquidity_risk
+            # Only calculate stability_score if ALL required components available (NO FALLBACK)
+            # Beta is REQUIRED - cannot calculate without it
+            if beta is None or volatility_12m_pct is None or downside_volatility is None or max_drawdown_52w_pct is None:
+                stability_score = None
+                logger.info(f"{symbol} Stability Score: None (missing required risk data - no fallback calculation)")
+            else:
+                # All components available - calculate risk score
+                # Convert all to 0-100 scale for risk components
+                vol_percentile = max(0, min(100, 100 - (volatility_12m_pct * 2)))  # Inverted: lower vol = higher score
+                downside_percentile = max(0, min(100, 100 - (downside_volatility * 3)))  # Inverted
+                drawdown_percentile = max(0, min(100, 100 - max_drawdown_52w_pct))  # Inverted: lower drawdown = higher score
+                beta_percentile = max(0, min(100, 100 - (beta * 50)))  # Scale: 1.0=50, 0.5=75, 1.5=25
+                liquidity_percentile = liquidity_risk  # NO fallback - will be None if liquidity_risk missing
 
-            # Calculate composite consistency score with new weighting
-            # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
-            stability_score = (
-                vol_percentile * 0.30 +
-                downside_percentile * 0.25 +
-                drawdown_percentile * 0.25 +
-                beta_percentile * 0.15 +
-                liquidity_percentile * 0.05
-            )
-            stability_score = max(0, min(100, stability_score))
+                # Calculate composite consistency score with new weighting
+                # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
+                stability_score = (
+                    vol_percentile * 0.30 +
+                    downside_percentile * 0.25 +
+                    drawdown_percentile * 0.25 +
+                    beta_percentile * 0.15 +
+                    liquidity_percentile * 0.05
+                )
+                stability_score = max(0, min(100, stability_score))
 
-            # Store risk inputs for display
-            stability_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
-            stability_inputs['downside_volatility_pct'] = round(downside_volatility, 2)
-            stability_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2)
-            stability_inputs['beta'] = round(beta, 3)
-            stability_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
+                # Store risk inputs for display
+                stability_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
+                stability_inputs['downside_volatility_pct'] = round(downside_volatility, 2)
+                stability_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2)
+                stability_inputs['beta'] = round(beta, 3)
+                stability_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
 
-            logger.info(f"{symbol} Stability Score: {stability_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
+                logger.info(f"{symbol} Stability Score: {stability_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
 
         except Exception as e:
             import traceback
@@ -1276,7 +1291,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
                     if fcf_yield is not None:
                         fcf_yield = float(fcf_yield)
-                        market_fcf_yield = float(market_fcf_yield) if market_fcf_yield else 3.5
+                        market_fcf_yield = float(market_fcf_yield) if market_fcf_yield else None  # NO mock fallback
 
                         if fcf_yield < 0:
                             # Negative FCF = value trap
@@ -1563,17 +1578,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             positioning_score = inst_score + insider_score + short_score + acc_dist_score + count_score
             positioning_score = max(0, min(100, positioning_score))
 
-        # Sentiment Score (Analyst ratings + Market sentiment)
-        # Start with neutral 50, adjust based on available data
-        sentiment_score = 50
+        # Sentiment Score (Analyst ratings + Market sentiment) - ONLY REAL DATA
+        # Start with None - only use if we have real data
+        sentiment_score = None
 
         # Analyst sentiment component (0-50 points)
         if analyst_score is not None:
             # Scale from 1-5 to 0-50: (score-1)/4 * 50
             analyst_component = ((analyst_score - 1) / 4) * 50
             sentiment_score = analyst_component
-        else:
-            sentiment_score = 50  # Neutral if no analyst data
+        # No else clause - remain None if no analyst data (no fallback to 50)
 
         # News sentiment component (add up to ±25 points)
         if sentiment_score_raw is not None:
