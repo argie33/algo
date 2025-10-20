@@ -69,18 +69,18 @@ def fetch_stock_performance(symbol, period="3mo"):
         current = hist['Close'].iloc[-1]
         prices = hist['Close'].values
 
-        perf_1d = ((current - prices[-2]) / prices[-2] * 100) if len(prices) >= 2 else 0
-        perf_5d = ((current - prices[-6]) / prices[-6] * 100) if len(prices) >= 6 else 0
-        perf_20d = ((current - prices[-21]) / prices[-21] * 100) if len(prices) >= 21 else 0
+        perf_1d = ((current - prices[-2]) / prices[-2] * 100) if len(prices) >= 2 else None  # NO mock fallback
+        perf_5d = ((current - prices[-6]) / prices[-6] * 100) if len(prices) >= 6 else None  # NO mock fallback
+        perf_20d = ((current - prices[-21]) / prices[-21] * 100) if len(prices) >= 21 else None  # NO mock fallback
 
         # Get market cap from info
         info = ticker.info
-        market_cap = info.get('marketCap', 0)
+        market_cap = info.get('marketCap', None)  # NO mock fallback
 
         return {
             'symbol': symbol,
             'current_price': float(current),
-            'change': float(current - prices[-2]) if len(prices) >= 2 else 0,
+            'change': float(current - prices[-2]) if len(prices) >= 2 else None,  # NO mock fallback
             'change_percent': float(perf_1d),
             'volume': int(hist['Volume'].iloc[-1]),
             'market_cap': market_cap,
@@ -208,7 +208,7 @@ def calculate_industry_performance(cur, spy_prices=None):
             'momentum': momentum,
             'trend': trend,
             'total_market_cap': int(total_market_cap),
-            'avg_market_cap': int(total_market_cap / len(market_caps)) if market_caps else 0,
+            'avg_market_cap': int(total_market_cap / len(market_caps)) if market_caps else None,  # NO mock fallback
         })
 
         logging.info(f"  ✅ {industry}: {len(stock_performances)} stocks, Perf={avg_perf_20d:.2f}%, Momentum={momentum}")
