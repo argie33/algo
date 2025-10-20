@@ -89,21 +89,27 @@ def calculate_market_benchmarks(cursor):
 
     row = cursor.fetchone()
     benchmarks = {
-        "pe_median": float(row[0]) if row[0] else 18.0,
-        "pb_median": float(row[1]) if row[1] else 2.5,
-        "ps_median": float(row[2]) if row[2] else 2.8,
-        "ev_ebitda_median": float(row[3]) if row[3] else 12.0,
-        "fcf_yield_median": float(row[4]) if row[4] else 3.5,
-        "dividend_yield_median": float(row[5]) if row[5] else 1.8,
+        "pe_median": float(row[0]) if row[0] else None,
+        "pb_median": float(row[1]) if row[1] else None,
+        "ps_median": float(row[2]) if row[2] else None,
+        "ev_ebitda_median": float(row[3]) if row[3] else None,
+        "fcf_yield_median": float(row[4]) if row[4] else None,
+        "dividend_yield_median": float(row[5]) if row[5] else None,
         "stock_count": int(row[6]) if row[6] else 0,
     }
 
-    logging.info(f"  Market PE Median: {benchmarks['pe_median']:.2f}")
-    logging.info(f"  Market PB Median: {benchmarks['pb_median']:.2f}")
-    logging.info(f"  Market PS Median: {benchmarks['ps_median']:.2f}")
-    logging.info(f"  Market EV/EBITDA Median: {benchmarks['ev_ebitda_median']:.2f}")
-    logging.info(f"  Market FCF Yield Median: {benchmarks['fcf_yield_median']:.2f}%")
-    logging.info(f"  Market Dividend Yield Median: {benchmarks['dividend_yield_median']:.2f}%")
+    pe_val = f"{benchmarks['pe_median']:.2f}" if benchmarks['pe_median'] is not None else 'N/A'
+    pb_val = f"{benchmarks['pb_median']:.2f}" if benchmarks['pb_median'] is not None else 'N/A'
+    ps_val = f"{benchmarks['ps_median']:.2f}" if benchmarks['ps_median'] is not None else 'N/A'
+    ev_val = f"{benchmarks['ev_ebitda_median']:.2f}" if benchmarks['ev_ebitda_median'] is not None else 'N/A'
+    fcf_val = f"{benchmarks['fcf_yield_median']:.2f}" if benchmarks['fcf_yield_median'] is not None else 'N/A'
+    div_val = f"{benchmarks['dividend_yield_median']:.2f}" if benchmarks['dividend_yield_median'] is not None else 'N/A'
+    logging.info(f"  Market PE Median: {pe_val}")
+    logging.info(f"  Market PB Median: {pb_val}")
+    logging.info(f"  Market PS Median: {ps_val}")
+    logging.info(f"  Market EV/EBITDA Median: {ev_val}")
+    logging.info(f"  Market FCF Yield Median: {fcf_val}%")
+    logging.info(f"  Market Dividend Yield Median: {div_val}%")
     logging.info(f"  Stocks in Market: {benchmarks['stock_count']}")
 
     return benchmarks
@@ -179,15 +185,15 @@ def calculate_dcf_intrinsic(
     """
     Calculate DCF intrinsic value per share
     Uses simplified 2-stage growth model
+    NOTE: Beta must be available from risk_metrics table - no fallback to 1.0
     """
     if not (free_cashflow and shares_outstanding and free_cashflow > 0 and shares_outstanding > 0):
         return None
 
-    # Cost of equity (CAPM): risk_free_rate + beta * market_risk_premium
-    risk_free_rate = 0.045  # 4.5%
-    market_risk_premium = 0.065  # 6.5%
-    beta = 1.0  # Default market beta
-    cost_of_equity = risk_free_rate + beta * market_risk_premium
+    # DCF requires real beta from database - no fallback calculation without it
+    # If beta is needed, it must be passed as parameter or queried separately
+    # For now, skip DCF if we don't have the required risk metric
+    return None
 
     # Growth assumptions
     high_growth_rate = min(0.25, max(0.02, growth_rate or 0.05))

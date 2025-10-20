@@ -901,24 +901,8 @@ def fetch_symbol_from_db(symbol, timeframe):
             f"[fetch_symbol_from_db] Got {len(rows)} rows for {symbol} {timeframe}"
         )
     except psycopg2.Error as e:
-        logging.warning(f"[fetch_symbol_from_db] Technical data table issue for {symbol} {timeframe}: {e}")
-        # Fallback query with only price data
-        try:
-            sql = f"""
-              SELECT
-                date, open, high, low, close, volume,
-                50 as rsi, 0 as atr, 0 as adx, 0 as plus_di, 0 as minus_di,
-                close as sma_50, 0 as pivot_high, 0 as pivot_low
-              FROM {price_table}
-              WHERE symbol = %s
-              ORDER BY date ASC;
-            """
-            cur.execute(sql, (symbol,))
-            rows = cur.fetchall()
-            logging.info(f"[fetch_symbol_from_db] Fallback query got {len(rows)} rows for {symbol} {timeframe}")
-        except Exception as fallback_e:
-            logging.error(f"[fetch_symbol_from_db] Fallback SQL error for {symbol} {timeframe}: {fallback_e}")
-            rows = []
+        logging.warning(f"[fetch_symbol_from_db] Technical data table issue for {symbol} {timeframe}: {e} - No data returned")
+        rows = []
     except Exception as e:
         logging.error(f"[fetch_symbol_from_db] SQL error for {symbol} {timeframe}: {e}")
         rows = []
@@ -1150,10 +1134,11 @@ def calculate_signal_state_metrics(df):
     # =========================================================================
 
     # Volume percentile (rank today's volume vs last 50 days)
+    # NO FALLBACK DEFAULTS - only calculate when sufficient data available
     df['volume_percentile'] = df['volume'].rolling(window=50).apply(
-        lambda x: (x.rank(pct=True).iloc[-1] * 100) if len(x) >= 50 else 50.0,
+        lambda x: (x.rank(pct=True).iloc[-1] * 100) if len(x) >= 50 else None,
         raw=False
-    ).fillna(50.0).astype(int)
+    ).astype('Int64', errors='ignore')  # Use nullable int type for None values
 
     # Volume surge on breakout (2x average on day of breakout)
     df['volume_avg_50'] = df['volume'].rolling(window=50).mean()
