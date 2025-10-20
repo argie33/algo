@@ -5,15 +5,10 @@
  * Tests real database operations and connection management
  */
 
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn().mockReturnValue({
     totalCount: 10,
     idleCount: 8,
     waitingCount: 0,
   }),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn().mockResolvedValue({
     status: "healthy",
     version: "PostgreSQL 15.1",
     timestamp: "2025-10-19T12:00:00.000Z",
@@ -36,7 +31,6 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
 describe("Database Comprehensive Integration Tests", () => {
   
     beforeEach(() => {
-        query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });

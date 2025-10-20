@@ -1403,9 +1403,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         f"Strength={strength_score:.2f}, Earnings Quality={earnings_quality_score:.2f}, "
                         f"Stability={stability_score:.2f}")
         else:
-            # Fallback: Use neutral quality score if metrics not available
-            quality_score = 50
-            logger.warning(f"{symbol}: No quality metrics available, using neutral default quality_score of 50")
+            # No fallback - quality_score remains None if metrics not available
+            pass
 
         # ============================================================
         # Growth Score - Percentile-Based TTM Metrics (Industry Standard)
@@ -1467,9 +1466,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         f"Earnings={earnings_growth_score:.2f}, Acceleration={earnings_accel_score:.2f}, "
                         f"Margin Expansion={margin_expansion_score:.2f}, Sustainable={sustainable_growth_score:.2f}")
         else:
-            # Fallback: Use neutral growth score if metrics not available
-            growth_score = 50
-            logger.warning(f"{symbol}: No growth metrics available, using neutral default growth_score of 50")
+            # No fallback - growth_score remains None if metrics not available
+            pass
 
         # Positioning Score (Real institutional and insider data + Accumulation/Distribution)
         # 5-component system: Institutional(25%), Insider(20%), Short(20%), Acc/Dist(25%), Count(10%)
@@ -1591,60 +1589,64 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         sentiment_score = max(0, min(100, sentiment_score))
 
-        # Defensive: Ensure all scores have valid values before composite calculation
-        # This prevents TypeError when multiplying None * float
-        if momentum_score is None:
-            momentum_score = 50
-        if growth_score is None:
-            growth_score = 50
-        if value_score is None:
-            value_score = 50
-        if quality_score is None:
-            quality_score = 50
-        if stability_score is None:
-            stability_score = 50
+        # No fallback defaults - all scores remain None if not calculated
+        # Composite will only use scores that have real values
 
-        # Composite Score (6-factor weighted average - Sentiment EXCLUDED)
-        # Weights: Momentum (22.35%), Growth (20.13%), Value (16.13%),
-        #          Quality (16.13%), Stability (14.88%), Positioning (12.08%)
-        # Trend score removed - not used
-        # If positioning_score is None, redistribute its 12.08% weight proportionally to other factors
+        # Composite Score - Only use real (non-None) factors
+        # Ideal weights: Momentum (22.35%), Growth (20.13%), Value (16.13%),
+        #                Quality (16.13%), Stability (14.88%), Positioning (12.08%)
+        # Adjust proportionally based on available factors (no fallback defaults)
+
+        # Collect available factors and their ideal weights
+        factors = []
+        weights = []
+
+        if momentum_score is not None:
+            factors.append(momentum_score)
+            weights.append(0.2235)
+        if growth_score is not None:
+            factors.append(growth_score)
+            weights.append(0.2013)
+        if value_score is not None:
+            factors.append(value_score)
+            weights.append(0.1613)
+        if quality_score is not None:
+            factors.append(quality_score)
+            weights.append(0.1613)
+        if stability_score is not None:
+            factors.append(stability_score)
+            weights.append(0.1488)
         if positioning_score is not None:
-            composite_score = (
-                momentum_score * 0.2235 +                # Short-term momentum
-                growth_score * 0.2013 +                  # Growth drivers
-                value_score * 0.1613 +                   # Valuation
-                quality_score * 0.1613 +                 # Quality
-                stability_score * 0.1488 +               # Stability
-                positioning_score * 0.1208                # Institutional positioning
-            )
+            factors.append(positioning_score)
+            weights.append(0.1208)
+
+        # Calculate composite only if we have factors
+        if factors and sum(weights) > 0:
+            # Normalize weights to sum to 1.0
+            total_weight = sum(weights)
+            normalized_weights = [w / total_weight for w in weights]
+            composite_score = sum(f * w for f, w in zip(factors, normalized_weights))
         else:
-            # Redistribute positioning's 12.08% weight proportionally across other factors
-            # New weights: Momentum (25.48%), Growth (22.90%), Value (18.35%),
-            #              Quality (18.35%), Stability (16.92%)
-            composite_score = (
-                momentum_score * 0.2548 +                # Short-term momentum
-                growth_score * 0.2290 +                  # Growth drivers
-                value_score * 0.1835 +                   # Valuation
-                quality_score * 0.1835 +                 # Quality
-                stability_score * 0.1692                 # Stability
-            )
+            # No valid factors - composite remains None
+            composite_score = None
 
         cur.close()
 
-        # Clamp all scores to 0-100 and ensure DECIMAL(5,2) compatibility (max 999.99)
+        # Clamp scores to 0-100 (only if not None)
         def clamp_score(score):
+            if score is None:
+                return None
             return max(0, min(100, float(score)))
 
         return {
             'symbol': symbol,
-            'composite_score': float(round(clamp_score(composite_score), 2)),
-            'momentum_score': float(round(clamp_score(momentum_score), 2)),
-            'value_score': float(round(clamp_score(value_score), 2)),
-            'quality_score': float(round(clamp_score(quality_score), 2)),
-            'growth_score': float(round(clamp_score(growth_score), 2)),
-            'positioning_score': float(round(clamp_score(positioning_score), 2)),
-            'sentiment_score': float(round(clamp_score(sentiment_score), 2)),
+            'composite_score': float(round(clamp_score(composite_score), 2)) if composite_score is not None else None,
+            'momentum_score': float(round(clamp_score(momentum_score), 2)) if momentum_score is not None else None,
+            'value_score': float(round(clamp_score(value_score), 2)) if value_score is not None else None,
+            'quality_score': float(round(clamp_score(quality_score), 2)) if quality_score is not None else None,
+            'growth_score': float(round(clamp_score(growth_score), 2)) if growth_score is not None else None,
+            'positioning_score': float(round(clamp_score(positioning_score), 2)) if positioning_score is not None else None,
+            'sentiment_score': float(round(clamp_score(sentiment_score), 2)) if sentiment_score is not None else None,
             'stability_score': float(round(clamp_score(stability_score), 2)) if stability_score is not None else None,
             'stability_inputs': stability_inputs,
             'rsi': float(rsi) if rsi is not None else None,

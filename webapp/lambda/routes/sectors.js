@@ -1323,7 +1323,7 @@ router.get("/sectors-with-history", async (req, res) => {
         perf_1d_1w_ago,
         perf_5d_1w_ago,
         perf_20d_1w_ago
-      FROM sector_ranking_complete
+      FROM sector_ranking
       ORDER BY sector_name, snapshot_date DESC
       LIMIT $1
     `;
@@ -1468,7 +1468,7 @@ router.get("/industries-with-history", async (req, res) => {
         perf_1d_1w_ago,
         perf_5d_1w_ago,
         perf_20d_1w_ago
-      FROM industry_ranking_complete
+      FROM industry_ranking
       ORDER BY industry, snapshot_date DESC
       LIMIT $1
     `;

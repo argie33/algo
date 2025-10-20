@@ -14,7 +14,6 @@ app = require("../../../server");
 describe("Security Headers Integration", () => {
   
     beforeEach(() => {
-        query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });

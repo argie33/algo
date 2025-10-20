@@ -189,6 +189,48 @@ def create_table(cur):
     logging.info("Table 'sector_performance' ready with history tracking")
 
 
+def create_sector_ranking_table(cur):
+    """Create sector_ranking table for historical sector ranking snapshots"""
+    logging.info("Creating sector_ranking table with historical ranking data...")
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sector_ranking (
+            id SERIAL PRIMARY KEY,
+            sector VARCHAR(100) NOT NULL,
+            snapshot_date DATE NOT NULL,
+            current_rank INT,
+            rank_1w_ago INT,
+            rank_4w_ago INT,
+            rank_12w_ago INT,
+            momentum VARCHAR(20),
+            trend VARCHAR(20),
+            performance_1d FLOAT,
+            performance_5d FLOAT,
+            performance_20d FLOAT,
+            stock_count INT,
+            rank_change_1w INT,
+            perf_1d_1w_ago FLOAT,
+            perf_5d_1w_ago FLOAT,
+            perf_20d_1w_ago FLOAT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(sector, snapshot_date)
+        );
+    """)
+
+    # Create indexes for fast lookups
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sector_ranking_sector_date
+        ON sector_ranking(sector, snapshot_date DESC);
+    """)
+
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sector_ranking_date
+        ON sector_ranking(snapshot_date DESC);
+    """)
+
+    logging.info("Table 'sector_ranking' ready with historical ranking support")
+
+
 def load_sector_data(cur, conn):
     """Load data for all sector ETFs"""
     logging.info(f"Loading {len(SECTOR_ETFS)} sector ETFs...")
@@ -286,8 +328,9 @@ def lambda_handler(event, context):
         conn = get_connection()
         cur = conn.cursor()
 
-        # Create table
+        # Create tables
         create_table(cur)
+        create_sector_ranking_table(cur)
         conn.commit()
 
         # Load sector data

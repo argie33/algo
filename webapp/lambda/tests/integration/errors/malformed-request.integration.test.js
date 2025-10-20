@@ -15,7 +15,6 @@ app = require("../../../server");
 describe("Malformed Request Integration", () => {
   
     beforeEach(() => {
-        query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });

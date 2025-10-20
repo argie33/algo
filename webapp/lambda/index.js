@@ -491,92 +491,48 @@ app.use(async (req, res, next) => {
 // Response formatter middleware - adds standard response methods
 app.use(responseFormatterMiddleware);
 
-// Routes (note: API Gateway handles the /api prefix)
-app.use("/health", healthRoutes);
-app.use("/auth", authRoutes);
-app.use("/stocks", stockRoutes);
-app.use("/screener", screenerRoutes);
-app.use("/websocket", websocketRoutes);
-app.use("/scores", scoresRoutes);
-app.use("/metrics", metricsRoutes);
-app.use("/market", marketRoutes);
-app.use("/analysts", analystRoutes);
-app.use("/analytics", analyticsRoutes);
-app.use("/commodities", commoditiesRoutes);
-app.use("/financials", financialRoutes);
-app.use("/trading", tradingRoutes);
-app.use("/technical", technicalRoutes);
-app.use("/calendar", calendarRoutes);
-app.use("/dashboard", dashboardRoutes);
-app.use("/signals", signalsRoutes);
-app.use("/backtest", backtestRoutes);
-app.use("/portfolio", portfolioRoutes);
-app.use("/performance", performanceRoutes);
-// app.use("/scoring", scoringRoutes); // DEPRECATED - Use /scores system instead
-app.use("/price", priceRoutes);
-app.use("/risk", riskRoutes);
-app.use("/sectors", sectorsRoutes);
-app.use("/sentiment", sentimentRoutes);
-app.use("/settings", settingsRoutes);
-app.use("/trades", tradesRoutes);
-app.use("/live-data", liveDataRoutes);
-app.use("/orders", ordersRoutes);
-app.use("/news", newsRoutes);
-app.use("/diagnostics", diagnosticsRoutes);
-app.use("/watchlist", watchlistRoutes);
-app.use("/etf", etfRoutes);
-app.use("/insider", insiderRoutes);
-app.use("/dividend", dividendRoutes);
-
-
-// Also mount routes with /api prefix for frontend compatibility
+// Canonical API Routes - all under /api prefix
 app.use("/api/alerts", alertsRoutes);
-app.use("/api/health", healthRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/stocks", stockRoutes);
-app.use("/api/screener", screenerRoutes);
-app.use("/api/websocket", websocketRoutes);
-app.use("/api/scores", scoresRoutes);
-app.use("/api/metrics", metricsRoutes);
-app.use("/api/market", marketRoutes);
-app.use("/api/analyst", analystRoutes);
-app.use("/api/analysts", analystRoutes);
 app.use("/api/analytics", analyticsRoutes);
-app.use("/api/commodities", commoditiesRoutes);
-app.use("/api/financials", financialRoutes);
-app.use("/api/trading", tradingRoutes);
-app.use("/api/technical", technicalRoutes);
-app.use("/api/watchlist", watchlistRoutes);
-app.use("/api/calendar", calendarRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/economic", economicRoutes);
-app.use("/api/signals", signalsRoutes);
+app.use("/api/analysts", analystRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/backtest", backtestRoutes);
-app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/calendar", calendarRoutes);
+app.use("/api/commodities", commoditiesRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/diagnostics", diagnosticsRoutes);
+app.use("/api/dividend", dividendRoutes);
+app.use("/api/earnings", earningsRoutes);
+app.use("/api/economic", economicRoutes);
+app.use("/api/etf", etfRoutes);
+app.use("/api/financials", financialRoutes);
+app.use("/api/health", healthRoutes);
+app.use("/api/insider", insiderRoutes);
+app.use("/api/live-data", liveDataRoutes);
+app.use("/api/market", marketRoutes);
+app.use("/api/metrics", metricsRoutes);
+app.use("/api/news", newsRoutes);
+app.use("/api/orders", ordersRoutes);
 app.use("/api/performance", performanceRoutes);
+app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/positioning", positioningRoutes);
+app.use("/api/price", priceRoutes);
 app.use("/api/recommendations", recommendationsRoutes);
 app.use("/api/research", researchRoutes);
-app.use("/api/earnings", earningsRoutes);
-// app.use("/api/scoring", scoringRoutes); // DEPRECATED - Use /api/scores system instead
-app.use("/api/price", priceRoutes);
 app.use("/api/risk", riskRoutes);
+app.use("/api/scores", scoresRoutes);
+app.use("/api/screener", screenerRoutes);
 app.use("/api/sectors", sectorsRoutes);
 app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/signals", signalsRoutes);
+app.use("/api/stocks", stockRoutes);
+app.use("/api/strategy-builder", strategyBuilderRoutes);
+app.use("/api/technical", technicalRoutes);
 app.use("/api/trades", tradesRoutes);
-app.use("/api/live-data", liveDataRoutes);
-app.use("/api/orders", ordersRoutes);
-app.use("/api/news", newsRoutes);
-app.use("/api/diagnostics", diagnosticsRoutes);
-app.use("/api/etf", etfRoutes);
-app.use("/api/insider", insiderRoutes);
-app.use("/api/dividend", dividendRoutes);
-app.use("/api/positioning", positioningRoutes);
-app.use("/api/strategyBuilder", strategyBuilderRoutes);
-app.use("/api/strategy-builder", strategyBuilderRoutes); // Hyphenated version for tests
-app.use("/api/strategies", strategyBuilderRoutes); // Alias for strategies
-app.use("/api/liveData", liveDataRoutes);
-app.use("/api/livedata", liveDataRoutes);
+app.use("/api/trading", tradingRoutes);
+app.use("/api/watchlist", watchlistRoutes);
+app.use("/api/websocket", websocketRoutes);
 app.use("/api/user", userRoutes);
 
 app.use("/api/debug", debugRoutes); // Debug routes for development

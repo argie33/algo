@@ -179,7 +179,7 @@ def calculate_downside_volatility(symbol, conn_pool):
         # Filter for only negative returns
         downside_returns = returns[returns < 0]
 
-        if len(downside_returns) < 20:
+        if len(downside_returns) < 5:
             return None
 
         # Calculate downside volatility (std of negative returns)

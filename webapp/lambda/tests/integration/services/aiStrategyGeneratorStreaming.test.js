@@ -32,7 +32,6 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
     // Mock the streaming API call since AWS Bedrock isn't available
     jest
       .spyOn(streamingGenerator, "callClaudeStreaming")
-      .mockImplementation(async () => {
         // Simulate streaming response chunks
         const mockChunks = [
           {
@@ -118,11 +117,8 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
     // Mock inherited methods from base AIStrategyGenerator
     jest
       .spyOn(streamingGenerator, "buildSystemPrompt")
-      .mockReturnValue("Mock system prompt");
     jest
       .spyOn(streamingGenerator, "buildUserPrompt")
-      .mockReturnValue("Mock user prompt");
-    jest.spyOn(streamingGenerator, "parseClaudeResponse").mockResolvedValue({
       name: "AI Momentum Strategy",
       description: "Advanced momentum strategy using moving averages",
       code: 'def generate_signals(data): return ["buy"]',
@@ -130,7 +126,6 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
     });
     jest
       .spyOn(streamingGenerator, "validateAndEnhanceStrategy")
-      .mockImplementation(async (strategy) => ({
         ...strategy,
         validated: true,
         insights: [
@@ -138,12 +133,10 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
           "Suitable for trending markets",
         ],
       }));
-    jest.spyOn(streamingGenerator, "generateAIMetadata").mockResolvedValue({
       complexity: "medium",
       riskLevel: "moderate",
       expectedReturns: "8-12% annually",
     });
-    jest.spyOn(streamingGenerator, "generateAIVisualConfig").mockResolvedValue({
       chartType: "candlestick",
       indicators: ["SMA", "EMA"],
       colors: { bullish: "#00ff00", bearish: "#ff0000" },
@@ -220,7 +213,6 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
 
   describe("Stream Management", () => {
     test("should track active streams", async () => {
-      const onProgress = jest.fn();
       const initialMetrics = streamingGenerator.getStreamingMetrics();
       expect(initialMetrics.activeStreams).toBe(0);
 
@@ -252,7 +244,6 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
       // Mock a long-running stream
       jest
         .spyOn(streamingGenerator, "callClaudeStreaming")
-        .mockImplementation(async () => {
           return {
             async *[Symbol.asyncIterator]() {
               await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -436,9 +427,6 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
       // Mock streaming error
       jest
         .spyOn(streamingGenerator, "callClaudeStreaming")
-        .mockRejectedValue(new Error("Streaming connection failed"));
-
-      const onProgress = jest.fn();
 
       const result = await streamingGenerator.generateWithStreaming(
         "Create a strategy",
@@ -458,7 +446,6 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
     test("should clean up streams on error", async () => {
       jest
         .spyOn(streamingGenerator, "callClaudeStreaming")
-        .mockRejectedValue(new Error("Test error"));
 
       const initialCount = streamingGenerator.activeStreams.size;
 
@@ -533,7 +520,6 @@ describe("AI Strategy Generator Streaming Integration Tests", () => {
     });
 
     test("should use inherited methods for strategy parsing", async () => {
-      const onProgress = jest.fn();
 
       await streamingGenerator.generateWithStreaming(
         "Create a strategy",

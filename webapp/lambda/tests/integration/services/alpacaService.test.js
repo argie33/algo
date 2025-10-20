@@ -32,21 +32,7 @@ describe("Alpaca Service Integration Tests", () => {
 
     // Get the mock client instance
     mockClient = {
-      getAccount: jest.fn(),
-      getPositions: jest.fn(),
-      getOrders: jest.fn(),
-      createOrder: jest.fn(),
-      cancelOrder: jest.fn(),
-      getAsset: jest.fn(),
-      getAssets: jest.fn(),
-      getBars: jest.fn(),
-      getLastTrade: jest.fn(),
-      getPortfolioHistory: jest.fn(),
-      getWatchlists: jest.fn(),
-      createWatchlist: jest.fn(),
     };
-
-    Alpaca.mockImplementation(() => mockClient);
 
     // Create service instance with test credentials
     alpacaService = new AlpacaService("test_key", "test_secret", true);
@@ -136,8 +122,6 @@ describe("Alpaca Service Integration Tests", () => {
         pattern_day_trader: false,
       };
 
-      mockClient.getAccount.mockResolvedValueOnce(mockAccount);
-
       const account = await alpacaService.getAccount();
 
       expect(mockClient.getAccount).toHaveBeenCalledTimes(1);
@@ -149,7 +133,6 @@ describe("Alpaca Service Integration Tests", () => {
     });
 
     test("should handle account fetch errors gracefully", async () => {
-      mockClient.getAccount.mockRejectedValueOnce(new Error("API Error"));
 
       await expect(alpacaService.getAccount()).rejects.toThrow("API Error");
       expect(mockClient.getAccount).toHaveBeenCalledTimes(1);
@@ -163,8 +146,6 @@ describe("Alpaca Service Integration Tests", () => {
         profit_loss_pct: [0, 5],
         base_value: 10000,
       };
-
-      mockClient.getPortfolioHistory.mockResolvedValueOnce(mockHistory);
 
       const history = await alpacaService.getPortfolioHistory("1D", "1Min");
 
@@ -202,8 +183,6 @@ describe("Alpaca Service Integration Tests", () => {
         },
       ];
 
-      mockClient.getPositions.mockResolvedValueOnce(mockPositions);
-
       const positions = await alpacaService.getPositions();
 
       expect(mockClient.getPositions).toHaveBeenCalledTimes(1);
@@ -235,8 +214,6 @@ describe("Alpaca Service Integration Tests", () => {
         },
       ];
 
-      mockClient.getPositions.mockResolvedValueOnce(mockPositions);
-
       const position = await alpacaService.getPosition("AAPL");
 
       expect(position.symbol).toBe("AAPL");
@@ -257,8 +234,6 @@ describe("Alpaca Service Integration Tests", () => {
         submitted_at: "2024-01-01T10:00:00Z",
         filled_qty: "0",
       };
-
-      mockClient.createOrder.mockResolvedValueOnce(mockOrder);
 
       const order = await alpacaService.createOrder({
         symbol: "AAPL",
@@ -293,8 +268,6 @@ describe("Alpaca Service Integration Tests", () => {
         filled_qty: "0",
       };
 
-      mockClient.createOrder.mockResolvedValueOnce(mockOrder);
-
       const order = await alpacaService.createOrder({
         symbol: "TSLA",
         qty: 5,
@@ -321,8 +294,6 @@ describe("Alpaca Service Integration Tests", () => {
         { id: "order-2", symbol: "TSLA", status: "pending_new" },
       ];
 
-      mockClient.getOrders.mockResolvedValueOnce(mockOrders);
-
       const orders = await alpacaService.getOrders({ status: "all" });
 
       expect(mockClient.getOrders).toHaveBeenCalledWith({ status: "all" });
@@ -330,7 +301,6 @@ describe("Alpaca Service Integration Tests", () => {
     });
 
     test("should cancel specific order", async () => {
-      mockClient.cancelOrder.mockResolvedValueOnce({ id: "order-123" });
 
       const result = await alpacaService.cancelOrder("order-123");
 
@@ -383,8 +353,6 @@ describe("Alpaca Service Integration Tests", () => {
         status: "active",
       };
 
-      mockClient.getAsset.mockResolvedValueOnce(mockAsset);
-
       const asset = await alpacaService.getAsset("AAPL");
 
       expect(mockClient.getAsset).toHaveBeenCalledWith("AAPL");
@@ -397,8 +365,6 @@ describe("Alpaca Service Integration Tests", () => {
         { symbol: "AAPL", tradable: true, status: "active" },
         { symbol: "TSLA", tradable: true, status: "active" },
       ];
-
-      mockClient.getAssets.mockResolvedValueOnce(mockAssets);
 
       const assets = await alpacaService.getAssets({ status: "active" });
 
@@ -422,8 +388,6 @@ describe("Alpaca Service Integration Tests", () => {
           },
         ],
       };
-
-      mockClient.getBars.mockResolvedValueOnce(mockBars);
 
       const bars = await alpacaService.getBars("AAPL", {
         start: "2023-01-01",
@@ -451,8 +415,6 @@ describe("Alpaca Service Integration Tests", () => {
         timestamp: "2023-01-01T15:59:59Z",
       };
 
-      mockClient.getLastTrade.mockResolvedValueOnce(mockTrade);
-
       const trade = await alpacaService.getLastTrade("AAPL");
 
       expect(mockClient.getLastTrade).toHaveBeenCalledWith("AAPL");
@@ -468,8 +430,6 @@ describe("Alpaca Service Integration Tests", () => {
         { id: "watchlist-2", name: "Tech Stocks", assets: [] },
       ];
 
-      mockClient.getWatchlists.mockResolvedValueOnce(mockWatchlists);
-
       const watchlists = await alpacaService.getWatchlists();
 
       expect(mockClient.getWatchlists).toHaveBeenCalledTimes(1);
@@ -483,8 +443,6 @@ describe("Alpaca Service Integration Tests", () => {
         name: "New Watchlist",
         assets: [],
       };
-
-      mockClient.createWatchlist.mockResolvedValueOnce(mockWatchlist);
 
       const watchlist = await alpacaService.createWatchlist({
         name: "New Watchlist",
@@ -501,7 +459,6 @@ describe("Alpaca Service Integration Tests", () => {
 
   describe("Error Handling and Edge Cases", () => {
     test("should handle network errors gracefully", async () => {
-      mockClient.getAccount.mockRejectedValueOnce(new Error("Network error"));
 
       await expect(alpacaService.getAccount()).rejects.toThrow("Network error");
     });
@@ -509,7 +466,6 @@ describe("Alpaca Service Integration Tests", () => {
     test("should handle API rate limiting from Alpaca", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
       rateLimitError.status = 429;
-      mockClient.getAccount.mockRejectedValueOnce(rateLimitError);
 
       await expect(alpacaService.getAccount()).rejects.toThrow(
         "Rate limit exceeded"
@@ -519,7 +475,6 @@ describe("Alpaca Service Integration Tests", () => {
     test("should handle invalid API credentials", async () => {
       const authError = new Error("Invalid API credentials");
       authError.status = 401;
-      mockClient.getAccount.mockRejectedValueOnce(authError);
 
       await expect(alpacaService.getAccount()).rejects.toThrow(
         "Invalid API credentials"
@@ -529,7 +484,6 @@ describe("Alpaca Service Integration Tests", () => {
     test("should handle market closed scenarios", async () => {
       const marketClosedError = new Error("Market is closed");
       marketClosedError.status = 422;
-      mockClient.createOrder.mockRejectedValueOnce(marketClosedError);
 
       await expect(
         alpacaService.createOrder({
@@ -544,7 +498,6 @@ describe("Alpaca Service Integration Tests", () => {
     test("should handle insufficient funds", async () => {
       const insufficientFundsError = new Error("Insufficient buying power");
       insufficientFundsError.status = 422;
-      mockClient.createOrder.mockRejectedValueOnce(insufficientFundsError);
 
       await expect(
         alpacaService.createOrder({
@@ -561,9 +514,6 @@ describe("Alpaca Service Integration Tests", () => {
     test("should track request metrics", async () => {
       const initialRequestCount = alpacaService.requestTimes.length;
 
-      mockClient.getAccount.mockResolvedValueOnce({ id: "test" });
-      mockClient.getPositions.mockResolvedValueOnce([]);
-
       await alpacaService.getAccount();
       await alpacaService.getPositions();
 
@@ -571,9 +521,6 @@ describe("Alpaca Service Integration Tests", () => {
     });
 
     test("should handle concurrent requests properly", async () => {
-      mockClient.getAccount.mockResolvedValue({ id: "test" });
-      mockClient.getPositions.mockResolvedValue([]);
-      mockClient.getOrders.mockResolvedValue([]);
 
       const promises = [
         alpacaService.getAccount(),

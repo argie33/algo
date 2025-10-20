@@ -6,11 +6,6 @@
  * Validates error recovery and state preservation
  */
 
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
 }));
 
     if (!req.headers.authorization) {
@@ -28,7 +23,6 @@
 describe("Database Rollback Scenarios Integration", () => {
   
     beforeEach(() => {
-        query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });

@@ -283,10 +283,10 @@ def ensure_tables(cur, conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_date ON industry_performance(fetched_at DESC);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_industry_perf_overall_rank ON industry_performance(overall_rank, fetched_at DESC);")
 
-    # Create historical rankings table for complete ranking history
+    # Create historical rankings table
     logging.info("Creating historical rankings table...")
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS industry_ranking_complete (
+        CREATE TABLE IF NOT EXISTS industry_ranking (
             id SERIAL PRIMARY KEY,
             sector VARCHAR(100) NOT NULL,
             industry VARCHAR(100) NOT NULL,
@@ -295,17 +295,16 @@ def ensure_tables(cur, conn):
             rank_1w_ago INT,
             rank_4w_ago INT,
             rank_12w_ago INT,
+            momentum VARCHAR(20),
+            trend VARCHAR(20),
+            performance_1d FLOAT,
+            performance_5d FLOAT,
+            performance_20d FLOAT,
+            stock_count INT,
             rank_change_1w INT,
-            rank_change_4w INT,
-            rank_change_12w INT,
-            current_rs FLOAT,
-            rs_1w_ago FLOAT,
-            rs_4w_ago FLOAT,
-            rs_12w_ago FLOAT,
-            current_perf_1d FLOAT,
             perf_1d_1w_ago FLOAT,
-            perf_1d_4w_ago FLOAT,
-            perf_1d_12w_ago FLOAT,
+            perf_5d_1w_ago FLOAT,
+            perf_20d_1w_ago FLOAT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(sector, industry, snapshot_date)
         );
@@ -467,34 +466,33 @@ def calculate_complete_historical_rankings(cur, conn):
 
                 try:
                     cur.execute("""
-                        INSERT INTO industry_ranking_complete
+                        INSERT INTO industry_ranking
                         (sector, industry, snapshot_date, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-                         rank_change_1w, rank_change_4w, rank_change_12w,
-                         current_rs, rs_1w_ago, rs_4w_ago, rs_12w_ago,
-                         current_perf_1d, perf_1d_1w_ago, perf_1d_4w_ago, perf_1d_12w_ago)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         momentum, trend, performance_1d, performance_5d, performance_20d, stock_count,
+                         rank_change_1w, perf_1d_1w_ago, perf_5d_1w_ago, perf_20d_1w_ago)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (sector, industry, snapshot_date) DO UPDATE SET
                         current_rank = EXCLUDED.current_rank,
                         rank_1w_ago = EXCLUDED.rank_1w_ago,
                         rank_4w_ago = EXCLUDED.rank_4w_ago,
                         rank_12w_ago = EXCLUDED.rank_12w_ago,
                         rank_change_1w = EXCLUDED.rank_change_1w,
-                        rank_change_4w = EXCLUDED.rank_change_4w,
-                        rank_change_12w = EXCLUDED.rank_change_12w,
-                        current_rs = EXCLUDED.current_rs,
-                        rs_1w_ago = EXCLUDED.rs_1w_ago,
-                        rs_4w_ago = EXCLUDED.rs_4w_ago,
-                        rs_12w_ago = EXCLUDED.rs_12w_ago,
-                        current_perf_1d = EXCLUDED.current_perf_1d,
+                        momentum = EXCLUDED.momentum,
+                        trend = EXCLUDED.trend,
+                        performance_1d = EXCLUDED.performance_1d,
+                        performance_5d = EXCLUDED.performance_5d,
+                        performance_20d = EXCLUDED.performance_20d,
+                        stock_count = EXCLUDED.stock_count,
                         perf_1d_1w_ago = EXCLUDED.perf_1d_1w_ago,
-                        perf_1d_4w_ago = EXCLUDED.perf_1d_4w_ago,
-                        perf_1d_12w_ago = EXCLUDED.perf_1d_12w_ago
+                        perf_5d_1w_ago = EXCLUDED.perf_5d_1w_ago,
+                        perf_20d_1w_ago = EXCLUDED.perf_20d_1w_ago
                     """, (
                         sector, industry, current_date,
                         curr_rank, rank_1w, rank_4w, rank_12w,
-                        change_1w, change_4w, change_12w,
-                        curr.get('rs'), one_w.get('rs'), four_w.get('rs'), twelve_w.get('rs'),
-                        curr.get('perf_1d'), one_w.get('perf_1d'), four_w.get('perf_1d'), twelve_w.get('perf_1d')
+                        curr.get('momentum', 'Moderate'), curr.get('trend', 'Sideways'),
+                        curr.get('perf_1d', 0), curr.get('perf_5d', 0), curr.get('perf_20d', 0),
+                        curr.get('stock_count', 0),
+                        change_1w, one_w.get('perf_1d'), one_w.get('perf_5d'), one_w.get('perf_20d')
                     ))
                 except Exception as e:
                     pass  # Silently skip conflicts

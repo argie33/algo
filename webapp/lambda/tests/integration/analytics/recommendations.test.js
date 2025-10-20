@@ -22,7 +22,6 @@ const { app } = require("../../../index");
 describe("Recommendations API", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });
