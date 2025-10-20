@@ -1952,13 +1952,22 @@ def main():
                 if score_data:
                     # Save to database
                     if save_stock_score(conn, score_data):
+                        # Commit after each stock to prevent long transaction abort cascades
+                        conn.commit()
                         successful += 1
                         logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}, Growth Score = {score_data['growth_score']:.2f}")
                     else:
+                        # Rollback on save failure to keep transaction clean
+                        conn.rollback()
                         failed += 1
                 else:
                     failed += 1
             except Exception as e:
+                # Rollback on error to clean up transaction state
+                try:
+                    conn.rollback()
+                except:
+                    pass
                 logger.error(f"❌ Error processing {symbol}: {e}")
                 failed += 1
 

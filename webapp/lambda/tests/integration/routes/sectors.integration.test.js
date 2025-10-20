@@ -26,10 +26,17 @@ describe("Sectors Routes - Real Data Validation", () => {
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
 
-      if (response.body.data.length > 0) {
-        const sector = response.body.data[0];
-        expect(sector).toHaveProperty("sector");
-        expect(sector).toHaveProperty("performance");
+      // MUST have sector data - not optional
+      expect(response.body.data.length).toBeGreaterThan(0);
+
+      const sector = response.body.data[0];
+      expect(sector).toHaveProperty("sector");
+      expect(sector).toHaveProperty("performance");
+
+      // Verify sectors are sorted by performance (descending)
+      for (let i = 1; i < response.body.data.length; i++) {
+        expect(response.body.data[i-1].performance)
+          .toBeGreaterThanOrEqual(response.body.data[i].performance);
       }
     });
   });
