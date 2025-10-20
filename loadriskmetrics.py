@@ -159,7 +159,7 @@ def calculate_downside_volatility(symbol, conn_pool):
         start_date = end_date - timedelta(days=365)
 
         cursor.execute("""
-            SELECT close_price FROM price_daily
+            SELECT close FROM price_daily
             WHERE symbol = %s AND date >= %s AND date <= %s
             ORDER BY date ASC
         """, (symbol, start_date, end_date))
@@ -215,15 +215,20 @@ def process_symbol(symbol, conn_pool):
         """, (symbol,))
         mom_data = cursor.fetchone()
 
-        if not mom_data:
-            conn_pool.putconn(conn)
-            return 0
+        # Initialize all metrics as None - will populate if mom_data exists
+        volatility_12m = None
+        sma_50 = None
+        sma_200 = None
+        current_price = None
+        high_52w = None
 
-        volatility_12m = safe_numeric(mom_data[0])
-        sma_50 = safe_numeric(mom_data[1])
-        sma_200 = safe_numeric(mom_data[2])
-        current_price = safe_numeric(mom_data[3])
-        high_52w = safe_numeric(mom_data[4])
+        # If momentum data exists, extract it
+        if mom_data:
+            volatility_12m = safe_numeric(mom_data[0])
+            sma_50 = safe_numeric(mom_data[1])
+            sma_200 = safe_numeric(mom_data[2])
+            current_price = safe_numeric(mom_data[3])
+            high_52w = safe_numeric(mom_data[4])
 
         # Calculate base metrics ONLY - no scoring here
         # These will be used by loadstockscores.py to calculate final risk_score
@@ -242,32 +247,32 @@ def process_symbol(symbol, conn_pool):
         # Note: Beta comes from daily stock loader (as per requirements)
         # Not fetching here to avoid yfinance rate limiting
 
-        # Store the base metrics
-        if volatility_metric is not None or drawdown_metric is not None or downside_vol_metric is not None:
-            cursor.execute(
-                """
-                INSERT INTO risk_metrics
-                (symbol, date, volatility_12m_pct, max_drawdown_52w_pct, volatility_risk_component)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, date) DO UPDATE SET
-                    volatility_12m_pct = EXCLUDED.volatility_12m_pct,
-                    max_drawdown_52w_pct = EXCLUDED.max_drawdown_52w_pct,
-                    volatility_risk_component = EXCLUDED.volatility_risk_component,
-                    fetched_at = CURRENT_TIMESTAMP
-                """,
-                (symbol, current_date, volatility_metric, drawdown_metric, downside_vol_metric),
-            )
-            conn.commit()
-            details = []
-            if volatility_metric is not None:
-                details.append(f"Vol {volatility_metric:.1f}%")
-            if drawdown_metric is not None:
-                details.append(f"DD {drawdown_metric:.1f}%")
-            if downside_vol_metric is not None:
-                details.append(f"DnVol {downside_vol_metric:.1f}%")
+        # Store the base metrics - ALWAYS insert, even if some/all fields are NULL (no fallback)
+        cursor.execute(
+            """
+            INSERT INTO risk_metrics
+            (symbol, date, volatility_12m_pct, max_drawdown_52w_pct, volatility_risk_component)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                volatility_12m_pct = EXCLUDED.volatility_12m_pct,
+                max_drawdown_52w_pct = EXCLUDED.max_drawdown_52w_pct,
+                volatility_risk_component = EXCLUDED.volatility_risk_component,
+                fetched_at = CURRENT_TIMESTAMP
+            """,
+            (symbol, current_date, volatility_metric, drawdown_metric, downside_vol_metric),
+        )
+        conn.commit()
+        details = []
+        if volatility_metric is not None:
+            details.append(f"Vol {volatility_metric:.1f}%")
+        if drawdown_metric is not None:
+            details.append(f"DD {drawdown_metric:.1f}%")
+        if downside_vol_metric is not None:
+            details.append(f"DnVol {downside_vol_metric:.1f}%")
+        if details:
             logging.info(f"✅ {symbol}: {', '.join(details)}")
         else:
-            logging.info(f"⚠️  {symbol}: Insufficient data")
+            logging.info(f"⚠️  {symbol}: No data available (NULL record inserted)")
 
         conn_pool.putconn(conn)
         return 1
