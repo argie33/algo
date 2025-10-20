@@ -1366,7 +1366,7 @@ router.get("/economic/indicators", async (req, res) => {
 
         // Generate 12 months of historical data
         for (let i = 11; i >= 0; i--) {
-          const date = new Date(currentDate);
+          const date = new Date();
           date.setMonth(date.getMonth() - i);
 
           // Generate realistic historical values with trends

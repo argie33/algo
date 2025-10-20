@@ -35,6 +35,27 @@ describe("Market Routes Unit Tests", () => {
     jest.clearAllMocks();
     // Set up default mock responses for all tests
     query.mockImplementation((sql, params) => {
+      // Mock table existence checks (information_schema queries)
+      if (sql.includes("information_schema")) {
+        // Handle sector_performance_exists aliased column
+        if (sql.includes("sector_performance_exists")) {
+          return Promise.resolve({
+            rows: [
+              {
+                sector_performance_exists: true
+              }
+            ]
+          });
+        }
+        // Default for generic exists checks
+        return Promise.resolve({
+          rows: [
+            {
+              exists: true
+            }
+          ]
+        });
+      }
       // Mock market overview queries
       if (sql.includes("SELECT") && (sql.includes("market_data") || sql.includes("price_daily"))) {
         return Promise.resolve({
@@ -58,6 +79,61 @@ describe("Market Routes Unit Tests", () => {
               market_cap: 12000000000000,
               sector: "Technology",
               date: "2025-09-28"
+            }
+          ]
+        });
+      }
+      // Mock sector_performance table queries
+      if (sql.includes("sector_performance") && sql.includes("DISTINCT ON")) {
+        return Promise.resolve({
+          rows: [
+            {
+              sector: "Technology",
+              symbol: "AAPL",
+              price: 228.50,
+              change_percent: 1.25,
+              change: 2.82,
+              volume: 45000000,
+              momentum: 0.15,
+              flow: 12500000,
+              rsi: 65.2,
+              performance_1d: 1.25,
+              performance_5d: 3.45,
+              performance_20d: 8.72,
+              overall_rank: 1,
+              fetched_at: "2025-09-28"
+            },
+            {
+              sector: "Healthcare",
+              symbol: "JNJ",
+              price: 159.30,
+              change_percent: -0.45,
+              change: -0.72,
+              volume: 32000000,
+              momentum: -0.05,
+              flow: -8500000,
+              rsi: 42.1,
+              performance_1d: -0.45,
+              performance_5d: 1.23,
+              performance_20d: 2.15,
+              overall_rank: 8,
+              fetched_at: "2025-09-28"
+            },
+            {
+              sector: "Finance",
+              symbol: "JPM",
+              price: 195.75,
+              change_percent: 0.78,
+              change: 1.52,
+              volume: 22000000,
+              momentum: 0.08,
+              flow: 5500000,
+              rsi: 58.3,
+              performance_1d: 0.78,
+              performance_5d: 2.34,
+              performance_20d: 5.67,
+              overall_rank: 3,
+              fetched_at: "2025-09-28"
             }
           ]
         });
@@ -95,18 +171,28 @@ describe("Market Routes Unit Tests", () => {
         return Promise.resolve({
           rows: [
             {
-              indicator: "GDP",
+              name: "GDP",
+              category: "economic_growth",
               value: 2.3,
-              period: "Q3 2025",
-              change: 0.2,
-              date: "2025-09-28"
+              unit: "percent",
+              frequency: "quarterly",
+              last_updated: "2025-09-28",
+              change_previous: 0.2,
+              change_percent: 0.09,
+              trend: "positive",
+              next_release: "2025-12-28"
             },
             {
-              indicator: "Unemployment",
+              name: "Unemployment Rate",
+              category: "employment",
               value: 3.8,
-              period: "September 2025",
-              change: -0.1,
-              date: "2025-09-28"
+              unit: "percent",
+              frequency: "monthly",
+              last_updated: "2025-09-28",
+              change_previous: -0.1,
+              change_percent: -0.02,
+              trend: "positive",
+              next_release: "2025-10-31"
             }
           ]
         });
@@ -128,6 +214,23 @@ describe("Market Routes Unit Tests", () => {
               bearish: 31.5,
               neutral: 36.4,
               sentiment_score: 0.58
+            }
+          ]
+        });
+      }
+      // Mock breadth data - handle various breadth query patterns
+      if (sql.includes("daily_changes") || (sql.includes("WITH") && sql.includes("price_daily")) || sql.includes("strong_advancing")) {
+        return Promise.resolve({
+          rows: [
+            {
+              total_stocks: 3300,
+              advancing: 1823,
+              declining: 1456,
+              unchanged: 21,
+              strong_advancing: 89,
+              strong_declining: 34,
+              strong_unchanged: 0,
+              ad_ratio: 1.25
             }
           ]
         });

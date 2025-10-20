@@ -653,25 +653,29 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         """, (symbol,))
 
         price_data = cur.fetchall()
-        if not price_data or len(price_data) < 20:
-            logger.warning(f"⚠️ Insufficient price data for {symbol}: {len(price_data) if price_data else 0} records")
-            cur.close()
-            return None
+        if not price_data:
+            logger.warning(f"⚠️ No price data for {symbol}, calculating scores with NULL inputs")
+            # Don't return None - calculate what we can with empty price data
+        elif len(price_data) < 20:
+            logger.debug(f"⚠️ Limited price data for {symbol}: {len(price_data)} records (need 20+ for full accuracy)")
+            # Continue - we'll calculate what we can with partial data
 
         # Convert to pandas DataFrame for easier calculations
-        df = pd.DataFrame(price_data, columns=['date', 'open', 'high', 'low', 'close', 'volume', 'adj_close'])
-        df = df.sort_values('date')  # Sort chronologically for calculations
+        if price_data:
+            df = pd.DataFrame(price_data, columns=['date', 'open', 'high', 'low', 'close', 'volume', 'adj_close'])
+            df = df.sort_values('date')  # Sort chronologically for calculations
+            current_price = float(df['close'].iloc[-1])
+        else:
+            df = pd.DataFrame()  # Empty dataframe
+            current_price = None
 
-        # Get current price (most recent)
-        current_price = float(df['close'].iloc[-1])
-
-        # Calculate price changes
-        price_change_1d = ((current_price - float(df['close'].iloc[-2])) / float(df['close'].iloc[-2]) * 100) if len(df) >= 2 else 0
-        price_change_5d = ((current_price - float(df['close'].iloc[-6])) / float(df['close'].iloc[-6]) * 100) if len(df) >= 6 else 0
-        price_change_30d = ((current_price - float(df['close'].iloc[-31])) / float(df['close'].iloc[-31]) * 100) if len(df) >= 31 else 0
+        # Calculate price changes (only if we have current price)
+        price_change_1d = ((current_price - float(df['close'].iloc[-2])) / float(df['close'].iloc[-2]) * 100) if current_price and len(df) >= 2 else None
+        price_change_5d = ((current_price - float(df['close'].iloc[-6])) / float(df['close'].iloc[-6]) * 100) if current_price and len(df) >= 6 else None
+        price_change_30d = ((current_price - float(df['close'].iloc[-31])) / float(df['close'].iloc[-31]) * 100) if current_price and len(df) >= 31 else None
 
         # Calculate volume average (last 30 days)
-        volume_avg_30d = int(df['volume'].tail(30).mean()) if len(df) >= 30 else int(df['volume'].mean())
+        volume_avg_30d = int(df['volume'].tail(30).mean()) if len(df) >= 30 else (int(df['volume'].mean()) if len(df) > 0 else None)
 
         # Get latest technical data including momentum indicators
         cur.execute("""
@@ -740,8 +744,11 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             price_vs_52w_high = None
             volatility_12m = None
 
-        prices = df['close'].astype(float).values
-        volatility_30d = calculate_volatility(prices)
+        if len(df) > 0:
+            prices = df['close'].astype(float).values
+            volatility_30d = calculate_volatility(prices)
+        else:
+            volatility_30d = None
 
         # Calculate IBD-style Accumulation/Distribution Rating
         acc_dist_rating = calculate_accumulation_distribution(df, lookback_days=65)

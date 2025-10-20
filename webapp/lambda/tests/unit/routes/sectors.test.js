@@ -8,6 +8,7 @@ jest.mock("../../../middleware/auth");
 
 // Import after mocks
 const { query } = require("../../../utils/database");
+const { authenticateToken } = require("../../../middleware/auth");
 
 describe("Sectors Routes", () => {
   let app;
