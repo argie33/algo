@@ -12,7 +12,7 @@ router.use(responseFormatter);
 // Performance API root endpoint - API information
 router.get("/", async (req, res) => {
   try {
-    res.json({
+    res.json({ success: true, data: {
       status: "operational",
       message: "Performance Analytics API - Ready",
       timestamp: new Date().toISOString(),
@@ -60,7 +60,7 @@ router.get("/analytics", async (req, res) => {
     const volatility = parseFloat(analytics.volatility) || 0;
     const sharpeRatio = volatility > 0 ? avgReturn / volatility : 0;
 
-    res.json({
+    res.json({ success: true, data: {
       success: true,
       data: {
         total_pnl: avgReturn,
@@ -90,7 +90,7 @@ router.get("/analytics", async (req, res) => {
 // Health check endpoint
 router.get("/health", async (req, res) => {
   try {
-    res.json({
+    res.json({ success: true, data: {
       status: "operational",
       service: "performance-analytics",
       message: "Performance Analytics service is running",
@@ -152,7 +152,7 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
     };
     const benchmarkReturn = benchmarkReturns[benchmark] || 0.10;
 
-    res.json({
+    res.json({ success: true, data: {
       success: true,
       data: {
         portfolio: {
@@ -205,7 +205,7 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
     const result = await query(portfolioQuery);
     const data = result?.rows?.[0] || {};
 
-    res.json({
+    res.json({ success: true, data: {
       success: true,
       data: {
         performance: {
@@ -257,7 +257,7 @@ router.get("/returns", authenticateToken, async (req, res) => {
     const positivePeriods = parseInt(data.positive_periods) || 0;
     const totalPeriods = parseInt(data.total_periods) || 1;
 
-    res.json({
+    res.json({ success: true, data: {
       success: true,
       data: {
         returns: {
@@ -304,7 +304,7 @@ router.get("/attribution", authenticateToken, async (req, res) => {
     const totalReturn = parseFloat(data.total_pnl) || 0;
     const totalPositions = parseInt(data.total_positions) || 1;
 
-    res.json({
+    res.json({ success: true, data: {
       success: true,
       data: {
         attribution: {
@@ -362,7 +362,7 @@ router.get("/metrics", authenticateToken, async (req, res) => {
     const maxReturn = parseFloat(data.max_return) || 0;
     const minReturn = parseFloat(data.min_return) || 0;
 
-    res.json({
+    res.json({ success: true, data: {
       success: true,
       data: {
         period: period,
@@ -409,7 +409,7 @@ router.get("/risk", authenticateToken, async (req, res) => {
     const negativePeriods = parseInt(data.negative_periods) || 0;
     const totalPeriods = parseInt(data.total_periods) || 1;
 
-    res.json({
+    res.json({ success: true, data: {
       success: true,
       data: {
         volatility: volatility,

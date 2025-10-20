@@ -608,7 +608,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     // Return empty array - no real sentiment alerts table yet
     res.json({
       success: true,
-      data: [],
+      sentiment: [],
       message: "No sentiment alerts configured",
       timestamp: new Date().toISOString(),
     });
@@ -687,7 +687,7 @@ router.get("/market", async (req, res) => {
     if (!result || !result.rows || result.rows.length === 0) {
       return res.json({
         success: true,
-        data: [],
+        sentiment: [],
         message: "No AAII sentiment data available for the requested period",
         timestamp: new Date().toISOString(),
       });
@@ -750,7 +750,7 @@ router.get("/stocks", async (req, res) => {
     if (!result || !result.rows || result.rows.length === 0) {
       return res.json({
         success: true,
-        data: [],
+        sentiment: [],
         message: symbol
           ? `No sentiment data available for ${symbol}`
           : "No stock sentiment data available",

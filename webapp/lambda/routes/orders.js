@@ -1174,7 +1174,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
     if (!result || !result.rows) {
       return res.json({
         success: true,
-        data: [],
+        orders: [],
         metadata: {
           total: 0,
           limit: parseInt(limit),
@@ -1212,7 +1212,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
 
     return res.json({
       success: true,
-      data: orders,
+      orders: orders,
       metadata: {
         total: orders.length,
         limit: parseInt(limit),
@@ -1229,7 +1229,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
     if (error.code === "42P01" || error.message?.includes("column") || error.message?.includes("relation")) {
       return res.json({
         success: true,
-        data: [],
+        orders: [],
         metadata: {
           total: 0,
           limit: parseInt(req.query.limit) || 20,
@@ -1245,7 +1245,7 @@ router.get("/recent", authenticateToken, async (req, res) => {
     // For other database errors, also return 200 with empty data to prevent 500s in production
     return res.json({
       success: true,
-      data: [],
+      orders: [],
       metadata: {
         total: 0,
         limit: parseInt(req.query.limit) || 20,

@@ -104,7 +104,7 @@ router.get("/", async (req, res) => {
     if (page > MAX_PAGE) {
       return res.json({
         success: true,
-        data: [],
+        signals: [],
         message: `Page number ${page} exceeds maximum (${MAX_PAGE}). No data available at this pagination offset.`,
         timeframe,
         pagination: {
@@ -270,7 +270,7 @@ router.get("/", async (req, res) => {
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.status(200).json({
         success: true,
-        data: [],
+        signals: [],
         message: `No ${timeframe} signals currently available. Signals will appear after data loading.`,
         timeframe,
         pagination: {
@@ -443,7 +443,7 @@ router.get("/", async (req, res) => {
 
     return res.json({
       success: true,
-      data: formattedData,
+      signals: formattedData,
       summary,
       pagination: {
         page,
@@ -552,7 +552,7 @@ router.get("/buy", async (req, res) => {
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.json({
         success: true,
-        data: [],
+        signals: [],
         pagination: {
           page,
           limit,
@@ -590,7 +590,7 @@ router.get("/buy", async (req, res) => {
 
     return res.json({
       success: true,
-      data: formattedData,
+      signals: formattedData,
       pagination: {
         page,
         limit,
@@ -702,7 +702,7 @@ router.get("/sell", async (req, res) => {
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
       return res.json({
         success: true,
-        data: [],
+        signals: [],
         pagination: {
           page,
           limit,
@@ -740,7 +740,7 @@ router.get("/sell", async (req, res) => {
 
     return res.json({
       success: true,
-      data: formattedData,
+      signals: formattedData,
       pagination: {
         page,
         limit,
@@ -895,7 +895,7 @@ router.get("/technical", async (req, res) => {
 
     return res.json({
       success: true,
-      data: formattedData,
+      signals: formattedData,
       pagination: {
         page,
         limit,
@@ -1027,7 +1027,7 @@ router.get("/momentum", async (req, res) => {
 
     return res.json({
       success: true,
-      data: formattedData,
+      signals: formattedData,
       pagination: {
         page,
         limit,
@@ -1081,7 +1081,7 @@ router.get("/trending", async (req, res) => {
       // Return empty data instead of 404 to pass tests
       return res.json({
         success: true,
-        data: [],
+        signals: [],
         timeframe,
         data_source: 'database',
         message: "Trending signals data not available",
@@ -1115,7 +1115,7 @@ router.get("/trending", async (req, res) => {
       // Return empty data instead of 404 to pass tests
       return res.json({
         success: true,
-        data: [],
+        signals: [],
         timeframe,
         data_source: 'database',
         message: "No trending signals found",
@@ -1201,7 +1201,7 @@ router.get("/alerts", async (req, res) => {
     if (error.message.includes('does not exist') || error.message.includes('alert_id') || error.message.includes('Database query failed') || process.env.NODE_ENV === 'test') {
       res.json({
         success: true,
-        data: [],
+        signals: [],
         total: 0,
         message: "Signal alerts table not available - showing empty data",
         timestamp: new Date().toISOString(),
@@ -1646,7 +1646,7 @@ router.get("/options", async (req, res) => {
     console.log(`📈 Fetching options signals`);
     return res.json({
       success: true,
-      data: [],
+      signals: [],
       signal_type: "options",
       count: 0,
       message: "Options signals endpoint available",
@@ -1668,7 +1668,7 @@ router.get("/sentiment", async (req, res) => {
     console.log(`📈 Fetching sentiment signals`);
     return res.json({
       success: true,
-      data: [],
+      signals: [],
       signal_type: "sentiment",
       count: 0,
       message: "Sentiment signals endpoint available",
@@ -1690,7 +1690,7 @@ router.get("/earnings", async (req, res) => {
     console.log(`📈 Fetching earnings signals`);
     return res.json({
       success: true,
-      data: [],
+      signals: [],
       signal_type: "earnings",
       count: 0,
       message: "Earnings signals endpoint available",
@@ -1712,7 +1712,7 @@ router.get("/crypto", async (req, res) => {
     console.log(`📈 Fetching crypto signals`);
     return res.json({
       success: true,
-      data: [],
+      signals: [],
       signal_type: "crypto",
       count: 0,
       message: "Crypto signals endpoint available",
@@ -1735,7 +1735,7 @@ router.get("/history", async (req, res) => {
     console.log(`📈 Fetching historical signals`);
     return res.json({
       success: true,
-      data: [],
+      signals: [],
       signal_type: "history",
       count: 0,
       pagination: {
@@ -1765,7 +1765,7 @@ router.get("/sector-rotation", async (req, res) => {
     console.log(`📈 Fetching sector rotation signals`);
     return res.json({
       success: true,
-      data: [],
+      signals: [],
       signal_type: "sector_rotation",
       count: 0,
       message: "Sector rotation signals endpoint available",

@@ -146,7 +146,7 @@ router.get("/data", async (req, res) => {
 
 // Root portfolio route - returns available endpoints
 router.get("/", authenticateToken, async (req, res) => {
-  res.json({
+  res.json({ success: true, performance: {
     success: true,
     message: "Portfolio API - Ready",
     timestamp: new Date().toISOString(),
@@ -181,7 +181,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
     ]);
 
     if (!holdingsExists || !performanceExists) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           total_value: 0,
@@ -283,7 +283,7 @@ router.get("/positions", authenticateToken, async (req, res) => {
 
     // Check if portfolio_holdings table exists
     if (!(await tableExists("portfolio_holdings"))) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: [],
         message: "Portfolio data not yet loaded",
@@ -327,7 +327,7 @@ router.get("/positions", authenticateToken, async (req, res) => {
       updated_at: row.updated_at,
     }));
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         positions: positions,
@@ -796,7 +796,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
       },
     };
 
-    return res.json({
+    return res.json({ success: true, performance: {
       success: true,
       data: { analysis: analysisData },
       metadata: {
@@ -914,7 +914,7 @@ router.get("/risk-metrics", authenticateToken, async (req, res) => {
       !holdingsResult.rows ||
       holdingsResult.rows.length === 0
     ) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           risk_metrics: {
@@ -1480,7 +1480,7 @@ router.get("/performance/analysis", authenticateToken, async (req, res) => {
       },
     };
 
-    return res.json({
+    return res.json({ success: true, performance: {
       success: true,
       data: portfolioAnalysis,
       metadata: {
@@ -1549,7 +1549,7 @@ router.get("/benchmark", async (req, res) => {
 
     // Ensure we have benchmark data
     if (benchmarkData.length === 0) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           benchmark: benchmark,
@@ -1704,7 +1704,7 @@ router.get("/benchmark", async (req, res) => {
       }
     }
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         benchmark: benchmark,
@@ -2199,7 +2199,7 @@ router.post("/rebalance/execute", authenticateToken, async (req, res) => {
       }
     }
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         message: "Rebalance executed successfully",
@@ -2241,7 +2241,7 @@ router.get("/risk", authenticateToken, async (req, res) => {
     const holdings = holdingsResult?.rows || [];
 
     if (holdings.length === 0) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           riskScore: 0,
@@ -2612,7 +2612,7 @@ router.get("/transactions/:brokerName", async (req, res) => {
     // Store transactions in database
     await storePortfolioTransactions(userId, brokerName, transactions);
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       message: "Transactions retrieved successfully",
       data: {
@@ -2760,7 +2760,7 @@ router.get("/optimization", authenticateToken, async (req, res) => {
     // Generate optimization suggestions
     const optimizations = generateOptimizationSuggestions(holdings);
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         currentAllocation: calculateCurrentAllocation(holdings),
@@ -2836,7 +2836,7 @@ router.post("/optimization/execute", authenticateToken, async (req, res) => {
       }
     }
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         executionId: crypto.randomUUID(),
@@ -2976,7 +2976,7 @@ router.get("/metrics", authenticateToken, async (req, res) => {
       };
     }
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         metrics: {
@@ -3068,7 +3068,7 @@ router.get("/holdings/detailed", authenticateToken, async (req, res) => {
     );
     const totalUnrealizedPnl = totalValue - totalCost;
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         holdings: holdings.map((h) => ({
@@ -3255,7 +3255,7 @@ router.get("/performance/history", authenticateToken, async (req, res) => {
       };
     }
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: data,
       timestamp: new Date().toISOString(),
@@ -3347,7 +3347,7 @@ router.get("/performance/attribution", authenticateToken, async (req, res) => {
       );
     }
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         attribution: attributionData,
@@ -3486,7 +3486,7 @@ router.get("/export", authenticateToken, async (req, res) => {
       }
 
       // Return JSON response with CSV data for test compatibility
-      res.json({
+      res.json({ success: true, performance: {
         success: true,
         data: {
           export_data: csvData,
@@ -3497,7 +3497,7 @@ router.get("/export", authenticateToken, async (req, res) => {
         timestamp: new Date().toISOString(),
       });
     } else {
-      res.json({
+      res.json({ success: true, performance: {
         success: true,
         data: {
           export_data: exportData,
@@ -4654,7 +4654,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
     const holdings = holdingsResult?.rows || [];
 
     if (holdings.length === 0) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           var: 0,
@@ -4671,7 +4671,7 @@ router.get("/risk/var", authenticateToken, async (req, res) => {
       timeHorizon
     );
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         var: portfolioVar.var,
@@ -4723,7 +4723,7 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
     const holdings = holdingsResult?.rows || [];
 
     if (holdings.length === 0) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           stressTest: {
@@ -4746,7 +4746,7 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
 
     const stressTest = calculateStressTestImpact(holdings, scenarios[scenario]);
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         stressTest: {
@@ -4867,7 +4867,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
     };
 
     if (holdings.rows.length === 0) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           concentration: {},
@@ -4878,7 +4878,7 @@ router.get("/risk/concentration", authenticateToken, async (req, res) => {
 
     const concentrationAnalysis = calculateConcentrationRisk(holdings);
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         ...concentrationAnalysis,
@@ -5637,7 +5637,7 @@ router.get("/transactions", async (req, res) => {
     const result = queryResult;
 
     if (!result || !result.rows || result.rows.length === 0) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           transactions: [],
@@ -5700,7 +5700,7 @@ router.get("/transactions", async (req, res) => {
       }
     });
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         transactions: transactionsData,
@@ -5797,7 +5797,7 @@ router.get("/risk/analysis", authenticateToken, async (req, res) => {
       },
     };
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: { risk_analysis: riskMetrics },
       timestamp: new Date().toISOString(),
@@ -5836,7 +5836,7 @@ router.get("/watchlist", authenticateToken, async (req, res) => {
     const watchlistResult = await query(watchlistQuery, [userId]);
     const watchlist = watchlistResult.rows || [];
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: { watchlist: watchlist },
       summary: {
@@ -5881,7 +5881,7 @@ router.get("/allocation", authenticateToken, async (req, res) => {
     const holdings = holdingsResult?.rows || [];
 
     if (holdings.length === 0) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           allocation: {
@@ -5967,7 +5967,7 @@ router.get("/allocation", authenticateToken, async (req, res) => {
       );
     }
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         allocation: {
@@ -6067,7 +6067,7 @@ router.get("/allocations", authenticateToken, async (req, res) => {
       },
     ];
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         asset_allocation: allocations,
@@ -6168,7 +6168,7 @@ router.get("/value", authenticateToken, async (req, res) => {
       valueData.top_holdings = [];
     }
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: valueData,
       timestamp: new Date().toISOString(),
@@ -6246,7 +6246,7 @@ router.get("/returns", authenticateToken, async (req, res) => {
       last_updated: new Date().toISOString(),
     };
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: returnsData,
       timestamp: new Date().toISOString(),
@@ -6264,7 +6264,7 @@ router.get("/returns", authenticateToken, async (req, res) => {
 // Portfolio health check endpoint
 router.get("/health", async (req, res) => {
   try {
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       status: "healthy",
       service: "portfolio",
@@ -6307,7 +6307,7 @@ router.get("/factors", async (req, res) => {
     const result = await query(holdingsQuery, [userId]);
 
     if (!result || !result.rows) {
-      return res.json({
+      return res.json({ success: true, performance: {
         success: true,
         data: {
           factors: [],
@@ -6343,7 +6343,7 @@ router.get("/factors", async (req, res) => {
       size_bias: calculateSizeBias(holdings),
     };
 
-    res.json({
+    res.json({ success: true, performance: {
       success: true,
       data: {
         factors: factors,
