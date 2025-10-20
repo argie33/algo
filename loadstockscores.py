@@ -277,9 +277,11 @@ def fetch_beta_from_database(conn, symbol):
     Fetch beta from database (populated by loaddailycompanydata.py from yfinance).
 
     Beta is pre-fetched from yfinance.ticker.info by the ingestion loader.
-    Tries multiple sources and returns neutral 1.0 if not found.
+    Uses a fresh cursor to isolate from main transaction to prevent abort cascades.
+    Returns None if not found - caller will use neutral 1.0 fallback.
     """
     try:
+        # Use a fresh cursor for this operation to avoid transaction abort propagation
         cur = conn.cursor()
 
         # Try PRIMARY SOURCE: risk_metrics (where loaddailycompanydata populates beta)
@@ -294,7 +296,9 @@ def fetch_beta_from_database(conn, symbol):
                 cur.close()
                 return result[0]
         except Exception as e:
+            # Ignore individual table errors - they don't abort main transaction due to try-except
             logger.debug(f"Beta not in risk_metrics for {symbol}: {e}")
+            pass
 
         # Try key_metrics as backup
         try:
@@ -309,6 +313,7 @@ def fetch_beta_from_database(conn, symbol):
                 return result[0]
         except Exception as e:
             logger.debug(f"Beta not in key_metrics for {symbol}: {e}")
+            pass
 
         # Try quality_metrics as fallback
         try:
@@ -323,6 +328,7 @@ def fetch_beta_from_database(conn, symbol):
                 return result[0]
         except Exception as e:
             logger.debug(f"Beta not in quality_metrics for {symbol}: {e}")
+            pass
 
         # Try financial_ratios as last resort
         try:
@@ -337,9 +343,10 @@ def fetch_beta_from_database(conn, symbol):
                 return result[0]
         except Exception as e:
             logger.debug(f"Beta not in financial_ratios for {symbol}: {e}")
+            pass
 
         cur.close()
-        return None  # Return None to use neutral 1.0 fallback in caller
+        return None  # Return None - caller will use neutral 1.0 fallback
     except Exception as e:
         logger.debug(f"Could not fetch beta from database for {symbol}: {e}")
         return None
@@ -1776,7 +1783,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
             'sma_50': float(round(float(sma_50), 2)) if sma_50 else None,
             'volume_avg_30d': int(volume_avg_30d),
-            'current_price': float(round(current_price, 2)),
+            'current_price': float(round(current_price, 2)) if current_price is not None else None,
             'price_change_1d': float(round(price_change_1d, 2)) if price_change_1d is not None else None,
             'price_change_5d': float(round(price_change_5d, 2)) if price_change_5d is not None else None,
             'price_change_30d': float(round(price_change_30d, 2)) if price_change_30d is not None else None,
@@ -1900,8 +1907,8 @@ def main():
         return False
 
     try:
-        # Enable autocommit for better transaction handling
-        conn.autocommit = True
+        # Disable autocommit - use explicit commits for data persistence
+        conn.autocommit = False
 
         # Create stock_scores table
         if not create_stock_scores_table(conn):

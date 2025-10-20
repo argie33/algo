@@ -49,15 +49,106 @@ router.get("/health", (req, res) => {
   });
 });
 
-// Basic root endpoint (public)
-router.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Sectors API - Ready",
-    status: "operational",
-    data: [],
-    timestamp: new Date().toISOString(),
-  });
+// Basic root endpoint (public) - redirect to performance endpoint which has the real data
+router.get("/", async (req, res) => {
+  try {
+    // Check database availability
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service temporarily unavailable",
+        message: "Sectors service requires database connection"
+      });
+    }
+
+    const { limit = 20, period = "1m" } = req.query;
+    console.log(`📊 Fetching sectors list`);
+
+    // Use the same query as the performance endpoint but return formatted as root response
+    const olderDays = (period === "1d" ? 1 : period === "1w" ? 7 : 30) + 7;
+    const days = period === "1d" ? 1 : period === "1w" ? 7 : 30;
+
+    const result = await query(
+      `
+      SELECT
+        s.sector,
+        COUNT(DISTINCT s.ticker) as stock_count,
+        AVG(pd.close) as avg_price,
+        SUM(pd.volume) as total_volume,
+        AVG(
+          CASE
+            WHEN pd_old.close > 0 THEN
+              ((pd.close - pd_old.close) / pd_old.close * 100)
+            ELSE NULL
+          END
+        ) as performance_pct,
+        COUNT(DISTINCT CASE
+          WHEN pd.close > pd_old.close THEN s.ticker
+          ELSE NULL
+        END) as gaining_stocks,
+        COUNT(DISTINCT CASE
+          WHEN pd.close < pd_old.close THEN s.ticker
+          ELSE NULL
+        END) as losing_stocks
+      FROM company_profile s
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close, volume, date
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        ORDER BY symbol, date DESC
+      ) pd ON s.ticker = pd.symbol
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol)
+          symbol, close
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '${olderDays} days'
+          AND date < CURRENT_DATE - INTERVAL '${days} days'
+        ORDER BY symbol, date DESC
+      ) pd_old ON s.ticker = pd_old.symbol
+      WHERE s.sector IS NOT NULL AND s.sector != ''
+        AND pd.close IS NOT NULL
+        AND pd_old.close IS NOT NULL
+      GROUP BY s.sector
+      ORDER BY performance_pct DESC NULLS LAST
+      LIMIT $1
+      `,
+      [parseInt(limit)]
+    );
+
+    if (!result || !result.rows) {
+      return res.json({
+        success: true,
+        message: "No sector data available",
+        data: [],
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    console.log(`✅ Found ${result.rows.length} sectors`);
+
+    // Return data in the same format as performance endpoint but called "data"
+    res.json({
+      success: true,
+      data: result.rows.map((row) => ({
+        sector: row.sector,
+        performance: parseFloat(row.performance_pct),
+        stock_count: parseInt(row.stock_count),
+        avg_price: parseFloat(row.avg_price),
+        total_volume: parseInt(row.total_volume),
+        gaining_stocks: parseInt(row.gaining_stocks),
+        losing_stocks: parseInt(row.losing_stocks),
+        win_rate_pct: parseFloat((row.gaining_stocks / (row.gaining_stocks + row.losing_stocks) * 100) || 0),
+      })),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching sectors:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to fetch sectors",
+    });
+  }
 });
 
 /**

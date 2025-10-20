@@ -337,5 +337,15 @@
     "code": "buy('AAPL', 100, data['AAPL'].close);",
     "language": "javascript",
     "id": "1760976241174"
+  },
+  "test-backtest-1760983539093",
+  "test-backtest-1760983539100",
+  "test-backtest-1760983539103",
+  "test-backtest-1760983539110",
+  {
+    "name": "Test Strategy",
+    "code": "buy('AAPL', 100, data['AAPL'].close);",
+    "language": "javascript",
+    "id": "1760983539147"
   }
 ]
