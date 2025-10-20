@@ -755,9 +755,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             rsi = calculate_rsi(prices)
             macd = calculate_macd(prices)
             macd_hist = None
-            sma_20 = df['close'].tail(20).mean() if len(df) >= 20 else current_price
-            sma_50 = df['close'].tail(50).mean() if len(df) >= 50 else current_price
-            sma_200 = df['close'].tail(200).mean() if len(df) >= 200 else current_price
+            sma_20 = df['close'].tail(20).mean() if len(df) >= 20 else None
+            sma_50 = df['close'].tail(50).mean() if len(df) >= 50 else None
+            sma_200 = df['close'].tail(200).mean() if len(df) >= 200 else None
             atr = None
             mom_10d = None
             roc_10d = None
@@ -848,7 +848,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             """, (symbol,))
             sentiment_data = cur.fetchone()
             sentiment_score_raw = float(sentiment_data[0]) if sentiment_data and sentiment_data[0] is not None else None
-            news_count = int(sentiment_data[1]) if sentiment_data and sentiment_data[1] is not None else 0
+            news_count = int(sentiment_data[1]) if sentiment_data and sentiment_data[1] is not None else None
         except psycopg2.Error as e:
             conn.rollback()
             logger.warning(f"Sentiment table query failed for {symbol}: {e}")
@@ -963,8 +963,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # Calculate volatility directly from price data (30-day)
             volatility_12m_pct = calculate_volatility(prices)  # Annualized
             if volatility_12m_pct is None:
-                # No fallback - stability will be None if volatility missing
-                stability_score = None
+                # No fallback - risk_stability_score will be None if volatility missing
+                risk_stability_score = None
                 logger.warning(f"{symbol}: Cannot calculate volatility - cannot calculate stability score")
 
             # Calculate downside volatility (only on down days)
@@ -1044,14 +1044,14 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
                 # Calculate composite consistency score with new weighting
                 # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
-                stability_score = (
+                risk_stability_score = (
                     vol_percentile * 0.30 +
                     downside_percentile * 0.25 +
                     drawdown_percentile * 0.25 +
                     beta_percentile * 0.15 +
                     liquidity_percentile * 0.05
                 )
-                stability_score = max(0, min(100, stability_score))
+                risk_stability_score = max(0, min(100, risk_stability_score))
 
                 # Store risk inputs for display
                 stability_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
@@ -1060,7 +1060,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 stability_inputs['beta'] = round(beta, 3)
                 stability_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
 
-                logger.info(f"{symbol} Stability Score: {stability_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
+                logger.info(f"{symbol} Stability Score: {risk_stability_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
 
         except Exception as e:
             import traceback
@@ -1321,11 +1321,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Calculate final momentum score (0-100 scale)
         # Components: 10 + 25 + 25 + 15 + 10 = 85 pts (scaled to 100)
-        raw_momentum_score = (intraweek_confirmation + short_term_momentum + medium_term_momentum +
-                             longer_term_momentum + momentum_consistency)
-        # Scale from 85-point scale to 100-point scale
-        momentum_score = (raw_momentum_score / 85) * 100
-        momentum_score = max(0, min(100, momentum_score))
+        # Check if all momentum components are available
+        if any(x is None for x in [intraweek_confirmation, short_term_momentum, medium_term_momentum,
+                                    longer_term_momentum, momentum_consistency]):
+            momentum_score = None
+        else:
+            raw_momentum_score = (intraweek_confirmation + short_term_momentum + medium_term_momentum +
+                                 longer_term_momentum + momentum_consistency)
+            # Scale from 85-point scale to 100-point scale
+            momentum_score = (raw_momentum_score / 85) * 100
+            momentum_score = max(0, min(100, momentum_score))
 
         # ============================================================
         # Value Score - Enhanced Percentile-Based Valuation with Quality Modifiers
@@ -1333,6 +1338,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # Enhanced with modifiers: FCF Quality, Growth Context, Dividend Yield
         # ============================================================
         value_score = None
+
+        # Diagnostic: log if value calculation might fail
+        if pe_ratio is None:
+            logger.debug(f"{symbol}: PE_RATIO is NULL (trailing EPS or current price missing)")
+        if current_price is None:
+            logger.debug(f"{symbol}: CURRENT_PRICE is NULL (no price data available)")
 
         try:
             cur.execute("""
@@ -1474,6 +1485,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # REQUIRE quality_score - must calculate from data
         quality_score = None
 
+        # Diagnostic: log if quality metrics are unavailable
+        if quality_metrics is None or len(quality_metrics) == 0:
+            logger.debug(f"{symbol}: quality_metrics is empty or None - quality_score will be NULL")
+        elif stock_roe is None and stock_roa is None and stock_gross_margin is None:
+            logger.debug(f"{symbol}: No quality inputs available (ROE/ROA/Gross Margin all NULL)")
+
         # Only calculate percentile-based quality score if we have quality_metrics data
         if quality_metrics is not None:
             # Component 1: Profitability (40 points) - ROE, ROA, Gross Margin
@@ -1538,6 +1555,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # ============================================================
         # REQUIRE growth_score - must calculate from data
         growth_score = None
+
+        # Diagnostic: log if growth metrics are unavailable
+        if growth_metrics is None or len(growth_metrics) == 0:
+            logger.debug(f"{symbol}: growth_metrics is empty or None - growth_score will be NULL")
+        elif stock_revenue_growth is None and stock_earnings_growth is None:
+            logger.debug(f"{symbol}: No growth inputs available (Revenue/Earnings growth both NULL)")
 
         # Only calculate percentile-based growth score if we have growth_metrics data
         if growth_metrics is not None:
@@ -1776,13 +1799,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'growth_score': float(round(clamp_score(growth_score), 2)) if growth_score is not None else None,
             'positioning_score': float(round(clamp_score(positioning_score), 2)) if positioning_score is not None else None,
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)) if sentiment_score is not None else None,
-            'stability_score': float(round(clamp_score(stability_score), 2)) if stability_score is not None else None,
+            'stability_score': float(round(clamp_score(risk_stability_score), 2)) if risk_stability_score is not None else None,
             'stability_inputs': stability_inputs,
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma_20': float(round(float(sma_20), 2)) if sma_20 else None,
             'sma_50': float(round(float(sma_50), 2)) if sma_50 else None,
-            'volume_avg_30d': int(volume_avg_30d),
+            'volume_avg_30d': int(volume_avg_30d) if volume_avg_30d is not None else None,
             'current_price': float(round(current_price, 2)) if current_price is not None else None,
             'price_change_1d': float(round(price_change_1d, 2)) if price_change_1d is not None else None,
             'price_change_5d': float(round(price_change_5d, 2)) if price_change_5d is not None else None,
@@ -1887,8 +1910,8 @@ def save_stock_score(conn, score_data):
         """
 
         cur.execute(upsert_sql, score_data)
-        conn.commit()
         cur.close()
+        # Don't commit here - let the caller handle commits to maintain transaction control
         return True
 
     except psycopg2.Error as e:
@@ -1955,7 +1978,30 @@ def main():
                         # Commit after each stock to prevent long transaction abort cascades
                         conn.commit()
                         successful += 1
-                        logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}, Growth Score = {score_data['growth_score']:.2f}")
+
+                        # Safe logging with diagnostic info - handle None values gracefully
+                        try:
+                            composite_str = f"{score_data['composite_score']:.2f}" if score_data['composite_score'] is not None else "NULL"
+                            growth_str = f"{score_data['growth_score']:.2f}" if score_data['growth_score'] is not None else "NULL"
+                            quality_str = f"{score_data['quality_score']:.2f}" if score_data['quality_score'] is not None else "NULL"
+                            stability_str = f"{score_data['stability_score']:.2f}" if score_data['stability_score'] is not None else "NULL"
+
+                            # Add diagnostic info if any scores are NULL
+                            if None in [score_data['composite_score'], score_data['growth_score'], score_data['quality_score'], score_data['stability_score']]:
+                                null_scores = []
+                                if score_data['composite_score'] is None:
+                                    null_scores.append("composite")
+                                if score_data['growth_score'] is None:
+                                    null_scores.append("growth")
+                                if score_data['quality_score'] is None:
+                                    null_scores.append("quality")
+                                if score_data['stability_score'] is None:
+                                    null_scores.append("stability")
+                                logger.warning(f"⚠️ {symbol}: Composite={composite_str}, Growth={growth_str}, Quality={quality_str}, Stability={stability_str} | NULL: {', '.join(null_scores)}")
+                            else:
+                                logger.info(f"✅ {symbol}: Composite={composite_str}, Growth={growth_str}, Quality={quality_str}, Stability={stability_str}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ {symbol}: Score calculation completed but logging failed: {e}")
                     else:
                         # Rollback on save failure to keep transaction clean
                         conn.rollback()

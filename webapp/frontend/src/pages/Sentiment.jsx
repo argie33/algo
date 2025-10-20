@@ -37,7 +37,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 
-const API_BASE = window.CONFIG?.API_URL || "http://localhost:5001";
+const API_BASE = window.CONFIG?.API_URL || "http://localhost:3001";
 
 // Composite sentiment scoring algorithm
 const calculateCompositeSentiment = (newsScore, analystScore, socialScore) => {

@@ -11,7 +11,7 @@ console.log("🚀 Setting up development environment...");
 
 // BUG FIX: Use environment variables instead of hardcoded localhost
 // Get API URL and environment name from command line, env vars, or use defaults
-const apiUrl = process.argv[2] || process.env.API_URL || process.env.VITE_API_URL || "http://localhost:5001";
+const apiUrl = process.argv[2] || process.env.API_URL || process.env.VITE_API_URL || "http://localhost:3001";
 const environment = process.argv[3] || process.env.ENVIRONMENT || "development";
 
 // Create environment configuration
