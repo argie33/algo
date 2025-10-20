@@ -106,8 +106,8 @@ def fetch_sector_data(symbol, sector_name, spy_prices=None):
 
         # Calculate performance (1-day, 5-day, 20-day)
         perf_1d = change_percent
-        perf_5d = ((current_price - hist['Close'].iloc[-6]) / hist['Close'].iloc[-6] * 100) if len(hist) >= 6 else 0
-        perf_20d = ((current_price - hist['Close'].iloc[-21]) / hist['Close'].iloc[-21] * 100) if len(hist) >= 21 else 0
+        perf_5d = ((current_price - hist['Close'].iloc[-6]) / hist['Close'].iloc[-6] * 100) if len(hist) >= 6 else None  # NO mock fallback
+        perf_20d = ((current_price - hist['Close'].iloc[-21]) / hist['Close'].iloc[-21] * 100) if len(hist) >= 21 else None  # NO mock fallback
 
         # Calculate 50-day and 200-day SMAs
         sma_50 = float(np.mean(prices[-50:])) if len(prices) >= 50 else None
