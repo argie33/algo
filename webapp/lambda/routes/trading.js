@@ -198,11 +198,11 @@ router.get("/debug", async (req, res) => {
 // Get all trading signals (without timeframe requirement)
 router.get("/signals", async (req, res) => {
   try {
-    const { limit = 100, symbol, signal_type, timeframe = "daily" } = req.query;
+    const { limit = 100, page = 1, symbol, signal_type, timeframe = "daily" } = req.query;
     const userId = req.user?.sub;
 
     console.log(
-      `🎯 Trading signals requested - user: ${userId}, symbol: ${symbol}, type: ${signal_type}, timeframe: ${timeframe}`
+      `🎯 Trading signals requested - user: ${userId}, symbol: ${symbol}, type: ${signal_type}, timeframe: ${timeframe}, page: ${page}`
     );
 
     // Validate limit parameter
@@ -219,6 +219,10 @@ router.get("/signals", async (req, res) => {
         error: "Limit cannot exceed 500",
       });
     }
+
+    // Validate and calculate page
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const offset = (pageNum - 1) * limitNum;
 
     // Query buy_sell_daily table for real trading signals
     let queryText = `
@@ -255,8 +259,9 @@ router.get("/signals", async (req, res) => {
       paramIndex++;
     }
 
-    queryText += ` ORDER BY date DESC LIMIT $${paramIndex}`;
+    queryText += ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(limitNum);
+    queryParams.push(offset);
 
     console.log('📊 Executing query:', queryText.replace(/\s+/g, ' '), queryParams);
 
@@ -276,6 +281,13 @@ router.get("/signals", async (req, res) => {
         success: true,
         data: [],
         count: 0,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          offset: offset,
+          hasNext: false,
+          hasPrev: pageNum > 1,
+        },
         message: "No signals found matching filters",
       });
     }
@@ -330,6 +342,13 @@ router.get("/signals", async (req, res) => {
       success: true,
       data: signals,
       analytics: analytics,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        offset: offset,
+        hasNext: signals.length === limitNum,
+        hasPrev: pageNum > 1,
+      },
       count: signals.length,
       data_source: 'buy_sell_daily',
       timestamp: new Date().toISOString(),
