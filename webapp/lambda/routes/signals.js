@@ -98,6 +98,24 @@ router.get("/", async (req, res) => {
     const symbolFilter = req.query.symbol; // Add symbol filtering
     const limit = parseInt(req.query.limit) || 25;
     const page = parseInt(req.query.page) || 1;
+
+    // Prevent extremely large offsets that cause poor performance (>1M rows)
+    const MAX_PAGE = Math.ceil(1000000 / limit);
+    if (page > MAX_PAGE) {
+      return res.json({
+        success: true,
+        data: [],
+        message: `Page number ${page} exceeds maximum (${MAX_PAGE}). No data available at this pagination offset.`,
+        timeframe,
+        pagination: {
+          page,
+          limit,
+          hasMore: false
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const offset = (page - 1) * limit;
 
     // Safely map timeframes to table names to prevent SQL injection
