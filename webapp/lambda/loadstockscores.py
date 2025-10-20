@@ -423,9 +423,10 @@ def get_stock_data_from_database(conn, symbol):
         volatility_30d = calculate_volatility(prices)
 
         # Get earnings data for PE ratio and growth calculation
+        # Use earnings_history table (16,768 records) instead of earnings table (40 records)
         cur.execute("""
             SELECT actual_eps, report_date
-            FROM earnings
+            FROM earnings_history
             WHERE symbol = %s
             AND report_date >= CURRENT_DATE - INTERVAL '24 months'
             ORDER BY report_date DESC
