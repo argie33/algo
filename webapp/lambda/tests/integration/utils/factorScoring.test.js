@@ -1,4 +1,6 @@
 /**
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
+ *
  * Factor Scoring Integration Tests
  * Tests factor scoring algorithms with mock financial data
  */
@@ -6,34 +8,14 @@
 const factorScoring = require("../../../utils/factorScoring");
 const { FactorScoringEngine } = factorScoring;
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-const { query, closeDatabase, initializeDatabase} = require("../../../utils/database");
-
 // Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
+}
     req.user = { sub: "test-user-123", role: "user" };
     next();
   }),
   authorizeAdmin: jest.fn((req, res, next) => next()),
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
-
-// Import the mocked database
-
 
 describe("Factor Scoring Integration Tests", () => {
   let mockStockData;
@@ -49,10 +31,6 @@ describe("Factor Scoring Integration Tests", () => {
   });
 
   
-  afterAll(async () => {
-    await closeDatabase();
-  });
-
   describe("Composite Score Calculation", () => {
     test("should calculate composite score for individual stock", () => {
       const stockData = mockStockData[0]; // AAPL

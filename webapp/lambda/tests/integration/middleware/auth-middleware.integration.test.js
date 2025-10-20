@@ -1,4 +1,6 @@
 /**
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
+ *
  * Auth Middleware Service Integration Tests
  * Tests authentication middleware integration with actual services
  * Validates token processing and auth context propagation
@@ -8,41 +10,12 @@ const request = require("supertest");
 
 let app;
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-const { query, closeDatabase, initializeDatabase} = require("../../../utils/database");
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-// Import the mocked database
-
-
 app = require("../../../server");
+// NO MOCKS - Use REAL DATABASE ONLY
 describe("Auth Middleware with Service Integration", () => {
   
     beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
+        query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });
@@ -50,10 +23,6 @@ describe("Auth Middleware with Service Integration", () => {
       return Promise.resolve({ rows: [] });
     });
   });
-  afterAll(async () => {
-    await closeDatabase();
-  });
-
   describe("Token Validation with Real Auth Service", () => {
     test("should validate tokens against real auth service", async () => {
       const response = await request(app)

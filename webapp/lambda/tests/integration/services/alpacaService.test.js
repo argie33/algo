@@ -1,46 +1,18 @@
 /**
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
+ *
  * Alpaca Service Integration Tests
  * Tests real Alpaca API integration with paper trading account
  */
 
-
 // Mock Alpaca SDK to avoid requiring real API keys in tests
-jest.mock("@alpacahq/alpaca-trade-api", () => {
-  return jest.fn().mockImplementation(() => ({
-    getAccount: jest.fn(),
-    getPositions: jest.fn(),
-    getOrders: jest.fn(),
-    createOrder: jest.fn(),
-    cancelOrder: jest.fn(),
-    getAsset: jest.fn(),
-    getAssets: jest.fn(),
-    getBars: jest.fn(),
-    getLastTrade: jest.fn(),
-    getPortfolioHistory: jest.fn(),
-    getWatchlists: jest.fn(),
-    createWatchlist: jest.fn(),
-  }));
 });
 
 const AlpacaService = require("../../../utils/alpacaService");
 const Alpaca = require("@alpacahq/alpaca-trade-api");
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
 // Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
+}
     req.user = { sub: "test-user-123", role: "user" };
     next();
   }),
@@ -49,17 +21,11 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import mocked functions
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
-
 describe("Alpaca Service Integration Tests", () => {
   let alpacaService;
   let mockClient;
 
   
-  afterAll(async () => {
-    await closeDatabase();
-  });
-
   beforeEach(() => {
     // Clear mocks before each test
     jest.clearAllMocks();

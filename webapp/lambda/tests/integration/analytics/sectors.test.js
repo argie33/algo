@@ -1,4 +1,6 @@
 /**
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
+ *
  * Sectors Analysis Integration Tests
  * Tests for sector-based analysis and performance
  * Route: /routes/sectors.js
@@ -7,31 +9,14 @@
 const request = require("supertest");
 const { app } = require("../../../index");
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-
 // Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
+}
     req.user = { sub: "test-user-123", role: "user" };
     next();
   }),
   authorizeAdmin: jest.fn((req, res, next) => next()),
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
-
 
 describe("Sectors Analysis API", () => {
   describe("Sector Performance", () => {

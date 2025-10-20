@@ -1,4 +1,6 @@
 /**
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
+ *
  * Data Pipeline Integration Tests
  *
  * Verifies end-to-end data flow from loaders through API to frontend
@@ -8,21 +10,6 @@
 const request = require('supertest');
 const { app } = require('../../index');
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import mocked functions AFTER jest.mock
-
-// Mock auth middleware
-jest.mock("../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
     req.user = { sub: "test-user-123" };
     next();
   }),
@@ -30,20 +17,16 @@ jest.mock("../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
+// NO MOCKS - Use REAL DATABASE ONLY
 describe('Data Pipeline Integration - End-to-End', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
+        query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });
       }
       return Promise.resolve({ rows: [] });
     });
-  });
-
-  afterAll(async () => {
-    await closeDatabase();
   });
 
   describe('Growth Metrics Data Flow', () => {

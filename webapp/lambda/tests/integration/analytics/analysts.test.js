@@ -2,67 +2,30 @@
  * Analysts Integration Tests
  * Tests for analyst recommendations and research data
  * Route: /routes/analysts.js
+ *
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
  */
 
 const request = require("supertest");
 const { app } = require("../../../index");
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-// Import the mocked database
-
-describe("Analysts API", () => {
+describe("Analysts API Integration", () => {
   describe("Analyst Recommendations", () => {
-    beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
-      // Default: return empty rows for all queries
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-  });
     test("should retrieve analyst recommendations for stock", async () => {
-      const response = await request(app).get(
-        "/api/analysts/AAPL"
-      );
+      const response = await request(app).get("/api/analysts/AAPL");
 
-      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("symbol", "AAPL");
       expect(response.body.data).toBeDefined();
 
-      // Verify expected data structure with real data
       expect(response.body.data).toHaveProperty("upgrades_downgrades");
       expect(response.body.data).toHaveProperty("revenue_estimates");
       expect(response.body.data).toHaveProperty("eps_estimates");
       expect(Array.isArray(response.body.data.upgrades_downgrades)).toBe(true);
       expect(Array.isArray(response.body.data.revenue_estimates)).toBe(true);
       expect(Array.isArray(response.body.data.eps_estimates)).toBe(true);
-      // Check counts object
+
       expect(response.body).toHaveProperty("counts");
       expect(response.body.counts).toHaveProperty("upgrades_downgrades");
       expect(response.body.counts).toHaveProperty("revenue_estimates");
@@ -70,11 +33,8 @@ describe("Analysts API", () => {
     });
 
     test("should handle invalid stock symbols", async () => {
-      const response = await request(app).get(
-        "/api/analysts/INVALID123"
-      );
+      const response = await request(app).get("/api/analysts/INVALID123");
 
-      // Should return 200 with empty data for invalid symbols
       expect([200, 404]).toContain(response.status);
       if (response.status === 404) {
         expect(response.body).toHaveProperty("success", false);
@@ -85,7 +45,6 @@ describe("Analysts API", () => {
 
   describe("Analyst Coverage", () => {
     test("should return error for individual analyst coverage (not available from yfinance)", async () => {
-      // Endpoint /coverage/:symbol doesn't exist in current implementation
       const response = await request(app).get("/api/analysts/coverage/AAPL");
       expect(response.status).toBe(404);
     });
@@ -93,23 +52,17 @@ describe("Analysts API", () => {
 
   describe("Price Targets", () => {
     test("should retrieve price targets for stock", async () => {
-      // Endpoint /price-targets/:symbol doesn't exist in current implementation
-      const response = await request(app).get(
-        "/api/analysts/price-targets/AAPL"
-      );
+      const response = await request(app).get("/api/analysts/price-targets/AAPL");
 
-      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body.data).toBeDefined();
 
-      // Verify expected data structure with real data
       expect(response.body.data).toHaveProperty("symbol", "AAPL");
       expect(response.body.data).toHaveProperty("price_targets");
       expect(Array.isArray(response.body.data.price_targets)).toBe(true);
       expect(response.body.data.price_targets.length).toBeGreaterThan(0);
 
-      // Verify first price target structure
       const target = response.body.data.price_targets[0];
       expect(target).toHaveProperty("analyst_firm");
       expect(target).toHaveProperty("target_price");
@@ -120,15 +73,12 @@ describe("Analysts API", () => {
     });
 
     test("should provide consensus price targets", async () => {
-      // Endpoint /consensus/:symbol doesn't exist in current implementation
       const response = await request(app).get("/api/analysts/consensus/AAPL");
 
-      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body.data).toBeDefined();
 
-      // Verify expected data structure with real data
       const consensus = response.body.data;
       expect(consensus).toHaveProperty("symbol", "AAPL");
       expect(consensus).toHaveProperty("target_high_price");
@@ -147,18 +97,13 @@ describe("Analysts API", () => {
 
   describe("Analyst Research", () => {
     test("should retrieve research reports", async () => {
-      // Endpoint /research doesn't exist in current implementation
-      const response = await request(app).get(
-        "/api/analysts/research?symbol=AAPL&limit=10"
-      );
+      const response = await request(app).get("/api/analysts/research?symbol=AAPL&limit=10");
 
-      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body.data.length).toBeGreaterThan(0);
 
-      // Verify first research report structure
       const research = response.body.data[0];
       expect(research).toHaveProperty("symbol", "AAPL");
       expect(research).toHaveProperty("analyst_firm");
@@ -171,17 +116,12 @@ describe("Analysts API", () => {
     });
 
     test("should filter research by analyst firm", async () => {
-      // Endpoint /research doesn't exist in current implementation
-      const response = await request(app).get(
-        "/api/analysts/research?firm=Goldman&limit=5"
-      );
+      const response = await request(app).get("/api/analysts/research?firm=Goldman&limit=5");
 
-      // With real test data loaded, should return 200
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(Array.isArray(response.body.data)).toBe(true);
 
-      // If data exists, verify it's filtered by Goldman
       if (response.body.data.length > 0) {
         response.body.data.forEach((report) => {
           expect(report.analyst_firm).toContain("Goldman");

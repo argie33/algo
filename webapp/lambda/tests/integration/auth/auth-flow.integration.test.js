@@ -1,4 +1,6 @@
 /**
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
+ *
  * Authentication Flow Integration Tests
  * Tests complete authentication workflows and token management
  * Validates end-to-end authentication scenarios
@@ -8,40 +10,13 @@ const request = require("supertest");
 
 let app;
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-// Import the mocked database
-const { query, closeDatabase, initializeDatabase} = require("../../../utils/database");
-
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
-    req.user = { sub: "test-user-123", role: "user" };
-    next();
-  }),
-  authorizeAdmin: jest.fn((req, res, next) => next()),
-  checkApiKey: jest.fn((req, res, next) => next()),
-}));
-
-// Import app AFTER all mocks are in place
 app = require("../../../server");
 
+// NO MOCKS - Use REAL DATABASE ONLY
 describe("Authentication Flow Integration", () => {
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
+        query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });
@@ -49,10 +24,6 @@ describe("Authentication Flow Integration", () => {
       return Promise.resolve({ rows: [] });
     });
   });
-  afterAll(async () => {
-    await closeDatabase();
-  });
-
   describe("Token-Based Authentication Flow", () => {
     test("should handle dev bypass token authentication", async () => {
       const protectedEndpoint = "/api/portfolio";

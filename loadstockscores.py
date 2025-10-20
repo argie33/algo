@@ -101,7 +101,6 @@ def create_stock_scores_table(conn):
                 symbol VARCHAR(50) PRIMARY KEY,
                 composite_score DECIMAL(5,2),
                 momentum_score DECIMAL(5,2),
-                trend_score DECIMAL(5,2),
                 value_score DECIMAL(5,2),
                 quality_score DECIMAL(5,2),
                 growth_score DECIMAL(5,2),
@@ -956,9 +955,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             logger.error(f"{symbol}: Risk calculation failed: {e}")
             logger.error(traceback.format_exc())
             conn.rollback()
-            # Use neutral/default consistency score rather than failing
-            stability_score = 50
-            logger.warning(f"{symbol}: Using neutral default stability_score of 50")
+            # No fallback - stability_score remains None if calculation fails
 
         # Get quality metrics from key_metrics table for percentile-based quality score
         stock_roe = None
@@ -1342,10 +1339,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         except (psycopg2.Error, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             logger.error(f"{symbol}: Could not calculate enhanced value score: {e}")
 
-        # Fallback: Use neutral value score if data missing
-        if value_score is None:
-            value_score = 50
-            logger.warning(f"{symbol}: Using neutral default value_score of 50")
+        # No fallback - value_score remains None if cannot be calculated
 
         # ============================================================
         # Quality Score - Percentile-Based Industry Standard (Fama-French, MSCI, AQR)
@@ -1601,8 +1595,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # This prevents TypeError when multiplying None * float
         if momentum_score is None:
             momentum_score = 50
-        if trend_score is None:
-            trend_score = 50
         if growth_score is None:
             growth_score = 50
         if value_score is None:

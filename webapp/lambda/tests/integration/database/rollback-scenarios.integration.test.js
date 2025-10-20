@@ -1,12 +1,11 @@
 /**
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
+ *
  * Database Rollback Scenarios Integration Tests
  * Tests transaction rollback mechanisms and data consistency
  * Validates error recovery and state preservation
  */
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn(),
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
   getPool: jest.fn(),
@@ -14,9 +13,6 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-// Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
     if (!req.headers.authorization) {
       return res.status(401).json({ success: false, error: "Authentication required" });
     }
@@ -27,16 +23,12 @@ jest.mock("../../../middleware/auth", () => ({
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
-
-
-
 // SKIP: Mock-based integration tests violate NO-MOCK policy - use real data tests instead
+// NO MOCKS - Use REAL DATABASE ONLY
 describe("Database Rollback Scenarios Integration", () => {
   
     beforeEach(() => {
-    jest.clearAllMocks();
-    query.mockImplementation((sql, params) => {
+        query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       if (sql.includes("information_schema.tables")) {
         return Promise.resolve({ rows: [{ exists: true }] });
@@ -44,10 +36,6 @@ describe("Database Rollback Scenarios Integration", () => {
       return Promise.resolve({ rows: [] });
     });
   });
-  afterAll(async () => {
-    await closeDatabase();
-  });
-
   describe("Automatic Rollback on Error", () => {
     test("should automatically rollback on SQL errors", async () => {
       // Create test table

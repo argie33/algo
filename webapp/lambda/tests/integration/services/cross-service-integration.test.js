@@ -1,4 +1,6 @@
 /**
+ * INTEGRATION TEST - Uses REAL database and REAL services (NO MOCKS)
+ *
  * Cross-Service Integration Tests
  * Tests integration between multiple services, databases, and external APIs
  * Validates end-to-end business workflows
@@ -9,34 +11,16 @@ const request = require("supertest");
 let app;
 const authToken = "Bearer dev-bypass-token";
 
-// Mock database BEFORE importing routes/modules
-jest.mock("../../../utils/database", () => ({
-  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-  initializeDatabase: jest.fn().mockResolvedValue(undefined),
-  closeDatabase: jest.fn().mockResolvedValue(undefined),
-  getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
-  healthCheck: jest.fn(),
-}));
-
-
-
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
 
 // Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
-  authenticateToken: jest.fn((req, res, next) => {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
-    }
+}
     req.user = { sub: "test-user-123", role: "user" };
     next();
   }),
   authorizeAdmin: jest.fn((req, res, next) => next()),
   checkApiKey: jest.fn((req, res, next) => next()),
 }));
-
-
 
 describe("Cross-Service Integration", () => {
   
@@ -50,10 +34,6 @@ describe("Cross-Service Integration", () => {
       return Promise.resolve({ rows: [] });
     });
   });
-  afterAll(async () => {
-    await closeDatabase();
-  });
-
   describe("Portfolio → Market Data → Risk Analysis Integration", () => {
     test("should integrate portfolio analysis with market data and risk engine", async () => {
       // Step 1: Get portfolio data
