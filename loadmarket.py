@@ -203,9 +203,9 @@ class MarketDataCollector:
             price_change_pct = (current_close / prev_close - 1) * 100
 
             # Check volume comparison
-            current_volume = hist["Volume"].iloc[current_idx] if "Volume" in hist.columns else 0
-            prev_volume = hist["Volume"].iloc[prev_idx] if "Volume" in hist.columns else 0
-            volume_higher = current_volume > prev_volume
+            current_volume = hist["Volume"].iloc[current_idx] if "Volume" in hist.columns else None  # NO mock fallback
+            prev_volume = hist["Volume"].iloc[prev_idx] if "Volume" in hist.columns else None  # NO mock fallback
+            volume_higher = current_volume > prev_volume if current_volume and prev_volume else False
 
             # IBD criteria: down 0.2%+ on higher volume
             if price_change_pct <= -0.2 and volume_higher and current_volume > 0:
@@ -214,7 +214,7 @@ class MarketDataCollector:
                     "close": float(current_close),
                     "change_pct": float(price_change_pct),
                     "volume": int(current_volume),
-                    "volume_ratio": float(current_volume / prev_volume) if prev_volume > 0 else 1.0,
+                    "volume_ratio": float(current_volume / prev_volume) if prev_volume and prev_volume > 0 else None,  # NO mock fallback
                     "days_ago": i - 1,
                 }
 
@@ -262,38 +262,38 @@ class MarketDataCollector:
             # Calculate latest metrics
             latest_date = hist.index[-1]
             latest_price = hist["Close"].iloc[-1]
-            latest_volume = hist["Volume"].iloc[-1] if "Volume" in hist.columns else 0
+            latest_volume = hist["Volume"].iloc[-1] if "Volume" in hist.columns else None  # NO mock fallback
 
             # Calculate returns
             returns_1d = (
                 (hist["Close"].iloc[-1] / hist["Close"].iloc[-2] - 1)
                 if len(hist) >= 2
-                else 0
+                else None  # NO mock fallback
             )
             returns_5d = (
                 (hist["Close"].iloc[-1] / hist["Close"].iloc[-6] - 1)
                 if len(hist) >= 6
-                else 0
+                else None  # NO mock fallback
             )
             returns_1m = (
                 (hist["Close"].iloc[-1] / hist["Close"].iloc[-21] - 1)
                 if len(hist) >= 21
-                else 0
+                else None  # NO mock fallback
             )
             returns_3m = (
                 (hist["Close"].iloc[-1] / hist["Close"].iloc[-63] - 1)
                 if len(hist) >= 63
-                else 0
+                else None  # NO mock fallback
             )
             returns_6m = (
                 (hist["Close"].iloc[-1] / hist["Close"].iloc[-126] - 1)
                 if len(hist) >= 126
-                else 0
+                else None  # NO mock fallback
             )
             returns_1y = (
                 (hist["Close"].iloc[-1] / hist["Close"].iloc[0] - 1)
                 if len(hist) >= 250
-                else 0
+                else None  # NO mock fallback
             )
 
             # Calculate volatility
@@ -301,15 +301,15 @@ class MarketDataCollector:
             volatility_30d = (
                 daily_returns.tail(30).std() * np.sqrt(252)
                 if len(daily_returns) >= 30
-                else 0
+                else None  # NO mock fallback
             )
             volatility_90d = (
                 daily_returns.tail(90).std() * np.sqrt(252)
                 if len(daily_returns) >= 90
-                else 0
+                else None  # NO mock fallback
             )
             volatility_1y = (
-                daily_returns.std() * np.sqrt(252) if len(daily_returns) >= 30 else 0
+                daily_returns.std() * np.sqrt(252) if len(daily_returns) >= 30 else None  # NO mock fallback
             )
 
             # Calculate moving averages
@@ -338,11 +338,11 @@ class MarketDataCollector:
             )
 
             # Market cap and other info
-            market_cap = info.get("marketCap", 0)
+            market_cap = info.get("marketCap", None)  # NO mock fallback
             avg_volume_30d = (
                 hist["Volume"].tail(30).mean()
                 if "Volume" in hist.columns and len(hist) >= 30
-                else 0
+                else None  # NO mock fallback
             )
 
             # Beta calculation (vs SPY if not SPY itself)
