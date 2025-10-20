@@ -812,13 +812,15 @@ router.get("/:symbol", async (req, res) => {
             score: row.sentiment_score == null ? null : parseFloat(row.sentiment_score),
             components: {}
           },
-          consistency: {
+          stability: {
             score: row.stability_score == null ? null : parseFloat(row.stability_score),
             inputs: {
               volatility_12m_pct: row.volatility_12m_pct == null ? null : parseFloat(row.volatility_12m_pct),
-              downside_volatility_pct: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
+              volatility_risk_component: row.volatility_risk_component == null ? null : parseFloat(row.volatility_risk_component),
               max_drawdown_52w_pct: row.max_drawdown_52w_pct == null ? null : parseFloat(row.max_drawdown_52w_pct),
-              beta: row.beta == null ? null : parseFloat(row.beta)
+              debt_to_equity: row.debt_to_equity == null ? null : parseFloat(row.debt_to_equity),
+              current_ratio: row.current_ratio == null ? null : parseFloat(row.current_ratio),
+              eps_growth_stability: row.eps_growth_stability == null ? null : parseFloat(row.eps_growth_stability)
             }
           }
         },

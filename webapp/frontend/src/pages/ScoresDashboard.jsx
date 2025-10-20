@@ -1538,13 +1538,13 @@ const ScoresDashboard = () => {
                           </Card>
                         </Grid>
 
-                        {/* Risk Factor Analysis */}
+                        {/* Stability Factor Analysis */}
                         <Grid item xs={12} md={6}>
                           <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
                             <CardContent sx={{ pb: 2 }}>
                               <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                                <Security sx={{ color: theme.palette.error.main }} />
-                                <Typography variant="h6">Risk Factor Analysis</Typography>
+                                <Security sx={{ color: theme.palette.success.main }} />
+                                <Typography variant="h6">Stability Factor Analysis</Typography>
                                 <Chip
                                   label={(stock.stability_score || 0).toFixed(1)}
                                   color={(stock.stability_score || 0) < 30 ? "success" : (stock.stability_score || 0) < 50 ? "warning" : "error"}
@@ -1552,12 +1552,12 @@ const ScoresDashboard = () => {
                                 />
                               </Box>
                               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                Composite risk assessment measuring volatility, technical positioning, and financial leverage
+                                Stability assessment measuring lower volatility and smoother price movement
                               </Typography>
 
                               <Divider sx={{ my: 2 }} />
 
-                              {/* Risk Score Comparison Chart */}
+                              {/* Stability Score Comparison Chart */}
                               <Box sx={{ mt: 2 }}>
                                 <Typography variant="caption" color="text.secondary" gutterBottom>
                                   Score Comparison
@@ -1571,11 +1571,11 @@ const ScoresDashboard = () => {
                                       },
                                       {
                                         name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
-                                        value: sectorAvgs.consistency || 0
+                                        value: sectorAvgs.stability || 0
                                       },
                                       {
                                         name: "Market Avg",
-                                        value: marketAvgs.consistency || 0
+                                        value: marketAvgs.stability || 0
                                       },
                                     ]}
                                     margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
@@ -1584,7 +1584,7 @@ const ScoresDashboard = () => {
                                     <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
                                     <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
                                     <RechartsTooltip />
-                                    <Bar dataKey="value" name="Risk Score">
+                                    <Bar dataKey="value" name="Stability Score">
                                       {[
                                         <Cell key="stock" fill={(stock.stability_score || 0) < 30 ? theme.palette.success.main : (stock.stability_score || 0) < 50 ? theme.palette.warning.main : theme.palette.error.main} />,
                                         <Cell key="sector" fill={theme.palette.primary.main} />,
@@ -1596,12 +1596,12 @@ const ScoresDashboard = () => {
                                 </ResponsiveContainer>
                               </Box>
 
-                              {/* Risk Components Table */}
+                              {/* Stability Components Table */}
                               <TableContainer sx={{ mt: 2 }}>
                                 <Table size="small">
                                   <TableHead>
                                     <TableRow>
-                                      <TableCell>Risk Component</TableCell>
+                                      <TableCell>Stability Component</TableCell>
                                       <TableCell align="right">Value</TableCell>
                                     </TableRow>
                                   </TableHead>

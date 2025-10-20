@@ -130,6 +130,21 @@ const SectorAnalysis = () => {
     }
   }, [rotationData]);
 
+  // DEBUG: Log industries data received
+  useEffect(() => {
+    if (industryData?.data?.industries && industryData.data.industries.length > 0) {
+      console.log(`[INDUSTRIES API] Total industries returned: ${industryData.data.industries.length}`);
+      const industrialsIndustries = industryData.data.industries.filter(ind =>
+        (ind.sector === 'Industrials' || ind.sector_name === 'Industrials' ||
+         ind.sector === 'Industrial' || ind.sector_name === 'Industrial')
+      );
+      console.log(`[INDUSTRIALS DATA] Found ${industrialsIndustries.length} for Industrials:`);
+      industrialsIndustries.slice(0, 3).forEach(ind => {
+        console.log(`  - ${ind.industry}: sector="${ind.sector}", sector_name="${ind.sector_name}"`);
+      });
+    }
+  }, [industryData]);
+
   // Render sectors if sectors data is available (industries are optional for filtering)
   const shouldRenderSectors = rotationData?.data?.sectors && rotationData?.data?.sectors.length > 0;
 
@@ -357,7 +372,12 @@ const SectorAnalysis = () => {
                   (ind) => {
                     // Normalize industry sector to match normalized sector name
                     const normalizedIndSector = normalizeSectorName(ind.sector || ind.sector_name || '');
-                    return normalizedIndSector === normalizedSectorName;
+                    const match = normalizedIndSector === normalizedSectorName;
+                    // DEBUG: Log mismatches for Industrials
+                    if ((sectorName === 'Industrials' || sectorName === 'Industrial') && !match && ind.industry) {
+                      console.log(`[INDUSTRY DEBUG] Sector: "${sectorName}", Normalized: "${normalizedSectorName}" | Industry: "${ind.industry}", IndSector: "${ind.sector}", NormIndSector: "${normalizedIndSector}"`);
+                    }
+                    return match;
                   }
                 );
 

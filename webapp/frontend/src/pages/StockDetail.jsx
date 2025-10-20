@@ -2196,20 +2196,20 @@ function StockDetail() {
             </Card>
           </Grid>
 
-          {/* Risk Factor Breakdown */}
+          {/* Stability Factor Analysis */}
           <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" gap={1} mb={2}>
                   <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                    Risk Factor Analysis
+                    Stability Factor Analysis
                   </Typography>
                   <Chip
-                    label={`Risk: ${(stockScores?.data?.factors?.risk?.score || 0).toFixed(1)}/100`}
+                    label={`Stability: ${(stockScores?.data?.factors?.stability?.score || 0).toFixed(1)}/100`}
                     color={
-                      (stockScores?.data?.factors?.risk?.score || 0) < 30
+                      (stockScores?.data?.factors?.stability?.score || 0) >= 70
                         ? "success"
-                        : (stockScores?.data?.factors?.risk?.score || 0) < 50
+                        : (stockScores?.data?.factors?.stability?.score || 0) >= 50
                         ? "warning"
                         : "error"
                     }
@@ -2222,10 +2222,10 @@ function StockDetail() {
                     <BarChart
                       data={[
                         {
-                          metric: 'Risk Score',
-                          score: stockScores?.data?.factors?.risk?.score || 0,
+                          metric: 'Stability Score',
+                          score: stockScores?.data?.factors?.stability?.score || 0,
                           target: 50,
-                          good: 30
+                          good: 70
                         }
                       ]}
                       margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
@@ -2234,9 +2234,9 @@ function StockDetail() {
                       <XAxis dataKey="metric" />
                       <YAxis domain={[0, 100]} />
                       <Tooltip />
-                      <Bar dataKey="score" fill={stockScores?.data?.factors?.risk?.score >= 70 ? "#f44336" : stockScores?.data?.factors?.risk?.score >= 50 ? "#ff9800" : "#4caf50"} name="Score" />
+                      <Bar dataKey="score" fill={stockScores?.data?.factors?.stability?.score >= 70 ? "#4caf50" : stockScores?.data?.factors?.stability?.score >= 50 ? "#ff9800" : "#f44336"} name="Score" />
                       <Bar dataKey="target" fill="#e0e0e0" opacity={0.3} name="Target (50)" />
-                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (30)" />
+                      <Bar dataKey="good" fill="#e0e0e0" opacity={0.2} name="Good (70)" />
                     </BarChart>
                   </ResponsiveContainer>
                 </Box>
@@ -2244,36 +2244,36 @@ function StockDetail() {
                   <Table size="small">
                     <TableHead>
                       <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                        <TableCell><strong>Risk Component</strong></TableCell>
+                        <TableCell><strong>Stability Component</strong></TableCell>
                         <TableCell align="right"><strong>Value</strong></TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       <TableRow>
                         <TableCell>Volatility (12M)</TableCell>
-                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.volatility_12m_pct || 0).toFixed(2)}%</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.stability?.inputs?.volatility_12m_pct || 0).toFixed(2)}%</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Max Drawdown (52W)</TableCell>
-                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.max_drawdown_52w_pct || 0).toFixed(2)}%</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.stability?.inputs?.max_drawdown_52w_pct || 0).toFixed(2)}%</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Debt/Equity Ratio</TableCell>
-                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.debt_to_equity || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.stability?.inputs?.debt_to_equity || 0).toFixed(2)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Current Ratio</TableCell>
-                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.current_ratio || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.stability?.inputs?.current_ratio || 0).toFixed(2)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>EPS Growth Stability</TableCell>
-                        <TableCell align="right">{(stockScores?.data?.factors?.risk?.inputs?.eps_growth_stability || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">{(stockScores?.data?.factors?.stability?.inputs?.eps_growth_stability || 0).toFixed(2)}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, fontStyle: 'italic' }}>
-                  <strong>Risk Score Categories:</strong> 0-30 (Low Risk), 31-50 (Moderate), 51-70 (High), 71-100 (Very High)
+                  <strong>Stability Score Categories:</strong> 0-30 (Low Stability), 31-50 (Moderate), 51-70 (High), 71-100 (Very High Stability)
                 </Typography>
               </CardContent>
             </Card>

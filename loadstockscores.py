@@ -1215,61 +1215,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         momentum_score = (raw_momentum_score / 85) * 100
         momentum_score = max(0, min(100, momentum_score))
 
-        # Trend Score (multi-timeframe analysis + MA alignment)
-        # REQUIRE trend_score - must calculate from data
-        trend_score = None
-
-        if sma_20 and sma_50:
-            price_vs_sma20 = (current_price / float(sma_20) - 1) * 100
-            price_vs_sma50 = (current_price / float(sma_50) - 1) * 100
-
-            # MA alignment bonus/penalty (0-25 points)
-            ma_alignment = 0
-            if float(sma_20) > float(sma_50):
-                # Bullish alignment
-                ma_alignment = 15
-                if price_vs_sma20 > 0:
-                    ma_alignment += 10  # Price above both MAs
-            else:
-                # Bearish alignment
-                ma_alignment = -15
-                if price_vs_sma20 < 0:
-                    ma_alignment -= 10  # Price below both MAs
-
-            # Price position score (0-50 points)
-            position_score = 25 + (price_vs_sma20 * 0.5) + (price_vs_sma50 * 0.3)
-            position_score = max(0, min(50, position_score))
-
-            # Multi-timeframe momentum (0-25 points)
-            timeframe_score = 12.5
-            if price_change_1d > 0 and price_change_5d > 0 and price_change_30d > 0:
-                timeframe_score = 25  # Bullish across all timeframes
-            elif price_change_1d < 0 and price_change_5d < 0 and price_change_30d < 0:
-                timeframe_score = 0  # Bearish across all timeframes
-            elif price_change_5d > 0 and price_change_30d > 0:
-                timeframe_score = 18.75  # Medium-term bullish
-            elif price_change_5d < 0 and price_change_30d < 0:
-                timeframe_score = 6.25  # Medium-term bearish
-
-            trend_score = position_score + ma_alignment + timeframe_score
-            trend_score = max(0, min(100, trend_score))
-        else:
-            # Fallback to price changes only
-            if price_change_5d > 0 and price_change_30d > 0:
-                trend_score = 60 + min(20, (price_change_30d * 0.5))
-            elif price_change_5d < 0 and price_change_30d < 0:
-                trend_score = 40 + max(-20, (price_change_30d * 0.5))
-            trend_score = max(0, min(100, trend_score))
-
         # ============================================================
-        # Value Score - Percentile-Based Valuation Analysis (Industry Standard)
-        # 4-component system using percentile ranking for value metrics
-        # Components: P/E (35%), P/B (25%), P/S (20%), PEG (20%)
+        # Value Score - Enhanced Percentile-Based Valuation with Quality Modifiers
+        # Base: 4-component system (P/E, P/B, P/S, PEG percentiles)
+        # Enhanced with modifiers: FCF Quality, Growth Context, Dividend Yield
         # ============================================================
-        # REQUIRE value_score - must calculate from data
         value_score = None
 
-        # Fetch value_inputs from stock_scores table to get percentile ranks
         try:
             cur.execute("""
                 SELECT value_inputs
@@ -1285,41 +1237,110 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if isinstance(value_inputs, str):
                     value_inputs = json.loads(value_inputs)
 
+                # COMPONENT 1: Base Valuation (Multiple Percentiles)
                 # Extract percentile ranks from value_inputs
                 pe_percentile = value_inputs.get('pe_percentile_rank')
                 pb_percentile = value_inputs.get('pb_percentile_rank')
                 ps_percentile = value_inputs.get('ps_percentile_rank')
                 peg_percentile = value_inputs.get('peg_percentile_rank')
+                ev_percentile = value_inputs.get('ev_percentile_rank')
 
-                # Calculate value score from percentile ranks (weighted average)
-                # Lower P/E, P/B, P/S, PEG = higher percentile, which is better for value
+                # Calculate base value score from percentile ranks (weighted average)
                 value_components = []
 
                 if pe_percentile is not None:
-                    pe_contribution = (float(pe_percentile) / 100) * 35  # 35% weight
+                    pe_contribution = (float(pe_percentile) / 100) * 30  # 30% weight (reduced from 35)
                     value_components.append(pe_contribution)
 
                 if pb_percentile is not None:
-                    pb_contribution = (float(pb_percentile) / 100) * 25  # 25% weight
+                    pb_contribution = (float(pb_percentile) / 100) * 20  # 20% weight (reduced from 25)
                     value_components.append(pb_contribution)
 
                 if ps_percentile is not None:
-                    ps_contribution = (float(ps_percentile) / 100) * 20  # 20% weight
+                    ps_contribution = (float(ps_percentile) / 100) * 15  # 15% weight (reduced from 20)
                     value_components.append(ps_contribution)
 
                 if peg_percentile is not None:
-                    peg_contribution = (float(peg_percentile) / 100) * 20  # 20% weight
+                    peg_contribution = (float(peg_percentile) / 100) * 15  # 15% weight (reduced from 20)
                     value_components.append(peg_contribution)
 
-                # Calculate final value score from available components
+                if ev_percentile is not None:
+                    ev_contribution = (float(ev_percentile) / 100) * 20  # 20% weight (NEW)
+                    value_components.append(ev_contribution)
+
                 if value_components:
-                    value_score = sum(value_components)
+                    base_value_score = sum(value_components)
+                    base_value_score = max(0, min(100, base_value_score))
+
+                    # COMPONENT 2: FCF Quality Modifier (0.5 - 1.2x)
+                    fcf_modifier = 1.0
+                    fcf_yield = value_inputs.get('fcf_yield')
+                    market_fcf_yield = value_inputs.get('market_fcf_yield', 3.5)
+
+                    if fcf_yield is not None:
+                        fcf_yield = float(fcf_yield)
+                        market_fcf_yield = float(market_fcf_yield) if market_fcf_yield else 3.5
+
+                        if fcf_yield < 0:
+                            # Negative FCF = value trap
+                            fcf_modifier = 0.5
+                        elif fcf_yield < market_fcf_yield * 0.5:
+                            # Low FCF yield
+                            fcf_modifier = 0.8
+                        elif fcf_yield > market_fcf_yield:
+                            # Strong FCF yield above market
+                            fcf_modifier = 1.2
+                        elif fcf_yield > market_fcf_yield * 0.75:
+                            # Good FCF yield
+                            fcf_modifier = 1.1
+
+                    # COMPONENT 3: Growth Context Modifier (0.8 - 1.1x)
+                    # PEG ratio: P/E divided by growth rate
+                    # PEG < 1.0 = cheap relative to growth
+                    # PEG > 2.0 = expensive relative to growth
+                    growth_modifier = 1.0
+                    peg_ratio = value_inputs.get('peg_ratio')
+
+                    if peg_ratio is not None:
+                        peg_ratio = float(peg_ratio)
+
+                        if peg_ratio < 0 or peg_ratio > 500:
+                            # Invalid PEG (negative growth, infinite, etc)
+                            growth_modifier = 1.0
+                        elif peg_ratio < 1.0:
+                            # Excellent: cheap relative to growth
+                            growth_modifier = 1.1
+                        elif peg_ratio > 2.5:
+                            # Concerning: expensive relative to growth
+                            growth_modifier = 0.85
+                        elif peg_ratio > 2.0:
+                            # Moderate concern
+                            growth_modifier = 0.9
+
+                    # COMPONENT 4: Dividend Modifier (0.95 - 1.05x)
+                    dividend_modifier = 1.0
+                    dividend_yield = value_inputs.get('dividend_yield')
+
+                    if dividend_yield is not None:
+                        dividend_yield = float(dividend_yield)
+
+                        if dividend_yield > 0.01:  # More than 0.1%
+                            # Returning cash to shareholders
+                            dividend_modifier = 1.05
+                        elif dividend_yield == 0:
+                            # No dividend
+                            dividend_modifier = 0.95
+
+                    # Calculate final value score with modifiers
+                    value_score = base_value_score * fcf_modifier * growth_modifier * dividend_modifier
                     value_score = max(0, min(100, value_score))
 
-                    logger.debug(f"{symbol} Value Components: PE={pe_percentile}, "
-                                f"PB={pb_percentile}, PS={ps_percentile}, PEG={peg_percentile}")
-        except (psycopg2.Error, json.JSONDecodeError, KeyError, TypeError) as e:
-            logger.error(f"{symbol}: Could not calculate percentile-based value score: {e}")
+                    logger.debug(f"{symbol} Value Score: base={base_value_score:.1f}, "
+                                f"fcf_mod={fcf_modifier:.2f}, growth_mod={growth_modifier:.2f}, "
+                                f"div_mod={dividend_modifier:.2f}, final={value_score:.1f}")
+
+        except (psycopg2.Error, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+            logger.error(f"{symbol}: Could not calculate enhanced value score: {e}")
 
         # Fallback: Use neutral value score if data missing
         if value_score is None:
@@ -1591,33 +1612,30 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if stability_score is None:
             stability_score = 50
 
-        # Composite Score (7-factor weighted average - Sentiment EXCLUDED, Stability NOW INCLUDED)
-        # Weights: Momentum (18.95%), Trend (13.68%), Growth (17.11%), Value (13.68%),
-        #          Quality (13.68%), Stability (12.63%), Positioning (10.26%)
-        # Stability (12.63%) is NEW - critical for preventing high-volatility stocks from scoring high
-        # Sentiment (5%) redistributed proportionally to all other factors
-        # If positioning_score is None, redistribute its 10.26% weight proportionally to other factors
+        # Composite Score (6-factor weighted average - Sentiment EXCLUDED)
+        # Weights: Momentum (22.35%), Growth (20.13%), Value (16.13%),
+        #          Quality (16.13%), Stability (14.88%), Positioning (12.08%)
+        # Trend score removed - not used
+        # If positioning_score is None, redistribute its 12.08% weight proportionally to other factors
         if positioning_score is not None:
             composite_score = (
-                momentum_score * 0.1895 +                # Short-term momentum
-                trend_score * 0.1368 +                   # Trend alignment
-                growth_score * 0.1711 +                  # Growth drivers
-                value_score * 0.1368 +                   # Valuation
-                quality_score * 0.1368 +                 # Quality (other than consistency)
-                stability_score * 0.1263 +             # Stability (NEW)
-                positioning_score * 0.1026               # Institutional positioning
+                momentum_score * 0.2235 +                # Short-term momentum
+                growth_score * 0.2013 +                  # Growth drivers
+                value_score * 0.1613 +                   # Valuation
+                quality_score * 0.1613 +                 # Quality
+                stability_score * 0.1488 +               # Stability
+                positioning_score * 0.1208                # Institutional positioning
             )
         else:
-            # Redistribute positioning's 10.26% weight proportionally across other factors
-            # New weights: Momentum (21.26%), Trend (15.32%), Growth (19.17%), Value (15.32%),
-            #              Quality (15.32%), Stability (14.16%)
+            # Redistribute positioning's 12.08% weight proportionally across other factors
+            # New weights: Momentum (25.48%), Growth (22.90%), Value (18.35%),
+            #              Quality (18.35%), Stability (16.92%)
             composite_score = (
-                momentum_score * 0.2126 +                # Short-term momentum
-                trend_score * 0.1532 +                   # Trend alignment
-                growth_score * 0.1917 +                  # Growth drivers
-                value_score * 0.1532 +                   # Valuation
-                quality_score * 0.1532 +                 # Quality
-                stability_score * 0.1416               # Stability
+                momentum_score * 0.2548 +                # Short-term momentum
+                growth_score * 0.2290 +                  # Growth drivers
+                value_score * 0.1835 +                   # Valuation
+                quality_score * 0.1835 +                 # Quality
+                stability_score * 0.1692                 # Stability
             )
 
         cur.close()
@@ -1630,7 +1648,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'symbol': symbol,
             'composite_score': float(round(clamp_score(composite_score), 2)),
             'momentum_score': float(round(clamp_score(momentum_score), 2)),
-            'trend_score': float(round(clamp_score(trend_score), 2)),
             'value_score': float(round(clamp_score(value_score), 2)),
             'quality_score': float(round(clamp_score(quality_score), 2)),
             'growth_score': float(round(clamp_score(growth_score), 2)),
@@ -1686,7 +1703,7 @@ def save_stock_score(conn, score_data):
         # Upsert query
         upsert_sql = """
         INSERT INTO stock_scores (
-            symbol, composite_score, momentum_score, trend_score, value_score, quality_score, growth_score,
+            symbol, composite_score, momentum_score, value_score, quality_score, growth_score,
             positioning_score, sentiment_score, stability_score, stability_inputs,
             rsi, macd, sma_20, sma_50, volume_avg_30d, current_price,
             price_change_1d, price_change_5d, price_change_30d, volatility_30d,
@@ -1697,7 +1714,7 @@ def save_stock_score(conn, score_data):
             acc_dist_rating,
             score_date, last_updated
         ) VALUES (
-            %(symbol)s, %(composite_score)s, %(momentum_score)s, %(trend_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
+            %(symbol)s, %(composite_score)s, %(momentum_score)s, %(value_score)s, %(quality_score)s, %(growth_score)s,
             %(positioning_score)s, %(sentiment_score)s, %(stability_score)s, %(stability_inputs)s,
             %(rsi)s, %(macd)s, %(sma_20)s, %(sma_50)s, %(volume_avg_30d)s, %(current_price)s,
             %(price_change_1d)s, %(price_change_5d)s, %(price_change_30d)s, %(volatility_30d)s,
@@ -1710,7 +1727,6 @@ def save_stock_score(conn, score_data):
         ) ON CONFLICT (symbol) DO UPDATE SET
             composite_score = EXCLUDED.composite_score,
             momentum_score = EXCLUDED.momentum_score,
-            trend_score = EXCLUDED.trend_score,
             value_score = EXCLUDED.value_score,
             quality_score = EXCLUDED.quality_score,
             growth_score = EXCLUDED.growth_score,
