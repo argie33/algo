@@ -1597,18 +1597,20 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # No else clause - remain None if no analyst data (no fallback to 50)
 
         # News sentiment component (add up to ±25 points)
-        if sentiment_score_raw is not None:
+        if sentiment_score is not None and sentiment_score_raw is not None:
             # Assuming sentiment_score_raw is 0-1 scale, convert to -25 to +25
             news_component = (sentiment_score_raw - 0.5) * 50
             sentiment_score += news_component
 
         # Bonus for high news coverage (indicates interest)
-        if news_count > 10:
-            sentiment_score += min(10, news_count * 0.5)
-        elif news_count > 5:
-            sentiment_score += 5
+        if sentiment_score is not None:
+            if news_count > 10:
+                sentiment_score += min(10, news_count * 0.5)
+            elif news_count > 5:
+                sentiment_score += 5
 
-        sentiment_score = max(0, min(100, sentiment_score))
+            sentiment_score = max(0, min(100, sentiment_score))
+        # If sentiment_score is None, leave it as None (no data to calculate)
 
         # No fallback defaults - all scores remain None if not calculated
         # Composite will only use scores that have real values
@@ -1676,9 +1678,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'sma_50': float(round(float(sma_50), 2)) if sma_50 else None,
             'volume_avg_30d': int(volume_avg_30d),
             'current_price': float(round(current_price, 2)),
-            'price_change_1d': float(round(price_change_1d, 2)),
-            'price_change_5d': float(round(price_change_5d, 2)),
-            'price_change_30d': float(round(price_change_30d, 2)),
+            'price_change_1d': float(round(price_change_1d, 2)) if price_change_1d is not None else None,
+            'price_change_5d': float(round(price_change_5d, 2)) if price_change_5d is not None else None,
+            'price_change_30d': float(round(price_change_30d, 2)) if price_change_30d is not None else None,
             'volatility_30d': float(volatility_30d) if volatility_30d is not None else None,
             'market_cap': int(market_cap) if market_cap else None,
             'pe_ratio': float(round(pe_ratio, 2)) if pe_ratio else None,
