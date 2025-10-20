@@ -948,6 +948,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # REQUIRES ALL DATA or None - NO NEUTRAL DEFAULTS
         # ============================================================
         stability_score = None
+        risk_stability_score = None  # Initialize to prevent UnboundLocalError
         stability_inputs = {
             'volatility_12m_pct': None,
             'downside_volatility_pct': None,
