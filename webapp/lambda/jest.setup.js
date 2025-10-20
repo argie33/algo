@@ -11,12 +11,13 @@ process.env.NODE_ENV = "test";
 process.env.ALLOW_DEV_BYPASS = "true";
 process.env.JWT_SECRET = "test-secret-key-for-testing-only";
 
-// Set database connection environment variables
+// Set database connection environment variables FOR TESTS
+// IMPORTANT: Tests use stocks_test database, NOT production stocks database
 if (!process.env.DB_HOST) process.env.DB_HOST = "localhost";
 if (!process.env.DB_PORT) process.env.DB_PORT = "5432";
 if (!process.env.DB_USER) process.env.DB_USER = "postgres";
 if (!process.env.DB_PASSWORD) process.env.DB_PASSWORD = "password";
-if (!process.env.DB_NAME) process.env.DB_NAME = "stocks";
+if (!process.env.DB_NAME) process.env.DB_NAME = "stocks_test"; // Use test database for all tests
 if (!process.env.DB_SSL) process.env.DB_SSL = "false";
 
 console.log('\n🔧 Jest setup file loaded');
