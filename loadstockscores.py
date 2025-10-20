@@ -277,17 +277,69 @@ def fetch_beta_from_database(conn, symbol):
     Fetch beta from database (populated by loaddailycompanydata.py from yfinance).
 
     Beta is pre-fetched from yfinance.ticker.info by the ingestion loader.
+    Tries multiple sources and returns neutral 1.0 if not found.
     """
     try:
         cur = conn.cursor()
-        cur.execute("""
-            SELECT beta FROM risk_metrics
-            WHERE symbol = %s AND beta IS NOT NULL
-            ORDER BY date DESC LIMIT 1
-        """, (symbol,))
-        result = cur.fetchone()
+
+        # Try PRIMARY SOURCE: risk_metrics (where loaddailycompanydata populates beta)
+        try:
+            cur.execute("""
+                SELECT beta FROM risk_metrics
+                WHERE symbol = %s AND beta IS NOT NULL
+                ORDER BY date DESC LIMIT 1
+            """, (symbol,))
+            result = cur.fetchone()
+            if result:
+                cur.close()
+                return result[0]
+        except Exception as e:
+            logger.debug(f"Beta not in risk_metrics for {symbol}: {e}")
+
+        # Try key_metrics as backup
+        try:
+            cur.execute("""
+                SELECT beta FROM key_metrics
+                WHERE symbol = %s AND beta IS NOT NULL
+                ORDER BY date DESC LIMIT 1
+            """, (symbol,))
+            result = cur.fetchone()
+            if result:
+                cur.close()
+                return result[0]
+        except Exception as e:
+            logger.debug(f"Beta not in key_metrics for {symbol}: {e}")
+
+        # Try quality_metrics as fallback
+        try:
+            cur.execute("""
+                SELECT beta FROM quality_metrics
+                WHERE symbol = %s AND beta IS NOT NULL
+                ORDER BY date DESC LIMIT 1
+            """, (symbol,))
+            result = cur.fetchone()
+            if result:
+                cur.close()
+                return result[0]
+        except Exception as e:
+            logger.debug(f"Beta not in quality_metrics for {symbol}: {e}")
+
+        # Try financial_ratios as last resort
+        try:
+            cur.execute("""
+                SELECT beta FROM financial_ratios
+                WHERE symbol = %s AND beta IS NOT NULL
+                LIMIT 1
+            """, (symbol,))
+            result = cur.fetchone()
+            if result:
+                cur.close()
+                return result[0]
+        except Exception as e:
+            logger.debug(f"Beta not in financial_ratios for {symbol}: {e}")
+
         cur.close()
-        return result[0] if result else None
+        return None  # Return None to use neutral 1.0 fallback in caller
     except Exception as e:
         logger.debug(f"Could not fetch beta from database for {symbol}: {e}")
         return None
@@ -1351,12 +1403,19 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                             dividend_modifier = 0.95
 
                     # Calculate final value score with modifiers
-                    value_score = base_value_score * fcf_modifier * growth_modifier * dividend_modifier
-                    value_score = max(0, min(100, value_score))
+                    # Ensure all modifiers are valid numbers before multiplying
+                    if (base_value_score is not None and isinstance(base_value_score, (int, float)) and
+                        fcf_modifier is not None and isinstance(fcf_modifier, (int, float)) and
+                        growth_modifier is not None and isinstance(growth_modifier, (int, float)) and
+                        dividend_modifier is not None and isinstance(dividend_modifier, (int, float))):
+                        value_score = base_value_score * fcf_modifier * growth_modifier * dividend_modifier
+                        value_score = max(0, min(100, value_score))
+                    # else: value_score remains None if any modifier is invalid
 
-                    logger.debug(f"{symbol} Value Score: base={base_value_score:.1f}, "
-                                f"fcf_mod={fcf_modifier:.2f}, growth_mod={growth_modifier:.2f}, "
-                                f"div_mod={dividend_modifier:.2f}, final={value_score:.1f}")
+                    if value_score is not None:
+                        logger.debug(f"{symbol} Value Score: base={base_value_score:.1f}, "
+                                    f"fcf_mod={fcf_modifier:.2f}, growth_mod={growth_modifier:.2f}, "
+                                    f"div_mod={dividend_modifier:.2f}, final={value_score:.1f}")
 
         except (psycopg2.Error, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             logger.error(f"{symbol}: Could not calculate enhanced value score: {e}")
@@ -1604,12 +1663,14 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Bonus for high news coverage (indicates interest)
         if sentiment_score is not None:
-            if news_count > 10:
+            if news_count is not None and news_count > 10:
                 sentiment_score += min(10, news_count * 0.5)
-            elif news_count > 5:
+            elif news_count is not None and news_count > 5:
                 sentiment_score += 5
 
-            sentiment_score = max(0, min(100, sentiment_score))
+            # Defensive: ensure sentiment_score is a number before clamping
+            if sentiment_score is not None and isinstance(sentiment_score, (int, float)):
+                sentiment_score = max(0, min(100, sentiment_score))
         # If sentiment_score is None, leave it as None (no data to calculate)
 
         # No fallback defaults - all scores remain None if not calculated
