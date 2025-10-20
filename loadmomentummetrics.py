@@ -246,18 +246,20 @@ def process_symbol(symbol, conn_pool):
         price_data = cursor.fetchall()
         logging.info(f"{symbol}: Found {len(price_data)} daily price records")
 
-        if len(price_data) < 63:
-            logging.warning(f"Insufficient price data for {symbol}, need at least 63 days, got {len(price_data)}")
-            conn_pool.putconn(conn)
-            return 0
-
         # Extract prices and dates (reverse to oldest-first order)
-        prices = [safe_numeric(row[1]) for row in reversed(price_data)]
-        dates = [row[0] for row in reversed(price_data)]
+        # Note: If fewer than 63 days, individual metrics will be NULL but stock record will be inserted
+        if len(price_data) > 0:
+            prices = [safe_numeric(row[1]) for row in reversed(price_data)]
+            dates = [row[0] for row in reversed(price_data)]
+        else:
+            # No price data at all - still insert record with all NULLs
+            prices = []
+            dates = []
+            logging.warning(f"No price data for {symbol}, creating NULL momentum record")
 
         # ========== STEP 2: Calculate RELATIVE MOMENTUM ==========
         current_date = datetime.now().date()
-        current_price = prices[-1]
+        current_price = prices[-1] if len(prices) > 0 else None
 
         # --- 2.1: 12-Month Return Excluding Last Month (12-1) ---
         # Academic standard: t-252 to t-21 (skip last month)
