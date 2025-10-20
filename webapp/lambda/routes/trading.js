@@ -366,6 +366,30 @@ router.get("/signals/:timeframe", async (req, res) => {
     } = req.query;
     const pageNum = Math.max(1, parseInt(page));
     const pageSize = Math.max(1, parseInt(limit));
+
+    // Prevent extremely large offsets that cause poor performance (>1M rows)
+    const MAX_PAGE = Math.ceil(1000000 / pageSize);
+    if (pageNum > MAX_PAGE) {
+      return res.json({
+        data: [],
+        timeframe: timeframe.toLowerCase(),
+        count: 0,
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+        metadata: {
+          signal_type: signal_type || "all",
+          symbol: symbol || null,
+          message: `Page number ${pageNum} exceeds maximum (${MAX_PAGE}). No data available at this pagination offset.`,
+        },
+      });
+    }
+
     const offset = (pageNum - 1) * pageSize;
 
     // Validate timeframe and handle aliases
