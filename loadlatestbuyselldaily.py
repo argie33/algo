@@ -204,9 +204,9 @@ def calculate_buy_sell_signals(price_tech_data):
         bollinger_pos = (
             ((close - bb_lower) / (bb_upper - bb_lower)) * 100
             if (bb_upper - bb_lower) > 0
-            else 50
+            else None  # NO mock fallback
         )
-        volume_ratio = volume / volume_avg if volume_avg > 0 else 1
+        volume_ratio = volume / volume_avg if volume_avg > 0 else None  # NO mock fallback
 
         # Signal calculation logic
         buy_score = 0
