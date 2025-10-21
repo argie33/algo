@@ -15,6 +15,15 @@ jest.mock("../../../utils/database");
 const jwt = require("jsonwebtoken");
 const apiKeyService = require("../../../utils/apiKeyService");
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  authenticateToken,
+  requireRole,
+  optionalAuth,
+  requireApiKey,
+  validateSession,
+  rateLimitByUser,
+  logApiAccess
+} = require("../../../middleware/auth");
 
 describe("Authentication Middleware", () => {
   let req, res, next;

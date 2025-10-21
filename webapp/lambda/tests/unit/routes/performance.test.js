@@ -21,6 +21,9 @@ jest.mock("../../../middleware/auth", () => ({
     next();
   }),
 }));
+
+const { authenticateToken } = require("../../../middleware/auth");
+
 // Mock the performance monitor
 jest.mock("../../../utils/performanceMonitor", () => ({
   getSystemMetrics: jest.fn(),

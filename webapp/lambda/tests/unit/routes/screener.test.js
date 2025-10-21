@@ -10,7 +10,19 @@ jest.mock("../../../utils/database", () => ({
 }));
 const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
+// Mock the factor scoring engine
+const mockCalculateCompositeScore = jest.fn();
+const mockGetAvailableFactors = jest.fn();
+const mockApplyFactorWeights = jest.fn();
+jest.mock("../../../utils/factorScoring", () => ({
+  FactorScoringEngine: jest.fn().mockImplementation(() => ({
+    calculateCompositeScore: mockCalculateCompositeScore,
+    getAvailableFactors: mockGetAvailableFactors,
+    applyFactorWeights: mockApplyFactorWeights,
+  })),
+}));
 
+const { FactorScoringEngine } = require("../../../utils/factorScoring");
 
 // Mock the auth middleware
 jest.mock("../../../middleware/auth", () => ({
@@ -22,17 +34,6 @@ jest.mock("../../../middleware/auth", () => ({
     };
     next();
   }),
-}));
-// Mock the factor scoring engine
-const mockCalculateCompositeScore = jest.fn();
-const mockGetAvailableFactors = jest.fn();
-const mockApplyFactorWeights = jest.fn();
-jest.mock("../../../utils/factorScoring", () => ({
-  FactorScoringEngine: jest.fn().mockImplementation(() => ({
-    calculateCompositeScore: mockCalculateCompositeScore,
-    getAvailableFactors: mockGetAvailableFactors,
-    applyFactorWeights: mockApplyFactorWeights,
-  })),
 }));
 describe("Screener Routes Unit Tests", () => {
   let app;
