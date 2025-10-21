@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
-  priceweekly, pricemonthly, TechnicalsDaily, loadinfo, earningsestimate,
+  priceweekly, pricemonthly, TechnicalsDaily, companyprofile, earningsestimate,
   technicalsweekly & technicalsmonthly.
 
 Parameters:
@@ -27,9 +27,9 @@ Parameters:
   TechnicalsDailyImageTag:
     Type: String
     Description: "Tag for TechnicalsDaily loader image"
-  LoadInfoImageTag:
+  LoadDailyCompanyDataImageTag:
     Type: String
-    Description: "Tag for loadinfo loader image"
+    Description: "Tag for companyprofile loader image"
   EarningsEstimateImageTag:
     Type: String
     Description: "Tag for earnings estimate loader image"
@@ -161,6 +161,21 @@ Parameters:
   BenchmarksImageTag:
     Type: String
     Description: "Tag for benchmarks loader image"
+  SectorsImageTag:
+    Type: String
+    Description: "Tag for sectors loader image"
+  PositioningImageTag:
+    Type: String
+    Description: "Tag for positioning loader image"
+  MomentumImageTag:
+    Type: String
+    Description: "Tag for momentum loader image"
+  RiskMetricsImageTag:
+    Type: String
+    Description: "Tag for risk metrics loader image"
+  FundamentalMetricsImageTag:
+    Type: String
+    Description: "Tag for fundamental metrics loader image"
 
 Resources:
 
@@ -271,10 +286,10 @@ Resources:
       LogGroupName: /ecs/technicalsdaily-loader
       RetentionInDays: 3
 
-  LoadInfoLogGroup:
+  LoadDailyCompanyDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /ecs/loadinfo-loader
+      LogGroupName: /ecs/companyprofile-loader
       RetentionInDays: 3
 
   EarningsEstimateLogGroup:
@@ -786,12 +801,12 @@ Resources:
           AssignPublicIp: ENABLED
 
   ########################################
-  # K) loadinfo loader                   #
+  # K) companyprofile loader                   #
   ########################################
-  LoadInfoTaskDefinition:
+  LoadDailyCompanyDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: loadinfo-loader
+      Family: companyprofile-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -803,8 +818,8 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: loadinfo-loader
-          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadInfoImageTag]]
+        - Name: companyprofile-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadDailyCompanyDataImageTag]]
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -812,19 +827,19 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/loadinfo-loader
+              awslogs-group: /ecs/companyprofile-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
 
-  LoadInfoLoaderService:
+  LoadDailyCompanyDataLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: loadinfo-loader-service
+      ServiceName: companyprofile-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
       DesiredCount: 0
-      TaskDefinition: !Ref LoadInfoTaskDefinition
+      TaskDefinition: !Ref LoadDailyCompanyDataTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -2823,7 +2838,7 @@ Resources:
   LoadDailyCompanyDataTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: loaddailycompanydata-loader
+      Family: loadcompanyprofile-loader
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
@@ -2835,7 +2850,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
       TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
       ContainerDefinitions:
-        - Name: loaddailycompanydata-loader
+        - Name: loadcompanyprofile-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref LoadDailyCompanyDataImageTag]]
           Essential: true
           Environment:
@@ -2844,7 +2859,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: /ecs/loaddailycompanydata-loader
+              awslogs-group: /ecs/loadcompanyprofile-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
               awslogs-create-group: 'true'
@@ -2852,7 +2867,7 @@ Resources:
   LoadDailyCompanyDataLoaderService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: loaddailycompanydata-loader
+      ServiceName: loadcompanyprofile-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadDailyCompanyDataTaskDefinition
       DesiredCount: 0
@@ -3006,6 +3021,291 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+  ########################################
+  # Sectors Loader                       #
+  ########################################
+  SectorsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: sectors-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: sectors-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref SectorsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_PASSWORD
+              Value: !ImportValue StocksApp-DBPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/sectors-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  SectorsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: sectors-loader
+      Cluster: !ImportValue StocksApp-ClusterArn
+      TaskDefinition: !Ref SectorsTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Positioning Loader                   #
+  ########################################
+  PositioningTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: positioning-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: positioning-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PositioningImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_PASSWORD
+              Value: !ImportValue StocksApp-DBPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/positioning-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  PositioningLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: positioning-loader
+      Cluster: !ImportValue StocksApp-ClusterArn
+      TaskDefinition: !Ref PositioningTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Momentum Loader                      #
+  ########################################
+  MomentumTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: momentum-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: momentum-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref MomentumImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_PASSWORD
+              Value: !ImportValue StocksApp-DBPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/momentum-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  MomentumLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: momentum-loader
+      Cluster: !ImportValue StocksApp-ClusterArn
+      TaskDefinition: !Ref MomentumTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Risk Metrics Loader                  #
+  ########################################
+  RiskMetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: riskmetrics-loader
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: riskmetrics-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref RiskMetricsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_PASSWORD
+              Value: !ImportValue StocksApp-DBPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/riskmetrics-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  RiskMetricsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: riskmetrics-loader
+      Cluster: !ImportValue StocksApp-ClusterArn
+      TaskDefinition: !Ref RiskMetricsTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Fundamental Metrics Loader           #
+  ########################################
+  FundamentalMetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: fundamentalmetrics-loader
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: fundamentalmetrics-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FundamentalMetricsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !ImportValue StocksApp-DBUsername
+            - Name: DB_PASSWORD
+              Value: !ImportValue StocksApp-DBPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/fundamentalmetrics-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  FundamentalMetricsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: fundamentalmetrics-loader
+      Cluster: !ImportValue StocksApp-ClusterArn
+      TaskDefinition: !Ref FundamentalMetricsTaskDefinition
+      DesiredCount: 0
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   #########################################
   # EventBridge IAM Role                  #
   #########################################
@@ -3063,7 +3363,7 @@ Resources:
                   - ecs:DescribeTasks
                 Resource:
                   - !Ref StockSymbolsTaskDefinition
-                  - !Ref LoadInfoTaskDefinition
+                  - !Ref LoadDailyCompanyDataTaskDefinition
                   - !Ref EarningsEstimateTaskDefinition
                   - !Ref EarningsHistoryTaskDefinition
                   - !Ref EarningsMetricsTaskDefinition
@@ -3126,15 +3426,15 @@ Resources:
                     "ResultPath": "$.error",
                     "Next": "NotifyFailure"
                   }],
-                  "Next": "Stage2-LoadInfo"
+                  "Next": "Stage2-LoadDailyCompanyData"
                 },
-                "Stage2-LoadInfo": {
+                "Stage2-LoadDailyCompanyData": {
                   "Type": "Task",
                   "Resource": "arn:aws:states:::ecs:runTask.sync",
                   "Parameters": {
                     "LaunchType": "FARGATE",
                     "Cluster": "${ClusterArn}",
-                    "TaskDefinition": "${LoadInfoTaskDef}",
+                    "TaskDefinition": "${LoadDailyCompanyDataTaskDef}",
                     "NetworkConfiguration": {
                       "AwsvpcConfiguration": {
                         "Subnets": ["${Subnet1}", "${Subnet2}"],
@@ -3144,8 +3444,8 @@ Resources:
                     },
                     "Overrides": {
                       "ContainerOverrides": [{
-                        "Name": "loadinfo-loader",
-                        "Command": ["python3", "loadinfo.py"]
+                        "Name": "companyprofile-loader",
+                        "Command": ["python3", "companyprofile.py"]
                       }]
                     }
                   },
@@ -3310,7 +3610,7 @@ Resources:
             Subnet2: !ImportValue StocksCore-PublicSubnet2Id
             SecurityGroup: !ImportValue StocksApp-EcsTasksSecurityGroupId
             StockSymbolsTaskDef: !Ref StockSymbolsTaskDefinition
-            LoadInfoTaskDef: !Ref LoadInfoTaskDefinition
+            LoadDailyCompanyDataTaskDef: !Ref LoadDailyCompanyDataTaskDefinition
             EarningsEstimateTaskDef: !Ref EarningsEstimateTaskDefinition
             EarningsHistoryTaskDef: !Ref EarningsHistoryTaskDefinition
             EarningsMetricsTaskDef: !Ref EarningsMetricsTaskDefinition
@@ -3374,11 +3674,11 @@ Outputs:
     Export:
       Name: TechnicalsDailyTaskDefArn
 
-  LoadInfoTaskDefArn:
+  LoadDailyCompanyDataTaskDefArn:
     Description: ARN of the ECS TaskDefinition for load-info loader
-    Value: !Ref LoadInfoTaskDefinition
+    Value: !Ref LoadDailyCompanyDataTaskDefinition
     Export:
-      Name: LoadInfoTaskDefArn
+      Name: LoadDailyCompanyDataTaskDefArn
 
   CalendarTaskDefArn:
     Description: ARN of the ECS TaskDefinition for calendar loader
@@ -3605,7 +3905,7 @@ Outputs:
   # Additional outputs for GitHub Action compatibility
   INFOTaskDefArn:
     Description: ARN of the ECS TaskDefinition for info loader (GitHub Action compatibility)
-    Value: !Ref LoadInfoTaskDefinition
+    Value: !Ref LoadDailyCompanyDataTaskDefinition
     Export:
       Name: INFOTaskDefArn
 
@@ -3649,3 +3949,33 @@ Outputs:
     Value: !Ref SectorDataTaskDefinition
     Export:
       Name: SectorDataTaskDefArn
+
+  SectorsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for sectors loader
+    Value: !Ref SectorsTaskDefinition
+    Export:
+      Name: SectorsTaskDefArn
+
+  PositioningTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for positioning loader
+    Value: !Ref PositioningTaskDefinition
+    Export:
+      Name: PositioningTaskDefArn
+
+  MomentumTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for momentum loader
+    Value: !Ref MomentumTaskDefinition
+    Export:
+      Name: MomentumTaskDefArn
+
+  RiskmetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for risk metrics loader
+    Value: !Ref RiskMetricsTaskDefinition
+    Export:
+      Name: RiskmetricsTaskDefArn
+
+  FundamentalmetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for fundamental metrics loader
+    Value: !Ref FundamentalMetricsTaskDefinition
+    Export:
+      Name: FundamentalmetricsTaskDefArn

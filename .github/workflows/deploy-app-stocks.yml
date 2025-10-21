@@ -382,6 +382,11 @@ jobs:
               SectorDataImageTag=sectordata-latest \
               LoadFinancialsImageTag=financials-latest \
               LoadHistoricalImageTag=historical-latest \
+              SectorsImageTag=sectors-latest \
+              PositioningImageTag=positioning-latest \
+              MomentumImageTag=momentum-latest \
+              RiskMetricsImageTag=riskmetrics-latest \
+              FundamentalMetricsImageTag=fundamentalmetrics-latest \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
 
