@@ -28,17 +28,31 @@ logging.basicConfig(
 FRED_API_KEY = os.environ.get('FRED_API_KEY', '')
 if not FRED_API_KEY:
     logging.warning('FRED_API_KEY environment variable is not set. Risk-free rate will be set to 0.')
-SECRET_ARN   = os.environ["DB_SECRET_ARN"]
 
-sm_client   = boto3.client("secretsmanager")
-secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
-creds       = json.loads(secret_resp["SecretString"])
+# Try local environment first, then AWS
+if os.environ.get("DB_HOST"):
+    DB_HOST     = os.environ.get("DB_HOST", "localhost")
+    DB_USER     = os.environ.get("DB_USER", "postgres")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "password")
+    DB_PORT     = int(os.environ.get("DB_PORT", 5432))
+    DB_NAME     = os.environ.get("DB_NAME", "stocks")
+    logging.info("Using local environment DB configuration")
+else:
+    try:
+        SECRET_ARN   = os.environ["DB_SECRET_ARN"]
+        sm_client   = boto3.client("secretsmanager")
+        secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
+        creds       = json.loads(secret_resp["SecretString"])
 
-DB_USER     = creds["username"]
-DB_PASSWORD = creds["password"]
-DB_HOST     = creds["host"]
-DB_PORT     = int(creds.get("port", 5432))
-DB_NAME     = creds["dbname"]
+        DB_USER     = creds["username"]
+        DB_PASSWORD = creds["password"]
+        DB_HOST     = creds["host"]
+        DB_PORT     = int(creds.get("port", 5432))
+        DB_NAME     = creds["dbname"]
+        logging.info("Using AWS Secrets Manager DB configuration")
+    except KeyError:
+        logging.error("DB_HOST or DB_SECRET_ARN not set. Please set local DB environment variables or AWS_SECRET_ARN")
+        raise
 
 def get_db_connection():
     # Set statement timeout to 30 seconds (30000 ms)
@@ -118,7 +132,7 @@ def create_buy_sell_table(cur):
       );
     """)
 
-def insert_symbol_results(cur, symbol, timeframe, df):
+def insert_symbol_results(cur, symbol, timeframe, df, conn):
     insert_q = """
       INSERT INTO buy_sell_daily (
         symbol, timeframe, date,
@@ -129,7 +143,7 @@ def insert_symbol_results(cur, symbol, timeframe, df):
         exit_trigger_4_condition, exit_trigger_4_price, initial_stop, trailing_stop,
         base_type, base_length_days, avg_volume_50d, volume_surge_pct,
         rs_rating, breakout_quality, risk_reward_ratio, current_gain_pct, days_in_position
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
         open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
         close = EXCLUDED.close, volume = EXCLUDED.volume,
@@ -148,31 +162,114 @@ def insert_symbol_results(cur, symbol, timeframe, df):
         current_gain_pct = EXCLUDED.current_gain_pct, days_in_position = EXCLUDED.days_in_position;
     """
     inserted = 0
+    skipped = 0
     for idx, row in df.iterrows():
         try:
-            # Check for NaNs or missing values in core fields
-            vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
-                    row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition'), row.get('strength')]
-            if any(pd.isnull(v) for v in vals[:10]):  # Only check core fields
-                logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
+            # Validate and convert core fields before insertion
+            try:
+                date_val = row['date'].date() if hasattr(row['date'], 'date') else row['date']
+                open_val = float(row.get('open', 0)) or 0
+                high_val = float(row.get('high', 0)) or 0
+                low_val = float(row.get('low', 0)) or 0
+                close_val = float(row.get('close', 0)) or 0
+
+                # Validate volume - critical for BIGINT
+                vol = row.get('volume', 0)
+                if pd.isna(vol) or vol is None:
+                    vol = 0
+                elif isinstance(vol, (float, np.floating)):
+                    vol = int(vol) if not np.isnan(vol) else 0
+                else:
+                    vol = int(vol)
+
+                # Ensure volume fits in BIGINT range (up to 2^63-1)
+                if vol < 0 or vol > 9223372036854775807:
+                    logging.warning(f"Skipping row {idx}: invalid volume {vol}")
+                    skipped += 1
+                    continue
+
+                signal_val = row.get('Signal', 'None') or 'None'
+                buyLevel_val = float(row.get('buyLevel', 0)) or 0
+                stopLevel_val = float(row.get('stopLevel', 0)) or 0
+                inPos_val = bool(row.get('inPosition', False))
+                strength_val = float(row.get('strength', 50)) or 50
+
+            except (ValueError, OverflowError) as ve:
+                logging.warning(f"Skipping row {idx}: type conversion error: {ve}")
+                skipped += 1
                 continue
+
+            # Check for NaNs or missing values in core fields
+            if any(pd.isna(v) for v in [open_val, high_val, low_val, close_val, signal_val]):
+                logging.debug(f"Skipping row {idx}: has NaN in core fields")
+                skipped += 1
+                continue
+
+            # Get optional fields with defaults
+            signal_type = row.get('signal_type') or None
+            pivot_price = float(row.get('pivot_price')) if pd.notna(row.get('pivot_price')) else None
+            buy_zone_start = float(row.get('buy_zone_start')) if pd.notna(row.get('buy_zone_start')) else None
+            buy_zone_end = float(row.get('buy_zone_end')) if pd.notna(row.get('buy_zone_end')) else None
+
+            exit_1_price = float(row.get('exit_trigger_1_price')) if pd.notna(row.get('exit_trigger_1_price')) else None
+            exit_2_price = float(row.get('exit_trigger_2_price')) if pd.notna(row.get('exit_trigger_2_price')) else None
+            exit_3_cond = row.get('exit_trigger_3_condition') or None
+            exit_3_price = float(row.get('exit_trigger_3_price')) if pd.notna(row.get('exit_trigger_3_price')) else None
+            exit_4_cond = row.get('exit_trigger_4_condition') or None
+            exit_4_price = float(row.get('exit_trigger_4_price')) if pd.notna(row.get('exit_trigger_4_price')) else None
+
+            initial_stop = float(row.get('initial_stop')) if pd.notna(row.get('initial_stop')) else None
+            trailing_stop = float(row.get('trailing_stop')) if pd.notna(row.get('trailing_stop')) else None
+
+            base_type = row.get('base_type') or None
+            base_length = int(row.get('base_length_days', 0)) or 0
+
+            avg_vol = row.get('avg_volume_50d')
+            if pd.isna(avg_vol) or avg_vol is None:
+                avg_vol = 0
+            else:
+                avg_vol = int(avg_vol) if not isinstance(avg_vol, float) else int(float(avg_vol))
+
+            if avg_vol < 0 or avg_vol > 9223372036854775807:
+                avg_vol = 0
+
+            vol_surge = float(row.get('volume_surge_pct', 0)) or 0
+            rs_rating = int(row.get('rs_rating', 50)) or 50
+            breakout_qual = row.get('breakout_quality') or None
+            risk_reward = float(row.get('risk_reward_ratio', 0)) or 0
+            current_gain = float(row.get('current_gain_pct', 0)) or 0
+            days_held = int(row.get('days_in_position', 0)) or 0
+
             cur.execute(insert_q, (
-                symbol, timeframe, row['date'].date(),
-                float(row['open']), float(row['high']), float(row['low']),
-                float(row['close']), int(row['volume']),
-                row['Signal'], float(row['buyLevel']),
-                float(row['stopLevel']), bool(row['inPosition']), float(row['strength']),
-                # O'Neill methodology fields
-                row.get('signal_type'), row.get('pivot_price'), row.get('buy_zone_start'), row.get('buy_zone_end'),
-                row.get('exit_trigger_1_price'), row.get('exit_trigger_2_price'), row.get('exit_trigger_3_condition'), row.get('exit_trigger_3_price'),
-                row.get('exit_trigger_4_condition'), row.get('exit_trigger_4_price'), row.get('initial_stop'), row.get('trailing_stop'),
-                row.get('base_type'), row.get('base_length_days'), row.get('avg_volume_50d'), row.get('volume_surge_pct'),
-                row.get('rs_rating'), row.get('breakout_quality'), row.get('risk_reward_ratio'), row.get('current_gain_pct'), row.get('days_in_position')
+                symbol, timeframe, date_val,
+                open_val, high_val, low_val, close_val, vol,
+                signal_val, buyLevel_val, stopLevel_val, inPos_val, strength_val,
+                signal_type, pivot_price, buy_zone_start, buy_zone_end,
+                exit_1_price, exit_2_price, exit_3_cond, exit_3_price,
+                exit_4_cond, exit_4_price, initial_stop, trailing_stop,
+                base_type, base_length, avg_vol, vol_surge,
+                rs_rating, breakout_qual, risk_reward, current_gain, days_held
             ))
             inserted += 1
+
+        except psycopg2.IntegrityError as ie:
+            conn.rollback()
+            logging.warning(f"Integrity error for {symbol} {timeframe} row {idx}: {ie}")
+            skipped += 1
+            continue
         except Exception as e:
-            logging.error(f"Insert failed for {symbol} {timeframe} row {idx}: {e} | row={row}")
-    logging.info(f"Inserted {inserted} rows for {symbol} {timeframe}")
+            conn.rollback()
+            logging.error(f"Insert failed for {symbol} {timeframe} row {idx}: {e}")
+            skipped += 1
+            continue
+
+    try:
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Failed to commit for {symbol} {timeframe}: {e}")
+        conn.rollback()
+
+    logging.info(f"Inserted {inserted} rows, skipped {skipped} rows for {symbol} {timeframe}")
 
 ###############################################################################
 # 2) RISK-FREE RATE (FRED)
@@ -852,7 +949,7 @@ def main():
         annual_rfr = 0.0
 
 
-    symbols = get_symbols_from_db(limit=3)  # Limit for debugging, remove or increase as needed
+    symbols = get_symbols_from_db(limit=None)  # Load ALL stocks
     if not symbols:
         print("No symbols in DB.")
         return
@@ -872,7 +969,7 @@ def main():
         if df.empty:
             logging.info(f"[{tf}] no data")
             continue
-        insert_symbol_results(cur, sym, tf, df)
+        insert_symbol_results(cur, sym, tf, df, conn)
         conn.commit()
         _, rets, durs, _, _ = backtest_fixed_capital(df)
         results[tf]['rets'].extend(rets)

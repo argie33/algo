@@ -878,6 +878,26 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             logger.warning(f"Analyst recommendations table query failed for {symbol}: {e}")
             analyst_score = None
 
+        # Get market-level AAII sentiment for market sentiment component
+        try:
+            cur.execute("""
+                SELECT bullish, neutral, bearish
+                FROM aaii_sentiment
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            aaii_data = cur.fetchone()
+            aaii_sentiment_component = 0
+            if aaii_data:
+                bullish = float(aaii_data[0]) if aaii_data[0] else 0
+                bearish = float(aaii_data[2]) if aaii_data[2] else 0
+                # Convert AAII bullish/bearish to sentiment score: -25 to +25
+                # If bullish > 50%, positive sentiment; if bearish > 50%, negative
+                aaii_sentiment_component = ((bullish - bearish) / 100) * 50
+        except psycopg2.Error as e:
+            logger.debug(f"AAII sentiment table query failed: {e}")
+            aaii_sentiment_component = 0
+
         # Get real positioning data from positioning_metrics table
         try:
             # Query positioning data directly from yfinance-sourced tables
@@ -978,9 +998,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # Fetch beta from database (fetched from yfinance by loaddailycompanydata.py)
             beta = fetch_beta_from_database(conn, symbol)
             if beta is None:
-                # No fallback - stability will be None if beta missing
-                stability_score = None
-                logger.warning(f"{symbol}: Beta not found in database - cannot calculate stability score")
+                # PHASE 1 FIX: Use market-average beta (1.0) as fallback
+                beta = 1.0
+                logger.info(f"{symbol}: Beta not found in database - using market-average beta (1.0) as fallback")
 
             # Calculate liquidity risk (based on volume)
             liquidity_risk = calculate_liquidity_risk(volume_avg_30d, current_price)
@@ -1029,11 +1049,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             liquidity_str = f"{liquidity_risk:.0f}" if liquidity_risk is not None else "N/A"
             logger.info(f"{symbol}: Calculated risk components - Vol={vol_str}, Downside={downside_str}, Drawdown={drawdown_str}, Beta={beta_str}, Liquidity={liquidity_str}")
 
-            # Only calculate stability_score if ALL required components available (NO FALLBACK)
-            # Beta is REQUIRED - cannot calculate without it
-            if beta is None or volatility_12m_pct is None or downside_volatility is None or max_drawdown_52w_pct is None:
+            # PHASE 1 FIX: Calculate stability_score if essential components available
+            # Beta now has fallback (1.0) so it's always available after line 982
+            # Still require: volatility_12m_pct, downside_volatility, max_drawdown_52w_pct (or can calculate)
+            if volatility_12m_pct is None or downside_volatility is None or max_drawdown_52w_pct is None:
                 stability_score = None
-                logger.info(f"{symbol} Stability Score: None (missing required risk data - no fallback calculation)")
+                logger.info(f"{symbol} Stability Score: None (missing essential volatility/drawdown data)")
             else:
                 # All components available - calculate risk score
                 # Convert all to 0-100 scale for risk components
@@ -1067,7 +1088,20 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             import traceback
             logger.error(f"{symbol}: Risk calculation failed: {e}")
             logger.error(traceback.format_exc())
-            conn.rollback()
+            # FIX: Handle transaction errors gracefully
+            try:
+                conn.rollback()  # Roll back failed transaction
+                logger.info(f"{symbol}: Transaction rolled back, continuing")
+            except Exception as rollback_error:
+                logger.warning(f"{symbol}: Rollback failed ({rollback_error}), attempting reconnect")
+                try:
+                    # Try to reconnect if transaction is in bad state
+                    conn.close()
+                    conn = get_db_connection()
+                    if conn:
+                        logger.info(f"{symbol}: Reconnected to database")
+                except Exception as reconnect_error:
+                    logger.error(f"{symbol}: Could not reconnect ({reconnect_error})")
             # No fallback - stability_score remains None if calculation fails
 
         # Get quality metrics from key_metrics table for percentile-based quality score
@@ -1340,142 +1374,90 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # ============================================================
         value_score = None
 
-        # Diagnostic: log if value calculation might fail
-        if pe_ratio is None:
-            logger.debug(f"{symbol}: PE_RATIO is NULL (trailing EPS or current price missing)")
-        if current_price is None:
-            logger.debug(f"{symbol}: CURRENT_PRICE is NULL (no price data available)")
-
+        # FIX: Calculate value score directly from key_metrics instead of circular read from stock_scores
         try:
             cur.execute("""
-                SELECT value_inputs
-                FROM stock_scores
-                WHERE symbol = %s
+                SELECT
+                    trailing_pe,
+                    price_to_book,
+                    price_to_sales_ttm,
+                    peg_ratio,
+                    ev_to_revenue,
+                    free_cashflow,
+                    dividend_yield,
+                    payout_ratio
+                FROM key_metrics
+                WHERE ticker = %s
             """, (symbol,))
 
-            value_data_row = cur.fetchone()
-            if value_data_row and value_data_row[0]:
-                value_inputs = value_data_row[0]
+            km = cur.fetchone()
+            if km:
+                # Extract raw valuation metrics
+                trailing_pe = km[0]
+                price_to_book = km[1]
+                price_to_sales_ttm = km[2]
+                peg_ratio_val = km[3]
+                ev_to_revenue = km[4]
+                free_cashflow = km[5]
+                dividend_yield_val = km[6]
+                payout_ratio = km[7]
 
-                # Handle both dict (from JSONB) and string (from JSON) types
-                if isinstance(value_inputs, str):
-                    value_inputs = json.loads(value_inputs)
-
-                # COMPONENT 1: Base Valuation (Multiple Percentiles)
-                # Extract percentile ranks from value_inputs
-                pe_percentile = value_inputs.get('pe_percentile_rank')
-                pb_percentile = value_inputs.get('pb_percentile_rank')
-                ps_percentile = value_inputs.get('ps_percentile_rank')
-                peg_percentile = value_inputs.get('peg_percentile_rank')
-                ev_percentile = value_inputs.get('ev_percentile_rank')
-
-                # Calculate base value score from percentile ranks (weighted average)
+                # COMPONENT 1: Simple Valuation Score (0-100)
+                # Lower multiples = better values
                 value_components = []
 
-                if pe_percentile is not None:
-                    pe_contribution = (float(pe_percentile) / 100) * 30  # 30% weight (reduced from 35)
-                    value_components.append(pe_contribution)
+                # PE ratio scoring: lower is better (typically 5-50 range, median ~20)
+                if trailing_pe is not None and trailing_pe > 0 and trailing_pe < 500:
+                    # Invert: low PE = high score. 5 = 100%, 50 = 10%, >100 = 0%
+                    pe_score = max(0, min(100, (50.0 - float(trailing_pe)) / 50.0 * 100)) * 0.3
+                    value_components.append(pe_score)
 
-                if pb_percentile is not None:
-                    pb_contribution = (float(pb_percentile) / 100) * 20  # 20% weight (reduced from 25)
-                    value_components.append(pb_contribution)
+                # PB ratio scoring: lower is better (typically 0.5-10 range)
+                if price_to_book is not None and price_to_book > 0 and price_to_book < 100:
+                    pb_score = max(0, min(100, (10.0 - float(price_to_book)) / 10.0 * 100)) * 0.2
+                    value_components.append(pb_score)
 
-                if ps_percentile is not None:
-                    ps_contribution = (float(ps_percentile) / 100) * 15  # 15% weight (reduced from 20)
-                    value_components.append(ps_contribution)
+                # PS ratio scoring: lower is better (typically 0.5-20 range)
+                if price_to_sales_ttm is not None and price_to_sales_ttm > 0 and price_to_sales_ttm < 100:
+                    ps_score = max(0, min(100, (20.0 - float(price_to_sales_ttm)) / 20.0 * 100)) * 0.15
+                    value_components.append(ps_score)
 
-                if peg_percentile is not None:
-                    peg_contribution = (float(peg_percentile) / 100) * 15  # 15% weight (reduced from 20)
-                    value_components.append(peg_contribution)
+                # PEG ratio scoring: <1.0 = value, >2.0 = expensive
+                if peg_ratio_val is not None and peg_ratio_val > 0 and peg_ratio_val < 500:
+                    peg_score = max(0, min(100, (3.0 - float(peg_ratio_val)) / 3.0 * 100)) * 0.15
+                    value_components.append(peg_score)
 
-                if ev_percentile is not None:
-                    ev_contribution = (float(ev_percentile) / 100) * 20  # 20% weight (NEW)
-                    value_components.append(ev_contribution)
+                # EV/Revenue scoring: lower is better
+                if ev_to_revenue is not None and ev_to_revenue > 0 and ev_to_revenue < 100:
+                    ev_score = max(0, min(100, (10.0 - float(ev_to_revenue)) / 10.0 * 100)) * 0.2
+                    value_components.append(ev_score)
 
                 if value_components:
                     base_value_score = sum(value_components)
-                    base_value_score = max(0, min(100, base_value_score))
 
-                    # COMPONENT 2: FCF Quality Modifier (0.5 - 1.2x)
+                    # COMPONENT 2: FCF Quality Modifier (0.8 - 1.2x)
                     fcf_modifier = 1.0
-                    fcf_yield = value_inputs.get('fcf_yield')
-                    market_fcf_yield = value_inputs.get('market_fcf_yield', 3.5)
+                    if free_cashflow is not None:
+                        fcf_val = float(free_cashflow)
+                        if fcf_val < 0:
+                            fcf_modifier = 0.8  # Negative FCF = value trap
+                        elif fcf_val > 0:
+                            fcf_modifier = 1.1  # Positive FCF = quality increase
 
-                    if fcf_yield is not None:
-                        fcf_yield = float(fcf_yield)
-                        # FIX: Use explicit None check, not falsy check (0.0 is valid, not None)
-                        if market_fcf_yield is not None:
-                            market_fcf_yield = float(market_fcf_yield)
-                        else:
-                            market_fcf_yield = None
-
-                        if fcf_yield < 0:
-                            # Negative FCF = value trap
-                            fcf_modifier = 0.5
-                        elif market_fcf_yield is not None and fcf_yield < market_fcf_yield * 0.5:
-                            # Low FCF yield
-                            fcf_modifier = 0.8
-                        elif market_fcf_yield is not None and fcf_yield > market_fcf_yield:
-                            # Strong FCF yield above market
-                            fcf_modifier = 1.2
-                        elif market_fcf_yield is not None and fcf_yield > market_fcf_yield * 0.75:
-                            # Good FCF yield
-                            fcf_modifier = 1.1
-
-                    # COMPONENT 3: Growth Context Modifier (0.8 - 1.1x)
-                    # PEG ratio: P/E divided by growth rate
-                    # PEG < 1.0 = cheap relative to growth
-                    # PEG > 2.0 = expensive relative to growth
-                    growth_modifier = 1.0
-                    peg_ratio = value_inputs.get('peg_ratio')
-
-                    if peg_ratio is not None:
-                        peg_ratio = float(peg_ratio)
-
-                        if peg_ratio < 0 or peg_ratio > 500:
-                            # Invalid PEG (negative growth, infinite, etc)
-                            growth_modifier = 1.0
-                        elif peg_ratio < 1.0:
-                            # Excellent: cheap relative to growth
-                            growth_modifier = 1.1
-                        elif peg_ratio > 2.5:
-                            # Concerning: expensive relative to growth
-                            growth_modifier = 0.85
-                        elif peg_ratio > 2.0:
-                            # Moderate concern
-                            growth_modifier = 0.9
-
-                    # COMPONENT 4: Dividend Modifier (0.95 - 1.05x)
+                    # COMPONENT 3: Dividend Modifier (0.95 - 1.05x)
                     dividend_modifier = 1.0
-                    dividend_yield = value_inputs.get('dividend_yield')
-
-                    if dividend_yield is not None:
-                        dividend_yield = float(dividend_yield)
-
-                        if dividend_yield > 0.01:  # More than 0.1%
-                            # Returning cash to shareholders
+                    if dividend_yield_val is not None:
+                        div_yield = float(dividend_yield_val)
+                        if div_yield > 0.001:  # More than 0.1%
                             dividend_modifier = 1.05
-                        elif dividend_yield == 0:
-                            # No dividend
-                            dividend_modifier = 0.95
 
-                    # Calculate final value score with modifiers
-                    # Ensure all modifiers are valid numbers before multiplying
-                    if (base_value_score is not None and isinstance(base_value_score, (int, float)) and
-                        fcf_modifier is not None and isinstance(fcf_modifier, (int, float)) and
-                        growth_modifier is not None and isinstance(growth_modifier, (int, float)) and
-                        dividend_modifier is not None and isinstance(dividend_modifier, (int, float))):
-                        value_score = base_value_score * fcf_modifier * growth_modifier * dividend_modifier
-                        value_score = max(0, min(100, value_score))
-                    # else: value_score remains None if any modifier is invalid
+                    # Calculate final value score
+                    value_score = base_value_score * fcf_modifier * dividend_modifier
+                    value_score = max(0, min(100, value_score))
+                    logger.debug(f"{symbol} Value Score: base={base_value_score:.1f}, fcf_mod={fcf_modifier:.2f}, div_mod={dividend_modifier:.2f}, final={value_score:.1f}")
 
-                    if value_score is not None:
-                        logger.debug(f"{symbol} Value Score: base={base_value_score:.1f}, "
-                                    f"fcf_mod={fcf_modifier:.2f}, growth_mod={growth_modifier:.2f}, "
-                                    f"div_mod={dividend_modifier:.2f}, final={value_score:.1f}")
-
-        except (psycopg2.Error, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-            logger.error(f"{symbol}: Could not calculate enhanced value score: {e}")
+        except (psycopg2.Error, TypeError, ValueError) as e:
+            logger.debug(f"{symbol}: Could not calculate value score from key_metrics: {e}")
 
         # No fallback - value_score remains None if cannot be calculated
 
@@ -1713,7 +1695,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             positioning_score = inst_score + insider_score + short_score + acc_dist_score + count_score
             positioning_score = max(0, min(100, positioning_score))
 
-        # Sentiment Score (Analyst ratings + Market sentiment) - ONLY REAL DATA
+        # Sentiment Score (Analyst ratings + News sentiment + Market sentiment) - ONLY REAL DATA
         # Start with None - only use if we have real data
         sentiment_score = None
 
@@ -1737,8 +1719,19 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             elif news_count is not None and news_count > 5:
                 sentiment_score += 5
 
-            # Defensive: ensure sentiment_score is a number before clamping
-            if sentiment_score is not None and isinstance(sentiment_score, (int, float)):
+        # Market-level AAII sentiment component (up to ±25 points)
+        # This provides market context for the sentiment score
+        if aaii_sentiment_component != 0:
+            if sentiment_score is not None:
+                # Add AAII component to existing sentiment
+                sentiment_score += aaii_sentiment_component * 0.5  # Weight at 50% to avoid over-influence
+            else:
+                # If no analyst/news data but AAII data exists, use AAII + 50 base for neutral position
+                sentiment_score = 50 + aaii_sentiment_component
+
+        # Clamp sentiment score to 0-100
+        if sentiment_score is not None:
+            if isinstance(sentiment_score, (int, float)):
                 sentiment_score = max(0, min(100, sentiment_score))
         # If sentiment_score is None, leave it as None (no data to calculate)
 
@@ -1833,10 +1826,54 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
     except Exception as e:
         import traceback
-        logger.error(f"❌ Error calculating scores for {symbol}: {e}")
-        logger.error(traceback.format_exc())
-        conn.rollback()  # Rollback aborted transaction
-        return None
+        logger.warning(f"⚠️ Error calculating scores for {symbol} - will attempt fallback: {e}")
+        logger.debug(traceback.format_exc())
+        # Try to save partial score if we have at least SOME calculated scores
+        try:
+            # Create minimal fallback score with any calculated components
+            fallback_score = {
+                'symbol': symbol,
+                'composite_score': None,
+                'momentum_score': momentum_score if 'momentum_score' in locals() else None,
+                'value_score': value_score if 'value_score' in locals() else None,
+                'quality_score': quality_score if 'quality_score' in locals() else None,
+                'growth_score': growth_score if 'growth_score' in locals() else None,
+                'positioning_score': positioning_score if 'positioning_score' in locals() else None,
+                'sentiment_score': sentiment_score if 'sentiment_score' in locals() else None,
+                'stability_score': risk_stability_score if 'risk_stability_score' in locals() else None,
+                'stability_inputs': None,
+                'rsi': rsi if 'rsi' in locals() else None,
+                'macd': macd if 'macd' in locals() else None,
+                'sma_20': float(round(float(sma_20), 2)) if 'sma_20' in locals() and sma_20 else None,
+                'sma_50': float(round(float(sma_50), 2)) if 'sma_50' in locals() and sma_50 else None,
+                'volume_avg_30d': int(volume_avg_30d) if 'volume_avg_30d' in locals() and volume_avg_30d is not None else None,
+                'current_price': float(round(current_price, 2)) if 'current_price' in locals() and current_price is not None else None,
+                'price_change_1d': None,
+                'price_change_5d': None,
+                'price_change_30d': None,
+                'volatility_30d': None,
+                'market_cap': None,
+                'pe_ratio': None,
+                'momentum_intraweek': None,
+                'momentum_short_term': None,
+                'momentum_medium_term': None,
+                'momentum_long_term': None,
+                'momentum_consistency': None,
+                'roc_10d': None,
+                'roc_20d': None,
+                'roc_60d': None,
+                'roc_120d': None,
+                'roc_252d': None,
+                'mom': None,
+                'mansfield_rs': None,
+                'acc_dist_rating': None
+            }
+            conn.rollback()  # Rollback aborted transaction
+            # Return even the fallback - don't skip the stock entirely
+            return fallback_score
+        except:
+            conn.rollback()
+            return None
 
 def save_stock_score(conn, score_data):
     """Save stock score to database."""

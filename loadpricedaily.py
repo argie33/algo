@@ -56,9 +56,20 @@ PRICE_COLUMNS = [
 COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 
 # -------------------------------
-# DB config loader
+# DB config loader - supports both AWS and local environment
 # -------------------------------
 def get_db_config():
+    # Try local environment first
+    if os.environ.get("DB_HOST"):
+        return {
+            "host":   os.environ.get("DB_HOST", "localhost"),
+            "port":   int(os.environ.get("DB_PORT", 5432)),
+            "user":   os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", "password"),
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
+
+    # Fall back to AWS Secrets Manager
     secret_str = boto3.client("secretsmanager") \
                      .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
     sec = json.loads(secret_str)

@@ -87,7 +87,7 @@ jobs:
         id: matrix
         run: |
           # Define supported loaders (those with ECS task definitions)
-          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate revenueestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysellweekly buysellmonthly quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics momentummetrics growthmetrics valuemetrics stockscores benchmarks analystupgradedowngrade sectordata dailycompanydata financials historical"
+          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate revenueestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysellweekly buysellmonthly quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics momentummetrics growthmetrics valuemetrics stockscores benchmarks analystupgradedowngrade sectordata companyprofile financials historical sectors positioning momentum riskmetrics fundamentalmetrics dailycompanydata"
 
           # Get all available loaders and filter by supported ones
           ALL_AVAILABLE_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
@@ -342,7 +342,7 @@ jobs:
               PriceWeeklyImageTag=latest \
               PriceMonthlyImageTag=latest \
               TechnicalsDailyImageTag=latest \
-              LoadInfoImageTag=latest \
+              LoadDailyCompanyDataImageTag=latest \
               EarningsEstimateImageTag=latest \
               TechnicalsWeeklyImageTag=latest \
               TechnicalsMonthlyImageTag=latest \
@@ -378,7 +378,7 @@ jobs:
               StockScoresImageTag=latest \
               BenchmarksImageTag=benchmarks-latest \
               AnalystUpgradeDowngradeImageTag=analystupgradedowngrade-latest \
-              LoadDailyCompanyDataImageTag=dailycompanydata-latest \
+              LoadDailyCompanyDataImageTag=companyprofile-latest \
               SectorDataImageTag=sectordata-latest \
               LoadFinancialsImageTag=financials-latest \
               LoadHistoricalImageTag=historical-latest \
@@ -443,8 +443,8 @@ jobs:
               "sectordata")
                 DOCKERFILE="Dockerfile.sectordata"
                 ;;
-              "dailycompanydata")
-                DOCKERFILE="Dockerfile.dailycompanydata"
+              "companyprofile")
+                DOCKERFILE="Dockerfile.companyprofile"
                 ;;
               "financials")
                 DOCKERFILE="Dockerfile.financials"
@@ -546,8 +546,8 @@ jobs:
               "sectordata")
                 DOCKERFILE="Dockerfile.sectordata"
                 ;;
-              "dailycompanydata")
-                DOCKERFILE="Dockerfile.dailycompanydata"
+              "companyprofile")
+                DOCKERFILE="Dockerfile.companyprofile"
                 ;;
               "financials")
                 DOCKERFILE="Dockerfile.financials"
@@ -694,8 +694,9 @@ jobs:
             "stocksymbols")
               TASK_DEF_NAME="StockSymbolsTaskDefArn"
               ;;
-            "info")
-              TASK_DEF_NAME="LoadInfoTaskDefArn"
+            "companyprofile")
+            
+              TASK_DEF_NAME="LoadDailyCompanyDataTaskDefArn"
               ;;
             "calendar")
               TASK_DEF_NAME="CalendarTaskDefArn"
@@ -775,7 +776,7 @@ jobs:
             "analystupgradedowngrade")
               TASK_DEF_NAME="AnalystUpgradeDowngradeTaskDefArn"
               ;;
-            "dailycompanydata")
+            "companyprofile")
               TASK_DEF_NAME="LoadDailyCompanyDataTaskDefArn"
               ;;
             "financials")
@@ -786,6 +787,24 @@ jobs:
               ;;
             "sectordata")
               TASK_DEF_NAME="SectorDataTaskDefArn"
+              ;;
+            "sectors")
+              TASK_DEF_NAME="SectorsTaskDefArn"
+              ;;
+            "positioning")
+              TASK_DEF_NAME="PositioningTaskDefArn"
+              ;;
+            "momentum")
+              TASK_DEF_NAME="MomentumTaskDefArn"
+              ;;
+            "riskmetrics")
+              TASK_DEF_NAME="RiskmetricsTaskDefArn"
+              ;;
+            "fundamentalmetrics")
+              TASK_DEF_NAME="FundamentalmetricsTaskDefArn"
+              ;;
+            "dailycompanydata")
+              TASK_DEF_NAME="DailycompanydataTaskDefArn"
               ;;
             *)
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
@@ -832,8 +851,9 @@ jobs:
 
           # Map loader name to container name (handle special cases)
           case "${{ matrix.loader }}" in
-            "info")
-              CONTAINER_NAME="loadinfo-loader"
+            "companyprofile")
+            
+              CONTAINER_NAME="loadcompanyprofile-loader"
               ;;
             "feargreed")
               CONTAINER_NAME="feargreeddata-loader"
@@ -841,8 +861,8 @@ jobs:
             "naaim")
               CONTAINER_NAME="naaaimdata-loader"
               ;;
-            "dailycompanydata")
-              CONTAINER_NAME="loaddailycompanydata-loader"
+            "companyprofile")
+              CONTAINER_NAME="loadcompanyprofile-loader"
               ;;
             "financials")
               CONTAINER_NAME="loadfinancials-loader"

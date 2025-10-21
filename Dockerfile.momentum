@@ -1,0 +1,13 @@
+# Dockerfile.momentum
+FROM public.ecr.aws/lambda/python:3.11
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy requirements and script
+COPY Dockerfile.momentum requirements-loadmomentum.txt loadmomentum.py ./
+
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadmomentum.txt
+
+# Set the entrypoint
+ENTRYPOINT ["python", "loadmomentum.py"]

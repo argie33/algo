@@ -1,0 +1,13 @@
+# Dockerfile.sectors
+FROM public.ecr.aws/lambda/python:3.11
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy requirements and script
+COPY Dockerfile.sectors requirements-loadsectors.txt loadsectors.py ./
+
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadsectors.txt
+
+# Set the entrypoint
+ENTRYPOINT ["python", "loadsectors.py"]
