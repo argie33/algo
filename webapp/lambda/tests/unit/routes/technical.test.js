@@ -4,8 +4,9 @@ const technicalRouter = require("../../../routes/technical");
 // Mock dependencies to match your actual site pattern
 jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
-}))
-// Import mocked functions
+}));
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
 describe("Technical Analysis Routes - Testing Your Actual Site", () => {
   let app;
   beforeAll(() => {
@@ -13,7 +14,6 @@ describe("Technical Analysis Routes - Testing Your Actual Site", () => {
     app.use(express.json());
     app.use("/technical", technicalRouter);
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   beforeEach(() => {
     jest.clearAllMocks();

@@ -6,6 +6,7 @@ jest.mock("../../../utils/logger", () => ({
 }));
 describe("ErrorTracker", () => {
   let originalConsoleLog;
+  let mockError, mockWarn;
   beforeEach(() => {
     jest.clearAllMocks();
     originalConsoleLog = console.log;
@@ -15,8 +16,12 @@ describe("ErrorTracker", () => {
     // Mock Date.now and Math.random for consistent testing
     jest.spyOn(Date, "now").mockReturnValue(1640995200000); // 2022-01-01 00:00:00 -> 'kxv26800' in base36
     jest.spyOn(Math, "random").mockReturnValue(0.5); // -> 'i' when processed
+    // Import mocked logger after module cache cleared
+    delete require.cache[require.resolve("../../../utils/logger")];
+    const loggerModule = require("../../../utils/logger");
+    mockError = loggerModule.error;
+    mockWarn = loggerModule.warn;
   });
-const { error: mockError, warn: mockWarn } = require("../../../utils/database");
 
   afterEach(() => {
     jest.restoreAllMocks();

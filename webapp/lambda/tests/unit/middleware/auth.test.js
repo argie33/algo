@@ -14,6 +14,8 @@ jest.mock("../../../utils/apiKeyService", () => ({
 jest.mock("../../../utils/database");
 const jwt = require("jsonwebtoken");
 const apiKeyService = require("../../../utils/apiKeyService");
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
 describe("Authentication Middleware", () => {
   let req, res, next;
   beforeEach(() => {
@@ -31,7 +33,6 @@ describe("Authentication Middleware", () => {
     // Set default JWT secret for tests
     process.env.JWT_SECRET = "test-secret-key";
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("authenticateToken", () => {
     test("should authenticate valid JWT token", () => {

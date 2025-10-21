@@ -9,8 +9,9 @@ const express = require("express");
 const mockQuery = jest.fn();
 jest.mock("../../../utils/database", () => ({
   query: mockQuery,
-}))
-// Import mocked functions
+}));
+const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+
 // Create test app
 const app = express();
 app.use(express.json());
@@ -19,7 +20,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
 
   describe("GET /api/etf/:symbol/holdings", () => {
     test("should get ETF holdings for valid symbol", async () => {

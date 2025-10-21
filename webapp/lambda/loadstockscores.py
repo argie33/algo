@@ -310,61 +310,41 @@ def calculate_positioning_score(conn, symbol):
         # Track available components
         percentiles = []
 
+        # For positioning score, use a simple z-score based approach instead of percentile ranking
+        # since we have sparse data (only 1-2 records per symbol)
+        # Use the pre-calculated population stats for normalization
+
+        pop_stats = _calculate_population_stats(conn)
+
         # 1. Institutional Ownership - Higher is bullish
         if inst_own is not None:
-            cur.execute("""
-                SELECT PERCENT_RANK() OVER (ORDER BY institutional_ownership)
-                FROM positioning_metrics
-                WHERE institutional_ownership IS NOT NULL
-                AND symbol = %s
-            """, (symbol,))
-
-            pct_row = cur.fetchone()
-            if pct_row:
-                pct = float(pct_row[0]) * 100  # Convert 0-1 to 0-100
-                percentiles.append(pct)
+            # Normalize to 0-100 using z-score
+            z = (inst_own - pop_stats['inst_own_mean']) / max(pop_stats['inst_own_std'], 0.01)
+            # Convert z-score to 0-100 scale (z=-3 -> 0, z=+3 -> 100)
+            percentile = 50 + (z / 6) * 50  # z-score of 1 std = ~58
+            percentile = max(0, min(100, percentile))
+            percentiles.append(percentile)
 
         # 2. Insider Ownership - Higher is bullish
         if insider_own is not None:
-            cur.execute("""
-                SELECT PERCENT_RANK() OVER (ORDER BY insider_ownership)
-                FROM positioning_metrics
-                WHERE insider_ownership IS NOT NULL
-                AND symbol = %s
-            """, (symbol,))
-
-            pct_row = cur.fetchone()
-            if pct_row:
-                pct = float(pct_row[0]) * 100
-                percentiles.append(pct)
+            z = (insider_own - pop_stats['insider_own_mean']) / max(pop_stats['insider_own_std'], 0.01)
+            percentile = 50 + (z / 6) * 50
+            percentile = max(0, min(100, percentile))
+            percentiles.append(percentile)
 
         # 3. Short Interest Change - Lower (more negative) is bullish, so INVERT
         if short_change is not None:
-            cur.execute("""
-                SELECT PERCENT_RANK() OVER (ORDER BY short_interest_change DESC)
-                FROM positioning_metrics
-                WHERE short_interest_change IS NOT NULL
-                AND symbol = %s
-            """, (symbol,))
-
-            pct_row = cur.fetchone()
-            if pct_row:
-                pct = float(pct_row[0]) * 100
-                percentiles.append(pct)
+            z = (short_change - pop_stats['short_change_mean']) / max(pop_stats['short_change_std'], 0.01)
+            percentile = 50 - (z / 6) * 50  # INVERTED: negative z-score = higher percentile
+            percentile = max(0, min(100, percentile))
+            percentiles.append(percentile)
 
         # 4. Short % of Float - Lower is bullish, so INVERT
         if short_pct is not None:
-            cur.execute("""
-                SELECT PERCENT_RANK() OVER (ORDER BY short_percent_of_float DESC)
-                FROM positioning_metrics
-                WHERE short_percent_of_float IS NOT NULL
-                AND symbol = %s
-            """, (symbol,))
-
-            pct_row = cur.fetchone()
-            if pct_row:
-                pct = float(pct_row[0]) * 100
-                percentiles.append(pct)
+            z = (short_pct - pop_stats['short_pct_mean']) / max(pop_stats['short_pct_std'], 0.01)
+            percentile = 50 - (z / 6) * 50  # INVERTED
+            percentile = max(0, min(100, percentile))
+            percentiles.append(percentile)
 
         cur.close()
 
