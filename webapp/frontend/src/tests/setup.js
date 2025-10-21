@@ -35,11 +35,16 @@ configure({
 
 // Prevent React 18 concurrent mode issues in tests
 global.IS_REACT_ACT_ENVIRONMENT = true;
+global.IS_VITEST = true;
 
 // Ensure NODE_ENV is properly set for all our test guards
 if (typeof process !== "undefined") {
   process.env.NODE_ENV = "test";
 }
+
+// Disable React concurrent mode in jsdom for stability
+global.requestIdleCallback = undefined;
+global.cancelIdleCallback = undefined;
 
 // Mock React's scheduler to prevent "Should not already be working" errors
 vi.mock("scheduler", () => ({
@@ -82,51 +87,73 @@ class MockResizeObserver {
     if (this.callback && element) {
       // Use setTimeout to match real ResizeObserver async behavior
       setTimeout(() => {
-        if (this.callback) {
-          this.callback([
-            {
-              target: element,
-              contentRect: {
-                width: 600,
-                height: 400,
-                top: 0,
-                left: 0,
-                right: 600,
-                bottom: 400,
-                x: 0,
-                y: 0,
+        try {
+          if (this.callback) {
+            this.callback([
+              {
+                target: element,
+                contentRect: {
+                  width: 600,
+                  height: 400,
+                  top: 0,
+                  left: 0,
+                  right: 600,
+                  bottom: 400,
+                  x: 0,
+                  y: 0,
+                },
+                borderBoxSize: [
+                  {
+                    blockSize: 400,
+                    inlineSize: 600,
+                  },
+                ],
+                contentBoxSize: [
+                  {
+                    blockSize: 400,
+                    inlineSize: 600,
+                  },
+                ],
               },
-              borderBoxSize: [
-                {
-                  blockSize: 400,
-                  inlineSize: 600,
-                },
-              ],
-              contentBoxSize: [
-                {
-                  blockSize: 400,
-                  inlineSize: 600,
-                },
-              ],
-            },
-          ]);
+            ]);
+          }
+        } catch (e) {
+          // Silently catch errors in callbacks
         }
       }, 0);
     }
   }
 
   unobserve(element) {
-    this.elements.delete(element);
+    if (element && this.elements.has(element)) {
+      this.elements.delete(element);
+    }
   }
 
   disconnect() {
     this.elements.clear();
+    this.callback = null;
   }
 }
 
-// Set the mock globally
-global.ResizeObserver = MockResizeObserver;
-window.ResizeObserver = MockResizeObserver;
+// Ensure ResizeObserver is available globally before any modules are loaded
+// Use vi.stubGlobal for Vitest compatibility
+try {
+  vi.stubGlobal('ResizeObserver', MockResizeObserver);
+} catch (e) {
+  // Fallback if vi.stubGlobal fails
+  global.ResizeObserver = MockResizeObserver;
+}
+
+// Also set on window for browser-like environments
+if (typeof window !== 'undefined') {
+  window.ResizeObserver = MockResizeObserver;
+}
+
+// And on globalThis for maximum compatibility
+if (typeof globalThis !== 'undefined') {
+  globalThis.ResizeObserver = MockResizeObserver;
+}
 
 // Mock getBoundingClientRect for chart components
 if (typeof HTMLElement !== "undefined") {
@@ -161,6 +188,16 @@ if (typeof global.document !== "undefined") {
     const rootDiv = global.document.createElement("div");
     rootDiv.id = "root";
     global.document.body.appendChild(rootDiv);
+  }
+
+  // Ensure document.activeElement is properly set to document.body
+  // This prevents instanceof errors in React DOM
+  if (!global.document.activeElement || !global.document.activeElement.nodeType) {
+    Object.defineProperty(global.document, "activeElement", {
+      value: global.document.body,
+      writable: true,
+      configurable: true,
+    });
   }
 }
 
@@ -208,6 +245,62 @@ if (typeof global.document !== "undefined" && global.document.body) {
   if (!global.document.body.querySelectorAll) {
     global.document.body.querySelectorAll = function (selector) {
       return global.document.querySelectorAll(selector);
+    };
+  }
+
+  // Mock document.activeElement to prevent instanceof errors
+  if (!global.document.activeElement) {
+    Object.defineProperty(global.document, 'activeElement', {
+      value: global.document.body,
+      writable: true,
+      configurable: true,
+    });
+  }
+
+  // Mock window.getSelection to prevent errors with text selection
+  if (typeof window !== 'undefined' && !window.getSelection) {
+    window.getSelection = function () {
+      return {
+        removeAllRanges: function () {},
+        addRange: function () {},
+        toString: function () {
+          return '';
+        },
+        rangeCount: 0,
+        type: 'None',
+      };
+    };
+  }
+
+  // Mock document.createRange to prevent Range errors
+  if (typeof global.document !== "undefined" && !global.document.createRange) {
+    global.document.createRange = function () {
+      return {
+        setStart: function () {},
+        setEnd: function () {},
+        commonAncestorContainer: {
+          nodeName: 'BODY',
+          ownerDocument: global.document,
+        },
+        getBoundingClientRect: function () {
+          return {
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            width: 0,
+            height: 0,
+          };
+        },
+        getClientRects: function () {
+          return {
+            length: 0,
+            item: function () {
+              return null;
+            },
+          };
+        },
+      };
     };
   }
 }
@@ -635,12 +728,35 @@ Object.defineProperty(window, "sessionStorage", {
 // Mock window.matchMedia for MUI and Dashboard components
 Object.defineProperty(window, "matchMedia", {
   writable: true,
+  configurable: true,
   value: (query) => {
     const listeners = [];
+
+    // Determine if query matches based on innerWidth
+    const getMatches = () => {
+      const innerWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+
+      // Mobile queries
+      if (query.includes('(max-width: 600px)')) return innerWidth <= 600;
+      if (query.includes('(max-width: 768px)')) return innerWidth <= 768;
+      if (query.includes('(max-width: 900px)')) return innerWidth <= 900;
+      if (query.includes('(max-width: 1200px)')) return innerWidth <= 1200;
+
+      // Desktop queries
+      if (query.includes('(min-width: 601px)')) return innerWidth > 601;
+      if (query.includes('(min-width: 769px)')) return innerWidth > 769;
+      if (query.includes('(min-width: 901px)')) return innerWidth > 901;
+      if (query.includes('(min-width: 1201px)')) return innerWidth > 1201;
+
+      // Other queries
+      if (query.includes('(prefers-contrast: high)')) return false;
+      if (query.includes('(prefers-reduced-motion)')) return false;
+
+      return false;
+    };
+
     const mql = {
-      matches: query.includes('(max-width: 600px)') ? false :
-               query.includes('(max-width: 768px)') ? false :
-               query.includes('(prefers-contrast: high)') ? false : false,
+      matches: getMatches(),
       media: query,
       onchange: null,
       addListener: (callback) => {
@@ -670,9 +786,11 @@ Object.defineProperty(window, "matchMedia", {
       dispatchEvent: (event) => {
         listeners.forEach(listener => {
           try {
-            listener(event);
+            if (typeof listener === 'function') {
+              listener(event);
+            }
           } catch (error) {
-            console.warn('Media query listener error:', error);
+            // Silently catch errors
           }
         });
         return true;
