@@ -1397,18 +1397,31 @@ router.get("/sectors-with-history", async (req, res) => {
     const { limit = 20, sortBy = "current_rank" } = req.query;
     console.log(`📊 Fetching sectors with history (limit: ${limit})`);
 
-    // Query sectors with historical data from the consolidated rankings table
+    // Query sectors with historical data from the consolidated rankings table + performance metrics
     const sectorsQuery = `
-      SELECT DISTINCT ON (sector)
-        sector as sector_name,
-        current_rank,
-        rank_1w_ago,
-        rank_4w_ago,
-        rank_12w_ago,
-        momentum_score as current_momentum,
-        trend as current_trend
-      FROM sector_ranking
-      ORDER BY sector, date DESC
+      SELECT DISTINCT ON (sr.sector)
+        sr.sector as sector_name,
+        sr.current_rank,
+        sr.rank_1w_ago,
+        sr.rank_4w_ago,
+        sr.rank_12w_ago,
+        sr.momentum_score as current_momentum,
+        sr.trend as current_trend,
+        CAST(sp.performance_1d AS FLOAT) as current_perf_1d,
+        CAST(sp.performance_5d AS FLOAT) as current_perf_5d,
+        CAST(sp.performance_20d AS FLOAT) as current_perf_20d
+      FROM sector_ranking sr
+      LEFT JOIN (
+        SELECT DISTINCT ON (sector_name)
+          sector_name,
+          performance_1d,
+          performance_5d,
+          performance_20d,
+          fetched_at
+        FROM sector_performance
+        ORDER BY sector_name, fetched_at DESC
+      ) sp ON LOWER(sr.sector) = LOWER(sp.sector_name)
+      ORDER BY sr.sector, sr.date DESC
       LIMIT $1
     `;
 
@@ -1533,19 +1546,37 @@ router.get("/industries-with-history", async (req, res) => {
     const { limit = 50, sortBy = "current_rank" } = req.query;
     console.log(`🏭 Fetching industries with history (limit: ${limit})`);
 
-    // Query industries with historical data from the consolidated rankings table
+    // Query industries with historical data + sector mapping + performance metrics
     const industriesQuery = `
-      SELECT DISTINCT ON (industry)
-        industry,
-        current_rank,
-        rank_1w_ago,
-        rank_4w_ago,
-        rank_8w_ago,
-        momentum_score as momentum,
-        trend,
-        stock_count
-      FROM industry_ranking
-      ORDER BY industry, date DESC
+      SELECT DISTINCT ON (ir.industry)
+        ir.industry,
+        COALESCE(cp.sector, 'Unknown') as sector,
+        ir.current_rank,
+        ir.rank_1w_ago,
+        ir.rank_4w_ago,
+        ir.rank_8w_ago,
+        ir.momentum_score as momentum,
+        ir.trend,
+        ir.stock_count,
+        CAST(ip.performance_1d AS FLOAT) as performance_1d,
+        CAST(ip.performance_5d AS FLOAT) as performance_5d,
+        CAST(ip.performance_20d AS FLOAT) as performance_20d
+      FROM industry_ranking ir
+      LEFT JOIN (
+        SELECT DISTINCT sector, industry FROM company_profile
+        WHERE industry IS NOT NULL
+      ) cp ON LOWER(ir.industry) = LOWER(cp.industry)
+      LEFT JOIN (
+        SELECT DISTINCT ON (industry)
+          industry,
+          performance_1d,
+          performance_5d,
+          performance_20d,
+          fetched_at
+        FROM industry_performance
+        ORDER BY industry, fetched_at DESC
+      ) ip ON LOWER(ir.industry) = LOWER(ip.industry)
+      ORDER BY ir.industry, ir.date DESC
       LIMIT $1
     `;
 
@@ -1616,13 +1647,13 @@ router.get("/industries-with-history", async (req, res) => {
           current_rank: row.current_rank,
           rank_1w_ago: row.rank_1w_ago,
           rank_4w_ago: row.rank_4w_ago,
-          rank_12w_ago: row.rank_12w_ago,
+          rank_8w_ago: row.rank_8w_ago,
           momentum: row.momentum,
           trend: row.trend,
+          stock_count: row.stock_count,
           performance_1d: parseFloat(row.performance_1d || 0),
           performance_5d: parseFloat(row.performance_5d || 0),
           performance_20d: parseFloat(row.performance_20d || 0),
-          stock_count: row.stock_count,
           rank_change_1w: row.rank_change_1w,
           perf_1d_1w_ago: row.perf_1d_1w_ago,
           perf_5d_1w_ago: row.perf_5d_1w_ago,
