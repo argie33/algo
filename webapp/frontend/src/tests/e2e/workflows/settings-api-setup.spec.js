@@ -60,14 +60,14 @@ test.describe("Settings API Setup Workflow", () => {
       await page.goto("/portfolio");
       await page.waitForTimeout(2000);
 
-      const portfolioLoaded = await page.locator("body").count();
+      const portfolioLoaded = await page.locator("#root").count();
       expect(portfolioLoaded).toBeGreaterThan(0);
 
       // Navigate to market data page
       await page.goto("/market");
       await page.waitForTimeout(2000);
 
-      const marketLoaded = await page.locator("body").count();
+      const marketLoaded = await page.locator("#root").count();
       expect(marketLoaded).toBeGreaterThan(0);
 
       console.log("✅ API-dependent pages accessible after setup");
@@ -103,7 +103,7 @@ test.describe("Settings API Setup Workflow", () => {
     }
 
     // Even if no validation UI is visible, the page should load
-    const body = page.locator("body");
+    const body = page.locator("#root");
     await expect(body).toBeVisible();
   });
 });

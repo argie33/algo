@@ -111,13 +111,26 @@ const SectorAnalysis = () => {
   });
 
   // Fetch industry performance data (consolidated /api/sectors endpoint)
+  // NOTE: Removed limit=50 to fetch ALL industries available
   const { data: industryData, isLoading: industryLoading, error: industryError } = useQuery({
     queryKey: ["industry-performance"],
     queryFn: async () => {
-      const response = await api.get("/api/sectors/industries-with-history?limit=50");
+      const response = await api.get("/api/sectors/industries-with-history");
       return response.data;
     },
     staleTime: 60000,
+    enabled: true,
+    retry: false,
+  });
+
+  // Fetch seasonality data
+  const { data: seasonalityData, isLoading: seasonalityLoading, error: seasonalityError } = useQuery({
+    queryKey: ["sector-seasonality"],
+    queryFn: async () => {
+      const response = await api.get("/api/market/seasonality");
+      return response.data;
+    },
+    staleTime: 3600000, // 1 hour - seasonality data doesn't change daily
     enabled: true,
     retry: false,
   });
@@ -165,7 +178,7 @@ const SectorAnalysis = () => {
       return {
         name: sectorName.length > 15 ? sectorName.substring(0, 15) + "..." : sectorName,
         fullName: sectorName,
-        performance: parseFloat((s.current_perf_1d || s.performance_1d).toFixed(2)),
+        performance: parseFloat((s.current_perf_1d ?? s.performance_1d ?? 0).toFixed(2)),
         color: sectorColors[sectorName] || "#666",
       };
     })
@@ -533,34 +546,36 @@ const SectorAnalysis = () => {
                           </Typography>
                           {sectorIndustries.length > 0 ? (
                             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 1 }}>
-                              {sectorIndustries.map((industry, idx) => (
-                                <Box
-                                  key={idx}
-                                  sx={{
-                                    p: 1,
-                                    backgroundColor: "background.paper",
-                                    border: "1px solid",
-                                    borderColor: "divider",
-                                    borderRadius: 1,
-                                  }}
-                                >
-                                  <Typography variant="caption" fontWeight="600" display="block">
-                                    #{industry.current_rank || "N/A"}: {industry.industry}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
-                                    {formatPercentage(industry.performance_1d)} (1D) | {industry.stock_count} stocks
-                                  </Typography>
-                                </Box>
-                              ))}
+                              {sectorIndustries
+                                .sort((a, b) => {
+                                  // Sort by current_rank numerically, NULL values go to the end
+                                  const rankA = a.current_rank || 9999;
+                                  const rankB = b.current_rank || 9999;
+                                  return rankA - rankB;
+                                })
+                                .map((industry, idx) => (
+                                  <Box
+                                    key={idx}
+                                    sx={{
+                                      p: 1,
+                                      backgroundColor: "background.paper",
+                                      border: "1px solid",
+                                      borderColor: "divider",
+                                      borderRadius: 1,
+                                    }}
+                                  >
+                                    <Typography variant="caption" fontWeight="600" display="block">
+                                      #{industry.current_rank || "N/A"}: {industry.industry}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                                      {formatPercentage(industry.performance_1d)} (1D) | {industry.stock_count} stocks
+                                    </Typography>
+                                  </Box>
+                                ))}
                             </Box>
                           ) : (
                             <Typography variant="caption" color="text.secondary">
                               No industries available
-                            </Typography>
-                          )}
-                          {sectorIndustries.length > 10 && (
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                              ... and {sectorIndustries.length - 10} more industries
                             </Typography>
                           )}
                         </Box>

@@ -189,7 +189,7 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
 
     // Check that the page loads without crashing (404 errors shouldn't break the app)
     const pageLoaded = await page.locator("#root").isVisible();
-    const hasBasicContent = await page.locator("body").isVisible();
+    const hasBasicContent = await page.locator("#root").isVisible();
 
     // Look for error messages or graceful degradation
     const errorMessages = await page

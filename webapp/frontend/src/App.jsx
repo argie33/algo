@@ -66,6 +66,7 @@ import PortfolioOptimization from "./pages/PortfolioOptimization";
 import TradeHistory from "./pages/TradeHistory";
 import OrderManagement from "./pages/OrderManagement";
 import Sentiment from "./pages/Sentiment";
+import SentimentPage from "./pages/SentimentPage";
 import AnalystInsights from "./pages/AnalystInsights";
 import EconomicModeling from "./pages/EconomicModeling";
 import Settings from "./pages/Settings";
@@ -147,6 +148,12 @@ const menuItems = [
   },
 
   // Sentiment Analysis Section (Premium)
+  {
+    text: "Market Sentiment",
+    icon: <PsychologyIcon />,
+    path: "/sentiment",
+    category: "stocks",
+  },
   {
     text: "Sentiment Analysis",
     icon: <PsychologyIcon />,
@@ -651,6 +658,7 @@ function App() {
             {/* Missing pages - Coming Soon */}
             <Route path="/sectors" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<Watchlist />} />
+            <Route path="/sentiment" element={<SentimentPage />} />
             <Route path="/stocks/sentiment" element={<Sentiment />} />
             <Route path="/sentiment/analysts" element={<AnalystInsights />} />
             <Route path="/tools/ai" element={<AIAssistant />} />

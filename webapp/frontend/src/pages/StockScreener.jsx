@@ -1489,17 +1489,15 @@ function StockScreener() {
                       </TableHead>
                       <TableBody>
                         {(stocksList || []).map((stock) => {
-                          // Generate factor scores for display (in production, these would come from backend)
+                          // Use real factor scores from backend API response
                           const factorScores = {
-                            qualityScore: Math.round(Math.random() * 40 + 40),
-                            growthScore: Math.round(Math.random() * 40 + 40),
-                            valueScore: Math.round(Math.random() * 40 + 40),
-                            momentumScore: Math.round(Math.random() * 40 + 40),
-                            sentimentScore: Math.round(Math.random() * 40 + 40),
-                            positioningScore: Math.round(
-                              Math.random() * 40 + 40
-                            ),
-                            compositeScore: Math.round(Math.random() * 40 + 40),
+                            qualityScore: stock.quality_score || 0,
+                            growthScore: stock.growth_score || 0,
+                            valueScore: stock.value_score || 0,
+                            momentumScore: stock.momentum_score || 0,
+                            sentimentScore: stock.sentiment_score || 0,
+                            positioningScore: stock.positioning_score || 0,
+                            compositeScore: stock.composite_score || 0,
                           };
 
                           return (

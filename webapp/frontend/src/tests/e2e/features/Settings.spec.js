@@ -118,7 +118,7 @@ test.describe("Settings Page Debug Analysis", () => {
 
     // Navigate to the application
     console.log("\n📍 Step 1: Navigate to application");
-    await page.goto("/", { waitUntil: "networkidle" });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(2000);
 
     // Check if already logged in
@@ -174,7 +174,7 @@ test.describe("Settings Page Debug Analysis", () => {
     } else {
       // Direct navigation as fallback
       await page.goto("/settings", {
-        waitUntil: "networkidle",
+        waitUntil: "domcontentloaded",
       });
       console.log("Direct navigation to /settings");
     }
@@ -240,7 +240,7 @@ test.describe("Settings Page Debug Analysis", () => {
 
     // Navigate directly to settings
     await page.goto("/settings", {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(3000);
 

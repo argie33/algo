@@ -36,8 +36,8 @@ GROWTH_PID=$!
 sleep 30
 
 echo ""
-echo "📊 STEP 5: Load Sector & Industry Rankings (11 sectors + 100+ industries with historical snapshots)"
-python3 loadsectorindustrydata.py 2>&1 &
+echo "📊 STEP 5: Load Sector & Industry Rankings (12 sectors + all industries with current data)"
+python3 loadsectors.py 2>&1 &
 SECTOR_INDUSTRY_PID=$!
 sleep 30
 

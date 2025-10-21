@@ -181,7 +181,7 @@ test.describe('Positioning E2E Tests', () => {
     const hasNoData = await page.locator('text=/n\\/a/i').first().isVisible().catch(() => false);
 
     // One of these should be true OR the page should have loaded (even if with N/A values)
-    const pageLoaded = await page.locator('body').isVisible();
+    const pageLoaded = await page.locator('#root').isVisible();
     expect(hasError || hasNoData || pageLoaded).toBeTruthy();
   });
 

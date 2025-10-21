@@ -451,7 +451,14 @@ def handler(event, context):
             # — U.S. Inflation & Prices —
             "CPIAUCSL","CPILFESL","PCEPI","PCEPILFE","PPIACO","MICH","T5YIFR",
             # — U.S. Financial & Monetary —
-            "FEDFUNDS","DGS2","DGS10","T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M2SL","WALCL","IOER","IORB",
+            "FEDFUNDS","DGS3MO","DGS6MO","DGS1","DGS2","DGS3","DGS5","DGS7","DGS10","DGS20","DGS30",
+            "T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M2SL","WALCL","IOER","IORB",
+            # — Credit Spreads (indicators of financial stress) —
+            "BAMLH0A0HYM2","BAMLH0A1HYBB","BAMLH0A2HY","BAMLH0A0IG","BAMLH0A1IG","BAMLH0A2IG",
+            # — Treasury Spreads (recession indicators) —
+            "T10Y3M","T10Y3MM","T10YIE","T5YIFR",
+            # — Alternative Financial Conditions —
+            "TERMCBCCALLNS","TERMCBCCRMNRNRNXBD",
             # — U.S. Housing & Construction —
             "HOUST","PERMIT","CSUSHPISA","RHORUSQ156N","RRVRUSQ156N","USHVAC"
         ]

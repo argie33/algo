@@ -38,13 +38,21 @@ describe("Sectors Routes", () => {
   });
   describe("GET /sectors/", () => {
     test("should return API status", async () => {
+      // Mock the query to return real sector data
+      query.mockResolvedValueOnce({
+        rows: [
+          { sector: "Technology", performance_pct: 5.5, stock_count: 50, avg_price: 150, total_volume: 1000000, gaining_stocks: 40, losing_stocks: 10 },
+          { sector: "Healthcare", performance_pct: 3.2, stock_count: 40, avg_price: 100, total_volume: 800000, gaining_stocks: 30, losing_stocks: 10 }
+        ]
+      });
+
       const response = await request(app).get("/sectors/").expect(200);
       expect(response.body).toMatchObject({
         success: true,
-        message: "Sectors API - Ready",
         timestamp: expect.any(String),
-        status: "operational",
       });
+      expect(response.body.data).toBeInstanceOf(Array);
+      expect(response.body.data.length).toBeGreaterThan(0);
     });
   });
   describe("GET /sectors/analysis", () => {

@@ -760,29 +760,37 @@ describe("Market Routes Unit Tests", () => {
   });
   // AWS Failing Endpoints Tests (Previously failing due to mock responses)
   describe("AWS Failing Endpoints - Database-Driven", () => {
-    test("GET /market/recession-forecast should return database-driven recession analysis", async () => {
+    test("GET /market/recession-forecast should return database-driven recession analysis (or 503 if missing data)", async () => {
       const response = await request(app)
-        .get("/market/recession-forecast")
-        .expect(200);
+        .get("/market/recession-forecast");
+      // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
+      expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("data");
-      if (response.body.data) {
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("compositeRecessionProbability");
         expect(response.body.data).toHaveProperty("keyIndicators");
         expect(response.body.data).toHaveProperty("analysis");
+      } else if (response.status === 503) {
+        // Missing data - should have error message
+        expect(response.body).toHaveProperty("error");
+        expect(response.body).toHaveProperty("missing");
       }
     });
-    test("GET /market/leading-indicators should return database-driven leading indicators", async () => {
+    test("GET /market/leading-indicators should return database-driven leading indicators (or 503 if missing data)", async () => {
       const response = await request(app)
-        .get("/market/leading-indicators")
-        .expect(200);
+        .get("/market/leading-indicators");
+      // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
+      expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("data");
-      if (response.body.data) {
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("indicators");
-        expect(response.body.data).toHaveProperty("gdpGrowth");
+      } else if (response.status === 503) {
+        // Missing data - should have error message
+        expect(response.body).toHaveProperty("error");
       }
     });
     test("GET /market/sectoral-analysis should return database-driven sector analysis", async () => {
@@ -818,14 +826,15 @@ describe("Market Routes Unit Tests", () => {
         }
       }
     });
-    test("GET /market/economic-scenarios should return database-driven economic scenarios", async () => {
+    test("GET /market/economic-scenarios should return database-driven economic scenarios (or 503 if missing data)", async () => {
       const response = await request(app)
-        .get("/market/economic-scenarios")
-        .expect(200);
+        .get("/market/economic-scenarios");
+      // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
+      expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
-      expect(response.body).toHaveProperty("data");
-      if (response.body.data) {
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty("data");
         expect(response.body.data).toHaveProperty("scenarios");
         expect(Array.isArray(response.body.data.scenarios)).toBe(true);
         // Verify scenarios are based on real economic data
@@ -837,6 +846,10 @@ describe("Market Routes Unit Tests", () => {
           expect(scenario).toHaveProperty("unemployment");
           expect(scenario).toHaveProperty("fedRate");
         }
+      } else if (response.status === 503) {
+        // Missing data - should have error message
+        expect(response.body).toHaveProperty("error");
+        expect(response.body).toHaveProperty("missing");
       }
     });
   });

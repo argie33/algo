@@ -256,12 +256,12 @@ describe("Authentication Middleware", () => {
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
       authenticateToken(req, res, next);
       expect(req.user).toEqual({
-        sub: "dev-user-bypass",
-        id: "dev-user-bypass",
-        email: "dev-bypass@example.com",
-        username: "dev-bypass-user",
-        role: "admin",
-        sessionId: "dev-bypass-session",
+        sub: "test-user-123",
+        id: "test-user-123",
+        email: "test@example.com",
+        username: "test-user",
+        role: "user",
+        sessionId: "test-session",
       });
       expect(req.token).toBe("test-token");
       expect(next).toHaveBeenCalled();
@@ -423,10 +423,6 @@ describe("RequireApiKey Middleware", () => {
     };
     next = jest.fn();
     jest.clearAllMocks();
-    // Mock the getApiKey function
-    jest.doMock("../../../utils/apiKeyService", () => ({
-      getApiKey: jest.fn(),
-    }));
   });
   test("should require authentication first", async () => {
     const middleware = requireApiKey("alpaca");
@@ -441,7 +437,7 @@ describe("RequireApiKey Middleware", () => {
     req.user = { sub: "user123" };
     req.token = "valid-token";
     // Mock getApiKey to return null (no API key configured)
-    getApiKey.mockResolvedValue(null);
+    apiKeyService.getApiKey.mockResolvedValue(null);
     const middleware = requireApiKey("alpaca");
     await middleware(req, res, next);
     expect(res.error).toHaveBeenCalledWith(
@@ -458,18 +454,18 @@ describe("RequireApiKey Middleware", () => {
     req.user = { sub: "user123" };
     req.token = "valid-token";
     const mockApiKey = "test-api-key-123";
-    getApiKey.mockResolvedValue(mockApiKey);
+    apiKeyService.getApiKey.mockResolvedValue(mockApiKey);
     const middleware = requireApiKey("alpaca");
     await middleware(req, res, next);
     expect(req.apiKey).toBe(mockApiKey);
     expect(req.provider).toBe("alpaca");
     expect(next).toHaveBeenCalled();
-    expect(getApiKey).toHaveBeenCalledWith("valid-token", "alpaca");
+    expect(apiKeyService.getApiKey).toHaveBeenCalledWith("valid-token", "alpaca");
   });
   test("should handle API key service errors", async () => {
     req.user = { sub: "user123" };
     req.token = "valid-token";
-    getApiKey.mockRejectedValue(new Error("Service unavailable"));
+    apiKeyService.getApiKey.mockRejectedValue(new Error("Service unavailable"));
     const consoleSpy = jest.spyOn(console, "error").mockImplementation();
     const middleware = requireApiKey("alpaca");
     await middleware(req, res, next);

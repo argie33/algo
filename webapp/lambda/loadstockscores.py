@@ -93,6 +93,8 @@ def create_stock_scores_table(conn):
         growth_score DECIMAL(5,2),
         positioning_score DECIMAL(5,2),
         sentiment_score DECIMAL(5,2),
+        stability_score DECIMAL(5,2),
+        stability_inputs JSONB,
         rsi DECIMAL(5,2),
         macd DECIMAL(10,4),
         sma_20 DECIMAL(10,2),
@@ -578,9 +580,16 @@ def get_stock_data_from_database(conn, symbol):
         return None
 
 def save_stock_score(conn, score_data):
-    """Save stock score to database."""
+    """Save stock score to database with isolated transaction."""
+    save_conn = None
     try:
-        cur = conn.cursor()
+        # Create a fresh connection for this transaction to avoid cascading failures
+        save_conn = get_db_connection()
+        if not save_conn:
+            logger.error(f"❌ Failed to get fresh connection for {score_data['symbol']}")
+            return False
+
+        cur = save_conn.cursor()
 
         # Upsert query
         upsert_sql = """
@@ -621,13 +630,26 @@ def save_stock_score(conn, score_data):
         """
 
         cur.execute(upsert_sql, score_data)
-        conn.commit()
+        save_conn.commit()
         cur.close()
         return True
 
     except psycopg2.Error as e:
         logger.error(f"❌ Failed to save score for {score_data['symbol']}: {e}")
+        # Rollback to clear transaction state on isolated connection
+        try:
+            if save_conn:
+                save_conn.rollback()
+        except:
+            pass
         return False
+    finally:
+        # Always close the isolated connection
+        try:
+            if save_conn:
+                save_conn.close()
+        except:
+            pass
 
 def main():
     """Main function to load stock scores."""
@@ -663,19 +685,25 @@ def main():
             try:
                 logger.info(f"📈 Processing {symbol} ({i}/{len(symbols)})")
 
-                # Calculate scores from database
-                score_data = get_stock_data_from_database(conn, symbol)
-                if score_data:
-                    # Save to database
-                    if save_stock_score(conn, score_data):
-                        successful += 1
-                        logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}, Growth Score = {score_data['growth_score']:.2f}")
+                try:
+                    # Calculate scores from database
+                    score_data = get_stock_data_from_database(conn, symbol)
+                    if score_data:
+                        # Save to database
+                        if save_stock_score(conn, score_data):
+                            successful += 1
+                            logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}, Growth Score = {score_data['growth_score']:.2f}")
+                        else:
+                            failed += 1
                     else:
                         failed += 1
-                else:
+                except Exception as e:
+                    logger.error(f"❌ Error calculating/saving scores for {symbol}: {e}", exc_info=True)
                     failed += 1
+                    continue  # Continue to next symbol instead of crashing
+
             except Exception as e:
-                logger.error(f"❌ Error processing {symbol}: {e}")
+                logger.error(f"❌ Unexpected error in symbol loop for {symbol}: {e}", exc_info=True)
                 failed += 1
 
             # Small delay to avoid overwhelming the database

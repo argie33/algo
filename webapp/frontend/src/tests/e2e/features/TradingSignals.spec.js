@@ -65,11 +65,11 @@ test.describe("Trading Signals Page E2E Tests", () => {
       ).toBe(0);
 
       // Verify page loaded successfully
-      const body = page.locator("body");
+      const body = page.locator("#root");
       await expect(body).toBeVisible();
 
       // Check for trading signals content
-      const hasTradingContent = await page.locator("body *").count();
+      const hasTradingContent = await page.locator("#root *").count();
       expect(hasTradingContent).toBeGreaterThan(0);
 
     } catch (error) {
@@ -84,7 +84,6 @@ test.describe("Trading Signals Page E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(2000);
 
     // Look for common trading signals elements

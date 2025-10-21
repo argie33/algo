@@ -65,11 +65,11 @@ test.describe("Watchlist Page E2E Tests", () => {
       ).toBe(0);
 
       // Verify page loaded successfully
-      const body = page.locator("body");
+      const body = page.locator("#root");
       await expect(body).toBeVisible();
 
       // Check for watchlist content
-      const hasWatchlistContent = await page.locator("body *").count();
+      const hasWatchlistContent = await page.locator("#root *").count();
       expect(hasWatchlistContent).toBeGreaterThan(0);
 
     } catch (error) {
@@ -84,7 +84,6 @@ test.describe("Watchlist Page E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(2000);
 
     // Look for common watchlist elements

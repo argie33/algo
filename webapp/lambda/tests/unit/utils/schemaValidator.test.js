@@ -833,8 +833,8 @@ describe("Schema Validator", () => {
   describe("safeQuery", () => {
     test("should execute query successfully", async () => {
       const expectedResult = { rows: [{ count: 5 }] };
-      // Clear previous mock calls
-      mockQuery.mockClear();
+      // Reset and setup fresh mock
+      mockQuery.mockReset();
       mockQuery.mockResolvedValueOnce(expectedResult);
       const result = await safeQuery("SELECT COUNT(*) as count FROM test");
       expect(result).toEqual(expectedResult);
@@ -845,8 +845,8 @@ describe("Schema Validator", () => {
     });
     test("should return null on database error and log warning", async () => {
       const dbError = new Error("Connection timeout");
-      // Clear previous mock calls
-      mockQuery.mockClear();
+      // Reset and setup fresh mock
+      mockQuery.mockReset();
       mockQuery.mockRejectedValueOnce(dbError);
       const result = await safeQuery("SELECT * FROM test", ["param"]);
       expect(result).toBeNull();
@@ -861,8 +861,8 @@ describe("Schema Validator", () => {
     test("should truncate long query text in logs", async () => {
       const longQuery = "SELECT " + "column, ".repeat(50) + "FROM test";
       const dbError = new Error("Query too long");
-      // Clear previous mock calls
-      mockQuery.mockClear();
+      // Reset and setup fresh mock
+      mockQuery.mockReset();
       mockQuery.mockRejectedValueOnce(dbError);
       await safeQuery(longQuery);
       expect(mockLogger.warn).toHaveBeenCalledWith(

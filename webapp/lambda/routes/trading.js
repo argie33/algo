@@ -341,6 +341,7 @@ router.get("/signals", async (req, res) => {
     res.json({
       success: true,
       data: signals,
+      signals: signals,  // BACKWARD COMPAT: Support both field names
       analytics: analytics,
       pagination: {
         page: pageNum,

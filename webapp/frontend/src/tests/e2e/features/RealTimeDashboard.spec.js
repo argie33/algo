@@ -65,11 +65,11 @@ test.describe("Real-Time Dashboard Page E2E Tests", () => {
       ).toBe(0);
 
       // Verify page loaded successfully
-      const body = page.locator("body");
+      const body = page.locator("#root");
       await expect(body).toBeVisible();
 
       // Check for real-time dashboard content
-      const hasRealTimeContent = await page.locator("body *").count();
+      const hasRealTimeContent = await page.locator("#root *").count();
       expect(hasRealTimeContent).toBeGreaterThan(0);
 
     } catch (error) {
@@ -84,7 +84,6 @@ test.describe("Real-Time Dashboard Page E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(2000);
 
     // Look for common real-time dashboard elements

@@ -28,23 +28,12 @@ setup("authenticate", async ({ page }) => {
   await page.reload();
   await page.waitForLoadState("domcontentloaded");
 
-  // Wait for the app to mount with multiple fallback strategies
+  // Wait for the app to mount
   try {
     await page.waitForSelector("#root", { timeout: 5000 });
     console.log("✅ #root element found");
   } catch (e) {
-    console.log("⚠️ #root not visible, checking for app content...");
-
-    // Fallback 1: Wait for any significant content
-    try {
-      await page.waitForSelector("body", { timeout: 3000 });
-      const hasContent = await page.locator("body").textContent();
-      if (hasContent && hasContent.length > 100) {
-        console.log("✅ App content detected via body");
-      }
-    } catch (e2) {
-      console.log("⚠️ Using minimal setup - continuing anyway");
-    }
+    console.log("⚠️ #root not found within timeout, continuing anyway");
   }
 
   await page.waitForTimeout(1000); // Brief pause for hydration

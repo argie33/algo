@@ -106,6 +106,8 @@ def create_stock_scores_table(conn):
                 growth_score DECIMAL(5,2),
                 positioning_score DECIMAL(5,2),
                 sentiment_score DECIMAL(5,2),
+                stability_score DECIMAL(5,2),
+                stability_inputs JSONB,
                 rsi DECIMAL(5,2),
                 macd DECIMAL(10,4),
                 sma_20 DECIMAL(10,2),

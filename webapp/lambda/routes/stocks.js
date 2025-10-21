@@ -962,6 +962,16 @@ router.get("/", async (req, res) => {
         COALESCE(km.earnings_growth_pct, 0) as earnings_growth_pct,
         COALESCE(km.revenue_growth_pct, 0) as revenue_growth_pct,
 
+        -- Factor scores from stock_scores table
+        COALESCE(ss.composite_score, 0) as composite_score,
+        COALESCE(ss.momentum_score, 0) as momentum_score,
+        COALESCE(ss.value_score, 0) as value_score,
+        COALESCE(ss.quality_score, 0) as quality_score,
+        COALESCE(ss.growth_score, 0) as growth_score,
+        COALESCE(ss.positioning_score, 0) as positioning_score,
+        COALESCE(ss.sentiment_score, 0) as sentiment_score,
+        COALESCE(ss.stability_score, 0) as stability_score,
+
         -- Price data from market_data (removed slow LATERAL join to price_daily)
         md.open_price as open,
         md.day_high as high,
@@ -973,6 +983,7 @@ router.get("/", async (req, res) => {
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
       ${whereClause.replace(/symbol/g, 'cp.ticker')}
       ORDER BY cp.ticker ASC
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
@@ -1301,6 +1312,18 @@ router.get("/", async (req, res) => {
             stock.overall_risk >= 5 &&
             stock.overall_risk < 8,
           hasLowRisk: stock.overall_risk && stock.overall_risk < 5,
+        },
+
+        // Factor scores from stock_scores table
+        factorScores: {
+          composite: stock.composite_score || 0,
+          momentum: stock.momentum_score || 0,
+          value: stock.value_score || 0,
+          quality: stock.quality_score || 0,
+          growth: stock.growth_score || 0,
+          positioning: stock.positioning_score || 0,
+          sentiment: stock.sentiment_score || 0,
+          stability: stock.stability_score || 0,
         },
       },
     }));

@@ -1358,6 +1358,72 @@ export const getSeasonalityData = async () => {
   }
 };
 
+// Yield Curve Spread endpoint
+export const getYieldCurveData = async () => {
+  console.log("📈 [API] Fetching yield curve data...");
+
+  try {
+    const response = await api.get("/api/market/overview");
+
+    if (response?.data?.data?.yield_curve) {
+      console.log("📈 [API] Fetched yield curve data:", response.data.data.yield_curve);
+      return {
+        success: true,
+        data: response.data.data.yield_curve,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    throw new Error("Yield curve data not available");
+  } catch (error) {
+    console.error("❌ [API] Yield curve error:", error?.message);
+    return {
+      success: false,
+      data: null,
+      error: error?.message || "Failed to fetch yield curve data",
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+// McClellan Oscillator endpoint
+export const getMcClellanOscillator = async () => {
+  console.log("📊 [API] Fetching McClellan Oscillator...");
+
+  try {
+    const response = await api.get("/api/market/mcclellan-oscillator");
+    console.log("📊 [API] Fetched McClellan Oscillator:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("❌ [API] McClellan Oscillator error:", error?.message);
+    return {
+      success: false,
+      data: null,
+      error: error?.message || "Failed to fetch McClellan Oscillator",
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+// Sentiment Divergence endpoint
+export const getSentimentDivergence = async () => {
+  console.log("💡 [API] Fetching sentiment divergence...");
+
+  try {
+    const response = await api.get("/api/market/sentiment-divergence");
+    console.log("💡 [API] Fetched sentiment divergence:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("❌ [API] Sentiment divergence error:", error?.message);
+    return {
+      success: false,
+      data: null,
+      error: error?.message || "Failed to fetch sentiment divergence",
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
 export const getMarketResearchIndicators = async () => {
   console.log("🔬 [API] Fetching market research indicators...");
 
@@ -3831,6 +3897,9 @@ export default {
   getEconomicIndicators,
   getMarketCorrelation,
   getSeasonalityData,
+  getYieldCurveData,
+  getMcClellanOscillator,
+  getSentimentDivergence,
   getMarketResearchIndicators,
   getPortfolioAnalytics,
   getPortfolioRiskAnalysis,

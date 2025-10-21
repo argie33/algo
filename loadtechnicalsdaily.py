@@ -52,9 +52,21 @@ DB_POOL_MAX = 2  # Minimal connections for 512MB memory constraint
 
 def get_db_config():
     """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
+    Fetch database config from local environment variables first, then fall back to Secrets Manager.
+    For local dev: DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME
+    For AWS: DB_SECRET_ARN
     """
+    # Try local environment first (for local development)
+    if os.environ.get("DB_HOST"):
+        return (
+            os.environ.get("DB_USER", "postgres"),
+            os.environ.get("DB_PASSWORD", "password"),
+            os.environ.get("DB_HOST", "localhost"),
+            int(os.environ.get("DB_PORT", 5432)),
+            os.environ.get("DB_NAME", "stocks")
+        )
+
+    # Fall back to AWS Secrets Manager for production
     client = boto3.client("secretsmanager")
     resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
     sec = json.loads(resp["SecretString"])

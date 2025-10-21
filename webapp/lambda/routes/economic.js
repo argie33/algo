@@ -50,7 +50,21 @@ const SERIES_MAPPING = {
   'INVESTMENT': 'GPDI',     // Gross Private Domestic Investment
   'GOVERNMENT_CONSUMPTION': 'GCEC1', // Real Government Consumption
   'EXPORTS': 'EXPGSC1',     // Real Exports of Goods and Services
-  'IMPORTS': 'IMPGSC1'      // Real Imports of Goods and Services
+  'IMPORTS': 'IMPGSC1',     // Real Imports of Goods and Services
+
+  // Credit Spreads (financial conditions)
+  'HY_SPREAD': 'BAMLH0A0HYM2', // High Yield Option-Adjusted Spread
+  'HY_BB_SPREAD': 'BAMLH0A1HYBB', // High Yield BB-rated OAS
+  'HY_B_SPREAD': 'BAMLH0A2HY', // High Yield B-rated OAS
+  'IG_SPREAD': 'BAMLH0A0IG', // Investment Grade OAS
+  'IG_AAA_SPREAD': 'BAMLH0A1IG', // IG AAA-rated OAS
+  'IG_BBB_SPREAD': 'BAMLH0A2IG', // IG BBB-rated OAS
+  'BAA_AAA_SPREAD': 'BAMLH0A0PRI', // Corporate bond spread
+
+  // Treasury Spreads
+  'T10Y3M_SPREAD': 'T10Y3M', // 10-year minus 3-month spread
+  'T10Y3MM_SPREAD': 'T10Y3MM', // 10-year minus 3-month spread (daily)
+  'BREAKEVEN_INFLATION_10Y': 'T10YIE' // 10-year breakeven inflation rate
 };
 
 // Helper function to resolve series ID from common name or pass through if already a series ID

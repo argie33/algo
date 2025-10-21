@@ -179,7 +179,8 @@ describe("Logger", () => {
 
       // Reinitialize logger with production environment
       delete require.cache[require.resolve("../../../utils/logger")];
-      const prodLogger = new Logger();
+      const loggerModule = require("../../../utils/logger");
+      const prodLogger = new loggerModule.Logger();
 
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
@@ -233,6 +234,7 @@ describe("Logger", () => {
       // Create a new logger instance instead of modifying the singleton
       const quietLogger = new Logger();
       quietLogger.currentLevel = -1;
+      // Note: Logger is already defined in beforeEach from require("../../../utils/logger").Logger
 
       quietLogger.error("Should not log");
 
@@ -289,7 +291,7 @@ describe("Logger", () => {
   describe("Debug Logging", () => {
     test("should not log debug messages with default level", () => {
       // Create a logger with the actual default level (INFO = 2) by creating a new instance
-      const defaultLogger = new Logger();
+      const defaultLogger = new Logger(); // Logger is defined in beforeEach from require
       defaultLogger.currentLevel = 2; // INFO level explicitly
 
       // Create fresh spy for this test to avoid interference

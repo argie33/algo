@@ -12,7 +12,7 @@ const express = require("express");
  * Data dependencies:
  * - company_profile table (ticker, sector, industry)
  * - price_daily table (close, volume, date)
- * - technical_indicators table (rsi, momentum, macd, sma values)
+ * - technical_data_daily table (rsi, momentum, macd, sma values)
  * - sector_performance table (for rotation analysis)
  *
  * Updated: 2025-10-11 - Removed all fallbacks and mock data
@@ -64,9 +64,8 @@ router.get("/", async (req, res) => {
     const { limit = 20, period = "1m" } = req.query;
     console.log(`📊 Fetching sectors list`);
 
-    // Use the same query as the performance endpoint but return formatted as root response
-    const olderDays = (period === "1d" ? 1 : period === "1w" ? 7 : 30) + 7;
-    const days = period === "1d" ? 1 : period === "1w" ? 7 : 30;
+    // Calculate days based on period for both current and comparison prices
+    const daysBack = period === "1d" ? 1 : period === "1w" ? 7 : 30;
 
     const result = await query(
       `
@@ -100,10 +99,9 @@ router.get("/", async (req, res) => {
       ) pd ON s.ticker = pd.symbol
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
-          symbol, close
+          symbol, close, date
         FROM price_daily
-        WHERE date >= CURRENT_DATE - INTERVAL '${olderDays} days'
-          AND date < CURRENT_DATE - INTERVAL '${days} days'
+        WHERE date <= CURRENT_DATE - INTERVAL '${daysBack} days'
         ORDER BY symbol, date DESC
       ) pd_old ON s.ticker = pd_old.symbol
       WHERE s.sector IS NOT NULL AND s.sector != ''
@@ -115,6 +113,8 @@ router.get("/", async (req, res) => {
       `,
       [parseInt(limit)]
     );
+
+    console.log(`✅ Query result rows: ${result?.rows?.length || 0}`);
 
     if (!result || !result.rows) {
       return res.json({
@@ -301,7 +301,7 @@ router.get("/analysis", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT ON (ticker)
           ticker, rsi, momentum
-        FROM technical_indicators
+        FROM technical_data_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY ticker, date DESC
       ) ti ON s.ticker = ti.ticker
@@ -728,7 +728,7 @@ router.get("/:sector/details", async (req, res) => {
           ticker, rsi, momentum, macd, macd_signal, sma_20, sma_50,
           jt_momentum_12_1, momentum_3m, momentum_6m,
           risk_adjusted_momentum, momentum_strength
-        FROM technical_indicators
+        FROM technical_data_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
         ORDER BY ticker, date DESC
       ) ti ON s.ticker = ti.ticker
@@ -1399,23 +1399,16 @@ router.get("/sectors-with-history", async (req, res) => {
 
     // Query sectors with historical data from the consolidated rankings table
     const sectorsQuery = `
-      SELECT DISTINCT ON (sector_name)
-        sector_name,
+      SELECT DISTINCT ON (sector)
+        sector as sector_name,
         current_rank,
         rank_1w_ago,
         rank_4w_ago,
         rank_12w_ago,
-        current_momentum,
-        current_trend,
-        current_perf_1d,
-        current_perf_5d,
-        current_perf_20d,
-        rank_change_1w,
-        perf_1d_1w_ago,
-        perf_5d_1w_ago,
-        perf_20d_1w_ago
+        momentum_score as current_momentum,
+        trend as current_trend
       FROM sector_ranking
-      ORDER BY sector_name, snapshot_date DESC
+      ORDER BY sector, date DESC
       LIMIT $1
     `;
 
@@ -1544,23 +1537,15 @@ router.get("/industries-with-history", async (req, res) => {
     const industriesQuery = `
       SELECT DISTINCT ON (industry)
         industry,
-        sector,
         current_rank,
         rank_1w_ago,
         rank_4w_ago,
-        rank_12w_ago,
-        momentum,
+        rank_8w_ago,
+        momentum_score as momentum,
         trend,
-        performance_1d,
-        performance_5d,
-        performance_20d,
-        stock_count,
-        rank_change_1w,
-        perf_1d_1w_ago,
-        perf_5d_1w_ago,
-        perf_20d_1w_ago
+        stock_count
       FROM industry_ranking
-      ORDER BY industry, snapshot_date DESC
+      ORDER BY industry, date DESC
       LIMIT $1
     `;
 

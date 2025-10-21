@@ -24,8 +24,6 @@ import {
   useTheme,
 } from "@mui/material";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -33,6 +31,7 @@ import {
   BarChart,
   Bar,
   ComposedChart,
+  Line,
   PieChart,
   Pie,
   Cell,
@@ -54,6 +53,9 @@ import {
   getMarketBreadth,
   getSeasonalityData,
   getDistributionDays,
+  getYieldCurveData,
+  getMcClellanOscillator,
+  getSentimentDivergence,
 } from "../services/api";
 import {
   formatCurrency,
@@ -62,6 +64,11 @@ import {
   getChangeColor,
 } from "../utils/formatters";
 import { createComponentLogger } from "../utils/errorLogger";
+import SectorSeasonalityTable from "../components/SectorSeasonalityTable";
+import SentimentChartsReimag from "../components/SentimentChartsReimag";
+import YieldCurveCard from "../components/YieldCurveCard";
+import McClellanOscillatorChart from "../components/McClellanOscillatorChart";
+import SentimentDivergenceChart from "../components/SentimentDivergenceChart";
 
 // Create logger instance for this component
 const _logger = createComponentLogger("MarketOverview");
@@ -358,6 +365,42 @@ const fetchSeasonalityData = async () => {
   }
 };
 
+const fetchYieldCurveData = async () => {
+  try {
+    console.log("📈 Fetching yield curve data...");
+    const response = await getYieldCurveData();
+    console.log("📈 Yield curve response:", response);
+    return response;
+  } catch (error) {
+    _logger.error("Yield curve error:", error.message || error.toString());
+    throw error;
+  }
+};
+
+const fetchMcClellanOscillator = async () => {
+  try {
+    console.log("📊 Fetching McClellan Oscillator...");
+    const response = await getMcClellanOscillator();
+    console.log("📊 McClellan response:", response);
+    return response;
+  } catch (error) {
+    _logger.error("McClellan Oscillator error:", error.message || error.toString());
+    throw error;
+  }
+};
+
+const fetchSentimentDivergence = async () => {
+  try {
+    console.log("💡 Fetching sentiment divergence...");
+    const response = await getSentimentDivergence();
+    console.log("💡 Sentiment divergence response:", response);
+    return response;
+  } catch (error) {
+    _logger.error("Sentiment divergence error:", error.message || error.toString());
+    throw error;
+  }
+};
+
 function MarketOverview() {
   const [tabValue, setTabValue] = useState(0);
   const [tabsReady, setTabsReady] = useState(false);
@@ -408,6 +451,27 @@ function MarketOverview() {
     queryFn: fetchSeasonalityData,
     enabled: tabValue === 2,
     staleTime: 30000,
+  });
+
+  const { data: yieldCurveData, isLoading: yieldCurveLoading } = useQuery({
+    queryKey: ["yield-curve"],
+    queryFn: fetchYieldCurveData,
+    staleTime: 60000,
+    refetchInterval: 60000,
+  });
+
+  const { data: mcOscillatorData, isLoading: mcOscillatorLoading } = useQuery({
+    queryKey: ["mcclellan-oscillator"],
+    queryFn: fetchMcClellanOscillator,
+    staleTime: 60000,
+    refetchInterval: 60000,
+  });
+
+  const { data: sentimentDivergenceData, isLoading: sentimentDivergenceLoading } = useQuery({
+    queryKey: ["sentiment-divergence"],
+    queryFn: fetchSentimentDivergence,
+    staleTime: 60000,
+    refetchInterval: 60000,
   });
 
   const handleTabChange = (event, newValue) => {
@@ -473,18 +537,27 @@ function MarketOverview() {
   const hasAaiiError = !aaiiHistory || aaiiHistory.length === 0;
   console.log("aaiiHistory", aaiiHistory);
 
-  // Merge by date for multi-line chart (assume all have 'date' or 'timestamp')
+  // Merge by date for multi-line chart - only include dates with actual data
   const dateMap = {};
   fearGreedHistory.forEach((item) => {
     const date = item.date || item.timestamp;
-    if (!dateMap[date]) dateMap[date] = { date };
-    dateMap[date].fear_greed = item.value;
-    dateMap[date].fear_greed_text = item.value_text;
+    // Filter out weekends (Saturday=6, Sunday=0) for seamless Fear & Greed line
+    const dateObj = new Date(date);
+    const dayOfWeek = dateObj.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    if (!isWeekend) {
+      if (!dateMap[date]) dateMap[date] = { date };
+      dateMap[date].fear_greed = item.value;
+      dateMap[date].fear_greed_text = item.value_text;
+      dateMap[date].has_fear_greed = true;
+    }
   });
   naaimHistory.forEach((item) => {
     const date = item.date || item.timestamp;
     if (!dateMap[date]) dateMap[date] = { date };
     dateMap[date].naaim = item.mean_exposure || item.average;
+    dateMap[date].has_naaim = true;
   });
   aaiiHistory.forEach((item) => {
     const date = item.date || item.timestamp;
@@ -492,11 +565,23 @@ function MarketOverview() {
     dateMap[date].aaii_bullish = item.bullish;
     dateMap[date].aaii_bearish = item.bearish;
     dateMap[date].aaii_neutral = item.neutral;
+    dateMap[date].has_aaii = true;
   });
+
+  // Include all dates with any sentiment data (not all three required)
+  // Each chart will render only the data it has, allowing partial data display
   const sentimentChartData = Object.values(dateMap)
+    .filter(d => d.has_fear_greed || d.has_naaim || d.has_aaii)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .map(d => {
+      const { has_fear_greed, has_naaim, has_aaii, ...cleanData } = d;
+      return cleanData;
+    })
     .slice(-30);
-  console.log("sentimentChartData", sentimentChartData);
+  console.log("sentimentChartData after filtering:", {
+    total_dates: sentimentChartData.length,
+    sample: sentimentChartData.length > 0 ? sentimentChartData[0] : null
+  });
 
   // Latest stats for summary cards
   const latestFG = fearGreedHistory[0] || {};
@@ -574,125 +659,13 @@ function MarketOverview() {
           </Card>
         </Grid>
 
-        {/* AAII Sentiment Trend Chart */}
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                AAII Market Sentiment Trend
-              </Typography>
-              <Box sx={{ height: 300, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={sentimentChartData.slice(0, 30).reverse()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip formatter={(value, name) => [`${value}%`, name]} />
-                    <Legend />
-                    <Line type="monotone" dataKey="aaii_bullish" name="Bullish %" stroke="#4caf50" strokeWidth={2} />
-                    <Line type="monotone" dataKey="aaii_neutral" name="Neutral %" stroke="#ff9800" strokeWidth={2} />
-                    <Line type="monotone" dataKey="aaii_bearish" name="Bearish %" stroke="#f44336" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Fear & Greed Chart */}
+        {/* Reimagined Sentiment Charts */}
         <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Fear & Greed Index History
-              </Typography>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Current: <strong>{latestFG.value ?? "N/A"}</strong> - {latestFG.value_text || ""}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Measures market sentiment (0=Extreme Fear, 100=Extreme Greed)
-                </Typography>
-              </Box>
-              <Box sx={{ height: 300, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={sentimentChartData}
-                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis
-                      domain={[0, 100]}
-                      label={{
-                        value: "Fear & Greed Index",
-                        angle: -90,
-                        position: "insideLeft",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Tooltip formatter={(value) => [`${value}`, "Fear & Greed"]} />
-                    <Line
-                      type="monotone"
-                      dataKey="fear_greed"
-                      name="Fear & Greed"
-                      stroke="#FF8042"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* NAAIM Chart */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                NAAIM Exposure History
-              </Typography>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Current: <strong>{latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}%</strong>
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Active manager equity exposure (0=fully out, 100=fully in)
-                </Typography>
-              </Box>
-              <Box sx={{ height: 300, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={sentimentChartData}
-                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis
-                      domain={[-100, 100]}
-                      label={{
-                        value: "NAAIM Exposure %",
-                        angle: -90,
-                        position: "insideLeft",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Tooltip formatter={(value) => [`${value}%`, "NAAIM Exposure"]} />
-                    <Line
-                      type="monotone"
-                      dataKey="naaim"
-                      name="NAAIM Exposure"
-                      stroke="#0088FE"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Box>
-            </CardContent>
-          </Card>
+          <SentimentChartsReimag
+            aaii_data={sentimentChartData.slice(0, 30).reverse()}
+            fearGreed_data={sentimentChartData}
+            naaim_data={sentimentChartData}
+          />
         </Grid>
       </Grid>
     </Box>
@@ -870,6 +843,35 @@ function MarketOverview() {
               </Typography>
             </CardContent>
           </Card>
+        </Grid>
+      </Grid>
+
+      {/* Enhanced Market Indicators - Yield Curve, McClellan Oscillator, Sentiment Divergence */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {/* Yield Curve Card */}
+        <Grid item xs={12} md={4}>
+          <YieldCurveCard
+            data={yieldCurveData?.data}
+            isLoading={yieldCurveLoading}
+          />
+        </Grid>
+
+        {/* McClellan Oscillator Chart */}
+        <Grid item xs={12} md={8}>
+          <McClellanOscillatorChart
+            data={mcOscillatorData?.data}
+            isLoading={mcOscillatorLoading}
+          />
+        </Grid>
+      </Grid>
+
+      {/* Sentiment Divergence Chart - Full Width */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12}>
+          <SentimentDivergenceChart
+            data={sentimentDivergenceData?.data}
+            isLoading={sentimentDivergenceLoading}
+          />
         </Grid>
       </Grid>
 
@@ -1943,118 +1945,15 @@ function MarketOverview() {
                     </Card>
                   </Grid>
 
-                  {/* Sector Seasonality */}
-                  <Grid item xs={12} md={6}>
+                  {/* Sector Seasonality - Calendar View */}
+                  <Grid item xs={12}>
                     <Card>
                       <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{ mb: 2, fontWeight: 600 }}
-                        >
-                          Sector Seasonality
-                        </Typography>
-                        {(seasonalityData?.data.sectorSeasonality || []).map(
-                          (sector, index) => (
-                            <Box key={index} sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" fontWeight={600}>
-                                {sector.sector}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                Best:{" "}
-                                {sector.bestMonths
-                                  .map((m) =>
-                                    new Date(0, m - 1).toLocaleString(
-                                      "default",
-                                      { month: "short" }
-                                    )
-                                  )
-                                  .join(", ")}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                display="block"
-                              >
-                                Worst:{" "}
-                                {sector.worstMonths
-                                  .map((m) =>
-                                    new Date(0, m - 1).toLocaleString(
-                                      "default",
-                                      { month: "short" }
-                                    )
-                                  )
-                                  .join(", ")}
-                              </Typography>
-                              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                {sector.rationale}
-                              </Typography>
-                            </Box>
-                          )
-                        )}
+                        <SectorSeasonalityTable data={seasonalityData?.data.sectorSeasonality || []} />
                       </CardContent>
                     </Card>
                   </Grid>
 
-                  {/* Summary & Outlook */}
-                  <Grid item xs={12}>
-                    <Card>
-                      <CardContent>
-                        <Typography
-                          variant="h6"
-                          sx={{ mb: 2, fontWeight: 600 }}
-                        >
-                          Seasonal Outlook Summary
-                        </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={6}>
-                            <Typography
-                              variant="body2"
-                              fontWeight={600}
-                              color="success.main"
-                              sx={{ mb: 1 }}
-                            >
-                              Favorable Factors:
-                            </Typography>
-                            {seasonalityData?.data.summary.favorableFactors?.map(
-                              (factor, index) => (
-                                <Typography
-                                  key={index}
-                                  variant="body2"
-                                  sx={{ ml: 2, mb: 0.5 }}
-                                >
-                                  • {factor}
-                                </Typography>
-                              )
-                            )}
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Typography
-                              variant="body2"
-                              fontWeight={600}
-                              color="error.main"
-                              sx={{ mb: 1 }}
-                            >
-                              Unfavorable Factors:
-                            </Typography>
-                            {seasonalityData?.data.summary.unfavorableFactors?.map(
-                              (factor, index) => (
-                                <Typography
-                                  key={index}
-                                  variant="body2"
-                                  sx={{ ml: 2, mb: 0.5 }}
-                                >
-                                  • {factor}
-                                </Typography>
-                              )
-                            )}
-                          </Grid>
-                        </Grid>
-                      </CardContent>
-                    </Card>
-                  </Grid>
                 </>
               )}
             </Grid>

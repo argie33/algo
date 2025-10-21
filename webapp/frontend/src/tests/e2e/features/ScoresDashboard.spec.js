@@ -65,11 +65,11 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       ).toBe(0);
 
       // Verify page loaded successfully
-      const body = page.locator("body");
+      const body = page.locator("#root");
       await expect(body).toBeVisible();
 
       // Check for scores dashboard content
-      const hasScoresContent = await page.locator("body *").count();
+      const hasScoresContent = await page.locator("#root *").count();
       expect(hasScoresContent).toBeGreaterThan(0);
 
     } catch (error) {
@@ -84,7 +84,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(2000);
 
     // Check for Bullseye title
@@ -114,7 +113,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(3000);
 
     // Check for accordion structure
@@ -145,7 +143,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(3000);
 
     // Check for score gauge (circular gauge with grade)
@@ -162,7 +159,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(3000);
 
     // Wait for accordion to load
@@ -206,7 +202,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(3000);
 
     // Wait for initial data to load
@@ -244,7 +239,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(3000);
 
     // Wait for accordion to load
@@ -270,7 +264,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(2000);
 
     // Check for filter icon button
@@ -300,7 +293,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(3000);
 
     // Wait for accordion to load
@@ -322,7 +314,6 @@ test.describe("Bullseye Stock Screener E2E Tests", () => {
       waitUntil: "domcontentloaded",
       timeout: 15000,
     });
-    await page.waitForSelector("#root", { timeout: 10000 });
     await page.waitForTimeout(3000);
 
     // Verify accordion structure IS present
