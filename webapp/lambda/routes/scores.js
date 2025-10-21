@@ -26,214 +26,117 @@ router.get("/", async (req, res) => {
 
     const search = req.query.search || '';
 
-    // Query stock scores with proper field names from loadstockscores.py
-    // JOIN with company_profile to get company names
-    // JOIN with positioning_metrics to get positioning components
+    // Query ONLY stock_scores table - simple and fast
+    // All metrics are already calculated and stored in stock_scores
     let stocksQuery = `
       SELECT
-        ss.symbol,
-        cp.short_name as company_name,
-        cp.sector,
-        ss.composite_score,
-        ss.momentum_score,
-        ss.value_score,
-        ss.quality_score,
-        ss.growth_score,
-        ss.positioning_score,
-        ss.sentiment_score,
-        ss.stability_score,
-        ss.rsi,
-        ss.macd,
-        ss.sma_20,
-        ss.sma_50,
-        ss.current_price,
-        ss.price_change_1d,
-        ss.price_change_5d,
-        ss.price_change_30d,
-        ss.volatility_30d,
-        ss.market_cap,
-        ss.pe_ratio,
-        ss.volume_avg_30d,
-        ss.score_date,
-        ss.last_updated,
-        ss.acc_dist_rating,
+        symbol,
+        NULL::TEXT as company_name,
+        NULL::TEXT as sector,
+        composite_score,
+        momentum_score,
+        value_score,
+        quality_score,
+        growth_score,
+        positioning_score,
+        sentiment_score,
+        stability_score,
+        rsi,
+        macd,
+        sma_20,
+        sma_50,
+        current_price,
+        price_change_1d,
+        price_change_5d,
+        price_change_30d,
+        volatility_30d,
+        market_cap,
+        pe_ratio,
+        volume_avg_30d,
+        score_date,
+        last_updated,
+        acc_dist_rating,
         -- Momentum components (5-component breakdown)
-        ss.momentum_short_term,
-        ss.momentum_medium_term,
-        ss.momentum_long_term,
-        ss.momentum_relative_strength,
-        ss.momentum_consistency,
-        ss.roc_10d,
-        ss.roc_20d,
-        ss.roc_60d,
-        ss.roc_120d,
-        ss.mansfield_rs,
-        -- Raw valuation inputs from key_metrics
-        km.trailing_pe as stock_pe,
-        km.price_to_book as stock_pb,
-        km.price_to_sales_ttm as stock_ps,
-        km.ev_to_ebitda as stock_ev_ebitda,
-        km.free_cashflow::NUMERIC / NULLIF(md.market_cap, 0) * 100 as stock_fcf_yield,
-        km.dividend_yield as stock_dividend_yield,
-        km.earnings_growth_pct,
-        -- Sector benchmarks (only columns that exist in sector_benchmarks table)
-        sb.pe_ratio as sector_pe,
-        sb.price_to_book as sector_pb,
-        sb.ev_to_ebitda as sector_ev_ebitda,
-        sb.debt_to_equity as sector_debt_to_equity,
-        -- Market benchmarks (calculated on-the-fly from all stocks)
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY trailing_pe) FROM key_metrics WHERE trailing_pe > 0) as market_pe,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_book) FROM key_metrics WHERE price_to_book > 0) as market_pb,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_sales_ttm) FROM key_metrics WHERE price_to_sales_ttm > 0) as market_ps,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km2.free_cashflow::NUMERIC / NULLIF(md2.market_cap, 0) * 100) FROM key_metrics km2 INNER JOIN market_data md2 ON km2.ticker = md2.ticker WHERE km2.free_cashflow > 0 AND md2.market_cap > 0) as market_fcf_yield,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dividend_yield) FROM key_metrics WHERE dividend_yield > 0) as market_dividend_yield,
-        pm.institutional_ownership,
-        pm.insider_ownership,
-        pm.short_percent_of_float,
-        pm.short_ratio,
-        pm.institution_count,
-        -- Quality INPUT metrics from quality_metrics table (13 professional quality inputs)
-        qm.return_on_equity_pct,
-        qm.return_on_assets_pct,
-        qm.gross_margin_pct,
-        qm.operating_margin_pct,
-        qm.profit_margin_pct,
-        qm.fcf_to_net_income,
-        qm.operating_cf_to_net_income,
-        qm.debt_to_equity,
-        qm.current_ratio,
-        qm.quick_ratio,
-        qm.earnings_surprise_avg,
-        qm.eps_growth_stability,
-        qm.payout_ratio,
-        -- Growth INPUT metrics from growth_metrics table (12 professional growth inputs)
-        gm.revenue_growth_3y_cagr,
-        gm.eps_growth_3y_cagr,
-        gm.operating_income_growth_yoy,
-        gm.roe_trend,
-        gm.sustainable_growth_rate,
-        gm.fcf_growth_yoy,
-        gm.net_income_growth_yoy,
-        gm.gross_margin_trend,
-        gm.operating_margin_trend,
-        gm.net_margin_trend,
-        gm.quarterly_growth_momentum,
-        gm.asset_growth_yoy,
-        -- Raw momentum INPUT metrics from momentum_metrics table (dual momentum)
-        mm.momentum_12m_1,
-        mm.momentum_6m,
-        mm.momentum_3m,
-        mm.risk_adjusted_momentum,
-        mm.price_vs_sma_50,
-        mm.price_vs_sma_200,
-        mm.price_vs_52w_high,
-        mm.high_52w,
-        mm.sma_50,
-        mm.sma_200,
-        mm.volatility_12m,
-        -- Risk INPUT metrics from risk_metrics table
-        rm.volatility_12m_pct,
-        rm.volatility_risk_component,
-        rm.max_drawdown_52w_pct,
-        rm.beta
-      FROM stock_scores ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          institutional_ownership,
-          insider_ownership,
-          short_percent_of_float,
-          short_ratio,
-          institution_count
-        FROM positioning_metrics
-        ORDER BY symbol, date DESC
-      ) pm ON ss.symbol = pm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (ticker)
-          ticker,
-          trailing_pe,
-          price_to_book,
-          price_to_sales_ttm,
-          ev_to_ebitda,
-          earnings_growth_pct,
-          free_cashflow,
-          dividend_yield
-        FROM key_metrics
-        ORDER BY ticker
-      ) km ON ss.symbol = km.ticker
-      LEFT JOIN sector_benchmarks sb ON cp.sector = sb.sector
-      LEFT JOIN (
-        SELECT DISTINCT ON (ticker)
-          ticker,
-          market_cap
-        FROM market_data
-        ORDER BY ticker
-      ) md ON ss.symbol = md.ticker
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          return_on_equity_pct,
-          return_on_assets_pct,
-          gross_margin_pct,
-          operating_margin_pct,
-          profit_margin_pct,
-          fcf_to_net_income,
-          operating_cf_to_net_income,
-          debt_to_equity,
-          current_ratio,
-          quick_ratio,
-          earnings_surprise_avg,
-          eps_growth_stability,
-          payout_ratio
-        FROM quality_metrics
-        ORDER BY symbol, date DESC
-      ) qm ON ss.symbol = qm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          revenue_growth_3y_cagr,
-          eps_growth_3y_cagr,
-          operating_income_growth_yoy,
-          roe_trend,
-          sustainable_growth_rate,
-          fcf_growth_yoy,
-          net_income_growth_yoy,
-          gross_margin_trend,
-          operating_margin_trend,
-          net_margin_trend,
-          quarterly_growth_momentum,
-          asset_growth_yoy
-        FROM growth_metrics
-        ORDER BY symbol, date DESC
-      ) gm ON ss.symbol = gm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          momentum_12m_1,
-          momentum_6m,
-          momentum_3m,
-          risk_adjusted_momentum,
-          price_vs_sma_50,
-          price_vs_sma_200,
-          price_vs_52w_high,
-          high_52w,
-          sma_50,
-          sma_200,
-          volatility_12m
-        FROM momentum_metrics
-        ORDER BY symbol, date DESC
-      ) mm ON ss.symbol = mm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          volatility_12m_pct,
-          volatility_risk_component,
-          max_drawdown_52w_pct,
-          beta
-        FROM risk_metrics
-        ORDER BY symbol, date DESC
-      ) rm ON ss.symbol = rm.symbol
+        momentum_short_term,
+        momentum_medium_term,
+        momentum_long_term,
+        momentum_relative_strength,
+        momentum_consistency,
+        roc_10d,
+        roc_20d,
+        roc_60d,
+        roc_120d,
+        mansfield_rs,
+        -- Raw valuation inputs (stored in stock_scores)
+        pe_ratio as stock_pe,
+        pb_ratio as stock_pb,
+        ps_ratio as stock_ps,
+        ev_ebitda as stock_ev_ebitda,
+        fcf_yield as stock_fcf_yield,
+        dividend_yield as stock_dividend_yield,
+        earnings_growth_pct,
+        -- Sector benchmarks - defaults to NULL (requires separate lookup if needed)
+        NULL::NUMERIC as sector_pe,
+        NULL::NUMERIC as sector_pb,
+        NULL::NUMERIC as sector_ev_ebitda,
+        NULL::NUMERIC as sector_debt_to_equity,
+        -- Market benchmarks - defaults to NULL (pre-calculate if needed)
+        NULL::NUMERIC as market_pe,
+        NULL::NUMERIC as market_pb,
+        NULL::NUMERIC as market_ps,
+        NULL::NUMERIC as market_fcf_yield,
+        NULL::NUMERIC as market_dividend_yield,
+        -- Positioning metrics
+        institutional_ownership,
+        insider_ownership,
+        short_percent_of_float,
+        short_ratio,
+        institution_count,
+        -- Quality INPUT metrics
+        return_on_equity_pct,
+        return_on_assets_pct,
+        gross_margin_pct,
+        operating_margin_pct,
+        profit_margin_pct,
+        fcf_to_net_income,
+        operating_cf_to_net_income,
+        debt_to_equity,
+        current_ratio,
+        quick_ratio,
+        earnings_surprise_avg,
+        eps_growth_stability,
+        payout_ratio,
+        -- Growth INPUT metrics
+        revenue_growth_3y_cagr,
+        eps_growth_3y_cagr,
+        operating_income_growth_yoy,
+        roe_trend,
+        sustainable_growth_rate,
+        fcf_growth_yoy,
+        net_income_growth_yoy,
+        gross_margin_trend,
+        operating_margin_trend,
+        net_margin_trend,
+        quarterly_growth_momentum,
+        asset_growth_yoy,
+        -- Raw momentum INPUT metrics
+        momentum_12m_1,
+        momentum_6m,
+        momentum_3m,
+        risk_adjusted_momentum,
+        price_vs_sma_50,
+        price_vs_sma_200,
+        price_vs_52w_high,
+        high_52w,
+        sma_50,
+        sma_200,
+        volatility_12m,
+        -- Risk INPUT metrics
+        volatility_12m_pct,
+        volatility_risk_component,
+        max_drawdown_52w_pct,
+        beta
+      FROM stock_scores
     `;
 
     const queryParams = [];
@@ -471,211 +374,105 @@ router.get("/:symbol", async (req, res) => {
 
     const symbolQuery = `
       SELECT
-        ss.symbol,
-        cp.short_name as company_name,
-        cp.sector,
-        ss.composite_score,
-        ss.momentum_score,
-        ss.value_score,
-        ss.quality_score,
-        ss.growth_score,
-        ss.positioning_score,
-        ss.sentiment_score,
-        ss.stability_score,
-        ss.rsi,
-        ss.macd,
-        ss.sma_20,
-        ss.sma_50,
-        ss.current_price,
-        ss.price_change_1d,
-        ss.price_change_5d,
-        ss.price_change_30d,
-        ss.volatility_30d,
-        ss.market_cap,
-        ss.pe_ratio,
-        ss.volume_avg_30d,
-        ss.score_date,
-        ss.last_updated,
-        ss.acc_dist_rating,
-        -- Momentum components (5-component breakdown)
-        ss.momentum_short_term,
-        ss.momentum_medium_term,
-        ss.momentum_long_term,
-        ss.momentum_relative_strength,
-        ss.momentum_consistency,
-        ss.roc_10d,
-        ss.roc_20d,
-        ss.roc_60d,
-        ss.roc_120d,
-        ss.mansfield_rs,
-        -- Raw valuation inputs from key_metrics
-        km.trailing_pe as stock_pe,
-        km.price_to_book as stock_pb,
-        km.price_to_sales_ttm as stock_ps,
-        km.ev_to_ebitda as stock_ev_ebitda,
-        km.free_cashflow::NUMERIC / NULLIF(md.market_cap, 0) * 100 as stock_fcf_yield,
-        km.dividend_yield as stock_dividend_yield,
-        km.earnings_growth_pct,
-        -- Sector benchmarks (only columns that exist in sector_benchmarks table)
-        sb.pe_ratio as sector_pe,
-        sb.price_to_book as sector_pb,
-        sb.ev_to_ebitda as sector_ev_ebitda,
-        sb.debt_to_equity as sector_debt_to_equity,
-        -- Market benchmarks (calculated on-the-fly from all stocks)
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY trailing_pe) FROM key_metrics WHERE trailing_pe > 0) as market_pe,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_book) FROM key_metrics WHERE price_to_book > 0) as market_pb,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_to_sales_ttm) FROM key_metrics WHERE price_to_sales_ttm > 0) as market_ps,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY km2.free_cashflow::NUMERIC / NULLIF(md2.market_cap, 0) * 100) FROM key_metrics km2 INNER JOIN market_data md2 ON km2.ticker = md2.ticker WHERE km2.free_cashflow > 0 AND md2.market_cap > 0) as market_fcf_yield,
-        (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dividend_yield) FROM key_metrics WHERE dividend_yield > 0) as market_dividend_yield,
-        -- Add positioning components from positioning_metrics table
-        pm.institutional_ownership,
-        pm.insider_ownership,
-        pm.short_percent_of_float,
-        pm.short_ratio,
-        pm.institution_count,
-        -- Quality INPUT metrics from quality_metrics table (13 professional quality inputs)
-        qm.return_on_equity_pct,
-        qm.return_on_assets_pct,
-        qm.gross_margin_pct,
-        qm.operating_margin_pct,
-        qm.profit_margin_pct,
-        qm.fcf_to_net_income,
-        qm.operating_cf_to_net_income,
-        qm.debt_to_equity,
-        qm.current_ratio,
-        qm.quick_ratio,
-        qm.earnings_surprise_avg,
-        qm.eps_growth_stability,
-        qm.payout_ratio,
-        -- Growth INPUT metrics from growth_metrics table (12 professional growth inputs)
-        gm.revenue_growth_3y_cagr,
-        gm.eps_growth_3y_cagr,
-        gm.operating_income_growth_yoy,
-        gm.roe_trend,
-        gm.sustainable_growth_rate,
-        gm.fcf_growth_yoy,
-        gm.net_income_growth_yoy,
-        gm.gross_margin_trend,
-        gm.operating_margin_trend,
-        gm.net_margin_trend,
-        gm.quarterly_growth_momentum,
-        gm.asset_growth_yoy,
-        -- Raw momentum INPUT metrics from momentum_metrics table (dual momentum)
-        mm.momentum_12m_1,
-        mm.momentum_6m,
-        mm.momentum_3m,
-        mm.risk_adjusted_momentum,
-        mm.price_vs_sma_50,
-        mm.price_vs_sma_200,
-        mm.price_vs_52w_high,
-        mm.high_52w,
-        mm.sma_50,
-        mm.sma_200,
-        mm.volatility_12m,
-        -- Risk INPUT metrics from risk_metrics table
-        rm.volatility_12m_pct,
-        rm.volatility_risk_component,
-        rm.max_drawdown_52w_pct,
-        rm.beta
-      FROM stock_scores ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          institutional_ownership,
-          insider_ownership,
-          short_percent_of_float,
-          short_ratio,
-          institution_count
-        FROM positioning_metrics
-        ORDER BY symbol, date DESC
-      ) pm ON ss.symbol = pm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (ticker)
-          ticker,
-          trailing_pe,
-          price_to_book,
-          price_to_sales_ttm,
-          ev_to_ebitda,
-          earnings_growth_pct,
-          free_cashflow,
-          dividend_yield
-        FROM key_metrics
-        ORDER BY ticker
-      ) km ON ss.symbol = km.ticker
-      LEFT JOIN sector_benchmarks sb ON cp.sector = sb.sector
-      LEFT JOIN (
-        SELECT DISTINCT ON (ticker)
-          ticker,
-          market_cap
-        FROM market_data
-        ORDER BY ticker
-      ) md ON ss.symbol = md.ticker
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          return_on_equity_pct,
-          return_on_assets_pct,
-          gross_margin_pct,
-          operating_margin_pct,
-          profit_margin_pct,
-          fcf_to_net_income,
-          operating_cf_to_net_income,
-          debt_to_equity,
-          current_ratio,
-          quick_ratio,
-          earnings_surprise_avg,
-          eps_growth_stability,
-          payout_ratio
-        FROM quality_metrics
-        ORDER BY symbol, date DESC
-      ) qm ON ss.symbol = qm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          revenue_growth_3y_cagr,
-          eps_growth_3y_cagr,
-          operating_income_growth_yoy,
-          roe_trend,
-          sustainable_growth_rate,
-          fcf_growth_yoy,
-          net_income_growth_yoy,
-          gross_margin_trend,
-          operating_margin_trend,
-          net_margin_trend,
-          quarterly_growth_momentum,
-          asset_growth_yoy
-        FROM growth_metrics
-        ORDER BY symbol, date DESC
-      ) gm ON ss.symbol = gm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          momentum_12m_1,
-          momentum_6m,
-          momentum_3m,
-          risk_adjusted_momentum,
-          price_vs_sma_50,
-          price_vs_sma_200,
-          price_vs_52w_high,
-          high_52w,
-          sma_50,
-          sma_200,
-          volatility_12m
-        FROM momentum_metrics
-        ORDER BY symbol, date DESC
-      ) mm ON ss.symbol = mm.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol)
-          symbol,
-          volatility_12m_pct,
-          volatility_risk_component,
-          max_drawdown_52w_pct,
-          beta
-        FROM risk_metrics
-        ORDER BY symbol, date DESC
-      ) rm ON ss.symbol = rm.symbol
-      WHERE ss.symbol = $1
+        symbol,
+        NULL::TEXT as company_name,
+        NULL::TEXT as sector,
+        composite_score,
+        momentum_score,
+        value_score,
+        quality_score,
+        growth_score,
+        positioning_score,
+        sentiment_score,
+        stability_score,
+        rsi,
+        macd,
+        sma_20,
+        sma_50,
+        current_price,
+        price_change_1d,
+        price_change_5d,
+        price_change_30d,
+        volatility_30d,
+        market_cap,
+        pe_ratio,
+        volume_avg_30d,
+        score_date,
+        last_updated,
+        acc_dist_rating,
+        momentum_short_term,
+        momentum_medium_term,
+        momentum_long_term,
+        momentum_relative_strength,
+        momentum_consistency,
+        roc_10d,
+        roc_20d,
+        roc_60d,
+        roc_120d,
+        mansfield_rs,
+        pe_ratio as stock_pe,
+        pb_ratio as stock_pb,
+        ps_ratio as stock_ps,
+        ev_ebitda as stock_ev_ebitda,
+        fcf_yield as stock_fcf_yield,
+        dividend_yield as stock_dividend_yield,
+        earnings_growth_pct,
+        NULL::NUMERIC as sector_pe,
+        NULL::NUMERIC as sector_pb,
+        NULL::NUMERIC as sector_ev_ebitda,
+        NULL::NUMERIC as sector_debt_to_equity,
+        NULL::NUMERIC as market_pe,
+        NULL::NUMERIC as market_pb,
+        NULL::NUMERIC as market_ps,
+        NULL::NUMERIC as market_fcf_yield,
+        NULL::NUMERIC as market_dividend_yield,
+        institutional_ownership,
+        insider_ownership,
+        short_percent_of_float,
+        short_ratio,
+        institution_count,
+        return_on_equity_pct,
+        return_on_assets_pct,
+        gross_margin_pct,
+        operating_margin_pct,
+        profit_margin_pct,
+        fcf_to_net_income,
+        operating_cf_to_net_income,
+        debt_to_equity,
+        current_ratio,
+        quick_ratio,
+        earnings_surprise_avg,
+        eps_growth_stability,
+        payout_ratio,
+        revenue_growth_3y_cagr,
+        eps_growth_3y_cagr,
+        operating_income_growth_yoy,
+        roe_trend,
+        sustainable_growth_rate,
+        fcf_growth_yoy,
+        net_income_growth_yoy,
+        gross_margin_trend,
+        operating_margin_trend,
+        net_margin_trend,
+        quarterly_growth_momentum,
+        asset_growth_yoy,
+        momentum_12m_1,
+        momentum_6m,
+        momentum_3m,
+        risk_adjusted_momentum,
+        price_vs_sma_50,
+        price_vs_sma_200,
+        price_vs_52w_high,
+        high_52w,
+        sma_50,
+        sma_200,
+        volatility_12m,
+        volatility_12m_pct,
+        volatility_risk_component,
+        max_drawdown_52w_pct,
+        beta
+      FROM stock_scores
+      WHERE symbol = $1
     `;
 
     const result = await query(symbolQuery, [symbol.toUpperCase()]);
