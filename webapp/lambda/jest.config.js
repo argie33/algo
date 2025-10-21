@@ -1,6 +1,5 @@
 module.exports = {
   testEnvironment: "node",
-  // Use real database - NO MOCKS - full integration testing
   collectCoverage: false, // Disable coverage for speed - enable only for final validation
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov", "html"],
@@ -20,21 +19,20 @@ module.exports = {
     "/node_modules/",
     "/tests/integration/",
   ],
-  // SETUP FILE - initialize database pool before tests run
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
-  testTimeout: 60000, // 60s timeout for real database queries
-  maxWorkers: 1, // Serial execution to avoid connection pool exhaustion
+  testTimeout: 60000, // 60s timeout for integration tests (real database)
+  maxWorkers: 1, // Single worker for database consistency
   forceExit: true, // Force exit after tests complete
   detectOpenHandles: false, // Disable for speed
   openHandlesTimeout: 5000,
   verbose: true, // Show all test details
   silent: false,
   bail: false, // Don't stop on first failure - see all issues
-  // Isolation settings for real database
-  clearMocks: false, // Don't clear real database connections
-  resetMocks: false, // Don't reset real database functions
-  restoreMocks: false, // Don't restore real database state
-  // Environment variables for testing against real database
+  // Mock configuration (conservative)
+  clearMocks: false,
+  resetMocks: false,
+  restoreMocks: false,
+  // Environment variables for testing
   testEnvironmentOptions: {
     NODE_ENV: "test", // Use test config for graceful error handling
   },

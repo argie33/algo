@@ -27,15 +27,12 @@ console.log(`Database config: ${process.env.DB_HOST}:${process.env.DB_PORT}/${pr
 // Load database module at top level to ensure it's available in Jest environment
 const db = require('./utils/database');
 
-// Initialize database connection pool BEFORE tests run
-// This uses Jest's beforeAll which runs once per test suite
+// Initialize database connection pool before any tests run
 beforeAll(async () => {
   try {
     console.log('🔧 Initializing database connection pool...');
-
     // Initialize database connection pool
     await db.initializeDatabase();
-
     console.log('✅ Database connection pool initialized successfully');
   } catch (error) {
     console.error('❌ Failed to initialize database:', error.message);
