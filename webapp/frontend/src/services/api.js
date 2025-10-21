@@ -2041,20 +2041,20 @@ export const getFinancialStrengthMetrics = async (params = {}) => {
 // New method for stock screening with proper parameter handling
 export const screenStocks = async (params) => {
   try {
-    // Use the main stocks endpoint since /screen endpoint has routing issues
-    // The main endpoint supports filtering and pagination just like screening
-    const endpoint = "/api/stocks";
+    // Use /api/scores endpoint for complete stock data (5,277 stocks)
+    // /api/stocks only has 116 records with financial metrics, causing "N/A" display
+    const endpoint = "/api/scores";
 
     console.log("🔍 [API] Screening stocks with params:", params.toString());
     console.log(
-      `🔍 [API] Using main stocks endpoint: ${endpoint}?${params.toString()}`
+      `🔍 [API] Using scores endpoint for complete data: ${endpoint}?${params.toString()}`
     );
 
     const response = await api.get(`${endpoint}?${params.toString()}`, {
       baseURL: currentConfig.baseURL,
     });
 
-    console.log(`✅ [API] Success with main stocks endpoint:`, response?.data);
+    console.log(`✅ [API] Success with scores endpoint:`, response?.data);
 
     // Backend returns: { success: true, data: [...], total: ..., pagination: {...} }
     if (
