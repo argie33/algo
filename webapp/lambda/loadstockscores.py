@@ -318,8 +318,10 @@ def calculate_positioning_score(conn, symbol):
 
         # 1. Institutional Ownership - Higher is bullish
         if inst_own is not None:
+            # Convert Decimal to float if needed
+            inst_own_val = float(inst_own)
             # Normalize to 0-100 using z-score
-            z = (inst_own - pop_stats['inst_own_mean']) / max(pop_stats['inst_own_std'], 0.01)
+            z = (inst_own_val - pop_stats['inst_own_mean']) / max(pop_stats['inst_own_std'], 0.01)
             # Convert z-score to 0-100 scale (z=-3 -> 0, z=+3 -> 100)
             percentile = 50 + (z / 6) * 50  # z-score of 1 std = ~58
             percentile = max(0, min(100, percentile))
@@ -327,21 +329,24 @@ def calculate_positioning_score(conn, symbol):
 
         # 2. Insider Ownership - Higher is bullish
         if insider_own is not None:
-            z = (insider_own - pop_stats['insider_own_mean']) / max(pop_stats['insider_own_std'], 0.01)
+            insider_own_val = float(insider_own)
+            z = (insider_own_val - pop_stats['insider_own_mean']) / max(pop_stats['insider_own_std'], 0.01)
             percentile = 50 + (z / 6) * 50
             percentile = max(0, min(100, percentile))
             percentiles.append(percentile)
 
         # 3. Short Interest Change - Lower (more negative) is bullish, so INVERT
         if short_change is not None:
-            z = (short_change - pop_stats['short_change_mean']) / max(pop_stats['short_change_std'], 0.01)
+            short_change_val = float(short_change)
+            z = (short_change_val - pop_stats['short_change_mean']) / max(pop_stats['short_change_std'], 0.01)
             percentile = 50 - (z / 6) * 50  # INVERTED: negative z-score = higher percentile
             percentile = max(0, min(100, percentile))
             percentiles.append(percentile)
 
         # 4. Short % of Float - Lower is bullish, so INVERT
         if short_pct is not None:
-            z = (short_pct - pop_stats['short_pct_mean']) / max(pop_stats['short_pct_std'], 0.01)
+            short_pct_val = float(short_pct)
+            z = (short_pct_val - pop_stats['short_pct_mean']) / max(pop_stats['short_pct_std'], 0.01)
             percentile = 50 - (z / 6) * 50  # INVERTED
             percentile = max(0, min(100, percentile))
             percentiles.append(percentile)
