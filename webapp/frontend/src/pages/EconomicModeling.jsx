@@ -30,7 +30,6 @@ import {
   ShowChart,
   Refresh,
   TrendingFlat,
-  Flag,
 } from "@mui/icons-material";
 import { api } from "../services/api";
 import {
@@ -101,7 +100,6 @@ const EconomicModeling = () => {
         api.get("/api/market/recession-forecast"),
         api.get("/api/market/leading-indicators"),
         api.get("/api/market/sectoral-analysis"),
-        api.get("/api/market/economic-scenarios"),
         api.get("/api/market/credit-spreads"),
       ]);
 
@@ -110,7 +108,6 @@ const EconomicModeling = () => {
         recessionForecast,
         leadingIndicators,
         sectoralAnalysis,
-        economicScenarios,
         creditSpreads,
       ] = results.map((result) => (result.status === "fulfilled" ? result.value : null));
 
@@ -142,7 +139,6 @@ const EconomicModeling = () => {
       const leadingData = leadingIndicators?.data?.data || {};
       const recessionData = recessionForecast?.data?.data || {};
       const creditData = creditSpreads?.data?.data || {};
-      const scenariosData = economicScenarios?.data?.data || {};
 
       console.log("✅ Economic data loaded:", {
         recession: recessionData.compositeRecessionProbability,
@@ -176,9 +172,6 @@ const EconomicModeling = () => {
         creditSpreads: creditData.spreads || {},
         creditStressIndex: creditData.creditStressIndex || 0,
         financialConditionsIndex: creditData.financialConditionsIndex || {},
-
-        // Scenarios
-        scenarios: scenariosData.scenarios || [],
 
         // Calendar
         upcomingEvents: leadingData.upcomingEvents || [],
@@ -398,7 +391,6 @@ const EconomicModeling = () => {
               <Tab value={1} label="Leading Indicators" icon={<Analytics />} />
               <Tab value={2} label="Yield Curve" icon={<ShowChart />} />
               <Tab value={3} label="Credit Spreads" icon={<TrendingDown />} />
-              <Tab value={4} label="Scenarios" icon={<Flag />} />
             </Tabs>
           </Box>
 
@@ -742,46 +734,6 @@ const EconomicModeling = () => {
             </Grid>
           </TabPanel>
 
-          {/* TAB 4: Scenarios */}
-          <TabPanel value={tabValue} index={4}>
-            <Grid container spacing={3}>
-              {economicData.scenarios?.map((scenario, idx) => (
-                <Grid item xs={12} md={4} key={idx}>
-                  <Card
-                    sx={{
-                      borderLeft: `4px solid ${
-                        scenario.name === "Bull Case"
-                          ? "#4caf50"
-                          : scenario.name === "Bear Case"
-                            ? "#f44336"
-                            : "#ff9800"
-                      }`,
-                    }}
-                  >
-                    <CardHeader
-                      title={scenario.name}
-                      subheader={`Probability: ${scenario.probability}%`}
-                    />
-                    <CardContent>
-                      <Typography variant="body2" paragraph>
-                        {scenario.description}
-                      </Typography>
-                      <Divider sx={{ my: 1 }} />
-                      <Typography variant="body2">
-                        <strong>GDP Growth:</strong> {formatPercent(scenario.gdpGrowth)}%
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Unemployment:</strong> {formatPercent(scenario.unemployment)}%
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Fed Rate:</strong> {formatPercent(scenario.fedRate)}%
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </TabPanel>
         </>
       )}
     </Container>

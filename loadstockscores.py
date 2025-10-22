@@ -188,7 +188,7 @@ def get_stock_symbols(conn, limit=None):
             FROM stock_symbols s
             INNER JOIN price_daily p ON s.symbol = p.symbol
             LEFT JOIN key_metrics km ON s.symbol = km.ticker
-            WHERE s.exchange IN ('NASDAQ', 'N', 'A', 'P')
+            WHERE s.exchange IN ('NASDAQ', 'New York Stock Exchange', 'American Stock Exchange', 'NYSE Arca')
               AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
             GROUP BY s.symbol
             HAVING COUNT(p.date) >= 20
@@ -740,8 +740,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Get latest technical data including momentum indicators
         cur.execute("""
-            SELECT rsi, macd, macd_hist, sma_20, sma_50, atr, mom, roc,
-                   roc_20d, roc_60d, roc_120d, roc_252d, mansfield_rs
+            SELECT rsi, macd, macd_hist, sma_20, sma_50, atr, mom, roc
             FROM technical_data_daily
             WHERE symbol = %s
             ORDER BY date DESC
@@ -749,8 +748,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         """, (symbol,))
 
         tech_data = cur.fetchone()
-        if tech_data and len(tech_data) >= 13:
-            rsi, macd, macd_hist, sma_20, sma_50, atr, mom_10d, roc_10d, roc_20d, roc_60d, roc_120d, roc_252d, mansfield_rs = tech_data
+        if tech_data and len(tech_data) >= 8:
+            rsi, macd, macd_hist, sma_20, sma_50, atr, mom_10d, roc_10d = tech_data
+            roc_20d = None
+            roc_60d = None
+            roc_120d = None
+            roc_252d = None
+            mansfield_rs = None
         else:
             # Calculate basic technical indicators from price data
             prices = df['close'].astype(float).values
@@ -1051,40 +1055,42 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             liquidity_str = f"{liquidity_risk:.0f}" if liquidity_risk is not None else "N/A"
             logger.info(f"{symbol}: Calculated risk components - Vol={vol_str}, Downside={downside_str}, Drawdown={drawdown_str}, Beta={beta_str}, Liquidity={liquidity_str}")
 
-            # PHASE 1 FIX: Calculate stability_score if essential components available
-            # Beta now has fallback (1.0) so it's always available after line 982
-            # Still require: volatility_12m_pct, downside_volatility, max_drawdown_52w_pct (or can calculate)
-            if volatility_12m_pct is None or downside_volatility is None or max_drawdown_52w_pct is None:
+            # PHASE 2 FIX: Calculate stability_score using available risk_metrics data
+            # Only require: volatility_12m_pct, max_drawdown_52w_pct (downside_volatility is optional)
+            # Use volatility_12m_pct as proxy for downside_volatility if not available
+            if volatility_12m_pct is None or max_drawdown_52w_pct is None:
                 stability_score = None
                 logger.info(f"{symbol} Stability Score: None (missing essential volatility/drawdown data)")
             else:
+                # Use downside_volatility if available, otherwise use volatility as proxy
+                downside_vol_proxy = downside_volatility if downside_volatility is not None else volatility_12m_pct
+
                 # All components available - calculate risk score
                 # Convert all to 0-100 scale for risk components
                 vol_percentile = max(0, min(100, 100 - (volatility_12m_pct * 2)))  # Inverted: lower vol = higher score
-                downside_percentile = max(0, min(100, 100 - (downside_volatility * 3)))  # Inverted
+                downside_percentile = max(0, min(100, 100 - (downside_vol_proxy * 2.5)))  # Use proxy with adjusted scaling
                 drawdown_percentile = max(0, min(100, 100 - max_drawdown_52w_pct))  # Inverted: lower drawdown = higher score
                 beta_percentile = max(0, min(100, 100 - (beta * 50)))  # Scale: 1.0=50, 0.5=75, 1.5=25
-                liquidity_percentile = liquidity_risk  # NO fallback - will be None if liquidity_risk missing
+                liquidity_percentile = liquidity_risk if liquidity_risk is not None else 50  # Use neutral 50 if no liquidity data
 
-                # Calculate composite consistency score with new weighting
-                # 30% vol + 25% downside + 25% drawdown + 15% beta + 5% liquidity
+                # Calculate composite stability score with adjusted weighting (no liquidity dependency)
+                # 35% vol + 30% downside + 25% drawdown + 10% beta
                 risk_stability_score = (
-                    vol_percentile * 0.30 +
-                    downside_percentile * 0.25 +
+                    vol_percentile * 0.35 +
+                    downside_percentile * 0.30 +
                     drawdown_percentile * 0.25 +
-                    beta_percentile * 0.15 +
-                    liquidity_percentile * 0.05
+                    beta_percentile * 0.10
                 )
                 risk_stability_score = max(0, min(100, risk_stability_score))
 
                 # Store risk inputs for display
                 stability_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4)
-                stability_inputs['downside_volatility_pct'] = round(downside_volatility, 2)
+                stability_inputs['downside_volatility_pct'] = round(downside_vol_proxy, 2)
                 stability_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2)
                 stability_inputs['beta'] = round(beta, 3)
-                stability_inputs['liquidity_risk'] = round(liquidity_percentile, 1)
+                stability_inputs['liquidity_risk'] = round(liquidity_percentile, 1) if liquidity_risk else None
 
-                logger.info(f"{symbol} Stability Score: {risk_stability_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Liquidity_pct={liquidity_percentile:.0f})")
+                logger.info(f"{symbol} Stability Score: {risk_stability_score:.1f} (Vol_pct={vol_percentile:.0f}, Downside_pct={downside_percentile:.0f}, Drawdown_pct={drawdown_percentile:.0f}, Beta_pct={beta_percentile:.0f}, Using {'calc' if downside_volatility is not None else 'proxy'} downside)")
 
         except Exception as e:
             import traceback

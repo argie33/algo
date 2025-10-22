@@ -37,15 +37,34 @@ def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-    sec = json.loads(secret_str)
+    """Get database configuration from local env or AWS Secrets Manager."""
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    # AWS mode - use Secrets Manager
+    if db_secret_arn:
+        try:
+            secret_str = boto3.client("secretsmanager") \
+                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host":   sec["host"],
+                "port":   int(sec.get("port", 5432)),
+                "user":   sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.error(f"Failed to get secrets from AWS: {e}")
+            raise
+
+    # Local mode - use environment variables
+    logging.info("Using local database configuration from environment variables")
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"]
+        "host":   os.environ.get("DB_HOST", "localhost"),
+        "port":   int(os.environ.get("DB_PORT", 5432)),
+        "user":   os.environ.get("DB_USER", "postgres"),
+        "password": os.environ.get("DB_PASSWORD", "password"),
+        "dbname": os.environ.get("DB_NAME", "stocks")
     }
 
 def create_table(cur):
@@ -66,17 +85,22 @@ def create_table(cur):
     """)
 
 def fetch_analyst_actions(symbol):
-    # yfinance: Ticker(symbol).get_analyst_price_target_history() is not available, but recommendations is
+    # yfinance: Use upgrades_downgrades for analyst rating changes
     ticker = yf.Ticker(symbol)
     try:
-        df = ticker.recommendations
+        df = ticker.upgrades_downgrades
     except Exception as e:
-        logging.warning(f"Failed to fetch recommendations for {symbol}: {e}")
+        logging.warning(f"Failed to fetch upgrades/downgrades for {symbol}: {e}")
         return None
     if df is None or df.empty:
         return None
-    # Only keep upgrade/downgrade actions
-    df = df[df["To Grade"].notna() | df["From Grade"].notna()]
+
+    # yfinance returns upgrades_downgrades with columns:
+    # Firm, ToGrade, FromGrade, Action, priceTargetAction, currentPriceTarget, priorPriceTarget
+    if df.empty:
+        return None
+
+    # Keep all rows with upgrade/downgrade data
     return df
 
 def load_analyst_actions(symbols, cur, conn):
@@ -91,14 +115,29 @@ def load_analyst_actions(symbols, cur, conn):
             continue
         rows = []
         for dt, row in df.iterrows():
+            # Map yfinance column names (upgrades_downgrades dataframe)
+            firm = row.get("Firm")
+            action = row.get("Action")
+            from_grade = row.get("FromGrade")
+            to_grade = row.get("ToGrade")
+
+            # Build details from price target info if available
+            price_action = row.get("priceTargetAction", "")
+            current_target = row.get("currentPriceTarget", 0)
+            details = f"{price_action} price target to ${current_target}" if current_target > 0 else None
+
+            # Skip if no useful data
+            if not any([firm, action, from_grade, to_grade]):
+                continue
+
             rows.append([
                 symbol,
-                row.get("Firm"),
-                row.get("Action"),
-                row.get("From Grade"),
-                row.get("To Grade"),
+                firm,
+                action,
+                from_grade,
+                to_grade,
                 dt.date() if hasattr(dt, 'date') else dt,
-                row.get("Details") if "Details" in row else None
+                details
             ])
         if not rows:
             continue
@@ -180,4 +219,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-EOF < /dev/null

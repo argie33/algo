@@ -66,7 +66,6 @@ const AnalystInsights = () => {
             item.action && item.action.toLowerCase().includes(filterAction.toLowerCase())
           );
         }
-        console.log("Filtered upgrades:", filteredUpgrades);
         setUpgrades(filteredUpgrades);
       } else {
         throw new Error(upgradesData.error || 'Failed to fetch analyst data');
@@ -350,98 +349,100 @@ const AnalystInsights = () => {
       </Box>
 
       {/* Upgrades/Downgrades Table */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TimelineIcon />
-            Recent Analyst Actions
-          </Typography>
+      {filteredUpgrades.length > 0 ? (
+        <Card sx={{ mb: 4 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TimelineIcon />
+              Recent Analyst Actions
+            </Typography>
 
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Symbol</TableCell>
-                  <TableCell>Company Name</TableCell>
-                  <TableCell>Firm</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>From Grade</TableCell>
-                  <TableCell>To Grade</TableCell>
-                  <TableCell>Date</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(rowsPerPage > 0
-                  ? filteredUpgrades.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage)
-                  : filteredUpgrades
-                ).map((upgrade, index) => (
-                  <TableRow key={upgrade.id || index} hover>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        fontWeight="bold"
-                        sx={{ cursor: 'pointer', color: 'primary.main' }}
-                        onClick={() => fetchSymbolData(upgrade.symbol)}
-                      >
-                        {upgrade.symbol}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                      >
-                        {upgrade.company_name || 'N/A'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {upgrade.firm || 'N/A'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {getActionIcon(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
-                        <Chip
-                          label={upgrade.action === 'main' ? 'maint' : (upgrade.action || 'N/A')}
-                          color={getActionColor(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
-                          size="small"
-                        />
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {upgrade.from_grade || 'N/A'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {upgrade.to_grade || 'N/A'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {formatDate(upgrade.date)}
-                      </Typography>
-                    </TableCell>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell>Company Name</TableCell>
+                    <TableCell>Firm</TableCell>
+                    <TableCell>Action</TableCell>
+                    <TableCell>From Grade</TableCell>
+                    <TableCell>To Grade</TableCell>
+                    <TableCell>Date</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <TablePagination
-            component="div"
-            count={filteredUpgrades.length}
-            page={tablePage}
-            onPageChange={(e, newPage) => setTablePage(newPage)}
-            rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(e) => {
-              setRowsPerPage(parseInt(e.target.value, 10));
-              setTablePage(0);
-            }}
-            rowsPerPageOptions={[10, 25, 50, 100, { label: 'All', value: -1 }]}
-          />
-        </CardContent>
-      </Card>
+                </TableHead>
+                <TableBody>
+                  {(rowsPerPage > 0
+                    ? filteredUpgrades.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage)
+                    : filteredUpgrades
+                  ).map((upgrade, index) => (
+                    <TableRow key={upgrade.id || index} hover>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          fontWeight="bold"
+                          sx={{ cursor: 'pointer', color: 'primary.main' }}
+                          onClick={() => fetchSymbolData(upgrade.symbol)}
+                        >
+                          {upgrade.symbol}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                        >
+                          {upgrade.company_name || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {upgrade.firm || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {getActionIcon(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
+                          <Chip
+                            label={upgrade.action === 'main' ? 'maint' : (upgrade.action || 'N/A')}
+                            color={getActionColor(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
+                            size="small"
+                          />
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {upgrade.from_grade || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {upgrade.to_grade || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {formatDate(upgrade.date)}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <TablePagination
+              component="div"
+              count={filteredUpgrades.length}
+              page={tablePage}
+              onPageChange={(e, newPage) => setTablePage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value, 10));
+                setTablePage(0);
+              }}
+              rowsPerPageOptions={[10, 25, 50, 100, { label: 'All', value: -1 }]}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
 
       {/* Symbol Detail Modal would go here - simplified for now */}

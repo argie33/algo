@@ -44,7 +44,7 @@ router.get("/upgrades", async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Query your actual analyst_upgrade_downgrade table from YFinance
-    // Performance optimization: Add 180-day filter to reduce query time
+    // Get all available analyst data (no date filter for dev purposes)
     const upgradesQuery = `
       SELECT
         a.id,
@@ -59,7 +59,6 @@ router.get("/upgrades", async (req, res) => {
         a.fetched_at
       FROM analyst_upgrade_downgrade a
       LEFT JOIN company_profile c ON a.symbol = c.ticker
-      WHERE a.date >= CURRENT_DATE - INTERVAL '30 days'
       ORDER BY a.date DESC, a.fetched_at DESC
       LIMIT $1 OFFSET $2
     `;

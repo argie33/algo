@@ -21,20 +21,34 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
 logger = logging.getLogger()
 
 # ─── Environment variables ──────────────────────────────────────────────────────
-DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
-FRED_API_KEY  = os.environ["FRED_API_KEY"]
+DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
+FRED_API_KEY  = os.environ.get("FRED_API_KEY")
 
 def get_db_creds():
-    """Fetch DB creds (username, password, host, port, dbname) from Secrets Manager."""
-    sm = boto3.client("secretsmanager")
-    resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec = json.loads(resp["SecretString"])
+    """Fetch DB creds from Secrets Manager or environment variables."""
+    # First, try to use AWS Secrets Manager (for production/Lambda)
+    if DB_SECRET_ARN:
+        try:
+            sm = boto3.client("secretsmanager")
+            resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
+            sec = json.loads(resp["SecretString"])
+            return (
+                sec["username"],
+                sec["password"],
+                sec["host"],
+                int(sec["port"]),
+                sec["dbname"]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to fetch from Secrets Manager: {e}, falling back to environment variables")
+
+    # Fall back to environment variables (for local development)
     return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
+        os.environ.get("DB_USER", "postgres"),
+        os.environ.get("DB_PASSWORD", "password"),
+        os.environ.get("DB_HOST", "localhost"),
+        int(os.environ.get("DB_PORT", 5432)),
+        os.environ.get("DB_NAME", "stocks")
     )
 
 def get_economic_calendar_data():
@@ -393,6 +407,15 @@ def get_next_cpi_dates(today):
 
 def handler(event, context):
     try:
+        # Check FRED API key
+        if not FRED_API_KEY:
+            error_msg = "FRED_API_KEY environment variable is not set. Please set it to load economic data."
+            logger.error(error_msg)
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": error_msg})
+            }
+
         # 1) Connect
         user, pwd, host, port, db = get_db_creds()
         conn = psycopg2.connect(
@@ -414,7 +437,7 @@ def handler(event, context):
                 PRIMARY KEY (series_id, date)
             );
         """)
-        
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS economic_calendar (
                 id SERIAL PRIMARY KEY,
