@@ -496,49 +496,128 @@ const EconomicModeling = () => {
           {/* TAB 1: Leading Indicators */}
           <TabPanel value={tabValue} index={1}>
             <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="Leading Economic Indicators" />
-                  <CardContent>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Indicator</TableCell>
-                            <TableCell align="right">Value</TableCell>
-                            <TableCell align="right">Signal</TableCell>
-                            <TableCell>Description</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {economicData.leadingIndicators?.map((indicator, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell>
-                                <strong>{indicator.name}</strong>
-                              </TableCell>
-                              <TableCell align="right">{indicator.value}</TableCell>
-                              <TableCell align="right">
-                                <Chip
-                                  label={indicator.signal}
-                                  color={
-                                    indicator.signal === "Positive"
-                                      ? "success"
-                                      : indicator.signal === "Negative"
-                                        ? "error"
-                                        : "default"
-                                  }
-                                  size="small"
-                                />
-                              </TableCell>
-                              <TableCell>{indicator.description}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
+              {economicData.leadingIndicators?.map((indicator, idx) => (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={idx}>
+                  <Card
+                    sx={{
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      backgroundColor:
+                        indicator.signal === "Positive"
+                          ? "rgba(76, 175, 80, 0.05)"
+                          : indicator.signal === "Negative"
+                            ? "rgba(244, 67, 54, 0.05)"
+                            : "rgba(255, 152, 0, 0.05)",
+                      borderLeft:
+                        indicator.signal === "Positive"
+                          ? "4px solid #4caf50"
+                          : indicator.signal === "Negative"
+                            ? "4px solid #f44336"
+                            : "4px solid #ff9800",
+                    }}
+                  >
+                    <CardContent sx={{ pb: 0 }}>
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                        {indicator.name}
+                      </Typography>
+
+                      {/* Current Value */}
+                      <Box display="flex" alignItems="baseline" gap={1} mb={2}>
+                        <Typography
+                          variant="h4"
+                          sx={{
+                            fontWeight: "bold",
+                            color:
+                              indicator.signal === "Positive"
+                                ? "success.main"
+                                : indicator.signal === "Negative"
+                                  ? "error.main"
+                                  : "warning.main",
+                          }}
+                        >
+                          {indicator.value}
+                        </Typography>
+                      </Box>
+
+                      {/* Trend Indicator */}
+                      <Box display="flex" alignItems="center" gap={1} mb={2}>
+                        {indicator.trend === "up" ? (
+                          <TrendingUp sx={{ color: "success.main", fontSize: 20 }} />
+                        ) : indicator.trend === "down" ? (
+                          <TrendingDown sx={{ color: "error.main", fontSize: 20 }} />
+                        ) : (
+                          <TrendingFlat sx={{ color: "warning.main", fontSize: 20 }} />
+                        )}
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: "bold",
+                            color:
+                              indicator.trend === "up"
+                                ? "success.main"
+                                : indicator.trend === "down"
+                                  ? "error.main"
+                                  : "warning.main",
+                          }}
+                        >
+                          {Math.abs(indicator.change)}%{" "}
+                          {indicator.trend === "up" ? "↑" : indicator.trend === "down" ? "↓" : "→"}
+                        </Typography>
+                      </Box>
+
+                      {/* Sparkline Chart */}
+                      {indicator.history && indicator.history.length > 1 && (
+                        <ResponsiveContainer width="100%" height={60} margin={{ top: 5, right: 0, bottom: 0, left: 0 }}>
+                          <LineChart data={indicator.history}>
+                            <Line
+                              type="monotone"
+                              dataKey="value"
+                              stroke={
+                                indicator.signal === "Positive"
+                                  ? "#4caf50"
+                                  : indicator.signal === "Negative"
+                                    ? "#f44336"
+                                    : "#ff9800"
+                              }
+                              dot={false}
+                              isAnimationActive={false}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      )}
+
+                      {/* Signal & Description */}
+                      <Box mt={2}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                          <Typography variant="caption" color="text.secondary">
+                            Signal
+                          </Typography>
+                          <Chip
+                            label={indicator.signal}
+                            size="small"
+                            color={
+                              indicator.signal === "Positive"
+                                ? "success"
+                                : indicator.signal === "Negative"
+                                  ? "error"
+                                  : "default"
+                            }
+                          />
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {indicator.description}
+                        </Typography>
+                        {indicator.date && (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                            Last updated: {new Date(indicator.date).toLocaleDateString()}
+                          </Typography>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
 
               <Grid item xs={12}>
                 <Card>

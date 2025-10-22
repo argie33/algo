@@ -3812,28 +3812,23 @@ router.get("/leading-indicators", async (req, res) => {
   console.log("📈 Leading indicators endpoint called");
 
   try {
-    // Get latest values for key economic indicators from FRED data
+    // Get latest AND historical values for trend analysis
     // Query for economic indicators including full yield curve data
     const economicQuery = `
-      WITH latest_values AS (
-        SELECT
-          series_id,
-          value as value,
-          date,
-          ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
-        FROM economic_data
-        WHERE series_id IN (
-          'UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'T10Y2Y',
-          'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH',
-          -- Full yield curve maturities for comprehensive chart
-          'DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7',
-          'DGS10', 'DGS20', 'DGS30'
-        )
+      SELECT
+        series_id,
+        value,
+        date,
+        ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
+      FROM economic_data
+      WHERE series_id IN (
+        'UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'T10Y2Y',
+        'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH', 'ICSA',
+        -- Full yield curve maturities for comprehensive chart
+        'DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7',
+        'DGS10', 'DGS20', 'DGS30'
       )
-      SELECT series_id, value, date
-      FROM latest_values
-      WHERE rn = 1
-      ORDER BY series_id
+      ORDER BY series_id, date DESC
     `;
 
     // Also fetch upcoming economic calendar events
@@ -3860,18 +3855,48 @@ router.get("/leading-indicators", async (req, res) => {
     ]);
 
     const indicators = {};
+    const historicalData = {}; // Store historical data for trends
 
-    console.log(`📊 Leading indicators query returned ${result.rows?.length || 0} series`);
+    console.log(`📊 Leading indicators query returned ${result.rows?.length || 0} data points`);
     console.log(`📅 Economic calendar events found: ${calendarResult?.rows?.length || 0}`);
 
-    // Parse the results into a structured format
+    // Parse the results - organize by series and keep last 20 values for trend analysis
     result.rows.forEach((row) => {
-      indicators[row.series_id] = {
-        value: parseFloat(row.value),
-        date: row.date,
-      };
-      console.log(`  ✓ ${row.series_id}: ${row.value} (${row.date})`);
+      if (!historicalData[row.series_id]) {
+        historicalData[row.series_id] = [];
+      }
+      // Keep only the last 20 data points for each series
+      if (historicalData[row.series_id].length < 20) {
+        historicalData[row.series_id].push({
+          value: parseFloat(row.value),
+          date: row.date,
+        });
+      }
+      // Latest value (first one since we ordered by date DESC)
+      if (row.rn === 1) {
+        indicators[row.series_id] = {
+          value: parseFloat(row.value),
+          date: row.date,
+        };
+        console.log(`  ✓ ${row.series_id}: ${row.value} (${row.date})`);
+      }
     });
+
+    // Helper function to calculate trend data
+    const calculateTrend = (seriesId) => {
+      const hist = historicalData[seriesId];
+      if (!hist || hist.length < 2) return { change: 0, trend: "stable" };
+
+      const current = hist[0].value;
+      const previous = hist[1].value;
+      const changePercent = ((current - previous) / Math.abs(previous)) * 100;
+      const trend = current > previous ? "up" : current < previous ? "down" : "stable";
+
+      return {
+        change: Math.abs(changePercent) < 0.01 ? 0 : parseFloat(changePercent.toFixed(2)),
+        trend: trend,
+      };
+    };
 
     // VALIDATE required series exist - FAIL if missing (NO FALLBACK)
     const requiredSeries = ['UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y', 'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH'];
@@ -3936,143 +3961,148 @@ router.get("/leading-indicators", async (req, res) => {
             value: indicators["UNRATE"] ? indicators["UNRATE"].value.toFixed(1) + "%" : null,
             rawValue: indicators["UNRATE"] ? indicators["UNRATE"].value : null,
             unit: "%",
-            change: 0,
-            trend: "stable",
+            change: historicalData["UNRATE"] && historicalData["UNRATE"].length > 1
+              ? ((indicators["UNRATE"].value - historicalData["UNRATE"][1].value) / historicalData["UNRATE"][1].value * 100).toFixed(2)
+              : 0,
+            trend: historicalData["UNRATE"] && historicalData["UNRATE"].length > 1
+              ? (indicators["UNRATE"].value > historicalData["UNRATE"][1].value ? "up" : indicators["UNRATE"].value < historicalData["UNRATE"][1].value ? "down" : "stable")
+              : "stable",
             signal: indicators["UNRATE"] && indicators["UNRATE"].value < 4.5 ? "Positive" : indicators["UNRATE"] && indicators["UNRATE"].value > 6 ? "Negative" : "Neutral",
             description: "Percentage of labor force actively seeking employment",
             strength: indicators["UNRATE"] ? Math.min(100, Math.max(0, 100 - (indicators["UNRATE"].value - 3) * 10)) : 0,
             importance: "high",
             date: indicators["UNRATE"] ? indicators["UNRATE"].date : null,
+            history: historicalData["UNRATE"] ? historicalData["UNRATE"].reverse() : [], // Reverse to be chronological for charts
           },
           {
             name: "Inflation (CPI)",
             value: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value.toFixed(1) : null,
             rawValue: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value : null,
             unit: "Index",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("CPIAUCSL"),
             signal: indicators["CPIAUCSL"] && indicators["CPIAUCSL"].value < 260 ? "Positive" : indicators["CPIAUCSL"] && indicators["CPIAUCSL"].value > 310 ? "Negative" : "Neutral",
             description: "Consumer Price Index measuring inflation",
             strength: indicators["CPIAUCSL"] ? Math.min(100, Math.max(0, 100 - Math.abs(indicators["CPIAUCSL"].value - 280))) : 0,
             importance: "high",
             date: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].date : null,
+            history: historicalData["CPIAUCSL"] ? historicalData["CPIAUCSL"].reverse() : [],
           },
           {
             name: "Fed Funds Rate",
             value: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value.toFixed(2) + "%" : null,
             rawValue: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value : null,
             unit: "%",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("FEDFUNDS"),
             signal: indicators["FEDFUNDS"] && indicators["FEDFUNDS"].value < 2 ? "Positive" : indicators["FEDFUNDS"] && indicators["FEDFUNDS"].value > 4 ? "Negative" : "Neutral",
             description: "Federal Reserve target interest rate",
             strength: indicators["FEDFUNDS"] ? Math.min(100, Math.max(0, 100 - indicators["FEDFUNDS"].value * 15)) : 0,
             importance: "high",
             date: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].date : null,
+            history: historicalData["FEDFUNDS"] ? historicalData["FEDFUNDS"].reverse() : [],
           },
           {
             name: "GDP Growth",
             value: indicators["GDPC1"] ? (indicators["GDPC1"].value / 1000).toFixed(1) + "T" : null,
             rawValue: indicators["GDPC1"] ? indicators["GDPC1"].value : null,
             unit: "Billions",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("GDPC1"),
             signal: indicators["GDPC1"] && indicators["GDPC1"].value > 20000 ? "Positive" : indicators["GDPC1"] && indicators["GDPC1"].value < 18000 ? "Negative" : "Neutral",
             description: "Real Gross Domestic Product",
             strength: indicators["GDPC1"] ? Math.min(100, Math.max(0, (indicators["GDPC1"].value - 18000) / 50)) : 0,
             importance: "high",
             date: indicators["GDPC1"] ? indicators["GDPC1"].date : null,
+            history: historicalData["GDPC1"] ? historicalData["GDPC1"].reverse() : [],
           },
           {
             name: "Payroll Employment",
             value: indicators["PAYEMS"] ? (indicators["PAYEMS"].value / 1000).toFixed(1) + "M" : null,
             rawValue: indicators["PAYEMS"] ? indicators["PAYEMS"].value : null,
             unit: "Thousands",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("PAYEMS"),
             signal: indicators["PAYEMS"] && indicators["PAYEMS"].value > 155000 ? "Positive" : indicators["PAYEMS"] && indicators["PAYEMS"].value < 145000 ? "Negative" : "Neutral",
             description: "Total nonfarm payroll employment",
             strength: indicators["PAYEMS"] ? Math.min(100, Math.max(0, (indicators["PAYEMS"].value - 140000) / 200)) : 0,
             importance: "high",
             date: indicators["PAYEMS"] ? indicators["PAYEMS"].date : null,
+            history: historicalData["PAYEMS"] ? historicalData["PAYEMS"].reverse() : [],
           },
           {
             name: "Industrial Production",
             value: indicators["INDPRO"] ? indicators["INDPRO"].value.toFixed(1) : null,
             rawValue: indicators["INDPRO"] ? indicators["INDPRO"].value : null,
             unit: "Index",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("INDPRO"),
             signal: indicators["INDPRO"] && indicators["INDPRO"].value > 100 ? "Positive" : indicators["INDPRO"] && indicators["INDPRO"].value < 95 ? "Negative" : "Neutral",
             description: "Measure of real output for all manufacturing, mining, and utilities facilities",
             strength: indicators["INDPRO"] ? Math.min(100, Math.max(0, (indicators["INDPRO"].value - 90) * 2)) : 0,
             importance: "medium",
             date: indicators["INDPRO"] ? indicators["INDPRO"].date : null,
+            history: historicalData["INDPRO"] ? historicalData["INDPRO"].reverse() : [],
           },
           {
             name: "Housing Starts",
             value: indicators["HOUST"] ? indicators["HOUST"].value.toFixed(0) + "K" : null,
             rawValue: indicators["HOUST"] ? indicators["HOUST"].value : null,
             unit: "Thousands",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("HOUST"),
             signal: indicators["HOUST"] && indicators["HOUST"].value > 1500 ? "Positive" : indicators["HOUST"] && indicators["HOUST"].value < 1200 ? "Negative" : "Neutral",
             description: "Number of new residential construction projects started",
             strength: indicators["HOUST"] ? Math.min(100, Math.max(0, (indicators["HOUST"].value - 1000) / 10)) : 0,
             importance: "medium",
             date: indicators["HOUST"] ? indicators["HOUST"].date : null,
+            history: historicalData["HOUST"] ? historicalData["HOUST"].reverse() : [],
           },
           {
             name: "Consumer Sentiment",
             value: indicators["MICH"] ? indicators["MICH"].value.toFixed(1) : null,
             rawValue: indicators["MICH"] ? indicators["MICH"].value : null,
             unit: "Index",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("MICH"),
             signal: indicators["MICH"] && indicators["MICH"].value > 80 ? "Positive" : indicators["MICH"] && indicators["MICH"].value < 60 ? "Negative" : "Neutral",
             description: "Consumer confidence and spending expectations",
             strength: indicators["MICH"] ? Math.min(100, Math.max(0, indicators["MICH"].value - 20)) : 0,
             importance: "high",
             date: indicators["MICH"] ? indicators["MICH"].date : null,
+            history: historicalData["MICH"] ? historicalData["MICH"].reverse() : [],
           },
           {
             name: "S&P 500",
             value: indicators["SP500"] ? indicators["SP500"].value.toFixed(0) : null,
             rawValue: indicators["SP500"] ? indicators["SP500"].value : null,
             unit: "Index",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("SP500"),
             signal: indicators["SP500"] && indicators["SP500"].value > 5500 ? "Positive" : indicators["SP500"] && indicators["SP500"].value < 4500 ? "Negative" : "Neutral",
             description: "S&P 500 stock market index",
             strength: indicators["SP500"] ? Math.min(100, Math.max(0, (indicators["SP500"].value - 4000) / 30)) : 0,
             importance: "medium",
             date: indicators["SP500"] ? indicators["SP500"].date : null,
+            history: historicalData["SP500"] ? historicalData["SP500"].reverse() : [],
           },
           {
             name: "Market Volatility (VIX)",
             value: indicators["VIXCLS"] ? indicators["VIXCLS"].value.toFixed(1) : null,
             rawValue: indicators["VIXCLS"] ? indicators["VIXCLS"].value : null,
             unit: "Index",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("VIXCLS"),
             signal: indicators["VIXCLS"] && indicators["VIXCLS"].value < 15 ? "Positive" : indicators["VIXCLS"] && indicators["VIXCLS"].value > 25 ? "Negative" : "Neutral",
             description: "CBOE Volatility Index (fear gauge)",
             strength: indicators["VIXCLS"] ? Math.min(100, Math.max(0, 100 - indicators["VIXCLS"].value * 3)) : 0,
             importance: "medium",
             date: indicators["VIXCLS"] ? indicators["VIXCLS"].date : null,
+            history: historicalData["VIXCLS"] ? historicalData["VIXCLS"].reverse() : [],
           },
           {
             name: "Initial Jobless Claims",
             value: indicators["ICSA"] ? (indicators["ICSA"].value / 1000).toFixed(0) + "K" : null,
             rawValue: indicators["ICSA"] ? indicators["ICSA"].value : null,
             unit: "Thousands",
-            change: 0,
-            trend: "stable",
+            ...calculateTrend("ICSA"),
             signal: indicators["ICSA"] && indicators["ICSA"].value < 225 ? "Positive" : indicators["ICSA"] && indicators["ICSA"].value > 275 ? "Negative" : "Neutral",
             description: "Weekly unemployment insurance claims",
             strength: indicators["ICSA"] ? Math.min(100, Math.max(0, 100 - (indicators["ICSA"].value - 200) / 2)) : 0,
             importance: "medium",
             date: indicators["ICSA"] ? indicators["ICSA"].date : null,
+            history: historicalData["ICSA"] ? historicalData["ICSA"].reverse() : [],
           },
         ].filter(ind => ind.rawValue !== null), // Filter out indicators with no data
 

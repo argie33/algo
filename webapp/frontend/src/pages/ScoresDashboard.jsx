@@ -841,9 +841,9 @@ const ScoresDashboard = () => {
           </Paper>
         ) : (
           <Box>
-            {displayedStocks.map((stock) => (
+            {displayedStocks.map((stock, index) => (
             <Accordion
-              key={stock.symbol}
+              key={`${stock.symbol}-${index}`}
               expanded={expandedStock === stock.symbol}
               onChange={handleAccordionChange(stock.symbol)}
               sx={{ mb: 1 }}
@@ -2317,7 +2317,7 @@ const ScoresDashboard = () => {
                     </TableHead>
                     <TableBody>
                       {sectorStocks.map((stock, index) => (
-                        <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
+                        <TableRow key={`${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
                           <TableCell>{index + 1}</TableCell>
                           <TableCell>
                             <Typography fontWeight={600}>{stock.symbol}</Typography>
@@ -2373,7 +2373,7 @@ const ScoresDashboard = () => {
                 </TableHead>
                 <TableBody>
                   {topQuality.slice(0, 10).map((stock, index) => (
-                    <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
+                    <TableRow key={`topQuality-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>
                         <Typography fontWeight={600}>{stock.symbol}</Typography>
@@ -2411,7 +2411,7 @@ const ScoresDashboard = () => {
                 </TableHead>
                 <TableBody>
                   {topMomentum.slice(0, 10).map((stock, index) => (
-                    <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
+                    <TableRow key={`topMomentum-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>
                         <Typography fontWeight={600}>{stock.symbol}</Typography>
@@ -2449,7 +2449,7 @@ const ScoresDashboard = () => {
                 </TableHead>
                 <TableBody>
                   {topValue.slice(0, 10).map((stock, index) => (
-                    <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
+                    <TableRow key={`topValue-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>
                         <Typography fontWeight={600}>{stock.symbol}</Typography>
@@ -2487,7 +2487,7 @@ const ScoresDashboard = () => {
                 </TableHead>
                 <TableBody>
                   {topGrowth.slice(0, 10).map((stock, index) => (
-                    <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
+                    <TableRow key={`topGrowth-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>
                         <Typography fontWeight={600}>{stock.symbol}</Typography>
@@ -2525,7 +2525,7 @@ const ScoresDashboard = () => {
                 </TableHead>
                 <TableBody>
                   {topPositioning.slice(0, 10).map((stock, index) => (
-                    <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
+                    <TableRow key={`topPositioning-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>
                         <Typography fontWeight={600}>{stock.symbol}</Typography>
@@ -2563,7 +2563,7 @@ const ScoresDashboard = () => {
                 </TableHead>
                 <TableBody>
                   {topSentiment.slice(0, 10).map((stock, index) => (
-                    <TableRow key={stock.symbol} hover sx={{ cursor: "pointer" }}>
+                    <TableRow key={`topSentiment-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>
                         <Typography fontWeight={600}>{stock.symbol}</Typography>
