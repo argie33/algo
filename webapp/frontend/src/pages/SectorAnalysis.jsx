@@ -486,7 +486,10 @@ const SectorAnalysis = () => {
       );
     }
 
-    const history = trendData.trendData || [];
+    let history = trendData.trendData || [];
+
+    // Smooth out data by aggregating to weekly (like the small trend charts)
+    history = aggregateToWeekly(history);
 
     // Format date for x-axis display
     const formatXAxisDate = (dateString) => {
@@ -501,8 +504,8 @@ const SectorAnalysis = () => {
 
     // Find min and max ranks for better visualization
     const ranks = history.map(h => h.rank).filter(r => r !== null && r !== undefined);
-    const minRank = Math.min(...ranks);
-    const maxRank = Math.max(...ranks);
+    const minRank = ranks.length > 0 ? Math.min(...ranks) : 1;
+    const maxRank = ranks.length > 0 ? Math.max(...ranks) : 12;
 
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
